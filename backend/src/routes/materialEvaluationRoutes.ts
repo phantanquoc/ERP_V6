@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import materialEvaluationController from '@controllers/materialEvaluationController';
-import { authenticate, authorize } from '@middlewares/auth';
+import { authenticate, authorize, deviceOrJwtAuth } from '@middlewares/auth';
 import { UserRole } from '@types';
 import { createSingleUploadMiddleware } from '@middlewares/upload';
 
@@ -9,8 +9,7 @@ const router = Router();
 // Upload middleware for material evaluations
 const uploadMaterialEvaluation = createSingleUploadMiddleware('material-evaluations');
 
-// All material evaluation routes require authentication
-router.use(authenticate);
+// Kiosk-accessible endpoints — accept device key OR JWT
 
 /**
  * @swagger
@@ -45,7 +44,7 @@ router.use(authenticate);
  */
 router.get(
   '/',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  deviceOrJwtAuth('DATA_ENTRY'),
   materialEvaluationController.getAllMaterialEvaluations
 );
 
@@ -66,7 +65,7 @@ router.get(
  */
 router.post(
   '/generate-code',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  deviceOrJwtAuth('DATA_ENTRY'),
   materialEvaluationController.generateMaChien
 );
 
@@ -96,6 +95,7 @@ router.post(
  */
 router.get(
   '/ma-chien/:maChien',
+  authenticate,
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
   materialEvaluationController.getMaterialEvaluationByMaChien
 );
@@ -126,6 +126,7 @@ router.get(
  */
 router.get(
   '/:id/delete-info',
+  authenticate,
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
   materialEvaluationController.getDeleteInfo
 );
@@ -156,6 +157,7 @@ router.get(
  */
 router.get(
   '/:id',
+  authenticate,
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
   materialEvaluationController.getMaterialEvaluationById
 );
@@ -187,7 +189,7 @@ router.get(
  */
 router.post(
   '/',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  deviceOrJwtAuth('DATA_ENTRY'),
   uploadMaterialEvaluation,
   materialEvaluationController.createMaterialEvaluation
 );
@@ -228,6 +230,7 @@ router.post(
  */
 router.patch(
   '/:id',
+  authenticate,
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
   uploadMaterialEvaluation,
   materialEvaluationController.updateMaterialEvaluation
@@ -259,6 +262,7 @@ router.patch(
  */
 router.delete(
   '/:id',
+  authenticate,
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
   materialEvaluationController.deleteMaterialEvaluation
 );

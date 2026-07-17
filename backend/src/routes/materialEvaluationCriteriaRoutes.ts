@@ -1,12 +1,9 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { authenticate, authorize } from '@middlewares/auth';
+import { authenticate, authorize, deviceOrJwtAuth } from '@middlewares/auth';
 import { UserRole } from '@types';
 import materialEvaluationCriteriaService from '../services/materialEvaluationCriteriaService';
 
 const router = Router();
-
-// All material evaluation criteria routes require authentication
-router.use(authenticate);
 
 /**
  * @swagger
@@ -25,7 +22,7 @@ router.use(authenticate);
  */
 router.get(
   '/',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  deviceOrJwtAuth('DATA_ENTRY'),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const criteria = await materialEvaluationCriteriaService.getAllCriteria();
@@ -51,6 +48,7 @@ router.get(
  */
 router.get(
   '/next-code',
+  authenticate,
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
@@ -88,6 +86,7 @@ router.get(
  */
 router.get(
   '/:id',
+  authenticate,
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -124,6 +123,7 @@ router.get(
  */
 router.post(
   '/',
+  authenticate,
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -169,6 +169,7 @@ router.post(
  */
 router.put(
   '/:id',
+  authenticate,
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -208,6 +209,7 @@ router.put(
  */
 router.delete(
   '/:id',
+  authenticate,
   authorize(UserRole.ADMIN),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -238,6 +240,7 @@ router.delete(
  */
 router.post(
   '/seed',
+  authenticate,
   authorize(UserRole.ADMIN),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import machineSystemController from '@controllers/machineSystemController';
-import { authenticate } from '@middlewares/auth';
+import { authenticate, deviceOrJwtAuth } from '@middlewares/auth';
 import { createSingleUploadMiddleware } from '@middlewares/upload';
 import { requireTechnicalAccess, TECHNICAL_SUB_DEPARTMENT_CODES } from './technicalAccess';
 
@@ -8,19 +8,20 @@ const router = Router();
 const upload = createSingleUploadMiddleware('machine-systems');
 const technicalAccess = requireTechnicalAccess(TECHNICAL_SUB_DEPARTMENT_CODES.QLHTM);
 
-router.use(authenticate);
+// Kiosk-accessible endpoint — accept device key OR JWT
+router.get('/active-production', deviceOrJwtAuth('DATA_ENTRY'), machineSystemController.getActiveProductionMachines.bind(machineSystemController));
 
-router.get('/generate-code', machineSystemController.getNextCode.bind(machineSystemController));
-router.get('/distinct-fields', machineSystemController.getDistinctFields.bind(machineSystemController));
-router.get('/active-production', machineSystemController.getActiveProductionMachines.bind(machineSystemController));
-router.get('/', machineSystemController.getAll.bind(machineSystemController));
-router.get('/export/excel', machineSystemController.exportExcel.bind(machineSystemController));
-router.get('/:id', machineSystemController.getById.bind(machineSystemController));
-router.get('/:id/summary', machineSystemController.getSummary.bind(machineSystemController));
-router.post('/', technicalAccess, upload, machineSystemController.create.bind(machineSystemController));
-router.post('/:id/clone', technicalAccess, machineSystemController.clone.bind(machineSystemController));
-router.post('/:id/status', technicalAccess, machineSystemController.updateStatus.bind(machineSystemController));
-router.put('/:id', technicalAccess, upload, machineSystemController.update.bind(machineSystemController));
-router.delete('/:id', technicalAccess, machineSystemController.remove.bind(machineSystemController));
+// Desktop-only endpoints — require JWT
+router.get('/generate-code', authenticate, machineSystemController.getNextCode.bind(machineSystemController));
+router.get('/distinct-fields', authenticate, machineSystemController.getDistinctFields.bind(machineSystemController));
+router.get('/', authenticate, machineSystemController.getAll.bind(machineSystemController));
+router.get('/export/excel', authenticate, machineSystemController.exportExcel.bind(machineSystemController));
+router.get('/:id', authenticate, machineSystemController.getById.bind(machineSystemController));
+router.get('/:id/summary', authenticate, machineSystemController.getSummary.bind(machineSystemController));
+router.post('/', authenticate, technicalAccess, upload, machineSystemController.create.bind(machineSystemController));
+router.post('/:id/clone', authenticate, technicalAccess, machineSystemController.clone.bind(machineSystemController));
+router.post('/:id/status', authenticate, technicalAccess, machineSystemController.updateStatus.bind(machineSystemController));
+router.put('/:id', authenticate, technicalAccess, upload, machineSystemController.update.bind(machineSystemController));
+router.delete('/:id', authenticate, technicalAccess, machineSystemController.remove.bind(machineSystemController));
 
 export default router;

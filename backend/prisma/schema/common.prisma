@@ -1204,6 +1204,7 @@ model AttendanceDevice {
   name      String
   apiKey    String   @unique @default(cuid())
   location  String?
+  type      String   @default("FACE")
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
