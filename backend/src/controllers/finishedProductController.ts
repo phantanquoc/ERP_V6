@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import finishedProductService from '@services/finishedProductService';
 import type { AuthenticatedRequest } from '@types';
 import { getFileUrl } from '@middlewares/upload';
+import { ValidationError } from '@utils/errors';
+import prisma from '@config/database';
 
 interface RequestWithFile extends AuthenticatedRequest {
   file?: Express.Multer.File;
@@ -147,7 +149,16 @@ export class FinishedProductController {
   async bulkConfirmReceipt(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const { maChienList, warehouseId, lotId } = req.body;
-      const employeeId = req.user?.id ?? '';
+      let employeeId: string;
+      if (req.isKioskDevice) {
+        const operatorId = req.kioskOperatorId;
+        if (!operatorId) throw new ValidationError('Thiếu x-operator-id header');
+        const employee = await prisma.employee.findUnique({ where: { id: operatorId } });
+        if (!employee) throw new ValidationError('Người thực hiện không tồn tại');
+        employeeId = operatorId;
+      } else {
+        employeeId = req.user?.id ?? '';
+      }
 
       const result = await finishedProductService.confirmBulkFinishedProductWarehouseReceipt(
         maChienList,

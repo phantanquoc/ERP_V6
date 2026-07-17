@@ -1302,10 +1302,12 @@ export class FaceAttendanceService {
     };
   }
 
-  /** Validate device API key */
-  async validateDevice(apiKey: string) {
+  /** Validate device API key — optionally constrain to a specific type */
+  async validateDevice(apiKey: string, requiredType?: string) {
     const device = await prisma.attendanceDevice.findUnique({ where: { apiKey } });
-    return device?.isActive ? device : null;
+    if (!device?.isActive) return null;
+    if (requiredType && device.type !== requiredType) return null;
+    return device;
   }
 
   /** Lấy danh sách logs */
@@ -1360,12 +1362,17 @@ export class FaceAttendanceService {
 
   // ─── Device Management ──────────────────────────────────────────────────
 
-  async listDevices() {
-    return prisma.attendanceDevice.findMany({ orderBy: { createdAt: 'desc' } });
+  async listDevices(type?: string) {
+    const where = type ? { type } : {};
+    return prisma.attendanceDevice.findMany({ where, orderBy: { createdAt: 'desc' } });
   }
 
-  async createDevice(name: string, location?: string) {
-    return prisma.attendanceDevice.create({ data: { name, location } });
+  async createDevice(name: string, location?: string, type: string = 'FACE') {
+    const validTypes = ['FACE', 'DATA_ENTRY'];
+    if (!validTypes.includes(type)) {
+      throw new ValidationError(`Loại thiết bị không hợp lệ. Cho phép: ${validTypes.join(', ')}`);
+    }
+    return prisma.attendanceDevice.create({ data: { name, location, type } });
   }
 
   async toggleDevice(deviceId: string) {

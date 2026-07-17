@@ -1,8 +1,12 @@
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 import { ModalForm, ModalFooter, FormField, inputCls, selectCls, textareaCls } from './ModalForm';
 import { useCreateMaintenanceRecord, useUpdateMaintenanceRecord, useGeneratedRecordCode } from '../hooks/useMaintenanceRecords';
 import { useMachineSystemDetails } from '../hooks/useMachineSystemDetails';
+import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
 import { MaintenanceRecord } from '../services/maintenanceRecordService';
+import EmployeeCombobox from './common/EmployeeCombobox';
+import EmployeeMultiCombobox from './common/EmployeeMultiCombobox';
 
 interface Props {
   mode: 'create' | 'edit' | 'view';
@@ -28,6 +32,7 @@ const MaintenanceRecordForm = ({ mode, record, systems, onClose, lockedMachineSy
     record?.ngayThucHien ? record.ngayThucHien.slice(0, 10) : new Date().toISOString().slice(0, 10)
   );
   const [nguoiThucHien, setNguoiThucHien] = useState(record?.nguoiThucHien ?? '');
+  const [nguoiPhu, setNguoiPhu] = useState<string[]>(record?.nguoiPhu ?? []);
   const [file, setFile] = useState<File | undefined>();
 
   const { data: codeResponse } = useGeneratedRecordCode();
@@ -37,6 +42,7 @@ const MaintenanceRecordForm = ({ mode, record, systems, onClose, lockedMachineSy
     machineSystemId: machineSystemId || undefined,
     hoatDong: true,
   });
+  const { data: employees = [] } = useEmployeesForAssignment();
 
   const createRecord = useCreateMaintenanceRecord();
   const updateRecord = useUpdateMaintenanceRecord();
@@ -45,7 +51,10 @@ const MaintenanceRecordForm = ({ mode, record, systems, onClose, lockedMachineSy
   const generatedCode = codeResponse?.data?.code ?? '';
 
   const handleSubmit = async () => {
-    if (!machineSystemId || !machineSystemDetailId || !noiDung || !tinhTrangTruoc || !tinhTrangSau || !nguoiThucHien) return;
+    if (!machineSystemId || !machineSystemDetailId || !noiDung || !tinhTrangTruoc || !tinhTrangSau || !nguoiThucHien) {
+      toast.error('Vui lòng điền đầy đủ thông tin bắt buộc');
+      return;
+    }
     const payload = {
       machineSystemId,
       machineSystemDetailId,
@@ -57,14 +66,21 @@ const MaintenanceRecordForm = ({ mode, record, systems, onClose, lockedMachineSy
       thoiGianThucHien: thoiGianThucHien || undefined,
       ngayThucHien,
       nguoiThucHien,
+      nguoiPhu,
     };
 
-    if (isEdit && record) {
-      await updateRecord.mutateAsync({ id: record.id, data: payload, file });
-    } else {
-      await createRecord.mutateAsync({ data: payload, file });
+    try {
+      if (isEdit && record) {
+        await updateRecord.mutateAsync({ id: record.id, data: payload, file });
+        toast.success('Cập nhật biên bản thành công');
+      } else {
+        await createRecord.mutateAsync({ data: payload, file });
+        toast.success('Tạo biên bản thành công');
+      }
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Có lỗi xảy ra, vui lòng thử lại');
     }
-    onClose();
   };
 
   const title = mode === 'create' ? 'Tạo biên bản BD/SC' : mode === 'edit' ? 'Sửa biên bản' : `Chi tiết: ${record?.maBienBan}`;
@@ -145,8 +161,18 @@ const MaintenanceRecordForm = ({ mode, record, systems, onClose, lockedMachineSy
           <FormField label="Thời gian thực hiện">
             <input value={thoiGianThucHien} onChange={(e) => setThoiGianThucHien(e.target.value)} disabled={isView} placeholder="VD: 10h30-11h00" className={inputCls()} />
           </FormField>
-          <FormField label="Người thực hiện" required>
-            <input value={nguoiThucHien} onChange={(e) => setNguoiThucHien(e.target.value)} disabled={isView} className={inputCls()} />
+          <FormField label="Người thực hiện chính" required>
+            {isView ? (
+              <p className="text-sm text-gray-700 pt-1.5">{nguoiThucHien || '—'}</p>
+            ) : (
+              <EmployeeCombobox
+                employees={employees}
+                value={nguoiThucHien}
+                onChange={setNguoiThucHien}
+                placeholder="Tìm nhân viên..."
+                disabled={isView}
+              />
+            )}
           </FormField>
           <FormField label="File đính kèm">
             {isView ? (
@@ -164,6 +190,20 @@ const MaintenanceRecordForm = ({ mode, record, systems, onClose, lockedMachineSy
             )}
           </FormField>
         </div>
+
+        <FormField label="Người phụ (kiểm tra & thực hiện)">
+          {isView ? (
+            <p className="text-sm text-gray-700 pt-1.5">{nguoiPhu.length > 0 ? nguoiPhu.join(', ') : '—'}</p>
+          ) : (
+            <EmployeeMultiCombobox
+              employees={employees}
+              value={nguoiPhu}
+              onChange={setNguoiPhu}
+              placeholder="Tìm và thêm người phụ..."
+              disabled={isView}
+            />
+          )}
+        </FormField>
       </div>
     </ModalForm>
   );

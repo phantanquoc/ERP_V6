@@ -125,6 +125,8 @@ export interface AuthenticatedRequest extends Request {
   user?: JwtPayload;
   userDepartmentId?: string | null;
   userSubDepartmentId?: string | null;
+  isKioskDevice?: boolean;
+  kioskOperatorId?: string;
 }
 
 // Export task types

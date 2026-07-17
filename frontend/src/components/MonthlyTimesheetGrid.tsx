@@ -180,8 +180,8 @@ const MonthlyTimesheetGrid: React.FC = () => {
     const headers: { day: number; weekday: string; isSunday: boolean }[] = [];
     const wdLabels = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
     for (let d = 1; d <= daysInMonth; d++) {
-      const dt = new Date(year, month - 1, d);
-      headers.push({ day: d, weekday: wdLabels[dt.getDay()], isSunday: dt.getDay() === 0 });
+      const dt = new Date(Date.UTC(year, month - 1, d));
+      headers.push({ day: d, weekday: wdLabels[dt.getUTCDay()], isSunday: dt.getUTCDay() === 0 });
     }
     return headers;
   }, [daysInMonth, month, year]);

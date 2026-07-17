@@ -5,7 +5,7 @@
 
 import AuthService from './authService';
 import { API_BASE_URL } from '../config/api';
-import { isKioskTab, getKioskAccess, getKioskRefresh, setKioskAccess, KIOSK_EXPIRED_EVENT } from '../utils/kioskSession';
+import { isKioskTab, getDeviceKey, getSelection, KIOSK_EXPIRED_EVENT } from '../utils/kioskSession';
 
 /**
  * Custom error class that preserves HTTP status code
@@ -47,42 +47,27 @@ class ApiClient {
   }
 
   /**
-   * Get authorization header with access token.
-   * In kiosk mode (per-tab flag), reads the dedicated kiosk token instead.
+   * Get authorization headers.
+   * In kiosk mode: sends x-device-key + x-operator-id (no Authorization).
+   * In desktop mode: sends Authorization Bearer token.
    */
   private getAuthHeader(): Record<string, string> {
-    const token = isKioskTab()
-      ? getKioskAccess()
-      : localStorage.getItem('accessToken');
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  }
-
-  /**
-   * Refresh the kiosk access token using the dedicated kiosk refresh token.
-   * Returns the new access token or null on failure.
-   */
-  private async refreshKioskToken(): Promise<string | null> {
-    try {
-      const refreshToken = getKioskRefresh();
-      if (!refreshToken) return null;
-
-      const response = await fetch(`${this.baseUrl}/auth/refresh-token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken }),
-      });
-
-      if (!response.ok) return null;
-
-      const data = await response.json();
-      if (!data.success || !data.data?.accessToken) return null;
-
-      const newAccessToken = data.data.accessToken;
-      setKioskAccess(newAccessToken);
-      return newAccessToken;
-    } catch {
-      return null;
+    if (isKioskTab()) {
+      const deviceKey = getDeviceKey();
+      const selection = getSelection();
+      if (deviceKey) {
+        // Kiosk activated — device key auth only
+        const headers: Record<string, string> = { 'x-device-key': deviceKey };
+        if (selection?.operatorId) headers['x-operator-id'] = selection.operatorId;
+        return headers;
+      }
+      // Kiosk tab not yet activated — fallback to JWT so admin can
+      // call authenticated endpoints (e.g. register a new device)
+      const token = localStorage.getItem('accessToken');
+      return token ? { Authorization: `Bearer ${token}` } : {};
     }
+    const token = localStorage.getItem('accessToken');
+    return token ? { Authorization: `Bearer ${token}` } : {};
   }
 
   /**
@@ -129,19 +114,9 @@ class ApiClient {
       // If 401, try to refresh token and retry
       if (response.status === 401) {
         if (isKioskTab()) {
-          // Kiosk mode: refresh using dedicated kiosk refresh token
-          const newToken = await this.refreshKioskToken();
-          if (newToken) {
-            headers.Authorization = `Bearer ${newToken}`;
-            response = await fetch(url, {
-              ...options,
-              headers,
-            });
-          } else {
-            // Signal kiosk expired — do NOT redirect to /login
-            window.dispatchEvent(new CustomEvent(KIOSK_EXPIRED_EVENT));
-            throw new Error('Kiosk session expired.');
-          }
+          // Kiosk mode: device key is invalid/expired — signal UI
+          window.dispatchEvent(new CustomEvent(KIOSK_EXPIRED_EVENT));
+          throw new Error('Kiosk session expired.');
         } else {
           // Normal ERP tab: existing behavior
           const newToken = await AuthService.refreshToken();
@@ -254,14 +229,8 @@ class ApiClient {
 
     if (response.status === 401) {
       if (isKioskTab()) {
-        const newToken = await this.refreshKioskToken();
-        if (newToken) {
-          headers.Authorization = `Bearer ${newToken}`;
-          response = await fetch(url, { method: 'GET', headers });
-        } else {
-          window.dispatchEvent(new CustomEvent(KIOSK_EXPIRED_EVENT));
-          throw new Error('Kiosk session expired.');
-        }
+        window.dispatchEvent(new CustomEvent(KIOSK_EXPIRED_EVENT));
+        throw new Error('Kiosk session expired.');
       } else {
         const newToken = await AuthService.refreshToken();
         if (newToken) {
