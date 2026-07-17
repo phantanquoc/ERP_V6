@@ -15,6 +15,9 @@ import { FinishedProduct } from '../../services/finishedProductService';
 import OperatorSelectionScreen from '../../components/production/OperatorSelectionScreen';
 import ShiftSelectionScreen from '../../components/production/ShiftSelectionScreen';
 import KioskFooter from '../../components/production/KioskFooter';
+import { useAuth } from '../../contexts/AuthContext';
+import { isAdmin } from '../../utils/permissions';
+import faceAttendanceService from '../../services/faceAttendanceService';
 import { Loader2, Save, CheckCircle, AlertTriangle, Eye, ArrowLeft, User, CalendarClock } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -291,6 +294,12 @@ const ProductionDataEntry: React.FC = () => {
   });
   const [showPreview, setShowPreview] = useState(false);
   const [deviceKeyInput, setDeviceKeyInput] = useState('');
+
+  // Admin self-registration state
+  const { user } = useAuth();
+  const userIsAdmin = user ? isAdmin(user.department) : false;
+  const [deviceName, setDeviceName] = useState('');
+  const [registering, setRegistering] = useState(false);
 
   // Board state: weight values per tab per cell
   const [board, setBoard] = useState<BoardData>(() => ({
@@ -679,6 +688,44 @@ const ProductionDataEntry: React.FC = () => {
           >
             Xác nhận
           </button>
+
+          {userIsAdmin && (
+            <>
+              <div className="flex items-center gap-2 pt-2">
+                <div className="flex-1 border-t border-gray-200" />
+                <span className="text-xs text-gray-400">hoặc</span>
+                <div className="flex-1 border-t border-gray-200" />
+              </div>
+              <input
+                type="text"
+                value={deviceName}
+                onChange={(e) => setDeviceName(e.target.value)}
+                placeholder="VD: Tablet Kho 1"
+                className="w-full min-h-[48px] px-4 py-3 border border-gray-300 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+              <button
+                disabled={!deviceName.trim() || registering}
+                onClick={async () => {
+                  setRegistering(true);
+                  try {
+                    const res = await faceAttendanceService.createDevice(deviceName.trim(), undefined, 'DATA_ENTRY');
+                    const key = res.data?.apiKey;
+                    if (!key) throw new Error('Không nhận được device key');
+                    setDeviceKey(key);
+                    toast.success('Đã đăng ký & kích hoạt thiết bị');
+                  } catch (err: any) {
+                    toast.error(err instanceof Error ? err.message : 'Đăng ký thiết bị thất bại');
+                  } finally {
+                    setRegistering(false);
+                  }
+                }}
+                className="w-full min-h-[48px] bg-green-600 text-white rounded-xl font-medium disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                {registering && <Loader2 className="w-4 h-4 animate-spin" />}
+                Đăng ký & kích hoạt
+              </button>
+            </>
+          )}
         </div>
       </div>
     );
