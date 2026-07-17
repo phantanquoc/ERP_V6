@@ -61,8 +61,8 @@ export const useUpdateMaintenancePlan = () => {
 export const useToggleMonth = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ planId, itemId, month, lanThu, ghiChu, nguoiThucHien }: { planId: string; itemId: string; month: number; lanThu?: number; ghiChu?: string; nguoiThucHien?: string }) =>
-      maintenancePlanService.toggleMonth(planId, itemId, month, lanThu, ghiChu, nguoiThucHien),
+    mutationFn: ({ planId, itemId, month, lanThu, ghiChu, nguoiThucHien, nguoiPhu }: { planId: string; itemId: string; month: number; lanThu?: number; ghiChu?: string; nguoiThucHien?: string; nguoiPhu?: string[] }) =>
+      maintenancePlanService.toggleMonth(planId, itemId, month, lanThu, ghiChu, nguoiThucHien, nguoiPhu),
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: maintenancePlanKeys.lists() });
       const previousData = queryClient.getQueriesData({ queryKey: maintenancePlanKeys.lists() });
@@ -87,7 +87,7 @@ export const useToggleMonth = () => {
                   if (existingLog) {
                     newLogs = (item.logs ?? []).map((l: any) =>
                       l.thang === variables.month && l.lanThu === targetLanThu
-                        ? { ...l, hoanThanh: !l.hoanThanh, ngayThucHien: !l.hoanThanh ? new Date().toISOString() : null }
+                        ? { ...l, hoanThanh: !l.hoanThanh, ngayThucHien: !l.hoanThanh ? new Date().toISOString() : null, nguoiPhu: variables.nguoiPhu ?? l.nguoiPhu ?? [] }
                         : l,
                     );
                   } else {
@@ -101,6 +101,7 @@ export const useToggleMonth = () => {
                         hoanThanh: true,
                         ghiChu: variables.ghiChu || null,
                         nguoiThucHien: variables.nguoiThucHien || null,
+                        nguoiPhu: variables.nguoiPhu ?? [],
                         ngayThucHien: new Date().toISOString(),
                         createdAt: new Date().toISOString(),
                         updatedAt: new Date().toISOString(),
@@ -135,7 +136,7 @@ export const useToggleMonth = () => {
 export const useUpdateLogNote = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ logId, data }: { logId: string; data: { ghiChu?: string; nguoiThucHien?: string } }) =>
+    mutationFn: ({ logId, data }: { logId: string; data: { ghiChu?: string; nguoiThucHien?: string; nguoiPhu?: string[] } }) =>
       maintenancePlanService.updateLogNote(logId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: maintenancePlanKeys.lists() });

@@ -5,6 +5,7 @@ import { useSystemSettings } from '../contexts/SystemSettingsContext';
 import { isAdmin } from '../utils/permissions';
 import systemSettingsService from '../services/systemSettingsService';
 import NotificationPreferencesSection from '../components/NotificationPreferencesSection';
+import DeviceManagementSection from '../components/DeviceManagementSection';
 
 const THEMES = [
   {
@@ -301,6 +302,9 @@ const SystemSettingsPage: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Device Management */}
+          <DeviceManagementSection />
         </>
       )}
     </div>

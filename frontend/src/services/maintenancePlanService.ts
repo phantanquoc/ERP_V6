@@ -9,6 +9,7 @@ export interface MaintenancePlanItemLog {
   ghiChu: string | null;
   ngayThucHien: string | null;
   nguoiThucHien: string | null;
+  nguoiPhu: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -48,6 +49,7 @@ export interface MaintenancePlan {
 }
 
 export interface CreatePlanItemRequest {
+  id?: string;
   machineSystemDetailId: string;
   maintenanceTemplateId?: string;
   noiDung?: string;
@@ -123,11 +125,11 @@ class MaintenancePlanService {
     return apiClient.put<MaintenancePlan>(`/maintenance-plans/${id}`, data);
   }
 
-  async toggleMonth(planId: string, itemId: string, month: number, lanThu: number = 1, ghiChu?: string, nguoiThucHien?: string) {
-    return apiClient.patch<MaintenancePlanItemLog>(`/maintenance-plans/${planId}/items/${itemId}/toggle`, { month, lanThu, ghiChu, nguoiThucHien });
+  async toggleMonth(planId: string, itemId: string, month: number, lanThu: number = 1, ghiChu?: string, nguoiThucHien?: string, nguoiPhu?: string[]) {
+    return apiClient.patch<MaintenancePlanItemLog>(`/maintenance-plans/${planId}/items/${itemId}/toggle`, { month, lanThu, ghiChu, nguoiThucHien, nguoiPhu });
   }
 
-  async updateLogNote(logId: string, data: { ghiChu?: string; nguoiThucHien?: string }) {
+  async updateLogNote(logId: string, data: { ghiChu?: string; nguoiThucHien?: string; nguoiPhu?: string[] }) {
     return apiClient.patch<MaintenancePlanItemLog>(`/maintenance-plans/logs/${logId}/note`, data);
   }
 

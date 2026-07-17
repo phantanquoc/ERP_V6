@@ -85,6 +85,7 @@ export interface AttendanceDevice {
   id: string;
   name: string;
   location: string | null;
+  type: string;
   isActive: boolean;
   apiKey: string;
   createdAt: string;
@@ -139,8 +140,8 @@ const faceAttendanceService = {
   listDevices: () =>
     apiClient.get<AttendanceDevice[]>(`${BASE}/devices`),
 
-  createDevice: (name: string, location?: string) =>
-    apiClient.post<AttendanceDevice>(`${BASE}/devices`, { name, location }),
+  createDevice: (name: string, location?: string, type?: string) =>
+    apiClient.post<AttendanceDevice>(`${BASE}/devices`, { name, location, type }),
 
   toggleDevice: (deviceId: string) =>
     apiClient.patch<AttendanceDevice>(`${BASE}/devices/${deviceId}/toggle`, {}),

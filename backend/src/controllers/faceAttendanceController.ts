@@ -124,9 +124,10 @@ export class FaceAttendanceController {
 
   // ─── Device Management ───────────────────────────────────────────────────
 
-  async listDevices(_req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  async listDevices(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const data = await faceAttendanceService.listDevices();
+      const type = req.query.type as string | undefined;
+      const data = await faceAttendanceService.listDevices(type);
       res.json({ success: true, data });
     } catch (error) {
       next(error);
@@ -135,9 +136,9 @@ export class FaceAttendanceController {
 
   async createDevice(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { name, location } = req.body as { name: string; location?: string };
+      const { name, location, type } = req.body as { name: string; location?: string; type?: string };
       if (!name) throw new ValidationError('Tên thiết bị là bắt buộc');
-      const device = await faceAttendanceService.createDevice(name, location);
+      const device = await faceAttendanceService.createDevice(name, location, type);
       res.status(201).json({ success: true, data: device });
     } catch (error) {
       next(error);
@@ -164,7 +165,7 @@ export class FaceAttendanceController {
         return;
       }
 
-      const valid = await faceAttendanceService.validateDevice(apiKey);
+      const valid = await faceAttendanceService.validateDevice(apiKey, 'FACE');
       if (!valid) {
         res.status(403).json({ success: false, message: 'Device key không hợp lệ hoặc đã bị vô hiệu hóa' });
         return;

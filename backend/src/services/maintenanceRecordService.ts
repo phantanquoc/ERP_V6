@@ -30,6 +30,7 @@ export interface CreateMaintenanceRecordData {
   thoiGianThucHien?: string;
   ngayThucHien: Date;
   nguoiThucHien: string;
+  nguoiPhu?: string[];
   fileDinhKem?: string;
   userId?: string;
 }
@@ -68,10 +69,18 @@ class MaintenanceRecordService {
       if (filters.endDate) where.ngayThucHien.lte = new Date(filters.endDate);
     }
     if (filters.search) {
+      // Raw SQL pre-query for partial + case-insensitive match on TEXT[] column nguoiPhu
+      const term = `%${filters.search}%`;
+      const nguoiPhuRows = await prisma.$queryRaw<Array<{ id: string }>>(
+        Prisma.sql`SELECT id FROM "business"."maintenance_records" WHERE EXISTS (SELECT 1 FROM unnest("nguoiPhu") AS np WHERE np ILIKE ${term})`
+      );
+      const nguoiPhuMatchIds = nguoiPhuRows.map(r => r.id);
+
       where.OR = [
         { maBienBan: { contains: filters.search, mode: 'insensitive' } },
         { noiDung: { contains: filters.search, mode: 'insensitive' } },
         { nguoiThucHien: { contains: filters.search, mode: 'insensitive' } },
+        ...(nguoiPhuMatchIds.length > 0 ? [{ id: { in: nguoiPhuMatchIds } }] : []),
         { machineSystemDetail: { tenChiTiet: { contains: filters.search, mode: 'insensitive' } } },
       ];
     }
@@ -110,6 +119,7 @@ class MaintenanceRecordService {
         thoiGianThucHien: data.thoiGianThucHien,
         ngayThucHien: new Date(data.ngayThucHien),
         nguoiThucHien: data.nguoiThucHien,
+        nguoiPhu: data.nguoiPhu ?? [],
         fileDinhKem: data.fileDinhKem,
         createdById: data.userId ?? null,
       },
@@ -137,6 +147,7 @@ class MaintenanceRecordService {
         thoiGianThucHien: data.thoiGianThucHien,
         ngayThucHien: data.ngayThucHien ? new Date(data.ngayThucHien) : undefined,
         nguoiThucHien: data.nguoiThucHien,
+        nguoiPhu: data.nguoiPhu,
         fileDinhKem: data.fileDinhKem,
       },
       include: recordInclude,
@@ -165,6 +176,7 @@ class MaintenanceRecordService {
       { header: 'Thời gian', key: 'thoiGian', width: 14 },
       { header: 'Ngày', key: 'ngay', width: 12 },
       { header: 'Người thực hiện', key: 'nguoi', width: 16 },
+      { header: 'Người phụ', key: 'nguoiPhu', width: 30 },
     ];
 
     for (const r of data) {
@@ -180,6 +192,7 @@ class MaintenanceRecordService {
         thoiGian: r.thoiGianThucHien ?? '',
         ngay: r.ngayThucHien,
         nguoi: r.nguoiThucHien,
+        nguoiPhu: ((r as any).nguoiPhu ?? []).join(', '),
       });
     }
 

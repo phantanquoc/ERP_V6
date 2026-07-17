@@ -140,7 +140,16 @@ const MaintenanceRecordList = ({ lockedMachineSystemId }: MaintenanceRecordListP
                   <td className="px-3 py-2 text-gray-700">{r.machineSystemDetail?.tenChiTiet ?? '—'}</td>
                   <td className="px-3 py-2 text-gray-700 max-w-[200px] truncate">{r.noiDung}</td>
                   <td className="px-3 py-2 text-center text-gray-600">{new Date(r.ngayThucHien).toLocaleDateString('vi-VN')}</td>
-                  <td className="px-3 py-2 text-gray-700">{r.nguoiThucHien}</td>
+                  <td className="px-3 py-2 text-gray-700">
+                    <div>
+                      {r.nguoiThucHien}
+                      {(r.nguoiPhu?.length ?? 0) > 0 && (
+                        <span className="ml-1 text-xs text-gray-400" title={r.nguoiPhu.join(', ')}>
+                          +{r.nguoiPhu.length} người phụ
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-3 py-2 text-center">
                     <div className="flex items-center justify-center gap-1">
                       <button onClick={() => openView(r)} className="p-1 text-gray-400 hover:text-blue-600 rounded"><Eye className="w-4 h-4" /></button>

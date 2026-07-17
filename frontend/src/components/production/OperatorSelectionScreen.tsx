@@ -4,7 +4,7 @@ import { useProductionEmployees } from '../../hooks/useProductionEmployees';
 import KioskFooter from './KioskFooter';
 
 interface OperatorSelectionScreenProps {
-  onSelect: (name: string) => void;
+  onSelect: (selection: { id: string; name: string }) => void;
 }
 
 /** Bỏ dấu tiếng Việt + lowercase để tìm kiếm không phân biệt dấu. */
@@ -82,7 +82,7 @@ const OperatorSelectionScreen: React.FC<OperatorSelectionScreenProps> = ({ onSel
           {filteredEmployees.map((emp) => (
             <button
               key={emp.id}
-              onClick={() => onSelect(emp.name)}
+              onClick={() => onSelect({ id: emp.id, name: emp.name })}
               className="w-full min-h-[52px] px-4 py-3 bg-white border border-gray-200 rounded-xl text-left hover:border-blue-400 hover:bg-blue-50 transition-colors"
             >
               <span className="text-base font-medium text-gray-800">{emp.name}</span>

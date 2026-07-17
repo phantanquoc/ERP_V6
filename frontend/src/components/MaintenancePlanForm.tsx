@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { ModalForm, ModalFooter, FormField, inputCls, selectCls, textareaCls } from './ModalForm';
-import { useCreateMaintenancePlan, useGeneratedPlanCode } from '../hooks/useMaintenancePlans';
+import { useCreateMaintenancePlan, useUpdateMaintenancePlan, useGeneratedPlanCode } from '../hooks/useMaintenancePlans';
 import { useMachineSystemDetails } from '../hooks/useMachineSystemDetails';
 import { useAuth } from '../contexts/AuthContext';
 import { MaintenancePlan } from '../services/maintenancePlanService';
@@ -29,6 +31,7 @@ const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, labe
 const NEEDS_START_MONTH = new Set(['HAI_THANG', 'BA_THANG', 'SAU_THANG', 'HANG_NAM']);
 
 interface ItemDraft {
+  id?: string;
   machineSystemDetailId: string;
   tenChiTiet: string;
   hoatDong: boolean;
@@ -37,6 +40,7 @@ interface ItemDraft {
   toThucHien: string;
   soLuong: number;
   thangBatDau: number;
+  completedCount: number;
 }
 
 interface Props {
@@ -57,6 +61,8 @@ const MaintenancePlanForm = ({ onClose, systems, year, plan, viewOnly, lockedMac
   const [bulkThangBatDau, setBulkThangBatDau] = useState(1);
   const [bulkToThucHien, setBulkToThucHien] = useState('CO_KHI');
 
+  const isEdit = !!plan && !viewOnly;
+
   const applyBulk = () => {
     setItems((prev) => prev.map((item) => ({
       ...item,
@@ -75,6 +81,7 @@ const MaintenancePlanForm = ({ onClose, systems, year, plan, viewOnly, lockedMac
   });
 
   const createPlan = useCreateMaintenancePlan();
+  const updatePlan = useUpdateMaintenancePlan();
   const details = detailsResponse?.data ?? [];
   const generatedCode = codeResponse?.data?.code ?? '';
 
@@ -82,6 +89,7 @@ const MaintenancePlanForm = ({ onClose, systems, year, plan, viewOnly, lockedMac
   useEffect(() => {
     if (plan?.items) {
       setItems(plan.items.map((i) => ({
+        id: i.id,
         machineSystemDetailId: i.machineSystemDetailId,
         tenChiTiet: i.machineSystemDetail?.tenChiTiet ?? '',
         hoatDong: i.machineSystemDetail?.hoatDong !== false,
@@ -90,6 +98,7 @@ const MaintenancePlanForm = ({ onClose, systems, year, plan, viewOnly, lockedMac
         toThucHien: i.toThucHien,
         soLuong: i.soLuong,
         thangBatDau: i.thangBatDau ?? 1,
+        completedCount: (i.logs ?? []).filter((l) => l.hoanThanh).length,
       })));
     }
   }, [plan]);
@@ -99,6 +108,7 @@ const MaintenancePlanForm = ({ onClose, systems, year, plan, viewOnly, lockedMac
     if (plan) return; // skip for existing plan — items come from plan.items
     if (!selectedSystemId || details.length === 0) return;
     setItems(details.map((d: any) => ({
+      id: undefined,
       machineSystemDetailId: d.id,
       tenChiTiet: d.tenChiTiet,
       hoatDong: d.hoatDong !== false,
@@ -107,6 +117,7 @@ const MaintenancePlanForm = ({ onClose, systems, year, plan, viewOnly, lockedMac
       toThucHien: 'CO_KHI',
       soLuong: 1,
       thangBatDau: 1,
+      completedCount: 0,
     })));
   }, [details, selectedSystemId, plan]);
 
@@ -114,40 +125,74 @@ const MaintenancePlanForm = ({ onClose, systems, year, plan, viewOnly, lockedMac
     setItems((prev) => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
   };
 
+  const handleRemoveItem = (index: number) => {
+    const item = items[index];
+    if (item.completedCount > 0) {
+      const ok = confirm(`Dòng "${item.tenChiTiet || 'thiết bị'}" có ${item.completedCount} tháng đã tick, ${item.completedCount} biên bản tự sinh sẽ bị xóa theo. Xác nhận xóa dòng này?`);
+      if (!ok) return;
+    }
+    setItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async () => {
     if (!selectedSystemId) return;
-    await createPlan.mutateAsync({
-      data: {
-        maKeHoach: generatedCode,
-        machineSystemId: selectedSystemId,
-        nam: year,
-        nguoiLap: user?.fullName ?? 'N/A',
-        ghiChu: ghiChu || undefined,
-        items: items.map((i) => ({
-          machineSystemDetailId: i.machineSystemDetailId,
-          noiDung: i.noiDung,
-          tanSuat: i.tanSuat,
-          toThucHien: i.toThucHien,
-          soLuong: i.soLuong,
-          thangBatDau: NEEDS_START_MONTH.has(i.tanSuat) ? i.thangBatDau : 1,
-        })),
-      },
-    });
-    onClose();
+    try {
+      if (isEdit) {
+        await updatePlan.mutateAsync({
+          id: plan!.id,
+          data: {
+            nguoiLap: user?.fullName ?? plan!.nguoiLap,
+            ghiChu: ghiChu || undefined,
+            items: items.map((i) => ({
+              id: i.id,
+              machineSystemDetailId: i.machineSystemDetailId,
+              noiDung: i.noiDung,
+              tanSuat: i.tanSuat,
+              toThucHien: i.toThucHien,
+              soLuong: i.soLuong,
+              thangBatDau: NEEDS_START_MONTH.has(i.tanSuat) ? i.thangBatDau : 1,
+            })),
+          },
+        });
+        toast.success('Cập nhật kế hoạch thành công');
+      } else {
+        await createPlan.mutateAsync({
+          data: {
+            maKeHoach: generatedCode,
+            machineSystemId: selectedSystemId,
+            nam: year,
+            nguoiLap: user?.fullName ?? 'N/A',
+            ghiChu: ghiChu || undefined,
+            items: items.map((i) => ({
+              machineSystemDetailId: i.machineSystemDetailId,
+              noiDung: i.noiDung,
+              tanSuat: i.tanSuat,
+              toThucHien: i.toThucHien,
+              soLuong: i.soLuong,
+              thangBatDau: NEEDS_START_MONTH.has(i.tanSuat) ? i.thangBatDau : 1,
+            })),
+          },
+        });
+        toast.success('Tạo kế hoạch bảo dưỡng thành công');
+      }
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Có lỗi xảy ra, vui lòng thử lại');
+    }
   };
 
   return (
     <ModalForm
       isOpen
       onClose={onClose}
-      title={viewOnly ? `Chi tiết: ${plan?.maKeHoach}` : 'Tạo kế hoạch bảo dưỡng'}
+      title={isEdit ? `Sửa kế hoạch: ${plan?.maKeHoach}` : viewOnly ? `Chi tiết: ${plan?.maKeHoach}` : 'Tạo kế hoạch bảo dưỡng'}
       maxWidth="6xl"
       footer={viewOnly ? undefined : (
         <ModalFooter
           onClose={onClose}
           onSubmit={handleSubmit}
-          submitLabel="Lưu kế hoạch"
-          isLoading={createPlan.isPending}
+          submitLabel={isEdit ? 'Lưu thay đổi' : 'Lưu kế hoạch'}
+          isLoading={isEdit ? updatePlan.isPending : createPlan.isPending}
           submitDisabled={!selectedSystemId}
         />
       )}
@@ -162,7 +207,7 @@ const MaintenancePlanForm = ({ onClose, systems, year, plan, viewOnly, lockedMac
             <select
               value={selectedSystemId}
               onChange={(e) => { setSelectedSystemId(e.target.value); setItems([]); }}
-              disabled={viewOnly || !!lockedMachineSystemId}
+              disabled={viewOnly || isEdit || !!lockedMachineSystemId}
               className={selectCls()}
             >
               <option value="">-- Chọn hệ thống --</option>
@@ -256,11 +301,12 @@ const MaintenancePlanForm = ({ onClose, systems, year, plan, viewOnly, lockedMac
                     <th className="px-2 py-2 text-center w-[140px]">Tần suất</th>
                     <th className="px-2 py-2 text-center w-[80px]">Bắt đầu</th>
                     <th className="px-2 py-2 text-center w-[100px]">Tổ TH</th>
+                    {!viewOnly && <th className="px-2 py-2 w-[40px]"></th>}
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((item, idx) => (
-                    <tr key={item.machineSystemDetailId} className="border-b border-gray-100">
+                    <tr key={item.machineSystemDetailId + '-' + idx} className="border-b border-gray-100">
                       <td className="px-2 py-1.5">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-gray-800">{item.tenChiTiet || '—'}</span>
@@ -330,6 +376,18 @@ const MaintenancePlanForm = ({ onClose, systems, year, plan, viewOnly, lockedMac
                           </select>
                         )}
                       </td>
+                      {!viewOnly && (
+                        <td className="px-2 py-1.5 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(idx)}
+                            className="p-1 text-gray-400 hover:text-red-600 rounded"
+                            title="Xóa dòng"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
