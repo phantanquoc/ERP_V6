@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
+import toast from 'react-hot-toast';
 import { X, ExternalLink, Clock, Tag } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AppNotification } from '../services/notificationService';
@@ -103,7 +104,9 @@ const MyNotificationsDetailModal: React.FC<MyNotificationsDetailModalProps> = ({
   useEffect(() => {
     if (isOpen && item && !item.isRead && !hasMarkedRef.current) {
       hasMarkedRef.current = true;
-      markAsRead.mutate(item.id);
+      markAsRead.mutate(item.id, {
+        onError: (err) => toast.error(err instanceof Error ? err.message : 'Không thể đánh dấu đã đọc'),
+      });
     }
     if (!isOpen) {
       hasMarkedRef.current = false;

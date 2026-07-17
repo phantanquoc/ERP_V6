@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import toast from 'react-hot-toast';
 import { AlertTriangle, CheckCircle, Clock, MessageSquare } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types/auth';
@@ -73,13 +74,23 @@ const EvaluationAppealForm: React.FC<EvaluationAppealFormProps> = ({
   });
 
   const onSubmitAppeal = async (data: AppealFormValues) => {
-    await submitAppeal.mutateAsync({ evaluationId, appealComment: data.appealComment });
-    onSuccess?.();
+    try {
+      await submitAppeal.mutateAsync({ evaluationId, appealComment: data.appealComment });
+      toast.success('Đã gửi khiếu nại');
+      onSuccess?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Gửi khiếu nại thất bại');
+    }
   };
 
   const onSubmitReply = async (data: ReplyFormValues) => {
-    await replyAppeal.mutateAsync({ evaluationId, appealResponse: data.appealResponse });
-    onSuccess?.();
+    try {
+      await replyAppeal.mutateAsync({ evaluationId, appealResponse: data.appealResponse });
+      toast.success('Đã gửi phản hồi khiếu nại');
+      onSuccess?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Gửi phản hồi thất bại');
+    }
   };
 
   const formatDate = (dateStr: string) => {

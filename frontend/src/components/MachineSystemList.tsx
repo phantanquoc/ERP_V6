@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
 import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Copy, Edit, Eye, Plus, Power, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import Modal from './Modal';
 import {
@@ -420,8 +421,9 @@ const MachineSystemList = () => {
     if (!confirm(`Xóa hệ thống ${record.maHeThong}?`)) return;
     try {
       await deleteSystem.mutateAsync(record.id);
+      toast.success('Đã xóa hệ thống');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Không xóa được hệ thống');
+      toast.error(err instanceof Error ? err.message : 'Không xóa được hệ thống');
     }
   };
 
@@ -429,8 +431,9 @@ const MachineSystemList = () => {
     if (!confirm(`Xóa chi tiết ${record.maChiTiet}? Nếu đã phát sinh dữ liệu, hãy dừng hoạt động thay vì xóa.`)) return;
     try {
       await deleteDetail.mutateAsync(record.id);
+      toast.success('Đã xóa chi tiết máy');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Không xóa được chi tiết máy');
+      toast.error(err instanceof Error ? err.message : 'Không xóa được chi tiết máy');
     }
   };
 
@@ -438,8 +441,9 @@ const MachineSystemList = () => {
     if (!confirm(`Dừng hoạt động chi tiết ${record.maChiTiet}?`)) return;
     try {
       await deactivateDetail.mutateAsync(record.id);
+      toast.success('Đã dừng hoạt động chi tiết máy');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Không dừng được chi tiết máy');
+      toast.error(err instanceof Error ? err.message : 'Không dừng được chi tiết máy');
     }
   };
 

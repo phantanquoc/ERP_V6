@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback } from "react";
+import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import {
   ShoppingCart,
@@ -474,11 +475,11 @@ const Dashboard1: React.FC = () => {
         ngayDuyet: new Date().toISOString(),
       }),
     onSuccess: (_, { approve }) => {
-      alert(approve ? 'Đã duyệt yêu cầu!' : 'Đã từ chối yêu cầu!');
+      toast.success(approve ? 'Đã duyệt yêu cầu' : 'Đã từ chối yêu cầu');
       queryClient.invalidateQueries({ queryKey: ['purchaseRequests'] });
     },
     onError: (error: any) => {
-      alert(error.response?.data?.message || 'Lỗi khi xử lý yêu cầu');
+      toast.error(error instanceof Error ? error.message : 'Lỗi khi xử lý yêu cầu');
     },
   });
 

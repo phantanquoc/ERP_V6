@@ -259,7 +259,7 @@ const CreateOvertimePlanModal: React.FC<CreateOvertimePlanModalProps> = ({
       onSuccess?.();
       handleClose();
     } catch (err: any) {
-      setError(err.response?.data?.message || (isEditMode ? 'Có lỗi xảy ra khi cập nhật kế hoạch' : 'Có lỗi xảy ra khi tạo kế hoạch tăng ca'));
+      setError(err instanceof Error ? err.message : (isEditMode ? 'Có lỗi xảy ra khi cập nhật kế hoạch' : 'Có lỗi xảy ra khi tạo kế hoạch tăng ca'));
     }
   };
 

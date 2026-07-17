@@ -177,9 +177,7 @@ const PartialFulfillmentModal: React.FC<PartialFulfillmentModalProps> = ({
       onSuccess?.();
       onClose();
     } catch (err) {
-      const message =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-        'Không thể cập nhật fulfillment';
+      const message = err instanceof Error ? err.message : 'Không thể cập nhật fulfillment';
       setError(message);
     }
   };

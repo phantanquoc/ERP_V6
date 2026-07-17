@@ -2,6 +2,7 @@ import React from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import toast from 'react-hot-toast';
 import { Plus, Trash2, BookOpen } from 'lucide-react';
 import { EvaluationIdpItem } from '../services/employeeEvaluationService';
 import { useCreateIdpItem, useUpdateIdpItem, useDeleteIdpItem } from '../hooks/useEmployeeEvaluation';
@@ -48,28 +49,38 @@ const IDPForm: React.FC<IDPFormProps> = ({ evaluationId, existingItems, readOnly
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
 
   const onSubmit = async (data: IdpFormValues) => {
-    for (const item of data.items) {
-      if (item.id) {
-        await updateItem.mutateAsync({
-          evaluationId,
-          idpId: item.id,
-          body: { skill: item.skill, action: item.action, deadline: item.deadline || undefined },
-        });
-      } else {
-        await createItem.mutateAsync({
-          evaluationId,
-          body: { skill: item.skill, action: item.action, deadline: item.deadline || undefined },
-        });
+    try {
+      for (const item of data.items) {
+        if (item.id) {
+          await updateItem.mutateAsync({
+            evaluationId,
+            idpId: item.id,
+            body: { skill: item.skill, action: item.action, deadline: item.deadline || undefined },
+          });
+        } else {
+          await createItem.mutateAsync({
+            evaluationId,
+            body: { skill: item.skill, action: item.action, deadline: item.deadline || undefined },
+          });
+        }
       }
+      toast.success('Lưu kế hoạch phát triển thành công');
+      onSaved?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Lưu kế hoạch thất bại');
     }
-    onSaved?.();
   };
 
   const handleDelete = async (index: number, idpId?: string) => {
-    if (idpId) {
-      await deleteItem.mutateAsync({ evaluationId, idpId });
+    try {
+      if (idpId) {
+        await deleteItem.mutateAsync({ evaluationId, idpId });
+        toast.success('Đã xóa mục phát triển');
+      }
+      remove(index);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Xóa mục phát triển thất bại');
     }
-    remove(index);
   };
 
   const isSaving = createItem.isPending || updateItem.isPending || deleteItem.isPending;

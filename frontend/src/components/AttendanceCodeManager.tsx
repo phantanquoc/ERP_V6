@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import toast from 'react-hot-toast';
 import { useAttendanceCodes, useCreateAttendanceCode, useUpdateAttendanceCode, useDeleteAttendanceCode } from '../hooks/useAttendanceCodes';
 import { AttendanceCode } from '../services/attendanceCodeService';
 import { Plus, Pencil, Trash2, X, Save } from 'lucide-react';
@@ -26,28 +27,37 @@ const AttendanceCodeManager: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (!form.code || !form.label) { alert('Vui lòng nhập mã và tên'); return; }
+    if (!form.code || !form.label) { toast.error('Vui lòng nhập mã và tên'); return; }
     try {
       if (editingItem) {
         await updateMutation.mutateAsync({ id: editingItem.id, data: form });
       } else {
         await createMutation.mutateAsync(form);
       }
+      toast.success(editingItem ? 'Cập nhật mã chấm công thành công' : 'Thêm mã chấm công thành công');
       resetForm();
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'Lỗi khi lưu mã chấm công');
+      toast.error(err instanceof Error ? err.message : 'Lỗi khi lưu mã chấm công');
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Xóa mã chấm công này?')) return;
-    try { await deleteMutation.mutateAsync(id); } catch { alert('Lỗi khi xóa'); }
+    try {
+      await deleteMutation.mutateAsync(id);
+      toast.success('Đã xóa mã chấm công');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Lỗi khi xóa');
+    }
   };
 
   const handleToggleActive = async (item: AttendanceCode) => {
     try {
       await updateMutation.mutateAsync({ id: item.id, data: { isActive: !item.isActive } });
-    } catch { alert('Lỗi khi cập nhật'); }
+      toast.success(item.isActive ? 'Đã tắt mã chấm công' : 'Đã bật mã chấm công');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Lỗi khi cập nhật');
+    }
   };
 
   return (

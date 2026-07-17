@@ -139,7 +139,7 @@ const CreateWorkPlanModal: React.FC<CreateWorkPlanModalProps> = ({ isOpen, onClo
             handleClose();
           },
           onError: (err: any) => {
-            setError(err?.response?.data?.message || 'Có lỗi xảy ra khi cập nhật kế hoạch');
+            setError(err instanceof Error ? err.message : 'Có lỗi xảy ra khi cập nhật kế hoạch');
           },
         },
       );
@@ -161,7 +161,7 @@ const CreateWorkPlanModal: React.FC<CreateWorkPlanModalProps> = ({ isOpen, onClo
           handleClose();
         },
         onError: (err: any) => {
-          setError(err?.response?.data?.message || 'Có lỗi xảy ra khi tạo kế hoạch công việc');
+          setError(err instanceof Error ? err.message : 'Có lỗi xảy ra khi tạo kế hoạch công việc');
         },
       });
     }

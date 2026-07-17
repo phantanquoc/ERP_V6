@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
 import { AlertTriangle, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ClipboardCheck, Edit, Eye, History, Info, Plus, Power, RefreshCw, Settings2, Trash2, Wrench, X } from 'lucide-react';
 import Portal from './Portal';
 import { useDeactivateMachineSystemDetail, useDeleteMachineSystemDetail, useDetailTree, useMachineSystemSummary, useMachineSystems } from '../hooks/useMachineSystemDetails';
@@ -190,8 +191,9 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
     if (!confirm(`Xóa chi tiết ${record.maChiTiet}? Nếu đã phát sinh dữ liệu, hãy dừng hoạt động thay vì xóa.`)) return;
     try {
       await deleteDetail.mutateAsync(record.id);
+      toast.success('Đã xóa chi tiết');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Không xóa được chi tiết máy');
+      toast.error(err instanceof Error ? err.message : 'Không xóa được chi tiết máy');
     }
   };
 
@@ -199,8 +201,9 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
     if (!confirm(`Dừng hoạt động chi tiết ${record.maChiTiet}?`)) return;
     try {
       await deactivateDetail.mutateAsync(record.id);
+      toast.success('Đã dừng hoạt động chi tiết');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Không dừng được chi tiết máy');
+      toast.error(err instanceof Error ? err.message : 'Không dừng được chi tiết máy');
     }
   };
 

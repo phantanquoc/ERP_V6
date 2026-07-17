@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { X, Calendar, FileText, Eye, Clock, User, Users, Flag, AlertCircle, Download, Edit2, Trash2, RefreshCw, Search } from 'lucide-react';
 import workPlanService, { WorkPlan, WorkPlanPriority, WorkPlanStatus } from '../services/workPlanService';
 import { useWorkPlans, useMyWorkPlans, useDeleteWorkPlan, useUpdateWorkPlan } from '../hooks/useWorkPlans';
@@ -120,9 +121,9 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
 
   const handleDelete = (id: string) => {
     deleteMutation.mutate(id, {
-      onSuccess: () => setDeleteConfirmId(null),
+      onSuccess: () => { toast.success('Đã xóa kế hoạch'); setDeleteConfirmId(null); },
       onError: (err: any) => {
-        alert(err?.response?.data?.message || 'Có lỗi khi xóa kế hoạch');
+        toast.error(err instanceof Error ? err.message : 'Có lỗi khi xóa kế hoạch');
         setDeleteConfirmId(null);
       },
     });
@@ -133,9 +134,9 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
     updateMutation.mutate(
       { id: statusPlan.id, data: { trangThai: pendingStatus as WorkPlanStatus } },
       {
-        onSuccess: () => { setStatusPlan(null); setPendingStatus(''); },
+        onSuccess: () => { toast.success('Đã đổi trạng thái'); setStatusPlan(null); setPendingStatus(''); },
         onError: (err: any) => {
-          alert(err?.response?.data?.message || 'Có lỗi khi đổi trạng thái');
+          toast.error(err instanceof Error ? err.message : 'Có lỗi khi đổi trạng thái');
         },
       },
     );

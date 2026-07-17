@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import toast from 'react-hot-toast';
 import { Users, MessageSquare, CheckCircle, Clock, Loader2 } from 'lucide-react';
 import { PeerFeedbackAggregate } from '../services/employeeEvaluationService';
 import { useInvitePeers, useSubmitPeerFeedback, useDeclinePeerFeedback } from '../hooks/useEmployeeEvaluation';
@@ -46,8 +47,13 @@ const InviteView: React.FC<InviteViewProps> = ({ evaluationId, availablePeers, o
   };
 
   const onSubmit = async () => {
-    await invitePeers.mutateAsync({ evaluationId, inviteeUserIds: selected });
-    onSent?.();
+    try {
+      await invitePeers.mutateAsync({ evaluationId, inviteeUserIds: selected });
+      toast.success('Đã gửi lời mời phản hồi');
+      onSent?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Gửi lời mời thất bại');
+    }
   };
 
   return (
@@ -125,15 +131,25 @@ const SubmitView: React.FC<SubmitViewProps> = ({ token, onDone }) => {
   });
 
   const onSubmit = async (data: SubmitFormValues) => {
-    await submitFeedback.mutateAsync({ token, body: data });
-    setDone(true);
-    onDone?.();
+    try {
+      await submitFeedback.mutateAsync({ token, body: data });
+      toast.success('Đã gửi phản hồi thành công');
+      setDone(true);
+      onDone?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Gửi phản hồi thất bại');
+    }
   };
 
   const handleDecline = async () => {
-    await declineFeedback.mutateAsync(token);
-    setDone(true);
-    onDone?.();
+    try {
+      await declineFeedback.mutateAsync(token);
+      toast.success('Đã từ chối tham gia');
+      setDone(true);
+      onDone?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Từ chối thất bại');
+    }
   };
 
   if (done) {

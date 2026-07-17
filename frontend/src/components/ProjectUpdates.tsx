@@ -1,4 +1,5 @@
 import { FormEvent, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Edit, Plus, Trash2, X } from 'lucide-react';
 import {
   useAddProjectUpdate,
@@ -84,8 +85,9 @@ const ProjectUpdates = ({ projectId, phases, canWrite }: ProjectUpdatesProps) =>
     if (!confirmDelete) return;
     try {
       await removeUpdate.mutateAsync({ projectId, updateId: confirmDelete.id });
+      toast.success('Đã xóa cập nhật');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Không xóa được cập nhật');
+      toast.error(err instanceof Error ? err.message : 'Không xóa được cập nhật');
     }
     setConfirmDelete(null);
   };
