@@ -1,11 +1,14 @@
 import { Router } from 'express';
 import internationalProductController from '@controllers/internationalProductController';
-import { authenticate, authorize } from '@middlewares/auth';
+import { authenticate, authorize, deviceOrJwtAuth } from '@middlewares/auth';
 import { UserRole } from '@types';
 
 const router = Router();
 
-// All routes require authentication
+// Kiosk-accessible endpoint — accept device key OR JWT (must be before router.use(authenticate))
+router.get('/raw-materials', deviceOrJwtAuth('DATA_ENTRY'), internationalProductController.getRawMaterials);
+
+// All remaining routes require authentication
 router.use(authenticate);
 
 /**
@@ -103,9 +106,6 @@ router.get('/export/excel', internationalProductController.exportToExcel);
 router.get('/code/:code', internationalProductController.getProductByCode);
 
 router.get('/categories', internationalProductController.getCategories);
-
-// Raw materials endpoint — must come BEFORE /:id to avoid shadowing
-router.get('/raw-materials', internationalProductController.getRawMaterials);
 
 router.post(
   '/categories',

@@ -19,7 +19,7 @@ router.get('/:id/receipt-rows', authenticate, finishedProductController.getRecei
 router.get('/:id', authenticate, finishedProductController.getFinishedProductById);
 router.post('/', authenticate, uploadFinishedProduct, finishedProductController.createFinishedProduct);
 router.post('/:id/warehouse-receipt', authenticate, finishedProductController.confirmWarehouseReceipt);
-router.patch('/:id', authenticate, uploadFinishedProduct, finishedProductController.updateFinishedProduct);
+router.patch('/:id', deviceOrJwtAuth('DATA_ENTRY'), uploadFinishedProduct, finishedProductController.updateFinishedProduct);
 router.delete('/:id', authenticate, finishedProductController.deleteFinishedProduct);
 
 export default router;

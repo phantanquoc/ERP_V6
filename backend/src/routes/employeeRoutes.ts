@@ -1,32 +1,16 @@
 import { Router } from 'express';
 import employeeController from '@controllers/employeeController';
-import { authenticate, authorize } from '@middlewares/auth';
+import { authenticate, authorize, deviceOrJwtAuth } from '@middlewares/auth';
 import { checkAccess } from '@middlewares/rbacAbac';
 import { UserRole } from '@types';
 
 const router = Router();
 
-// All employee routes require authentication
-router.use(authenticate);
+// Kiosk-accessible endpoint — accept device key OR JWT (must be before router.use(authenticate))
+router.get('/for-assignment', deviceOrJwtAuth('DATA_ENTRY'), employeeController.getEmployeesForAssignment);
 
-/**
- * @swagger
- * /api/employees/for-assignment:
- *   get:
- *     tags: [Employees]
- *     summary: Lấy danh sách nhân viên để giao việc
- *     description: "Lấy danh sách nhân viên (thông tin cơ bản) dùng cho chức năng giao việc."
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Danh sách nhân viên
- *       401:
- *         description: Chưa xác thực
- */
-router.get('/for-assignment',
-  employeeController.getEmployeesForAssignment
-);
+// All remaining employee routes require authentication
+router.use(authenticate);
 
 /**
  * @swagger
