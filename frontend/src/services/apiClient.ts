@@ -55,10 +55,16 @@ class ApiClient {
     if (isKioskTab()) {
       const deviceKey = getDeviceKey();
       const selection = getSelection();
-      const headers: Record<string, string> = {};
-      if (deviceKey) headers['x-device-key'] = deviceKey;
-      if (selection?.operatorId) headers['x-operator-id'] = selection.operatorId;
-      return headers;
+      if (deviceKey) {
+        // Kiosk activated — device key auth only
+        const headers: Record<string, string> = { 'x-device-key': deviceKey };
+        if (selection?.operatorId) headers['x-operator-id'] = selection.operatorId;
+        return headers;
+      }
+      // Kiosk tab not yet activated — fallback to JWT so admin can
+      // call authenticated endpoints (e.g. register a new device)
+      const token = localStorage.getItem('accessToken');
+      return token ? { Authorization: `Bearer ${token}` } : {};
     }
     const token = localStorage.getItem('accessToken');
     return token ? { Authorization: `Bearer ${token}` } : {};
