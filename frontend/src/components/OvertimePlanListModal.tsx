@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import toast from 'react-hot-toast';
 import {
   Clock, Calendar, FileText, Eye, Check, XCircle, Users, AlertCircle, Plus,
   Pencil, Trash2, FileImage, FileSpreadsheet, FileCode,
@@ -172,24 +173,24 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
   const handleApprove = async (planId: string) => {
     try {
       await approvePlan.mutateAsync({ id: planId, trangThai: OvertimePlanStatus.DA_DUYET });
+      toast.success('Đã duyệt kế hoạch tăng ca');
     } catch (error) {
-      console.error('Error approving plan:', error);
-      alert('Có lỗi xảy ra khi duyệt kế hoạch');
+      toast.error(error instanceof Error ? error.message : 'Có lỗi xảy ra khi duyệt kế hoạch');
     }
   };
 
   const handleReject = async (planId: string) => {
     if (!rejectReason.trim()) {
-      alert('Vui lòng nhập lý do từ chối');
+      toast.error('Vui lòng nhập lý do từ chối');
       return;
     }
     try {
       await approvePlan.mutateAsync({ id: planId, trangThai: OvertimePlanStatus.TU_CHOI, lyDoTuChoi: rejectReason });
+      toast.success('Đã từ chối kế hoạch tăng ca');
       setShowRejectModal(null);
       setRejectReason('');
     } catch (error) {
-      console.error('Error rejecting plan:', error);
-      alert('Có lỗi xảy ra khi từ chối kế hoạch');
+      toast.error(error instanceof Error ? error.message : 'Có lỗi xảy ra khi từ chối kế hoạch');
     }
   };
 
@@ -197,10 +198,10 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
     if (!confirmDeleteId) return;
     try {
       await deletePlan.mutateAsync(confirmDeleteId);
+      toast.success('Đã xóa kế hoạch tăng ca');
       setConfirmDeleteId(null);
     } catch (error) {
-      console.error('Error deleting plan:', error);
-      alert('Có lỗi xảy ra khi xóa kế hoạch');
+      toast.error(error instanceof Error ? error.message : 'Có lỗi xảy ra khi xóa kế hoạch');
     }
   };
 

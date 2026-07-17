@@ -1,4 +1,5 @@
 import { FormEvent, useState } from 'react';
+import toast from 'react-hot-toast';
 import { AlertTriangle, Edit, Plus, Trash2, X } from 'lucide-react';
 import {
   useAddProjectCost,
@@ -113,8 +114,9 @@ const ProjectCosts = ({ projectId, phases, canWrite }: ProjectCostsProps) => {
     if (!confirm(`Xóa chi phí "${cost.tenChiPhi || cost.loaiChiPhi}"?`)) return;
     try {
       await removeCost.mutateAsync({ projectId, costId: cost.id });
+      toast.success('Đã xóa chi phí');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Không xóa được chi phí');
+      toast.error(err instanceof Error ? err.message : 'Không xóa được chi phí');
     }
   };
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import toast from 'react-hot-toast';
 import { Plus, Trash2, Target } from 'lucide-react';
 import { EvaluationGoal } from '../services/employeeEvaluationService';
 import { useCreateGoal, useUpdateGoal, useDeleteGoal } from '../hooks/useEmployeeEvaluation';
@@ -48,28 +49,38 @@ const GoalsForm: React.FC<GoalsFormProps> = ({ evaluationId, existingGoals, read
   const { fields, append, remove } = useFieldArray({ control, name: 'goals' });
 
   const onSubmit = async (data: GoalsFormValues) => {
-    for (const goal of data.goals) {
-      if (goal.id) {
-        await updateGoal.mutateAsync({
-          evaluationId,
-          goalId: goal.id,
-          body: { title: goal.title, description: goal.description, targetPeriod: goal.targetPeriod },
-        });
-      } else {
-        await createGoal.mutateAsync({
-          evaluationId,
-          body: { title: goal.title, description: goal.description, targetPeriod: goal.targetPeriod },
-        });
+    try {
+      for (const goal of data.goals) {
+        if (goal.id) {
+          await updateGoal.mutateAsync({
+            evaluationId,
+            goalId: goal.id,
+            body: { title: goal.title, description: goal.description, targetPeriod: goal.targetPeriod },
+          });
+        } else {
+          await createGoal.mutateAsync({
+            evaluationId,
+            body: { title: goal.title, description: goal.description, targetPeriod: goal.targetPeriod },
+          });
+        }
       }
+      toast.success('Lưu mục tiêu thành công');
+      onSaved?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Lưu mục tiêu thất bại');
     }
-    onSaved?.();
   };
 
   const handleDelete = async (index: number, goalId?: string) => {
-    if (goalId) {
-      await deleteGoal.mutateAsync({ evaluationId, goalId });
+    try {
+      if (goalId) {
+        await deleteGoal.mutateAsync({ evaluationId, goalId });
+        toast.success('Đã xóa mục tiêu');
+      }
+      remove(index);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Xóa mục tiêu thất bại');
     }
-    remove(index);
   };
 
   const isSaving = createGoal.isPending || updateGoal.isPending || deleteGoal.isPending;

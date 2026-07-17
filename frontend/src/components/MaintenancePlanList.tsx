@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { Plus, Eye, Pencil, Trash2, Check, ChevronLeft, ChevronRight, Download, RefreshCw } from 'lucide-react';
 import { useMaintenancePlans, useToggleMonth, useDeleteMaintenancePlan, useUpdateLogNote, useSyncDetails } from '../hooks/useMaintenancePlans';
 import { useMachineSystems } from '../hooks/useMachineSystemDetails';
@@ -172,16 +173,24 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
   const systems = systemsResponse?.data ?? [];
 
   const handleToggle = (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string, nguoiPhu?: string[]) => {
-    toggleMonth.mutate({ planId, itemId, month, lanThu, nguoiThucHien, nguoiPhu });
+    toggleMonth.mutate({ planId, itemId, month, lanThu, nguoiThucHien, nguoiPhu }, {
+      onError: (err) => toast.error(err instanceof Error ? err.message : 'Cập nhật tháng thất bại'),
+    });
   };
 
   const handleUpdateNote = (logId: string, data: { ghiChu?: string; nguoiThucHien?: string; nguoiPhu?: string[] }) => {
-    updateLogNote.mutate({ logId, data });
+    updateLogNote.mutate({ logId, data }, {
+      onSuccess: () => toast.success('Đã cập nhật ghi chú'),
+      onError: (err) => toast.error(err instanceof Error ? err.message : 'Cập nhật ghi chú thất bại'),
+    });
   };
 
   const handleDelete = (id: string) => {
     if (confirm('Bạn có chắc muốn xóa kế hoạch này?')) {
-      deletePlan.mutate(id);
+      deletePlan.mutate(id, {
+        onSuccess: () => toast.success('Đã xóa kế hoạch'),
+        onError: (err) => toast.error(err instanceof Error ? err.message : 'Xóa kế hoạch thất bại'),
+      });
     }
   };
 
@@ -248,7 +257,10 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
             onView={() => { setViewingPlan(plan); setModalMode('view'); }}
             onEdit={() => { setViewingPlan(plan); setModalMode('edit'); }}
             onDelete={() => handleDelete(plan.id)}
-            onSync={() => syncDetails.mutate(plan.id)}
+            onSync={() => syncDetails.mutate(plan.id, {
+              onSuccess: () => toast.success('Đồng bộ linh kiện thành công'),
+              onError: (err) => toast.error(err instanceof Error ? err.message : 'Đồng bộ thất bại'),
+            })}
             isSyncing={syncDetails.isPending}
           />
         ))

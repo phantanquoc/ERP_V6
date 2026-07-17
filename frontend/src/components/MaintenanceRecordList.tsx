@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { Plus, Eye, Edit2, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useMaintenanceRecords, useDeleteMaintenanceRecord } from '../hooks/useMaintenanceRecords';
 import { useMachineSystems } from '../hooks/useMachineSystemDetails';
@@ -44,7 +45,10 @@ const MaintenanceRecordList = ({ lockedMachineSystemId }: MaintenanceRecordListP
 
   const handleDelete = (id: string) => {
     if (confirm('Bạn có chắc muốn xóa biên bản này?')) {
-      deleteRecord.mutate(id);
+      deleteRecord.mutate(id, {
+        onSuccess: () => toast.success('Đã xóa biên bản'),
+        onError: (err) => toast.error(err instanceof Error ? err.message : 'Xóa biên bản thất bại'),
+      });
     }
   };
 

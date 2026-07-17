@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { useMonthlyTimesheet, useUpsertTimesheetCell, useUpsertTimesheetOverride } from '../hooks/useMonthlyTimesheet';
 import { useAttendanceCodes } from '../hooks/useAttendanceCodes';
 import { useDepartments } from '../hooks/useDepartments';
@@ -215,8 +216,7 @@ const MonthlyTimesheetGrid: React.FC = () => {
     try {
       await attendanceService.exportToExcelCalendar({ month, year, search: search || undefined, departmentId: departmentId || undefined });
     } catch (err) {
-      console.error('Export error:', err);
-      alert('Không thể xuất file Excel');
+      toast.error(err instanceof Error ? err.message : 'Không thể xuất file Excel');
     }
   };
 

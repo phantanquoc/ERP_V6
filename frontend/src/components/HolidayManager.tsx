@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import toast from 'react-hot-toast';
 import { useHolidays, useCreateHoliday, useUpdateHoliday, useDeleteHoliday } from '../hooks/useHolidays';
 import { Holiday } from '../services/holidayService';
 import { Plus, Pencil, Trash2, X, Save } from 'lucide-react';
@@ -28,22 +29,28 @@ const HolidayManager: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (!form.name || !form.date) { alert('Vui lòng nhập tên và ngày lễ'); return; }
+    if (!form.name || !form.date) { toast.error('Vui lòng nhập tên và ngày lễ'); return; }
     try {
       if (editingItem) {
         await updateMutation.mutateAsync({ id: editingItem.id, data: form });
       } else {
         await createMutation.mutateAsync(form);
       }
+      toast.success(editingItem ? 'Cập nhật ngày lễ thành công' : 'Thêm ngày lễ thành công');
       resetForm();
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'Lỗi khi lưu ngày lễ');
+      toast.error(err instanceof Error ? err.message : 'Lỗi khi lưu ngày lễ');
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Xóa ngày lễ này?')) return;
-    try { await deleteMutation.mutateAsync(id); } catch { alert('Lỗi khi xóa'); }
+    try {
+      await deleteMutation.mutateAsync(id);
+      toast.success('Đã xóa ngày lễ');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Lỗi khi xóa');
+    }
   };
 
   const formatDate = (d: string) => {

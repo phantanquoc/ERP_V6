@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import toast from 'react-hot-toast';
 import { Eye, Save, X, Download, Settings, Send } from 'lucide-react';
 import payrollService, { PayrollItem, PayrollDetail } from '@services/payrollService';
 import { usePayrollByMonthYear, usePayrollSettings, useUpdatePayrollSettings, payrollKeys } from '../hooks';
@@ -101,8 +102,7 @@ const PayrollManagement: React.FC = () => {
       setEditingPayroll({ ...detail });
       setShowDetailModal(true);
     } catch (error) {
-      console.error('Error fetching payroll detail:', error);
-      alert('Lỗi khi tải chi tiết bảng tính lương');
+      toast.error(error instanceof Error ? error.message : 'Lỗi khi tải chi tiết bảng tính lương');
     }
   };
 
@@ -137,12 +137,11 @@ const PayrollManagement: React.FC = () => {
         );
       }
 
-      alert('Cập nhật bảng tính lương thành công');
+      toast.success('Cập nhật bảng tính lương thành công');
       setShowDetailModal(false);
       queryClient.invalidateQueries({ queryKey: payrollKeys.lists() });
     } catch (error) {
-      console.error('Error updating payroll:', error);
-      alert('Lỗi khi cập nhật bảng tính lương');
+      toast.error(error instanceof Error ? error.message : 'Lỗi khi cập nhật bảng tính lương');
     }
   };
 
@@ -197,10 +196,9 @@ const PayrollManagement: React.FC = () => {
               try {
                 setSendingNotifications(true);
                 const result = await payrollService.sendPayrollNotifications(selectedMonth, selectedYear);
-                alert(`Đã gửi thông báo bảng lương đến ${result.count} nhân viên`);
+                toast.success(`Đã gửi thông báo bảng lương đến ${result.count} nhân viên`);
               } catch (err: any) {
-                console.error('Error sending payroll notifications:', err);
-                alert(err?.response?.data?.message || 'Lỗi khi gửi thông báo bảng lương');
+                toast.error(err instanceof Error ? err.message : 'Lỗi khi gửi thông báo bảng lương');
               } finally {
                 setSendingNotifications(false);
               }
@@ -216,8 +214,7 @@ const PayrollManagement: React.FC = () => {
               try {
                 await payrollService.exportToExcel({ search: filterValues._search || undefined, month: selectedMonth, year: selectedYear });
               } catch (err) {
-                console.error('Error exporting to Excel:', err);
-                alert('Không thể xuất file Excel');
+                toast.error(err instanceof Error ? err.message : 'Không thể xuất file Excel');
               }
             }}
             className="flex w-full items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors sm:w-auto"
@@ -825,9 +822,9 @@ const PayrollManagement: React.FC = () => {
                     await updateSettingsMutation.mutateAsync(settingsForm);
                     setShowSettingsModal(false);
                     queryClient.invalidateQueries({ queryKey: payrollKeys.lists() });
-                    alert('Cập nhật cài đặt thành công');
+                    toast.success('Cập nhật cài đặt thành công');
                   } catch (err) {
-                    alert('Lỗi khi cập nhật cài đặt');
+                    toast.error(err instanceof Error ? err.message : 'Lỗi khi cập nhật cài đặt');
                   }
                 }}
                 disabled={updateSettingsMutation.isPending}

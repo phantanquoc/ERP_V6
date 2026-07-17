@@ -1,4 +1,5 @@
 import React, { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
 import { ArrowDown, ArrowUp, Diamond, Edit, GripVertical, Plus, Search, Trash2, X } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, useDroppable } from '@dnd-kit/core';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
@@ -287,9 +288,10 @@ const ProjectList = () => {
     if (!confirm(`Xóa dự án ${project.maDuAn}?`)) return;
     try {
       await deleteProject.mutateAsync(project.id);
+      toast.success('Đã xóa dự án');
       if (selectedProjectId === project.id) setSelectedProjectId('');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Không xóa được dự án');
+      toast.error(err instanceof Error ? err.message : 'Không xóa được dự án');
     }
   };
 
@@ -339,7 +341,7 @@ const ProjectList = () => {
     try {
       await reorderPhases.mutateAsync({ projectId: selectedProject.id, data: { phaseIds } });
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Không sắp xếp được giai đoạn');
+      toast.error(err instanceof Error ? err.message : 'Không sắp xếp được giai đoạn');
     }
   };
 
@@ -353,7 +355,7 @@ const ProjectList = () => {
     try {
       await reorderTasks.mutateAsync({ projectId: selectedProject.id, data: { taskIds, phaseId: phaseId ?? null } });
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Không sắp xếp được công việc');
+      toast.error(err instanceof Error ? err.message : 'Không sắp xếp được công việc');
     }
   };
 
@@ -367,7 +369,7 @@ const ProjectList = () => {
     try {
       await reorderTasks.mutateAsync({ projectId: selectedProject.id, data: { taskIds: newOrder.map((t) => t.id), phaseId: phaseId ?? null } });
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Không sắp xếp được công việc');
+      toast.error(err instanceof Error ? err.message : 'Không sắp xếp được công việc');
     }
   };
 
@@ -381,7 +383,7 @@ const ProjectList = () => {
     try {
       await reorderPhases.mutateAsync({ projectId: selectedProject.id, data: { phaseIds: newOrder.map((p) => p.id) } });
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Không sắp xếp được giai đoạn');
+      toast.error(err instanceof Error ? err.message : 'Không sắp xếp được giai đoạn');
     }
   };
 
@@ -400,8 +402,9 @@ const ProjectList = () => {
     if (!confirm(`Xóa giai đoạn ${phase.tenGiaiDoan}? Công việc sẽ chuyển về chưa phân giai đoạn.`)) return;
     try {
       await deletePhase.mutateAsync({ projectId: selectedProject.id, phaseId: phase.id, moveTasksToUnphased: true });
+      toast.success('Đã xóa giai đoạn');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Không xóa được giai đoạn');
+      toast.error(err instanceof Error ? err.message : 'Không xóa được giai đoạn');
     }
   };
 
@@ -430,8 +433,9 @@ const ProjectList = () => {
     if (!selectedProject || !confirm('Xóa mục công việc? Công việc trong mục sẽ chuyển về chưa phân mục.')) return;
     try {
       await removeTaskGroup.mutateAsync({ projectId: selectedProject.id, groupId });
+      toast.success('Đã xóa mục công việc');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Không xóa được mục công việc');
+      toast.error(err instanceof Error ? err.message : 'Không xóa được mục công việc');
     }
   };
 
@@ -449,7 +453,7 @@ const ProjectList = () => {
     try {
       await reorderTaskGroups.mutateAsync({ projectId: selectedProject.id, data: { items: newOrder.map((id, i) => ({ id, thuTu: i })) } });
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Không di chuyển được mục');
+      toast.error(err instanceof Error ? err.message : 'Không di chuyển được mục');
     }
   };
 
@@ -458,7 +462,7 @@ const ProjectList = () => {
     try {
       await updateTask.mutateAsync({ projectId: selectedProject.id, taskId, data: { projectTaskGroupId: newGroupId } });
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Không chuyển được công việc');
+      toast.error(err instanceof Error ? err.message : 'Không chuyển được công việc');
     }
   };
 
@@ -535,8 +539,9 @@ const ProjectList = () => {
     if (!selectedProject || !confirm(`Xóa công việc ${task.tieuDe}?`)) return;
     try {
       await deleteTask.mutateAsync({ projectId: selectedProject.id, taskId: task.id });
+      toast.success('Đã xóa công việc');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Không xóa được công việc');
+      toast.error(err instanceof Error ? err.message : 'Không xóa được công việc');
     }
   };
 

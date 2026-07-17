@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { Plus, Trash2, MoveRight, Package, Warehouse as WarehouseIcon, PackagePlus } from 'lucide-react';
 import { Warehouse, Lot, LotProduct } from '../services/warehouseService';
 import {
@@ -95,18 +96,17 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
 
   const handleCreateWarehouse = async () => {
     if (!newWarehouseName.trim()) {
-      alert('Vui lòng nhập tên kho');
+      toast.error('Vui lòng nhập tên kho');
       return;
     }
 
     try {
       await createWarehouse.mutateAsync({ tenKho: newWarehouseName });
-      alert('Tạo kho thành công!');
+      toast.success('Tạo kho thành công');
       setShowWarehouseModal(false);
       setNewWarehouseName('');
     } catch (error: any) {
-      console.error('Error creating warehouse:', error);
-      alert(error.response?.data?.message || 'Lỗi khi tạo kho');
+      toast.error(error instanceof Error ? error.message : 'Lỗi khi tạo kho');
     }
   };
 
@@ -115,19 +115,18 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
 
     try {
       await deleteWarehouse.mutateAsync(id);
-      alert('Xóa kho thành công!');
+      toast.success('Xóa kho thành công');
       if (selectedWarehouse?.id === id) {
         setSelectedWarehouse(null);
       }
     } catch (error: any) {
-      console.error('Error deleting warehouse:', error);
-      alert(error.response?.data?.message || 'Lỗi khi xóa kho');
+      toast.error(error instanceof Error ? error.message : 'Lỗi khi xóa kho');
     }
   };
 
   const handleCreateLot = async () => {
     if (!newLotName.trim() || !selectedWarehouse) {
-      alert('Vui lòng nhập tên lô');
+      toast.error('Vui lòng nhập tên lô');
       return;
     }
 
@@ -136,12 +135,11 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
         tenLo: newLotName,
         warehouseId: selectedWarehouse.id,
       });
-      alert('Tạo lô thành công!');
+      toast.success('Tạo lô thành công');
       setShowLotModal(false);
       setNewLotName('');
     } catch (error: any) {
-      console.error('Error creating lot:', error);
-      alert(error.response?.data?.message || 'Lỗi khi tạo lô');
+      toast.error(error instanceof Error ? error.message : 'Lỗi khi tạo lô');
     }
   };
 
@@ -150,16 +148,15 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
 
     try {
       await deleteLot.mutateAsync(lotId);
-      alert('Xóa lô thành công!');
+      toast.success('Xóa lô thành công');
     } catch (error: any) {
-      console.error('Error deleting lot:', error);
-      alert(error.response?.data?.message || 'Lỗi khi xóa lô');
+      toast.error(error instanceof Error ? error.message : 'Lỗi khi xóa lô');
     }
   };
 
   const handleAddProductToLot = async () => {
     if (!selectedLotId || !selectedProductId || productQuantity === '' || !productUnit) {
-      alert('Vui lòng điền đầy đủ thông tin');
+      toast.error('Vui lòng điền đầy đủ thông tin');
       return;
     }
 
@@ -179,13 +176,11 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
       });
 
       console.log('Product added successfully:', response.data);
-      alert('Thêm sản phẩm vào lô thành công!');
+      toast.success('Thêm sản phẩm vào lô thành công');
       setShowProductModal(false);
       resetProductForm();
     } catch (error: any) {
-      console.error('Error adding product to lot:', error);
-      console.error('Error response:', error.response?.data);
-      alert(error.response?.data?.message || 'Lỗi khi thêm sản phẩm');
+      toast.error(error instanceof Error ? error.message : 'Lỗi khi thêm sản phẩm');
     }
   };
 
@@ -202,16 +197,15 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
 
     try {
       await removeProductFromLot.mutateAsync(productId);
-      alert('Xóa sản phẩm thành công!');
+      toast.success('Xóa sản phẩm thành công');
     } catch (error: any) {
-      console.error('Error removing product:', error);
-      alert(error.response?.data?.message || 'Lỗi khi xóa sản phẩm');
+      toast.error(error instanceof Error ? error.message : 'Lỗi khi xóa sản phẩm');
     }
   };
 
   const handleMoveProduct = async () => {
     if (!movingProduct || !targetLotId) {
-      alert('Vui lòng chọn lô đích');
+      toast.error('Vui lòng chọn lô đích');
       return;
     }
 
@@ -220,14 +214,13 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
         lotProductId: movingProduct.id,
         targetLotId,
       });
-      alert('Di chuyển sản phẩm thành công!');
+      toast.success('Di chuyển sản phẩm thành công');
       setShowMoveModal(false);
       setMovingProduct(null);
       setTargetWarehouseId('');
       setTargetLotId('');
     } catch (error: any) {
-      console.error('Error moving product:', error);
-      alert(error.response?.data?.message || 'Lỗi khi di chuyển sản phẩm');
+      toast.error(error instanceof Error ? error.message : 'Lỗi khi di chuyển sản phẩm');
     }
   };
 

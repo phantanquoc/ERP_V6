@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import {
   X,
   FileText,
@@ -80,8 +81,9 @@ const DailyWorkReportListModal: React.FC<DailyWorkReportListModalProps> = ({
     if (isAdmin && report.status === 'SUBMITTED') {
       try {
         await updateReport.mutateAsync({ id: report.id, data: { status: 'REVIEWED' } });
+        toast.success('Đã đánh dấu đã xem');
       } catch (err) {
-        console.error('Error marking report as reviewed:', err);
+        toast.error(err instanceof Error ? err.message : 'Không thể đánh dấu đã xem');
       }
     }
   };

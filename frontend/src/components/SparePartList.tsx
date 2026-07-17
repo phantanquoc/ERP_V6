@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import toast from 'react-hot-toast';
 import { Plus, Edit, Trash2, Eye, X, Download, Search } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getFileUrl } from '../config/api';
@@ -142,9 +143,10 @@ const SparePartList = () => {
       } else {
         await createMutation.mutateAsync({ data, file: selectedFile ?? undefined });
       }
+      toast.success(editingPart ? 'Cập nhật linh kiện thành công' : 'Thêm linh kiện thành công');
       setIsModalOpen(false);
     } catch (error: any) {
-      alert(error.message || 'Có lỗi xảy ra');
+      toast.error(error instanceof Error ? error.message : 'Có lỗi xảy ra');
     }
   };
 
@@ -152,8 +154,9 @@ const SparePartList = () => {
     if (!confirm('Bạn có chắc chắn muốn xóa linh kiện này?')) return;
     try {
       await deleteMutation.mutateAsync(id);
+      toast.success('Đã xóa linh kiện');
     } catch (error: any) {
-      alert(error.message || 'Lỗi khi xóa');
+      toast.error(error instanceof Error ? error.message : 'Lỗi khi xóa');
     }
   };
 

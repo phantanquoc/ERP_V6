@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
 import { useSearchParams } from 'react-router-dom';
 import { Ban, CheckCircle, Edit, Eye, History, Plus, Search, Trash2, Wrench, X } from 'lucide-react';
 import { getFileUrl } from '../config/api';
@@ -131,8 +132,9 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
     if (!confirm(`Xóa yêu cầu ${record.maYeuCau}?`)) return;
     try {
       await deleteRequest.mutateAsync(record.id);
+      toast.success('Đã xóa yêu cầu sửa chữa');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Không xóa được yêu cầu');
+      toast.error(err instanceof Error ? err.message : 'Không xóa được yêu cầu');
     }
   };
 
@@ -140,7 +142,7 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
     try {
       await repairRequestService.exportExcel({ search: filters.search || undefined });
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Không xuất được Excel');
+      toast.error(err instanceof Error ? err.message : 'Không xuất được Excel');
     }
   };
 
@@ -149,8 +151,9 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
     if (!confirm(`Bắt đầu sửa chữa cho yêu cầu ${record.maYeuCau}?`)) return;
     try {
       await startRepair.mutateAsync(record.id);
+      toast.success('Đã bắt đầu sửa chữa');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Không thể bắt đầu sửa chữa');
+      toast.error(err instanceof Error ? err.message : 'Không thể bắt đầu sửa chữa');
     }
   };
 
@@ -159,10 +162,11 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
     if (!cancelTarget) return;
     try {
       await cancelRepair.mutateAsync({ id: cancelTarget.id, reason: cancelReason || undefined });
+      toast.success('Đã hủy yêu cầu sửa chữa');
       setCancelTarget(null);
       setCancelReason('');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Không thể hủy yêu cầu');
+      toast.error(err instanceof Error ? err.message : 'Không thể hủy yêu cầu');
     }
   };
 
