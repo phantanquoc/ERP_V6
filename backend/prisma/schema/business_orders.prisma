@@ -152,6 +152,7 @@ model InternationalCustomer {
   orders            Order[]
   quotationRequests QuotationRequest[]
   quotations        Quotation[]
+  invoices          Invoice[]
 
   @@map("customers")
   @@schema("business")
@@ -518,22 +519,22 @@ model OrderItem {
 model TaxReport {
   id             String          @id @default(cuid())
   orderId        String          @unique
-  ngayDatHang    DateTime
   maDonHang      String
+  ngayDatHang    DateTime
   tenHangHoa     String
   soLuong        Float
-  donVi          String
+  donViTinh      String
   giaTriDonHang  Float
   soTienDongThue Float?
   trangThai      TaxReportStatus @default(CHUA_BAO_CAO)
-  ghiChi         String?
-  fileDinhKem    String?
-  createdById    String? // soft ref to auth.User.id — no FK constraint
+  ghiChu         String?
+  fileUrl        String?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   order          Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  @@index([createdById])
+  @@index([orderId])
+  @@index([trangThai])
   @@map("tax_reports")
   @@schema("business")
 }
@@ -556,54 +557,59 @@ model QuotationRevision {
 }
 
 model Invoice {
-  id                  String    @id @default(cuid())
-  soHoaDon            String    @unique
-  ngayLap             DateTime
-  khachHang           String
+  id                  String                 @id @default(cuid())
+  soHoaDon            String                 @unique
+  ngayLap             DateTime?
+  customerId          String?
   maSoThue            String?
   loaiHoaDon          String? // "Bán hàng", "Mua hàng", "Dịch vụ"
-  tongTien            Float     @default(0)
-  thue                Float     @default(0)
-  thanhTien           Float     @default(0)
-  trangThai           String    @default("Chưa thanh toán") // "Chưa thanh toán", "Đã thanh toán", "Quá hạn"
-  nhanVienLap         String?
-  phuongThucThanhToan String? // "Tiền mặt", "Chuyển khoản", "Thẻ tín dụng"
+  boPhanSuDung        String?
+  mucDichSuDung       String?
+  tongTien            Float?
+  thueVAT             Float?
+  thanhTien           Float?
+  trangThai           String                 @default("Chưa thanh toán") // "Đã thanh toán", "Chưa thanh toán", "Đang xử lý"
+  phuongThucThanhToan String?
   ngayThanhToan       DateTime?
+  nhanVienLap         String
   ghiChu              String?
+  files               String[]               @default([])
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  customer            InternationalCustomer? @relation(fields: [customerId], references: [id])
 
-  createdAt     DateTime @default(now())
-  boPhanSuDung  String? // Bộ phận sử dụng
-  mucDichSuDung String? // Mục đích sử dụng dành cho hạng mục nào
-  nhaCungCap    String? // Nhà cung cấp (for loaiHoaDon = 'Mua hàng')
-  files         String[] @default([])
-  createdById   String? // soft ref to auth.User.id — no FK constraint
-  updatedAt     DateTime @updatedAt
-
-  @@index([createdById])
+  @@index([customerId])
+  @@index([ngayLap])
+  @@index([trangThai])
   @@map("invoices")
   @@schema("business")
 }
 
 model Debt {
-  id                String    @id @default(cuid())
-  ngayPhatSinh      DateTime
-  loaiChiPhi        String?
-  maNhaCungCap      String
-  tenNhaCungCap     String
-  loaiCungCap       String?
-  cungCap           String?
-  noiDungChiCho     String?
-  loaiHinh          String?
-  soTienPhaiTra     Float     @default(0)
-  soTienDaThanhToan Float     @default(0)
-  ngayHoachToan     DateTime?
-  ngayDenHan        DateTime?
-  soTaiKhoan        String?
-  ghiChu            String?
-  fileDinhKem       String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                    String    @id @default(cuid())
+  ngayPhatSinh          DateTime
+  loaiChiPhi            String? // "Đơn hàng", "Sửa chữa", "Đầu tư", "Văn phòng phẩm", "Khác"
+  supplierId            String
+  maNhaCungCap          String
+  tenNhaCungCap         String
+  loaiCungCap           String?
+  cungCap               String?
+  noiDungChiCho         String?
+  loaiHinh              String? // "Tổ chức", "Hộ gia đình", "Cá nhân"
+  soTienPhaiTra         Float?
+  soTienDaThanhToan     Float?    @default(0)
+  ngayHoachToan         DateTime?
+  ngayDenHan            DateTime?
+  soTaiKhoan            String?
+  ghiChu                String?
+  files                 String[]  @default([])
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  supplier              Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
 
+  @@index([supplierId])
+  @@index([ngayPhatSinh])
+  @@index([ngayDenHan])
   @@map("debts")
   @@schema("business")
 }

@@ -14,7 +14,12 @@ interface SupplierOption {
   tenNhaCungCap: string;
 }
 
-const DebtManagement: React.FC = () => {
+interface DebtManagementProps {
+  month?: number;
+  year?: number;
+}
+
+const DebtManagement: React.FC<DebtManagementProps> = ({ month, year }) => {
   const [debtData, setDebtData] = useState<Debt[]>([]);
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', loaiChiPhi: '', trangThaiThanhToan: '' });
   const [currentPage, setCurrentPage] = useState(1);
@@ -60,12 +65,12 @@ const DebtManagement: React.FC = () => {
   useEffect(() => {
     fetchDebts();
     fetchSummary();
-  }, []);
+  }, [month, year]);
 
   const fetchDebts = async () => {
     try {
       setLoading(true);
-      const response = await debtService.getAllDebts();
+      const response = await debtService.getAllDebts(month, year);
       setDebtData(response.data || []);
     } catch (error) {
       console.error('Error fetching debts:', error);
@@ -77,7 +82,7 @@ const DebtManagement: React.FC = () => {
 
   const fetchSummary = async () => {
     try {
-      const response = await debtService.getDebtSummary();
+      const response = await debtService.getDebtSummary(month, year);
       setSummary(response.data || summary);
     } catch (error) {
       console.error('Error fetching summary:', error);
@@ -342,7 +347,11 @@ const DebtManagement: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-gray-200">
               {paginatedDebtData.map((item, index) => (
-                <tr key={item.id} className={`border-b border-gray-200 hover:bg-blue-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                <tr
+                  key={item.id}
+                  onClick={() => handleView(item)}
+                  className={`border-b border-gray-200 hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
+                >
                   <td className="px-6 py-4 text-sm text-blue-600 font-medium border-r border-gray-200">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                   <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{formatDate(item.ngayPhatSinh)}</td>
                   <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{item.loaiChiPhi || '-'}</td>
@@ -351,21 +360,7 @@ const DebtManagement: React.FC = () => {
                   <td className="px-6 py-4 text-sm">
                     <div className="flex items-center justify-center gap-1">
                       <button
-                        onClick={() => handleView(item)}
-                        className="p-1.5 rounded-md text-blue-600 hover:bg-blue-50 hover:text-blue-800 transition-colors"
-                        title="Xem"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleEdit(item)}
-                        className="p-1.5 rounded-md text-green-600 hover:bg-green-50 hover:text-green-800 transition-colors"
-                        title="Sửa"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(item.id)}
+                        onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
                         className="p-1.5 rounded-md text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
                         title="Xóa"
                       >

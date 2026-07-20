@@ -18,7 +18,7 @@ export interface Debt {
   ngayDenHan?: string;
   soTaiKhoan?: string;
   ghiChu?: string;
-  fileDinhKem?: string;
+  files?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -26,6 +26,7 @@ export interface Debt {
 export interface CreateDebtData {
   ngayPhatSinh: string;
   loaiChiPhi?: string;
+  supplierId: string;
   maNhaCungCap: string;
   tenNhaCungCap: string;
   loaiCungCap?: string;
@@ -38,7 +39,7 @@ export interface CreateDebtData {
   ngayDenHan?: string;
   soTaiKhoan?: string;
   ghiChu?: string;
-  fileDinhKem?: string;
+  files?: string[];
 }
 
 export interface UpdateDebtData {
@@ -56,7 +57,7 @@ export interface UpdateDebtData {
   ngayDenHan?: string;
   soTaiKhoan?: string;
   ghiChu?: string;
-  fileDinhKem?: string;
+  files?: string[];
 }
 
 export interface DebtSummary {
@@ -83,13 +84,23 @@ const buildFormData = (data: Record<string, any>, file?: File): FormData => {
 
 const debtService = {
   // Get all debts
-  getAllDebts: () => apiClient.get('/debts'),
+  getAllDebts: (month?: number, year?: number) => {
+    const params: any = {};
+    if (month) params.month = month;
+    if (year) params.year = year;
+    return apiClient.get('/debts', { params });
+  },
 
   // Get debt by ID
   getDebtById: (id: string) => apiClient.get(`/debts/${id}`),
 
   // Get debt summary
-  getDebtSummary: () => apiClient.get('/debts/summary'),
+  getDebtSummary: (month?: number, year?: number) => {
+    const params: any = {};
+    if (month) params.month = month;
+    if (year) params.year = year;
+    return apiClient.get('/debts/summary', { params });
+  },
 
   // Create debt
   createDebt: (data: CreateDebtData, file?: File) => {

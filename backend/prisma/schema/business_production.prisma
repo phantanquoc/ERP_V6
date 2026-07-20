@@ -170,6 +170,7 @@ model Supplier {
   employee             Employee              @relation("SupplierCreatedBy", fields: [employeeId], references: [id])
   purchaseRequests     PurchaseRequest[]
   purchaseRequestItems PurchaseRequestItem[] @relation("PurchaseRequestItemSupplier")
+  debts                Debt[]
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
 

@@ -3,6 +3,7 @@ import prisma from '@config/database';
 interface CreateDebtInput {
   ngayPhatSinh: string;
   loaiChiPhi?: string;
+  supplierId: string;
   maNhaCungCap: string;
   tenNhaCungCap: string;
   loaiCungCap?: string;
@@ -15,12 +16,18 @@ interface CreateDebtInput {
   ngayDenHan?: string | null;
   soTaiKhoan?: string;
   ghiChu?: string;
-  fileDinhKem?: string;
+  files?: string[];
 }
 
 class DebtService {
-  async getAll() {
-    return prisma.debt.findMany({ orderBy: { ngayPhatSinh: 'desc' } });
+  async getAll(month?: number, year?: number) {
+    const where: any = {};
+    if (month && year) {
+      const start = new Date(year, month - 1, 1);
+      const end = new Date(year, month, 1);
+      where.ngayPhatSinh = { gte: start, lt: end };
+    }
+    return prisma.debt.findMany({ where, orderBy: { ngayPhatSinh: 'desc' } });
   }
 
   async getById(id: string) {
@@ -32,6 +39,7 @@ class DebtService {
       data: {
         ngayPhatSinh: new Date(input.ngayPhatSinh),
         loaiChiPhi: input.loaiChiPhi,
+        supplierId: input.supplierId,
         maNhaCungCap: input.maNhaCungCap,
         tenNhaCungCap: input.tenNhaCungCap,
         loaiCungCap: input.loaiCungCap,
@@ -44,7 +52,7 @@ class DebtService {
         ngayDenHan: input.ngayDenHan ? new Date(input.ngayDenHan) : null,
         soTaiKhoan: input.soTaiKhoan,
         ghiChu: input.ghiChu,
-        fileDinhKem: input.fileDinhKem,
+        files: input.files || [],
       },
     });
   }
@@ -63,15 +71,21 @@ class DebtService {
     await prisma.debt.delete({ where: { id } });
   }
 
-  async getSummary() {
-    const debts = await prisma.debt.findMany();
+  async getSummary(month?: number, year?: number) {
+    const where: any = {};
+    if (month && year) {
+      const start = new Date(year, month - 1, 1);
+      const end = new Date(year, month, 1);
+      where.ngayPhatSinh = { gte: start, lt: end };
+    }
+    const debts = await prisma.debt.findMany({ where });
     return {
-      tongPhaiTra: debts.reduce((sum, debt) => sum + debt.soTienPhaiTra, 0),
-      daThanhToan: debts.reduce((sum, debt) => sum + debt.soTienDaThanhToan, 0),
-      conNo: debts.reduce((sum, debt) => sum + (debt.soTienPhaiTra - debt.soTienDaThanhToan), 0),
+      tongPhaiTra: debts.reduce((sum, debt) => sum + (debt.soTienPhaiTra ?? 0), 0),
+      daThanhToan: debts.reduce((sum, debt) => sum + (debt.soTienDaThanhToan ?? 0), 0),
+      conNo: debts.reduce((sum, debt) => sum + ((debt.soTienPhaiTra ?? 0) - (debt.soTienDaThanhToan ?? 0)), 0),
       soLuongCongNo: debts.length,
-      chuaThanhToan: debts.filter(d => d.soTienDaThanhToan === 0 && d.soTienPhaiTra > 0).length,
-      daThanhToanHet: debts.filter(d => d.soTienDaThanhToan >= d.soTienPhaiTra && d.soTienPhaiTra > 0).length,
+      chuaThanhToan: debts.filter(d => (d.soTienDaThanhToan ?? 0) === 0 && (d.soTienPhaiTra ?? 0) > 0).length,
+      daThanhToanHet: debts.filter(d => (d.soTienDaThanhToan ?? 0) >= (d.soTienPhaiTra ?? 0) && (d.soTienPhaiTra ?? 0) > 0).length,
     };
   }
 }

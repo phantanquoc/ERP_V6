@@ -19,12 +19,12 @@ export interface TaxReport {
   maDonHang: string;
   tenHangHoa: string;
   soLuong: number;
-  donVi: string;
+  donViTinh: string;
   giaTriDonHang: number;
   soTienDongThue?: number;
   trangThai: TaxReportStatus;
-  ghiChi?: string;
-  fileDinhKem?: string;
+  ghiChu?: string;
+  fileUrl?: string;
   createdAt: string;
   updatedAt: string;
   order?: any;
@@ -34,8 +34,8 @@ export interface TaxReport {
 export interface TaxReportInput {
   soTienDongThue?: number;
   trangThai?: TaxReportStatus;
-  ghiChi?: string;
-  fileDinhKem?: string;
+  ghiChu?: string;
+  fileUrl?: string;
 }
 
 // API Response
@@ -53,9 +53,11 @@ export interface ApiResponse<T> {
 
 class TaxReportService {
   // Get all tax reports
-  async getAllTaxReports(page: number = 1, limit: number = 10, search?: string) {
+  async getAllTaxReports(page: number = 1, limit: number = 10, search?: string, month?: number, year?: number) {
     const params: any = { page, limit };
     if (search) params.search = search;
+    if (month) params.month = month;
+    if (year) params.year = year;
 
     const response = await apiClient.get('/tax-reports', { params });
     return response;
@@ -79,7 +81,7 @@ class TaxReportService {
       const formData = new FormData();
       if (input) {
         Object.entries(input).forEach(([key, value]) => {
-          if (value !== undefined && value !== null && key !== 'fileDinhKem') {
+          if (value !== undefined && value !== null && key !== 'fileUrl') {
             formData.append(key, value.toString());
           }
         });
@@ -97,7 +99,7 @@ class TaxReportService {
     if (file) {
       const formData = new FormData();
       Object.entries(input).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && key !== 'fileDinhKem') {
+        if (value !== undefined && value !== null && key !== 'fileUrl') {
           formData.append(key, value.toString());
         }
       });

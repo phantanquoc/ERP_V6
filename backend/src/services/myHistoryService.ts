@@ -604,17 +604,17 @@ async function fetchCustomerFeedbacks(userId: string, dateWhere: any): Promise<H
   }));
 }
 
-async function fetchInvoices(userId: string, dateWhere: any): Promise<HistoryItem[]> {
+async function fetchInvoices(dateWhere: any): Promise<HistoryItem[]> {
   const rows = await prisma.invoice.findMany({
-    where: { createdById: userId, ...(dateWhere ? { createdAt: dateWhere } : {}) },
-    select: { id: true, soHoaDon: true, khachHang: true, trangThai: true, createdAt: true },
+    where: { ...(dateWhere ? { createdAt: dateWhere } : {}) },
+    select: { id: true, soHoaDon: true, customerId: true, trangThai: true, createdAt: true, customer: { select: { tenCongTy: true } } },
     orderBy: { createdAt: 'desc' },
   });
   return rows.map((r) => ({
     entityType: 'invoice',
     entityId: r.id,
     group: 'Phiếu' as HistoryGroup,
-    title: `Hóa đơn ${r.soHoaDon} - ${r.khachHang}`,
+    title: `Hóa đơn ${r.soHoaDon} - ${r.customer?.tenCongTy || 'N/A'}`,
     code: r.soHoaDon,
     status: r.trangThai,
     createdAt: r.createdAt,
@@ -623,9 +623,9 @@ async function fetchInvoices(userId: string, dateWhere: any): Promise<HistoryIte
   }));
 }
 
-async function fetchTaxReports(userId: string, dateWhere: any): Promise<HistoryItem[]> {
+async function fetchTaxReports(dateWhere: any): Promise<HistoryItem[]> {
   const rows = await prisma.taxReport.findMany({
-    where: { createdById: userId, ...(dateWhere ? { createdAt: dateWhere } : {}) },
+    where: { ...(dateWhere ? { createdAt: dateWhere } : {}) },
     select: { id: true, maDonHang: true, tenHangHoa: true, trangThai: true, createdAt: true },
     orderBy: { createdAt: 'desc' },
   });
@@ -804,10 +804,10 @@ export async function getMyHistory(params: MyHistoryQuery): Promise<MyHistoryRes
     branches.push(safeWrap(fetchCustomerFeedbacks(userId, dateWhere), 'customer-feedback'));
   }
   if (shouldQuery(types, 'invoice')) {
-    branches.push(safeWrap(fetchInvoices(userId, dateWhere), 'invoice'));
+    branches.push(safeWrap(fetchInvoices(dateWhere), 'invoice'));
   }
   if (shouldQuery(types, 'tax-report')) {
-    branches.push(safeWrap(fetchTaxReports(userId, dateWhere), 'tax-report'));
+    branches.push(safeWrap(fetchTaxReports(dateWhere), 'tax-report'));
   }
   if (shouldQuery(types, 'private-feedback')) {
     branches.push(safeWrap(fetchPrivateFeedbacks(userId, dateWhere), 'private-feedback'));

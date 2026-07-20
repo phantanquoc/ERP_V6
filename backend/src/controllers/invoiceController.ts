@@ -8,8 +8,10 @@ export class InvoiceController {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
       const search = req.query.search as string;
+      const month = req.query.month ? parseInt(req.query.month as string) : undefined;
+      const year = req.query.year ? parseInt(req.query.year as string) : undefined;
 
-      const result = await invoiceService.getAllInvoices(page, limit, search);
+      const result = await invoiceService.getAllInvoices(page, limit, search, month, year);
 
       res.json({
         success: true,
@@ -42,7 +44,7 @@ export class InvoiceController {
 
   async createInvoice(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const invoice = await invoiceService.createInvoice(req.body, req.user?.id);
+      const invoice = await invoiceService.createInvoice(req.body);
 
       res.status(201).json({
         success: true,

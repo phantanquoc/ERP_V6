@@ -7,20 +7,20 @@ export interface CreateTaxReportInput {
   orderId: string;
   soTienDongThue?: number;
   trangThai?: TaxReportStatus;
-  ghiChi?: string;
-  fileDinhKem?: string;
+  ghiChu?: string;
+  fileUrl?: string;
 }
 
 export interface UpdateTaxReportInput {
   soTienDongThue?: number;
   trangThai?: TaxReportStatus;
-  ghiChi?: string;
-  fileDinhKem?: string;
+  ghiChu?: string;
+  fileUrl?: string;
 }
 
 class TaxReportService {
   // Get all tax reports with pagination
-  async getAllTaxReports(page: number = 1, limit: number = 10, search?: string) {
+  async getAllTaxReports(page: number = 1, limit: number = 10, search?: string, month?: number, year?: number) {
     const skip = (page - 1) * limit;
 
     const where: any = {};
@@ -29,6 +29,12 @@ class TaxReportService {
         { maDonHang: { contains: search, mode: 'insensitive' } },
         { tenHangHoa: { contains: search, mode: 'insensitive' } },
       ];
+    }
+
+    if (month && year) {
+      const start = new Date(year, month - 1, 1);
+      const end = new Date(year, month, 1);
+      where.ngayDatHang = { gte: start, lt: end };
     }
 
     const [data, total] = await Promise.all([
@@ -102,7 +108,7 @@ class TaxReportService {
   }
 
   // Create tax report from order
-  async createTaxReportFromOrder(orderId: string, input?: Partial<CreateTaxReportInput>, userId?: string) {
+  async createTaxReportFromOrder(orderId: string, input?: Partial<CreateTaxReportInput>) {
     // Get order with items
     const order = await prisma.order.findUnique({
       where: { id: orderId },
@@ -132,17 +138,16 @@ class TaxReportService {
     return await prisma.taxReport.create({
       data: {
         orderId,
-        ngayDatHang: order.ngayDatHang,
         maDonHang: order.maDonHang,
+        ngayDatHang: order.ngayDatHang,
         tenHangHoa,
         soLuong,
-        donVi,
+        donViTinh: donVi,
         giaTriDonHang,
         soTienDongThue: input?.soTienDongThue,
         trangThai: input?.trangThai || TaxReportStatus.CHUA_BAO_CAO,
-        ghiChi: input?.ghiChi,
-        fileDinhKem: input?.fileDinhKem,
-        createdById: userId ?? null,
+        ghiChu: input?.ghiChu,
+        fileUrl: input?.fileUrl,
       },
       include: {
         order: {
@@ -196,7 +201,7 @@ class TaxReportService {
       { header: 'Giá trị đơn hàng', key: 'giaTriDonHang', width: 20 },
       { header: 'Số tiền đóng thuế', key: 'soTienDongThue', width: 20 },
       { header: 'Trạng thái', key: 'trangThai', width: 25 },
-      { header: 'Ghi chú', key: 'ghiChi', width: 30 },
+      { header: 'Ghi chú', key: 'ghiChu', width: 30 },
       { header: 'Ngày tạo', key: 'createdAt', width: 18 },
     ];
 
@@ -221,11 +226,11 @@ class TaxReportService {
         maDonHang: item.maDonHang || '',
         tenHangHoa: item.tenHangHoa || '',
         soLuong: item.soLuong || 0,
-        donVi: item.donVi || '',
+        donVi: item.donViTinh || '',
         giaTriDonHang: item.giaTriDonHang || 0,
         soTienDongThue: item.soTienDongThue || 0,
         trangThai: statusLabels[item.trangThai] || item.trangThai,
-        ghiChi: item.ghiChi || '',
+        ghiChu: item.ghiChu || '',
         createdAt: new Date(item.createdAt).toLocaleDateString('vi-VN'),
       });
     });

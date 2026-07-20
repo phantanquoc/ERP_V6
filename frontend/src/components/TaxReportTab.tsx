@@ -4,7 +4,12 @@ import taxReportService, { TaxReport, TaxReportStatus, TaxReportInput } from '..
 import Modal from './Modal';
 import { parseNumberInput } from '../utils/numberInput';
 
-const TaxReportTab: React.FC = () => {
+interface TaxReportTabProps {
+  month?: number;
+  year?: number;
+}
+
+const TaxReportTab: React.FC<TaxReportTabProps> = ({ month, year }) => {
   const [taxReports, setTaxReports] = useState<TaxReport[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -15,12 +20,12 @@ const TaxReportTab: React.FC = () => {
 
   useEffect(() => {
     loadTaxReports();
-  }, []);
+  }, [month, year]);
 
   const loadTaxReports = async () => {
     try {
       setLoading(true);
-      const response = await taxReportService.getAllTaxReports(1, 100);
+      const response = await taxReportService.getAllTaxReports(1, 100, undefined, month, year);
       setTaxReports(response.data);
     } catch (error) {
       console.error('Error loading tax reports:', error);
@@ -35,8 +40,8 @@ const TaxReportTab: React.FC = () => {
     setFormData({
       soTienDongThue: report.soTienDongThue,
       trangThai: report.trangThai,
-      ghiChi: report.ghiChi,
-      fileDinhKem: report.fileDinhKem,
+      ghiChu: report.ghiChu,
+      fileUrl: report.fileUrl,
     });
     setShowEditModal(true);
   };
@@ -166,7 +171,7 @@ const TaxReportTab: React.FC = () => {
                 <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">{report.maDonHang}</td>
                 <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">{report.tenHangHoa}</td>
                 <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">{report.soLuong.toLocaleString()}</td>
-                <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">{report.donVi}</td>
+                <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">{report.donViTinh}</td>
                 <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
                   {formatCurrency(report.giaTriDonHang)}
                 </td>
@@ -178,10 +183,10 @@ const TaxReportTab: React.FC = () => {
                     {getStatusLabel(report.trangThai)}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">{report.ghiChi || '-'}</td>
+                <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">{report.ghiChu || '-'}</td>
                 <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                  {report.fileDinhKem ? (
-                    <a href={report.fileDinhKem} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 flex items-center">
+                  {report.fileUrl ? (
+                    <a href={report.fileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 flex items-center">
                       <FileText className="w-4 h-4 mr-1" />
                       Xem file
                     </a>
@@ -275,7 +280,7 @@ const TaxReportTab: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Số lượng</label>
-                    <p className="text-sm text-gray-900">{selectedReport.soLuong.toLocaleString()} {selectedReport.donVi}</p>
+                    <p className="text-sm text-gray-900">{selectedReport.soLuong.toLocaleString()} {selectedReport.donViTinh}</p>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Giá trị đơn hàng</label>
@@ -313,10 +318,10 @@ const TaxReportTab: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Ghi chí</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Ghi chú</label>
                   <textarea
-                    value={formData.ghiChi || ''}
-                    onChange={(e) => setFormData({ ...formData, ghiChi: e.target.value })}
+                    value={formData.ghiChu || ''}
+                    onChange={(e) => setFormData({ ...formData, ghiChu: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                     rows={3}
                     placeholder="Nhập ghi chú"
@@ -327,8 +332,8 @@ const TaxReportTab: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">File đính kèm (URL)</label>
                   <input
                     type="text"
-                    value={formData.fileDinhKem || ''}
-                    onChange={(e) => setFormData({ ...formData, fileDinhKem: e.target.value })}
+                    value={formData.fileUrl || ''}
+                    onChange={(e) => setFormData({ ...formData, fileUrl: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                     placeholder="Nhập URL file đính kèm"
                   />
