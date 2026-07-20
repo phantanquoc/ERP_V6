@@ -108,13 +108,15 @@ export interface GenerateCodeResponse {
 }
 
 export const quotationRequestService = {
-  async getAllQuotationRequests(page: number = 1, limit: number = 20, search?: string, customerType?: string, status?: string, dateFrom?: string, dateTo?: string): Promise<PaginatedResponse> {
+  async getAllQuotationRequests(page: number = 1, limit: number = 20, search?: string, customerType?: string, status?: string, dateFrom?: string, dateTo?: string, month?: number, year?: number): Promise<PaginatedResponse> {
     const params: Record<string, any> = { page, limit };
     if (search) params.search = search;
     if (customerType) params.customerType = customerType;
     if (status) params.status = status;
     if (dateFrom) params.dateFrom = dateFrom;
     if (dateTo) params.dateTo = dateTo;
+    if (month) params.month = month;
+    if (year) params.year = year;
 
     const response = await apiClient.get('/quotation-requests', { params });
     return response as unknown as PaginatedResponse;

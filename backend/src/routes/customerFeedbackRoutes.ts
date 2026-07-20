@@ -42,6 +42,8 @@ router.get('/', authenticate, async (req, res) => {
       mucDoNghiemTrong: req.query.mucDoNghiemTrong as string,
       search: req.query.search as string,
       customerType: req.query.customerType as string,
+      month: req.query.month ? parseInt(req.query.month as string) : undefined,
+      year: req.query.year ? parseInt(req.query.year as string) : undefined,
     };
 
     const feedbacks = await customerFeedbackService.getAllFeedbacks(filters);

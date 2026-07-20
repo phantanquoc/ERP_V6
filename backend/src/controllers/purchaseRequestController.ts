@@ -9,11 +9,13 @@ class PurchaseRequestController {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
       const search = req.query.search as string;
+      const month = req.query.month ? parseInt(req.query.month as string) : undefined;
+      const year = req.query.year ? parseInt(req.query.year as string) : undefined;
 
       const isAdmin = req.user?.role === 'ADMIN';
       const departmentId = isAdmin ? undefined : (req.user?.departmentId ?? undefined);
 
-      const result = await purchaseRequestService.getAllPurchaseRequests(page, limit, search, departmentId);
+      const result = await purchaseRequestService.getAllPurchaseRequests(page, limit, search, departmentId, month, year);
 
       return res.json({
         success: true,

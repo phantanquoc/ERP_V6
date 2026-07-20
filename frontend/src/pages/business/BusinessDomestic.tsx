@@ -5,7 +5,8 @@ import {
   Users,
   FileText,
   Package,
-  MessageCircle
+  MessageCircle,
+  Calendar
 } from 'lucide-react';
 import DomesticCustomerManagement from '../../components/DomesticCustomerManagement';
 import QuotationRequestManagement from '../../components/QuotationRequestManagement';
@@ -26,6 +27,9 @@ const BusinessDomestic = () => {
     const tabParam = searchParams.get('tab') as TabType;
     return VALID_TABS.includes(tabParam) ? tabParam : 'quotationRequests';
   });
+
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   useEffect(() => {
     const currentTab = searchParams.get('tab');
@@ -63,10 +67,10 @@ const BusinessDomestic = () => {
 
   const [loading, setLoading] = useState(false);
 
-  // Load data on mount
+  // Load data on mount and when month/year changes
   useEffect(() => {
     loadAllStats();
-  }, []);
+  }, [selectedMonth, selectedYear]);
 
   const loadAllStats = async () => {
     try {
@@ -87,8 +91,8 @@ const BusinessDomestic = () => {
   const loadQuotationRequestStats = async () => {
     try {
       const [requestsResponse, quotationsResponse] = await Promise.all([
-        quotationRequestService.getAllQuotationRequests(1, 10000, undefined, 'Nội địa'),
-        quotationService.getAllQuotations(1, 10000, undefined, 'Nội địa')
+        quotationRequestService.getAllQuotationRequests(1, 10000, undefined, 'Nội địa', undefined, undefined, undefined, selectedMonth, selectedYear),
+        quotationService.getAllQuotations(1, 10000, undefined, 'Nội địa', undefined, undefined, undefined, selectedMonth, selectedYear)
       ]);
 
       const requests = requestsResponse.data;
@@ -109,7 +113,7 @@ const BusinessDomestic = () => {
 
   const loadQuotationStats = async () => {
     try {
-      const response = await quotationService.getAllQuotations(1, 10000, undefined, 'Nội địa');
+      const response = await quotationService.getAllQuotations(1, 10000, undefined, 'Nội địa', undefined, undefined, undefined, selectedMonth, selectedYear);
       const data = response.data;
 
       setQuotationStats({
@@ -126,30 +130,13 @@ const BusinessDomestic = () => {
 
   const loadOrderStats = async () => {
     try {
-      const response = await orderService.getAllOrders(1, 10000, undefined, 'Nội địa');
+      const response = await orderService.getAllOrders(1, 10000, undefined, 'Nội địa', undefined, undefined, undefined, selectedMonth, selectedYear);
       const data = response.data;
-
-      const now = new Date();
-      const currentMonth = now.getMonth();
-      const currentYear = now.getFullYear();
-
-      const thisMonthOrders = data.filter((item: any) => {
-        const orderDate = new Date(item.ngayDatHang);
-        return orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear;
-      });
-
-      const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-      const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-
-      const lastMonthOrders = data.filter((item: any) => {
-        const orderDate = new Date(item.ngayDatHang);
-        return orderDate.getMonth() === lastMonth && orderDate.getFullYear() === lastMonthYear;
-      });
 
       setOrderStats({
         total: data.length,
-        thisMonth: thisMonthOrders.length,
-        lastMonth: lastMonthOrders.length
+        thisMonth: data.length,
+        lastMonth: 0
       });
     } catch (error) {
       console.error('Error loading order stats:', error);
@@ -158,7 +145,7 @@ const BusinessDomestic = () => {
 
   const loadFeedbackStats = async () => {
     try {
-      const data = await customerFeedbackService.getAllFeedbacks({ customerType: 'Nội địa' });
+      const data = await customerFeedbackService.getAllFeedbacks({ customerType: 'Nội địa', month: selectedMonth, year: selectedYear });
 
       setFeedbackStats({
         total: data.length,
@@ -179,21 +166,45 @@ const BusinessDomestic = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div>
+      <div>
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center">
-            <Home className="w-8 h-8 text-green-600 mr-3" />
-            Phòng KD Nội Địa
-          </h1>
-          <p className="text-gray-600">Quản lý khách hàng nội địa, đơn hàng trong nước và hợp đồng thương mại</p>
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center">
+              <Home className="w-8 h-8 text-green-600 mr-3" />
+              Phòng KD Nội Địa
+            </h1>
+            <p className="text-gray-600">Quản lý khách hàng nội địa, đơn hàng trong nước và hợp đồng thương mại</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-gray-500" />
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            >
+              {Array.from({ length: 12 }, (_, i) => (
+                <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
+              ))}
+            </select>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            >
+              {Array.from({ length: 4 }, (_, i) => {
+                const y = new Date().getFullYear() - 3 + i;
+                return <option key={y} value={y}>{y}</option>;
+              })}
+            </select>
+          </div>
         </div>
 
         {/* Overview Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
           {/* Card 1: Yêu cầu báo giá */}
-          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-blue-400">
+          <div onClick={() => setActiveTab('quotationRequests')} className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-blue-400 cursor-pointer">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <FileText className="w-5 h-5 mr-2 text-blue-600" />
@@ -221,7 +232,7 @@ const BusinessDomestic = () => {
           </div>
 
           {/* Card 2: Báo giá */}
-          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-green-400">
+          <div onClick={() => setActiveTab('quotations')} className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-green-400 cursor-pointer">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <FileText className="w-5 h-5 mr-2 text-green-600" />
@@ -257,7 +268,7 @@ const BusinessDomestic = () => {
           </div>
 
           {/* Card 3: Đơn hàng */}
-          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-purple-400">
+          <div onClick={() => setActiveTab('orders')} className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-purple-400 cursor-pointer">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <Package className="w-5 h-5 mr-2 text-purple-600" />
@@ -271,21 +282,17 @@ const BusinessDomestic = () => {
                   <span className="text-2xl font-bold text-purple-600">{orderStats.total}</span>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2">
                 <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
-                  <div className="text-xl font-bold text-green-600">{orderStats.thisMonth}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Tháng này</div>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
-                  <div className="text-xl font-bold text-blue-600">{orderStats.lastMonth}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Tháng trước</div>
+                  <div className="text-xl font-bold text-green-600">{orderStats.total}</div>
+                  <div className="text-xs text-gray-600 mt-0.5">Trong kỳ</div>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Card 4: Phản hồi khách hàng */}
-          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-red-400">
+          <div onClick={() => setActiveTab('feedback')} className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-red-400 cursor-pointer">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <MessageCircle className="w-5 h-5 mr-2 text-red-600" />

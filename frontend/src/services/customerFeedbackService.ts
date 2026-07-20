@@ -34,6 +34,8 @@ class CustomerFeedbackService {
     mucDoNghiemTrong?: string;
     search?: string;
     customerType?: string;
+    month?: number;
+    year?: number;
   }): Promise<CustomerFeedback[]> {
     const params = new URLSearchParams();
     if (filters?.trangThaiXuLy) params.append('trangThaiXuLy', filters.trangThaiXuLy);
@@ -41,6 +43,8 @@ class CustomerFeedbackService {
     if (filters?.mucDoNghiemTrong) params.append('mucDoNghiemTrong', filters.mucDoNghiemTrong);
     if (filters?.search) params.append('search', filters.search);
     if (filters?.customerType) params.append('customerType', filters.customerType);
+    if (filters?.month) params.append('month', String(filters.month));
+    if (filters?.year) params.append('year', String(filters.year));
 
     const response = await api.get<CustomerFeedback[]>(`/customer-feedbacks?${params.toString()}`);
     return response.data || [];

@@ -27,7 +27,10 @@ export class ProcessController {
           ? false
           : undefined;
 
-      const result = await processService.getAllProcesses(page, limit, search, hienThiTrongChung);
+      const month = req.query.month ? parseInt(req.query.month as string) : undefined;
+      const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+
+      const result = await processService.getAllProcesses(page, limit, search, hienThiTrongChung, month, year);
 
       res.json({
         success: true,

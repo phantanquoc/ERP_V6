@@ -6,7 +6,8 @@ import {
   X,
   ClipboardList,
   Package,
-  ShieldCheck
+  ShieldCheck,
+  Calendar
 } from 'lucide-react';
 import ProcessManagement from '../../components/ProcessManagement';
 import ProductionProcessManagement from '../../components/ProductionProcessManagement';
@@ -72,6 +73,9 @@ const QualityProcess = () => {
     return VALID_TABS.includes(tabParam) ? tabParam : 'processList';
   });
 
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
   useEffect(() => {
     const currentTab = searchParams.get('tab');
     if (currentTab !== activeTab) {
@@ -90,16 +94,16 @@ const QualityProcess = () => {
   // Fetch real data from API
   useEffect(() => {
     fetchProcessesAndProducts();
-  }, []);
+  }, [selectedMonth, selectedYear]);
 
   const fetchProcessesAndProducts = async () => {
     try {
       setLoading(true);
-      // Fetch all processes (no pagination limit)
-      const processResponse = await processService.getAllProcesses(1, 1000);
+      // Fetch all processes with month/year filter
+      const processResponse = await processService.getAllProcesses(1, 1000, undefined, undefined, selectedMonth, selectedYear);
       setProcesses(processResponse.data);
 
-      // Fetch all products (no pagination limit)
+      // Fetch all products (no pagination limit) - products don't filter by month
       const productResponse = await internationalProductService.getAllProducts(1, 1000);
       setRealProducts(productResponse.data);
     } catch (error) {
@@ -332,12 +336,34 @@ const QualityProcess = () => {
             </h1>
             <p className="text-sm sm:text-base text-gray-600">Quản lý tiêu chuẩn, quy trình, kiểm tra và cải tiến chất lượng</p>
           </div>
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-gray-500" />
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {Array.from({ length: 12 }, (_, i) => (
+                <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
+              ))}
+            </select>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {Array.from({ length: 4 }, (_, i) => {
+                const y = new Date().getFullYear() - 3 + i;
+                return <option key={y} value={y}>{y}</option>;
+              })}
+            </select>
+          </div>
         </div>
 
         {/* Overview Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Tổng quan danh sách quy trình */}
-          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-blue-400">
+          <div onClick={() => setActiveTab('processList')} className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-blue-400 cursor-pointer">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <FileText className="w-5 h-5 mr-2 text-blue-600" />
@@ -392,7 +418,7 @@ const QualityProcess = () => {
           </div>
 
           {/* Tổng quan danh sách sản phẩm */}
-          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-emerald-400">
+          <div onClick={() => setActiveTab('productionProcess')} className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-emerald-400 cursor-pointer">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <Package className="w-5 h-5 mr-2 text-emerald-600" />

@@ -34,6 +34,8 @@ interface GetAllFilters {
   mucDoNghiemTrong?: string;
   search?: string;
   customerType?: string; // "Quốc tế" hoặc "Nội địa"
+  month?: number;
+  year?: number;
 }
 
 export const customerFeedbackService = {
@@ -88,6 +90,14 @@ export const customerFeedbackService = {
           { donHangLienQuan: { contains: filters.search, mode: 'insensitive' } },
           { customer: { tenCongTy: { contains: filters.search, mode: 'insensitive' } } },
         ];
+      }
+
+      // Filter by month/year on ngayPhanHoi
+      if (filters.month && filters.year) {
+        where.ngayPhanHoi = {
+          gte: new Date(filters.year, filters.month - 1, 1),
+          lt: new Date(filters.year, filters.month, 1),
+        };
       }
 
       const feedbacks = await prisma.customerFeedback.findMany({

@@ -28,7 +28,9 @@ export class QuotationRequestService {
     customerType?: string, // "Quốc tế" hoặc "Nội địa"
     status?: PrismaQRStatus,
     dateFrom?: string,
-    dateTo?: string
+    dateTo?: string,
+    month?: number,
+    year?: number
   ): Promise<PaginatedResponse<any>> {
     const { skip } = getPaginationParams(page, limit);
 
@@ -55,6 +57,15 @@ export class QuotationRequestService {
         end.setHours(23, 59, 59, 999);
         where.ngayYeuCau.lte = end;
       }
+    }
+
+    // Filter by month/year on ngayYeuCau
+    if (month && year) {
+      where.ngayYeuCau = {
+        ...where.ngayYeuCau,
+        gte: new Date(year, month - 1, 1),
+        lt: new Date(year, month, 1),
+      };
     }
 
     // Search filter

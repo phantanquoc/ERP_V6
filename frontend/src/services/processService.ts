@@ -113,7 +113,7 @@ export interface FlowchartResponse {
 }
 
 export const processService = {
-  async getAllProcesses(page: number = 1, limit: number = 10, search?: string, hienThiTrongChung?: boolean): Promise<PaginatedResponse> {
+  async getAllProcesses(page: number = 1, limit: number = 10, search?: string, hienThiTrongChung?: boolean, month?: number, year?: number): Promise<PaginatedResponse> {
     const params = new URLSearchParams({
       page: page.toString(),
       limit: limit.toString(),
@@ -125,6 +125,14 @@ export const processService = {
 
     if (hienThiTrongChung !== undefined) {
       params.append('hienThiTrongChung', String(hienThiTrongChung));
+    }
+
+    if (month) {
+      params.append('month', String(month));
+    }
+
+    if (year) {
+      params.append('year', String(year));
     }
 
      const response = await apiClient.get(`/processes?${params.toString()}`);
