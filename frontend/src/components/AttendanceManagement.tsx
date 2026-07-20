@@ -801,10 +801,14 @@ const AttendanceManagement: React.FC = () => {
                         const hhmm = formatTimeInAppTz(lastIso);
                         return `Ra ngày kế: ${wd}, ${dd}/${mm} ${hhmm} (Ca đêm)`;
                       })() : undefined;
+                      const handleView = (rec: AttendanceRecord) => {
+                        setCalendarModal({ type: 'cell', record: rec });
+                      };
                       return (
                       <React.Fragment key={record.id}>
                         <tr
-                          className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                          onClick={() => handleView(record)}
+                          className={`border-b border-gray-200 hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all ${
                             index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                           }`}
                         >
@@ -864,14 +868,7 @@ const AttendanceManagement: React.FC = () => {
                           <td className="px-3 py-3 sm:px-6 sm:py-4">
                             <div className="flex items-center justify-center gap-3">
                               <button
-                                onClick={() => handleEdit(record)}
-                                className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                                title="Chỉnh sửa"
-                              >
-                                <Edit2 className="w-5 h-5" />
-                              </button>
-                              <button
-                                onClick={() => handleDelete(record.id)}
+                                onClick={(e) => { e.stopPropagation(); handleDelete(record.id); }}
                                 className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
                                 title="Xóa"
                               >
@@ -1584,26 +1581,20 @@ const AttendanceManagement: React.FC = () => {
             </div>
             <div className="px-6 py-3 border-t border-gray-200 flex justify-end gap-2 bg-gray-50 rounded-b-lg">
               <button
+                onClick={() => setCalendarModal(null)}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Đóng
+              </button>
+              <button
                 onClick={() => {
                   const r = calendarModal.record;
                   setCalendarModal(null);
                   handleEdit(r);
                 }}
-                className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
               >
-                <Edit2 className="w-4 h-4" />
                 Chỉnh sửa
-              </button>
-              <button
-                onClick={async () => {
-                  const id = calendarModal.record.id;
-                  await handleDelete(id);
-                  setCalendarModal(null);
-                }}
-                className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-                Xoá
               </button>
             </div>
           </div>

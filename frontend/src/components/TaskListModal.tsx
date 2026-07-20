@@ -369,7 +369,11 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
                       const isRecipient = user?._id && task.nguoiNhan?.some(n => n.id === user._id);
                       const canAccept = !isAdmin && isRecipient && (!myStatus || myStatus === TaskAcceptanceStatus.CHUA_TIEP_NHAN);
                       return (
-                        <tr key={task.id} className="hover:bg-gray-50">
+                        <tr
+                          key={task.id}
+                          onClick={() => setSelectedTask(task)}
+                          className="hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all"
+                        >
                           <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
                             {(currentPage - 1) * itemsPerPage + index + 1}
                           </td>
@@ -416,17 +420,10 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
                       </td>
                       <td className="px-3 py-3 whitespace-nowrap text-sm">
                         <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => setSelectedTask(task)}
-                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                            title="Xem chi tiết"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
                           {canAccept && (
                             <>
                               <button
-                                onClick={() => handleAcceptTask(task.id, TaskAcceptanceStatus.DA_TIEP_NHAN)}
+                                onClick={(e) => { e.stopPropagation(); handleAcceptTask(task.id, TaskAcceptanceStatus.DA_TIEP_NHAN); }}
                                 disabled={acceptingTaskId === task.id}
                                 className="p-1.5 text-green-600 hover:bg-green-50 rounded-md transition-colors disabled:opacity-50"
                                 title="Tiếp nhận"
@@ -434,7 +431,7 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
                                 <Check className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => handleAcceptTask(task.id, TaskAcceptanceStatus.TU_CHOI)}
+                                onClick={(e) => { e.stopPropagation(); handleAcceptTask(task.id, TaskAcceptanceStatus.TU_CHOI); }}
                                 disabled={acceptingTaskId === task.id}
                                 className="p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
                                 title="Từ chối"

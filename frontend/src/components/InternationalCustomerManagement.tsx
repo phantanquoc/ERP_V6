@@ -226,7 +226,8 @@ const InternationalCustomerManagement: React.FC = () => {
                 customers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((customer, index) => (
                   <tr
                     key={customer.id}
-                    className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                    onClick={() => openDetailModal(customer)}
+                    className={`border-b border-gray-200 hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all ${
                       index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                     }`}
                   >
@@ -265,21 +266,7 @@ const InternationalCustomerManagement: React.FC = () => {
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-3">
                         <button
-                          onClick={() => openDetailModal(customer)}
-                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                          title="Xem chi tiết"
-                        >
-                          <Eye className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => openEditModal(customer)}
-                          className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
-                          title="Chỉnh sửa"
-                        >
-                          <Edit className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(customer.id)}
+                          onClick={(e) => { e.stopPropagation(); handleDelete(customer.id); }}
                           className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
                           title="Xóa"
                         >
@@ -690,6 +677,24 @@ const InternationalCustomerManagement: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-500">Ghi chú</label>
                   <p className="mt-1 text-sm text-gray-900">{selectedCustomer.ghiChu || '-'}</p>
                 </div>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => setShowDetailModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Đóng
+                </button>
+                <button
+                  onClick={() => {
+                    setShowDetailModal(false);
+                    openEditModal(selectedCustomer);
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Chỉnh sửa
+                </button>
               </div>
               </>)}
             </div>

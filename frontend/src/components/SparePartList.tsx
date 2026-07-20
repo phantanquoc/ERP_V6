@@ -246,7 +246,7 @@ const SparePartList = () => {
               ) : parts.length === 0 ? (
                 <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">Không có dữ liệu</td></tr>
               ) : parts.map((part) => (
-                <tr key={part.id} className="hover:bg-gray-50/50 transition-colors">
+                <tr key={part.id} onClick={() => openViewModal(part)} className="border-l-2 border-l-transparent hover:bg-blue-100 hover:border-l-blue-500 cursor-pointer transition-all">
                   <td className="px-3 py-2.5 sticky left-0 bg-white z-10 font-mono text-xs text-blue-700 font-medium">{part.maLinhKien}</td>
                   <td className="px-3 py-2.5 font-medium text-gray-800">{part.tenLinhKien}</td>
                   <td className="px-3 py-2.5 text-gray-600 text-xs">{loaiLabel(part.loai)}</td>
@@ -258,10 +258,9 @@ const SparePartList = () => {
                       {part.trangThai}
                     </span>
                   </td>
-                  <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
+                  <td className="px-3 py-2.5 sticky right-0 bg-white z-10" onClick={(e) => e.stopPropagation()}>
                     <ResponsiveRowActions
                       actions={[
-                        { key: 'view', label: 'Xem chi tiết', icon: <Eye size={14} />, onClick: () => openViewModal(part), tone: 'primary' },
                         ...(canWrite ? [{ key: 'edit', label: 'Sửa linh kiện', icon: <Edit size={14} />, onClick: () => openEditModal(part), tone: 'success' } satisfies RowAction] : []),
                         ...(canDelete ? [{ key: 'delete', label: 'Xóa linh kiện', icon: <Trash2 size={14} />, onClick: () => handleDelete(part.id), tone: 'danger' } satisfies RowAction] : []),
                       ]}
@@ -314,6 +313,12 @@ const SparePartList = () => {
                     <a href={getFileUrl(editingPart.fileDinhKem)} target="_blank" rel="noreferrer" className="ml-2 text-blue-600 hover:underline">Xem file</a>
                   </div>
                 )}
+                <div className="flex justify-end gap-2 pt-2">
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Đóng</button>
+                  {canWrite && (
+                    <button type="button" onClick={() => openEditModal(editingPart)} className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700">Chỉnh sửa</button>
+                  )}
+                </div>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="p-5 space-y-4">

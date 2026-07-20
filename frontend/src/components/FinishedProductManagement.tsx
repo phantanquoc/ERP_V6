@@ -1043,7 +1043,8 @@ const FinishedProductManagement: React.FC = () => {
                   filteredProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((product, index) => (
                     <tr
                       key={product.id}
-                      className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                      onClick={() => handleView(product)}
+                      className={`border-b border-gray-200 hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all ${
                         index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                       }`}
                     >
@@ -1071,31 +1072,14 @@ const FinishedProductManagement: React.FC = () => {
                       <td className="px-3 py-2 sm:px-6 sm:py-4">
                         <div className="flex items-center justify-center gap-3">
                           <button
-                            onClick={() => handleView(product)}
-                            className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                            title="Xem chi tiết"
-                          >
-                            <Eye className="w-5 h-5" />
-                          </button>
-                          <button
-                            onClick={() => handleOpenModal(product)}
-                            className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
-                            title="Sửa"
-                          >
-                            <Edit className="w-5 h-5" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedProductForReceipt(product);
-                              setIsReceiptModalOpen(true);
-                            }}
+                            onClick={(e) => { e.stopPropagation(); setSelectedProductForReceipt(product); setIsReceiptModalOpen(true); }}
                             className="p-1.5 text-indigo-600 hover:bg-indigo-100 rounded-md transition-colors"
                             title="Nhập kho"
                           >
                             <Warehouse className="w-5 h-5" />
                           </button>
                           <button
-                            onClick={() => handleDelete(product.id)}
+                            onClick={(e) => { e.stopPropagation(); handleDelete(product.id); }}
                             className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
                             title="Xóa"
                           >
@@ -1168,6 +1152,7 @@ const FinishedProductManagement: React.FC = () => {
         isOpen={isViewModalOpen}
         product={selectedProduct}
         onClose={() => setIsViewModalOpen(false)}
+        onEdit={handleOpenModal}
       />
 
       <FinishedProductWarehouseReceiptModal

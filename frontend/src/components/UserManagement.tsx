@@ -511,7 +511,8 @@ const UserManagement: React.FC = () => {
                 {paginatedUsers.map((user, index) => (
                   <tr
                     key={user.id}
-                    className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                    onClick={() => openDetailModal(user)}
+                    className={`border-b border-gray-200 hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all ${
                       index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                     }`}
                   >
@@ -551,21 +552,7 @@ const UserManagement: React.FC = () => {
                     <td className="px-3 py-3 sm:px-6 sm:py-4">
                       <div className="flex items-center justify-center gap-3">
                         <button
-                          onClick={() => openDetailModal(user)}
-                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                          title="Xem chi tiết"
-                        >
-                          <Eye className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => openEditModal(user)}
-                          className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
-                          title="Chỉnh sửa"
-                        >
-                          <Edit className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleToggleStatus(user)}
+                          onClick={(e) => { e.stopPropagation(); handleToggleStatus(user); }}
                           disabled={loading}
                           className="p-1.5 text-orange-600 hover:bg-orange-100 rounded-md transition-colors disabled:opacity-50"
                           title={user.isActive ? 'Khóa' : 'Mở khóa'}
@@ -577,14 +564,15 @@ const UserManagement: React.FC = () => {
                           )}
                         </button>
                         <button
-                          onClick={() => setResetPasswordUser(user)}
+                          onClick={(e) => { e.stopPropagation(); setResetPasswordUser(user); }}
                           className="p-1.5 text-yellow-600 hover:bg-yellow-100 rounded-md transition-colors"
                           title="Đặt lại mật khẩu"
                         >
                           <KeyRound className="w-5 h-5" />
                         </button>
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setSelectedUser(user);
                             setIsDeleteConfirmOpen(true);
                           }}
@@ -752,12 +740,23 @@ const UserManagement: React.FC = () => {
                 </div>
               </div>
 
-              <div className="mt-6 flex justify-end gap-2">
+              <div className="mt-6 flex justify-end gap-3">
                 <button
                   onClick={closeDetailModal}
                   className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
                 >
                   Đóng
+                </button>
+                <button
+                  onClick={() => {
+                    setIsDetailModalOpen(false);
+                    openEditModal(selectedUser);
+                  }}
+                  disabled={!isAdmin}
+                  title={!isAdmin ? "Bạn không có quyền chỉnh sửa" : ""}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                >
+                  Chỉnh sửa
                 </button>
               </div>
               </>)}

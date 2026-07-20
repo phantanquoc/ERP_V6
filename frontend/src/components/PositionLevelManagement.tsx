@@ -558,7 +558,7 @@ const PositionLevelManagement = ({ initialPositionId }: { initialPositionId?: st
                         const prevTotal = prev ? prev.baseSalary + prev.kpiSalary : 0;
                         const deltaPct = prev && prevTotal > 0 ? ((total - prevTotal) / prevTotal) * 100 : null;
                         return (
-                          <tr key={level.id} className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                          <tr key={level.id} onClick={() => openEditModal(level)} className={`border-b border-gray-100 border-l-2 border-l-transparent hover:bg-blue-100 hover:border-l-blue-500 cursor-pointer transition-all ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                             <td className="px-4 py-3 text-sm font-semibold text-blue-700 border-r border-gray-200">{level.level}</td>
                             <td className="px-4 py-3 text-sm text-right text-gray-900 border-r border-gray-200">{vnd(level.baseSalary)}</td>
                             <td className="px-4 py-3 text-sm text-right text-gray-900 border-r border-gray-200">{vnd(level.kpiSalary)}</td>
@@ -583,10 +583,7 @@ const PositionLevelManagement = ({ initialPositionId }: { initialPositionId?: st
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center justify-center gap-2">
-                                <button onClick={() => openEditModal(level)} className="p-1.5 text-green-600 hover:bg-green-100 rounded transition-colors" title="Chỉnh sửa">
-                                  <Edit className="w-4 h-4" />
-                                </button>
-                                <button onClick={() => handleDelete(level.id)} className="p-1.5 text-red-600 hover:bg-red-100 rounded transition-colors" title="Xoá">
+                                <button onClick={(e) => { e.stopPropagation(); handleDelete(level.id); }} className="p-1.5 text-red-600 hover:bg-red-100 rounded transition-colors" title="Xoá">
                                   <Trash2 className="w-4 h-4" />
                                 </button>
                               </div>

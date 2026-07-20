@@ -747,7 +747,7 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
                 ) : records.length === 0 ? (
                   <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Chưa có bản ghi lỗi phù hợp.</td></tr>
                 ) : records.map((record) => (
-                  <tr key={record.id} className="hover:bg-gray-50/50 transition-colors">
+                  <tr key={record.id} onClick={() => openRecordModal('view', record)} className="border-l-2 border-l-transparent hover:bg-blue-100 hover:border-l-blue-500 cursor-pointer transition-all">
                     <td className="px-3 py-2.5 sticky left-0 bg-white z-10 font-mono text-xs text-blue-700 font-medium">{record.maLoi}</td>
                     <td className="px-3 py-2.5">
                       <div className="font-medium text-gray-900 leading-tight">{record.tenLoi}</div>
@@ -775,10 +775,9 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
                         <div className="text-[11px] text-green-600 mt-1">Xử lý: {formatDateTime(record.ngayXuLy)}</div>
                       )}
                     </td>
-                    <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
+                    <td className="px-3 py-2.5 sticky right-0 bg-white z-10" onClick={(e) => e.stopPropagation()}>
                       <ResponsiveRowActions
                         actions={[
-                          { key: 'view', label: 'Xem bản ghi', icon: <Eye className="h-4 w-4" />, onClick: () => openRecordModal('view', record), tone: 'primary' },
                           ...(canMutate ? [{ key: 'edit', label: 'Sửa bản ghi', icon: <Edit className="h-4 w-4" />, onClick: () => openRecordModal('edit', record), tone: 'success' } satisfies RowAction] : []),
                           // 8.7: mark-resolved — visible when not DA_XU_LY, role ADMIN/DEPT_HEAD/TEAM_LEAD
                           ...((user?.role === 'admin' || user?.role === 'department_head' || user?.role === 'team_lead') && record.trangThai !== 'DA_XU_LY'

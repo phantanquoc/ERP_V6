@@ -243,7 +243,11 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
                             const giaThanh = product.giaThanh || 100000;
                             const thanhTien = product.soLuong * giaThanh;
                             return (
-                              <tr key={product.id} className={`border-b border-gray-200 hover:bg-blue-50 ${prodIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                              <tr
+                                key={product.id}
+                                onClick={() => handleViewProduct(product)}
+                                className={`border-b border-gray-200 hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all ${prodIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
+                              >
                                 <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
                                   <div>
                                     <div className="font-medium">{product.internationalProduct?.tenSanPham || '-'}</div>
@@ -264,20 +268,7 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
                                 </td>
                                 <td className="px-6 py-4 text-sm">
                                   <div className="flex justify-center gap-1">
-                                    <button
-                                      onClick={() => handleViewProduct(product)}
-                                      className="p-1.5 rounded-md text-blue-600 hover:bg-blue-50 hover:text-blue-800 transition-colors"
-                                      title="Xem"
-                                    >
-                                      <Eye className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      onClick={() => handleEditProduct(product)}
-                                      className="p-1.5 rounded-md text-green-600 hover:bg-green-50 hover:text-green-800 transition-colors"
-                                      title="Sửa"
-                                    >
-                                      <Edit className="w-4 h-4" />
-                                    </button>
+                                    {/* Actions removed - use row click to view, then edit from modal */}
                                   </div>
                                 </td>
                               </tr>
@@ -400,12 +391,21 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
               )}
             </div>
 
-            <div className="mt-6 flex justify-end">
+            <div className="mt-6 flex justify-end gap-3">
               <button
                 onClick={() => setViewModalOpen(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
               >
                 Đóng
+              </button>
+              <button
+                onClick={() => {
+                  setViewModalOpen(false);
+                  if (selectedProduct) handleEditProduct(selectedProduct);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Chỉnh sửa
               </button>
             </div>
             </>)}

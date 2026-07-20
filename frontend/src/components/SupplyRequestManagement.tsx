@@ -352,11 +352,12 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                 filteredRequests.map((request, index) => (
                   <tr
                     key={request.id}
+                    onClick={() => handleView(request)}
                     className={`${
                       request.trangThai === 'Đã mua hàng'
                         ? 'bg-amber-50 border-l-4 border-l-amber-400'
                         : index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                    } hover:bg-blue-50 transition-colors border-b border-gray-200`}
+                    } hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all border-b border-gray-200`}
                   >
                     <td className="px-6 py-4 text-sm border-r border-gray-200">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                     <td className="px-6 py-4 text-sm border-r border-gray-200">{new Date(request.ngayYeuCau).toLocaleDateString('vi-VN')}</td>
@@ -382,27 +383,9 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                     </td>
                     <td className="px-6 py-4 text-sm">
                       <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => handleView(request)}
-                          className="p-1.5 rounded-md text-blue-600 hover:bg-blue-100 hover:text-blue-800 transition-colors"
-                          title="Xem chi tiết"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </button>
-
-                        {canEdit && (
-                          <button
-                            onClick={() => handleEdit(request)}
-                            className="p-1.5 rounded-md text-indigo-600 hover:bg-indigo-100 hover:text-indigo-800 transition-colors"
-                            title="Chỉnh sửa"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                        )}
-
                         {canDelete && (
                           <button
-                            onClick={() => handleDelete(request.id)}
+                            onClick={(e) => { e.stopPropagation(); handleDelete(request.id); }}
                             className="p-1.5 rounded-md text-red-600 hover:bg-red-100 hover:text-red-800 transition-colors"
                             title="Xóa"
                           >
@@ -414,7 +397,8 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                           const daNhapKho = request.warehouseReceipts && request.warehouseReceipts.length > 0;
                           return (
                             <button
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 if (!daNhapKho) {
                                   setSelectedRequest(request);
                                   setShowWarehouseReceiptModal(true);
@@ -633,13 +617,27 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                         Tạo yêu cầu mua hàng
                       </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowModal(false)}
-                      className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                    >
-                      Đóng
-                    </button>
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowModal(false)}
+                        className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                      >
+                        Đóng
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowModal(false);
+                          handleEdit(selectedRequest);
+                        }}
+                        disabled={!canEdit}
+                        title={!canEdit ? "Bạn không có quyền chỉnh sửa" : ""}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                      >
+                        Chỉnh sửa
+                      </button>
+                    </div>
                   </div>
                 </div>
               ) : (

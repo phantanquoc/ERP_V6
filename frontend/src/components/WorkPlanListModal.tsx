@@ -197,7 +197,11 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
                 const priorityBadge = getPriorityBadge(plan.mucDoUuTien);
                 const statusBadge = getStatusBadge(plan.trangThai);
                 return (
-                  <tr key={plan.id} className="hover:bg-gray-50">
+                  <tr
+                    key={plan.id}
+                    onClick={() => setViewPlan(plan)}
+                    className="hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all"
+                  >
                     <td className="px-3 py-3 text-sm text-gray-900">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                     <td className="px-3 py-3 text-sm text-gray-900 max-w-[200px]">
                       <div className="line-clamp-2" title={plan.tieuDe}>{plan.tieuDe}</div>
@@ -226,6 +230,7 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
                     <td className="px-3 py-3 text-sm">
                       {plan.files && plan.files.length > 0 ? plan.files.map((file, i) => (
                         <a key={i} href={getFileUrl(file)} target="_blank" rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
                           className="flex items-center gap-1 text-blue-600 hover:underline text-xs">
                           <FileText className="w-3 h-3" /><span className="truncate max-w-[80px]">{file.split('/').pop()}</span>
                         </a>
@@ -233,25 +238,9 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
                     </td>
                     <td className="px-3 py-3 text-sm">
                       <div className="flex items-center gap-1 justify-center">
-                        <button
-                          onClick={() => setViewPlan(plan)}
-                          className="inline-flex items-center gap-1 px-2 py-1.5 text-xs text-purple-600 hover:bg-purple-50 rounded-lg transition-colors font-medium"
-                          title="Xem chi tiết"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                        </button>
-                        {canEdit(plan) && (
-                          <button
-                            onClick={() => setEditPlan(plan)}
-                            className="inline-flex items-center gap-1 px-2 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
-                            title="Chỉnh sửa"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
                         {canChangeStatus(plan) && (
                           <button
-                            onClick={() => { setStatusPlan(plan); setPendingStatus(plan.trangThai); }}
+                            onClick={(e) => { e.stopPropagation(); setStatusPlan(plan); setPendingStatus(plan.trangThai); }}
                             className="inline-flex items-center gap-1 px-2 py-1.5 text-xs text-teal-600 hover:bg-teal-50 rounded-lg transition-colors font-medium"
                             title="Đổi trạng thái"
                           >
@@ -260,7 +249,7 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
                         )}
                         {canDelete(plan) && (
                           <button
-                            onClick={() => setDeleteConfirmId(plan.id)}
+                            onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(plan.id); }}
                             className="inline-flex items-center gap-1 px-2 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium"
                             title="Xóa"
                           >
@@ -450,6 +439,22 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
               <span>Cập nhật: {new Date(viewPlan.updatedAt).toLocaleString('vi-VN')}</span>
             </div>
           </div>
+        </div>
+        <div className="p-4 border-t border-gray-100 flex justify-end gap-3">
+          <button
+            onClick={() => setViewPlan(null)}
+            className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Đóng
+          </button>
+          {canEdit(viewPlan) && (
+            <button
+              onClick={() => { setViewPlan(null); setEditPlan(viewPlan); }}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Chỉnh sửa
+            </button>
+          )}
         </div>
       </div>
     </Modal>

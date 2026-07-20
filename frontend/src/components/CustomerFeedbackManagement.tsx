@@ -250,7 +250,8 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
                   {paginatedFeedbacks.map((feedback, index) => (
                     <tr
                       key={feedback.id}
-                      className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                      onClick={() => handleView(feedback)}
+                      className={`border-b border-gray-200 hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all ${
                         index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                       }`}
                     >
@@ -272,21 +273,7 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-center gap-3">
                           <button
-                            onClick={() => handleView(feedback)}
-                            className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                            title="Xem chi tiết"
-                          >
-                            <Eye className="w-5 h-5" />
-                          </button>
-                          <button
-                            onClick={() => handleEdit(feedback)}
-                            className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
-                            title="Chỉnh sửa"
-                          >
-                            <Edit className="w-5 h-5" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(feedback.id)}
+                            onClick={(e) => { e.stopPropagation(); handleDelete(feedback.id); }}
                             className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
                             title="Xóa"
                           >
@@ -628,24 +615,26 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
                 </div>
               )}
 
-              <div className="flex justify-end gap-3 pt-4 border-t shrink-0">
-                <button
-                  onClick={() => setIsViewModalOpen(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Đóng
-                </button>
+              </>)}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 shrink-0 flex justify-end gap-3">
+              <button
+                onClick={() => setIsViewModalOpen(false)}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                Đóng
+              </button>
+              {selectedFeedback && (
                 <button
                   onClick={() => {
                     setIsViewModalOpen(false);
-                    if (selectedFeedback) handleEdit(selectedFeedback);
+                    handleEdit(selectedFeedback);
                   }}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                 >
                   Chỉnh sửa
                 </button>
-              </div>
-              </>)}
+              )}
             </div>
           </div>
         </Modal>

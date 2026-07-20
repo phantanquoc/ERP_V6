@@ -156,6 +156,7 @@ interface RepairRequestFormModalProps {
   lockedMachineSystemId?: string | number;
   hideCodeField?: boolean;
   onSaved?: () => void;
+  onEdit?: () => void;
 }
 
 const RepairRequestFormModal = ({
@@ -166,6 +167,7 @@ const RepairRequestFormModal = ({
   lockedMachineSystemId,
   hideCodeField,
   onSaved,
+  onEdit,
 }: RepairRequestFormModalProps) => {
   const lockedSystemIdStr = lockedMachineSystemId != null ? String(lockedMachineSystemId) : undefined;
 
@@ -481,6 +483,15 @@ const RepairRequestFormModal = ({
 
           <div className="flex justify-end gap-2 border-t border-gray-200 pt-3">
             <button type="button" onClick={onClose} className="rounded-md border border-gray-300 px-4 py-2">{isView ? 'Đóng' : 'Hủy'}</button>
+            {isView && onEdit && (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              >
+                Chỉnh sửa
+              </button>
+            )}
             {!isView && <button type="submit" className="rounded-md bg-blue-600 px-4 py-2 font-medium text-white">Lưu</button>}
           </div>
         </form>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Activity } from 'lucide-react';
+import { Activity, X } from 'lucide-react';
 import { useMachineStatusLogs, useMachineSystems } from '../hooks/useMachineSystemDetails';
 import type { MachineStatus, MachineStatusLogFilters } from '../services/machineSystemService';
 
@@ -37,6 +37,8 @@ const MachineStatusLogList = ({ lockedMachineSystemId, hideHeader }: MachineStat
     limit: 20,
     machineSystemId: lockedMachineSystemId,
   });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [detailLog, setDetailLog] = useState<any | null>(null);
 
   useEffect(() => {
     if (lockedMachineSystemId) {
@@ -124,8 +126,12 @@ const MachineStatusLogList = ({ lockedMachineSystemId, hideHeader }: MachineStat
                     <p className="text-sm text-gray-400">Chưa có nhật ký trạng thái</p>
                   </td>
                 </tr>
-              ) : logs.map((log) => (
-                <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
+              ) : logs.map((log, index) => (
+                <tr
+                  key={log.id}
+                  onClick={() => setDetailLog(log)}
+                  className={`border-b border-gray-200 border-l-2 border-l-transparent hover:bg-blue-100 hover:border-l-blue-500 cursor-pointer transition-all ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
+                >
                   <td className="px-3 py-2.5">
                     <span className="font-mono text-xs font-medium text-blue-700">
                       {log.machineSystem?.maHeThong ?? '—'}
@@ -180,6 +186,51 @@ const MachineStatusLogList = ({ lockedMachineSystemId, hideHeader }: MachineStat
           </div>
         )}
       </section>
+      {detailLog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setDetailLog(null)}>
+          <div className="w-full max-w-lg rounded-lg bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+              <h3 className="text-base font-semibold text-gray-900">Chi tiết nhật ký trạng thái</h3>
+              <button onClick={() => setDetailLog(null)} className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-3 px-5 py-4 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Máy</span>
+                <span className="font-medium text-gray-900">{detailLog.machineSystem?.maHeThong ?? '—'} — {detailLog.machineSystem?.tenHeThong ?? ''}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Trạng thái cũ</span>
+                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadge(detailLog.trangThaiCu)}`}>{statusLabel(detailLog.trangThaiCu)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Trạng thái mới</span>
+                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadge(detailLog.trangThaiMoi)}`}>{statusLabel(detailLog.trangThaiMoi)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Nguyên nhân</span>
+                <span className="text-gray-900">{detailLog.nguyenNhan || '—'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Người cập nhật</span>
+                <span className="text-gray-900">{detailLog.nguoiCapNhat || '—'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Ghi chú</span>
+                <span className="text-gray-900">{detailLog.ghiChu || '—'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Thời điểm</span>
+                <span className="text-gray-900">{formatDateTime(detailLog.thoiDiem)}</span>
+              </div>
+            </div>
+            <div className="flex justify-end border-t border-gray-200 px-5 py-3">
+              <button onClick={() => setDetailLog(null)} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Đóng</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

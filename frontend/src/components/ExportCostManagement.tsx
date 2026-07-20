@@ -81,6 +81,7 @@ const ExportCostManagement: React.FC = () => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmMessage, setConfirmMessage] = useState('');
   const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
+  const [detailItem, setDetailItem] = useState<AnyCost | null>(null);
 
   const filterFields: FilterField[] = [
     { key: 'tenChiPhi', label: 'Tên chi phí', type: 'text', placeholder: 'Lọc tên chi phí...' },
@@ -349,8 +350,12 @@ const ExportCostManagement: React.FC = () => {
                 </td>
               </tr>
             ) : (
-              costs.map((cost) => (
-                <tr key={cost.id} className="hover:bg-blue-50/40 transition-colors">
+              costs.map((cost, index) => (
+                <tr
+                  key={cost.id}
+                  onClick={() => setDetailItem(cost)}
+                  className={`border-b border-gray-200 border-l-2 border-l-transparent hover:bg-blue-100 hover:border-l-blue-500 cursor-pointer transition-all ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
+                >
                   <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-blue-700">
                     {cost.maChiPhi}
                   </td>
@@ -370,7 +375,7 @@ const ExportCostManagement: React.FC = () => {
                     {cost.tenNhanVien || '-'}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
-                    <div className="flex items-center justify-center gap-1">
+                    <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => handleOpenModal(cost)}
                         className="p-1.5 rounded-md text-blue-600 hover:bg-blue-50 hover:text-blue-800 transition-colors"
@@ -603,6 +608,42 @@ const ExportCostManagement: React.FC = () => {
                 </button>
               </div>
           </form>
+          )}
+        </div>
+      </Modal>
+
+      {/* Detail Modal */}
+      <Modal isOpen={!!detailItem} onClose={() => setDetailItem(null)} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+          <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200">
+            <h3 className="text-xl font-bold text-gray-800">Chi tiết {label}</h3>
+            <button onClick={() => setDetailItem(null)} className="text-gray-500 hover:text-gray-700">
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+          {detailItem && (
+            <div className="p-6 space-y-3">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div><span className="text-gray-500">Mã chi phí:</span><p className="font-medium text-gray-900">{detailItem.maChiPhi}</p></div>
+                <div><span className="text-gray-500">Tên chi phí:</span><p className="font-medium text-gray-900">{detailItem.tenChiPhi}</p></div>
+                <div><span className="text-gray-500">Loại chi phí:</span><p className="font-medium text-gray-900">{detailItem.loaiChiPhi}</p></div>
+                <div><span className="text-gray-500">Đơn vị tính:</span><p className="font-medium text-gray-900">{detailItem.donViTinh || '-'}</p></div>
+                <div><span className="text-gray-500">Giá thành/ngày:</span><p className="font-medium text-gray-900">{detailItem.giaThanhNgay ? `${new Intl.NumberFormat('vi-VN').format(detailItem.giaThanhNgay)} ${detailItem.donViTien || 'VND'}` : '-'}</p></div>
+                <div><span className="text-gray-500">Người tạo:</span><p className="font-medium text-gray-900">{detailItem.tenNhanVien || '-'}</p></div>
+                {detailItem.noiDung && (
+                  <div className="col-span-2"><span className="text-gray-500">Nội dung:</span><p className="font-medium text-gray-900">{detailItem.noiDung}</p></div>
+                )}
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                <button onClick={() => setDetailItem(null)} className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50">Đóng</button>
+                <button
+                  onClick={() => { setDetailItem(null); handleOpenModal(detailItem); }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Chỉnh sửa
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </Modal>
