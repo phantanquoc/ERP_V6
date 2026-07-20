@@ -221,6 +221,8 @@ model LotProduct {
   internationalProduct   InternationalProduct @relation(fields: [internationalProductId], references: [id], onDelete: Cascade)
   lot                    Lot                  @relation(fields: [lotId], references: [id], onDelete: Cascade)
   materialEvaluations    MaterialEvaluation[]
+  warehouseReceipts      WarehouseReceipt[]
+  warehouseIssues        WarehouseIssue[]
 
   @@map("lot_products")
   @@schema("business")
@@ -246,6 +248,7 @@ model WarehouseReceipt {
   ghiChu          String?
   supplyRequestId String?
   supplyRequest   SupplyRequest? @relation(fields: [supplyRequestId], references: [id])
+  lotProduct      LotProduct     @relation(fields: [lotProductId], references: [id], onDelete: Restrict)
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
@@ -273,6 +276,7 @@ model WarehouseIssue {
   ghiChu          String?
   supplyRequestId String?
   supplyRequest   SupplyRequest?      @relation(fields: [supplyRequestId], references: [id])
+  lotProduct      LotProduct          @relation(fields: [lotProductId], references: [id], onDelete: Restrict)
   materialEvaluation MaterialEvaluation?
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
