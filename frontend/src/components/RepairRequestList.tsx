@@ -377,6 +377,7 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
               <tr>
                 <th className="border-b px-3 py-2.5 text-left sticky left-0 bg-gray-50 z-10 min-w-[90px]">Mã yêu cầu</th>
                 <th className="border-b px-3 py-2.5 text-left min-w-[80px]">Ngày</th>
+                <th className="border-b px-3 py-2.5 text-left min-w-[110px]">Người yêu cầu</th>
                 <th className="border-b px-3 py-2.5 text-left min-w-[140px]">Thiết bị lỗi</th>
                 <th className="border-b px-3 py-2.5 text-left min-w-[140px]">Bối cảnh</th>
                 <th className="border-b px-3 py-2.5 text-left min-w-[80px]">Ưu tiên</th>
@@ -388,9 +389,9 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {requestsQuery.isLoading ? (
-                <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr>
+                <tr><td colSpan={10} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr>
               ) : requests.length === 0 ? (
-                <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-400">Chưa có yêu cầu sửa chữa.</td></tr>
+                <tr><td colSpan={10} className="px-3 py-8 text-center text-gray-400">Chưa có yêu cầu sửa chữa.</td></tr>
               ) : requests.map((request) => {
                 const requestItems = request.items?.length ? request.items : [{
                   id: `${request.id}-legacy`,
@@ -404,6 +405,7 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
                   <tr key={request.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-3 py-2.5 sticky left-0 bg-white z-10 font-mono text-xs text-blue-700 font-medium">{request.maYeuCau}</td>
                     <td className="px-3 py-2.5 text-gray-600 text-xs">{formatDate(request.ngayThang)}</td>
+                    <td className="px-3 py-2.5 text-gray-700 text-xs">{request.createdByName || '—'}</td>
                     <td className="px-3 py-2.5 text-gray-900">
                       <div className="space-y-0.5">
                         {requestItems.map((item) => <div key={item.id} className="text-xs leading-tight">{item.tenHeThong || '—'}</div>)}

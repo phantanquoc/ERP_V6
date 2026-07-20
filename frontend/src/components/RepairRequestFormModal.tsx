@@ -322,6 +322,13 @@ const RepairRequestFormModal = ({
             </label>
           </div>
 
+          {isView && record?.createdByName && (
+            <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+              <span className="text-xs font-medium text-gray-600">Người yêu cầu: </span>
+              <span className="text-sm text-gray-900">{record.createdByName}</span>
+            </div>
+          )}
+
           <div className="rounded-lg border border-gray-200">
             <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2">
               <div className="font-medium text-gray-800">Thiết bị lỗi</div>

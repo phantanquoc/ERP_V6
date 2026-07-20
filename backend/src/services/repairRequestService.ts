@@ -230,6 +230,18 @@ class RepairRequestService {
     const resolvedItems = await this.resolveRepairItems(data.items);
     const firstItem = resolvedItems.length > 0 ? resolvedItems[0] : null;
 
+    // Fetch user fullName if userId is provided
+    let createdByName: string | null = null;
+    if (data.userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: data.userId },
+        select: { firstName: true, lastName: true },
+      });
+      if (user) {
+        createdByName = `${user.lastName} ${user.firstName}`.trim();
+      }
+    }
+
     const request = await prisma.$transaction(async (tx) => {
       const created = await tx.repairRequest.create({
         data: {
@@ -244,6 +256,7 @@ class RepairRequestService {
           trangThai: RepairRequestStatus.CHO_XU_LY,
           fileDinhKem: data.fileDinhKem,
           createdById: data.userId ?? null,
+          createdByName,
         },
       });
 
