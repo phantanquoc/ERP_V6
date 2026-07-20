@@ -21,7 +21,9 @@ export class InvoiceService {
   async getAllInvoices(
     page: number = 1,
     limit: number = 10,
-    search?: string
+    search?: string,
+    month?: number,
+    year?: number
   ): Promise<PaginatedResponse<any>> {
     const { skip } = getPaginationParams(page, limit);
 
@@ -30,10 +32,15 @@ export class InvoiceService {
     if (search) {
       where.OR = [
         { soHoaDon: { contains: search, mode: 'insensitive' as const } },
-        { khachHang: { contains: search, mode: 'insensitive' as const } },
         { maSoThue: { contains: search, mode: 'insensitive' as const } },
         { loaiHoaDon: { contains: search, mode: 'insensitive' as const } },
       ];
+    }
+
+    if (month && year) {
+      const start = new Date(year, month - 1, 1);
+      const end = new Date(year, month, 1);
+      where.ngayLap = { gte: start, lt: end };
     }
 
     const [invoices, total] = await Promise.all([
@@ -42,6 +49,7 @@ export class InvoiceService {
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
+        include: { customer: { select: { id: true, tenCongTy: true, quocGia: true, tinhThanh: true } } },
       }),
       prisma.invoice.count({ where }),
     ]);
@@ -67,9 +75,9 @@ export class InvoiceService {
     return invoice;
   }
 
-  async createInvoice(data: any, userId?: string): Promise<any> {
-    if (!data.khachHang) {
-      throw new ValidationError('Missing required field: khachHang');
+  async createInvoice(data: any): Promise<any> {
+    if (!data.customerId) {
+      throw new ValidationError('Missing required field: customerId');
     }
 
     // Generate invoice number if not provided
@@ -99,22 +107,22 @@ export class InvoiceService {
 
     // Calculate thanhTien (auto-calculate, but allow manual override if thanhTien is explicitly provided)
     const tongTien = parseFloat(data.tongTien) || 0;
-    const thue = parseFloat(data.thue) || 0;
+    const thueVAT = parseFloat(data.thueVAT) || 0;
     data.tongTien = tongTien;
-    data.thue = thue;
+    data.thueVAT = thueVAT;
     // Only auto-calculate if thanhTien was not explicitly provided by the caller
     if (data.thanhTien === undefined || data.thanhTien === null || data.thanhTien === '') {
-      data.thanhTien = tongTien + (tongTien * thue / 100);
+      data.thanhTien = tongTien + (tongTien * thueVAT / 100);
     } else {
       data.thanhTien = parseFloat(data.thanhTien) || 0;
     }
 
-    const invoice = await prisma.invoice.create({ data: { ...data, createdById: userId ?? null } });
+    const invoice = await prisma.invoice.create({ data });
 
     try {
       await notificationService.notify(NotificationEvent.INVOICE_CREATED, {
         entityId: invoice.id,
-        metadata: { soHoaDon: invoice.soHoaDon, khachHang: invoice.khachHang, thanhTien: invoice.thanhTien },
+        metadata: { soHoaDon: invoice.soHoaDon, customerId: invoice.customerId, thanhTien: invoice.thanhTien },
       });
     } catch {}
 
@@ -132,15 +140,15 @@ export class InvoiceService {
       data.ngayThanhToan = new Date(data.ngayThanhToan);
     }
 
-    // Recalculate thanhTien if tongTien or thue changed, but allow manual override
-    if (data.tongTien !== undefined || data.thue !== undefined) {
+    // Recalculate thanhTien if tongTien or thueVAT changed, but allow manual override
+    if (data.tongTien !== undefined || data.thueVAT !== undefined) {
       const tongTien = parseFloat(data.tongTien) || 0;
-      const thue = parseFloat(data.thue) || 0;
+      const thueVAT = parseFloat(data.thueVAT) || 0;
       data.tongTien = tongTien;
-      data.thue = thue;
+      data.thueVAT = thueVAT;
       // Only auto-calculate if thanhTien was not explicitly provided
       if (data.thanhTien === undefined || data.thanhTien === null || data.thanhTien === '') {
-        data.thanhTien = tongTien + (tongTien * thue / 100);
+        data.thanhTien = tongTien + (tongTien * thueVAT / 100);
       } else {
         data.thanhTien = parseFloat(data.thanhTien) || 0;
       }
@@ -160,12 +168,12 @@ export class InvoiceService {
     if (filters?.search) {
       where.OR = [
         { soHoaDon: { contains: filters.search, mode: 'insensitive' } },
-        { khachHang: { contains: filters.search, mode: 'insensitive' } },
       ];
     }
     const data = await prisma.invoice.findMany({
       where,
       orderBy: { createdAt: 'desc' },
+      include: { customer: true },
     });
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Danh sách hóa đơn');
@@ -175,7 +183,7 @@ export class InvoiceService {
       { header: 'Khách hàng', key: 'khachHang', width: 25 },
       { header: 'Mã số thuế', key: 'maSoThue', width: 15 },
       { header: 'Tổng tiền', key: 'tongTien', width: 18 },
-      { header: 'Thuế', key: 'thue', width: 10 },
+      { header: 'Thuế VAT', key: 'thueVAT', width: 10 },
       { header: 'Thành tiền', key: 'thanhTien', width: 18 },
       { header: 'Trạng thái', key: 'trangThai', width: 18 },
       { header: 'Loại hóa đơn', key: 'loaiHoaDon', width: 18 },
@@ -187,10 +195,10 @@ export class InvoiceService {
       worksheet.addRow({
         soHoaDon: inv.soHoaDon,
         ngayLap: inv.ngayLap ? new Date(inv.ngayLap).toLocaleDateString('vi-VN') : '',
-        khachHang: inv.khachHang || '',
+        khachHang: inv.customer?.tenCongTy || '',
         maSoThue: inv.maSoThue || '',
         tongTien: inv.tongTien?.toLocaleString('vi-VN') || '0',
-        thue: inv.thue != null ? `${inv.thue}%` : '',
+        thueVAT: inv.thueVAT != null ? `${inv.thueVAT}%` : '',
         thanhTien: inv.thanhTien?.toLocaleString('vi-VN') || '0',
         trangThai: inv.trangThai || '',
         loaiHoaDon: inv.loaiHoaDon || '',

@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom';
 import { Edit, Eye, Trash2, Plus, X, Download, AlertCircle, CheckCircle, Upload, FileText } from 'lucide-react';
 import Modal from './Modal';
 import invoiceService, { Invoice } from '../services/invoiceService';
-import { supplierService, Supplier } from '../services/supplierService';
 import TableFilter, { FilterField } from './TableFilter';
 import DatePicker from './DatePicker';
 import { useAuth } from '../contexts/AuthContext';
@@ -30,11 +29,15 @@ const getFullFileUrl = (url: string) => {
   return `${SERVER_BASE_URL}${url}`;
 };
 
-const InvoiceManagement: React.FC = () => {
+interface InvoiceManagementProps {
+  month?: number;
+  year?: number;
+}
+
+const InvoiceManagement: React.FC<InvoiceManagementProps> = ({ month, year }) => {
   const { user } = useAuth();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [invoiceFiles, setInvoiceFiles] = useState<string[]>([]);
@@ -56,10 +59,10 @@ const InvoiceManagement: React.FC = () => {
   const [formData, setFormData] = useState({
     soHoaDon: '',
     ngayLap: '',
-    khachHang: '',
+    customerId: '',
     maSoThue: '',
     tongTien: '',
-    thue: '',
+    thueVAT: '',
     thanhTien: '',
     trangThai: '',
     loaiHoaDon: '',
@@ -69,7 +72,6 @@ const InvoiceManagement: React.FC = () => {
     ghiChu: '',
     boPhanSuDung: '',
     mucDichSuDung: '',
-    nhaCungCap: '',
   });
 
   const filterFields: FilterField[] = [
@@ -98,7 +100,7 @@ const InvoiceManagement: React.FC = () => {
   const fetchInvoices = async () => {
     try {
       setLoading(true);
-      const response = await invoiceService.getAllInvoices(1, 100, filterValues._search);
+      const response = await invoiceService.getAllInvoices(1, 100, filterValues._search, month, year);
       setInvoices(response.data || []);
     } catch (error) {
       console.error('Error fetching invoices:', error);
@@ -125,15 +127,6 @@ const InvoiceManagement: React.FC = () => {
     }
   };
 
-  const fetchSuppliers = async () => {
-    try {
-      const res = await supplierService.getAllSuppliers(1, 1000);
-      setSuppliers(res.data || []);
-    } catch (error) {
-      console.error('Error fetching suppliers:', error);
-    }
-  };
-
   // Generate next invoice number
   const generateInvoiceNumber = async (): Promise<string> => {
     try {
@@ -155,8 +148,7 @@ const InvoiceManagement: React.FC = () => {
   useEffect(() => {
     fetchInvoices();
     fetchCustomers();
-    fetchSuppliers();
-  }, []);
+  }, [month, year]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
@@ -198,10 +190,10 @@ const InvoiceManagement: React.FC = () => {
     setFormData({
       soHoaDon: '',
       ngayLap: '',
-      khachHang: '',
+      customerId: '',
       maSoThue: '',
       tongTien: '',
-      thue: '',
+      thueVAT: '',
       thanhTien: '',
       trangThai: '',
       loaiHoaDon: '',
@@ -211,7 +203,6 @@ const InvoiceManagement: React.FC = () => {
       ghiChu: '',
       boPhanSuDung: '',
       mucDichSuDung: '',
-      nhaCungCap: '',
     });
     setInvoiceFiles([]);
   };
@@ -224,10 +215,10 @@ const InvoiceManagement: React.FC = () => {
     setFormData({
       soHoaDon: autoInvoiceNumber,
       ngayLap: new Date().toISOString().split('T')[0],
-      khachHang: '',
+      customerId: '',
       maSoThue: '',
       tongTien: '',
-      thue: '',
+      thueVAT: '',
       thanhTien: '',
       trangThai: 'Chưa thanh toán',
       loaiHoaDon: '',
@@ -237,7 +228,6 @@ const InvoiceManagement: React.FC = () => {
       ghiChu: '',
       boPhanSuDung: '',
       mucDichSuDung: '',
-      nhaCungCap: '',
     });
     setInvoiceFiles([]);
     setIsAddModalOpen(true);
@@ -250,10 +240,10 @@ const InvoiceManagement: React.FC = () => {
     setFormData({
       soHoaDon: autoInvoiceNumber,
       ngayLap: new Date().toISOString().split('T')[0],
-      khachHang: '',
+      customerId: '',
       maSoThue: '',
       tongTien: '',
-      thue: '',
+      thueVAT: '',
       thanhTien: '',
       trangThai: 'Chưa thanh toán',
       loaiHoaDon: 'Mua hàng',
@@ -263,7 +253,6 @@ const InvoiceManagement: React.FC = () => {
       ghiChu: '',
       boPhanSuDung: user?.department || '',
       mucDichSuDung: '',
-      nhaCungCap: '',
     });
     setInvoiceFiles([]);
     setIsAddModalOpen(true);
@@ -274,10 +263,10 @@ const InvoiceManagement: React.FC = () => {
     setFormData({
       soHoaDon: invoice.soHoaDon || '',
       ngayLap: invoice.ngayLap || '',
-      khachHang: invoice.khachHang || '',
+      customerId: invoice.customerId || '',
       maSoThue: invoice.maSoThue || '',
       tongTien: String(invoice.tongTien || ''),
-      thue: String(invoice.thue || ''),
+      thueVAT: String(invoice.thueVAT || ''),
       thanhTien: String(invoice.thanhTien || ''),
       trangThai: invoice.trangThai || '',
       loaiHoaDon: invoice.loaiHoaDon || '',
@@ -287,7 +276,6 @@ const InvoiceManagement: React.FC = () => {
       ghiChu: invoice.ghiChu || '',
       boPhanSuDung: invoice.boPhanSuDung || '',
       mucDichSuDung: invoice.mucDichSuDung || '',
-      nhaCungCap: invoice.nhaCungCap || '',
     });
     setInvoiceFiles(invoice.files || []);
     setIsEditModalOpen(true);
@@ -343,7 +331,7 @@ const InvoiceManagement: React.FC = () => {
       await invoiceService.createInvoice({
         ...formData,
         tongTien: Number(formData.tongTien) || 0,
-        thue: Number(formData.thue) || 0,
+        thueVAT: Number(formData.thueVAT) || 0,
         thanhTien: Number(formData.thanhTien) || 0,
         ngayThanhToan: formData.ngayThanhToan || null,
         files: invoiceFiles,
@@ -367,7 +355,7 @@ const InvoiceManagement: React.FC = () => {
       await invoiceService.updateInvoice(selectedInvoice.id, {
         ...formData,
         tongTien: Number(formData.tongTien) || 0,
-        thue: Number(formData.thue) || 0,
+        thueVAT: Number(formData.thueVAT) || 0,
         thanhTien: Number(formData.thanhTien) || 0,
         ngayThanhToan: formData.ngayThanhToan || null,
         files: invoiceFiles,
@@ -386,7 +374,7 @@ const InvoiceManagement: React.FC = () => {
 
   const filteredInvoices = invoices.filter(invoice => {
     const search = filterValues._search.toLowerCase();
-    if (search && !invoice.soHoaDon?.toLowerCase().includes(search) && !invoice.khachHang?.toLowerCase().includes(search)) return false;
+    if (search && !invoice.soHoaDon?.toLowerCase().includes(search) && !invoice.customer?.tenCongTy?.toLowerCase().includes(search)) return false;
     if (filterValues.loaiHoaDon && invoice.loaiHoaDon !== filterValues.loaiHoaDon) return false;
     if (filterValues.trangThai && invoice.trangThai !== filterValues.trangThai) return false;
     return true;
@@ -490,11 +478,15 @@ const InvoiceManagement: React.FC = () => {
               </tr>
             ) : (
               paginatedInvoices.map((invoice, index) => (
-                <tr key={invoice.id} className={`border-b border-gray-200 hover:bg-blue-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                <tr
+                  key={invoice.id}
+                  onClick={() => handleViewClick(invoice)}
+                  className={`border-b border-gray-200 hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
+                >
                   <td className="px-6 py-4 text-sm text-blue-600 font-medium border-r border-gray-200">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                   <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">{invoice.soHoaDon}</td>
                   <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{formatDate(invoice.ngayLap)}</td>
-                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{invoice.khachHang}</td>
+                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{invoice.customer?.tenCongTy || '-'}</td>
                   <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{invoice.loaiHoaDon}</td>
                   <td className="px-6 py-4 text-sm font-semibold text-gray-900 border-r border-gray-200">{formatCurrency(invoice.thanhTien)}</td>
                   <td className="px-6 py-4 text-sm border-r border-gray-200">
@@ -508,13 +500,7 @@ const InvoiceManagement: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 text-sm">
                     <div className="flex items-center justify-center gap-1">
-                      <button onClick={() => handleViewClick(invoice)} className="p-1.5 rounded-md text-blue-600 hover:bg-blue-50 hover:text-blue-800 transition-colors" title="Xem">
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => handleEditClick(invoice)} className="p-1.5 rounded-md text-green-600 hover:bg-green-50 hover:text-green-800 transition-colors" title="Sửa">
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => handleDeleteClick(invoice)} className="p-1.5 rounded-md text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors" title="Xóa">
+                      <button onClick={(e) => { e.stopPropagation(); handleDeleteClick(invoice); }} className="p-1.5 rounded-md text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors" title="Xóa">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -587,12 +573,12 @@ const InvoiceManagement: React.FC = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Khách hàng</label>
                   <select
-                    value={formData.khachHang}
+                    value={formData.customerId}
                     onChange={(e) => {
-                      const selectedCustomer = customers.find(c => c.tenCongTy === e.target.value);
+                      const selectedCustomer = customers.find(c => c.id === e.target.value);
                       setFormData({
                         ...formData,
-                        khachHang: e.target.value,
+                        customerId: e.target.value,
                         maSoThue: selectedCustomer?.maSoThue || ''
                       });
                     }}
@@ -600,22 +586,9 @@ const InvoiceManagement: React.FC = () => {
                   >
                     <option value="">-- Chọn khách hàng --</option>
                     {customers.map((customer) => (
-                      <option key={customer.id} value={customer.tenCongTy}>
+                      <option key={customer.id} value={customer.id}>
                         {customer.tenCongTy} {customer.quocGia ? '(Quốc tế)' : customer.tinhThanh ? '(Nội địa)' : ''}
                       </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nhà cung cấp</label>
-                  <select
-                    value={formData.nhaCungCap}
-                    onChange={(e) => setFormData({ ...formData, nhaCungCap: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  >
-                    <option value="">-- Chọn nhà cung cấp --</option>
-                    {suppliers.map((s) => (
-                      <option key={s.id} value={s.tenNhaCungCap}>{s.tenNhaCungCap}</option>
                     ))}
                   </select>
                 </div>
@@ -645,14 +618,14 @@ const InvoiceManagement: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tổng tiền</label>
                   <input type="number" value={formData.tongTien} onChange={(e) => {
                     const tongTien = parseNumberInputStr(e.target.value);
-                    setFormData(prev => ({ ...prev, tongTien, thanhTien: calcThanhTien(tongTien, prev.thue) }));
+                    setFormData(prev => ({ ...prev, tongTien, thanhTien: calcThanhTien(tongTien, prev.thueVAT) }));
                   }} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Thuế VAT (%)</label>
-                  <input type="number" value={formData.thue} onChange={(e) => {
+                  <input type="number" value={formData.thueVAT} onChange={(e) => {
                     const thue = parseNumberInputStr(e.target.value);
-                    setFormData(prev => ({ ...prev, thue, thanhTien: calcThanhTien(prev.tongTien, thue) }));
+                    setFormData(prev => ({ ...prev, thueVAT: thue, thanhTien: calcThanhTien(prev.tongTien, thue) }));
                   }} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
                 </div>
                 <div>
@@ -760,12 +733,12 @@ const InvoiceManagement: React.FC = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Khách hàng</label>
                   <select
-                    value={formData.khachHang}
+                    value={formData.customerId}
                     onChange={(e) => {
-                      const selectedCustomer = customers.find(c => c.tenCongTy === e.target.value);
+                      const selectedCustomer = customers.find(c => c.id === e.target.value);
                       setFormData({
                         ...formData,
-                        khachHang: e.target.value,
+                        customerId: e.target.value,
                         maSoThue: selectedCustomer?.maSoThue || ''
                       });
                     }}
@@ -773,22 +746,9 @@ const InvoiceManagement: React.FC = () => {
                   >
                     <option value="">-- Chọn khách hàng --</option>
                     {customers.map((customer) => (
-                      <option key={customer.id} value={customer.tenCongTy}>
+                      <option key={customer.id} value={customer.id}>
                         {customer.tenCongTy} {customer.quocGia ? '(Quốc tế)' : customer.tinhThanh ? '(Nội địa)' : ''}
                       </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nhà cung cấp</label>
-                  <select
-                    value={formData.nhaCungCap}
-                    onChange={(e) => setFormData({ ...formData, nhaCungCap: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  >
-                    <option value="">-- Chọn nhà cung cấp --</option>
-                    {suppliers.map((s) => (
-                      <option key={s.id} value={s.tenNhaCungCap}>{s.tenNhaCungCap}</option>
                     ))}
                   </select>
                 </div>
@@ -817,14 +777,14 @@ const InvoiceManagement: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tổng tiền</label>
                   <input type="number" value={formData.tongTien} onChange={(e) => {
                     const tongTien = parseNumberInputStr(e.target.value);
-                    setFormData(prev => ({ ...prev, tongTien, thanhTien: calcThanhTien(tongTien, prev.thue) }));
+                    setFormData(prev => ({ ...prev, tongTien, thanhTien: calcThanhTien(tongTien, prev.thueVAT) }));
                   }} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Thuế VAT (%)</label>
-                  <input type="number" value={formData.thue} onChange={(e) => {
+                  <input type="number" value={formData.thueVAT} onChange={(e) => {
                     const thue = parseNumberInputStr(e.target.value);
-                    setFormData(prev => ({ ...prev, thue, thanhTien: calcThanhTien(prev.tongTien, thue) }));
+                    setFormData(prev => ({ ...prev, thueVAT: thue, thanhTien: calcThanhTien(prev.tongTien, thue) }));
                   }} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" />
                 </div>
                 <div>
@@ -931,7 +891,7 @@ const InvoiceManagement: React.FC = () => {
                 </div>
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="block text-sm font-medium text-gray-500 mb-1">Khách hàng</label>
-                  <p className="text-gray-900">{selectedInvoice.khachHang}</p>
+                  <p className="text-gray-900">{selectedInvoice.customer?.tenCongTy || '-'}</p>
                 </div>
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="block text-sm font-medium text-gray-500 mb-1">Mã số thuế</label>
@@ -947,7 +907,7 @@ const InvoiceManagement: React.FC = () => {
                 </div>
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="block text-sm font-medium text-gray-500 mb-1">Thuế VAT (%)</label>
-                  <p className="text-orange-600 font-medium">{selectedInvoice.thue}%</p>
+                  <p className="text-orange-600 font-medium">{selectedInvoice.thueVAT}%</p>
                 </div>
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="block text-sm font-medium text-gray-500 mb-1">Thành tiền</label>
@@ -989,10 +949,10 @@ const InvoiceManagement: React.FC = () => {
                     <p className="text-gray-900">{selectedInvoice.mucDichSuDung}</p>
                   </div>
                 )}
-                {selectedInvoice.nhaCungCap && (
+                {selectedInvoice.customer?.tenCongTy && selectedInvoice.loaiHoaDon === 'Mua hàng' && (
                   <div className="bg-gray-50 p-3 rounded-lg">
                     <label className="block text-sm font-medium text-gray-500 mb-1">Nhà cung cấp</label>
-                    <p className="text-gray-900">{selectedInvoice.nhaCungCap}</p>
+                    <p className="text-gray-900">{selectedInvoice.customer?.tenCongTy}</p>
                   </div>
                 )}
                 {selectedInvoice.files && selectedInvoice.files.length > 0 && (
@@ -1011,7 +971,7 @@ const InvoiceManagement: React.FC = () => {
               </div>
               <div className="flex justify-end gap-3 mt-6 shrink-0">
                 <button onClick={() => setIsViewModalOpen(false)} className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Đóng</button>
-                <button onClick={() => { setIsViewModalOpen(false); if (selectedInvoice) handleEditClick(selectedInvoice); }} className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700">Chỉnh sửa</button>
+                <button onClick={() => { setIsViewModalOpen(false); if (selectedInvoice) handleEditClick(selectedInvoice); }} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Chỉnh sửa</button>
               </div>
               </>)}
             </div>

@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import taxReportService from '../services/taxReportService';
 import { getFileUrl } from '../middlewares/upload';
-import type { AuthenticatedRequest } from '@types';
 
 interface RequestWithFile extends Request {
   file?: Express.Multer.File;
@@ -14,8 +13,10 @@ export class TaxReportController {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
       const search = req.query.search as string;
+      const month = req.query.month ? parseInt(req.query.month as string) : undefined;
+      const year = req.query.year ? parseInt(req.query.year as string) : undefined;
 
-      const result = await taxReportService.getAllTaxReports(page, limit, search);
+      const result = await taxReportService.getAllTaxReports(page, limit, search, month, year);
 
       return res.json({
         success: true,
@@ -82,10 +83,10 @@ export class TaxReportController {
 
       // Handle file upload
       if (req.file) {
-        input.fileDinhKem = getFileUrl('tax-reports', req.file.filename);
+        input.fileUrl = getFileUrl('tax-reports', req.file.filename);
       }
 
-      const taxReport = await taxReportService.createTaxReportFromOrder(orderId, input, (req as unknown as AuthenticatedRequest).user?.id);
+      const taxReport = await taxReportService.createTaxReportFromOrder(orderId, input);
 
       return res.status(201).json({
         success: true,
@@ -105,7 +106,7 @@ export class TaxReportController {
 
       // Handle file upload
       if (req.file) {
-        input.fileDinhKem = getFileUrl('tax-reports', req.file.filename);
+        input.fileUrl = getFileUrl('tax-reports', req.file.filename);
       }
 
       const taxReport = await taxReportService.updateTaxReport(id, input);

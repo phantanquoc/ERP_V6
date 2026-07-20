@@ -10,9 +10,11 @@ interface RequestWithFile extends Request {
 }
 
 export class DebtController {
-  async getAllDebts(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  async getAllDebts(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const debts = await debtService.getAll();
+      const month = req.query.month ? parseInt(req.query.month as string) : undefined;
+      const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+      const debts = await debtService.getAll(month, year);
       res.json({ success: true, data: debts });
     } catch (error) {
       next(error);
@@ -34,23 +36,23 @@ export class DebtController {
 
   async createDebt(req: RequestWithFile, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { ngayPhatSinh, loaiChiPhi, maNhaCungCap, tenNhaCungCap, loaiCungCap, cungCap, noiDungChiCho, loaiHinh, soTienPhaiTra, soTienDaThanhToan, ngayHoachToan, ngayDenHan, soTaiKhoan, ghiChu } = req.body;
+      const { ngayPhatSinh, loaiChiPhi, supplierId, maNhaCungCap, tenNhaCungCap, loaiCungCap, cungCap, noiDungChiCho, loaiHinh, soTienPhaiTra, soTienDaThanhToan, ngayHoachToan, ngayDenHan, soTaiKhoan, ghiChu } = req.body;
 
-      if (!maNhaCungCap || !tenNhaCungCap || !ngayPhatSinh) {
-        res.status(400).json({ success: false, message: 'Mã nhà cung cấp, tên nhà cung cấp và ngày phát sinh là bắt buộc' });
+      if (!supplierId || !maNhaCungCap || !tenNhaCungCap || !ngayPhatSinh) {
+        res.status(400).json({ success: false, message: 'Supplier ID, mã nhà cung cấp, tên nhà cung cấp và ngày phát sinh là bắt buộc' });
         return;
       }
 
-      let fileDinhKem: string | undefined;
+      let files: string[] = [];
       if (req.file) {
-        fileDinhKem = getFileUrl('debts', req.file.filename);
+        files = [getFileUrl('debts', req.file.filename)];
       }
 
       const debt = await debtService.create({
-        ngayPhatSinh, loaiChiPhi, maNhaCungCap, tenNhaCungCap, loaiCungCap, cungCap,
+        ngayPhatSinh, loaiChiPhi, supplierId, maNhaCungCap, tenNhaCungCap, loaiCungCap, cungCap,
         noiDungChiCho, loaiHinh, soTienPhaiTra: parseFloat(soTienPhaiTra) || 0,
         soTienDaThanhToan: parseFloat(soTienDaThanhToan) || 0,
-        ngayHoachToan, ngayDenHan, soTaiKhoan, ghiChu, fileDinhKem,
+        ngayHoachToan, ngayDenHan, soTaiKhoan, ghiChu, files,
       });
 
       res.status(201).json({ success: true, data: debt, message: 'Tạo công nợ thành công' });
@@ -71,7 +73,7 @@ export class DebtController {
     try {
       const updateData = { ...req.body };
       if (req.file) {
-        updateData.fileDinhKem = getFileUrl('debts', req.file.filename);
+        updateData.files = [getFileUrl('debts', req.file.filename)];
       }
 
       const debt = await debtService.update(req.params.id, updateData);
@@ -128,9 +130,9 @@ export class DebtController {
           cungCap: item.cungCap || '',
           noiDungChiCho: item.noiDungChiCho || '',
           loaiHinh: item.loaiHinh || '',
-          soTienPhaiTra: item.soTienPhaiTra,
-          soTienDaThanhToan: item.soTienDaThanhToan,
-          conNo: item.soTienPhaiTra - item.soTienDaThanhToan,
+          soTienPhaiTra: item.soTienPhaiTra ?? 0,
+          soTienDaThanhToan: item.soTienDaThanhToan ?? 0,
+          conNo: (item.soTienPhaiTra ?? 0) - (item.soTienDaThanhToan ?? 0),
           ngayHoachToan: item.ngayHoachToan ? new Date(item.ngayHoachToan).toLocaleDateString('vi-VN') : '',
           ngayDenHan: item.ngayDenHan ? new Date(item.ngayDenHan).toLocaleDateString('vi-VN') : '',
           soTaiKhoan: item.soTaiKhoan || '',
@@ -147,9 +149,11 @@ export class DebtController {
     }
   }
 
-  async getDebtSummary(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  async getDebtSummary(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const summary = await debtService.getSummary();
+      const month = req.query.month ? parseInt(req.query.month as string) : undefined;
+      const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+      const summary = await debtService.getSummary(month, year);
       res.json({ success: true, data: summary });
     } catch (error) {
       next(error);
