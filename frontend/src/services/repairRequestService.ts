@@ -66,6 +66,8 @@ export interface RepairRequest {
   ghiChu?: string | null;
   trangThai: RepairRequestStatus;
   fileDinhKem?: string | null;
+  createdById?: string | null;
+  createdByName?: string | null;
   createdAt: string;
   updatedAt: string;
   items?: RepairRequestItem[];

@@ -946,6 +946,7 @@ model RepairRequest {
   trangThai        RepairRequestStatus  @default(CHO_XU_LY) // Trạng thái
   fileDinhKem      String? // File đính kèm
   createdById      String? // soft ref to auth.User.id — no FK constraint
+  createdByName    String? // Tên người yêu cầu
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
 
