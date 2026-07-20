@@ -4,17 +4,9 @@ import {
   Calculator,
   Receipt,
   Building,
-  Edit,
-  Eye,
-  Trash2,
-  Calendar,
-  DollarSign,
-  CreditCard,
-  Archive,
   Package,
   AlertCircle,
   TrendingUp,
-  Wallet
 } from 'lucide-react';
 import OrderManagement from '../../components/OrderManagement';
 import DebtManagement from '../../components/DebtManagement';
@@ -22,8 +14,8 @@ import AssetManagement from '../../components/AssetManagement';
 import InvoiceManagement from '../../components/InvoiceManagement';
 import warehouseService from '../../services/warehouseService';
 import debtService from '../../services/debtService';
-import invoiceService from '../../services/invoiceService';
-import internationalCustomerService from '../../services/internationalCustomerService';
+import invoiceService, { Invoice } from '../../services/invoiceService';
+import { orderService } from '../../services/orderService';
 
 // Interface for overview data
 interface AssetOverview {
@@ -39,6 +31,21 @@ interface RevenueOverview {
   noiDia: number;
 }
 
+interface InvoiceOverview {
+  total: number;
+  daThanhToan: number;
+  chuaThanhToan: number;
+  dangXuLy: number;
+}
+
+interface OrderOverview {
+  total: number;
+  dangSanXuat: number;
+  choGiaoHang: number;
+  daGiao: number;
+}
+
+
 const AccountingAdmin = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<'invoices' | 'assets' | 'orders' | 'debts'>(() => {
@@ -46,6 +53,10 @@ const AccountingAdmin = () => {
     const validTabs = ['invoices', 'assets', 'orders', 'debts'];
     return validTabs.includes(tabParam || '') ? tabParam as any : 'invoices';
   });
+
+  // Month/Year filter state
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   useEffect(() => {
     const currentTab = searchParams.get('tab');
@@ -58,19 +69,19 @@ const AccountingAdmin = () => {
 
   // Overview states
   const [assetOverview, setAssetOverview] = useState<AssetOverview>({
-    tongTaiSan: 0,
-    tongCongNo: 0,
-    daThanhToan: 0,
-    chuaThanhToan: 0,
+    tongTaiSan: 0, tongCongNo: 0, daThanhToan: 0, chuaThanhToan: 0,
   });
-
   const [revenueOverview, setRevenueOverview] = useState<RevenueOverview>({
-    tongDoanhThu: 0,
-    quocTe: 0,
-    noiDia: 0,
+    tongDoanhThu: 0, quocTe: 0, noiDia: 0,
   });
-
+  const [invoiceOverview, setInvoiceOverview] = useState<InvoiceOverview>({
+    total: 0, daThanhToan: 0, chuaThanhToan: 0, dangXuLy: 0,
+  });
+  const [orderOverview, setOrderOverview] = useState<OrderOverview>({
+    total: 0, dangSanXuat: 0, choGiaoHang: 0, daGiao: 0,
+  });
   const [loadingOverview, setLoadingOverview] = useState(true);
+
 
   // Fetch overview data
   useEffect(() => {
@@ -78,13 +89,11 @@ const AccountingAdmin = () => {
       try {
         setLoadingOverview(true);
 
-        // Fetch all data in parallel
-        const [warehousesRes, debtSummaryRes, invoicesRes, internationalCustomersRes, domesticCustomersRes] = await Promise.all([
+        const [warehousesRes, debtSummaryRes, invoicesRes, ordersRes] = await Promise.all([
           warehouseService.getAllWarehouses(),
-          debtService.getDebtSummary(),
-          invoiceService.getAllInvoices(1, 1000),
-          internationalCustomerService.getAllCustomers(1, 1000, '', 'Quốc tế'),
-          internationalCustomerService.getAllCustomers(1, 1000, '', 'Nội địa'),
+          debtService.getDebtSummary(selectedMonth, selectedYear),
+          invoiceService.getAllInvoices(1, 1000, undefined, selectedMonth, selectedYear),
+          orderService.getAllOrders(1, 1000, undefined, undefined, undefined, undefined, undefined, selectedMonth, selectedYear),
         ]);
 
         // Calculate total asset value from warehouses
@@ -101,7 +110,6 @@ const AccountingAdmin = () => {
 
         // Get debt summary
         const debtSummary = debtSummaryRes.data?.data || debtSummaryRes.data || {};
-
         setAssetOverview({
           tongTaiSan,
           tongCongNo: debtSummary.tongPhaiTra || 0,
@@ -109,38 +117,47 @@ const AccountingAdmin = () => {
           chuaThanhToan: debtSummary.conNo || 0,
         });
 
-        // Calculate revenue from invoices
-        const invoices = invoicesRes.data || [];
-        const internationalCustomers = internationalCustomersRes.data || [];
-        const domesticCustomers = domesticCustomersRes.data || [];
-
-        // Create customer name sets for lookup
-        const internationalNames = new Set(internationalCustomers.map((c: any) => c.tenCongTy));
-        const domesticNames = new Set(domesticCustomers.map((c: any) => c.tenCongTy));
-
+        // Calculate revenue from invoices (classify by customer.quocGia)
+        const invoices: Invoice[] = invoicesRes.data || [];
         let tongDoanhThu = 0;
         let quocTe = 0;
         let noiDia = 0;
+        let invDaThanhToan = 0;
+        let invChuaThanhToan = 0;
+        let invDangXuLy = 0;
 
         invoices.forEach((invoice: any) => {
           const thanhTien = invoice.thanhTien || 0;
           tongDoanhThu += thanhTien;
 
-          // Classify by customer name
-          if (internationalNames.has(invoice.khachHang)) {
+          // Classify by customer.quocGia
+          if (invoice.customer?.quocGia) {
             quocTe += thanhTien;
-          } else if (domesticNames.has(invoice.khachHang)) {
-            noiDia += thanhTien;
           } else {
-            // Default to domestic if unknown
             noiDia += thanhTien;
           }
+
+          // Count by status
+          if (invoice.trangThai === 'Đã thanh toán') invDaThanhToan++;
+          else if (invoice.trangThai === 'Chưa thanh toán') invChuaThanhToan++;
+          else invDangXuLy++;
         });
 
-        setRevenueOverview({
-          tongDoanhThu,
-          quocTe,
-          noiDia,
+        setRevenueOverview({ tongDoanhThu, quocTe, noiDia });
+        setInvoiceOverview({
+          total: invoices.length,
+          daThanhToan: invDaThanhToan,
+          chuaThanhToan: invChuaThanhToan,
+          dangXuLy: invDangXuLy,
+        });
+
+        // Orders overview
+        const orders = ordersRes.data || [];
+        setOrderOverview({
+          total: orders.length,
+          dangSanXuat: orders.filter((o: any) => o.trangThaiSanXuat === 'DANG_SAN_XUAT').length,
+          choGiaoHang: orders.filter((o: any) => o.trangThaiSanXuat === 'CHO_GIAO_HANG').length,
+          daGiao: orders.filter((o: any) => o.trangThaiSanXuat === 'DA_GIAO_CHO_KHACH_HANG').length,
         });
 
       } catch (error) {
@@ -151,21 +168,7 @@ const AccountingAdmin = () => {
     };
 
     fetchOverviewData();
-  }, []);
-
-  // State for modals
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<any>(null);
-
-  const openDetailModal = (item: any) => {
-    setSelectedItem(item);
-    setIsDetailModalOpen(true);
-  };
-
-  const closeDetailModal = () => {
-    setIsDetailModalOpen(false);
-    setSelectedItem(null);
-  };
+  }, [selectedMonth, selectedYear]);
 
   const tabs = [
     { id: 'invoices', name: 'Hóa đơn', icon: <Receipt className="w-4 h-4" /> },
@@ -174,19 +177,47 @@ const AccountingAdmin = () => {
     { id: 'orders', name: 'Danh sách đơn hàng', icon: <Package className="w-4 h-4" /> }
   ];
 
+  const formatCompact = (value: number) =>
+    new Intl.NumberFormat('vi-VN', { notation: 'compact' }).format(value);
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', notation: 'compact' }).format(value);
+
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center">
-            <Calculator className="w-8 h-8 text-orange-600 mr-3" />
-            Phòng KT Hành chính
-          </h1>
-          <p className="text-gray-600">Quản lý hóa đơn, tài sản, công nợ và đơn hàng</p>
+    <div>
+      <div>
+        {/* Header with Month/Year filter */}
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center">
+              <Calculator className="w-8 h-8 text-orange-600 mr-3" />
+              Phòng KT Hành chính
+            </h1>
+            <p className="text-gray-600">Quản lý hóa đơn, tài sản, công nợ và đơn hàng</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+            >
+              {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                <option key={m} value={m}>Tháng {m}</option>
+              ))}
+            </select>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+            >
+              {[2023, 2024, 2025, 2026].map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        {/* Overview Cards */}
+        {/* Overview Cards - 2x2 grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Card 1: Tổng quan tài sản */}
           <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300">
@@ -199,39 +230,27 @@ const AccountingAdmin = () => {
             {loadingOverview ? (
               <div className="animate-pulse space-y-3">
                 <div className="h-14 bg-gray-200 rounded-lg"></div>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="h-16 bg-gray-200 rounded-lg"></div>
-                  <div className="h-16 bg-gray-200 rounded-lg"></div>
-                  <div className="h-16 bg-gray-200 rounded-lg"></div>
-                </div>
+                <div className="grid grid-cols-3 gap-2"><div className="h-16 bg-gray-200 rounded-lg"></div><div className="h-16 bg-gray-200 rounded-lg"></div><div className="h-16 bg-gray-200 rounded-lg"></div></div>
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="bg-blue-50 rounded-lg p-3 border-2 border-blue-300 cursor-pointer">
+                <div onClick={() => setActiveTab('assets')} className="bg-blue-50 rounded-lg p-3 border-2 border-blue-300 cursor-pointer hover:shadow-md hover:border-blue-400 transition">
                   <div className="flex justify-between items-center">
                     <span className="text-xs font-medium text-gray-700">Tổng tài sản</span>
-                    <span className="text-2xl font-bold text-blue-600">
-                      {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', notation: 'compact' }).format(assetOverview.tongTaiSan)}
-                    </span>
+                    <span className="text-2xl font-bold text-blue-600">{formatCurrency(assetOverview.tongTaiSan)}</span>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <div className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer">
-                    <div className="text-xl font-bold text-red-600">
-                      {new Intl.NumberFormat('vi-VN', { notation: 'compact' }).format(assetOverview.tongCongNo)}
-                    </div>
+                  <div onClick={() => setActiveTab('debts')} className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer hover:shadow-md hover:border-blue-400 transition">
+                    <div className="text-xl font-bold text-red-600">{formatCompact(assetOverview.tongCongNo)}</div>
                     <div className="text-xs text-gray-600 mt-0.5">Tổng công nợ</div>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer">
-                    <div className="text-xl font-bold text-green-600">
-                      {new Intl.NumberFormat('vi-VN', { notation: 'compact' }).format(assetOverview.daThanhToan)}
-                    </div>
+                  <div onClick={() => setActiveTab('debts')} className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer hover:shadow-md hover:border-blue-400 transition">
+                    <div className="text-xl font-bold text-green-600">{formatCompact(assetOverview.daThanhToan)}</div>
                     <div className="text-xs text-gray-600 mt-0.5">Đã thanh toán</div>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer">
-                    <div className="text-xl font-bold text-yellow-600">
-                      {new Intl.NumberFormat('vi-VN', { notation: 'compact' }).format(assetOverview.chuaThanhToan)}
-                    </div>
+                  <div onClick={() => setActiveTab('debts')} className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer hover:shadow-md hover:border-blue-400 transition">
+                    <div className="text-xl font-bold text-yellow-600">{formatCompact(assetOverview.chuaThanhToan)}</div>
                     <div className="text-xs text-gray-600 mt-0.5">Chưa thanh toán</div>
                   </div>
                 </div>
@@ -250,33 +269,102 @@ const AccountingAdmin = () => {
             {loadingOverview ? (
               <div className="animate-pulse space-y-3">
                 <div className="h-14 bg-gray-200 rounded-lg"></div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="h-16 bg-gray-200 rounded-lg"></div>
-                  <div className="h-16 bg-gray-200 rounded-lg"></div>
-                </div>
+                <div className="grid grid-cols-2 gap-2"><div className="h-16 bg-gray-200 rounded-lg"></div><div className="h-16 bg-gray-200 rounded-lg"></div></div>
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="bg-green-50 rounded-lg p-3 border-2 border-green-300 cursor-pointer">
+                <div onClick={() => setActiveTab('orders')} className="bg-green-50 rounded-lg p-3 border-2 border-green-300 cursor-pointer hover:shadow-md hover:border-green-400 transition">
                   <div className="flex justify-between items-center">
                     <span className="text-xs font-medium text-gray-700">Tổng doanh thu</span>
-                    <span className="text-2xl font-bold text-green-600">
-                      {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', notation: 'compact' }).format(revenueOverview.tongDoanhThu)}
-                    </span>
+                    <span className="text-2xl font-bold text-green-600">{formatCurrency(revenueOverview.tongDoanhThu)}</span>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer">
-                    <div className="text-xl font-bold text-blue-600">
-                      {new Intl.NumberFormat('vi-VN', { notation: 'compact' }).format(revenueOverview.quocTe)}
-                    </div>
+                  <div onClick={() => setActiveTab('orders')} className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer hover:shadow-md hover:border-blue-400 transition">
+                    <div className="text-xl font-bold text-blue-600">{formatCompact(revenueOverview.quocTe)}</div>
                     <div className="text-xs text-gray-600 mt-0.5">Quốc tế</div>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer">
-                    <div className="text-xl font-bold text-green-600">
-                      {new Intl.NumberFormat('vi-VN', { notation: 'compact' }).format(revenueOverview.noiDia)}
-                    </div>
+                  <div onClick={() => setActiveTab('orders')} className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer hover:shadow-md hover:border-blue-400 transition">
+                    <div className="text-xl font-bold text-green-600">{formatCompact(revenueOverview.noiDia)}</div>
                     <div className="text-xs text-gray-600 mt-0.5">Nội địa</div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Card 3: Hóa đơn */}
+          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold flex items-center text-gray-800">
+                <Receipt className="w-5 h-5 mr-2 text-orange-600" />
+                Hóa đơn
+              </h3>
+            </div>
+            {loadingOverview ? (
+              <div className="animate-pulse space-y-3">
+                <div className="h-14 bg-gray-200 rounded-lg"></div>
+                <div className="grid grid-cols-3 gap-2"><div className="h-16 bg-gray-200 rounded-lg"></div><div className="h-16 bg-gray-200 rounded-lg"></div><div className="h-16 bg-gray-200 rounded-lg"></div></div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div onClick={() => setActiveTab('invoices')} className="bg-orange-50 rounded-lg p-3 border-2 border-orange-300 cursor-pointer hover:shadow-md hover:border-orange-400 transition">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-medium text-gray-700">Tổng hóa đơn</span>
+                    <span className="text-2xl font-bold text-orange-600">{invoiceOverview.total}</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div onClick={() => setActiveTab('invoices')} className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer hover:shadow-md hover:border-blue-400 transition">
+                    <div className="text-xl font-bold text-green-600">{invoiceOverview.daThanhToan}</div>
+                    <div className="text-xs text-gray-600 mt-0.5">Đã thanh toán</div>
+                  </div>
+                  <div onClick={() => setActiveTab('invoices')} className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer hover:shadow-md hover:border-blue-400 transition">
+                    <div className="text-xl font-bold text-red-600">{invoiceOverview.chuaThanhToan}</div>
+                    <div className="text-xs text-gray-600 mt-0.5">Chưa thanh toán</div>
+                  </div>
+                  <div onClick={() => setActiveTab('invoices')} className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer hover:shadow-md hover:border-blue-400 transition">
+                    <div className="text-xl font-bold text-yellow-600">{invoiceOverview.dangXuLy}</div>
+                    <div className="text-xs text-gray-600 mt-0.5">Đang xử lý</div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Card 4: Đơn hàng */}
+          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold flex items-center text-gray-800">
+                <Package className="w-5 h-5 mr-2 text-purple-600" />
+                Đơn hàng
+              </h3>
+            </div>
+            {loadingOverview ? (
+              <div className="animate-pulse space-y-3">
+                <div className="h-14 bg-gray-200 rounded-lg"></div>
+                <div className="grid grid-cols-3 gap-2"><div className="h-16 bg-gray-200 rounded-lg"></div><div className="h-16 bg-gray-200 rounded-lg"></div><div className="h-16 bg-gray-200 rounded-lg"></div></div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div onClick={() => setActiveTab('orders')} className="bg-purple-50 rounded-lg p-3 border-2 border-purple-300 cursor-pointer hover:shadow-md hover:border-purple-400 transition">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-medium text-gray-700">Tổng đơn hàng</span>
+                    <span className="text-2xl font-bold text-purple-600">{orderOverview.total}</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div onClick={() => setActiveTab('orders')} className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer hover:shadow-md hover:border-blue-400 transition">
+                    <div className="text-xl font-bold text-blue-600">{orderOverview.dangSanXuat}</div>
+                    <div className="text-xs text-gray-600 mt-0.5">Đang sản xuất</div>
+                  </div>
+                  <div onClick={() => setActiveTab('orders')} className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer hover:shadow-md hover:border-blue-400 transition">
+                    <div className="text-xl font-bold text-yellow-600">{orderOverview.choGiaoHang}</div>
+                    <div className="text-xs text-gray-600 mt-0.5">Chờ giao hàng</div>
+                  </div>
+                  <div onClick={() => setActiveTab('orders')} className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer hover:shadow-md hover:border-blue-400 transition">
+                    <div className="text-xl font-bold text-green-600">{orderOverview.daGiao}</div>
+                    <div className="text-xs text-gray-600 mt-0.5">Đã giao</div>
                   </div>
                 </div>
               </div>
@@ -308,145 +396,27 @@ const AccountingAdmin = () => {
 
         {/* Content */}
         <div className="bg-white rounded-lg shadow-sm">
-          {/* HÓA ĐƠN */}
-          {/* HÓA ĐƠN */}
           {activeTab === 'invoices' && (
             <div className="p-6">
-              <InvoiceManagement />
+              <InvoiceManagement month={selectedMonth} year={selectedYear} />
             </div>
           )}
-
-          {/* QUẢN LÝ TÀI SẢN */}
           {activeTab === 'assets' && (
             <div className="p-6">
               <AssetManagement hideHeader={true} />
             </div>
           )}
-
-          {/* QUẢN LÝ TÀI SẢN - OLD MOCKDATA (COMMENTED OUT) */}
-          {false && activeTab === 'assets' && (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse border border-gray-400">
-                <thead>
-                  <tr className="bg-orange-200 border-b-2 border-gray-400">
-                    <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400">Mã tài sản</th>
-                    <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400">Tên tài sản</th>
-                    <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400">Loại tài sản</th>
-                    <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400">Giá trị mua</th>
-                    <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400">Giá trị hiện tại</th>
-                    <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400">Vị trí</th>
-                    <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400">Trạng thái</th>
-                    <th className="px-4 py-3 text-center text-sm font-bold text-gray-800">Hoạt động</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {assetData.map((item) => (
-                    <tr key={item.id} className="border-b border-gray-400 bg-white hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-400 text-center font-medium text-blue-600">{item.maTaiSan}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-400">{item.tenTaiSan}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-400 text-center">{item.loaiTaiSan}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-400 text-right">
-                        <span className="font-medium text-blue-600">
-                          {(item.giaTriMua / 1000000).toFixed(0)}M VNĐ
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-400 text-right">
-                        <span className="font-medium text-green-600">
-                          {(item.giaTriHienTai / 1000000).toFixed(0)}M VNĐ
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-400 text-center">{item.viTri}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-400 text-center">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          item.trangThai === 'Đang sử dụng' ? 'bg-green-100 text-green-800' :
-                          item.trangThai === 'Bảo trì' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {item.trangThai}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-900">
-                        <div className="flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => openDetailModal(item)}
-                            className="text-blue-600 hover:text-blue-800"
-                            title="Xem chi tiết"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button className="text-green-600 hover:text-green-800" title="Chỉnh sửa">
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button className="text-orange-600 hover:text-orange-800" title="Khấu hao">
-                            <Archive className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* DANH SÁCH CÔNG NỢ */}
           {activeTab === 'debts' && (
             <div className="p-6">
-              <DebtManagement />
+              <DebtManagement month={selectedMonth} year={selectedYear} />
             </div>
           )}
-
-          {/* DANH SÁCH ĐƠN HÀNG */}
           {activeTab === 'orders' && (
             <div className="p-6">
               <OrderManagement hideHeader={true} />
             </div>
           )}
         </div>
-
-        {/* Detail Modal */}
-        {isDetailModalOpen && selectedItem && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto border-2 border-gray-300">
-              <div className="p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-bold text-gray-800">Chi tiết thông tin</h2>
-                  <button
-                    onClick={closeDetailModal}
-                    className="text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {Object.entries(selectedItem).map(([key, value]) => (
-                    <div key={key} className="bg-gray-50 p-4 rounded-lg border-2 border-gray-200 hover:border-orange-300 hover:bg-orange-50 transition-all duration-200">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        {key.charAt(0).toUpperCase() + key.slice(1)}
-                      </label>
-                      <p className="text-sm text-gray-900 font-medium">{String(value)}</p>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex justify-end gap-4 mt-6 pt-4 border-t border-gray-200">
-                  <button
-                    onClick={closeDetailModal}
-                    className="px-4 py-2 border-2 border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors"
-                  >
-                    Đóng
-                  </button>
-                  <button className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 border-2 border-orange-600 hover:border-orange-700 transition-colors">
-                    Chỉnh sửa
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

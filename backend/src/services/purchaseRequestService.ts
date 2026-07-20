@@ -45,17 +45,25 @@ class PurchaseRequestService {
     return nextYearlyCode(last?.maYeuCau ?? null, 'YC-MH', year);
   }
 
-  async getAllPurchaseRequests(page: number = 1, limit: number = 10, search?: string, departmentId?: string) {
+  async getAllPurchaseRequests(page: number = 1, limit: number = 10, search?: string, departmentId?: string, month?: number, year?: number) {
     const { skip } = getPaginationParams(page, limit);
 
     const deptFilter = departmentId
       ? { employee: { user: { departmentId } } }
       : {};
 
+    // Date range filter by month/year on ngayYeuCau
+    const dateFilter = (month && year)
+      ? { ngayYeuCau: { gte: new Date(year, month - 1, 1), lt: new Date(year, month, 1) } }
+      : year
+        ? { ngayYeuCau: { gte: new Date(year, 0, 1), lt: new Date(year + 1, 0, 1) } }
+        : {};
+
     const where = search
       ? {
           AND: [
             deptFilter,
+            dateFilter,
             {
               OR: [
                 { maYeuCau: { contains: search, mode: 'insensitive' as const } },
@@ -75,7 +83,7 @@ class PurchaseRequestService {
             },
           ],
         }
-      : deptFilter;
+      : { AND: [deptFilter, dateFilter] };
 
     const [data, total] = await Promise.all([
       prisma.purchaseRequest.findMany({

@@ -113,11 +113,11 @@ class OrderService {
       await prisma.taxReport.create({
         data: {
           orderId: order.id,
-          ngayDatHang: order.ngayDatHang,
           maDonHang: order.maDonHang,
+          ngayDatHang: order.ngayDatHang,
           tenHangHoa,
           soLuong,
-          donVi,
+          donViTinh: donVi,
           giaTriDonHang,
           trangThai: TaxReportStatus.CHUA_BAO_CAO,
         },
@@ -149,7 +149,7 @@ class OrderService {
   }
 
   // Get all orders with pagination
-  async getAllOrders(page: number = 1, limit: number = 10, search?: string, customerType?: string, status?: string, dateFrom?: string, dateTo?: string) {
+  async getAllOrders(page: number = 1, limit: number = 10, search?: string, customerType?: string, status?: string, dateFrom?: string, dateTo?: string, month?: number, year?: number) {
     const skip = (page - 1) * limit;
 
     const where: any = {};
@@ -164,6 +164,14 @@ class OrderService {
     // Filter by production status
     if (status) {
       where.trangThaiSanXuat = status as OrderProductionStatus;
+    }
+
+    // Filter by month/year on ngayDatHang
+    if (month && year) {
+      where.ngayDatHang = {
+        gte: new Date(year, month - 1, 1),
+        lt: new Date(year, month, 1),
+      };
     }
 
     // Filter by date range (createdAt)

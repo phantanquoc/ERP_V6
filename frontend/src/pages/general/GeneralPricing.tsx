@@ -4,7 +4,8 @@ import {
   Calculator,
   FileText,
   ShoppingCart,
-  DollarSign
+  DollarSign,
+  Calendar
 } from 'lucide-react';
 import QuotationRequestManagement from '../../components/QuotationRequestManagement';
 import QuotationManagement from '../../components/QuotationManagement';
@@ -23,6 +24,9 @@ const GeneralPricing = () => {
     const tabParam = searchParams.get('tab') as TabType;
     return VALID_TABS.includes(tabParam) ? tabParam : 'requests';
   });
+
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   useEffect(() => {
     const currentTab = searchParams.get('tab');
@@ -54,11 +58,11 @@ const GeneralPricing = () => {
 
   useEffect(() => {
     fetchAllStats();
-  }, []);
+  }, [selectedMonth, selectedYear]);
 
   const fetchAllStats = async () => {
     try {
-      // Fetch all data for both customer types
+      // Fetch all data for both customer types with month/year filter
       const [
         requestsAllRes,
         requestsQuocTeRes,
@@ -70,15 +74,15 @@ const GeneralPricing = () => {
         ordersQuocTeRes,
         ordersNoiDiaRes
       ] = await Promise.all([
-        quotationRequestService.getAllQuotationRequests(1, 1),
-        quotationRequestService.getAllQuotationRequests(1, 1, undefined, 'Quốc tế'),
-        quotationRequestService.getAllQuotationRequests(1, 1, undefined, 'Nội địa'),
-        quotationService.getAllQuotations(1, 1),
-        quotationService.getAllQuotations(1, 1, undefined, 'Quốc tế'),
-        quotationService.getAllQuotations(1, 1, undefined, 'Nội địa'),
-        orderService.getAllOrders(1, 1),
-        orderService.getAllOrders(1, 1, undefined, 'Quốc tế'),
-        orderService.getAllOrders(1, 1, undefined, 'Nội địa')
+        quotationRequestService.getAllQuotationRequests(1, 1, undefined, undefined, undefined, undefined, undefined, selectedMonth, selectedYear),
+        quotationRequestService.getAllQuotationRequests(1, 1, undefined, 'Quốc tế', undefined, undefined, undefined, selectedMonth, selectedYear),
+        quotationRequestService.getAllQuotationRequests(1, 1, undefined, 'Nội địa', undefined, undefined, undefined, selectedMonth, selectedYear),
+        quotationService.getAllQuotations(1, 1, undefined, undefined, undefined, undefined, undefined, selectedMonth, selectedYear),
+        quotationService.getAllQuotations(1, 1, undefined, 'Quốc tế', undefined, undefined, undefined, selectedMonth, selectedYear),
+        quotationService.getAllQuotations(1, 1, undefined, 'Nội địa', undefined, undefined, undefined, selectedMonth, selectedYear),
+        orderService.getAllOrders(1, 1, undefined, undefined, undefined, undefined, undefined, selectedMonth, selectedYear),
+        orderService.getAllOrders(1, 1, undefined, 'Quốc tế', undefined, undefined, undefined, selectedMonth, selectedYear),
+        orderService.getAllOrders(1, 1, undefined, 'Nội địa', undefined, undefined, undefined, selectedMonth, selectedYear)
       ]);
 
       setRequestStats({
@@ -113,18 +117,42 @@ const GeneralPricing = () => {
   return (
     <div className="space-y-6">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center">
-            <Calculator className="w-8 h-8 text-blue-600 mr-3" />
-            Phòng giá thành
-          </h1>
-          <p className="text-gray-600">Quản lý yêu cầu báo giá, báo giá và đơn hàng</p>
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center">
+              <Calculator className="w-8 h-8 text-blue-600 mr-3" />
+              Phòng giá thành
+            </h1>
+            <p className="text-gray-600">Quản lý yêu cầu báo giá, báo giá và đơn hàng</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-gray-500" />
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {Array.from({ length: 12 }, (_, i) => (
+                <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
+              ))}
+            </select>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {Array.from({ length: 4 }, (_, i) => {
+                const y = new Date().getFullYear() - 3 + i;
+                return <option key={y} value={y}>{y}</option>;
+              })}
+            </select>
+          </div>
         </div>
 
         {/* Overview Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           {/* Card 1: Tổng quan yêu cầu báo giá */}
-          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-blue-400">
+          <div onClick={() => setActiveTab('requests')} className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-blue-400 cursor-pointer">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <FileText className="w-5 h-5 mr-2 text-blue-600" />
@@ -152,7 +180,7 @@ const GeneralPricing = () => {
           </div>
 
           {/* Card 2: Tổng quan báo giá */}
-          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-green-400">
+          <div onClick={() => setActiveTab('quotes')} className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-green-400 cursor-pointer">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <Calculator className="w-5 h-5 mr-2 text-green-600" />
@@ -180,7 +208,7 @@ const GeneralPricing = () => {
           </div>
 
           {/* Card 3: Tổng quan đơn hàng */}
-          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-purple-400">
+          <div onClick={() => setActiveTab('orders')} className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-purple-400 cursor-pointer">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <ShoppingCart className="w-5 h-5 mr-2 text-purple-600" />

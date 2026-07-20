@@ -43,7 +43,7 @@ const fallbackSummary: TechnicalSummary = {
 
 // ── Skeleton ──
 const DashboardSkeleton = () => (
-  <div className="min-h-screen bg-gray-50 p-6">
+  <div>
     <div className="flex items-center justify-between mb-5">
       <div>
         <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-2" />
@@ -223,7 +223,7 @@ const TechnicalManagement = () => {
   if (isLoading) return <DashboardSkeleton />;
 
   if (isError) return (
-    <div className="min-h-screen bg-gray-50 p-6 flex flex-col items-center justify-center">
+    <div className="flex flex-col items-center justify-center py-20">
       <AlertTriangle className="w-10 h-10 text-red-400 mb-3" />
       <p className="text-gray-600 mb-2">Không thể tải dữ liệu tổng quan</p>
       <button onClick={() => refetch()} className="text-sm text-blue-600 hover:text-blue-800">Thử lại</button>
@@ -231,7 +231,7 @@ const TechnicalManagement = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div>
       {/* ── HEADER ── */}
       <div className="flex items-center justify-between mb-5">
         <div>

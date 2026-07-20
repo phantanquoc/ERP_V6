@@ -33,6 +33,9 @@ const ProductionDepartment = () => {
   const [selectedMaChien, setSelectedMaChien] = useState<string>('');
   const [selectedThoiGianChien, setSelectedThoiGianChien] = useState<string>('');
 
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
   // Order statistics
   const [orderStats, setOrderStats] = useState({
     total: 0,
@@ -44,7 +47,7 @@ const ProductionDepartment = () => {
 
   useEffect(() => {
     loadOrderStats();
-  }, []);
+  }, [selectedMonth, selectedYear]);
 
   // Sync tab to URL when changed
   useEffect(() => {
@@ -58,7 +61,7 @@ const ProductionDepartment = () => {
 
   const loadOrderStats = async () => {
     try {
-      const response = await orderService.getAllOrders(1, 10000);
+      const response = await orderService.getAllOrders(1, 10000, undefined, undefined, undefined, undefined, undefined, selectedMonth, selectedYear);
       const orders = response.data;
 
       setOrderStats({
@@ -95,18 +98,42 @@ const ProductionDepartment = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <Factory className="w-6 h-6 text-blue-600" />
-          Phòng QLSX
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">Quản lý quy trình, đơn hàng và định mức nguyên vật liệu</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Factory className="w-6 h-6 text-blue-600" />
+            Phòng QLSX
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">Quản lý quy trình, đơn hàng và định mức nguyên vật liệu</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-gray-500" />
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {Array.from({ length: 12 }, (_, i) => (
+              <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
+            ))}
+          </select>
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {Array.from({ length: 4 }, (_, i) => {
+              const y = new Date().getFullYear() - 3 + i;
+              return <option key={y} value={y}>{y}</option>;
+            })}
+          </select>
+        </div>
       </div>
 
         {/* Overview Cards */}
         <div className="grid grid-cols-1 gap-4 sm:gap-6">
           {/* Tổng quan đơn hàng */}
-          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-purple-400">
+          <div onClick={() => setActiveTab('orderList')} className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-purple-400 cursor-pointer">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <Package className="w-5 h-5 mr-2 text-purple-600" />

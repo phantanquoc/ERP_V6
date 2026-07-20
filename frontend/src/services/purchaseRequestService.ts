@@ -52,10 +52,16 @@ export interface CreatePurchaseRequestRequest {
 }
 
 class PurchaseRequestService {
-  async getAllPurchaseRequests(page: number = 1, limit: number = 10, search?: string) {
+  async getAllPurchaseRequests(page: number = 1, limit: number = 10, search?: string, month?: number, year?: number) {
     const params: any = { page, limit };
     if (search) {
       params.search = search;
+    }
+    if (month) {
+      params.month = month;
+    }
+    if (year) {
+      params.year = year;
     }
 
      const response = await apiClient.get('/purchase-requests', { params });

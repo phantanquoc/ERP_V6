@@ -179,7 +179,7 @@ const QualityPersonnel = () => {
         {/* Overview Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           {/* Tổng quan nhân viên */}
-          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-blue-400">
+          <div onClick={() => setActiveTab('employees')} className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-blue-400 cursor-pointer">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <Users className="w-5 h-5 mr-2 text-blue-600" />
@@ -211,7 +211,7 @@ const QualityPersonnel = () => {
           </div>
 
           {/* Tổng quan đánh giá */}
-          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-yellow-400">
+          <div onClick={() => setActiveTab('evaluations')} className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-yellow-400 cursor-pointer">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <Star className="w-5 h-5 mr-2 text-yellow-500" />
@@ -274,7 +274,7 @@ const QualityPersonnel = () => {
           </div>
 
           {/* Tổng quan điểm danh */}
-          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-purple-400">
+          <div onClick={() => setActiveTab('attendance')} className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-purple-400 cursor-pointer">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <Calendar className="w-5 h-5 mr-2 text-purple-600" />

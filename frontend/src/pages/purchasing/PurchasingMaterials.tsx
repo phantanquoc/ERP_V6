@@ -13,7 +13,8 @@ import {
   List,
   X,
   Globe,
-  CheckCircle
+  CheckCircle,
+  HelpCircle
 } from 'lucide-react';
 import FileUpload from '../../components/FileUpload';
 import OrderManagement from '../../components/OrderManagement';
@@ -71,6 +72,65 @@ const PurchasingMaterials = () => {
       setSearchParams(params, { replace: true });
     }
   }, [activeTab]);
+
+  // Month/Year filter for stat cards
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
+  // Card stats state
+  const [cardSupplierStats, setCardSupplierStats] = useState({ total: 0, active: 0, inactive: 0 });
+  const [cardPRStats, setCardPRStats] = useState({ total: 0, choBaoGia: 0, choDuyet: 0, daDuyet: 0, hoanThanh: 0, chuaPhanLoai: 0 });
+
+  // Fetch supplier stats (all-time, no month/year filter)
+  useEffect(() => {
+    const fetchSupplierStats = async () => {
+      try {
+        const response = await supplierService.getAllSuppliers(1, 1000, undefined, 'NVL');
+        const allSuppliers = response.data || [];
+        setCardSupplierStats({
+          total: allSuppliers.length,
+          active: allSuppliers.filter((s: Supplier) => s.trangThai === 'Đang cung cấp').length,
+          inactive: allSuppliers.filter((s: Supplier) => s.trangThai === 'Ngừng cung cấp').length,
+        });
+      } catch (error) {
+        console.error('Error fetching supplier stats:', error);
+      }
+    };
+    fetchSupplierStats();
+  }, []);
+
+  // Fetch purchase request stats (by month/year, filtered by NVL category)
+  useEffect(() => {
+    const fetchPRStats = async () => {
+      try {
+        const response = await purchaseRequestService.getAllPurchaseRequests(1, 1000, undefined, selectedMonth, selectedYear);
+        const allPR = response.data || [];
+
+        // Helper: PR matches NVL category if at least 1 item has supplier.phanLoaiNCC === 'NVL'
+        const prMatchesCategory = (pr: any) =>
+          pr.items?.some((item: any) => item.supplier?.phanLoaiNCC === 'NVL');
+        // PR is unclassified if NO item has a classified supplier
+        const prIsUnclassified = (pr: any) =>
+          !pr.items?.some((item: any) => item.supplier?.phanLoaiNCC);
+
+        const matchedPRs = allPR.filter((pr: any) => prMatchesCategory(pr));
+        const unclassifiedPRs = allPR.filter((pr: any) => prIsUnclassified(pr));
+        const relevantPRs = [...matchedPRs, ...unclassifiedPRs.filter((pr: any) => !matchedPRs.includes(pr))];
+
+        setCardPRStats({
+          total: relevantPRs.length,
+          choBaoGia: relevantPRs.filter((pr: any) => pr.trangThai === 'Chờ báo giá').length,
+          choDuyet: relevantPRs.filter((pr: any) => pr.trangThai === 'Chờ duyệt').length,
+          daDuyet: relevantPRs.filter((pr: any) => pr.trangThai === 'Đã duyệt').length,
+          hoanThanh: relevantPRs.filter((pr: any) => pr.trangThai === 'Hoàn thành').length,
+          chuaPhanLoai: unclassifiedPRs.length,
+        });
+      } catch (error) {
+        console.error('Error fetching PR stats:', error);
+      }
+    };
+    fetchPRStats();
+  }, [selectedMonth, selectedYear]);
 
   // State for purchase requests
   const [purchaseRequests, setPurchaseRequests] = useState<PurchaseRequest[]>([]);
@@ -485,12 +545,82 @@ const PurchasingMaterials = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <ShoppingCart className="w-6 h-6 text-blue-600" />
-          Phòng thu mua NVL
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">Quản lý nhà cung cấp, đơn hàng mua, hợp đồng và chi phí nguyên vật liệu</p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <ShoppingCart className="w-6 h-6 text-blue-600" />
+            Phòng thu mua NVL
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">Quản lý nhà cung cấp, đơn hàng mua, hợp đồng và chi phí nguyên vật liệu</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(Number(e.target.value))}
+            className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {Array.from({ length: 12 }, (_, i) => (
+              <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
+            ))}
+          </select>
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
+            className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {Array.from({ length: 4 }, (_, i) => {
+              const y = 2023 + i;
+              return <option key={y} value={y}>{y}</option>;
+            })}
+          </select>
+        </div>
+      </div>
+
+      {/* Stat Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        {/* Card NCC */}
+        <div
+          onClick={() => setActiveTab('suppliers')}
+          className="bg-white rounded-xl shadow-lg border-2 border-transparent hover:border-blue-400 hover:shadow-xl transition-all cursor-pointer p-5"
+        >
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <Users className="w-5 h-5 text-blue-600" />
+            </div>
+            <h3 className="font-semibold text-gray-800">Nhà cung cấp</h3>
+          </div>
+          <div className="text-3xl font-bold text-gray-900 mb-2">{cardSupplierStats.total}</div>
+          <div className="flex gap-4 text-sm">
+            <span className="text-green-600">Đang cung cấp: {cardSupplierStats.active}</span>
+            <span className="text-red-600">Ngừng: {cardSupplierStats.inactive}</span>
+          </div>
+        </div>
+
+        {/* Card Yeu cau mua hang (NVL) */}
+        <div
+          onClick={() => setActiveTab('purchaseRequestList')}
+          className="bg-white rounded-xl shadow-lg border-2 border-transparent hover:border-green-400 hover:shadow-xl transition-all cursor-pointer p-5"
+        >
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-2 bg-green-100 rounded-lg">
+              <List className="w-5 h-5 text-green-600" />
+            </div>
+            <h3 className="font-semibold text-gray-800">Yêu cầu mua hàng (NVL)</h3>
+          </div>
+          <div className="text-3xl font-bold text-gray-900 mb-2">{cardPRStats.total}</div>
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
+            <span className="text-orange-600">Chờ báo giá: {cardPRStats.choBaoGia}</span>
+            <span className="text-yellow-600">Chờ duyệt: {cardPRStats.choDuyet}</span>
+            <span className="text-green-600">Đã duyệt: {cardPRStats.daDuyet}</span>
+            <span className="text-emerald-600">Hoàn thành: {cardPRStats.hoanThanh}</span>
+            {cardPRStats.chuaPhanLoai > 0 && (
+              <span className="text-gray-500 inline-flex items-center gap-0.5">
+                <HelpCircle className="w-3 h-3" />
+                Chưa phân loại: {cardPRStats.chuaPhanLoai}
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Tabs */}

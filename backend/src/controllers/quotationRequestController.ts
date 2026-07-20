@@ -17,6 +17,9 @@ export class QuotationRequestController {
       const dateFrom = req.query.dateFrom as string | undefined;
       const dateTo = req.query.dateTo as string | undefined;
 
+      const month = req.query.month ? parseInt(req.query.month as string) : undefined;
+      const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+
       // Validate optional status filter (task 2.6)
       let status: QuotationRequestStatus | undefined;
       if (req.query.status) {
@@ -27,7 +30,7 @@ export class QuotationRequestController {
         status = rawStatus as QuotationRequestStatus;
       }
 
-      const result = await quotationRequestService.getAllQuotationRequests(page, limit, search, customerType, status, dateFrom, dateTo);
+      const result = await quotationRequestService.getAllQuotationRequests(page, limit, search, customerType, status, dateFrom, dateTo, month, year);
 
       const response: ApiResponse<any> = {
         success: true,

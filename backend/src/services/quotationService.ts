@@ -36,7 +36,7 @@ class QuotationService {
   /**
    * Get all quotations with pagination
    */
-  async getAllQuotations(page: number, limit: number, search?: string, customerType?: string, status?: string, dateFrom?: string, dateTo?: string): Promise<any> {
+  async getAllQuotations(page: number, limit: number, search?: string, customerType?: string, status?: string, dateFrom?: string, dateTo?: string, month?: number, year?: number): Promise<any> {
     const { skip } = getPaginationParams(page, limit);
 
     const where: any = {};
@@ -58,6 +58,14 @@ class QuotationService {
       where.createdAt = {};
       if (dateFrom) where.createdAt.gte = new Date(`${dateFrom}T00:00:00.000Z`);
       if (dateTo) where.createdAt.lte = new Date(`${dateTo}T23:59:59.999Z`);
+    }
+
+    // Filter by month/year on ngayBaoGia
+    if (month && year) {
+      where.ngayBaoGia = {
+        gte: new Date(year, month - 1, 1),
+        lt: new Date(year, month, 1),
+      };
     }
 
     if (search) {

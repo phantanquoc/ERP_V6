@@ -19,7 +19,9 @@ export class ProcessService {
     page: number = 1,
     limit: number = 10,
     search?: string,
-    hienThiTrongChung?: boolean
+    hienThiTrongChung?: boolean,
+    month?: number,
+    year?: number
   ): Promise<PaginatedResponse<any>> {
     const { skip } = getPaginationParams(page, limit);
 
@@ -37,6 +39,14 @@ export class ProcessService {
 
     if (hienThiTrongChung !== undefined) {
       where.hienThiTrongChung = hienThiTrongChung;
+    }
+
+    // Filter by month/year on createdAt
+    if (month && year) {
+      where.createdAt = {
+        gte: new Date(year, month - 1, 1),
+        lt: new Date(year, month, 1),
+      };
     }
 
     const [processes, total] = await Promise.all([

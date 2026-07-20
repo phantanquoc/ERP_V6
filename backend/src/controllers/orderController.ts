@@ -66,7 +66,10 @@ class OrderController {
       const dateFrom = req.query.dateFrom as string | undefined;
       const dateTo = req.query.dateTo as string | undefined;
 
-      const result = await orderService.getAllOrders(page, limit, search, customerType, status, dateFrom, dateTo);
+      const month = req.query.month ? parseInt(req.query.month as string) : undefined;
+      const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+
+      const result = await orderService.getAllOrders(page, limit, search, customerType, status, dateFrom, dateTo, month, year);
 
       const response: ApiResponse<any> = {
         success: true,
