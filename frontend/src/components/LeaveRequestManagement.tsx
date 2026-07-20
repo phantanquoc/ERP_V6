@@ -227,7 +227,11 @@ const LeaveRequestManagement = () => {
                     {filteredRequests.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((request, index) => (
                       <tr
                         key={request.id}
-                        className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                        onClick={() => {
+                          setSelectedRequest(request);
+                          setIsDetailModalOpen(true);
+                        }}
+                        className={`border-b border-gray-200 hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all ${
                           index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                         }`}
                       >
@@ -265,27 +269,18 @@ const LeaveRequestManagement = () => {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-center gap-3">
-                            <button
-                              onClick={() => {
-                                setSelectedRequest(request);
-                                setIsDetailModalOpen(true);
-                              }}
-                              className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                              title="Xem chi tiết"
-                            >
-                              <Eye className="w-5 h-5" />
-                            </button>
                             {request.status === 'PENDING' && (
                               <>
                                 <button
-                                  onClick={() => handleApprove(request)}
+                                  onClick={(e) => { e.stopPropagation(); handleApprove(request); }}
                                   className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
                                   title="Phê duyệt"
                                 >
                                   <CheckCircle className="w-5 h-5" />
                                 </button>
                                 <button
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     setSelectedRequest(request);
                                     setIsRejectModalOpen(true);
                                   }}

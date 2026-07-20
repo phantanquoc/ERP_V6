@@ -238,7 +238,11 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
               const isPending = plan.trangThai === OvertimePlanStatus.CHO_DUYET;
 
               return (
-                <tr key={plan.id} className={`hover:bg-gray-50 transition-colors ${highlightPlanId === plan.id ? 'bg-blue-50 ring-2 ring-inset ring-blue-400' : ''}`}>
+                <tr
+                  key={plan.id}
+                  onClick={() => setViewPlan(plan)}
+                  className={`hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all ${highlightPlanId === plan.id ? 'bg-blue-50 ring-2 ring-inset ring-blue-400' : ''}`}
+                >
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-gray-400" />
@@ -278,18 +282,10 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-center">
                     <div className="flex items-center justify-center gap-2">
-                      <button
-                        onClick={() => setViewPlan(plan)}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                        title="Xem chi tiết"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-
                       {isAdmin && isPending && (
                         <>
                           <button
-                            onClick={() => handleApprove(plan.id)}
+                            onClick={(e) => { e.stopPropagation(); handleApprove(plan.id); }}
                             disabled={actionLoading === plan.id}
                             className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
                             title="Duyệt"
@@ -297,7 +293,7 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
                             <Check className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => setShowRejectModal(plan.id)}
+                            onClick={(e) => { e.stopPropagation(); setShowRejectModal(plan.id); }}
                             disabled={actionLoading === plan.id}
                             className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
                             title="Từ chối"
@@ -307,24 +303,15 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
                         </>
                       )}
 
-                      {/* Admin can edit / delete any plan regardless of status */}
+                      {/* Admin can delete any plan regardless of status */}
                       {isAdmin && (
-                        <>
-                          <button
-                            onClick={() => { setEditPlan(plan); setShowCreateModal(true); }}
-                            className="p-1.5 text-amber-600 hover:bg-amber-50 rounded transition-colors"
-                            title="Chỉnh sửa"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => setConfirmDeleteId(plan.id)}
-                            className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors"
-                            title="Xóa"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(plan.id); }}
+                          className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors"
+                          title="Xóa"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       )}
                     </div>
                   </td>
@@ -373,11 +360,19 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
         title="Chi tiết kế hoạch tăng ca"
         maxWidth="4xl"
         footer={
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-3">
             <button onClick={() => setViewPlan(null)}
               className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
               Đóng
             </button>
+            {isAdmin && viewPlan && (
+              <button
+                onClick={() => { setViewPlan(null); setEditPlan(viewPlan); setShowCreateModal(true); }}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Chỉnh sửa
+              </button>
+            )}
           </div>
         }
       >

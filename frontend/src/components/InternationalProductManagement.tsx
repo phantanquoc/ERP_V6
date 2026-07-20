@@ -276,7 +276,11 @@ const InternationalProductManagement: React.FC = () => {
               </tr>
             ) : (
               products.map((product, index) => (
-                <tr key={product.id} className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                <tr
+                  key={product.id}
+                  onClick={() => openDetailModal(product)}
+                  className={`border-b border-gray-200 hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
+                >
                   <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
                     {product.maSanPham}
                   </td>
@@ -291,25 +295,9 @@ const InternationalProductManagement: React.FC = () => {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-center gap-3">
-                      <button
-                        onClick={() => openDetailModal(product)}
-                        className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                        title="Xem chi tiết"
-                      >
-                        <Eye className="w-5 h-5" />
-                      </button>
-                      {canCreateEdit && (
-                        <button
-                          onClick={() => openEditModal(product)}
-                          className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
-                          title="Chỉnh sửa"
-                        >
-                          <Edit className="w-5 h-5" />
-                        </button>
-                      )}
                       {canDelete && (
                         <button
-                          onClick={() => handleDelete(product.id)}
+                          onClick={(e) => { e.stopPropagation(); handleDelete(product.id); }}
                           className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
                           title="Xóa"
                         >
@@ -505,6 +493,26 @@ const InternationalProductManagement: React.FC = () => {
                     </p>
                   </div>
                 </div>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => setShowDetailModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Đóng
+                </button>
+                {canCreateEdit && (
+                  <button
+                    onClick={() => {
+                      setShowDetailModal(false);
+                      openEditModal(selectedProduct);
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Chỉnh sửa
+                  </button>
+                )}
               </div>
               </>)}
             </div>

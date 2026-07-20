@@ -126,7 +126,7 @@ const MaintenanceRecordList = ({ lockedMachineSystemId }: MaintenanceRecordListP
               <tr><td colSpan={8} className="text-center py-8 text-gray-500">Chưa có biên bản nào</td></tr>
             ) : (
               records.map((r: MaintenanceRecord) => (
-                <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50">
+                <tr key={r.id} onClick={() => openView(r)} className="border-b border-gray-100 border-l-2 border-l-transparent hover:bg-blue-100 hover:border-l-blue-500 cursor-pointer transition-all">
                   <td className="px-3 py-2 text-gray-900 font-medium">
                     {r.maBienBan}
                     {r.sourceLogId && (
@@ -156,9 +156,7 @@ const MaintenanceRecordList = ({ lockedMachineSystemId }: MaintenanceRecordListP
                   </td>
                   <td className="px-3 py-2 text-center">
                     <div className="flex items-center justify-center gap-1">
-                      <button onClick={() => openView(r)} className="p-1 text-gray-400 hover:text-blue-600 rounded"><Eye className="w-4 h-4" /></button>
-                      <button onClick={() => openEdit(r)} className="p-1 text-gray-400 hover:text-green-600 rounded"><Edit2 className="w-4 h-4" /></button>
-                      <button onClick={() => handleDelete(r.id)} className="p-1 text-gray-400 hover:text-red-600 rounded"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={(e) => { e.stopPropagation(); handleDelete(r.id); }} className="p-1 text-gray-400 hover:text-red-600 rounded"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   </td>
                 </tr>
@@ -189,6 +187,7 @@ const MaintenanceRecordList = ({ lockedMachineSystemId }: MaintenanceRecordListP
           systems={systems}
           onClose={() => { setModalMode(null); setSelectedRecord(null); }}
           lockedMachineSystemId={lockedMachineSystemId}
+          onEdit={() => setModalMode('edit')}
         />
       )}
     </div>

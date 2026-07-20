@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Eye, X, Download } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Download } from 'lucide-react';
 import internalInspectionService from '@services/internalInspectionService';
 import type { InternalInspection } from '@services/internalInspectionService';
 import TableFilter, { FilterField } from './TableFilter';
@@ -41,6 +41,8 @@ const InternalInspectionManagement = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [showModal, setShowModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedInspection, setSelectedInspection] = useState<InternalInspection | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({
     inspectionDate: new Date().toISOString().split('T')[0],
@@ -148,6 +150,11 @@ const InternalInspectionManagement = () => {
       console.error('Error deleting:', error);
       alert('Lỗi khi xóa');
     }
+  };
+
+  const handleView = (inspection: InternalInspection) => {
+    setSelectedInspection(inspection);
+    setShowDetailModal(true);
   };
 
   const filteredInspections = inspections.filter(ins => {
@@ -270,8 +277,12 @@ const InternalInspectionManagement = () => {
                 </td>
               </tr>
             ) : (
-              paginatedInspections.map((inspection) => (
-                <tr key={inspection.id} className="border-b hover:bg-gray-50">
+              paginatedInspections.map((inspection, index) => (
+                <tr
+                  key={inspection.id}
+                  onClick={() => handleView(inspection)}
+                  className={`border-b border-gray-200 border-l-2 border-l-transparent hover:bg-blue-100 hover:border-l-blue-500 cursor-pointer transition-all ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
+                >
                   <td className="px-4 py-2">{inspection.stt}</td>
                   <td className="px-4 py-2">{inspection.inspectionCode}</td>
                   <td className="px-4 py-2">{new Date(inspection.inspectionDate).toLocaleDateString('vi-VN')}</td>
@@ -291,14 +302,14 @@ const InternalInspectionManagement = () => {
                   <td className="px-4 py-2 text-center">
                     <div className="flex gap-2 justify-center">
                       <button
-                        onClick={() => handleEdit(inspection)}
+                        onClick={(e) => { e.stopPropagation(); handleEdit(inspection); }}
                         className="text-blue-600 hover:text-blue-800"
                         title="Chỉnh sửa"
                       >
                         <Edit2 size={18} />
                       </button>
                       <button
-                        onClick={() => handleDelete(inspection.id)}
+                        onClick={(e) => { e.stopPropagation(); handleDelete(inspection.id); }}
                         className="text-red-600 hover:text-red-800"
                         title="Xóa"
                       >
@@ -533,6 +544,102 @@ const InternalInspectionManagement = () => {
                 className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400"
               >
                 Hủy
+              </button>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Detail Modal */}
+      <Modal isOpen={showDetailModal} onClose={() => setShowDetailModal(false)} showBackdrop>
+        <div className="bg-white rounded-lg max-w-2xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="p-6 overflow-y-auto flex-1">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">Chi tiết kiểm tra nội bộ</h2>
+              <button onClick={() => setShowDetailModal(false)} className="text-gray-500 hover:text-gray-700">
+                <X size={24} />
+              </button>
+            </div>
+
+            {selectedInspection && (
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="font-medium text-gray-600">Mã kiểm tra:</span>
+                  <p className="mt-1">{selectedInspection.inspectionCode}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-600">Ngày kiểm tra:</span>
+                  <p className="mt-1">{new Date(selectedInspection.inspectionDate).toLocaleDateString('vi-VN')}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-600">Mã kế hoạch:</span>
+                  <p className="mt-1">{selectedInspection.inspectionPlanCode || '—'}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-600">Mã vi phạm:</span>
+                  <p className="mt-1">{selectedInspection.violationCode}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-600">Mức độ vi phạm:</span>
+                  <p className="mt-1">{selectedInspection.violationLevel}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-600">Loại vi phạm:</span>
+                  <p className="mt-1">{selectedInspection.violationCategory || '—'}</p>
+                </div>
+                <div className="col-span-2">
+                  <span className="font-medium text-gray-600">Nội dung vi phạm:</span>
+                  <p className="mt-1">{selectedInspection.violationContent}</p>
+                </div>
+                <div className="col-span-2">
+                  <span className="font-medium text-gray-600">Mô tả chi tiết:</span>
+                  <p className="mt-1">{selectedInspection.violationDescription || '—'}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-600">Người kiểm tra:</span>
+                  <p className="mt-1">{selectedInspection.inspectedBy}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-600">Trạng thái:</span>
+                  <p className="mt-1">
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                      selectedInspection.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                      selectedInspection.status === 'VERIFIED' ? 'bg-blue-100 text-blue-800' :
+                      'bg-green-100 text-green-800'
+                    }`}>
+                      {selectedInspection.status}
+                    </span>
+                  </p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-600">Người xác nhận 1:</span>
+                  <p className="mt-1">{selectedInspection.verifiedBy1 || '—'}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-600">Người xác nhận 2:</span>
+                  <p className="mt-1">{selectedInspection.verifiedBy2 || '—'}</p>
+                </div>
+                {selectedInspection.notes && (
+                  <div className="col-span-2">
+                    <span className="font-medium text-gray-600">Ghi chú:</span>
+                    <p className="mt-1">{selectedInspection.notes}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowDetailModal(false)}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+              >
+                Đóng
+              </button>
+              <button
+                onClick={() => { setShowDetailModal(false); if (selectedInspection) handleEdit(selectedInspection); }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Chỉnh sửa
               </button>
             </div>
           </div>

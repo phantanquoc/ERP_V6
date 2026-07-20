@@ -571,7 +571,8 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   return filteredEvaluations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((evaluation, index) => (
                   <tr
                     key={evaluation.id}
-                    className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
+                    onClick={() => handleViewDetail(evaluation)}
+                    className={`border-b border-gray-200 hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all ${
                       index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                     }`}
                   >
@@ -585,21 +586,14 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                     <td className="px-3 py-2 sm:px-6 sm:py-4">
                       <div className="flex items-center justify-center gap-3">
                         <button
-                          onClick={() => handleViewDetail(evaluation)}
-                          className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                          title="Xem chi tiết"
-                        >
-                          <Eye className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleOpenModal(evaluation)}
+                          onClick={(e) => { e.stopPropagation(); handleOpenModal(evaluation); }}
                           className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
                           title="Chỉnh sửa"
                         >
                           <Edit className="w-5 h-5" />
                         </button>
                         <button
-                          onClick={() => handleDelete(evaluation.id)}
+                          onClick={(e) => { e.stopPropagation(); handleDelete(evaluation.id); }}
                           className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
                           title="Xóa"
                         >
@@ -607,7 +601,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                         </button>
                         {onCreateSystemOperation && (
                           <button
-                            onClick={() => handleCreateSystemOperation(evaluation)}
+                            onClick={(e) => { e.stopPropagation(); handleCreateSystemOperation(evaluation); }}
                             className="p-1.5 text-purple-600 hover:bg-purple-100 rounded-md transition-colors"
                             title="Tạo thông số vận hành"
                           >
@@ -1303,12 +1297,22 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                 </div>
               </div>
 
-              <div className="flex justify-end mt-6 shrink-0">
+              <div className="flex justify-end gap-3 mt-6 shrink-0">
                 <button
                   onClick={() => setIsViewModalOpen(false)}
                   className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
                 >
                   Đóng
+                </button>
+                <button
+                  onClick={() => {
+                    setIsViewModalOpen(false);
+                    setIsEditing(true);
+                    setIsModalOpen(true);
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  Chỉnh sửa
                 </button>
               </div>
               </>)}

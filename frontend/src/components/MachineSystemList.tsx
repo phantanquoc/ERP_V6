@@ -554,7 +554,7 @@ const MachineSystemList = () => {
               ) : systems.length === 0 ? (
                 <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-400">Chưa có hệ thống phù hợp.</td></tr>
               ) : systems.map((system) => (
-                <tr key={system.id} className="hover:bg-gray-50/50 transition-colors">
+                <tr key={system.id} onClick={() => setDrawerSystemId(system.id)} className="border-l-2 border-l-transparent hover:bg-blue-100 hover:border-l-blue-500 cursor-pointer transition-all">
                   <td className="px-3 py-2.5 sticky left-0 bg-white z-10 font-mono text-xs text-blue-700 font-medium">{system.maHeThong}</td>
                   <td className="px-3 py-2.5 font-medium text-gray-900">{system.tenHeThong}</td>
                   <td className="px-3 py-2.5 text-gray-600 text-xs">{MACHINE_SYSTEM_CATEGORIES.find(c => c.value === system.loaiHeThong)?.label ?? system.loaiHeThong}</td>
@@ -569,10 +569,9 @@ const MachineSystemList = () => {
                   <td className="px-3 py-2.5">
                     {machineStatusBadge(system.trangThai as MachineStatus | undefined)}
                   </td>
-                  <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
+                  <td className="px-3 py-2.5 sticky right-0 bg-white z-10" onClick={(e) => e.stopPropagation()}>
                     <ResponsiveRowActions
                       actions={[
-                        { key: 'view', label: 'Hồ sơ máy', icon: <Eye className="h-4 w-4" />, onClick: () => { setDrawerSystemId(system.id); }, tone: 'primary' },
                         { key: 'edit', label: 'Sửa hệ thống', icon: <Edit className="h-4 w-4" />, onClick: () => openSystemModal('edit', system), tone: 'success' },
                         { key: 'clone', label: 'Nhân bản hệ thống', icon: <Copy className="h-4 w-4" />, onClick: () => setCloneDialog({ system, maHeThong: system.maHeThong + '-COPY', tenHeThong: system.tenHeThong + ' (bản sao)' }), tone: 'default' },
                         { key: 'status', label: 'Cập nhật trạng thái', icon: <RefreshCw className="h-4 w-4" />, onClick: () => setStatusUpdateSystemId(system.id), tone: 'warning' },

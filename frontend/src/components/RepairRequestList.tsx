@@ -402,7 +402,11 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
                   noiDungLoi: request.noiDungLoi ?? '',
                 }];
                 return (
-                  <tr key={request.id} className="hover:bg-gray-50/50 transition-colors">
+                  <tr
+                    key={request.id}
+                    onClick={() => openModal('view', request)}
+                    className="border-b border-gray-200 hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all"
+                  >
                     <td className="px-3 py-2.5 sticky left-0 bg-white z-10 font-mono text-xs text-blue-700 font-medium">{request.maYeuCau}</td>
                     <td className="px-3 py-2.5 text-gray-600 text-xs">{formatDate(request.ngayThang)}</td>
                     <td className="px-3 py-2.5 text-gray-700 text-xs">{request.createdByName || '—'}</td>
@@ -462,26 +466,22 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
                           };
                         }
                         const overflow = [
-                          // Include "Xem" here only if it's NOT already the primary CTA.
-                          ...(isTerminal
-                            ? []
-                            : [{ key: 'view', label: 'Xem chi tiết', icon: <Eye className="h-4 w-4" />, onClick: () => openModal('view', request), tone: 'primary' as const }]),
                           ...(!isTerminal
-                            ? [{ key: 'edit', label: 'Sửa', icon: <Edit className="h-4 w-4" />, onClick: () => openModal('edit', request), tone: 'default' as const }]
+                            ? [{ key: 'edit', label: 'Sửa', icon: <Edit className="h-4 w-4" />, onClick: (e: React.MouseEvent) => { e.stopPropagation(); openModal('edit', request); }, tone: 'default' as const }]
                             : []),
-                          { key: 'history', label: 'Lịch sử trạng thái', icon: <History className="h-4 w-4" />, onClick: () => setHistoryRequestId(request.id), tone: 'default' as const },
+                          { key: 'history', label: 'Lịch sử trạng thái', icon: <History className="h-4 w-4" />, onClick: (e: React.MouseEvent) => { e.stopPropagation(); setHistoryRequestId(request.id); }, tone: 'default' as const },
                           ...(!isTerminal
-                            ? [{ key: 'cancel', label: 'Hủy yêu cầu', icon: <Ban className="h-4 w-4" />, onClick: () => { setCancelTarget(request); setCancelReason(''); }, tone: 'danger' as const }]
+                            ? [{ key: 'cancel', label: 'Hủy yêu cầu', icon: <Ban className="h-4 w-4" />, onClick: (e: React.MouseEvent) => { e.stopPropagation(); setCancelTarget(request); setCancelReason(''); }, tone: 'danger' as const }]
                             : []),
                           ...(isAdmin
-                            ? [{ key: 'delete', label: 'Xóa', icon: <Trash2 className="h-4 w-4" />, onClick: () => remove(request), tone: 'danger' as const }]
+                            ? [{ key: 'delete', label: 'Xóa', icon: <Trash2 className="h-4 w-4" />, onClick: (e: React.MouseEvent) => { e.stopPropagation(); remove(request); }, tone: 'danger' as const }]
                             : []),
                         ];
                         return (
                           <div className="flex items-center justify-end gap-1">
                             <button
                               type="button"
-                              onClick={primary.onClick}
+                              onClick={(e) => { e.stopPropagation(); primary.onClick(); }}
                               className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium shadow-sm transition-colors ${primary.className}`}
                             >
                               {primary.icon}
@@ -516,6 +516,11 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
         record={modal?.record}
         lockedMachineSystemId={lockedMachineSystemId}
         onSaved={() => setModal(null)}
+        onEdit={() => {
+          if (modal?.record) {
+            setModal({ mode: 'edit', record: modal.record });
+          }
+        }}
       />
 
       {handoverRequest && (

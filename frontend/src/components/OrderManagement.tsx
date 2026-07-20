@@ -77,6 +77,7 @@ interface OrderManagementProps {
 
 const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, customerType }) => {
   const { user } = useAuth();
+  const canEdit = user?.role === 'ADMIN' || user?.role === 'DEPARTMENT_HEAD';
   const [filterValues, setFilterValues] = useState<Record<string, string>>({
     _search: '',
     maDonHang: '',
@@ -353,7 +354,11 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
               </tr>
             ) : (
               orders.map((order, index) => (
-                <tr key={order.id} className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                <tr
+                  key={order.id}
+                  onClick={() => handleView(order)}
+                  className={`border-b border-gray-200 border-l-2 border-l-transparent hover:bg-blue-100 hover:border-l-blue-500 cursor-pointer transition-all ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
+                >
                   <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
                     {(currentPage - 1) * itemsPerPage + index + 1}
                   </td>
@@ -385,28 +390,14 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-center gap-3">
                       <button
-                        onClick={() => handleView(order)}
-                        className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                        title="Xem chi tiết"
-                      >
-                        <Eye className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => handleViewCosting(order)}
+                        onClick={(e) => { e.stopPropagation(); handleViewCosting(order); }}
                         className="p-1.5 text-purple-600 hover:bg-purple-100 rounded-md transition-colors"
                         title="Xem bảng tính"
                       >
                         <Calculator className="w-5 h-5" />
                       </button>
                       <button
-                        onClick={() => handleEdit(order)}
-                        className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
-                        title="Chỉnh sửa"
-                      >
-                        <Edit className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(order.id)}
+                        onClick={(e) => { e.stopPropagation(); handleDelete(order.id); }}
                         className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
                         title="Xóa"
                       >
@@ -763,9 +754,11 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
               <button
                 onClick={() => {
                   setShowViewModal(false);
-                  setShowEditModal(true);
+                  handleEdit(selectedOrder);
                 }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                disabled={!canEdit}
+                title={!canEdit ? "Bạn không có quyền chỉnh sửa" : ""}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
               >
                 Chỉnh sửa
               </button>

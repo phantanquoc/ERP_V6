@@ -329,7 +329,11 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
             </thead>
             <tbody>
               {grouped.mine.map(s => (
-                <tr key={s.employeeId} className="border-b last:border-0 hover:bg-gray-50">
+                <tr
+                  key={s.employeeId}
+                  onClick={() => handleViewEvaluation(s)}
+                  className="border-b last:border-0 hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all"
+                >
                   <td className="px-4 py-2.5 text-sm text-gray-700 font-mono">{s.employeeCode}</td>
                   <td className="px-4 py-2.5 text-sm font-medium text-gray-900">{s.employeeName}</td>
                   <td className="px-4 py-2.5 text-sm text-gray-600">{s.positionName}</td>
@@ -338,7 +342,7 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
                   <td className="px-4 py-2.5 text-center">{getRoleBadge(s)}</td>
                   <td className="px-4 py-2.5 text-center">
                     <button
-                      onClick={() => handleViewEvaluation(s)}
+                      onClick={(e) => { e.stopPropagation(); handleViewEvaluation(s); }}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
                       title="Đánh giá nhân viên này"
                     >
@@ -373,7 +377,11 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
             </thead>
             <tbody>
               {grouped.self_pending.map(s => (
-                <tr key={s.employeeId} className="border-b last:border-0 hover:bg-gray-50">
+                <tr
+                  key={s.employeeId}
+                  onClick={() => handleViewEvaluation(s)}
+                  className="border-b last:border-0 hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all"
+                >
                   <td className="px-4 py-2.5 text-sm text-gray-700 font-mono">{s.employeeCode}</td>
                   <td className="px-4 py-2.5 text-sm font-medium text-gray-900">{s.employeeName}</td>
                   <td className="px-4 py-2.5 text-sm text-gray-600">{s.positionName}</td>
@@ -387,7 +395,7 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
                   </td>
                   <td className="px-4 py-2.5 text-center">
                     <button
-                      onClick={() => handleViewEvaluation(s)}
+                      onClick={(e) => { e.stopPropagation(); handleViewEvaluation(s); }}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
                       title="Xem chi tiết"
                     >
@@ -422,7 +430,11 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
             </thead>
             <tbody>
               {grouped.other_supervisor.map(s => (
-                <tr key={s.employeeId} className="border-b last:border-0 hover:bg-gray-50">
+                <tr
+                  key={s.employeeId}
+                  onClick={() => handleViewEvaluation(s)}
+                  className="border-b last:border-0 hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all"
+                >
                   <td className="px-4 py-2.5 text-sm text-gray-700 font-mono">{s.employeeCode}</td>
                   <td className="px-4 py-2.5 text-sm font-medium text-gray-900">{s.employeeName}</td>
                   <td className="px-4 py-2.5 text-sm text-gray-600">{s.positionName}</td>
@@ -436,7 +448,7 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
                   </td>
                   <td className="px-4 py-2.5 text-center">
                     <button
-                      onClick={() => handleViewEvaluation(s)}
+                      onClick={(e) => { e.stopPropagation(); handleViewEvaluation(s); }}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
                       title="Xem chi tiết"
                     >
@@ -473,7 +485,11 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
             </thead>
             <tbody>
               {grouped.completed.map(s => (
-                <tr key={s.employeeId} className="border-b last:border-0 hover:bg-gray-50">
+                <tr
+                  key={s.employeeId}
+                  onClick={() => handleViewEvaluation(s)}
+                  className="border-b last:border-0 hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all"
+                >
                   <td className="px-4 py-2.5 text-sm text-gray-700 font-mono">{s.employeeCode}</td>
                   <td className="px-4 py-2.5 text-sm font-medium text-gray-900">{s.employeeName}</td>
                   <td className="px-4 py-2.5 text-sm text-gray-600">{s.positionName}</td>
@@ -484,7 +500,7 @@ const SubordinateEvaluationList = ({ month, year, onEvaluate }: SubordinateEvalu
                   <td className="px-4 py-2.5 text-center text-sm text-gray-700">{renderScore(s.supervisorScore2Percentage)}</td>
                   <td className="px-4 py-2.5 text-center">
                     <button
-                      onClick={() => handleViewEvaluation(s)}
+                      onClick={(e) => { e.stopPropagation(); handleViewEvaluation(s); }}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
                       title="Xem chi tiết"
                     >

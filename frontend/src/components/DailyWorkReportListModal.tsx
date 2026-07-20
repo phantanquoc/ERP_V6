@@ -205,7 +205,8 @@ const DailyWorkReportListModal: React.FC<DailyWorkReportListModalProps> = ({
                 {reports.map((report) => (
                   <div
                     key={report.id}
-                    className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
+                    onClick={() => handleView(report)}
+                    className="bg-white border border-gray-200 rounded-lg p-6 hover:bg-blue-100 hover:border-l-4 hover:border-l-blue-500 cursor-pointer transition-all"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -248,17 +249,6 @@ const DailyWorkReportListModal: React.FC<DailyWorkReportListModalProps> = ({
                             <p className="text-sm text-blue-800">{report.supervisorComment}</p>
                           </div>
                         )}
-
-                        {/* Action Buttons */}
-                        <div className="flex items-center space-x-2 mt-4">
-                          <button
-                            onClick={() => handleView(report)}
-                            className="flex items-center space-x-1 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          >
-                            <Eye className="w-4 h-4" />
-                            <span>Xem</span>
-                          </button>
-                        </div>
                       </div>
                     </div>
                   </div>

@@ -562,14 +562,6 @@ const EmployeeEvaluationManagement = () => {
                     {/* Action buttons */}
                     <div className="flex items-center gap-2 shrink-0">
                       <button
-                        onClick={() => openDetailModal(selectedEmployee)}
-                        disabled={detailLoading}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-blue-600 border border-blue-300 rounded-md hover:bg-blue-50 disabled:opacity-50"
-                      >
-                        <Eye className="w-4 h-4" />
-                        {detailLoading ? 'Đang tải...' : 'Xem chi tiết'}
-                      </button>
-                      <button
                         onClick={async () => {
                           try {
                             const blob = await employeeEvaluationService.downloadPdf(selectedEmployee.evaluationId!);
@@ -613,6 +605,18 @@ const EmployeeEvaluationManagement = () => {
                         {selectedEmployee.supervisorScore2 != null ? `${selectedEmployee.supervisorScore2.toFixed(1)}%` : <span className="text-gray-400 text-base">–</span>}
                       </p>
                     </div>
+                  </div>
+
+                  {/* Detail button */}
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      onClick={() => openDetailModal(selectedEmployee)}
+                      disabled={detailLoading}
+                      className="flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    >
+                      <Eye className="w-4 h-4" />
+                      {detailLoading ? 'Đang tải...' : 'Xem chi tiết đánh giá'}
+                    </button>
                   </div>
                 </div>
               )}
