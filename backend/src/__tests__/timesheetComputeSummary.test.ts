@@ -23,26 +23,63 @@ function makeCell(overrides: Partial<TimesheetCellData> & { date: string; code: 
 // ─── Payable hours & official days ──────────────────────────────────────────────
 
 describe('computeSummary — payable hours & official days', () => {
-  it('code "x" with workHours 8 → payableHours 8, officialWorkDays 1, mealAllowanceDays 1', () => {
+  // "officialWorkDays" holds official work time in HOURS (work days × 8), matching
+  // the Excel "Tổng thời gian làm chính thức" column. "payableHours" = official + paid leave.
+  it('code "x" (1 full day) → officialWorkDays 8h, payableHours 8h, mealAllowanceDays 1', () => {
     const cells = [makeCell({ date: '2026-06-01', code: 'x', workHours: 8 })];
     const result = computeSummary(cells, [], defaultSettings);
+    expect(result.officialWorkDays).toBe(8);
     expect(result.payableHours).toBe(8);
-    expect(result.officialWorkDays).toBe(1);
     expect(result.mealAllowanceDays).toBe(1);
   });
 
-  it('code "N" → officialWorkDays 0.5, mealAllowanceDays 0.5', () => {
+  it('code "N" (half day) → officialWorkDays 4h, mealAllowanceDays 0.5', () => {
     const cells = [makeCell({ date: '2026-06-01', code: 'N', workHours: 8 })];
     const result = computeSummary(cells, [], defaultSettings);
-    expect(result.officialWorkDays).toBe(0.5);
+    expect(result.officialWorkDays).toBe(4);
     expect(result.mealAllowanceDays).toBe(0.5);
   });
 
-  it('code "ON" → officialWorkDays 1 but mealAllowanceDays 0 (online = no meal)', () => {
+  it('code "ON" → officialWorkDays 8h but mealAllowanceDays 0 (online = no meal)', () => {
     const cells = [makeCell({ date: '2026-06-01', code: 'ON', workHours: 8 })];
     const result = computeSummary(cells, [], defaultSettings);
-    expect(result.officialWorkDays).toBe(1);
+    expect(result.officialWorkDays).toBe(8);
     expect(result.mealAllowanceDays).toBe(0);
+  });
+
+  it('"Giờ lương" = SUM of all buckets (official + paid + holiday + unpaid + probation), per Excel AO', () => {
+    const cells = [
+      makeCell({ date: '2026-06-01', code: 'x', workHours: 8 }),   // +8h official
+      makeCell({ date: '2026-06-02', code: 'P', workHours: 0 }),   // +8h paid leave
+      makeCell({ date: '2026-06-03', code: 'L', workHours: 0 }),   // +8h holiday/regime
+      makeCell({ date: '2026-06-04', code: 'KL', workHours: 0 }),  // +8h unpaid → INCLUDED
+    ];
+    const result = computeSummary(cells, [], defaultSettings);
+    expect(result.officialWorkDays).toBe(8);
+    expect(result.leaveHoursPayable).toBe(8);
+    expect(result.leaveHoursHolidayRegime).toBe(8);
+    expect(result.leaveHoursUnpaid).toBe(8);
+    expect(result.payableHours).toBe(32); // 8 + 8 + 8 + 8, all buckets summed
+  });
+
+  it('code "ON" counts as 8h official work (business exception, not 0 like raw Excel)', () => {
+    const cells = [makeCell({ date: '2026-06-01', code: 'ON', workHours: 8 })];
+    const result = computeSummary(cells, [], defaultSettings);
+    expect(result.officialWorkDays).toBe(8);
+  });
+
+  it('code "X/2" → 4h official work + 4h unpaid leave (Excel AP + AS)', () => {
+    const cells = [makeCell({ date: '2026-06-01', code: 'X/2', workHours: 0 })];
+    const result = computeSummary(cells, [], defaultSettings);
+    expect(result.officialWorkDays).toBe(4);
+    expect(result.leaveHoursUnpaid).toBe(4);
+  });
+
+  it('code "P/2" → 4h official work + 4h paid annual leave (Excel AP + AQ)', () => {
+    const cells = [makeCell({ date: '2026-06-01', code: 'P/2', workHours: 0 })];
+    const result = computeSummary(cells, [], defaultSettings);
+    expect(result.officialWorkDays).toBe(4);
+    expect(result.leaveHoursPayable).toBe(4);
   });
 });
 
@@ -134,19 +171,47 @@ describe('computeSummary — leaveCompensatory', () => {
 
 // ─── diligence ─────────────────────────────────────────────────────────────────
 
-describe('computeSummary — diligence', () => {
-  it('no unpaid leave & no late/early → diligence true', () => {
+describe('computeSummary — diligence (Excel BI: X/2×0.5 + KL×1 ≤ 1)', () => {
+  it('full attendance → diligence true', () => {
     const cells = [makeCell({ date: '2026-06-01', code: 'x', workHours: 8 })];
     const result = computeSummary(cells, [], defaultSettings);
     expect(result.diligence).toBe(true);
   });
 
-  it('add a "KL" day → diligence false', () => {
+  it('exactly 1 "KL" day → still diligent (penalty = 1, ≤ 1)', () => {
     const cells = [
       makeCell({ date: '2026-06-01', code: 'x', workHours: 8 }),
       makeCell({ date: '2026-06-02', code: 'KL', workHours: 0 }),
     ];
     const result = computeSummary(cells, [], defaultSettings);
+    expect(result.diligence).toBe(true);
+  });
+
+  it('2 "KL" days → diligence false (penalty = 2, > 1)', () => {
+    const cells = [
+      makeCell({ date: '2026-06-01', code: 'KL', workHours: 0 }),
+      makeCell({ date: '2026-06-02', code: 'KL', workHours: 0 }),
+    ];
+    const result = computeSummary(cells, [], defaultSettings);
     expect(result.diligence).toBe(false);
+  });
+
+  it('1 "KL" + 1 "X/2" → false (penalty = 1.5, > 1)', () => {
+    const cells = [
+      makeCell({ date: '2026-06-01', code: 'KL', workHours: 0 }),
+      makeCell({ date: '2026-06-02', code: 'X/2', workHours: 0 }),
+    ];
+    const result = computeSummary(cells, [], defaultSettings);
+    expect(result.diligence).toBe(false);
+  });
+
+  it('sick "B" / maternity "TS" / not-yet "O" do NOT break diligence', () => {
+    const cells = [
+      makeCell({ date: '2026-06-01', code: 'B', workHours: 0 }),
+      makeCell({ date: '2026-06-02', code: 'TS', workHours: 0 }),
+      makeCell({ date: '2026-06-03', code: 'O', workHours: 0 }),
+    ];
+    const result = computeSummary(cells, [], defaultSettings);
+    expect(result.diligence).toBe(true);
   });
 });

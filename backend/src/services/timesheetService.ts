@@ -77,8 +77,11 @@ export function computeSummary(
 ): TimesheetSummary {
   const holidaySet = new Set(holidays.map(d => d.toISOString().split('T')[0]));
 
-  let payableHours = 0;
-  let officialWorkDays = 0;
+  // Official work time in HOURS (mirrors the HR Excel "Tổng thời gian làm chính thức").
+  // Excel formula: (x × 8) + (x/2 × 4) + (p/2 × 4) − late/early.
+  // Business exception (confirmed with user): ON (online) counts as a full work day
+  // (8h) even though the raw Excel file gives it 0 — otherwise remote workers lose pay.
+  let officialHours = 0;
   let leaveHoursPayable = 0;
   let leaveHoursHolidayRegime = 0;
   let leaveHoursUnpaid = 0;
@@ -92,11 +95,14 @@ export function computeSummary(
   let otSundayExtra = 0;
   let otHoliday = 0;
 
-  // Codes that count as payable/official work
+  // Codes that count as official work time (per Excel AP formula, plus ON exception)
   const workCodes = new Set(['x', 'ON', 'TV', 'N']);
-  const payableLeaveCodes = new Set(['P', 'P/2', 'BU', 'CD', 'TS']);
-  const holidayLeaveCodes = new Set(['L']);
-  const unpaidLeaveCodes = new Set(['KL', 'X/2', 'O', 'NCC', 'O/2']);
+  // Paid leave counted in "Số giờ nghỉ — Tính lương" (Excel AQ): P, P/2, BU
+  const payableLeaveCodes = new Set(['P', 'P/2', 'BU']);
+  // Holiday/regime leave (Excel AR): L, CD
+  const holidayLeaveCodes = new Set(['L', 'CD']);
+  // Unpaid leave (Excel AS): B, KL, X/2, O, TS, NCC, NCC/2
+  const unpaidLeaveCodes = new Set(['B', 'KL', 'X/2', 'O', 'TS', 'NCC', 'NCC/2', 'O/2']);
   const probationCodes = new Set(['TV', 'TV/2']);
 
   // Formula accumulators
@@ -104,6 +110,8 @@ export function computeSummary(
   let sundayMeal = 0;
   let annualLeaveDaysUsed = 0;
   const sundayWorkCodes = new Set(['x', 'ON']);
+  // Diligence penalty accumulator — mirrors Excel BI: SUM(X/2 × 0.5, KL × 1).
+  let diligencePenalty = 0;
 
   for (const cell of cells) {
     const code = cell.code;
@@ -112,12 +120,19 @@ export function computeSummary(
     const isSunday = cellDate.getUTCDay() === 0;
     const isHoliday = holidaySet.has(dateStr);
 
-    // Work hours classification
+    // Official work time — mirror Excel AP: full day (x, ON, TV) = 8h, half (N, TV/2) = 4h.
     if (workCodes.has(code)) {
-      payableHours += cell.workHours;
-      officialWorkDays += code === 'N' || code === 'TV/2' ? 0.5 : 1;
+      officialHours += code === 'N' || code === 'TV/2' ? 4 : 8;
       // ON (online work) does not count toward company meal
       mealAllowanceDays += code === 'ON' ? 0 : (code === 'N' ? 0.5 : 1);
+    } else if (code === 'X/2') {
+      // Half-day worked-with-permission: 4h of official work + 4h unpaid leave (Excel AP + AS).
+      officialHours += 4;
+      leaveHoursUnpaid += 4;
+    } else if (code === 'P/2') {
+      // Half annual-leave day: worked 4h + 4h paid annual leave (Excel AP ×4 + AQ ×4).
+      officialHours += 4;
+      leaveHoursPayable += 4;
     } else if (payableLeaveCodes.has(code)) {
       const defaultHours = cell.workHours || (code.endsWith('/2') ? 4 : 8);
       leaveHoursPayable += defaultHours;
@@ -150,6 +165,10 @@ export function computeSummary(
       leaveCompensatory++;
     }
 
+    // Diligence penalty (Excel BI): X/2 costs 0.5, KL costs 1. Other leave does not count.
+    if (code === 'X/2') diligencePenalty += 0.5;
+    else if (code === 'KL') diligencePenalty += 1;
+
     // Formula: annualLeaveDaysUsed — 'P' = 1, 'P/2' = 0.5
     if (code === 'P') annualLeaveDaysUsed += 1;
     else if (code === 'P/2') annualLeaveDaysUsed += 0.5;
@@ -164,11 +183,21 @@ export function computeSummary(
     }
   }
 
-  const diligence = leaveHoursUnpaid === 0 && lateEarlyHours === 0;
+  // Diligence (Excel BI): achieved when (X/2 × 0.5 + KL × 1) ≤ 1. Other absences (B, O,
+  // TS, NCC) and late/early do NOT break diligence. Allows up to 1 unpaid-leave day.
+  const diligence = diligencePenalty <= 1;
+
+  // "Làm CT" (Tổng thời gian làm chính thức) — Excel AP: planned work hours MINUS late/early.
+  const officialWorkHours = officialHours - lateEarlyHours;
+  // "Giờ lương" (Thời gian tính lương) — Excel AO = SUM(AP:AU). Because AU (late/early) is
+  // subtracted in AP and added back in AO, it cancels out: payable = PLANNED work (before
+  // late/early) + all leave buckets + probation. Late/early does NOT reduce payable hours.
+  const payableHours = officialHours + leaveHoursPayable + leaveHoursHolidayRegime
+    + leaveHoursUnpaid + probationDays * 8;
 
   return {
     payableHours,
-    officialWorkDays,
+    officialWorkDays: officialWorkHours,
     leaveHoursPayable,
     leaveHoursHolidayRegime,
     leaveHoursUnpaid,
@@ -434,11 +463,24 @@ class TimesheetService {
       otRateHoliday: 3,
     };
 
+    // Load overrides BEFORE computing summaries so manual "lateEarlyHours" feeds back into
+    // "Làm CT" (officialWorkDays): Excel AP subtracts late/early from planned work hours.
+    const overrides = await this.getOverridesForMonth(month, year, rows.map(r => r.employeeId));
+
     const summaries: Record<string, TimesheetSummary> = {};
     for (const row of rows) {
       const summary = computeSummary(row.cells, holidayDates, effectiveSettings);
-      // Compute fuel
-      summary.fuelAmount = (row.kmDistance || 0) * (settings?.fuelPricePerKm || 0) * summary.officialWorkDays;
+      // Compute fuel — officialWorkDays now holds HOURS, so divide by 8 to get the day count.
+      const officialDays = summary.officialWorkDays / 8;
+      summary.fuelAmount = (row.kmDistance || 0) * (settings?.fuelPricePerKm || 0) * officialDays;
+
+      // Apply manual late/early override to "Làm CT" (payable "Giờ lương" is unaffected,
+      // matching Excel where AU cancels out in AO). Only reduce official work hours.
+      const lateEarlyOverride = parseFloat(overrides[row.employeeId]?.lateEarlyHours ?? '');
+      if (Number.isFinite(lateEarlyOverride) && lateEarlyOverride > 0) {
+        summary.lateEarlyHours = lateEarlyOverride;
+        summary.officialWorkDays = Math.max(0, summary.officialWorkDays - lateEarlyOverride);
+      }
 
       // Formula: leaveCurrentBalance = carryOver - annualLeaveDaysUsed (partial stored as negative)
       summary.leaveCurrentBalance = (row.leaveBalanceCarryOver ?? 0) + summary.leaveCurrentBalance;
@@ -470,7 +512,7 @@ class TimesheetService {
       settings: effectiveSettings,
       rows,
       summaries,
-      overrides: await this.getOverridesForMonth(month, year, rows.map(r => r.employeeId)),
+      overrides,
     };
   }
 
