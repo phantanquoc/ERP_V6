@@ -47,6 +47,20 @@ export interface SingleResponse {
   message?: string;
 }
 
+export interface ProductStockLot {
+  lotId: string;
+  lotName: string;
+  warehouseName: string;
+  quantity: number;
+  unit: string;
+}
+
+export interface ProductStockSummary {
+  totalQuantity: number;
+  unit: string | null;
+  lotDetails: ProductStockLot[];
+}
+
 export interface GenerateCodeResponse {
   success: boolean;
   data: {
@@ -55,9 +69,10 @@ export interface GenerateCodeResponse {
 }
 
 export const internationalProductService = {
-  async getAllProducts(page: number = 1, limit: number = 10, search?: string): Promise<PaginatedResponse> {
+  async getAllProducts(page: number = 1, limit: number = 10, search?: string, loaiSanPham?: string): Promise<PaginatedResponse> {
     const params: Record<string, any> = { page, limit };
     if (search) params.search = search;
+    if (loaiSanPham) params.loaiSanPham = loaiSanPham;
 
     const response = await apiClient.get('/international-products', { params });
     return response as unknown as PaginatedResponse;
@@ -66,6 +81,11 @@ export const internationalProductService = {
   async getProductById(id: string): Promise<SingleResponse> {
     const response = await apiClient.get(`/international-products/${id}`);
     return response as unknown as SingleResponse;
+  },
+
+  async getStockSummary(id: string): Promise<{ success: boolean; data: ProductStockSummary }> {
+    const response = await apiClient.get(`/international-products/${id}/stock`);
+    return response as unknown as { success: boolean; data: ProductStockSummary };
   },
 
   async getProductByCode(code: string): Promise<SingleResponse> {
@@ -93,10 +113,11 @@ export const internationalProductService = {
     return response as unknown as GenerateCodeResponse;
   },
 
-  async exportToExcel(filters?: { search?: string }): Promise<void> {
+  async exportToExcel(filters?: { search?: string; loaiSanPham?: string }): Promise<void> {
     const token = localStorage.getItem('accessToken');
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
+    if (filters?.loaiSanPham) params.append('loaiSanPham', filters.loaiSanPham);
 
     const url = `${API_BASE_URL}/international-products/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
     const response = await fetch(url, {

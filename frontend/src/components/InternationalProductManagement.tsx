@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Eye, X, Download, Settings } from 'lucide-react';
-import Modal from './Modal';
+import toast from 'react-hot-toast';
+import { Plus, Edit, Trash2, Download, Settings } from 'lucide-react';
+import ConfirmDialog from './common/ConfirmDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import internationalProductService, { InternationalProduct } from '../services/internationalProductService';
 import { useProducts, productKeys } from '../hooks/useProducts';
+import { useDebounce } from '../hooks/useDebounce';
 import TableFilter, { FilterField } from './TableFilter';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types/auth';
+import ProductFormModal from './products/ProductFormModal';
+import ProductDetailModal from './products/ProductDetailModal';
+import CategorySettingsModal from './products/CategorySettingsModal';
 
 const InternationalProductManagement: React.FC = () => {
   const { user } = useAuth();
@@ -15,12 +20,17 @@ const InternationalProductManagement: React.FC = () => {
   const canManageCategories = user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD;
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', loaiSanPham: '' });
   const searchTerm = filterValues._search || '';
+  const debouncedSearch = useDebounce(searchTerm, 300);
+  const loaiSanPhamFilter = filterValues.loaiSanPham || '';
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [showModal, setShowModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<InternationalProduct | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<InternationalProduct | null>(null);
   const [generatingCode, setGeneratingCode] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<InternationalProduct | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [formData, setFormData] = useState({
     maSanPham: '',
     tenSanPham: '',
@@ -31,10 +41,6 @@ const InternationalProductManagement: React.FC = () => {
   // Category management state
   const [categories, setCategories] = useState<string[]>([]);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState('');
-  const [editingCategory, setEditingCategory] = useState<string | null>(null);
-  const [editCategoryName, setEditCategoryName] = useState('');
-  const [categoryLoading, setCategoryLoading] = useState(false);
 
   const fetchCategories = async () => {
     try {
@@ -52,20 +58,25 @@ const InternationalProductManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const { data: productsResponse, isLoading: loading } = useProducts({
     page: currentPage,
-    limit: 10,
-    search: searchTerm || undefined,
+    limit: pageSize,
+    search: debouncedSearch || undefined,
+    loaiSanPham: loaiSanPhamFilter || undefined,
   });
-  const products = (productsResponse?.data || []).filter(p => {
-    if (filterValues.loaiSanPham && p.loaiSanPham !== filterValues.loaiSanPham) return false;
-    return true;
-  });
+  // Backend now paginates AND filters — no client-side filtering (that broke pagination).
+  const products = productsResponse?.data || [];
   const pagination = productsResponse?.pagination;
+  const hasActiveFilter = !!(debouncedSearch || loaiSanPhamFilter);
+
+  // Reset to page 1 whenever filters or page size change so we never land on an out-of-range page.
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, loaiSanPhamFilter, pageSize]);
 
 
 
   const handleCreate = async () => {
     if (!formData.tenSanPham.trim()) {
-      alert('Vui lòng nhập tên hàng hóa');
+      toast.error('Vui lòng nhập tên hàng hóa');
       return;
     }
 
@@ -76,18 +87,22 @@ const InternationalProductManagement: React.FC = () => {
         moTaSanPham: formData.moTaSanPham,
         loaiSanPham: formData.loaiSanPham,
       });
-      alert('Tạo hàng hóa thành công!');
+      toast.success('Tạo hàng hóa thành công');
       setShowModal(false);
       resetForm();
       queryClient.invalidateQueries({ queryKey: productKeys.lists() });
     } catch (error: any) {
       console.error('Error creating product:', error);
-      alert(error.response?.data?.message || 'Lỗi khi tạo hàng hóa');
+      toast.error(error.response?.data?.message || 'Lỗi khi tạo hàng hóa');
     }
   };
 
   const handleUpdate = async () => {
     if (!editingProduct) return;
+    if (!formData.tenSanPham.trim()) {
+      toast.error('Vui lòng nhập tên hàng hóa');
+      return;
+    }
 
     try {
       await internationalProductService.updateProduct(editingProduct.id, {
@@ -95,35 +110,34 @@ const InternationalProductManagement: React.FC = () => {
         moTaSanPham: formData.moTaSanPham,
         loaiSanPham: formData.loaiSanPham,
       });
-      alert('Cập nhật hàng hóa thành công!');
+      toast.success('Cập nhật hàng hóa thành công');
       setShowModal(false);
       resetForm();
       queryClient.invalidateQueries({ queryKey: productKeys.lists() });
     } catch (error: any) {
       console.error('Error updating product:', error);
-      alert(error.response?.data?.message || 'Lỗi khi cập nhật hàng hóa');
+      toast.error(error.response?.data?.message || 'Lỗi khi cập nhật hàng hóa');
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa hàng hóa này?')) return;
-
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      await internationalProductService.deleteProduct(id);
-      alert('Xóa hàng hóa thành công!');
+      await internationalProductService.deleteProduct(deleteTarget.id);
+      toast.success('Xóa hàng hóa thành công');
+      setDeleteTarget(null);
       queryClient.invalidateQueries({ queryKey: productKeys.lists() });
     } catch (error: any) {
       console.error('Error deleting product:', error);
-
-      // Extract error message from different possible locations
       const errorMessage =
         error.response?.data?.message ||
         error.response?.data?.error ||
         error.message ||
         'Lỗi khi xóa hàng hóa';
-
-      // Show detailed error message
-      alert(`❌ Không thể xóa hàng hóa!\n\n${errorMessage}`);
+      toast.error(errorMessage);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -177,13 +191,6 @@ const InternationalProductManagement: React.FC = () => {
     }));
   };
 
-  // Check if product code already exists
-
-
-
-
-
-
   const productFilterFields: FilterField[] = [
     { key: 'loaiSanPham', label: 'Loại hàng hóa', type: 'select', options: categories.map(cat => ({ value: cat, label: cat })) },
   ];
@@ -207,10 +214,13 @@ const InternationalProductManagement: React.FC = () => {
           <button
             onClick={async () => {
               try {
-                await internationalProductService.exportToExcel({ search: searchTerm || undefined });
+                await internationalProductService.exportToExcel({
+                  search: debouncedSearch || undefined,
+                  loaiSanPham: loaiSanPhamFilter || undefined,
+                });
               } catch (error) {
                 console.error('Error exporting to Excel:', error);
-                alert('Lỗi khi xuất Excel');
+                toast.error('Lỗi khi xuất Excel');
               }
             }}
             className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
@@ -241,22 +251,25 @@ const InternationalProductManagement: React.FC = () => {
       {/* Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
-        <table className="w-full min-w-[800px] border-collapse">
+        <table className="w-full min-w-[720px] border-collapse">
           <thead>
-            <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">
+            <tr className="bg-gray-50 border-b border-gray-300">
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 w-12">
+                STT
+              </th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 w-32">
                 Mã hàng hóa
               </th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
                 Tên hàng hóa
               </th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 w-40">
                 Loại hàng hóa
               </th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
                 Mô tả
               </th>
-              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">
+              <th className="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-600 w-24">
                 Hành động
               </th>
             </tr>
@@ -264,14 +277,26 @@ const InternationalProductManagement: React.FC = () => {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                   Đang tải...
                 </td>
               </tr>
             ) : products.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                  Không có dữ liệu
+                <td colSpan={6} className="px-4 py-10 text-center text-gray-500">
+                  {hasActiveFilter ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <span>Không tìm thấy hàng hóa khớp bộ lọc</span>
+                      <button
+                        onClick={() => setFilterValues({ _search: '', loaiSanPham: '' })}
+                        className="text-sm text-blue-600 hover:underline"
+                      >
+                        Xóa bộ lọc
+                      </button>
+                    </div>
+                  ) : (
+                    'Chưa có hàng hóa nào'
+                  )}
                 </td>
               </tr>
             ) : (
@@ -279,30 +304,45 @@ const InternationalProductManagement: React.FC = () => {
                 <tr
                   key={product.id}
                   onClick={() => openDetailModal(product)}
-                  className={`border-b border-gray-200 hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
+                  className="border-b border-gray-100 hover:bg-blue-50 cursor-pointer transition-colors"
                 >
-                  <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
+                  <td className="px-3 py-2 text-sm text-gray-500 tabular-nums">
+                    {(currentPage - 1) * pageSize + index + 1}
+                  </td>
+                  <td className="px-3 py-2 text-sm font-medium text-blue-600 whitespace-nowrap">
                     {product.maSanPham}
                   </td>
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">
+                  <td className="px-3 py-2 text-sm font-medium text-gray-900">
                     {product.tenSanPham}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
-                    {product.loaiSanPham || '-'}
+                  <td className="px-3 py-2 text-sm text-gray-700">
+                    {product.loaiSanPham || <span className="text-gray-300">—</span>}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
-                    {product.moTaSanPham || '-'}
+                  <td className="px-3 py-2 text-sm text-gray-500 max-w-xs truncate" title={product.moTaSanPham || ''}>
+                    {product.moTaSanPham || <span className="text-gray-300">—</span>}
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center justify-center gap-3">
+                  <td className="px-3 py-2">
+                    <div className="flex items-center justify-center gap-1">
+                      {canCreateEdit && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); openEditModal(product); }}
+                          className="p-1 text-blue-600 hover:bg-blue-100 rounded transition-colors"
+                          title="Sửa"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                      )}
                       {canDelete && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); handleDelete(product.id); }}
-                          className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                          onClick={(e) => { e.stopPropagation(); setDeleteTarget(product); }}
+                          className="p-1 text-red-600 hover:bg-red-100 rounded transition-colors"
                           title="Xóa"
                         >
-                          <Trash2 className="w-5 h-5" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
+                      )}
+                      {!canCreateEdit && !canDelete && (
+                        <span className="text-xs text-gray-400">—</span>
                       )}
                     </div>
                   </td>
@@ -315,353 +355,100 @@ const InternationalProductManagement: React.FC = () => {
       </div>
 
       {/* Pagination */}
-      {pagination && pagination.totalPages > 1 && (
+      {pagination && pagination.total > 0 && (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
-          <span className="text-sm text-gray-600">
-            Hiển thị {(currentPage - 1) * 10 + 1}–{Math.min(currentPage * 10, pagination.total)} / {pagination.total} mục
-          </span>
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-            <button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Trước
-            </button>
-            {Array.from({ length: pagination.totalPages }, (_, i) => i + 1)
-              .filter(page => page === 1 || page === pagination.totalPages || Math.abs(page - currentPage) <= 2)
-              .map((page, idx, arr) => (
-                <React.Fragment key={page}>
-                  {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
-                  <button
-                    onClick={() => setCurrentPage(page)}
-                    className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
-                  >
-                    {page}
-                  </button>
-                </React.Fragment>
-              ))}
-            <button
-              onClick={() => setCurrentPage(p => Math.min(pagination.totalPages, p + 1))}
-              disabled={currentPage === pagination.totalPages}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Sau
-            </button>
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-sm text-gray-600">
+              Hiển thị {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, pagination.total)} / {pagination.total} mục
+            </span>
+            <label className="flex items-center gap-1.5 text-sm text-gray-600">
+              <span>Số dòng:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                className="px-2 py-1 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500"
+              >
+                {[20, 50, 100].map((size) => (
+                  <option key={size} value={size}>{size}</option>
+                ))}
+              </select>
+            </label>
           </div>
+          {pagination.totalPages > 1 && (
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Trước
+              </button>
+              {Array.from({ length: pagination.totalPages }, (_, i) => i + 1)
+                .filter(page => page === 1 || page === pagination.totalPages || Math.abs(page - currentPage) <= 2)
+                .map((page, idx, arr) => (
+                  <React.Fragment key={page}>
+                    {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                    <button
+                      onClick={() => setCurrentPage(page)}
+                      className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
+                    >
+                      {page}
+                    </button>
+                  </React.Fragment>
+                ))}
+              <button
+                onClick={() => setCurrentPage(p => Math.min(pagination.totalPages, p + 1))}
+                disabled={currentPage === pagination.totalPages}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Sau
+              </button>
+            </div>
+          )}
         </div>
       )}
 
       {/* Create/Edit Modal */}
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-1rem)] sm:max-w-2xl sm:w-full flex flex-col max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
-          <div className="flex justify-between items-start sm:items-center gap-3 border-b px-4 sm:px-6 py-4 shrink-0">
-                <h2 className="text-lg sm:text-xl font-bold">
-                  {editingProduct ? 'Chỉnh sửa hàng hóa' : 'Thêm hàng hóa mới'}
-                </h2>
-                <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-700">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-          <div className="overflow-y-auto flex-1 p-4 sm:p-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Mã hàng hóa
-                    {!editingProduct && (
-                      <span className="ml-2 text-xs text-gray-400 font-normal">(tự động sinh)</span>
-                    )}
-                  </label>
-                  <input
-                    type="text"
-                    name="maSanPham"
-                    value={generatingCode ? 'Đang sinh mã...' : formData.maSanPham}
-                    readOnly
-                    placeholder="SP-0001"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tên hàng hóa <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    name="tenSanPham"
-                    value={formData.tenSanPham}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Loại hàng hóa
-                  </label>
-                  <select
-                    name="loaiSanPham"
-                    value={formData.loaiSanPham}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">-- Chọn loại hàng hóa --</option>
-                    {categories.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Mô tả hàng hóa
-                  </label>
-                  <textarea
-                    name="moTaSanPham"
-                    value={formData.moTaSanPham}
-                    onChange={handleInputChange}
-                    rows={4}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 mt-6">
-                  <button
-                    type="button"
-                    onClick={() => setShowModal(false)}
-                    className="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    Hủy
-                  </button>
-                  <button
-                    type="button"
-                    onClick={editingProduct ? handleUpdate : handleCreate}
-                    className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    {editingProduct ? 'Cập nhật' : 'Tạo mới'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </Modal>
+      <ProductFormModal
+        isOpen={showModal}
+        isEditing={!!editingProduct}
+        formData={formData}
+        categories={categories}
+        generatingCode={generatingCode}
+        onClose={() => setShowModal(false)}
+        onChange={handleInputChange}
+        onSubmit={editingProduct ? handleUpdate : handleCreate}
+      />
 
       {/* Detail Modal */}
-      <Modal isOpen={showDetailModal && !!selectedProduct} onClose={() => setShowDetailModal(false)} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-1rem)] sm:max-w-2xl sm:w-full flex flex-col max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
-          <div className="flex justify-between items-start sm:items-center gap-3 border-b px-4 sm:px-6 py-4 shrink-0">
-                <h2 className="text-lg sm:text-xl font-bold">Chi tiết hàng hóa</h2>
-                <button onClick={() => setShowDetailModal(false)} className="text-gray-500 hover:text-gray-700">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-          <div className="overflow-y-auto flex-1 p-4 sm:p-6">
-              {selectedProduct && (<>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-500">Mã hàng hóa</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedProduct.maSanPham}</p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-500">Tên hàng hóa</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedProduct.tenSanPham}</p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-500">Loại hàng hóa</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedProduct.loaiSanPham || '-'}</p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-500">Mô tả hàng hóa</label>
-                  <p className="mt-1 text-sm text-gray-900">{selectedProduct.moTaSanPham || '-'}</p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500">Ngày tạo</label>
-                    <p className="mt-1 text-sm text-gray-900">
-                      {new Date(selectedProduct.createdAt).toLocaleString('vi-VN')}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500">Ngày cập nhật</label>
-                    <p className="mt-1 text-sm text-gray-900">
-                      {new Date(selectedProduct.updatedAt).toLocaleString('vi-VN')}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 mt-6">
-                <button
-                  onClick={() => setShowDetailModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  Đóng
-                </button>
-                {canCreateEdit && (
-                  <button
-                    onClick={() => {
-                      setShowDetailModal(false);
-                      openEditModal(selectedProduct);
-                    }}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                  >
-                    Chỉnh sửa
-                  </button>
-                )}
-              </div>
-              </>)}
-            </div>
-          </div>
-        </Modal>
+      <ProductDetailModal
+        isOpen={showDetailModal}
+        product={selectedProduct}
+        canEdit={canCreateEdit}
+        onClose={() => setShowDetailModal(false)}
+        onEdit={openEditModal}
+      />
 
       {/* Category Settings Modal */}
-      <Modal isOpen={showCategoryModal} onClose={() => { setShowCategoryModal(false); setEditingCategory(null); setNewCategoryName(''); }} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-1rem)] sm:max-w-lg sm:w-full flex flex-col max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
-          <div className="flex justify-between items-start sm:items-center gap-3 border-b px-4 sm:px-6 py-4 shrink-0">
-                <h2 className="text-lg sm:text-xl font-bold">Cài đặt loại hàng hóa</h2>
-                <button onClick={() => { setShowCategoryModal(false); setEditingCategory(null); setNewCategoryName(''); }} className="text-gray-500 hover:text-gray-700">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-          <div className="overflow-y-auto flex-1 p-4 sm:p-6">
+      <CategorySettingsModal
+        isOpen={showCategoryModal}
+        categories={categories}
+        onClose={() => setShowCategoryModal(false)}
+        onChanged={() => {
+          fetchCategories();
+          queryClient.invalidateQueries({ queryKey: productKeys.lists() });
+        }}
+      />
 
-              {/* Add new category */}
-              <div className="flex flex-col sm:flex-row gap-2 mb-4">
-                <input
-                  type="text"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  placeholder="Nhập tên loại hàng hóa mới..."
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-                <button
-                  onClick={async () => {
-                    const name = newCategoryName.trim();
-                    if (!name) return;
-                    if (categories.includes(name)) {
-                      alert('Loại hàng hóa này đã tồn tại!');
-                      return;
-                    }
-                    setCategoryLoading(true);
-                    try {
-                      await internationalProductService.addCategory(name);
-                      await fetchCategories();
-                      setNewCategoryName('');
-                    } catch (error: any) {
-                      alert(error.response?.data?.message || 'Lỗi khi thêm loại hàng hóa');
-                    } finally {
-                      setCategoryLoading(false);
-                    }
-                  }}
-                  disabled={!newCategoryName.trim() || categoryLoading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Category list */}
-              <div className="space-y-2">
-                {categories.length === 0 ? (
-                  <p className="text-gray-500 text-center py-4">Chưa có loại hàng hóa nào</p>
-                ) : (
-                  categories.map((cat) => (
-                    <div key={cat} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
-                      {editingCategory === cat ? (
-                        <input
-                          type="text"
-                          value={editCategoryName}
-                          onChange={(e) => setEditCategoryName(e.target.value)}
-                          className="flex-1 px-2 py-1 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none mr-2"
-                          autoFocus
-                        />
-                      ) : (
-                        <span className="text-sm text-gray-900">{cat}</span>
-                      )}
-                      <div className="flex items-center gap-1">
-                        {editingCategory === cat ? (
-                          <>
-                            <button
-                              onClick={async () => {
-                                const newName = editCategoryName.trim();
-                                if (!newName || newName === cat) {
-                                  setEditingCategory(null);
-                                  return;
-                                }
-                                if (categories.includes(newName)) {
-                                  alert('Loại hàng hóa này đã tồn tại!');
-                                  return;
-                                }
-                                setCategoryLoading(true);
-                                try {
-                                  await internationalProductService.renameCategory(cat, newName);
-                                  await fetchCategories();
-                                  queryClient.invalidateQueries({ queryKey: productKeys.lists() });
-                                  setEditingCategory(null);
-                                } catch (error: any) {
-                                  alert(error.response?.data?.message || 'Lỗi khi đổi tên');
-                                } finally {
-                                  setCategoryLoading(false);
-                                }
-                              }}
-                              disabled={categoryLoading}
-                              className="p-1 text-green-600 hover:bg-green-100 rounded"
-                              title="Lưu"
-                            >
-                              ✓
-                            </button>
-                            <button
-                              onClick={() => setEditingCategory(null)}
-                              className="p-1 text-gray-500 hover:bg-gray-200 rounded"
-                              title="Hủy"
-                            >
-                              ✕
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => { setEditingCategory(cat); setEditCategoryName(cat); }}
-                              className="p-1 text-blue-600 hover:bg-blue-100 rounded"
-                              title="Sửa"
-                            >
-                              <Edit className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={async () => {
-                                if (!window.confirm(`Xóa loại "${cat}"? Các sản phẩm thuộc loại này sẽ bị bỏ trống loại hàng hóa.`)) return;
-                                setCategoryLoading(true);
-                                try {
-                                  await internationalProductService.deleteCategory(cat);
-                                  await fetchCategories();
-                                  queryClient.invalidateQueries({ queryKey: productKeys.lists() });
-                                } catch (error: any) {
-                                  alert(error.response?.data?.message || 'Lỗi khi xóa');
-                                } finally {
-                                  setCategoryLoading(false);
-                                }
-                              }}
-                              disabled={categoryLoading}
-                              className="p-1 text-red-600 hover:bg-red-100 rounded"
-                              title="Xóa"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        </Modal>
+      {/* Confirm Delete Product */}
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        title="Xóa hàng hóa"
+        message={deleteTarget ? `Bạn có chắc chắn muốn xóa hàng hóa "${deleteTarget.tenSanPham}"?` : ''}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+        loading={deleting}
+      />
     </div>
   );
 };

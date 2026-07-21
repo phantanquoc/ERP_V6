@@ -14,14 +14,15 @@ export interface ProductFilters {
   page?: number;
   limit?: number;
   search?: string;
+  loaiSanPham?: string;
 }
 
 export function useProducts(filters: ProductFilters = {}) {
-  const { page = 1, limit = 10, search } = filters;
+  const { page = 1, limit = 10, search, loaiSanPham } = filters;
 
   return useQuery({
-    queryKey: productKeys.list({ page, limit, search }),
-    queryFn: () => internationalProductService.getAllProducts(page, limit, search),
+    queryKey: productKeys.list({ page, limit, search, loaiSanPham }),
+    queryFn: () => internationalProductService.getAllProducts(page, limit, search, loaiSanPham),
   });
 }
 
