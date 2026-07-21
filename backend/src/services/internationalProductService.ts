@@ -19,19 +19,22 @@ export class InternationalProductService {
   async getAllProducts(
     page: number = 1,
     limit: number = 10,
-    search?: string
+    search?: string,
+    loaiSanPham?: string
   ): Promise<PaginatedResponse<any>> {
     const { skip } = getPaginationParams(page, limit);
 
-    const where = search
-      ? {
-          OR: [
-            { maSanPham: { contains: search, mode: 'insensitive' as const } },
-            { tenSanPham: { contains: search, mode: 'insensitive' as const } },
-            { moTaSanPham: { contains: search, mode: 'insensitive' as const } },
-          ],
-        }
-      : {};
+    const where: any = {};
+    if (search) {
+      where.OR = [
+        { maSanPham: { contains: search, mode: 'insensitive' as const } },
+        { tenSanPham: { contains: search, mode: 'insensitive' as const } },
+        { moTaSanPham: { contains: search, mode: 'insensitive' as const } },
+      ];
+    }
+    if (loaiSanPham) {
+      where.loaiSanPham = loaiSanPham;
+    }
 
     const [products, total] = await Promise.all([
       prisma.internationalProduct.findMany({
@@ -157,6 +160,9 @@ export class InternationalProductService {
         { tenSanPham: { contains: filters.search, mode: 'insensitive' as const } },
         { moTaSanPham: { contains: filters.search, mode: 'insensitive' as const } },
       ];
+    }
+    if (filters?.loaiSanPham) {
+      where.loaiSanPham = filters.loaiSanPham;
     }
 
     const data = await prisma.internationalProduct.findMany({
@@ -286,6 +292,52 @@ export class InternationalProductService {
       where: { loaiSanPham: { startsWith: 'Nguyên liệu', mode: 'insensitive' } },
       orderBy: { maSanPham: 'asc' },
     });
+  }
+
+  async getStockSummary(productId: string): Promise<{
+    totalQuantity: number;
+    unit: string | null;
+    lotDetails: Array<{
+      lotId: string;
+      lotName: string;
+      warehouseName: string;
+      quantity: number;
+      unit: string;
+    }>;
+  }> {
+    const lotProducts = await prisma.lotProduct.findMany({
+      where: { internationalProductId: productId },
+      include: {
+        lot: {
+          include: { warehouse: true },
+        },
+      },
+    });
+
+    if (lotProducts.length === 0) {
+      return {
+        totalQuantity: 0,
+        unit: null,
+        lotDetails: [],
+      };
+    }
+
+    const totalQuantity = lotProducts.reduce((sum, lp) => sum + lp.soLuong, 0);
+    const unit = lotProducts[0]?.donViTinh || null;
+
+    const lotDetails = lotProducts.map(lp => ({
+      lotId: lp.lotId,
+      lotName: lp.lot.tenLo,
+      warehouseName: lp.lot.warehouse.tenKho,
+      quantity: lp.soLuong,
+      unit: lp.donViTinh,
+    }));
+
+    return {
+      totalQuantity,
+      unit,
+      lotDetails,
+    };
   }
 }
 
