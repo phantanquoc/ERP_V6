@@ -148,6 +148,8 @@ router.post(
  *       404:
  *         description: Không tìm thấy sản phẩm
  */
+router.get('/:id/stock', internationalProductController.getStockSummary);
+
 router.get('/:id', internationalProductController.getProductById);
 
 /**

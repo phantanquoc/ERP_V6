@@ -8,8 +8,9 @@ export class InternationalProductController {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
       const search = req.query.search as string;
+      const loaiSanPham = req.query.loaiSanPham as string;
 
-      const result = await internationalProductService.getAllProducts(page, limit, search);
+      const result = await internationalProductService.getAllProducts(page, limit, search, loaiSanPham);
 
       const response: ApiResponse<any> = {
         success: true,
@@ -130,6 +131,9 @@ export class InternationalProductController {
       if (req.query.search) {
         filters.search = req.query.search as string;
       }
+      if (req.query.loaiSanPham) {
+        filters.loaiSanPham = req.query.loaiSanPham as string;
+      }
 
       const buffer = await internationalProductService.exportToExcel(filters);
 
@@ -140,6 +144,22 @@ export class InternationalProductController {
       next(error);
     }
   }
+  async getStockSummary(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = req.params.id as string;
+      const stock = await internationalProductService.getStockSummary(id);
+
+      const response: ApiResponse<any> = {
+        success: true,
+        data: stock,
+      };
+
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getCategories(_req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const categories = await internationalProductService.getCategories();
