@@ -6,6 +6,18 @@ import { useDepartments } from '../hooks/useDepartments';
 import { TimesheetRow, TimesheetSummary, TimesheetSettings } from '../services/timesheetService';
 import { ChevronLeft, ChevronRight, Search, Download, X } from 'lucide-react';
 import attendanceService from '../services/attendanceService';
+import HoverTooltip from './HoverTooltip';
+import { COLUMN_TOOLTIPS, OVERTIME_COLUMN_TOOLTIPS, ColumnTooltip } from './timesheetColumnTooltips';
+
+/** Renders header text wrapped in a hover tooltip when a tooltip entry exists. */
+const HeaderLabel: React.FC<{ tip?: ColumnTooltip; children: React.ReactNode }> = ({ tip, children }) => {
+  if (!tip) return <>{children}</>;
+  return (
+    <HoverTooltip title={tip.title} description={tip.description} className="cursor-help underline decoration-dotted decoration-gray-400 underline-offset-2">
+      {children}
+    </HoverTooltip>
+  );
+};
 
 type SubTab = 'attendance' | 'overtime';
 
@@ -436,27 +448,27 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
           <tr>
             <th colSpan={6} className="border px-1 py-0.5 bg-gray-100 text-center text-[10px] sticky left-0 z-30" style={{ width: idTotalW, minWidth: idTotalW }}>Thông tin nhân viên</th>
             <th colSpan={dayHeaders.length} className="border px-1 py-0.5 bg-gray-100 text-center text-[10px]">Ngày trong tháng</th>
-            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap">Giờ lương</th>
-            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap">Làm CT</th>
+            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap"><HeaderLabel tip={COLUMN_TOOLTIPS.payableHours}>Giờ lương</HeaderLabel></th>
+            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap"><HeaderLabel tip={COLUMN_TOOLTIPS.officialWorkDays}>Làm CT</HeaderLabel></th>
             <th colSpan={3} className="border px-1 py-0.5 bg-yellow-50 text-center text-[10px]">Số giờ nghỉ</th>
-            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap">Thử việc</th>
-            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap">Trễ/Sớm</th>
-            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap">Ký nhận</th>
-            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap">Cơm NC</th>
+            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap"><HeaderLabel tip={COLUMN_TOOLTIPS.probationDays}>Thử việc</HeaderLabel></th>
+            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap"><HeaderLabel tip={COLUMN_TOOLTIPS.lateEarlyHours}>Trễ/Sớm</HeaderLabel></th>
+            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap"><HeaderLabel tip={COLUMN_TOOLTIPS.signature}>Ký nhận</HeaderLabel></th>
+            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap"><HeaderLabel tip={COLUMN_TOOLTIPS.mealAllowanceMoney}>Cơm NC</HeaderLabel></th>
             <th colSpan={5} className="border px-1 py-0.5 bg-orange-50 text-center text-[10px]">Tăng ca</th>
-            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap">Số KM</th>
-            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap">Xăng xe</th>
-            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap">Cơm TC</th>
-            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap">Phép TT</th>
-            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap">Phép HT</th>
-            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap">Ghi chú</th>
-            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap">Chuyên cần</th>
-            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap">Tính cơm</th>
-            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap">Giờ CC KL</th>
-            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap">Truy thu ứng phép</th>
-            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap">Phép bù</th>
-            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap">Cơm CN</th>
-            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap">Ngày nghỉ việc</th>
+            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap"><HeaderLabel tip={COLUMN_TOOLTIPS.kmDistance}>Số KM</HeaderLabel></th>
+            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap"><HeaderLabel tip={COLUMN_TOOLTIPS.fuelAmount}>Xăng xe</HeaderLabel></th>
+            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap"><HeaderLabel tip={COLUMN_TOOLTIPS.overtimeMealMoney}>Cơm TC</HeaderLabel></th>
+            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap"><HeaderLabel tip={COLUMN_TOOLTIPS.leaveBalanceCarryOver}>Phép TT</HeaderLabel></th>
+            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap"><HeaderLabel tip={COLUMN_TOOLTIPS.leaveCurrentBalance}>Phép HT</HeaderLabel></th>
+            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap"><HeaderLabel tip={COLUMN_TOOLTIPS.note}>Ghi chú</HeaderLabel></th>
+            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap"><HeaderLabel tip={COLUMN_TOOLTIPS.diligence}>Chuyên cần</HeaderLabel></th>
+            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap"><HeaderLabel tip={COLUMN_TOOLTIPS.mealCount}>Tính cơm</HeaderLabel></th>
+            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap"><HeaderLabel tip={COLUMN_TOOLTIPS.unpaidDeductHours}>Giờ CC KL</HeaderLabel></th>
+            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap"><HeaderLabel tip={COLUMN_TOOLTIPS.leaveAdvanceRecovery}>Truy thu ứng phép</HeaderLabel></th>
+            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap"><HeaderLabel tip={COLUMN_TOOLTIPS.leaveCompensatory}>Phép bù</HeaderLabel></th>
+            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap"><HeaderLabel tip={COLUMN_TOOLTIPS.sundayMeal}>Cơm CN</HeaderLabel></th>
+            <th rowSpan={2} className="border px-1 py-1 bg-gray-50 text-center text-[10px] whitespace-nowrap"><HeaderLabel tip={COLUMN_TOOLTIPS.resignDate}>Ngày nghỉ việc</HeaderLabel></th>
           </tr>
           {/* Column header row */}
           <tr>
@@ -472,14 +484,14 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
                 <div className="font-normal text-[10px]">{h.weekday}</div>
               </th>
             ))}
-            <th className="border px-1 py-1 min-w-[44px] text-center bg-yellow-50">Tính lương</th>
-            <th className="border px-1 py-1 min-w-[44px] text-center bg-yellow-50">Lễ/CĐ</th>
-            <th className="border px-1 py-1 min-w-[44px] text-center bg-yellow-50">Không lương</th>
-            <th className="border px-1 py-1 min-w-[44px] text-center bg-orange-50">NT 150%</th>
-            <th className="border px-1 py-1 min-w-[44px] text-center bg-orange-50">NT 210%</th>
-            <th className="border px-1 py-1 min-w-[44px] text-center bg-orange-50">CN 200%</th>
-            <th className="border px-1 py-1 min-w-[44px] text-center bg-orange-50">CN 270%</th>
-            <th className="border px-1 py-1 min-w-[44px] text-center bg-orange-50">Lễ 300%</th>
+            <th className="border px-1 py-1 min-w-[44px] text-center bg-yellow-50"><HeaderLabel tip={COLUMN_TOOLTIPS.leaveHoursPayable}>Tính lương</HeaderLabel></th>
+            <th className="border px-1 py-1 min-w-[44px] text-center bg-yellow-50"><HeaderLabel tip={COLUMN_TOOLTIPS.leaveHoursHolidayRegime}>Lễ/CĐ</HeaderLabel></th>
+            <th className="border px-1 py-1 min-w-[44px] text-center bg-yellow-50"><HeaderLabel tip={COLUMN_TOOLTIPS.leaveHoursUnpaid}>Không lương</HeaderLabel></th>
+            <th className="border px-1 py-1 min-w-[44px] text-center bg-orange-50"><HeaderLabel tip={COLUMN_TOOLTIPS.otWeekday}>NT 150%</HeaderLabel></th>
+            <th className="border px-1 py-1 min-w-[44px] text-center bg-orange-50"><HeaderLabel tip={COLUMN_TOOLTIPS.otWeekdayExtra}>NT 210%</HeaderLabel></th>
+            <th className="border px-1 py-1 min-w-[44px] text-center bg-orange-50"><HeaderLabel tip={COLUMN_TOOLTIPS.otSunday}>CN 200%</HeaderLabel></th>
+            <th className="border px-1 py-1 min-w-[44px] text-center bg-orange-50"><HeaderLabel tip={COLUMN_TOOLTIPS.otSundayExtra}>CN 270%</HeaderLabel></th>
+            <th className="border px-1 py-1 min-w-[44px] text-center bg-orange-50"><HeaderLabel tip={COLUMN_TOOLTIPS.otHoliday}>Lễ 300%</HeaderLabel></th>
           </tr>
         </thead>
         <tbody>
@@ -601,23 +613,23 @@ const OvertimeTable: React.FC<OvertimeTableProps> = ({
             <th className={headThCell} style={idStyle(2)}>Họ và Tên</th>
             <th className="border px-1 py-1 min-w-[80px] bg-gray-50">Chức vụ</th>
             <th className="border px-1 py-1 min-w-[90px] bg-gray-50">Bộ phận</th>
-            <th className="border px-1 py-1 min-w-[60px] bg-gray-50">TC tháng trước</th>
+            <th className="border px-1 py-1 min-w-[60px] bg-gray-50"><HeaderLabel tip={OVERTIME_COLUMN_TOOLTIPS.otCarryOver}>TC tháng trước</HeaderLabel></th>
             {dayHeaders.map(h => (
               <th key={h.day} className={`border px-0.5 py-1 min-w-[28px] text-center ${h.isSunday ? 'bg-red-50 text-red-600' : 'bg-gray-50'}`}>
                 <div>{h.day}</div>
                 <div className="font-normal text-[10px]">{h.weekday}</div>
               </th>
             ))}
-            <th className="border px-1 py-1 min-w-[70px] text-center align-bottom">Số giờ tăng ca ngày thường</th>
-            <th className="border px-1 py-1 min-w-[60px] text-center align-bottom">Số giờ tăng ca CN</th>
-            <th className="border px-1 py-1 min-w-[60px] text-center align-bottom">Số giờ tăng ca Lễ</th>
-            <th className="border px-1 py-1 min-w-[70px] text-center align-bottom">Tăng ca ngoài giờ ngày thường</th>
-            <th className="border px-1 py-1 min-w-[70px] text-center align-bottom">Tăng ca ngoài giờ ngày nghỉ</th>
-            <th className="border px-1 py-1 min-w-[80px] text-center align-bottom">Lương tính tăng ca</th>
-            <th className="border px-1 py-1 min-w-[80px] text-center align-bottom">Mức lương theo giờ</th>
-            <th className="border px-1 py-1 min-w-[85px] text-center align-bottom">Tổng Thu nhập ngoài giờ</th>
-            <th className="border px-1 py-1 min-w-[60px] text-center align-bottom">Ngày công tăng ca</th>
-            <th className="border px-1 py-1 min-w-[75px] text-center align-bottom">Tổng Tiền cơm TC</th>
+            <th className="border px-1 py-1 min-w-[70px] text-center align-bottom"><HeaderLabel tip={OVERTIME_COLUMN_TOOLTIPS.otWeekday}>Số giờ tăng ca ngày thường</HeaderLabel></th>
+            <th className="border px-1 py-1 min-w-[60px] text-center align-bottom"><HeaderLabel tip={OVERTIME_COLUMN_TOOLTIPS.otSunday}>Số giờ tăng ca CN</HeaderLabel></th>
+            <th className="border px-1 py-1 min-w-[60px] text-center align-bottom"><HeaderLabel tip={OVERTIME_COLUMN_TOOLTIPS.otHoliday}>Số giờ tăng ca Lễ</HeaderLabel></th>
+            <th className="border px-1 py-1 min-w-[70px] text-center align-bottom"><HeaderLabel tip={OVERTIME_COLUMN_TOOLTIPS.otWeekdayExtra}>Tăng ca ngoài giờ ngày thường</HeaderLabel></th>
+            <th className="border px-1 py-1 min-w-[70px] text-center align-bottom"><HeaderLabel tip={OVERTIME_COLUMN_TOOLTIPS.otSundayExtra}>Tăng ca ngoài giờ ngày nghỉ</HeaderLabel></th>
+            <th className="border px-1 py-1 min-w-[80px] text-center align-bottom"><HeaderLabel tip={OVERTIME_COLUMN_TOOLTIPS.otSalary}>Lương tính tăng ca</HeaderLabel></th>
+            <th className="border px-1 py-1 min-w-[80px] text-center align-bottom"><HeaderLabel tip={OVERTIME_COLUMN_TOOLTIPS.hourlyRate}>Mức lương theo giờ</HeaderLabel></th>
+            <th className="border px-1 py-1 min-w-[85px] text-center align-bottom"><HeaderLabel tip={OVERTIME_COLUMN_TOOLTIPS.otTotalIncome}>Tổng Thu nhập ngoài giờ</HeaderLabel></th>
+            <th className="border px-1 py-1 min-w-[60px] text-center align-bottom"><HeaderLabel tip={OVERTIME_COLUMN_TOOLTIPS.otDaysCount}>Ngày công tăng ca</HeaderLabel></th>
+            <th className="border px-1 py-1 min-w-[75px] text-center align-bottom"><HeaderLabel tip={OVERTIME_COLUMN_TOOLTIPS.overtimeMealMoney}>Tổng Tiền cơm TC</HeaderLabel></th>
           </tr>
           {/* Multiplier / rate row */}
           <tr className="text-[10px] text-gray-500">
