@@ -1,10 +1,10 @@
-import React, { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { useMonthlyTimesheet, useUpsertTimesheetCell, useUpsertTimesheetOverride } from '../hooks/useMonthlyTimesheet';
 import { useAttendanceCodes } from '../hooks/useAttendanceCodes';
 import { useDepartments } from '../hooks/useDepartments';
 import { TimesheetRow, TimesheetSummary, TimesheetSettings } from '../services/timesheetService';
-import { ChevronLeft, ChevronRight, Search, Download, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, Search, Download, X } from 'lucide-react';
 import attendanceService from '../services/attendanceService';
 import HoverTooltip from './HoverTooltip';
 import { COLUMN_TOOLTIPS, OVERTIME_COLUMN_TOOLTIPS, ColumnTooltip } from './timesheetColumnTooltips';
@@ -363,11 +363,76 @@ const MonthlyTimesheetGrid: React.FC = () => {
 /* ---------- Cell Editor Modal ---------- */
 interface CellEditorModalProps {
   editingCell: CellEditorState;
-  activeCodes: { id: string; code: string; description?: string }[];
+  activeCodes: { id: string; code: string; label?: string; description?: string }[];
   onSave: () => void;
   onCancel: () => void;
   onChange: (s: CellEditorState) => void;
 }
+
+/* ---------- Custom attendance-code dropdown (mã - tên, not native <select>) ---------- */
+interface CodeSelectProps {
+  value: string;
+  options: { id: string; code: string; label?: string; description?: string }[];
+  onChange: (code: string) => void;
+}
+
+const CodeSelect: React.FC<CodeSelectProps> = ({ value, options, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
+
+  const selected = options.find(o => o.code === value);
+  const selectedName = selected?.label || selected?.description;
+  const label = value
+    ? `${value}${selectedName ? ` - ${selectedName}` : ''}`
+    : 'Chọn mã chấm công';
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between border border-gray-300 rounded px-2 py-1.5 text-sm text-left hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
+      >
+        <span className={value ? 'text-gray-900' : 'text-gray-400'}>{label}</span>
+        <ChevronDown size={16} className={`text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <ul className="absolute z-10 mt-1 w-full max-h-60 overflow-auto rounded-md border border-gray-200 bg-white shadow-lg py-1">
+          <li>
+            <button
+              type="button"
+              onClick={() => { onChange(''); setOpen(false); }}
+              className={`w-full text-left px-3 py-1.5 text-sm hover:bg-blue-50 ${value === '' ? 'bg-blue-50 font-medium' : 'text-gray-500'}`}
+            >
+              — Bỏ trống —
+            </button>
+          </li>
+          {options.map(ac => (
+            <li key={ac.id}>
+              <button
+                type="button"
+                onClick={() => { onChange(ac.code); setOpen(false); }}
+                className={`w-full text-left px-3 py-1.5 text-sm hover:bg-blue-50 ${ac.code === value ? 'bg-blue-50 font-medium' : ''}`}
+              >
+                <span className="font-semibold">{ac.code}</span>
+                {(ac.label || ac.description) ? <span className="text-gray-500"> - {ac.label || ac.description}</span> : null}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
 
 const CellEditorModal: React.FC<CellEditorModalProps> = ({ editingCell, activeCodes, onSave, onCancel, onChange }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onCancel}>
@@ -378,14 +443,11 @@ const CellEditorModal: React.FC<CellEditorModalProps> = ({ editingCell, activeCo
       </div>
       <div>
         <label className="block text-xs text-gray-500 mb-1">Mã chấm công</label>
-        <select
+        <CodeSelect
           value={editingCell.code}
-          onChange={e => onChange({ ...editingCell, code: e.target.value })}
-          className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
-        >
-          <option value=""></option>
-          {activeCodes.map(ac => <option key={ac.id} value={ac.code}>{ac.code}{ac.description ? ` - ${ac.description}` : ''}</option>)}
-        </select>
+          options={activeCodes}
+          onChange={code => onChange({ ...editingCell, code })}
+        />
       </div>
       <div>
         <label className="block text-xs text-gray-500 mb-1">Ghi chú</label>
@@ -415,7 +477,7 @@ interface AttendanceTableProps {
   month: number;
   year: number;
   editingCell: CellEditorState | null;
-  activeCodes: { id: string; code: string; description?: string }[];
+  activeCodes: { id: string; code: string; label?: string; description?: string }[];
   getCellColor: (code?: string) => string;
   formatHours: (v: number) => number | string;
   formatMoney: (v: number) => string;
