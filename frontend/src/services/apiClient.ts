@@ -115,7 +115,10 @@ class ApiClient {
 
       // If 401, try to refresh token and retry
       if (response.status === 401) {
-        if (isKioskTab()) {
+        // Kiosk route detection: public kiosk routes under /production/nhap-lieu*
+        const isKioskRoute = window.location.pathname.startsWith('/production/nhap-lieu');
+
+        if (isKioskRoute && isKioskTab()) {
           if (options.skipKioskExpiry) {
             // JWT-only call inside kiosk tab — do NOT treat as device expiry
             throw new Error('Unauthorized');
@@ -124,7 +127,7 @@ class ApiClient {
           window.dispatchEvent(new CustomEvent(KIOSK_EXPIRED_EVENT));
           throw new Error('Kiosk session expired.');
         } else {
-          // Normal ERP tab: existing behavior
+          // Normal ERP tab or non-kiosk route: existing behavior
           const newToken = await AuthService.refreshToken();
           if (newToken) {
             headers.Authorization = `Bearer ${newToken}`;
