@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -208,6 +208,7 @@ const StepProgress: React.FC<StepProgressProps> = ({ currentStep }) => (
 
 const ProductionMaterialEvaluationEntry: React.FC = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [kioskExpired, setKioskExpired] = useState(false);
   const [selectedShift, setSelectedShift] = useState<number>(() => getSelection()?.shift ?? 0);
@@ -406,7 +407,8 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
     setCurrentStep(2);
     setWizardData(initialWizardData);
     draftLoaded.current = false;
-  }, []);
+    navigate('/production/nhap-lieu-hub');
+  }, [navigate]);
 
   const handleBackToOperator = useCallback(() => {
     setNguoiThucHien('');
@@ -746,6 +748,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
     return (
       <OperatorSelectionScreen
         onSelect={handleOperatorSelect}
+        onBack={() => { setNguoiThucHien(''); setOperatorId(''); setSelectedShift(0); }}
         attendedOperators={attendedOperators}
         isLoadingAttended={isLoadingAttended}
       />
