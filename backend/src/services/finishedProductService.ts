@@ -40,11 +40,32 @@ export interface ReceiptRowInput {
 }
 
 export class FinishedProductService {
-  async getAllFinishedProducts(page: number = 1, limit: number = 10, machineSystemId?: string) {
+  async getAllFinishedProducts(
+    page: number = 1,
+    limit: number = 10,
+    machineSystemId?: string,
+    dateRange?: { thoiGianChienFrom?: string; thoiGianChienTo?: string },
+  ) {
     const skip = (page - 1) * limit;
 
     // Filter by machine system
-    const whereClause = machineSystemId ? { machineSystemId } : {};
+    const whereClause: any = machineSystemId ? { machineSystemId } : {};
+
+    // Filter by thoiGianChien date range
+    if (dateRange?.thoiGianChienFrom || dateRange?.thoiGianChienTo) {
+      const thoiGianChienFilter: any = {};
+      if (dateRange.thoiGianChienFrom) {
+        const d = new Date(dateRange.thoiGianChienFrom);
+        if (!isNaN(d.getTime())) thoiGianChienFilter.gte = d;
+      }
+      if (dateRange.thoiGianChienTo) {
+        const d = new Date(dateRange.thoiGianChienTo);
+        if (!isNaN(d.getTime())) thoiGianChienFilter.lte = d;
+      }
+      if (Object.keys(thoiGianChienFilter).length > 0) {
+        whereClause.thoiGianChien = thoiGianChienFilter;
+      }
+    }
 
     const [data, total] = await Promise.all([
       prisma.finishedProduct.findMany({

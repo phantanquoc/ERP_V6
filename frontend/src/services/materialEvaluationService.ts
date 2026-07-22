@@ -44,13 +44,23 @@ class MaterialEvaluationService {
   async getAllMaterialEvaluations(
     page: number = 1,
     limit: number = 10,
-    filters?: { nguoiThucHien?: string; dateFrom?: string; dateTo?: string },
+    filters?: {
+      nguoiThucHien?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      ca?: number;
+      thoiGianChienFrom?: string;
+      thoiGianChienTo?: string;
+    },
   ): Promise<{ data: MaterialEvaluation[], pagination: any }> {
     try {
       const params: Record<string, any> = { page, limit };
       if (filters?.nguoiThucHien) params.nguoiThucHien = filters.nguoiThucHien;
       if (filters?.dateFrom) params.dateFrom = filters.dateFrom;
       if (filters?.dateTo) params.dateTo = filters.dateTo;
+      if (filters?.ca != null) params.ca = filters.ca;
+      if (filters?.thoiGianChienFrom) params.thoiGianChienFrom = filters.thoiGianChienFrom;
+      if (filters?.thoiGianChienTo) params.thoiGianChienTo = filters.thoiGianChienTo;
       const response = await apiClient.get<any>('/material-evaluations', { params });
       return {
         data: response.data,

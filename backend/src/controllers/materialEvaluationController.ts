@@ -21,10 +21,14 @@ export class MaterialEvaluationController {
           : undefined;
       const dateFrom = typeof req.query.dateFrom === 'string' ? req.query.dateFrom : undefined;
       const dateTo = typeof req.query.dateTo === 'string' ? req.query.dateTo : undefined;
+      const caRaw = parseInt(req.query.ca as string);
+      const ca = !isNaN(caRaw) ? caRaw : undefined;
+      const thoiGianChienFrom = typeof req.query.thoiGianChienFrom === 'string' ? req.query.thoiGianChienFrom : undefined;
+      const thoiGianChienTo = typeof req.query.thoiGianChienTo === 'string' ? req.query.thoiGianChienTo : undefined;
 
       const filters =
-        nguoiThucHien || dateFrom || dateTo
-          ? { nguoiThucHien, dateFrom, dateTo }
+        nguoiThucHien || dateFrom || dateTo || ca != null || thoiGianChienFrom || thoiGianChienTo
+          ? { nguoiThucHien, dateFrom, dateTo, ca, thoiGianChienFrom, thoiGianChienTo }
           : undefined;
 
       const result = await materialEvaluationService.getAllMaterialEvaluations(page, limit, filters);
