@@ -285,7 +285,12 @@ function App() {
               </AdminRoute>
             } />
 
-            {/* Production Data Entry Position Config (Admin Only) */}
+            {/* Production Data Entry — Admin preview and config */}
+            <Route path="/production/tablet-hub-preview" element={
+              <AdminRoute>
+                <DataEntryHub />
+              </AdminRoute>
+            } />
             <Route path="/production/data-entry-config" element={
               <AdminRoute>
                 <DataEntryPositionConfig />

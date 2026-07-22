@@ -96,6 +96,7 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
       { path: '/production/management', name: 'Quản lý SX', subModule: 'management' },
       { path: '/production/data', name: 'Dữ liệu SX', subModule: 'data' },
       { path: '/production/warehouse', name: 'Quản lý kho', subModule: 'warehouse' },
+      { path: '/production/tablet-hub-preview', name: 'Tablet Hub (Xem trước)', adminOnly: true },
     ], module: 'production' },
     { path: '/technical', name: 'Bộ phận kỹ thuật', icon: <Wrench size={20} />, subItems: [
       { path: '/technical/quality', name: 'Đảm bảo & Cải tiến', subModule: 'quality' },
@@ -196,7 +197,14 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
                           {item.subItems
                             .filter((subItem: any) => {
                               if (!user) return false;
-                              return hasSubModuleAccess(item.module, subItem.subModule, user.department, user.subDepartment, user.role, user.secondaryDepartments);
+                              // Admin-only items require ADMIN role
+                              if (subItem.adminOnly && user.role !== UserRole.ADMIN) return false;
+                              // Items with subModule check access via hasSubModuleAccess
+                              if (subItem.subModule) {
+                                return hasSubModuleAccess(item.module, subItem.subModule, user.department, user.subDepartment, user.role, user.secondaryDepartments);
+                              }
+                              // Items without subModule (e.g. adminOnly links) are visible if adminOnly check passed
+                              return true;
                             })
                             .map((subItem: any) => (
                               <li key={subItem.path}>
