@@ -47,16 +47,43 @@ export function activate(): void {
   // No-op: device key is set directly via setDeviceKey()
 }
 
+// ─── Kiosk route detection ────────────────────────────────────────────────────
+
+/** URL prefix shared by every public kiosk page (hub + entry screens). */
+const KIOSK_ROUTE_PREFIX = '/production/nhap-lieu';
+
+/**
+ * True only when the current URL is an actual kiosk route.
+ * The admin preview (/production/tablet-hub-preview) is intentionally excluded.
+ */
+export function isKioskRoute(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.location.pathname.startsWith(KIOSK_ROUTE_PREFIX);
+}
+
 // ─── Tab marking (called from kiosk tab on mount) ─────────────────────────────
 
-/** Mark this tab as kiosk mode (sessionStorage = per-tab) */
+/**
+ * Mark this tab as kiosk mode (sessionStorage = per-tab).
+ * No-op outside a kiosk route so the flag can never leak into the admin preview
+ * (which renders the same hub component) or any other ERP page.
+ */
 export function markTab(): void {
+  if (!isKioskRoute()) return;
   sessionStorage.setItem(KIOSK_FLAG, '1');
 }
 
-/** Check if the CURRENT tab is in kiosk mode */
+/**
+ * Check if the CURRENT tab is in kiosk mode.
+ *
+ * Requires BOTH the per-tab flag AND an active kiosk route. Route-gating is
+ * essential: the flag persists across reloads and in-tab navigation, so without
+ * it a tab that once visited a kiosk page would keep sending device-key auth
+ * (and skipping JWT restore) on every ERP page — causing blanket 401s and
+ * logout-on-reload.
+ */
 export function isKioskTab(): boolean {
-  return sessionStorage.getItem(KIOSK_FLAG) === '1';
+  return sessionStorage.getItem(KIOSK_FLAG) === '1' && isKioskRoute();
 }
 
 // ─── Session check ────────────────────────────────────────────────────────────
