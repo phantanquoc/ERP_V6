@@ -37,6 +37,8 @@ export interface ApiResponse<T> {
 interface RequestOptions extends RequestInit {
   headers?: Record<string, string>;
   params?: Record<string, any>;
+  /** When true, a 401 in kiosk tab will NOT dispatch KIOSK_EXPIRED_EVENT */
+  skipKioskExpiry?: boolean;
 }
 
 class ApiClient {
@@ -114,6 +116,10 @@ class ApiClient {
       // If 401, try to refresh token and retry
       if (response.status === 401) {
         if (isKioskTab()) {
+          if (options.skipKioskExpiry) {
+            // JWT-only call inside kiosk tab — do NOT treat as device expiry
+            throw new Error('Unauthorized');
+          }
           // Kiosk mode: device key is invalid/expired — signal UI
           window.dispatchEvent(new CustomEvent(KIOSK_EXPIRED_EVENT));
           throw new Error('Kiosk session expired.');

@@ -244,7 +244,7 @@ class AuthService {
       if (!token) return null;
 
       const { default: apiClient } = await import('./apiClient');
-      const data = await apiClient.get<any>('/auth/me');
+      const data = await apiClient.get<any>('/auth/me', { skipKioskExpiry: true });
       if (!data.success || !data.data) return null;
 
       const user = buildUserFromResponse(data.data.user, data.data.employee);
