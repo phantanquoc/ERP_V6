@@ -1,10 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { Loader2, Search, User, X } from 'lucide-react';
+import { Loader2, Search, User, X, UserPlus } from 'lucide-react';
 import { useProductionEmployees } from '../../hooks/useProductionEmployees';
+import { AttendedOperator } from '../../services/attendedOperatorsService';
 import KioskFooter from './KioskFooter';
 
 interface OperatorSelectionScreenProps {
   onSelect: (selection: { id: string; name: string }) => void;
+  attendedOperators?: AttendedOperator[];
+  isLoadingAttended?: boolean;
 }
 
 /** Bỏ dấu tiếng Việt + lowercase để tìm kiếm không phân biệt dấu. */
@@ -18,12 +21,23 @@ const normalizeSearchText = (value: string): string =>
 /**
  * Full-screen kiosk-tablet operator picker.
  *
- * Extracted từ `ProductionDataEntry.tsx` để dùng chung cho các trang
- * nhập liệu tablet (sản lượng, đánh giá nguyên liệu, ...).
+ * Supports two modes:
+ * 1. Attended mode (when attendedOperators is provided): shows only attended operators for the shift
+ * 2. Fallback mode (when "Tìm người khác" is clicked): shows full production employee list
  */
-const OperatorSelectionScreen: React.FC<OperatorSelectionScreenProps> = ({ onSelect }) => {
-  const { data: employees, isLoading } = useProductionEmployees();
+const OperatorSelectionScreen: React.FC<OperatorSelectionScreenProps> = ({
+  onSelect,
+  attendedOperators,
+  isLoadingAttended,
+}) => {
+  const { data: allEmployees, isLoading: isLoadingAll } = useProductionEmployees();
   const [search, setSearch] = useState('');
+  const [showFallback, setShowFallback] = useState(false);
+
+  // Determine which list to show
+  const isAttendedMode = attendedOperators !== undefined && !showFallback;
+  const employees = isAttendedMode ? attendedOperators : allEmployees;
+  const isLoading = isAttendedMode ? isLoadingAttended : isLoadingAll;
 
   const filteredEmployees = useMemo(() => {
     const keyword = normalizeSearchText(search);
@@ -50,8 +64,21 @@ const OperatorSelectionScreen: React.FC<OperatorSelectionScreenProps> = ({ onSel
           <img src="/abf-logo.png" alt="An Bình Foods" className="h-12 object-contain mx-auto mb-4" />
           <User className="w-10 h-10 text-blue-600 mx-auto mb-3" />
           <h1 className="text-xl font-semibold text-gray-800">Chọn người thực hiện</h1>
-          <p className="text-sm text-gray-500 mt-1">Chọn tên của bạn trước khi nhập liệu</p>
+          <p className="text-sm text-gray-500 mt-1">
+            {isAttendedMode ? 'Nhân viên đã điểm danh ca này' : 'Tất cả nhân viên sản xuất'}
+          </p>
         </div>
+
+        {/* Fallback button (only in attended mode) */}
+        {isAttendedMode && (
+          <button
+            onClick={() => setShowFallback(true)}
+            className="w-full mb-4 min-h-[52px] px-4 py-3 bg-yellow-50 border-2 border-yellow-400 rounded-xl text-left hover:bg-yellow-100 transition-colors flex items-center gap-3"
+          >
+            <UserPlus className="w-5 h-5 text-yellow-700" />
+            <span className="text-base font-medium text-yellow-800">Tìm người khác</span>
+          </button>
+        )}
 
         {/* Ô tìm kiếm — lọc real-time, không cần nhấn nút */}
         {hasEmployees && (
@@ -87,9 +114,18 @@ const OperatorSelectionScreen: React.FC<OperatorSelectionScreenProps> = ({ onSel
             >
               <span className="text-base font-medium text-gray-800">{emp.name}</span>
               <span className="text-sm text-gray-400 ml-2">({emp.employeeCode})</span>
+              {isAttendedMode && emp.positionName && (
+                <span className="text-xs text-gray-400 ml-2">- {emp.positionName}</span>
+              )}
             </button>
           ))}
-          {!hasEmployees && (
+          {!hasEmployees && isAttendedMode && (
+            <div className="text-center py-8">
+              <p className="text-gray-600 mb-4">Chưa có nhân viên nào điểm danh ca này.</p>
+              <p className="text-sm text-gray-500">Nhấn "Tìm người khác" phía trên để chọn.</p>
+            </div>
+          )}
+          {!hasEmployees && !isAttendedMode && (
             <p className="text-center text-gray-500 py-8">Không tìm thấy nhân viên sản xuất.</p>
           )}
           {hasEmployees && filteredEmployees.length === 0 && (

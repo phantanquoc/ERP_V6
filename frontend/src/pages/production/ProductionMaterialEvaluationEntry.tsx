@@ -31,6 +31,7 @@ import {
 import { parseNumberInput } from '../../utils/numberInput';
 import { getQuickTimesForShift, computeShiftDatetime } from '../../utils/shiftTime';
 import { useRawMaterials, rawMaterialKeys } from '../../hooks/useRawMaterials';
+import { useAttendedOperatorsByShift } from '../../hooks/useAttendedOperators';
 import { useLotsByProduct, lotsByProductKeys } from '../../hooks/useLotsByProduct';
 import { useKienByProductAndLot, kienByProductAndLotKeys } from '../../hooks/useKienByProductAndLot';
 import materialEvaluationService from '../../services/materialEvaluationService';
@@ -209,9 +210,9 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [kioskExpired, setKioskExpired] = useState(false);
+  const [selectedShift, setSelectedShift] = useState<number>(() => getSelection()?.shift ?? 0);
   const [nguoiThucHien, setNguoiThucHien] = useState<string>(() => getSelection()?.operator ?? '');
   const [operatorId, setOperatorId] = useState<string>(() => getSelection()?.operatorId ?? '');
-  const [selectedShift, setSelectedShift] = useState<number>(() => getSelection()?.shift ?? 0);
   const [productionDate] = useState<string>(() => {
     const stored = getSelection()?.date;
     return stored && stored.length > 0 ? stored : todayStr();
@@ -233,6 +234,12 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
   const userIsAdmin = user ? isAdmin(user.department) : false;
   const [deviceName, setDeviceName] = useState('');
   const [registering, setRegistering] = useState(false);
+
+  // Attended operators hook (shift-first gate)
+  const {
+    data: attendedOperators,
+    isLoading: isLoadingAttended,
+  } = useAttendedOperatorsByShift(productionDate, selectedShift, 'MATERIAL_EVALUATION');
 
   // ─── Today's evaluations (chip list) ──────────────────────────────────────
   const todayStartISO = useMemo(() => {
@@ -271,15 +278,15 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
 
   // ─── Persist selection to sessionStorage ──────────────────────────────────
   useEffect(() => {
-    if (!nguoiThucHien) return;
+    if (!selectedShift) return;
     setSelection({
+      shift: selectedShift,
       operator: nguoiThucHien,
       operatorId,
-      shift: selectedShift,
       date: productionDate,
       activeTab: '',
     });
-  }, [nguoiThucHien, operatorId, selectedShift, productionDate]);
+  }, [selectedShift, nguoiThucHien, operatorId, productionDate]);
 
   // ─── Load criteria on mount ───────────────────────────────────────────────
   useEffect(() => {
@@ -382,20 +389,28 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
   }, []);
 
   // ─── Handlers: operator + shift + session end ─────────────────────────────
+  const handleShiftSelect = useCallback((shift: number) => {
+    setSelectedShift(shift);
+  }, []);
+
   const handleOperatorSelect = useCallback((sel: { id: string; name: string }) => {
     setNguoiThucHien(sel.name);
     setOperatorId(sel.id);
   }, []);
 
-  const handleShiftSelect = useCallback((shift: number) => {
-    setSelectedShift(shift);
+  const handleBackToRoot = useCallback(() => {
+    clearSelection();
+    setSelectedShift(0);
+    setNguoiThucHien('');
+    setOperatorId('');
+    setCurrentStep(2);
+    setWizardData(initialWizardData);
+    draftLoaded.current = false;
   }, []);
 
   const handleBackToOperator = useCallback(() => {
-    clearSelection();
     setNguoiThucHien('');
     setOperatorId('');
-    setSelectedShift(0);
     setCurrentStep(2);
     setWizardData(initialWizardData);
     draftLoaded.current = false;
@@ -717,13 +732,22 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
       </div>
     );
   }
-  if (!nguoiThucHien) return <OperatorSelectionScreen onSelect={handleOperatorSelect} />;
+  // ─── Shift selection gate (FIRST GATE) ───────────────────────────────────
   if (!selectedShift) {
     return (
       <ShiftSelectionScreen
         onSelect={handleShiftSelect}
-        onBack={handleBackToOperator}
-        operatorName={nguoiThucHien}
+        onBack={handleBackToRoot}
+      />
+    );
+  }
+  // ─── Operator selection gate (SECOND GATE) ────────────────────────────────
+  if (!nguoiThucHien) {
+    return (
+      <OperatorSelectionScreen
+        onSelect={handleOperatorSelect}
+        attendedOperators={attendedOperators}
+        isLoadingAttended={isLoadingAttended}
       />
     );
   }

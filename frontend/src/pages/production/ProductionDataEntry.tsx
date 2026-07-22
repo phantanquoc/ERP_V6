@@ -9,6 +9,7 @@ import {
   indexFinishedProducts,
   DirtyRecord,
 } from '../../hooks/useProductionDataEntry';
+import { useAttendedOperatorsByShift } from '../../hooks/useAttendedOperators';
 import { markTab, isKioskTab, hasKioskSession, KIOSK_EXPIRED_EVENT, getSelection, setSelection, clearSelection, getDeviceKey, setDeviceKey } from '../../utils/kioskSession';
 import { parseNumberInput } from '../../utils/numberInput';
 import { FinishedProduct } from '../../services/finishedProductService';
@@ -281,9 +282,9 @@ const FullGridPreview: React.FC<FullGridPreviewProps> = ({
 const ProductionDataEntry: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [kioskExpired, setKioskExpired] = useState(false);
+  const [selectedShift, setSelectedShift] = useState<number>(() => getSelection()?.shift ?? 0);
   const [nguoiThucHien, setNguoiThucHien] = useState<string>(() => getSelection()?.operator ?? '');
   const [operatorId, setOperatorId] = useState<string>(() => getSelection()?.operatorId ?? '');
-  const [selectedShift, setSelectedShift] = useState<number>(() => getSelection()?.shift ?? 0);
   const [productionDate, setProductionDate] = useState<string>(() => {
     const stored = getSelection()?.date;
     return stored && stored.length > 0 ? stored : todayStr();
@@ -300,6 +301,12 @@ const ProductionDataEntry: React.FC = () => {
   const userIsAdmin = user ? isAdmin(user.department) : false;
   const [deviceName, setDeviceName] = useState('');
   const [registering, setRegistering] = useState(false);
+
+  // Attended operators hook (shift-first gate)
+  const {
+    data: attendedOperators,
+    isLoading: isLoadingAttended,
+  } = useAttendedOperatorsByShift(productionDate, selectedShift, 'PRODUCTION_OUTPUT');
 
   // Board state: weight values per tab per cell
   const [board, setBoard] = useState<BoardData>(() => ({
@@ -332,15 +339,15 @@ const ProductionDataEntry: React.FC = () => {
 
   // Persist selection state to sessionStorage so reload restores the entry screen
   useEffect(() => {
-    if (!nguoiThucHien) return; // Don't write rác khi chưa chọn
+    if (!selectedShift) return; // Don't write rác khi chưa chọn shift
     setSelection({
+      shift: selectedShift,
       operator: nguoiThucHien,
       operatorId,
-      shift: selectedShift,
       date: productionDate,
       activeTab,
     });
-  }, [nguoiThucHien, operatorId, selectedShift, productionDate, activeTab]);
+  }, [selectedShift, nguoiThucHien, operatorId, productionDate, activeTab]);
 
   // Data hooks
   const { data: allBatches, isLoading: batchesLoading } = useFryBatchCodes(productionDate, selectedShift);
@@ -731,18 +738,23 @@ const ProductionDataEntry: React.FC = () => {
     );
   }
 
-  // ─── Operator selection gate ─────────────────────────────────────────────
-  if (!nguoiThucHien) {
-    return <OperatorSelectionScreen onSelect={(sel) => { setNguoiThucHien(sel.name); setOperatorId(sel.id); }} />;
-  }
-
-  // ─── Shift selection gate ────────────────────────────────────────────────
+  // ─── Shift selection gate (FIRST GATE) ───────────────────────────────────
   if (!selectedShift) {
     return (
       <ShiftSelectionScreen
         onSelect={setSelectedShift}
-        onBack={() => { clearSelection(); setNguoiThucHien(''); setOperatorId(''); setSelectedShift(0); setActiveTab('A'); }}
-        operatorName={nguoiThucHien}
+        onBack={() => { clearSelection(); setSelectedShift(0); setNguoiThucHien(''); setOperatorId(''); setActiveTab('A'); }}
+      />
+    );
+  }
+
+  // ─── Operator selection gate (SECOND GATE) ────────────────────────────────
+  if (!nguoiThucHien) {
+    return (
+      <OperatorSelectionScreen
+        onSelect={(sel) => { setNguoiThucHien(sel.name); setOperatorId(sel.id); }}
+        attendedOperators={attendedOperators}
+        isLoadingAttended={isLoadingAttended}
       />
     );
   }
