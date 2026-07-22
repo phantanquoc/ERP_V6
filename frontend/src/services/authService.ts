@@ -297,52 +297,66 @@ class AuthService {
     }
   }
 
+  private static refreshPromise: Promise<string | null> | null = null;
+
   static async refreshToken(): Promise<string | null> {
-    try {
-      const refreshToken = localStorage.getItem('refreshToken');
-      if (!refreshToken) return null;
-
-      const response = await fetch(`${API_BASE_URL}/auth/refresh-token`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ refreshToken }),
-      });
-
-      if (!response.ok) {
-        // Check if session was replaced by another device login
-        try {
-          const errorData = await response.json();
-          if (errorData.code === 'SESSION_REPLACED') {
-            localStorage.setItem('session_replaced', 'true');
-            localStorage.removeItem('accessToken');
-            localStorage.removeItem('refreshToken');
-            localStorage.removeItem('user');
-            window.location.href = '/login';
-            return null;
-          }
-        } catch (_e) {
-          // ignore JSON parse error
-        }
-        throw new Error('Token refresh failed');
-      }
-
-      const data = await response.json();
-
-      if (!data.success || !data.data) {
-        throw new Error('Token refresh failed');
-      }
-
-      const newAccessToken = data.data.accessToken;
-      localStorage.setItem('accessToken', newAccessToken);
-
-      return newAccessToken;
-    } catch (error) {
-      console.error('Token refresh error:', error);
-      this.logout();
-      return null;
+    // If a refresh is already in progress, wait for it instead of starting a new one
+    if (this.refreshPromise) {
+      return this.refreshPromise;
     }
+
+    this.refreshPromise = (async () => {
+      try {
+        const refreshToken = localStorage.getItem('refreshToken');
+        if (!refreshToken) return null;
+
+        const response = await fetch(`${API_BASE_URL}/auth/refresh-token`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ refreshToken }),
+        });
+
+        if (!response.ok) {
+          // Check if session was replaced by another device login
+          try {
+            const errorData = await response.json();
+            if (errorData.code === 'SESSION_REPLACED') {
+              localStorage.setItem('session_replaced', 'true');
+              localStorage.removeItem('accessToken');
+              localStorage.removeItem('refreshToken');
+              localStorage.removeItem('user');
+              window.location.href = '/login';
+              return null;
+            }
+          } catch (_e) {
+            // ignore JSON parse error
+          }
+          throw new Error('Token refresh failed');
+        }
+
+        const data = await response.json();
+
+        if (!data.success || !data.data) {
+          throw new Error('Token refresh failed');
+        }
+
+        const newAccessToken = data.data.accessToken;
+        localStorage.setItem('accessToken', newAccessToken);
+
+        return newAccessToken;
+      } catch (error) {
+        console.error('Token refresh error:', error);
+        this.logout();
+        return null;
+      } finally {
+        // Clear the promise so next refresh can proceed
+        this.refreshPromise = null;
+      }
+    })();
+
+    return this.refreshPromise;
   }
 
   static getCurrentUser(): User | null {
