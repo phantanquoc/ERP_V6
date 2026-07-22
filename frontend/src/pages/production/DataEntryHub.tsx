@@ -39,54 +39,49 @@ const DataEntryHub: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">
-            Tablet Nhập Liệu
-          </h1>
-          <p className="text-gray-600 text-lg">
-            Chọn loại nhập liệu bạn muốn thực hiện
-          </p>
-        </div>
+    <div className="h-screen w-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 sm:p-6 flex flex-col">
+      {/* Logo ABF */}
+      <div className="flex-shrink-0 flex items-center justify-center py-2">
+        <img src="/abf-logo.png" alt="An Binh Foods" className="h-12 sm:h-16 object-contain" />
+      </div>
 
-        {/* Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {entryTypes.map((entry) => {
-            const Icon = entry.icon;
-            return (
-              <button
-                key={entry.key}
-                onClick={() => {
-                  if (entry.route && !entry.disabled) {
-                    navigate(entry.route);
-                  }
-                }}
-                disabled={entry.disabled}
-                className={`${entry.color} text-white rounded-2xl p-8 shadow-lg transition-all duration-300 transform hover:scale-105 hover:shadow-2xl flex flex-col items-center text-center ${
-                  entry.disabled ? 'opacity-50' : ''
-                }`}
-              >
-                <div className="bg-white bg-opacity-20 rounded-full p-6 mb-4">
-                  <Icon size={64} strokeWidth={1.5} />
-                </div>
-                <h2 className="text-2xl font-bold mb-2">{entry.title}</h2>
-                <p className="text-sm opacity-90">{entry.description}</p>
-                {entry.disabled && (
-                  <span className="mt-4 text-xs bg-white bg-opacity-20 px-3 py-1 rounded-full">
-                    Đang phát triển
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+      {/* Cards — chiếm phần lớn màn hình */}
+      <div className="grid flex-1 min-h-0 w-full grid-cols-1 gap-4 sm:gap-6 md:grid-cols-3">
+        {entryTypes.map((entry) => {
+          const Icon = entry.icon;
+          return (
+            <button
+              key={entry.key}
+              onClick={() => {
+                if (entry.route && !entry.disabled) {
+                  navigate(entry.route);
+                }
+              }}
+              disabled={entry.disabled}
+              className={`${entry.color} h-full w-full text-white rounded-3xl p-8 shadow-lg transition-all duration-300 transform hover:scale-[1.02] hover:shadow-2xl flex flex-col items-center justify-center text-center ${
+                entry.disabled ? 'opacity-50' : ''
+              }`}
+            >
+              <div className="bg-white bg-opacity-20 rounded-full p-8 mb-6">
+                <Icon size={96} strokeWidth={1.5} />
+              </div>
+              <h2 className="text-3xl font-bold mb-3">{entry.title}</h2>
+              <p className="text-lg opacity-90">{entry.description}</p>
+              {entry.disabled && (
+                <span className="mt-5 text-sm bg-white bg-opacity-20 px-4 py-1.5 rounded-full">
+                  Đang phát triển
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
 
-        {/* Footer hint */}
-        <div className="mt-12 text-center text-gray-500 text-sm">
-          <p>Vui lòng chọn loại nhập liệu phù hợp với công việc của bạn</p>
-        </div>
+      {/* Powered by Koola */}
+      <div className="flex-shrink-0 flex items-center justify-center gap-2 py-2 opacity-60">
+        <span className="text-xs text-gray-500">Powered by</span>
+        <img src="/koola-logo.png" alt="Koola" className="h-4 object-contain" />
+        <span className="text-xs font-semibold text-gray-400">KOOLA</span>
       </div>
     </div>
   );

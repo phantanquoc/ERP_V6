@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useActiveFryerMachineSystems } from '../../hooks/useMachineSystemDetails';
 import {
   useFryBatchCodes,
@@ -281,6 +281,7 @@ const FullGridPreview: React.FC<FullGridPreviewProps> = ({
 // ─── Main Component ──────────────────────────────────────────────────────────
 const ProductionDataEntry: React.FC = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [kioskExpired, setKioskExpired] = useState(false);
   const [selectedShift, setSelectedShift] = useState<number>(() => getSelection()?.shift ?? 0);
   const [nguoiThucHien, setNguoiThucHien] = useState<string>(() => getSelection()?.operator ?? '');
@@ -743,7 +744,7 @@ const ProductionDataEntry: React.FC = () => {
     return (
       <ShiftSelectionScreen
         onSelect={setSelectedShift}
-        onBack={() => { clearSelection(); setSelectedShift(0); setNguoiThucHien(''); setOperatorId(''); setActiveTab('A'); }}
+        onBack={() => { clearSelection(); setSelectedShift(0); setNguoiThucHien(''); setOperatorId(''); setActiveTab('A'); navigate('/production/nhap-lieu-hub'); }}
       />
     );
   }
@@ -753,6 +754,7 @@ const ProductionDataEntry: React.FC = () => {
     return (
       <OperatorSelectionScreen
         onSelect={(sel) => { setNguoiThucHien(sel.name); setOperatorId(sel.id); }}
+        onBack={() => { setNguoiThucHien(''); setOperatorId(''); setSelectedShift(0); }}
         attendedOperators={attendedOperators}
         isLoadingAttended={isLoadingAttended}
       />
