@@ -27,18 +27,32 @@ model SubDepartment {
 }
 
 model Position {
-  id               String                   @id @default(cuid())
-  code             String                   @unique
-  name             String                   @unique
-  description      String?
-  category         PositionCategory         @default(OFFICE)
-  createdAt        DateTime                 @default(now())
-  updatedAt        DateTime                 @updatedAt
-  employees        Employee[]
-  levels           PositionLevel[]
-  responsibilities PositionResponsibility[]
+  id                    String                   @id @default(cuid())
+  code                  String                   @unique
+  name                  String                   @unique
+  description           String?
+  category              PositionCategory         @default(OFFICE)
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  employees             Employee[]
+  levels                PositionLevel[]
+  responsibilities      PositionResponsibility[]
+  dataEntryPageMappings DataEntryPagePosition[]
 
   @@map("positions")
+  @@schema("common")
+}
+
+model DataEntryPagePosition {
+  id         String   @id @default(cuid())
+  pageKey    String
+  positionId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  position   Position @relation(fields: [positionId], references: [id], onDelete: Cascade)
+
+  @@unique([pageKey, positionId])
+  @@map("data_entry_page_positions")
   @@schema("common")
 }
 

@@ -77,6 +77,8 @@ const ROUTE_MAP: Record<string, string> = {
   attendanceCode: '/api/attendance-codes',
   holiday: '/api/holidays',
   timesheet: '/api/timesheet',
+  dataEntryPagePosition: '/api/data-entry-page-positions',
+  attendedOperators: '/api/kiosk',
 };
 
 export const registerRoutes = (app: Express): void => {

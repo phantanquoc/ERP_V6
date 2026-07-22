@@ -79,8 +79,10 @@ const MyHistory = React.lazy(() => import('./pages/MyHistory'));
 const MyNotifications = React.lazy(() => import('./pages/MyNotifications'));
 
 // Production Data Entry (tablet, full-screen)
+const DataEntryHub = React.lazy(() => import('./pages/production/DataEntryHub'));
 const ProductionDataEntry = React.lazy(() => import('./pages/production/ProductionDataEntry'));
 const ProductionMaterialEvaluationEntry = React.lazy(() => import('./pages/production/ProductionMaterialEvaluationEntry'));
+const DataEntryPositionConfig = React.lazy(() => import('./pages/production/DataEntryPositionConfig'));
 
 function PageTitleUpdater() {
   usePageTitle();
@@ -103,6 +105,7 @@ function App() {
           <Route path="/diemdanh/nhanvien-v3" element={<FaceKioskPageV3 />} />
 
           {/* Production data entry kiosk — full-screen (tablet), public with self-guard */}
+          <Route path="/production/nhap-lieu-hub" element={<DataEntryHub />} />
           <Route path="/production/nhap-lieu" element={<ProductionDataEntry />} />
           <Route path="/production/nhap-lieu-danh-gia" element={<ProductionMaterialEvaluationEntry />} />
 
@@ -279,6 +282,13 @@ function App() {
             <Route path="/diemdanh/admin" element={
               <AdminRoute>
                 <FaceAdminPage />
+              </AdminRoute>
+            } />
+
+            {/* Production Data Entry Position Config (Admin Only) */}
+            <Route path="/production/data-entry-config" element={
+              <AdminRoute>
+                <DataEntryPositionConfig />
               </AdminRoute>
             } />
 
