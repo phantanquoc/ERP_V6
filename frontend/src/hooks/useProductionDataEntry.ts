@@ -7,25 +7,47 @@ import finishedProductService, { FinishedProduct } from '../services/finishedPro
 
 export const productionEntryKeys = {
   all: ['productionEntry'] as const,
-  batches: () => [...productionEntryKeys.all, 'batches'] as const,
-  finishedProducts: () => [...productionEntryKeys.all, 'finishedProducts'] as const,
+  batches: (productionDate?: string, shift?: number) =>
+    [...productionEntryKeys.all, 'batches', productionDate ?? '', shift ?? 0] as const,
+  finishedProducts: (productionDate?: string) =>
+    [...productionEntryKeys.all, 'finishedProducts', productionDate ?? ''] as const,
   systemOp: (maChien: string, machineSystemId: string) =>
     [...productionEntryKeys.all, 'systemOp', maChien, machineSystemId] as const,
   finishedProduct: (maChien: string, machineSystemId: string) =>
     [...productionEntryKeys.all, 'finishedProduct', maChien, machineSystemId] as const,
 };
 
-// ─── Hook: list all fry-batches (MaterialEvaluation) ─────────────────────────
+// ─── Helpers: compute local day ISO boundaries ──────────────────────────────
 
-export const useFryBatchCodes = () =>
-  useQuery({
-    queryKey: productionEntryKeys.batches(),
+/**
+ * Given a YYYY-MM-DD date string, returns ISO start/end of that LOCAL day.
+ * Handles timezone correctly by constructing Date from local components.
+ */
+function getLocalDayRange(dateStr: string): { from: string; to: string } {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const start = new Date(y, m - 1, d, 0, 0, 0, 0);
+  const end = new Date(y, m - 1, d, 23, 59, 59, 999);
+  return { from: start.toISOString(), to: end.toISOString() };
+}
+
+// ─── Hook: list fry-batches (MaterialEvaluation) by date + shift ────────────
+
+export const useFryBatchCodes = (productionDate: string, selectedShift: number) => {
+  const range = productionDate ? getLocalDayRange(productionDate) : null;
+
+  return useQuery({
+    queryKey: productionEntryKeys.batches(productionDate, selectedShift),
     queryFn: async (): Promise<MaterialEvaluation[]> => {
-      // Fetch all pages by using a large limit
-      const result = await materialEvaluationService.getAllMaterialEvaluations(1, 200);
+      const result = await materialEvaluationService.getAllMaterialEvaluations(1, 500, {
+        ca: selectedShift,
+        thoiGianChienFrom: range!.from,
+        thoiGianChienTo: range!.to,
+      });
       return result.data;
     },
+    enabled: !!productionDate && selectedShift > 0,
   });
+};
 
 // ─── Hook: filter fry-batches by shift (ca) + production date (client-side) ──
 
@@ -52,17 +74,23 @@ export function filterBatchesByShiftAndDate(
   });
 }
 
-// ─── Hook: load all FinishedProducts for the board ───────────────────────────
+// ─── Hook: load FinishedProducts for a production date ──────────────────────
 
-export const useAllFinishedProducts = () =>
-  useQuery({
-    queryKey: productionEntryKeys.finishedProducts(),
+export const useAllFinishedProducts = (productionDate: string) => {
+  const range = productionDate ? getLocalDayRange(productionDate) : null;
+
+  return useQuery({
+    queryKey: productionEntryKeys.finishedProducts(productionDate),
     queryFn: async (): Promise<FinishedProduct[]> => {
-      // Fetch with large limit to get all
-      const result = await finishedProductService.getAllFinishedProducts(1, 500);
+      const result = await finishedProductService.getAllFinishedProducts(1, 500, undefined, {
+        thoiGianChienFrom: range!.from,
+        thoiGianChienTo: range!.to,
+      });
       return result.data;
     },
+    enabled: !!productionDate,
   });
+};
 
 /**
  * Index FinishedProduct records by (maChien, machineSystemId) for fast lookup.

@@ -343,9 +343,9 @@ const ProductionDataEntry: React.FC = () => {
   }, [nguoiThucHien, operatorId, selectedShift, productionDate, activeTab]);
 
   // Data hooks
-  const { data: allBatches, isLoading: batchesLoading } = useFryBatchCodes();
+  const { data: allBatches, isLoading: batchesLoading } = useFryBatchCodes(productionDate, selectedShift);
   const { data: fryersResult, isLoading: fryersLoading } = useActiveFryerMachineSystems();
-  const { data: allFinishedProducts, isLoading: fpLoading } = useAllFinishedProducts();
+  const { data: allFinishedProducts, isLoading: fpLoading } = useAllFinishedProducts(productionDate);
   const batchUpdate = useBatchUpdateFinishedProducts();
 
   const fryers = useMemo(() => fryersResult?.data ?? [], [fryersResult?.data]);

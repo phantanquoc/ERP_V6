@@ -7,7 +7,14 @@ export class MaterialEvaluationService {
   async getAllMaterialEvaluations(
     page: number = 1,
     limit: number = 10,
-    filters?: { nguoiThucHien?: string; dateFrom?: string; dateTo?: string },
+    filters?: {
+      nguoiThucHien?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      ca?: number;
+      thoiGianChienFrom?: string;
+      thoiGianChienTo?: string;
+    },
   ) {
     const skip = (page - 1) * limit;
 
@@ -29,6 +36,25 @@ export class MaterialEvaluationService {
       // if both are invalid the object is empty and we skip it to avoid Prisma error.
       if (Object.keys(createdAt).length > 0) {
         where.createdAt = createdAt;
+      }
+    }
+    // Filter by shift (ca)
+    if (filters?.ca != null) {
+      where.ca = filters.ca;
+    }
+    // Filter by thoiGianChien date range (separate from createdAt)
+    if (filters?.thoiGianChienFrom || filters?.thoiGianChienTo) {
+      const thoiGianChienFilter: Prisma.DateTimeFilter = {};
+      if (filters.thoiGianChienFrom) {
+        const d = new Date(filters.thoiGianChienFrom);
+        if (!isNaN(d.getTime())) thoiGianChienFilter.gte = d;
+      }
+      if (filters.thoiGianChienTo) {
+        const d = new Date(filters.thoiGianChienTo);
+        if (!isNaN(d.getTime())) thoiGianChienFilter.lte = d;
+      }
+      if (Object.keys(thoiGianChienFilter).length > 0) {
+        where.thoiGianChien = thoiGianChienFilter;
       }
     }
 

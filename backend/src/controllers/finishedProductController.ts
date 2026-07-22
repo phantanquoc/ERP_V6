@@ -15,8 +15,14 @@ export class FinishedProductController {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
       const machineSystemId = req.query.machineSystemId as string | undefined;
+      const thoiGianChienFrom = typeof req.query.thoiGianChienFrom === 'string' ? req.query.thoiGianChienFrom : undefined;
+      const thoiGianChienTo = typeof req.query.thoiGianChienTo === 'string' ? req.query.thoiGianChienTo : undefined;
 
-      const result = await finishedProductService.getAllFinishedProducts(page, limit, machineSystemId);
+      const dateRange = thoiGianChienFrom || thoiGianChienTo
+        ? { thoiGianChienFrom, thoiGianChienTo }
+        : undefined;
+
+      const result = await finishedProductService.getAllFinishedProducts(page, limit, machineSystemId, dateRange);
 
       res.json({
         success: true,
