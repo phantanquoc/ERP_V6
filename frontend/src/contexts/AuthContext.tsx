@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { User, LoginRequest, RegisterRequest } from '../types/auth';
 import AuthService from '../services/authService';
 import { WS_BASE_URL } from '../config/api';
+import { isKioskTab } from '../utils/kioskSession';
 
 interface AuthContextType {
   user: User | null;
@@ -94,8 +95,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setWsConnected(false);
   }, []);
 
-  // Connect WS when user is set, disconnect when null
+  // Connect WS when user is set, disconnect when null (skip in kiosk — no JWT for WS)
   useEffect(() => {
+    if (isKioskTab()) return;
     const token = AuthService.getAccessToken();
     if (user && token) {
       connectWs(token);
@@ -105,8 +107,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => disconnectWs();
   }, [user?.id, connectWs, disconnectWs]);
 
-  // Reconnect on tab focus
+  // Reconnect on tab focus (skip in kiosk)
   useEffect(() => {
+    if (isKioskTab()) return;
     const onFocus = () => {
       const token = AuthService.getAccessToken();
       if (token && user && wsRef.current?.readyState !== WebSocket.OPEN) {
@@ -129,6 +132,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        // Kiosk tabs use device key auth only — skip JWT-based profile fetch
+        if (isKioskTab()) return;
+
         const currentUser = AuthService.getCurrentUser();
         const token = AuthService.getAccessToken();
 
@@ -149,8 +155,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     checkAuth();
   }, []);
 
-  // Refresh profile when tab regains focus
+  // Refresh profile when tab regains focus (skip in kiosk)
   useEffect(() => {
+    if (isKioskTab()) return;
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible' && user) {
         refreshProfile();
