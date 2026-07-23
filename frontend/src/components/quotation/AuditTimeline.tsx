@@ -231,14 +231,50 @@ const TimelineEntry: React.FC<{ entry: AuditLog; isLast: boolean }> = ({ entry, 
   );
 };
 
+// Day bucket label for grouping (Hôm nay / Hôm qua / dd/mm/yyyy)
+const dayLabel = (iso: string): string => {
+  const d = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  if (sameDay(d, today)) return 'Hôm nay';
+  if (sameDay(d, yesterday)) return 'Hôm qua';
+  return d.toLocaleDateString('vi-VN');
+};
+
 const AuditTimeline: React.FC<AuditTimelineProps> = ({ entries }) => {
+  const [actionFilter, setActionFilter] = useState<AuditAction | 'ALL'>('ALL');
+  const [actorFilter, setActorFilter] = useState<string>('ALL');
+
   if (!entries.length) {
     return <p className="text-gray-500 text-sm text-center py-6">Chưa có hoạt động nào</p>;
   }
 
-  // Stats card row — count by action
+  // Count by action (for summary chips) — over the full set, not the filtered view
   const counts: Record<string, number> = {};
   entries.forEach(e => { counts[e.action] = (counts[e.action] ?? 0) + 1; });
+
+  // Distinct actors for the actor filter
+  const actorMap = new Map<string, string>(); // id -> display name
+  entries.forEach(e => { actorMap.set(e.actorId, e.actorName ?? e.actorId); });
+  const actors = Array.from(actorMap.entries());
+
+  // Apply filters
+  const filtered = entries.filter(e =>
+    (actionFilter === 'ALL' || e.action === actionFilter) &&
+    (actorFilter === 'ALL' || e.actorId === actorFilter)
+  );
+
+  // Group filtered entries by day (entries are newest-first, keep that order)
+  const groups: { label: string; items: AuditLog[] }[] = [];
+  filtered.forEach(e => {
+    const label = dayLabel(e.createdAt);
+    const last = groups[groups.length - 1];
+    if (last && last.label === label) last.items.push(e);
+    else groups.push({ label, items: [e] });
+  });
 
   return (
     <div className="space-y-4">
@@ -257,12 +293,56 @@ const AuditTimeline: React.FC<AuditTimelineProps> = ({ entries }) => {
         <span className="ml-auto text-xs text-gray-500">{entries.length} hoạt động</span>
       </div>
 
-      {/* timeline */}
-      <div className="space-y-3">
-        {entries.map((entry, idx) => (
-          <TimelineEntry key={entry.id} entry={entry} isLast={idx === entries.length - 1} />
-        ))}
+      {/* filters — action + actor */}
+      <div className="flex flex-wrap items-center gap-2 px-1">
+        <select
+          value={actionFilter}
+          onChange={e => setActionFilter(e.target.value as AuditAction | 'ALL')}
+          className="text-xs border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="ALL">Tất cả hành động</option>
+          {(Object.keys(ACTION_META) as AuditAction[]).map(action =>
+            counts[action] ? <option key={action} value={action}>{ACTION_META[action].label}</option> : null
+          )}
+        </select>
+        {actors.length > 1 && (
+          <select
+            value={actorFilter}
+            onChange={e => setActorFilter(e.target.value)}
+            className="text-xs border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="ALL">Tất cả người thực hiện</option>
+            {actors.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          </select>
+        )}
+        {(actionFilter !== 'ALL' || actorFilter !== 'ALL') && (
+          <button
+            onClick={() => { setActionFilter('ALL'); setActorFilter('ALL'); }}
+            className="text-xs text-blue-600 hover:underline"
+          >
+            Xóa lọc
+          </button>
+        )}
+        <span className="ml-auto text-xs text-gray-500">{filtered.length} / {entries.length} hiển thị</span>
       </div>
+
+      {/* timeline grouped by day */}
+      {filtered.length === 0 ? (
+        <p className="text-gray-500 text-sm text-center py-6">Không có hoạt động khớp bộ lọc</p>
+      ) : (
+        <div className="space-y-5">
+          {groups.map(group => (
+            <div key={group.label} className="space-y-3">
+              <div className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur py-1">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{group.label}</span>
+              </div>
+              {group.items.map((entry, idx) => (
+                <TimelineEntry key={entry.id} entry={entry} isLast={idx === group.items.length - 1} />
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

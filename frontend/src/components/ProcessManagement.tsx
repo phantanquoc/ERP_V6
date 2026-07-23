@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Eye, X, FileText, Download, Upload, Printer, Settings, History } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, X, FileText, Download, Upload, Printer, Settings, History, ChevronUp, ChevronDown } from 'lucide-react';
 import Modal from './Modal';
 import AuditTimeline from './quotation/AuditTimeline';
 import { auditLogService, AuditLog } from '../services/auditLogService';
@@ -356,6 +356,24 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
     // Re-number sections
     newSections.forEach((section, i) => {
       section.phanDoan = `Phân đoạn ${i + 1}`;
+      section.stt = i + 1;
+    });
+    setFlowchartSections(newSections);
+  };
+
+  // Move a section up (-1) or down (+1). Swaps whole section objects so their
+  // costs/files travel with them, then re-numbers stt + default "Phân đoạn N" labels.
+  const handleMoveSection = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= flowchartSections.length) return;
+    const newSections = [...flowchartSections];
+    [newSections[index], newSections[target]] = [newSections[target], newSections[index]];
+    newSections.forEach((section, i) => {
+      // Only refresh the auto label if it still matches the default pattern,
+      // so a custom-named section keeps its name after reordering.
+      if (/^Phân đoạn \d+$/.test(section.phanDoan)) {
+        section.phanDoan = `Phân đoạn ${i + 1}`;
+      }
       section.stt = i + 1;
     });
     setFlowchartSections(newSections);
@@ -981,24 +999,45 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                   {flowchartSections.map((section, sectionIndex) => (
                     <div key={sectionIndex} className="mb-6 border border-gray-300 rounded-lg overflow-hidden">
                       {/* Section Header */}
-                      <div className="bg-gray-100 p-3 flex items-center justify-between border-b border-gray-300">
+                      <div className="bg-gray-100 p-3 flex items-center justify-between border-b border-gray-300 gap-2">
                         <input
                           type="text"
                           value={section.phanDoan}
                           onChange={(e) => handleSectionChange(sectionIndex, 'phanDoan', e.target.value)}
-                          className="font-semibold text-gray-800 bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-2"
+                          className="flex-1 min-w-0 font-semibold text-gray-800 bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-2"
                           placeholder="Tên phân đoạn"
                         />
-                        {flowchartSections.length > 1 && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          {/* Reorder: move up / down */}
                           <button
                             type="button"
-                            onClick={() => handleRemoveSection(sectionIndex)}
-                            className="text-red-600 hover:text-red-800"
-                            title="Xóa phân đoạn"
+                            onClick={() => handleMoveSection(sectionIndex, -1)}
+                            disabled={sectionIndex === 0}
+                            className="p-1 text-gray-500 hover:text-blue-600 hover:bg-gray-200 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Di chuyển lên"
                           >
-                            <Trash2 className="w-5 h-5" />
+                            <ChevronUp className="w-5 h-5" />
                           </button>
-                        )}
+                          <button
+                            type="button"
+                            onClick={() => handleMoveSection(sectionIndex, 1)}
+                            disabled={sectionIndex === flowchartSections.length - 1}
+                            className="p-1 text-gray-500 hover:text-blue-600 hover:bg-gray-200 rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Di chuyển xuống"
+                          >
+                            <ChevronDown className="w-5 h-5" />
+                          </button>
+                          {flowchartSections.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSection(sectionIndex)}
+                              className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded ml-1"
+                              title="Xóa phân đoạn"
+                            >
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       {/* Section Content */}
@@ -1947,22 +1986,25 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
 
       {/* Update-history timeline modal (who / when / what changed) */}
       <Modal isOpen={isHistoryOpen} onClose={handleCloseHistory} showBackdrop closeOnBackdrop={true}>
-        <div className="flex flex-col max-h-[80vh]">
-          <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <History className="w-5 h-5 text-indigo-600" />
-              Lịch sử cập nhật
+        <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 shrink-0">
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 min-w-0">
+              <History className="w-5 h-5 text-indigo-600 shrink-0" />
+              <span className="shrink-0">Lịch sử cập nhật</span>
               {historyProcess && (
-                <span className="text-sm font-normal text-gray-500">— {historyProcess.tenQuyTrinh}</span>
+                <span className="text-sm font-normal text-gray-500 truncate">— {historyProcess.tenQuyTrinh}</span>
               )}
             </h3>
-            <button onClick={handleCloseHistory} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md">
+            <button onClick={handleCloseHistory} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md shrink-0">
               <X className="w-5 h-5" />
             </button>
           </div>
-          <div className="overflow-y-auto flex-1 p-6">
+          <div className="overflow-y-auto flex-1 p-6 bg-gray-50">
             {historyLoading ? (
-              <p className="text-gray-500 text-sm text-center py-6">Đang tải lịch sử...</p>
+              <div className="flex items-center justify-center py-10 gap-3 text-gray-500">
+                <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm">Đang tải lịch sử...</span>
+              </div>
             ) : (
               <AuditTimeline entries={historyLogs} />
             )}
