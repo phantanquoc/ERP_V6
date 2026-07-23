@@ -241,8 +241,9 @@ export class ProcessController {
     try {
       const processId = req.params.processId as string;
       const { sections } = req.body;
+      const actor = { actorId: req.user?.id, actorRole: req.user?.role };
 
-      const flowchart = await processService.updateFlowchart(processId, sections);
+      const flowchart = await processService.updateFlowchart(processId, sections, req.user?.id, actor);
 
       const response: ApiResponse<any> = {
         success: true,
