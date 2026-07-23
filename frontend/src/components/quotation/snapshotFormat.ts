@@ -33,6 +33,9 @@ export const FIELD_LABELS: Record<string, string> = {
   loaiQuyTrinh: 'Loại quy trình',
   msnv: 'MSNV người phụ trách',
   files: 'Tệp đính kèm',
+  // Flowchart snapshot fields (compact audit of lưu đồ / phân đoạn)
+  soPhanDoan: 'Số phân đoạn',
+  thuTuPhanDoan: 'Thứ tự phân đoạn',
 };
 
 export const STATUS_LABELS: Record<string, string> = {
@@ -76,5 +79,7 @@ export const formatScalar = (key: string, value: unknown): string => {
   if (PRICE_FIELDS.has(key) && typeof value === 'number') return formatNumber(value);
   if (typeof value === 'number') return formatNumber(value);
   if (typeof value === 'string') return value;
+  // Arrays (e.g. Process.files) — show a readable count, not raw JSON
+  if (Array.isArray(value)) return value.length === 0 ? '—' : `${value.length} tệp`;
   return JSON.stringify(value);
 };
