@@ -6,6 +6,40 @@ import { recordAudit } from '@utils/auditLog';
 import type { PaginatedResponse } from '@types';
 import ExcelJS from 'exceljs';
 
+interface Actor {
+  actorId?: string;
+  actorRole?: string;
+}
+
+// Snapshot of the business fields we audit — excludes id/createdAt/updatedAt so a
+// no-op save doesn't produce a noisy "updatedAt changed" diff.
+function processAuditSnapshot(p: any): Record<string, unknown> {
+  return {
+    maQuyTrinh: p.maQuyTrinh,
+    tenQuyTrinh: p.tenQuyTrinh,
+    loaiQuyTrinh: p.loaiQuyTrinh,
+    msnv: p.msnv,
+    tenNhanVien: p.tenNhanVien,
+    files: p.files ?? [],
+  };
+}
+
+// Compact, human-readable snapshot of a flowchart for the audit timeline —
+// avoids dumping every cost/file. Captures section count + ordered section names.
+function flowchartSnapshot(sections: any[]): { soPhanDoan: number; thuTuPhanDoan: string } {
+  // Use the descriptive name (tenPhanDoan) — a STABLE identifier — so a reorder is
+  // visible. Fall back to the work content, then the auto label. Using `phanDoan`
+  // (the "Phân đoạn N" label) would hide reorders because it re-numbers by position.
+  const names = (sections ?? []).map((s, i) => {
+    const label = (s?.tenPhanDoan || s?.noiDungCongViec || s?.phanDoan || `Phân đoạn ${i + 1}`) as string;
+    return label.length > 40 ? `${label.slice(0, 40)}…` : label;
+  });
+  return {
+    soPhanDoan: names.length,
+    thuTuPhanDoan: names.join(' → '),
+  };
+}
+
 export class ProcessService {
   async generateProcessCode(): Promise<string> {
     const last = await prisma.process.findFirst({
@@ -147,16 +181,23 @@ export class ProcessService {
       },
     });
 
-    // Non-fatal change-history audit (who/when/what). Never blocks the update.
-    recordAudit({
-      entityType: 'Process',
-      entityId: id,
-      action: 'UPDATE',
-      actorId: actor?.actorId ?? 'system',
-      actorRole: actor?.actorRole ?? 'UNKNOWN',
-      before: existingProcess,
-      after: updatedProcess,
-    });
+    // Snapshot only the business fields (exclude id / createdAt / updatedAt so a
+    // no-op save doesn't log a meaningless "updatedAt changed" row).
+    const before = processAuditSnapshot(existingProcess);
+    const after = processAuditSnapshot(updatedProcess);
+
+    // Only record when something the user cares about actually changed.
+    if (JSON.stringify(before) !== JSON.stringify(after)) {
+      recordAudit({
+        entityType: 'Process',
+        entityId: id,
+        action: 'UPDATE',
+        actorId: actor?.actorId ?? 'system',
+        actorRole: actor?.actorRole ?? 'UNKNOWN',
+        before,
+        after,
+      });
+    }
 
     return updatedProcess;
   }
@@ -311,7 +352,7 @@ export class ProcessService {
     return flowchart;
   }
 
-  async updateFlowchart(processId: string, sections: any[], uploadedById?: string) {
+  async updateFlowchart(processId: string, sections: any[], uploadedById?: string, actor?: Actor) {
     // Check if flowchart exists
     const existingFlowchart = await prisma.processFlowchart.findUnique({
       where: { processId },
@@ -321,6 +362,7 @@ export class ProcessService {
             costs: true,
             files: true,
           },
+          orderBy: { stt: 'asc' },
         },
       },
     });
@@ -328,6 +370,9 @@ export class ProcessService {
     if (!existingFlowchart) {
       throw new NotFoundError('Flowchart not found');
     }
+
+    // Snapshot BEFORE for the audit timeline (ordered section names).
+    const beforeSnapshot = flowchartSnapshot(existingFlowchart.sections);
 
     // Build map of old files by id to preserve uploadedById/uploadedAt
     const oldFilesMap = new Map<string, { uploadedById: string | null; uploadedAt: Date }>();
@@ -398,6 +443,23 @@ export class ProcessService {
         },
       },
     });
+
+    // Non-fatal audit on the parent Process so flowchart edits (incl. reordering
+    // sections) appear in the same update-history timeline. Only record when the
+    // ordered section snapshot actually changed — never blocks the save.
+    const afterSnapshot = flowchartSnapshot(sections);
+    if (JSON.stringify(beforeSnapshot) !== JSON.stringify(afterSnapshot)) {
+      recordAudit({
+        entityType: 'Process',
+        entityId: processId,
+        action: 'UPDATE',
+        actorId: actor?.actorId ?? 'system',
+        actorRole: actor?.actorRole ?? 'UNKNOWN',
+        before: beforeSnapshot,
+        after: afterSnapshot,
+        note: 'Cập nhật lưu đồ quy trình',
+      });
+    }
 
     return updatedFlowchart;
   }
