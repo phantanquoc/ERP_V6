@@ -187,7 +187,7 @@ export class SystemOperationService {
       orderBy: { createdAt: 'desc' },
       include: {
         materialEvaluation: true,
-        machineSystem: { select: { id: true, maHeThong: true, tenHeThong: true } },
+        machineSystem: { select: { id: true, maHeThong: true, tenHeThong: true, trangThai: true } },
       },
     });
 

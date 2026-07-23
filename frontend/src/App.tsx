@@ -82,6 +82,7 @@ const MyNotifications = React.lazy(() => import('./pages/MyNotifications'));
 const DataEntryHub = React.lazy(() => import('./pages/production/DataEntryHub'));
 const ProductionDataEntry = React.lazy(() => import('./pages/production/ProductionDataEntry'));
 const ProductionMaterialEvaluationEntry = React.lazy(() => import('./pages/production/ProductionMaterialEvaluationEntry'));
+const ProductionSystemOperationEntry = React.lazy(() => import('./pages/production/ProductionSystemOperationEntry'));
 const DataEntryPositionConfig = React.lazy(() => import('./pages/production/DataEntryPositionConfig'));
 
 function PageTitleUpdater() {
@@ -108,6 +109,7 @@ function App() {
           <Route path="/production/nhap-lieu-hub" element={<DataEntryHub />} />
           <Route path="/production/nhap-lieu" element={<ProductionDataEntry />} />
           <Route path="/production/nhap-lieu-danh-gia" element={<ProductionMaterialEvaluationEntry />} />
+          <Route path="/production/nhap-lieu-van-hanh" element={<ProductionSystemOperationEntry />} />
 
           {/* Protected Routes — single Layout instance, never unmounts */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -289,6 +291,11 @@ function App() {
             <Route path="/production/tablet-hub-preview" element={
               <AdminRoute>
                 <DataEntryHub />
+              </AdminRoute>
+            } />
+            <Route path="/production/tablet-system-operation-preview" element={
+              <AdminRoute>
+                <ProductionSystemOperationEntry />
               </AdminRoute>
             } />
             <Route path="/production/data-entry-config" element={

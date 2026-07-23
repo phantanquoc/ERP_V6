@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { markTab } from '../../utils/kioskSession';
-import { Package, Leaf, HelpCircle } from 'lucide-react';
+import { Package, Leaf, Gauge } from 'lucide-react';
 
 const DataEntryHub: React.FC = () => {
   const navigate = useNavigate();
@@ -12,14 +12,6 @@ const DataEntryHub: React.FC = () => {
 
   const entryTypes = [
     {
-      key: 'production-output',
-      title: 'Sản lượng chiên',
-      description: 'Nhập dữ liệu sản lượng thành phẩm',
-      icon: Package,
-      route: '/production/nhap-lieu',
-      color: 'bg-blue-500 hover:bg-blue-600',
-    },
-    {
       key: 'material-evaluation',
       title: 'Đánh giá nguyên liệu',
       description: 'Nhập kết quả đánh giá chất lượng nguyên liệu',
@@ -28,13 +20,20 @@ const DataEntryHub: React.FC = () => {
       color: 'bg-green-500 hover:bg-green-600',
     },
     {
-      key: 'placeholder',
-      title: 'Loại nhập liệu thứ 3',
-      description: 'Dành chỗ cho loại nhập liệu trong tương lai',
-      icon: HelpCircle,
-      route: null,
-      color: 'bg-gray-300 cursor-not-allowed',
-      disabled: true,
+      key: 'system-operation',
+      title: 'Thông số vận hành',
+      description: 'Nhập thông số nhiệt độ, áp suất, thời gian sấy theo máy',
+      icon: Gauge,
+      route: '/production/nhap-lieu-van-hanh',
+      color: 'bg-orange-500 hover:bg-orange-600',
+    },
+    {
+      key: 'production-output',
+      title: 'Sản lượng chiên',
+      description: 'Nhập dữ liệu sản lượng thành phẩm',
+      icon: Package,
+      route: '/production/nhap-lieu',
+      color: 'bg-blue-500 hover:bg-blue-600',
     },
   ];
 
