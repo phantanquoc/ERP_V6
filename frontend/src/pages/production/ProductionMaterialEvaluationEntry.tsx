@@ -137,10 +137,12 @@ const NumericInput: React.FC<NumericInputProps> = ({ value, onChange, placeholde
     type="number"
     inputMode="decimal"
     step={step ?? '0.1'}
+    min={0}
     placeholder={placeholder ?? '0'}
     className="w-full min-h-[52px] px-3 py-2 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
     value={value === 0 ? '' : value}
-    onChange={(e) => onChange(parseNumberInput(e.target.value))}
+    // Kẹp về >= 0: không cho nhập giá trị âm
+    onChange={(e) => onChange(Math.max(0, parseNumberInput(e.target.value)))}
   />
 );
 
@@ -605,18 +607,9 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
       ? new Date(wizardData.thoiGianChien).toISOString()
       : '';
 
-    // Sinh mã chiên trước khi build payload để tránh conflict unique key
-    // (backend maChien là String @unique — nếu gửi '' sẽ đụng row đầu tiên).
-    let maChien: string;
-    try {
-      maChien = await materialEvaluationService.generateMaChien();
-    } catch (err) {
-      toast.error('Không thể sinh mã chiên. Vui lòng thử lại.');
-      return;
-    }
-
+    // maChien do backend tự sinh (trong retry loop chống trùng khi nhiều tablet
+    // lưu cùng lúc) — không sinh ở client nữa để tránh race condition.
     const payload = {
-      maChien,
       thoiGianChien: iso,
       ca: selectedShift,
       tenHangHoa: wizardData.tenHangHoa,
@@ -766,7 +759,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
           <div className="flex items-center gap-3 min-w-0">
             <img src="/abf-logo.png" alt="An Bình Foods" className="h-9 object-contain hidden sm:block" />
             <div className="min-w-0">
-              <h1 className="text-lg font-semibold text-gray-800 truncate">Đánh giá nguyên liệu</h1>
+              <h1 className="text-lg font-semibold text-gray-800 truncate">Đánh giá ngâm</h1>
               <p className="text-sm text-gray-600 truncate">
                 {nguoiThucHien} <span className="text-gray-400">·</span> Ca {selectedShift}
               </p>
@@ -791,27 +784,6 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
               <CalendarClock className="w-4 h-4" />
               <span className="hidden sm:inline">Đổi ca</span>
             </button>
-            {currentStep < 5 ? (
-              <button
-                type="button"
-                onClick={handleNext}
-                disabled={!isStepValid(currentStep)}
-                className="flex items-center gap-2 px-5 min-h-[44px] bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg font-medium text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              >
-                Tiếp tục
-                <span aria-hidden="true">→</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={submitting || khoiLuongExceeded}
-                className="flex items-center gap-2 px-5 min-h-[44px] bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-              >
-                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Xác nhận & Lưu
-              </button>
-            )}
           </div>
         </div>
 
@@ -1203,21 +1175,44 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
         )}
       </div>
 
-      {/* Footer — chỉ hiện nút Quay lại khi ở bước > 2 */}
-      {currentStep > 2 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t z-10">
-          <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
+      {/* Footer — nút điều hướng: Quay lại (trái) + Tiếp tục/Xác nhận (phải) */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t z-10">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+          {currentStep > 2 ? (
             <button
               type="button"
               onClick={handleBack}
               className="min-h-[52px] px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 rounded-lg text-base font-medium flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-gray-400"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-5 h-5" />
               Quay lại
             </button>
-          </div>
+          ) : (
+            <span aria-hidden="true" />
+          )}
+          {currentStep < 5 ? (
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={!isStepValid(currentStep)}
+              className="min-h-[52px] px-8 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg text-base font-semibold flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            >
+              Tiếp tục
+              <span aria-hidden="true">→</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={submitting || khoiLuongExceeded}
+              className="min-h-[52px] px-8 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-base font-semibold flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-green-400"
+            >
+              {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+              Xác nhận & Lưu
+            </button>
+          )}
         </div>
-      )}
+      </div>
 
       {viewingEvalId && (
         <EvaluationDetailReadOnly

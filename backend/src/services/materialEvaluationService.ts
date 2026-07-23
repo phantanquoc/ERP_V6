@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import { nextStaticCode, staticCodeWhere, nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
+import systemOperationService from '@services/systemOperationService';
 
 export class MaterialEvaluationService {
   async getAllMaterialEvaluations(
@@ -128,16 +129,19 @@ export class MaterialEvaluationService {
     return nextYearlyCode(last?.maPhieuXuat ?? null, 'PX', year);
   }
 
+  /** True when a Prisma error is a unique-constraint violation on the maChien column. */
+  private isMaChienConflict(err: unknown): boolean {
+    return (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === 'P2002' &&
+      Array.isArray((err.meta as { target?: string[] } | undefined)?.target) &&
+      ((err.meta as { target?: string[] }).target as string[]).some((t) =>
+        t.toLowerCase().includes('machien'),
+      )
+    );
+  }
+
   async createMaterialEvaluation(data: any, userId?: string) {
-    // Validate maChien uniqueness
-    const existing = await prisma.materialEvaluation.findUnique({
-      where: { maChien: data.maChien },
-    });
-
-    if (existing) {
-      throw new ValidationError('Mã chiên đã tồn tại');
-    }
-
     // Parse datetime from frontend
     let thoiGianChien: Date;
     if (data.thoiGianChien) {
@@ -146,6 +150,30 @@ export class MaterialEvaluationService {
       thoiGianChien = new Date();
     }
 
+    // maChien is generated server-side inside a retry loop. Two tablets submitting
+    // near-simultaneously used to read the same "next" code client-side and collide on
+    // the unique constraint, losing the second worker's data. Generating + creating here
+    // with retry-on-conflict makes concurrent creates safe. Any client-sent maChien is
+    // ignored — the server owns the code.
+    const MAX_ATTEMPTS = 5;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      data.maChien = await this.generateMaChien();
+      try {
+        return await this.createForGeneratedMaChien(data, thoiGianChien, userId);
+      } catch (err) {
+        if (this.isMaChienConflict(err)) {
+          continue; // regenerate and retry
+        }
+        throw err;
+      }
+    }
+    throw new ValidationError(
+      'Không thể sinh mã chiên do có quá nhiều yêu cầu cùng lúc. Vui lòng thử lại.',
+    );
+  }
+
+  /** Dispatches to the correct create path for an already-generated maChien. */
+  private async createForGeneratedMaChien(data: any, thoiGianChien: Date, userId?: string) {
     // If lotProductId is provided, run the transactional create with WarehouseIssue
     if (data.lotProductId) {
       return this.createWithWarehouseLink(data, thoiGianChien, userId);
@@ -173,7 +201,34 @@ export class MaterialEvaluationService {
       },
     });
 
+    // Non-fatal side effect: auto-generate child rows (SystemOperation / FinishedProduct /
+    // QualityEvaluation) for every active production machine. Failure must not fail the
+    // primary create (AGENTS.md: side effects never bubble errors that fail the main op).
+    await this.seedProductionChildRows(evaluation.maChien, evaluation.thoiGianChien);
+
     return evaluation;
+  }
+
+  /**
+   * Non-fatal wrapper around SystemOperationService.createBulkSystemOperations.
+   * Never rethrows — logs on failure so the calling MaterialEvaluation create still succeeds.
+   */
+  private async seedProductionChildRows(maChien: string, thoiGianChien: Date): Promise<void> {
+    try {
+      // createBulkSystemOperations queries MaterialEvaluation by { maChien, thoiGianChien }.
+      // Prisma accepts an ISO string for a DateTime field; pass the ISO string of the stored
+      // Date so the seeder finds the just-created parent evaluation.
+      await systemOperationService.createBulkSystemOperations(
+        maChien,
+        thoiGianChien.toISOString(),
+      );
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[materialEvaluationService] Auto-seed production child rows failed for maChien="${maChien}":`,
+        err,
+      );
+    }
   }
 
   private async createWithWarehouseLink(data: any, thoiGianChien: Date, userId?: string) {
@@ -277,6 +332,11 @@ export class MaterialEvaluationService {
 
       return newEvaluation;
     });
+
+    // Non-fatal side effect (post-transaction): seed production child rows for every
+    // active machine. Kept outside the transaction to isolate seeding from the warehouse
+    // issue — a seeder failure must not roll back a valid stock issue.
+    await this.seedProductionChildRows(evaluation.maChien, evaluation.thoiGianChien);
 
     return evaluation;
   }
