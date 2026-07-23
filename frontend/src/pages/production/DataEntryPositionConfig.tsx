@@ -5,7 +5,7 @@ import {
   useAddPageMapping,
   useRemovePageMapping,
 } from '../../hooks/useDataEntryPagePosition';
-import { Loader2, Plus, Trash2, Package, Leaf, HelpCircle } from 'lucide-react';
+import { Loader2, Plus, Trash2, Package, Leaf, Gauge } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const PAGE_KEYS = [
@@ -22,11 +22,10 @@ const PAGE_KEYS = [
     icon: Leaf,
   },
   {
-    key: 'RESERVED',
-    label: 'Loại nhập liệu thứ 3 (dành chỗ)',
-    description: 'Chưa được triển khai',
-    icon: HelpCircle,
-    disabled: true,
+    key: 'SYSTEM_OPERATION',
+    label: 'Thông số vận hành',
+    description: 'Trang nhập liệu thông số vận hành theo máy',
+    icon: Gauge,
   },
 ];
 
@@ -87,13 +86,10 @@ const DataEntryPositionConfig: React.FC = () => {
           return (
             <button
               key={page.key}
-              onClick={() => !page.disabled && setSelectedPageKey(page.key)}
-              disabled={page.disabled}
+              onClick={() => setSelectedPageKey(page.key)}
               className={`p-4 rounded-xl border-2 transition-all ${
                 selectedPageKey === page.key
                   ? 'border-blue-500 bg-blue-50'
-                  : page.disabled
-                  ? 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
                   : 'border-gray-200 hover:border-blue-300'
               }`}
             >
@@ -112,7 +108,7 @@ const DataEntryPositionConfig: React.FC = () => {
       </div>
 
       {/* Config section */}
-      {selectedPage && !selectedPage.disabled && (
+      {selectedPage && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Mapped positions */}
           <div className="bg-white rounded-xl border p-6">

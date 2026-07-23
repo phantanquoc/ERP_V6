@@ -152,6 +152,21 @@ export const useSystemOperationByBatchAndFryer = (maChien: string, machineSystem
     enabled: !!maChien && !!machineSystemId,
   });
 
+/**
+ * All SystemOperation rows seeded for a fry batch (one per machine that was active
+ * at batch creation). Drives the operation-entry machine picker: machines come from
+ * the seeded rows — NOT from the current active-machine list — so a machine that went
+ * into maintenance mid-shift still shows up with its data, and a machine reactivated
+ * after creation never appears with no row to fill.
+ */
+export const useSystemOperationsByMaChien = (maChien: string) =>
+  useQuery({
+    queryKey: [...productionEntryKeys.all, 'systemOpsByMaChien', maChien] as const,
+    queryFn: (): Promise<SystemOperation[]> =>
+      systemOperationService.getSystemOperationsByMaChien(maChien),
+    enabled: !!maChien,
+  });
+
 export const useFinishedProductByBatchAndFryer = (maChien: string, machineSystemId: string) =>
   useQuery({
     queryKey: productionEntryKeys.finishedProduct(maChien, machineSystemId),

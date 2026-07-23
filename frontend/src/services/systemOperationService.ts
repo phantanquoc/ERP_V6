@@ -21,7 +21,12 @@ export interface SystemOperation {
   ghiChu?: string;
   nguoiThucHien: string;
   materialEvaluationId?: string;
-  machineSystem?: { id: string; maHeThong: string; tenHeThong: string } | null;
+  machineSystem?: {
+    id: string;
+    maHeThong: string;
+    tenHeThong: string;
+    trangThai?: 'HOAT_DONG' | 'BAO_TRI' | 'NGUNG_HOAT_DONG';
+  } | null;
   createdAt?: string;
   updatedAt?: string;
 }
