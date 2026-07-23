@@ -1,6 +1,6 @@
 import apiClient from './apiClient';
 
-export type AuditEntityType = 'QuotationRequest' | 'Quotation' | 'Order' | 'ExportCost';
+export type AuditEntityType = 'QuotationRequest' | 'Quotation' | 'Order' | 'ExportCost' | 'Process';
 export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'STATUS_CHANGE' | 'PRICE_UNLOCK';
 
 export interface AuditLog {

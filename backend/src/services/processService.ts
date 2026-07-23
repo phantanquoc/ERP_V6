@@ -2,6 +2,7 @@ import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
 import { nextStaticCode, staticCodeWhere } from '@utils/codeGenerator';
+import { recordAudit } from '@utils/auditLog';
 import type { PaginatedResponse } from '@types';
 import ExcelJS from 'exceljs';
 
@@ -130,7 +131,8 @@ export class ProcessService {
       tenQuyTrinh?: string;
       loaiQuyTrinh?: string;
       files?: string[];
-    }
+    },
+    actor?: { actorId?: string; actorRole?: string }
   ): Promise<any> {
     const existingProcess = await this.getProcessById(id);
 
@@ -143,6 +145,17 @@ export class ProcessService {
         loaiQuyTrinh: data.loaiQuyTrinh ?? existingProcess.loaiQuyTrinh,
         ...(data.files !== undefined && { files: data.files }),
       },
+    });
+
+    // Non-fatal change-history audit (who/when/what). Never blocks the update.
+    recordAudit({
+      entityType: 'Process',
+      entityId: id,
+      action: 'UPDATE',
+      actorId: actor?.actorId ?? 'system',
+      actorRole: actor?.actorRole ?? 'UNKNOWN',
+      before: existingProcess,
+      after: updatedProcess,
     });
 
     return updatedProcess;
