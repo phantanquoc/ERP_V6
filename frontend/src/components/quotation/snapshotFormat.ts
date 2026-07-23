@@ -27,6 +27,12 @@ export const FIELD_LABELS: Record<string, string> = {
   ngayBaoGia: 'Ngày báo giá',
   createdAt: 'Ngày tạo',
   updatedAt: 'Cập nhật lần cuối',
+  // Process (quy trình) fields — used by the process update-history timeline
+  maQuyTrinh: 'Mã quy trình',
+  tenQuyTrinh: 'Tên quy trình',
+  loaiQuyTrinh: 'Loại quy trình',
+  msnv: 'MSNV người phụ trách',
+  files: 'Tệp đính kèm',
 };
 
 export const STATUS_LABELS: Record<string, string> = {

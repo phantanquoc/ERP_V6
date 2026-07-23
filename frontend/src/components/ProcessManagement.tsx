@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Eye, X, FileText, Download, Upload, Printer, Settings } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, X, FileText, Download, Upload, Printer, Settings, History } from 'lucide-react';
 import Modal from './Modal';
+import AuditTimeline from './quotation/AuditTimeline';
+import { auditLogService, AuditLog } from '../services/auditLogService';
 import FileUpload from './FileUpload';
 import processService, { Process, CreateProcessData, ProcessFlowchartSection, ProcessFlowchartCost } from '../services/processService';
 import { useAuth } from '../contexts/AuthContext';
@@ -95,6 +97,38 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
   const [processFiles, setProcessFiles] = useState<string[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [previewFileUrl, setPreviewFileUrl] = useState<string | null>(null);
+
+  // Update-history (audit) modal state
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [historyProcess, setHistoryProcess] = useState<Process | null>(null);
+  const [historyLogs, setHistoryLogs] = useState<AuditLog[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Open the update-history timeline for a process (audit log, entityType=Process)
+  const handleOpenHistory = async (process: Process) => {
+    setHistoryProcess(process);
+    setIsHistoryOpen(true);
+    setHistoryLoading(true);
+    try {
+      const res = await auditLogService.listAudit({
+        entityType: 'Process',
+        entityId: process.id,
+        limit: 100,
+      });
+      setHistoryLogs(res.data ?? []);
+    } catch (err) {
+      console.error('Error loading process history:', err);
+      setHistoryLogs([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleCloseHistory = () => {
+    setIsHistoryOpen(false);
+    setHistoryProcess(null);
+    setHistoryLogs([]);
+  };
 
   // Flowchart sections state
   const [flowchartSections, setFlowchartSections] = useState<ProcessFlowchartSection[]>([]);
@@ -677,9 +711,16 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                             <button
                               onClick={() => handleEditProcess(process)}
                               className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
-                              title="Chỉnh sửa"
+                              title="Cập nhật"
                             >
                               <Edit className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={() => handleOpenHistory(process)}
+                              className="p-1.5 text-indigo-600 hover:bg-indigo-100 rounded-md transition-colors"
+                              title="Lịch sử cập nhật"
+                            >
+                              <History className="w-5 h-5" />
                             </button>
                             <button
                               onClick={() => handleDelete(process.id)}
@@ -778,7 +819,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
         <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
               <h3 className="text-lg font-semibold text-gray-900">
-                {editingProcess ? 'Chỉnh sửa quy trình' : 'Tạo quy trình mới'}
+                {editingProcess ? 'Cập nhật quy trình' : 'Tạo quy trình mới'}
               </h3>
               <button
                 onClick={handleCloseModal}
@@ -1902,6 +1943,31 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
             </div>
           </>)}
           </div>
+      </Modal>
+
+      {/* Update-history timeline modal (who / when / what changed) */}
+      <Modal isOpen={isHistoryOpen} onClose={handleCloseHistory} showBackdrop closeOnBackdrop={true}>
+        <div className="flex flex-col max-h-[80vh]">
+          <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <History className="w-5 h-5 text-indigo-600" />
+              Lịch sử cập nhật
+              {historyProcess && (
+                <span className="text-sm font-normal text-gray-500">— {historyProcess.tenQuyTrinh}</span>
+              )}
+            </h3>
+            <button onClick={handleCloseHistory} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="overflow-y-auto flex-1 p-6">
+            {historyLoading ? (
+              <p className="text-gray-500 text-sm text-center py-6">Đang tải lịch sử...</p>
+            ) : (
+              <AuditTimeline entries={historyLogs} />
+            )}
+          </div>
+        </div>
       </Modal>
     </div>
   );

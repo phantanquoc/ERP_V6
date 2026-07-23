@@ -82,7 +82,8 @@ export class ProcessController {
   async updateProcess(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = req.params.id as string;
-      const process = await processService.updateProcess(id, req.body);
+      const actor = { actorId: req.user?.id, actorRole: req.user?.role };
+      const process = await processService.updateProcess(id, req.body, actor);
 
       const response: ApiResponse<any> = {
         success: true,
