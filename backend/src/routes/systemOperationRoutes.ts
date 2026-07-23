@@ -1,14 +1,14 @@
 import { Router } from 'express';
 import systemOperationController from '@controllers/systemOperationController';
-import { authenticate, authorize } from '@middlewares/auth';
+import { authenticate, authorize, deviceOrJwtAuth } from '@middlewares/auth';
 import { zodValidate } from '@middlewares/zodValidation';
 import { createSystemOperationSchema, createBulkSystemOperationSchema, updateSystemOperationSchema } from '@schemas';
 import { UserRole } from '@types';
 
 const router = Router();
 
-// All system operation routes require authentication
-router.use(authenticate);
+// Note: auth is applied per-route. Kiosk-facing routes (read by maChien, update by id)
+// use deviceOrJwtAuth('DATA_ENTRY') so the tablet's device key works; all others require JWT.
 
 /**
  * @swagger
@@ -42,6 +42,7 @@ router.use(authenticate);
  */
 router.get(
   '/',
+  authenticate,
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
   systemOperationController.getAllSystemOperations
 );
@@ -69,9 +70,10 @@ router.get(
  *       404:
  *         description: Không tìm thấy thông số
  */
+// Kiosk-facing: tablet reads the pre-created row for a batch via device key.
 router.get(
   '/ma-chien/:maChien',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  deviceOrJwtAuth('DATA_ENTRY'),
   systemOperationController.getSystemOperationsByMaChien
 );
 
@@ -100,6 +102,7 @@ router.get(
  */
 router.get(
   '/:id',
+  authenticate,
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
   systemOperationController.getSystemOperationById
 );
@@ -128,6 +131,7 @@ router.get(
  */
 router.post(
   '/bulk',
+  authenticate,
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
   zodValidate(createBulkSystemOperationSchema),
   systemOperationController.createBulkSystemOperations
@@ -157,6 +161,7 @@ router.post(
  */
 router.post(
   '/',
+  authenticate,
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
   zodValidate(createSystemOperationSchema),
   systemOperationController.createSystemOperation
@@ -193,9 +198,10 @@ router.post(
  *       404:
  *         description: Không tìm thấy thông số
  */
+// Kiosk-facing: tablet saves operation parameters via device key.
 router.patch(
   '/:id',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  deviceOrJwtAuth('DATA_ENTRY'),
   zodValidate(updateSystemOperationSchema),
   systemOperationController.updateSystemOperation
 );
@@ -227,6 +233,7 @@ router.patch(
  */
 router.delete(
   '/:id',
+  authenticate,
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
   systemOperationController.deleteSystemOperation
 );
