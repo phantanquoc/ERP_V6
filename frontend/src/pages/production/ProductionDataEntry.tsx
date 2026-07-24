@@ -257,7 +257,7 @@ const FullGridPreview: React.FC<FullGridPreviewProps> = ({
         </div>
 
         {/* Action buttons - sticky bottom */}
-        <div className="sticky bottom-0 bg-white border-t p-4 rounded-xl flex gap-3">
+        <div className={`sticky bottom-0 bg-white border-t p-4 rounded-xl flex gap-3 transition-transform duration-200 ${keyboardOpen ? 'translate-y-full' : ''}`}>
           <button
             onClick={onEdit}
             className="flex-1 min-h-[44px] px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
@@ -284,7 +284,7 @@ const ProductionDataEntry: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [kioskExpired, setKioskExpired] = useState(false);
-  const keyboardOpen = useVirtualKeyboard();
+  const { keyboardOpen } = useVirtualKeyboard();
   const [selectedShift, setSelectedShift] = useState<number>(() => getSelection()?.shift ?? 0);
   const [nguoiThucHien, setNguoiThucHien] = useState<string>(() => getSelection()?.operator ?? '');
   const [operatorId, setOperatorId] = useState<string>(() => getSelection()?.operatorId ?? '');

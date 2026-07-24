@@ -2,6 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Virtual keyboard: prevent sticky header/footer from covering scrolled-into-view inputs */
+@layer base {
+  input, textarea, select {
+    scroll-margin-top: 80px;
+    scroll-margin-bottom: 80px;
+  }
+}
+
 /* Marquee scrolling text for slogan bar */
 @layer components {
   .marquee-container {
