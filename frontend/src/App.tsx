@@ -51,7 +51,6 @@ const ProductionManagement = React.lazy(() => import('./pages/ProductionManageme
 const ProductionDepartment = React.lazy(() => import('./pages/production/ProductionDepartment'));
 const ProductionData = React.lazy(() => import('./pages/production/ProductionData'));
 const ProductionWarehouse = React.lazy(() => import('./pages/production/ProductionWarehouse'));
-const SoakingPlanManagement = React.lazy(() => import('./pages/production/SoakingPlanManagement'));
 
 // Technical Management
 const TechnicalManagement = React.lazy(() => import('./pages/TechnicalManagement'));
@@ -253,11 +252,6 @@ function App() {
             <Route path="/production/warehouse" element={
               <ProtectedSubRoute department="production" subModule="warehouse">
                 <ProductionWarehouse />
-              </ProtectedSubRoute>
-            } />
-            <Route path="/production/planning" element={
-              <ProtectedSubRoute department="production" subModule="planning">
-                <SoakingPlanManagement />
               </ProtectedSubRoute>
             } />
 
