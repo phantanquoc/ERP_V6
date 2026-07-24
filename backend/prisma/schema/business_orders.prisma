@@ -86,6 +86,7 @@ model InternationalProduct {
   orderItems            OrderItem[]
   quotationRequestItems QuotationRequestItem[]
   finishedProducts      FinishedProduct[]
+  soakingPlans          SoakingPlan[]
   reorderRule           ProductReorderRule?
 
   @@index([tenSanPham])
@@ -486,6 +487,7 @@ model Order {
   createdAt                   DateTime               @default(now())
   updatedAt                   DateTime               @updatedAt
   items                       OrderItem[]
+  soakingPlans                SoakingPlan[]
   customer                    InternationalCustomer? @relation(fields: [customerId], references: [id])
   employee                    Employee?              @relation(fields: [employeeId], references: [id])
   quotation                   Quotation              @relation(fields: [quotationId], references: [id])
