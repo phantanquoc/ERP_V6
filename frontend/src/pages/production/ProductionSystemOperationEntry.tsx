@@ -23,6 +23,7 @@ import {
   getDeviceKey,
   setDeviceKey,
 } from '../../utils/kioskSession';
+import useVirtualKeyboard from '../../hooks/useVirtualKeyboard';
 import { parseNumberInput } from '../../utils/numberInput';
 import {
   useFryBatchCodes,
@@ -184,6 +185,7 @@ const ProductionSystemOperationEntry: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [kioskExpired, setKioskExpired] = useState(false);
+  const keyboardOpen = useVirtualKeyboard();
   const [selectedShift, setSelectedShift] = useState<number>(() => getSelection()?.shift ?? 0);
   const [nguoiThucHien, setNguoiThucHien] = useState<string>(() => getSelection()?.operator ?? '');
   const [operatorId, setOperatorId] = useState<string>(() => getSelection()?.operatorId ?? '');
@@ -547,17 +549,17 @@ const ProductionSystemOperationEntry: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Sticky header */}
-      <div className="sticky top-0 z-10 bg-white border-b shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 py-3">
+      <div className="sticky top-0 z-10 bg-white border-b shadow-sm transition-all duration-150">
+        <div className={`max-w-4xl mx-auto px-4 ${keyboardOpen ? 'py-2' : 'py-3'}`}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <img src="/abf-logo.png" alt="An Bình Foods" className="h-9 object-contain hidden sm:block" />
+              <img src="/abf-logo.png" alt="An Bình Foods" className={`h-9 object-contain ${keyboardOpen ? 'hidden' : 'hidden sm:block'}`} />
               <div className="min-w-0">
                 <h1 className="text-lg font-semibold text-gray-800 truncate flex items-center gap-2">
                   <Gauge className="w-5 h-5 text-blue-600" />
                   Thông số vận hành
                 </h1>
-                <p className="text-sm text-gray-600 truncate">
+                <p className={`text-sm text-gray-600 truncate ${keyboardOpen ? 'hidden' : ''}`}>
                   {nguoiThucHien} <span className="text-gray-400">·</span> Ca {selectedShift}
                 </p>
               </div>
@@ -586,7 +588,7 @@ const ProductionSystemOperationEntry: React.FC = () => {
 
           {/* Date picker (only visible while picking a batch) */}
           {step === 'batch' && (
-            <div className="flex items-center gap-2 mt-3">
+            <div className={`flex items-center gap-2 mt-3 ${keyboardOpen ? 'hidden' : ''}`}>
               <label className="text-sm font-medium text-gray-600">Ngày sản xuất:</label>
               <input
                 type="date"
