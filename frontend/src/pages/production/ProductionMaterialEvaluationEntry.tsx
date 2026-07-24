@@ -47,8 +47,6 @@ import KioskFooter from '../../components/production/KioskFooter';
 import { useAuth } from '../../contexts/AuthContext';
 import { isAdmin } from '../../utils/permissions';
 import faceAttendanceService from '../../services/faceAttendanceService';
-import { useActiveByProductId } from '../../hooks/useSoakingPlans';
-import type { SoakingPlan } from '../../services/soakingPlanService';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -339,25 +337,6 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
   const khoiLuongExceeded = useMemo(
     () => selectedKien !== null && wizardData.khoiLuong > selectedKien.soLuong,
     [selectedKien, wizardData.khoiLuong],
-  );
-
-  // ─── Soaking plan (ke hoach ngam) ─────────────────────────────────────────
-  const { data: activePlansData } = useActiveByProductId(wizardData.productId || null);
-  const activePlans: SoakingPlan[] = activePlansData?.data ?? [];
-  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
-
-  // Auto-select when exactly 1 plan; clear when product changes
-  useEffect(() => {
-    if (activePlans.length === 1) {
-      setSelectedPlanId(activePlans[0].id);
-    } else {
-      setSelectedPlanId(null);
-    }
-  }, [activePlans.length, wizardData.productId]);
-
-  const selectedPlan = useMemo(
-    () => activePlans.find(p => p.id === selectedPlanId) ?? null,
-    [activePlans, selectedPlanId],
   );
 
   // ─── Draft persistence (localStorage) ─────────────────────────────────────
@@ -1036,111 +1015,48 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
         )}
 
         {currentStep === 4 && (
-          <div className="max-w-4xl mx-auto px-4 space-y-4">
+          <div className="max-w-2xl mx-auto px-4 space-y-4">
             <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
               <Beaker className="w-5 h-5 text-blue-600" />
               Thông số chiên
             </h2>
-
-            {/* Plan selector when multiple plans exist */}
-            {activePlans.length > 1 && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <label className="block text-xs font-medium text-blue-700 mb-1.5">
-                  Chọn kế hoạch ngâm ({activePlans.length} kế hoạch hiệu lực)
-                </label>
-                <select
-                  value={selectedPlanId || ''}
-                  onChange={(e) => setSelectedPlanId(e.target.value || null)}
-                  className="w-full px-3 py-2 border border-blue-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">-- Chọn kế hoạch --</option>
-                  {activePlans.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.tenSanPham} - KL {p.khoiLuong}kg | Ngâm {p.soLanNgam} lần
-                    </option>
-                  ))}
-                </select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Số lần ngâm</label>
+                <NumericInput
+                  value={wizardData.soLanNgam}
+                  onChange={(v) => setWizardData(prev => ({ ...prev, soLanNgam: v }))}
+                  step="1"
+                />
               </div>
-            )}
-
-            <div className={`grid gap-6 ${selectedPlan ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
-              {/* LEFT: Plan parameters (read-only) */}
-              {selectedPlan && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 space-y-3">
-                  <h3 className="text-sm font-semibold text-emerald-800">Kế hoạch mục tiêu</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Số lần ngâm</span>
-                      <span className="font-medium text-emerald-700">{selectedPlan.soLanNgam}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Nhiệt độ trước ngâm</span>
-                      <span className="font-medium text-emerald-700">{selectedPlan.nhietDoNuocTruocNgam}°C</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Nhiệt độ sau vớt</span>
-                      <span className="font-medium text-emerald-700">{selectedPlan.nhietDoNuocSauVot}°C</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Thời gian ngâm</span>
-                      <span className="font-medium text-emerald-700">{selectedPlan.thoiGianNgam} phút</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Brix nước ngâm</span>
-                      <span className="font-medium text-emerald-700">{selectedPlan.brixNuocNgam}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Khối lượng</span>
-                      <span className="font-medium text-emerald-700">{selectedPlan.khoiLuong} kg</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* RIGHT: Actual input fields */}
-              <div className="space-y-4">
-                {selectedPlan && (
-                  <h3 className="text-sm font-semibold text-gray-700">Thực tế</h3>
-                )}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Số lần ngâm</label>
-                    <NumericInput
-                      value={wizardData.soLanNgam}
-                      onChange={(v) => setWizardData(prev => ({ ...prev, soLanNgam: v }))}
-                      step="1"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Nhiệt độ nước trước ngâm (°C)</label>
-                    <NumericInput
-                      value={wizardData.nhietDoNuocTruocNgam}
-                      onChange={(v) => setWizardData(prev => ({ ...prev, nhietDoNuocTruocNgam: v }))}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Nhiệt độ nước sau vớt (°C)</label>
-                    <NumericInput
-                      value={wizardData.nhietDoNuocSauVot}
-                      onChange={(v) => setWizardData(prev => ({ ...prev, nhietDoNuocSauVot: v }))}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Thời gian ngâm (Phút)</label>
-                    <NumericInput
-                      value={wizardData.thoiGianNgam}
-                      onChange={(v) => setWizardData(prev => ({ ...prev, thoiGianNgam: v }))}
-                      step="1"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Brix nước ngâm</label>
-                    <NumericInput
-                      value={wizardData.brixNuocNgam}
-                      onChange={(v) => setWizardData(prev => ({ ...prev, brixNuocNgam: v }))}
-                    />
-                  </div>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nhiệt độ nước trước ngâm (°C)</label>
+                <NumericInput
+                  value={wizardData.nhietDoNuocTruocNgam}
+                  onChange={(v) => setWizardData(prev => ({ ...prev, nhietDoNuocTruocNgam: v }))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nhiệt độ nước sau vớt (°C)</label>
+                <NumericInput
+                  value={wizardData.nhietDoNuocSauVot}
+                  onChange={(v) => setWizardData(prev => ({ ...prev, nhietDoNuocSauVot: v }))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Thời gian ngâm (Phút)</label>
+                <NumericInput
+                  value={wizardData.thoiGianNgam}
+                  onChange={(v) => setWizardData(prev => ({ ...prev, thoiGianNgam: v }))}
+                  step="1"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Brix nước ngâm</label>
+                <NumericInput
+                  value={wizardData.brixNuocNgam}
+                  onChange={(v) => setWizardData(prev => ({ ...prev, brixNuocNgam: v }))}
+                />
               </div>
             </div>
           </div>
