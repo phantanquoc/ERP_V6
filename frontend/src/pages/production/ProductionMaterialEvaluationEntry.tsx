@@ -28,6 +28,7 @@ import {
   getDeviceKey,
   setDeviceKey,
 } from '../../utils/kioskSession';
+import useVirtualKeyboard from '../../hooks/useVirtualKeyboard';
 import { parseNumberInput } from '../../utils/numberInput';
 import { getQuickTimesForShift, computeShiftDatetime } from '../../utils/shiftTime';
 import { useRawMaterials, rawMaterialKeys } from '../../hooks/useRawMaterials';
@@ -213,6 +214,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [kioskExpired, setKioskExpired] = useState(false);
+  const keyboardOpen = useVirtualKeyboard();
   const [selectedShift, setSelectedShift] = useState<number>(() => getSelection()?.shift ?? 0);
   const [nguoiThucHien, setNguoiThucHien] = useState<string>(() => getSelection()?.operator ?? '');
   const [operatorId, setOperatorId] = useState<string>(() => getSelection()?.operatorId ?? '');
@@ -754,13 +756,13 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-white border-b shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+      <div className="sticky top-0 z-10 bg-white border-b shadow-sm transition-all duration-150">
+        <div className={`max-w-4xl mx-auto px-4 flex items-center justify-between gap-3 ${keyboardOpen ? 'py-2' : 'py-3'}`}>
           <div className="flex items-center gap-3 min-w-0">
-            <img src="/abf-logo.png" alt="An Bình Foods" className="h-9 object-contain hidden sm:block" />
+            <img src="/abf-logo.png" alt="An Bình Foods" className={`h-9 object-contain ${keyboardOpen ? 'hidden' : 'hidden sm:block'}`} />
             <div className="min-w-0">
               <h1 className="text-lg font-semibold text-gray-800 truncate">Đánh giá ngâm</h1>
-              <p className="text-sm text-gray-600 truncate">
+              <p className={`text-sm text-gray-600 truncate ${keyboardOpen ? 'hidden' : ''}`}>
                 {nguoiThucHien} <span className="text-gray-400">·</span> Ca {selectedShift}
               </p>
             </div>
@@ -788,7 +790,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
         </div>
 
         {/* Today's evaluations — chip list */}
-        <div className="max-w-4xl mx-auto px-4 pb-2 pt-1 border-t border-gray-100">
+        <div className={`max-w-4xl mx-auto px-4 pb-2 pt-1 border-t border-gray-100 ${keyboardOpen ? 'hidden' : ''}`}>
           {todayEvals.length === 0 ? (
             <div className="flex items-center gap-2 text-xs text-gray-400 py-1">
               <span aria-hidden="true">📋</span>

@@ -10,6 +10,7 @@ import {
   DirtyRecord,
 } from '../../hooks/useProductionDataEntry';
 import { useAttendedOperatorsByShift } from '../../hooks/useAttendedOperators';
+import useVirtualKeyboard from '../../hooks/useVirtualKeyboard';
 import { markTab, isKioskTab, hasKioskSession, KIOSK_EXPIRED_EVENT, getSelection, setSelection, clearSelection, getDeviceKey, setDeviceKey } from '../../utils/kioskSession';
 import { parseNumberInput } from '../../utils/numberInput';
 import { FinishedProduct } from '../../services/finishedProductService';
@@ -283,6 +284,7 @@ const ProductionDataEntry: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [kioskExpired, setKioskExpired] = useState(false);
+  const keyboardOpen = useVirtualKeyboard();
   const [selectedShift, setSelectedShift] = useState<number>(() => getSelection()?.shift ?? 0);
   const [nguoiThucHien, setNguoiThucHien] = useState<string>(() => getSelection()?.operator ?? '');
   const [operatorId, setOperatorId] = useState<string>(() => getSelection()?.operatorId ?? '');
@@ -787,14 +789,14 @@ const ProductionDataEntry: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Sticky header */}
-      <div className="sticky top-0 z-10 bg-white border-b shadow-sm">
-        <div className="max-w-full mx-auto px-4 py-3">
-          <div className="flex items-center justify-between gap-3 mb-3">
+      <div className="sticky top-0 z-10 bg-white border-b shadow-sm transition-all duration-150">
+        <div className={`max-w-full mx-auto px-4 ${keyboardOpen ? 'py-2' : 'py-3'}`}>
+          <div className={`flex items-center justify-between gap-3 ${keyboardOpen ? 'mb-0' : 'mb-3'}`}>
             <div className="flex items-center gap-3 min-w-0">
-              <img src="/abf-logo.png" alt="An Bình Foods" className="h-9 object-contain hidden sm:block" />
+              <img src="/abf-logo.png" alt="An Bình Foods" className={`h-9 object-contain ${keyboardOpen ? 'hidden' : 'hidden sm:block'}`} />
               <div className="min-w-0">
                 <h1 className="text-lg font-semibold text-gray-800 truncate">Bảng sản lượng thành phẩm</h1>
-                <p className="text-sm text-gray-600 truncate">
+                <p className={`text-sm text-gray-600 truncate ${keyboardOpen ? 'hidden' : ''}`}>
                   {nguoiThucHien} <span className="text-gray-400">·</span> Ca {selectedShift}
                 </p>
               </div>
@@ -830,7 +832,7 @@ const ProductionDataEntry: React.FC = () => {
           </div>
 
           {/* Date picker */}
-          <div className="flex items-center gap-2 mb-3">
+          <div className={`flex items-center gap-2 mb-3 ${keyboardOpen ? 'hidden' : ''}`}>
             <label className="text-sm font-medium text-gray-600">Ngày sản xuất:</label>
             <input
               type="date"
@@ -848,7 +850,7 @@ const ProductionDataEntry: React.FC = () => {
           </div>
 
           {/* Quality tabs */}
-          <div className="flex gap-1 overflow-x-auto pb-1">
+          <div className={`flex gap-1 overflow-x-auto pb-1 ${keyboardOpen ? 'hidden' : ''}`}>
             {QUALITY_TABS.map((tab) => (
               <button
                 key={tab.key}
