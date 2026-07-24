@@ -185,7 +185,7 @@ const ProductionSystemOperationEntry: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [kioskExpired, setKioskExpired] = useState(false);
-  const keyboardOpen = useVirtualKeyboard();
+  const { keyboardOpen } = useVirtualKeyboard();
   const [selectedShift, setSelectedShift] = useState<number>(() => getSelection()?.shift ?? 0);
   const [nguoiThucHien, setNguoiThucHien] = useState<string>(() => getSelection()?.operator ?? '');
   const [operatorId, setOperatorId] = useState<string>(() => getSelection()?.operatorId ?? '');
@@ -832,7 +832,7 @@ const ProductionSystemOperationEntry: React.FC = () => {
 
       {/* Footer — nút điều hướng: Quay lại (trái) + Lưu (phải), chỉ ở bước form */}
       {step === 'form' && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t z-10">
+        <div className={`fixed bottom-0 left-0 right-0 bg-white border-t z-10 transition-transform duration-200 ${keyboardOpen ? 'translate-y-full' : ''}`}>
           <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
             <button
               type="button"

@@ -152,6 +152,7 @@ const NumericInput: React.FC<NumericInputProps> = ({ value, onChange, placeholde
 
 interface StepProgressProps {
   currentStep: WizardStep;
+  className?: string;
 }
 
 const STEP_INFO: { step: WizardStep | 1; icon: React.ComponentType<{ className?: string }>; label: string }[] = [
@@ -162,8 +163,8 @@ const STEP_INFO: { step: WizardStep | 1; icon: React.ComponentType<{ className?:
   { step: 5, icon: ClipboardCheck, label: 'Đánh giá' },
 ];
 
-const StepProgress: React.FC<StepProgressProps> = ({ currentStep }) => (
-  <div className="w-full max-w-3xl mx-auto px-4 py-4">
+const StepProgress: React.FC<StepProgressProps> = ({ currentStep, className }) => (
+  <div className={`w-full max-w-3xl mx-auto px-4 py-4 ${className || ''}`}>
     <div className="flex items-center justify-between">
       {STEP_INFO.map((info, idx) => {
         const Icon = info.icon;
@@ -215,7 +216,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [kioskExpired, setKioskExpired] = useState(false);
-  const keyboardOpen = useVirtualKeyboard();
+  const { keyboardOpen } = useVirtualKeyboard();
   const [selectedShift, setSelectedShift] = useState<number>(() => getSelection()?.shift ?? 0);
   const [nguoiThucHien, setNguoiThucHien] = useState<string>(() => getSelection()?.operator ?? '');
   const [operatorId, setOperatorId] = useState<string>(() => getSelection()?.operatorId ?? '');
@@ -820,7 +821,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
           )}
         </div>
 
-        <StepProgress currentStep={currentStep} />
+        <StepProgress currentStep={currentStep} className={keyboardOpen ? 'hidden' : ''} />
       </div>
 
       {/* Content */}
@@ -1189,7 +1190,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
       </div>
 
       {/* Footer — nút điều hướng: Quay lại (trái) + Tiếp tục/Xác nhận (phải) */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t z-10">
+      <div className={`fixed bottom-0 left-0 right-0 bg-white border-t z-10 transition-transform duration-200 ${keyboardOpen ? 'translate-y-full' : ''}`}>
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           {currentStep > 2 ? (
             <button
