@@ -8,6 +8,14 @@ enum SystemOperationStatus {
   @@schema("business")
 }
 
+enum SoakingPlanStatus {
+  HIEU_LUC
+  DA_DUNG
+  HUY
+
+  @@schema("business")
+}
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model SupplyRequest {
@@ -534,5 +542,33 @@ model ProductionReport {
 
   @@index([createdById])
   @@map("production_reports")
+  @@schema("business")
+}
+
+model SoakingPlan {
+  id                   String             @id @default(cuid())
+  orderId              String
+  orderItemId          String
+  productId            String
+  maSanPham            String
+  tenSanPham           String
+  soLanNgam            Int
+  nhietDoNuocTruocNgam Float
+  nhietDoNuocSauVot    Float
+  thoiGianNgam         Int
+  brixNuocNgam         Float
+  khoiLuong            Float
+  trangThai            SoakingPlanStatus  @default(HIEU_LUC)
+  createdById          String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  order   Order                @relation(fields: [orderId], references: [id])
+  product InternationalProduct @relation(fields: [productId], references: [id])
+
+  @@index([productId])
+  @@index([trangThai])
+  @@index([orderId])
+  @@map("soaking_plans")
   @@schema("business")
 }
