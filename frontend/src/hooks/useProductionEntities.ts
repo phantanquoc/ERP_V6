@@ -36,6 +36,8 @@ export const materialEvaluationKeys = {
   list: (filters: Record<string, any> = {}) => [...materialEvaluationKeys.lists(), filters] as const,
   details: () => [...materialEvaluationKeys.all, 'detail'] as const,
   detail: (id: string) => [...materialEvaluationKeys.details(), id] as const,
+  today: (operator: string, date: string) =>
+    [...materialEvaluationKeys.all, 'today', operator, date] as const,
 };
 
 export const productionReportKeys = {
@@ -180,7 +182,7 @@ export const useCreateMaterialEvaluation = () => {
     mutationFn: ({ data, file }: { data: Record<string, any>; file?: File }) =>
       materialEvaluationService.createMaterialEvaluation(data, file),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: materialEvaluationKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: materialEvaluationKeys.all });
     },
   });
 };
@@ -192,7 +194,7 @@ export const useUpdateMaterialEvaluation = () => {
       materialEvaluationService.updateMaterialEvaluation(id, data, file),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: materialEvaluationKeys.detail(variables.id) });
-      queryClient.invalidateQueries({ queryKey: materialEvaluationKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: materialEvaluationKeys.all });
     },
   });
 };
@@ -202,7 +204,7 @@ export const useDeleteMaterialEvaluation = () => {
   return useMutation({
     mutationFn: (id: string) => materialEvaluationService.deleteMaterialEvaluation(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: materialEvaluationKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: materialEvaluationKeys.all });
     },
   });
 };
