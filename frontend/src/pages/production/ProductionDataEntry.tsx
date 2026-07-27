@@ -148,11 +148,12 @@ interface FullGridPreviewProps {
   fryers: { id: string; maHeThong: string }[];
   wasteTotal: number;
   nguoiThucHien: string;
+  productionDate: string;
+  selectedShift: number;
   onConfirm: () => void;
   onEdit: () => void;
   isPending: boolean;
   getMachineLabel: (maHeThong: string) => string;
-  keyboardOpen: boolean;
 }
 
 const FullGridPreview: React.FC<FullGridPreviewProps> = ({
@@ -163,94 +164,195 @@ const FullGridPreview: React.FC<FullGridPreviewProps> = ({
   fryers,
   wasteTotal,
   nguoiThucHien,
+  productionDate,
+  selectedShift,
   onConfirm,
   onEdit,
   isPending,
   getMachineLabel,
-  keyboardOpen,
 }) => {
   const NON_WASTE_TABS: { key: QualityTab; label: string }[] = [
     { key: 'A', label: 'Hàng A' },
     { key: 'B', label: 'Hàng B' },
-    { key: 'B_DAU', label: 'Hàng B dầu' },
+    { key: 'B_DAU', label: 'B dầu' },
     { key: 'C', label: 'Hàng C' },
     { key: 'UOT', label: 'Ướt' },
   ];
 
+  const [showAll, setShowAll] = useState(false);
+  // Focus editor state for preview cells
+  const [previewEditorCell, setPreviewEditorCell] = useState<{ tab: QualityTab; cellKey: CellKey; label: string } | null>(null);
+
+  // A cell qualifies when value !== 0 OR value !== baseline for same tab+cellKey
+  const cellQualifies = (tab: QualityTab, cellKey: CellKey): boolean => {
+    const val = board[tab]?.[cellKey] ?? 0;
+    const baseVal = baseline[tab]?.[cellKey] ?? 0;
+    return val !== 0 || val !== baseVal;
+  };
+
+  // For each batch card, determine which grade columns have qualifying cells
+  const getCardData = (batch: { maChien: string; thoiGianChien: string; tenHangHoa: string }) => {
+    const qualifyingTabs: { key: QualityTab; label: string }[] = [];
+    let hasAnyQualifying = false;
+
+    for (const tab of NON_WASTE_TABS) {
+      let tabHasQualifying = false;
+      for (const f of fryers) {
+        const cellKey = `${batch.maChien}|${f.id}`;
+        if (cellQualifies(tab.key, cellKey)) {
+          tabHasQualifying = true;
+          break;
+        }
+      }
+      if (tabHasQualifying) {
+        qualifyingTabs.push(tab);
+        hasAnyQualifying = true;
+      }
+    }
+
+    return { qualifyingTabs, hasAnyQualifying };
+  };
+
+  // Build cards data
+  const cardsData = filteredBatches.map((batch) => ({
+    batch,
+    ...getCardData(batch),
+  }));
+
+  const visibleCards = showAll
+    ? filteredBatches.map((batch) => ({ batch, qualifyingTabs: NON_WASTE_TABS, hasAnyQualifying: true }))
+    : cardsData.filter((c) => c.hasAnyQualifying);
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-full mx-auto px-4 py-6 space-y-6">
-        {/* Header */}
-        <div className="bg-white rounded-xl border p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Eye className="w-5 h-5 text-blue-600" />
-            <h2 className="text-lg font-semibold text-gray-800">Xem lại sản lượng</h2>
+      <div className="max-w-full mx-auto px-3 pt-0 pb-4 space-y-4">
+        {/* Sticky header: action buttons + preview info */}
+        <div className="sticky top-0 z-30 bg-gray-50 pt-3 pb-2 -mx-3 px-3 border-b border-gray-200 shadow-sm">
+          <div className="bg-white border rounded-xl p-2 flex gap-3 mb-2">
+            <button
+              onClick={onEdit}
+              className="flex-1 min-h-[44px] px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Sửa lại
+            </button>
+            <button
+              onClick={onConfirm}
+              disabled={isPending}
+              className="flex-1 min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+            >
+              {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+              Xác nhận
+            </button>
           </div>
-          <p className="text-sm text-gray-600">
-            <strong>Người thực hiện:</strong> {nguoiThucHien}
-          </p>
-          <p className="text-xs text-gray-400 mt-1">
-            Có thể nhập/sửa trực tiếp trong bảng bên dưới trước khi xác nhận.
-          </p>
+          <div className="flex items-center gap-2 text-sm text-gray-700 px-1 overflow-hidden min-w-0">
+            <Eye className="w-4 h-4 text-blue-600 flex-shrink-0" />
+            <span className="font-semibold flex-shrink-0 hidden sm:inline">Xem lại sản lượng</span>
+            <span className="mx-1 text-gray-300 hidden sm:inline">|</span>
+            <span className="truncate min-w-0">{nguoiThucHien}</span>
+            <span className="mx-1 text-gray-300 flex-shrink-0">|</span>
+            <span className="flex-shrink-0 whitespace-nowrap">{formatDateVN(productionDate)}</span>
+            <span className="mx-1 text-gray-300 flex-shrink-0">|</span>
+            <span className="flex-shrink-0 whitespace-nowrap">Ca {selectedShift}</span>
+          </div>
         </div>
 
-        {/* Grid tables for each non-waste tab */}
-        {NON_WASTE_TABS.map(({ key: tab, label }) => (
-          <div key={tab} className="bg-white rounded-xl border overflow-hidden">
-            <div className="px-4 py-3 bg-gray-50 border-b">
-              <h3 className="text-sm font-semibold text-gray-700">{label}</h3>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr className="bg-gray-100 border-b">
-                    <th className="px-2 py-2 text-left font-semibold text-gray-700 border-r min-w-[100px]">
-                    Mã chiên
-                    </th>
-                    {fryers.map((f) => (
-                      <th key={f.id} className="px-1 py-2 text-center font-semibold text-gray-700 border-r min-w-[70px]">
-                        {getMachineLabel(f.maHeThong)}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredBatches.map((batch) => (
-                    <tr key={batch.maChien} className="border-b">
-                      <td className="px-2 py-1 text-gray-800 font-medium border-r">
-                        {batch.maChien}
-                      </td>
-                      {fryers.map((f) => {
-                        const cellKey = `${batch.maChien}|${f.id}`;
-                        const value = board[tab]?.[cellKey] ?? 0;
-                        const baselineVal = baseline[tab]?.[cellKey] ?? 0;
-                        const isDirty = value !== baselineVal;
-                        return (
-                          <td key={f.id} className="px-1 py-1 border-r">
-                            <input
-                              type="number"
-                              inputMode="decimal"
-                              placeholder="0"
-                              className={`w-full min-h-[44px] px-2 py-1 rounded-lg text-base text-center focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                isDirty
-                                  ? 'border-2 border-blue-400 bg-blue-50'
-                                  : 'border border-gray-200 bg-white'
-                              }`}
-                              value={value === 0 ? '' : value}
-                              onChange={(e) => updateCell(tab, cellKey, parseNumberInput(e.target.value, { min: 0, max: PRODUCTION_LIMITS.sanLuong.max }))}
-                            />
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ))}
+        {/* Reveal-all control */}
+        {!showAll && visibleCards.length < filteredBatches.length && (
+          <button
+            onClick={() => setShowAll(true)}
+            className="w-full min-h-[44px] px-4 py-2 bg-gray-100 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200"
+          >
+            Hiện tất cả ô để điền bù ({filteredBatches.length - visibleCards.length} mã chiên ẩn)
+          </button>
+        )}
+        {showAll && (
+          <button
+            onClick={() => setShowAll(false)}
+            className="w-full min-h-[44px] px-4 py-2 bg-gray-100 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200"
+          >
+            Chỉ hiện ô đã nhập
+          </button>
+        )}
 
-        {/* Waste summary (read-only distribution display) */}
+        {/* Cards - one per fry batch */}
+        {visibleCards.length === 0 && (
+          <div className="text-center py-8 bg-white rounded-xl border">
+            <p className="text-gray-500">Không có dữ liệu sản lượng nào được nhập.</p>
+            <p className="text-sm text-gray-400 mt-1">Quay lại bảng nhập để bắt đầu nhập liệu.</p>
+          </div>
+        )}
+
+        {visibleCards.map(({ batch, qualifyingTabs }) => {
+          const displayTabs = showAll ? NON_WASTE_TABS : qualifyingTabs;
+          return (
+            <div key={batch.maChien} className="bg-white rounded-xl border overflow-hidden">
+              {/* Card header */}
+              <div className="px-3 py-2 bg-gray-50 border-b">
+                <p className="text-sm font-bold text-gray-800">{batch.maChien}</p>
+                <p className="text-xs text-gray-500">
+                  {formatTime(batch.thoiGianChien)} · {batch.tenHangHoa}
+                </p>
+              </div>
+              {/* Sub-table: machines (rows) × grades (columns) */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs border-collapse" style={{ minWidth: '300px' }}>
+                  <thead>
+                    <tr className="bg-gray-100 border-b">
+                      <th className="px-1 py-1.5 text-left font-semibold text-gray-700 border-r" style={{ width: '60px' }}>
+                        Máy
+                      </th>
+                      {displayTabs.map((tab) => (
+                        <th key={tab.key} className="px-1 py-1.5 text-center font-semibold text-gray-700 border-r" style={{ width: '80px' }}>
+                          {tab.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fryers.map((f) => (
+                      <tr key={f.id} className="border-b">
+                        <td className="px-1 py-1 text-gray-700 font-medium border-r text-xs">
+                          {getMachineLabel(f.maHeThong)}
+                        </td>
+                        {displayTabs.map((tab) => {
+                          const cellKey = `${batch.maChien}|${f.id}`;
+                          const val = board[tab.key]?.[cellKey] ?? 0;
+                          const baseVal = baseline[tab.key]?.[cellKey] ?? 0;
+                          const isDirty = val !== baseVal;
+                          const hasValue = val !== 0;
+                          return (
+                            <td
+                              key={tab.key}
+                              className={`px-1 py-1 border-r text-center cursor-pointer min-h-[40px] ${
+                                isDirty
+                                  ? 'bg-blue-50 text-blue-700 font-semibold'
+                                  : hasValue
+                                  ? 'text-gray-800'
+                                  : 'text-gray-300'
+                              }`}
+                              onClick={() => setPreviewEditorCell({
+                                tab: tab.key,
+                                cellKey,
+                                label: `${getMachineLabel(f.maHeThong)} · ${batch.maChien} · ${tab.label}`,
+                              })}
+                            >
+                              <div className="min-h-[36px] flex items-center justify-center">
+                                {hasValue ? val : '—'}
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Waste summary (unchanged behavior) */}
         <div className="bg-white rounded-xl border p-4">
           <h3 className="text-sm font-semibold text-gray-700 mb-2">Vụn - Phế phẩm</h3>
           {wasteTotal > 0 && filteredBatches.length > 0 ? (
@@ -266,26 +368,26 @@ const FullGridPreview: React.FC<FullGridPreviewProps> = ({
             <p className="text-sm text-gray-500">Không có vụn/phế phẩm.</p>
           )}
         </div>
-
-        {/* Action buttons - sticky bottom */}
-        <div className={`sticky bottom-0 bg-white border-t p-4 rounded-xl flex gap-3 transition-transform duration-200 ${keyboardOpen ? 'translate-y-full' : ''}`}>
-          <button
-            onClick={onEdit}
-            className="flex-1 min-h-[44px] px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Sửa lại
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={isPending}
-            className="flex-1 min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-          >
-            {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-            Xác nhận
-          </button>
-        </div>
       </div>
+
+      {/* Preview FieldFocusEditor — no onNext */}
+      <FieldFocusEditor
+        open={!!previewEditorCell}
+        label={previewEditorCell?.label ?? ''}
+        value={
+          previewEditorCell
+            ? (board[previewEditorCell.tab]?.[previewEditorCell.cellKey] ?? 0)
+            : 0
+        }
+        unit="kg"
+        min={0}
+        max={PRODUCTION_LIMITS.sanLuong.max}
+        onChange={(v) => {
+          if (!previewEditorCell) return;
+          updateCell(previewEditorCell.tab, previewEditorCell.cellKey, v);
+        }}
+        onClose={() => setPreviewEditorCell(null)}
+      />
     </div>
   );
 };
@@ -466,10 +568,6 @@ const ProductionDataEntry: React.FC = () => {
       ...prev,
       [tab]: { ...prev[tab], [cellKey]: value },
     }));
-  }, []);
-
-  const updateNote = useCallback((cellKey: CellKey, value: string) => {
-    setNotes((prev) => ({ ...prev, [cellKey]: value }));
   }, []);
 
   // ─── Apply waste total evenly ────────────────────────────────────────────
@@ -819,11 +917,12 @@ const ProductionDataEntry: React.FC = () => {
         fryers={fryers}
         wasteTotal={wasteTotal}
         nguoiThucHien={nguoiThucHien}
+        productionDate={productionDate}
+        selectedShift={selectedShift}
         onConfirm={handleConfirm}
         onEdit={() => setShowPreview(false)}
         isPending={batchUpdate.isPending}
         getMachineLabel={getMachineLabel}
-        keyboardOpen={keyboardOpen}
       />
     );
   }
@@ -972,14 +1071,6 @@ const ProductionDataEntry: React.FC = () => {
                         );
                       })}
                     </div>
-                    {/* Note */}
-                    <input
-                      type="text"
-                      value={notes[`${batch.maChien}|${fryers[0]?.id ?? ''}`] || ''}
-                      onChange={(e) => updateNote(`${batch.maChien}|${fryers[0]?.id ?? ''}`, e.target.value)}
-                      className="w-full min-h-[44px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Ghi chú"
-                    />
                   </div>
                 ))}
               </div>
@@ -998,7 +1089,6 @@ const ProductionDataEntry: React.FC = () => {
                           {getMachineLabel(f.maHeThong)}
                         </th>
                       ))}
-                      <th className="px-2 py-2 text-left font-semibold text-gray-700 min-w-[100px]">Ghi chú</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1025,15 +1115,6 @@ const ProductionDataEntry: React.FC = () => {
                             </td>
                           );
                         })}
-                        <td className="px-1 py-1">
-                          <input
-                            type="text"
-                            value={notes[`${batch.maChien}|${fryers[0]?.id ?? ''}`] || ''}
-                            onChange={(e) => updateNote(`${batch.maChien}|${fryers[0]?.id ?? ''}`, e.target.value)}
-                            className="w-full min-h-[44px] px-2 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="Ghi chú"
-                          />
-                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1084,7 +1165,7 @@ const ProductionDataEntry: React.FC = () => {
 
       <KioskFooter />
 
-      {/* FieldFocusEditor overlay — no "Tiep" for DataEntry (complex table navigation) */}
+      {/* FieldFocusEditor overlay — with onNext traversal for non-waste tabs */}
       <FieldFocusEditor
         open={!!editorCell}
         label={editorCell?.label ?? ''}
@@ -1107,6 +1188,26 @@ const ProductionDataEntry: React.FC = () => {
           }
         }}
         onClose={() => setEditorCell(null)}
+        onNext={editorCell && editorCell.tab !== 'VUN_PHE' && editorCell.cellKey !== '__waste_total__' ? (() => {
+          // Build traversal order: all machines of each batch, batch by batch
+          const traversal: { cellKey: CellKey; label: string }[] = [];
+          for (const batch of filteredBatches) {
+            for (const f of fryers) {
+              traversal.push({
+                cellKey: `${batch.maChien}|${f.id}`,
+                label: `${getMachineLabel(f.maHeThong)} · ${batch.maChien}`,
+              });
+            }
+          }
+          const currentIdx = traversal.findIndex((t) => t.cellKey === editorCell.cellKey);
+          const nextIdx = currentIdx + 1;
+          // Hide at last cell of tab
+          if (nextIdx >= traversal.length) return undefined;
+          return () => {
+            const next = traversal[nextIdx];
+            setEditorCell({ tab: editorCell.tab, cellKey: next.cellKey, label: next.label });
+          };
+        })() : undefined}
       />
     </div>
   );
