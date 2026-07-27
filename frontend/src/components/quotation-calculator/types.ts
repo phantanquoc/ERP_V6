@@ -1,5 +1,5 @@
 import { MaterialStandard } from '../../services/materialStandardService';
-import { Process } from '../../services/processService';
+import { ProductionProcess } from '../../services/productionProcessService';
 import { InternationalProduct } from '../../services/internationalProductService';
 
 // ─── Shared cost item ────────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ export interface MainTabFormData {
 
 export interface MainTab {
   selectedStandard: MaterialStandard | null;
-  selectedProcess: Process | null;
+  selectedProcess: ProductionProcess | null;
   formData: MainTabFormData;
 }
 
@@ -115,7 +115,7 @@ export interface AdditionalCostTab {
   selectedProduct: InternationalProduct | null;
   selectedProductType: string;
   selectedStandard: MaterialStandard | null;
-  selectedProcess: Process | null;
+  selectedProcess: ProductionProcess | null;
   formData: AdditionalTabFormData;
 }
 

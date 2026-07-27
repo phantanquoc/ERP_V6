@@ -1085,7 +1085,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 <select value={currentAdditionalTab.selectedProcess?.id || ''} onChange={(e) => handleAdditionalTabProcessChange(currentAdditionalTab.id, e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
                   <option value="">-- Chọn quy trình --</option>
                   {productionProcesses.map((process) => (
-                    <option key={process.id} value={process.id}>{process.maQuyTrinh} - {process.tenQuyTrinh}</option>
+                    <option key={process.id} value={process.id}>{process.maQuyTrinhSanXuat} - {process.tenQuyTrinhSanXuat || process.tenQuyTrinh}</option>
                   ))}
                 </select>
               </div>
@@ -1093,7 +1093,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               {currentAdditionalTab.selectedProcess && !currentAdditionalTab.selectedProcess.flowchart && (
                 <div className="mt-4 p-3 bg-yellow-50 border border-yellow-300 rounded-md flex items-start gap-2">
                   <span className="text-yellow-500 mt-0.5">⚠️</span>
-                  <p className="text-sm text-yellow-700">Quy trình <strong>{currentAdditionalTab.selectedProcess.tenQuyTrinh || currentAdditionalTab.selectedProcess.maQuyTrinh}</strong> chưa có lưu đồ. Vui lòng tạo lưu đồ trong module <strong>Quy trình sản xuất</strong> trước khi sử dụng.</p>
+                  <p className="text-sm text-yellow-700">Quy trình <strong>{currentAdditionalTab.selectedProcess.tenQuyTrinhSanXuat || currentAdditionalTab.selectedProcess.tenQuyTrinh || currentAdditionalTab.selectedProcess.maQuyTrinhSanXuat}</strong> chưa có lưu đồ. Vui lòng tạo lưu đồ trong module <strong>Quy trình sản xuất</strong> trước khi sử dụng.</p>
                 </div>
               )}
               {currentAdditionalTab && currentAdditionalTab.selectedProcess && currentAdditionalTab.selectedProcess.flowchart && (
@@ -1566,7 +1566,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
             <select value={currentTab.selectedProcess?.id || ''} onChange={(e) => handleProcessChange(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
               <option value="">-- Chọn quy trình --</option>
               {productionProcesses.map((process) => (
-                <option key={process.id} value={process.id}>{process.maQuyTrinh} - {process.tenQuyTrinh}</option>
+                <option key={process.id} value={process.id}>{process.maQuyTrinhSanXuat} - {process.tenQuyTrinhSanXuat || process.tenQuyTrinh}</option>
               ))}
             </select>
           </div>
@@ -1574,7 +1574,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
           {currentTab && currentTab.selectedProcess && !currentTab.selectedProcess.flowchart && (
             <div className="mt-4 p-3 bg-yellow-50 border border-yellow-300 rounded-md flex items-start gap-2">
               <span className="text-yellow-500 mt-0.5">⚠️</span>
-              <p className="text-sm text-yellow-700">Quy trình <strong>{currentTab.selectedProcess.tenQuyTrinh || currentTab.selectedProcess.maQuyTrinh}</strong> chưa có lưu đồ. Vui lòng tạo lưu đồ trong module <strong>Quy trình sản xuất</strong> trước khi sử dụng.</p>
+              <p className="text-sm text-yellow-700">Quy trình <strong>{currentTab.selectedProcess.tenQuyTrinhSanXuat || currentTab.selectedProcess.tenQuyTrinh || currentTab.selectedProcess.maQuyTrinhSanXuat}</strong> chưa có lưu đồ. Vui lòng tạo lưu đồ trong module <strong>Quy trình sản xuất</strong> trước khi sử dụng.</p>
             </div>
           )}
           {currentTab && currentTab.selectedProcess && currentTab.selectedProcess.flowchart && (

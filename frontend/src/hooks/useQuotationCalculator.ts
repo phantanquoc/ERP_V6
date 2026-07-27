@@ -3,7 +3,7 @@ import { quotationService, CreateQuotationRequest } from '../services/quotationS
 import materialStandardService, { MaterialStandard } from '../services/materialStandardService';
 import { QuotationRequest } from '../services/quotationRequestService';
 import warehouseService from '../services/warehouseService';
-import { processService } from '../services/processService';
+import productionProcessService, { ProductionProcess } from '../services/productionProcessService';
 import generalCostService, { GeneralCost } from '../services/generalCostService';
 import exportCostService, { ExportCost } from '../services/exportCostService';
 import quotationCalculatorService from '../services/quotationCalculatorService';
@@ -165,8 +165,8 @@ export function useQuotationCalculator(
 
   const loadProductionProcesses = async () => {
     try {
-      const response = await processService.getAllProcesses(1, 100);
-      setProductionProcesses(response.data);
+      const response = await productionProcessService.getAllProductionProcesses(1, 1000);
+      setProductionProcesses(response.data as any[]);
     } catch (error) {
       console.error('Error loading production processes:', error);
     }
@@ -227,9 +227,10 @@ export function useQuotationCalculator(
             }
             if (product.productionProcessId) {
               try {
-                const res = await processService.getProcessById(product.productionProcessId);
-                selectedProcess = { ...res.data, flowchart: product.flowchartData || res.data?.flowchart || null };
-              } catch { selectedProcess = { id: product.productionProcessId, maQuyTrinh: product.maQuyTrinhSanXuat || '', tenQuyTrinh: product.tenQuyTrinhSanXuat || '', flowchart: product.flowchartData || null } as any; }
+                const res = await productionProcessService.getProductionProcessById(product.productionProcessId);
+                const resData = res.data as ProductionProcess;
+                selectedProcess = { ...resData, flowchart: product.flowchartData || resData?.flowchart || null };
+              } catch { selectedProcess = { id: product.productionProcessId, maQuyTrinhSanXuat: product.maQuyTrinhSanXuat || '', tenQuyTrinhSanXuat: product.tenQuyTrinhSanXuat || '', tenQuyTrinh: product.tenQuyTrinhSanXuat || '', flowchart: product.flowchartData || null } as any; }
             }
             return {
               selectedStandard, selectedProcess,
@@ -296,8 +297,9 @@ export function useQuotationCalculator(
             if (product.materialStandardId) { try { selectedStandard = await materialStandardService.getMaterialStandardById(product.materialStandardId); } catch { /* ignore */ } }
             if (product.productionProcessId) {
               try {
-                const res = await processService.getProcessById(product.productionProcessId);
-                selectedProcess = { ...res.data, flowchart: product.flowchartData || res.data?.flowchart || null };
+                const res = await productionProcessService.getProductionProcessById(product.productionProcessId);
+                const resData = res.data as ProductionProcess;
+                selectedProcess = { ...resData, flowchart: product.flowchartData || resData?.flowchart || null };
               } catch { /* ignore */ }
             }
             return {
@@ -557,11 +559,16 @@ export function useQuotationCalculator(
       return;
     }
     try {
-      const response = await processService.getProcessById(processId);
-      const processData = { ...response.data, flowchart: response.data?.flowchart ?? null };
+      const response = await productionProcessService.getProductionProcessById(processId);
+      const resData = response.data as ProductionProcess;
+      const processData = { ...resData, flowchart: resData?.flowchart ?? null };
       setTabsData(prev => {
         const n = [...prev];
         n[activeTab] = { ...n[activeTab], selectedProcess: processData };
+        // Auto-fill thoiGianChoPhepToiDa from production process thoiGian
+        if (processData.thoiGian) {
+          n[activeTab].formData.thoiGianChoPhepToiDa = String(processData.thoiGian);
+        }
         try {
           let chiPhiSanXuatPerDay = 0;
           if (processData.flowchart?.sections) {
@@ -657,9 +664,18 @@ export function useQuotationCalculator(
   const handleAdditionalTabProcessChange = async (tabId: string, processId: string) => {
     if (!processId) { setAdditionalCostTabs(prev => prev.map(tab => tab.id === tabId ? { ...tab, selectedProcess: null } : tab)); return; }
     try {
-      const response = await processService.getProcessById(processId);
-      const processData = { ...response.data, flowchart: response.data?.flowchart ?? null };
-      setAdditionalCostTabs(prev => prev.map(tab => tab.id === tabId ? { ...tab, selectedProcess: processData } : tab));
+      const response = await productionProcessService.getProductionProcessById(processId);
+      const resData = response.data as ProductionProcess;
+      const processData = { ...resData, flowchart: resData?.flowchart ?? null };
+      setAdditionalCostTabs(prev => prev.map(tab => {
+        if (tab.id !== tabId) return tab;
+        const updated = { ...tab, selectedProcess: processData };
+        // Auto-fill thoiGianChoPhepToiDa from production process thoiGian
+        if (processData.thoiGian) {
+          updated.formData = { ...updated.formData, thoiGianChoPhepToiDa: String(processData.thoiGian) };
+        }
+        return updated;
+      }));
     } catch (error) { console.error('Error loading production process for additional tab:', error); }
   };
 
@@ -914,8 +930,8 @@ export function useQuotationCalculator(
             tongNguyenLieuCanSanXuatThucTe: tab.formData.tongNguyenLieuCanSanXuatThucTe ? parseFloat(tab.formData.tongNguyenLieuCanSanXuatThucTe) : undefined,
             loiNhuanCongThemThucTe: tab.formData.loiNhuanCongThemThucTe ? parseFloat(tab.formData.loiNhuanCongThemThucTe) : undefined,
             productionProcessId: tab.selectedProcess?.id,
-            maQuyTrinhSanXuat: tab.selectedProcess?.maQuyTrinh,
-            tenQuyTrinhSanXuat: tab.selectedProcess?.tenQuyTrinh,
+            maQuyTrinhSanXuat: tab.selectedProcess?.maQuyTrinhSanXuat,
+            tenQuyTrinhSanXuat: tab.selectedProcess?.tenQuyTrinhSanXuat || tab.selectedProcess?.tenQuyTrinh,
             flowchartData: tab.selectedProcess?.flowchart || undefined,
             thoiGianChoPhepToiDa: tab.formData.thoiGianChoPhepToiDa ? parseFloat(tab.formData.thoiGianChoPhepToiDa) : undefined,
             ngayBatDauSanXuat: tab.formData.ngayBatDauSanXuat ? new Date(tab.formData.ngayBatDauSanXuat + 'T00:00:00.000Z').toISOString() : undefined,
@@ -954,8 +970,8 @@ export function useQuotationCalculator(
           nguyenLieuTonKho: tab.formData.nguyenLieuTonKho ? parseFloat(tab.formData.nguyenLieuTonKho) : undefined,
           nguyenLieuCanNhapThem: tab.formData.nguyenLieuCanNhapThem ? parseFloat(tab.formData.nguyenLieuCanNhapThem) : undefined,
           productionProcessId: tab.selectedProcess?.id,
-          maQuyTrinhSanXuat: tab.selectedProcess?.maQuyTrinh,
-          tenQuyTrinhSanXuat: tab.selectedProcess?.tenQuyTrinh,
+          maQuyTrinhSanXuat: tab.selectedProcess?.maQuyTrinhSanXuat,
+          tenQuyTrinhSanXuat: tab.selectedProcess?.tenQuyTrinhSanXuat || tab.selectedProcess?.tenQuyTrinh,
           flowchartData: tab.selectedProcess?.flowchart || undefined,
           thoiGianChoPhepToiDa: tab.formData.thoiGianChoPhepToiDa ? parseFloat(tab.formData.thoiGianChoPhepToiDa) : undefined,
           ngayBatDauSanXuat: tab.formData.ngayBatDauSanXuat ? new Date(tab.formData.ngayBatDauSanXuat + 'T00:00:00.000Z').toISOString() : undefined,
