@@ -15,6 +15,7 @@ interface FormData {
   maDinhMuc: string;
   tenDinhMuc: string;
   loaiDinhMuc: 'RAW_MATERIAL' | 'EQUIPMENT';
+  kgThuHoi: string;
   tiLeThuHoi: string;
   ghiChu: string;
   inputItems: MaterialStandardInputItem[];
@@ -37,6 +38,7 @@ const MaterialStandardManagement: React.FC = () => {
     maDinhMuc: '',
     tenDinhMuc: '',
     loaiDinhMuc: 'RAW_MATERIAL',
+    kgThuHoi: '',
     tiLeThuHoi: '',
     ghiChu: '',
     inputItems: [],
@@ -218,6 +220,7 @@ const MaterialStandardManagement: React.FC = () => {
         maDinhMuc: code,
         tenDinhMuc: '',
         loaiDinhMuc: 'RAW_MATERIAL',
+        kgThuHoi: '',
         tiLeThuHoi: '',
         ghiChu: '',
         inputItems: [],
@@ -232,11 +235,14 @@ const MaterialStandardManagement: React.FC = () => {
   const openEditModal = (standard: MaterialStandard) => {
     setIsEditMode(true);
     setSelectedStandard(standard);
+    const storedPercent = standard.tiLeThuHoi;
+    const derivedKg = storedPercent != null ? (Math.round((storedPercent / 100) * 1000000) / 1000000).toString() : '';
     setFormData({
       maDinhMuc: standard.maDinhMuc,
       tenDinhMuc: standard.tenDinhMuc,
       loaiDinhMuc: standard.loaiDinhMuc,
-      tiLeThuHoi: standard.tiLeThuHoi?.toString() || '',
+      kgThuHoi: derivedKg,
+      tiLeThuHoi: storedPercent?.toString() || '',
       ghiChu: standard.ghiChu || '',
       inputItems: standard.inputItems || [],
       items: standard.items || [],
@@ -497,16 +503,41 @@ const MaterialStandardManagement: React.FC = () => {
                   </div>
 
                   <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tỉ lệ thu hồi thành phẩm (%) K3</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      name="tiLeThuHoi"
-                      value={formData.tiLeThuHoi}
-                      onChange={(e) => setFormData(prev => ({ ...prev, tiLeThuHoi: parseNumberInputStr(e.target.value) }))}
-                      placeholder="Nhập tỉ lệ thu hồi"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Khối lượng thành phẩm thu hồi (kg)</label>
+                        <input
+                          type="number"
+                          step="0.001"
+                          name="kgThuHoi"
+                          value={formData.kgThuHoi}
+                          onChange={(e) => {
+                            const kgStr = parseNumberInputStr(e.target.value);
+                            const kgNum = parseFloat(kgStr);
+                            const percent = !isNaN(kgNum) && kgStr !== '' ? Math.round(kgNum * 100 * 10000) / 10000 : '';
+                            setFormData(prev => ({ ...prev, kgThuHoi: kgStr, tiLeThuHoi: percent.toString() }));
+                          }}
+                          placeholder="VD: 0.2"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <p className="mt-1 text-xs text-gray-500">Khối lượng thành phẩm thu được từ 1kg nguyên liệu đầu vào</p>
+                        {formData.kgThuHoi && parseFloat(formData.kgThuHoi) > 1 && (
+                          <p className="mt-1 text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded px-2 py-1">
+                            Tỉ lệ thu hồi trên 100% là bất thường. Vui lòng kiểm tra lại giá trị nhập.
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Tỉ lệ thu hồi (%)</label>
+                        <input
+                          type="text"
+                          value={formData.tiLeThuHoi}
+                          disabled
+                          className="w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-100 text-gray-600 cursor-not-allowed"
+                          placeholder="Tự động tính"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   <div className="sm:col-span-2">
@@ -817,9 +848,11 @@ const MaterialStandardManagement: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-500">Tỉ lệ thu hồi thành phẩm (%) K3</label>
+                    <label className="block text-sm font-medium text-gray-500">Tỉ lệ thu hồi thành phẩm</label>
                     <p className="mt-1 text-sm text-gray-900">
-                      {selectedStandard.tiLeThuHoi ? `${selectedStandard.tiLeThuHoi}%` : '-'}
+                      {selectedStandard.tiLeThuHoi
+                        ? `${selectedStandard.tiLeThuHoi}% (${Math.round((selectedStandard.tiLeThuHoi / 100) * 1000000) / 1000000} kg/1kg NL)`
+                        : '-'}
                     </p>
                   </div>
 
