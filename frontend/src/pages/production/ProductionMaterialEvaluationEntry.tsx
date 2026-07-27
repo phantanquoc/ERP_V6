@@ -172,7 +172,7 @@ const STEP_INFO: { step: WizardStep | 1; icon: React.ComponentType<{ className?:
 ];
 
 const StepProgress: React.FC<StepProgressProps> = ({ currentStep, className }) => (
-  <div className={`w-full max-w-3xl mx-auto px-4 py-4 ${className || ''}`}>
+  <div className={`w-full max-w-full sm:max-w-3xl mx-auto px-4 py-4 ${className || ''}`}>
     <div className="flex items-center justify-between">
       {STEP_INFO.map((info, idx) => {
         const Icon = info.icon;
@@ -196,7 +196,7 @@ const StepProgress: React.FC<StepProgressProps> = ({ currentStep, className }) =
                 {isDone ? <CheckCircle className="w-6 h-6" /> : <Icon className="w-5 h-5" />}
               </div>
               <span
-                className={`text-xs font-medium text-center ${
+                className={`text-sm font-medium text-center ${
                   isFuture ? 'text-gray-400' : 'text-gray-700'
                 }`}
               >
@@ -860,7 +860,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
                     key={ev.id}
                     type="button"
                     onClick={() => setViewingEvalId(ev.id)}
-                    className="px-3 py-1 min-h-[36px] bg-blue-50 text-blue-700 border border-blue-200 rounded-full text-sm font-medium hover:bg-blue-100 whitespace-nowrap flex-shrink-0"
+                    className="px-3 py-1 min-h-[44px] bg-blue-50 text-blue-700 border border-blue-200 rounded-full text-sm font-medium hover:bg-blue-100 whitespace-nowrap flex-shrink-0"
                     title={`Xem chi tiết ${ev.maChien}`}
                   >
                     {ev.maChien}
@@ -1051,7 +1051,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
               maxDateTime={new Date().toISOString().slice(0, 16)}
             />
             <div>
-              <span className="text-xs text-gray-500 mb-2 block">Chọn nhanh giờ chiên cho Ca {selectedShift}:</span>
+              <span className="text-sm text-gray-500 mb-2 block">Chọn nhanh giờ chiên cho Ca {selectedShift}:</span>
               <div className="flex flex-wrap gap-2">
                 {quickTimes.map((time) => (
                   <button
@@ -1232,7 +1232,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-gray-800 truncate">{wizardData.file.name}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">
+                      <p className="text-sm text-gray-500 mt-0.5">
                         {(wizardData.file.size / 1024).toFixed(0)} KB
                       </p>
                     </div>

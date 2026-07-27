@@ -12,6 +12,7 @@ import {
 } from '../../hooks/useProductionDataEntry';
 import { useAttendedOperatorsByShift } from '../../hooks/useAttendedOperators';
 import useVirtualKeyboard from '../../hooks/useVirtualKeyboard';
+import useIsNarrowScreen from '../../hooks/useIsNarrowScreen';
 import { markTab, isKioskTab, hasKioskSession, KIOSK_EXPIRED_EVENT, getSelection, setSelection, clearSelection, getDeviceKey, setDeviceKey } from '../../utils/kioskSession';
 import { parseNumberInput, PRODUCTION_LIMITS } from '../../utils/numberInput';
 import { FinishedProduct } from '../../services/finishedProductService';
@@ -293,6 +294,7 @@ const ProductionDataEntry: React.FC = () => {
   const navigate = useNavigate();
   const [kioskExpired, setKioskExpired] = useState(false);
   const { keyboardOpen } = useVirtualKeyboard();
+  const isNarrow = useIsNarrowScreen();
   const [selectedShift, setSelectedShift] = useState<number>(() => getSelection()?.shift ?? 0);
   const [nguoiThucHien, setNguoiThucHien] = useState<string>(() => getSelection()?.operator ?? '');
   const [operatorId, setOperatorId] = useState<string>(() => getSelection()?.operatorId ?? '');
@@ -902,7 +904,7 @@ const ProductionDataEntry: React.FC = () => {
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`px-3 min-h-[40px] rounded-lg font-medium text-sm whitespace-nowrap transition-colors ${
+                className={`px-3 min-h-[44px] rounded-lg font-medium text-sm whitespace-nowrap transition-colors ${
                   activeTab === tab.key
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -930,13 +932,62 @@ const ProductionDataEntry: React.FC = () => {
                 <p className="text-gray-500">Không có mã chiên nào cho Ca {selectedShift} ngày {formatDateVN(productionDate)}.</p>
                 <p className="text-sm text-gray-400 mt-1">Hãy kiểm tra lại ca và ngày sản xuất.</p>
               </div>
+            ) : isNarrow ? (
+              /* ─── Card layout (portrait / narrow) ─── */
+              <div className="space-y-4">
+                {filteredBatches.map((batch) => (
+                  <div key={batch.maChien} className="bg-white border rounded-xl p-4 space-y-3">
+                    {/* Card header */}
+                    <div>
+                      <p className="text-lg font-bold text-gray-800">{batch.maChien}</p>
+                      <p className="text-sm text-gray-500">
+                        {formatTime(batch.thoiGianChien)} · {batch.tenHangHoa}
+                      </p>
+                    </div>
+                    {/* Machine rows */}
+                    <div className="space-y-2">
+                      {fryers.map((f) => {
+                        const cellKey = `${batch.maChien}|${f.id}`;
+                        const value = board[activeTab]?.[cellKey] ?? 0;
+                        return (
+                          <div key={f.id} className="flex items-center gap-3">
+                            <span className="text-sm font-medium text-gray-700 w-16 shrink-0">
+                              {getMachineLabel(f.maHeThong)}
+                            </span>
+                            <div className="flex-1">
+                              <NumericInput
+                                value={value}
+                                onChange={(v) => updateCell(activeTab, cellKey, v)}
+                                onTap={() => setEditorCell({
+                                  tab: activeTab,
+                                  cellKey,
+                                  label: `${getMachineLabel(f.maHeThong)} · ${batch.maChien}`,
+                                })}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {/* Note */}
+                    <input
+                      type="text"
+                      value={notes[`${batch.maChien}|${fryers[0]?.id ?? ''}`] || ''}
+                      onChange={(e) => updateNote(`${batch.maChien}|${fryers[0]?.id ?? ''}`, e.target.value)}
+                      className="w-full min-h-[44px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Ghi chú"
+                    />
+                  </div>
+                ))}
+              </div>
             ) : (
+              /* ─── Table layout (landscape / wide) with sticky ─── */
               <div className="overflow-x-auto bg-white rounded-lg border">
                 <table className="w-full text-sm border-collapse">
-                  <thead>
+                  <thead className="sticky top-0 z-10 bg-gray-100">
                     <tr className="bg-gray-100 border-b">
                       <th className="px-2 py-2 text-left font-semibold text-gray-700 border-r w-10">STT</th>
-                      <th className="px-2 py-2 text-left font-semibold text-gray-700 border-r min-w-[100px]">Mã chiên</th>
+                      <th className="sticky left-0 z-30 bg-gray-100 px-2 py-2 text-left font-semibold text-gray-700 border-r min-w-[100px]">Mã chiên</th>
                       <th className="px-2 py-2 text-left font-semibold text-gray-700 border-r min-w-[70px]">Giờ chiên</th>
                       <th className="px-2 py-2 text-left font-semibold text-gray-700 border-r min-w-[120px]">Nguyên liệu</th>
                       {fryers.map((f) => (
@@ -951,7 +1002,7 @@ const ProductionDataEntry: React.FC = () => {
                     {filteredBatches.map((batch, idx) => (
                       <tr key={batch.maChien} className="border-b hover:bg-gray-50">
                         <td className="px-2 py-1 text-gray-600 border-r">{idx + 1}</td>
-                        <td className="px-2 py-1 text-gray-800 font-medium border-r">{batch.maChien}</td>
+                        <td className="sticky left-0 z-20 bg-white px-2 py-1 text-gray-800 font-medium border-r">{batch.maChien}</td>
                         <td className="px-2 py-1 text-gray-600 border-r">{formatTime(batch.thoiGianChien)}</td>
                         <td className="px-2 py-1 text-gray-600 border-r truncate max-w-[150px]">{batch.tenHangHoa}</td>
                         {fryers.map((f) => {
