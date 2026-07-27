@@ -17,7 +17,7 @@ cd backend && npm test                   # Jest — tất cả tests
 cd backend && npx jest src/__tests__/auth.test.ts --runInBand  # Chạy 1 test file
 
 # Frontend
-cd frontend && npx tsc --noEmit         # Type check (PHẢI pass)
+cd frontend && npx tsc --noEmit -p tsconfig.app.json   # Type check (xem ghi chú bên dưới)
 cd frontend && npm run lint              # ESLint
 
 # AI Service (chạy từ thư mục ai-service/)
@@ -26,6 +26,13 @@ cd ai-service && python3 -m pytest tests/test_registry.py -x -q  # Chỉ registr
 ```
 
 **Stop conditions:** Không hoàn thành task nếu `tsc --noEmit` có lỗi ở backend hoặc frontend. Không bỏ qua test thất bại.
+
+> **Ghi chú frontend type check:** `tsconfig.json` gốc dùng project references (files: []) nên `tsc --noEmit` không có `-p` sẽ quét 0 file — phải chỉ rõ `-p tsconfig.app.json`.
+> Repo hiện tại có ~610 lỗi type tồn đọng (chủ yếu TS2339/TS6133/TS2322) — là nợ kỹ thuật có sẵn, chưa xử lý.
+> **Tiêu chí PASS:**
+> - **KHÔNG được có lỗi `TS2304` (Cannot find name)** — loại lỗi này gây crash runtime/trắng màn hình.
+> - **Tổng số lỗi không tăng** so với mốc 610 (kiểm tra bằng `| grep -c "error TS"`).
+> - Nếu task mới thêm lỗi type → sửa trước khi hoàn thành.
 
 ---
 

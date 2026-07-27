@@ -152,6 +152,7 @@ interface FullGridPreviewProps {
   onEdit: () => void;
   isPending: boolean;
   getMachineLabel: (maHeThong: string) => string;
+  keyboardOpen: boolean;
 }
 
 const FullGridPreview: React.FC<FullGridPreviewProps> = ({
@@ -166,6 +167,7 @@ const FullGridPreview: React.FC<FullGridPreviewProps> = ({
   onEdit,
   isPending,
   getMachineLabel,
+  keyboardOpen,
 }) => {
   const NON_WASTE_TABS: { key: QualityTab; label: string }[] = [
     { key: 'A', label: 'Hàng A' },
@@ -821,6 +823,7 @@ const ProductionDataEntry: React.FC = () => {
         onEdit={() => setShowPreview(false)}
         isPending={batchUpdate.isPending}
         getMachineLabel={getMachineLabel}
+        keyboardOpen={keyboardOpen}
       />
     );
   }
