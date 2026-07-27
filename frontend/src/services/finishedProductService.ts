@@ -264,6 +264,19 @@ class FinishedProductService {
     }
   }
 
+  /** PUT /finished-products/by-batch-machine — upsert a finished product by (maChien, machineSystemId) */
+  async upsertByBatchMachine(data: Record<string, any>): Promise<FinishedProduct> {
+    try {
+      const response = await apiClient.put<{ success: boolean; data: FinishedProduct }>(
+        '/finished-products/by-batch-machine',
+        data,
+      );
+      return (response as any).data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
   private handleError(error: any): Error {
     if (error instanceof Error) {
       return error;
