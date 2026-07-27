@@ -38,6 +38,7 @@ import { useLotsByProduct, lotsByProductKeys } from '../../hooks/useLotsByProduc
 import { useKienByProductAndLot, kienByProductAndLotKeys } from '../../hooks/useKienByProductAndLot';
 import materialEvaluationService from '../../services/materialEvaluationService';
 import materialEvaluationCriteriaService, { MaterialEvaluationCriteria } from '../../services/materialEvaluationCriteriaService';
+import { materialEvaluationKeys } from '../../hooks/useProductionEntities';
 import { lotProductKeys } from '../../services/lotProductService';
 import DateTimePicker from '../../components/DateTimePicker';
 import OperatorSelectionScreen from '../../components/production/OperatorSelectionScreen';
@@ -291,7 +292,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
   }, [productionDate]);
 
   const { data: todayEvalsResult } = useQuery({
-    queryKey: ['material-eval-today', nguoiThucHien, productionDate],
+    queryKey: materialEvaluationKeys.today(nguoiThucHien, productionDate),
     queryFn: () =>
       materialEvaluationService.getAllMaterialEvaluations(1, 100, {
         nguoiThucHien,
@@ -687,9 +688,8 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
         wizardData.file ?? undefined,
       );
 
-      // Invalidate stock-related caches so the next entry sees fresh tồn
-      queryClient.invalidateQueries({ queryKey: ['materialEvaluations'] });
-      queryClient.invalidateQueries({ queryKey: ['material-eval-today'] });
+      // Invalidate all materialEvaluation-rooted caches (desktop list + kiosk batches + today chips)
+      queryClient.invalidateQueries({ queryKey: materialEvaluationKeys.all });
       queryClient.invalidateQueries({ queryKey: rawMaterialKeys.list() });
       queryClient.invalidateQueries({ queryKey: lotsByProductKeys.lists() });
       queryClient.invalidateQueries({ queryKey: kienByProductAndLotKeys.lists() });

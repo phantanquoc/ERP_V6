@@ -2,11 +2,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import materialEvaluationService, { MaterialEvaluation } from '../services/materialEvaluationService';
 import systemOperationService, { SystemOperation } from '../services/systemOperationService';
 import finishedProductService, { FinishedProduct } from '../services/finishedProductService';
+import { materialEvaluationKeys } from './useProductionEntities';
 
 // ─── Query Key Factories ─────────────────────────────────────────────────────
 
 export const productionEntryKeys = {
-  all: ['productionEntry'] as const,
+  all: materialEvaluationKeys.all,
   batches: (productionDate?: string, shift?: number) =>
     [...productionEntryKeys.all, 'batches', productionDate ?? '', shift ?? 0] as const,
   finishedProducts: (productionDate?: string) =>

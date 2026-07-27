@@ -16,6 +16,7 @@ import { useRawMaterials } from '../hooks/useRawMaterials';
 import { useLotsByProduct, lotsByProductKeys } from '../hooks/useLotsByProduct';
 import { useKienByProductAndLot } from '../hooks/useKienByProductAndLot';
 import { lotProductKeys } from '../services/lotProductService';
+import { materialEvaluationKeys } from '../hooks/useProductionEntities';
 import toast from 'react-hot-toast';
 
 
@@ -405,7 +406,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
         // Create new evaluation
         await materialEvaluationService.createMaterialEvaluation(submitData);
         // Invalidate related caches so stock counts refresh elsewhere
-        queryClient.invalidateQueries({ queryKey: ['materialEvaluations'] });
+        queryClient.invalidateQueries({ queryKey: materialEvaluationKeys.all });
         queryClient.invalidateQueries({ queryKey: lotProductKeys.lists() });
         queryClient.invalidateQueries({ queryKey: ['warehouseIssues'] });
         if (productId) {
@@ -446,6 +447,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
       setDeleteTargetId(null);
       setDeleteInfo(null);
       // Invalidate warehouse-related caches so refunded stock reflects immediately
+      queryClient.invalidateQueries({ queryKey: materialEvaluationKeys.all });
       queryClient.invalidateQueries({ queryKey: lotProductKeys.lists() });
       queryClient.invalidateQueries({ queryKey: ['warehouseIssues'] });
       await loadEvaluations();
