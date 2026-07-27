@@ -341,7 +341,6 @@ export class FinishedProductService {
       uotTiLe: calcPercent(uotKhoiLuong),
       nguoiThucHien,
       ...(rest.khoiLuong !== undefined ? { khoiLuong: rest.khoiLuong } : {}),
-      ...(rest.ghiChu !== undefined ? { ghiChu: rest.ghiChu } : {}),
     };
 
     const product = await prisma.finishedProduct.upsert({
