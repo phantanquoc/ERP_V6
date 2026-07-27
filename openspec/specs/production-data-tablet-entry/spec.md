@@ -184,6 +184,8 @@ The output-products step SHALL capture eight output weights in kg (aKhoiLuong, b
 
 All numeric inputs SHALL use a numeric on-screen keyboard (`inputMode="decimal"`), large touch targets of at least 44px, and the shared `parseNumberInput` helper for change handling. Save and navigation controls SHALL be positioned in the upper half of the screen so the tablet keyboard does not obscure them.
 
+**All interactive controls on the kiosk entry screens — including tabs, chips, and list buttons — SHALL have a touch target of at least 44px.** Text that the worker must read to complete the task SHALL be large enough to remain legible on a small tablet screen in a factory environment.
+
 #### Scenario: Numeric keyboard opens on a tablet
 
 - **WHEN** the worker taps a numeric input on a tablet
@@ -193,6 +195,11 @@ All numeric inputs SHALL use a numeric on-screen keyboard (`inputMode="decimal"`
 
 - **WHEN** the on-screen keyboard covers the lower portion of the screen
 - **THEN** the Save and navigation controls remain visible in the upper half
+
+#### Scenario: Tabs and chips meet the touch target
+
+- **WHEN** the worker taps a quality tab or a batch chip on the kiosk screens
+- **THEN** the control has a touch target of at least 44px
 
 ### Requirement: Minimal validation
 
@@ -370,4 +377,50 @@ When the worker changes the production date while having unsaved entered data, t
 
 - **WHEN** the worker changes the production date with no unsaved changes
 - **THEN** the date switches without a confirmation prompt
+
+### Requirement: Adaptive layout by viewport width for output board
+
+The output-products entry screen SHALL have two layouts and **automatically switch by viewport width** at a 700 px threshold, with NO manual layout toggle button:
+- Width **below 700 px** (portrait tablet): display as a **card list by fry-batch code**, scrolling vertically, with NO horizontal scrolling required.
+- Width **700 px or above** (landscape tablet): display as the **matrix table** (existing layout).
+
+Both layouts SHALL share state and save flow; switching layouts SHALL NOT lose data currently being entered.
+
+#### Scenario: Portrait displays cards
+
+- **WHEN** viewport width is below 700 px
+- **THEN** the screen displays a card list by fry-batch code and does not require horizontal scrolling to enter data
+
+#### Scenario: Landscape displays table
+
+- **WHEN** viewport width is 700 px or above
+- **THEN** the screen displays the matrix table of fry-batch code x machines
+
+#### Scenario: Rotating device while entering data
+
+- **WHEN** the worker has entered some values then rotates the device causing a layout change
+- **THEN** the entered values remain intact in the new layout
+
+### Requirement: Card structure by fry-batch code
+
+In the card layout, each card SHALL represent one fry-batch code and display in order: the fry-batch code, fry time and commodity name in the card header (read-only); followed by a list of each machine with its label and a weight input; and a notes field at the end of the card. Inputs in cards SHALL open the focus editor layer as in the table layout.
+
+#### Scenario: Entering values for machines within a card
+
+- **WHEN** the worker opens a fry-batch card and taps a machine's input
+- **THEN** the focus editor opens for that machine and fry-batch, and the entered value is written to the same data cell as in the table layout
+
+#### Scenario: No fry-batch codes available
+
+- **WHEN** there are no fry-batch codes matching the selected shift and date
+- **THEN** a Vietnamese empty-state message is shown; no blank card list is displayed
+
+### Requirement: Sticky context when scrolling the table horizontally
+
+In the table layout, the header row SHALL be sticky when scrolling vertically and the fry-batch code column SHALL be sticky when scrolling horizontally, so the worker always sees which machine and fry-batch code they are entering data for.
+
+#### Scenario: Horizontal scroll with many machines
+
+- **WHEN** the worker scrolls the table horizontally to reach distant machine columns
+- **THEN** the fry-batch code column remains visible and the machine header row remains identifiable
 
