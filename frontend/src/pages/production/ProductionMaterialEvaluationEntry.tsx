@@ -30,7 +30,7 @@ import {
   setDeviceKey,
 } from '../../utils/kioskSession';
 import useVirtualKeyboard from '../../hooks/useVirtualKeyboard';
-import { parseNumberInput } from '../../utils/numberInput';
+import { parseNumberInput, PRODUCTION_LIMITS } from '../../utils/numberInput';
 import { getQuickTimesForShift, computeShiftDatetime } from '../../utils/shiftTime';
 import { useRawMaterials, rawMaterialKeys } from '../../hooks/useRawMaterials';
 import { useAttendedOperatorsByShift } from '../../hooks/useAttendedOperators';
@@ -44,6 +44,7 @@ import OperatorSelectionScreen from '../../components/production/OperatorSelecti
 import ShiftSelectionScreen from '../../components/production/ShiftSelectionScreen';
 import EvaluationDetailReadOnly from '../../components/production/EvaluationDetailReadOnly';
 import KioskFooter from '../../components/production/KioskFooter';
+import FieldFocusEditor from '../../components/production/FieldFocusEditor';
 import { useAuth } from '../../contexts/AuthContext';
 import { isAdmin } from '../../utils/permissions';
 import faceAttendanceService from '../../services/faceAttendanceService';
@@ -132,19 +133,26 @@ interface NumericInputProps {
   onChange: (val: number) => void;
   placeholder?: string;
   step?: string;
+  /** Called on tap to open FieldFocusEditor */
+  onTap?: () => void;
+  min?: number;
+  max?: number;
+  integer?: boolean;
 }
 
-const NumericInput: React.FC<NumericInputProps> = ({ value, onChange, placeholder, step }) => (
+const NumericInput: React.FC<NumericInputProps> = ({ value, onChange, placeholder, step, onTap, min = 0, max, integer }) => (
   <input
     type="number"
-    inputMode="decimal"
-    step={step ?? '0.1'}
-    min={0}
+    inputMode={integer ? 'numeric' : 'decimal'}
+    step={step ?? (integer ? '1' : '0.1')}
+    min={min}
+    max={max}
     placeholder={placeholder ?? '0'}
     className="w-full min-h-[52px] px-3 py-2 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
     value={value === 0 ? '' : value}
-    // Kẹp về >= 0: không cho nhập giá trị âm
-    onChange={(e) => onChange(Math.max(0, parseNumberInput(e.target.value)))}
+    onFocus={onTap ? (e) => { e.target.blur(); onTap(); } : undefined}
+    onClick={onTap ? () => onTap() : undefined}
+    onChange={(e) => onChange(parseNumberInput(e.target.value, { min, max, integer }))}
   />
 );
 
@@ -209,6 +217,30 @@ const StepProgress: React.FC<StepProgressProps> = ({ currentStep, className }) =
   </div>
 );
 
+// ─── Field Focus Editor: field configs per wizard step ──────────────────────
+
+type MaterialNumericField = 'khoiLuong' | 'soLanNgam' | 'nhietDoNuocTruocNgam' | 'nhietDoNuocSauVot' | 'thoiGianNgam' | 'brixNuocNgam';
+
+interface MaterialFieldConfig {
+  key: MaterialNumericField;
+  label: string;
+  unit?: string;
+  integer?: boolean;
+  suggestions?: number[];
+  step: 2 | 4;
+  min?: number;
+  max?: number;
+}
+
+const MATERIAL_EVAL_FIELDS: MaterialFieldConfig[] = [
+  { key: 'khoiLuong', label: 'Khối lượng xuất', unit: 'kg', step: 2, suggestions: [300, 350, 400], min: 0, max: PRODUCTION_LIMITS.khoiLuong.max },
+  { key: 'soLanNgam', label: 'Số lần ngâm', integer: true, step: 4, suggestions: [1, 2, 3], min: 0, max: PRODUCTION_LIMITS.soLanNgam.max },
+  { key: 'nhietDoNuocTruocNgam', label: 'Nhiệt độ nước trước ngâm', unit: '°C', step: 4, suggestions: [40, 50, 60, 70, 80], min: 0, max: PRODUCTION_LIMITS.nhietDoNuocTruocNgam.max },
+  { key: 'nhietDoNuocSauVot', label: 'Nhiệt độ nước sau vớt', unit: '°C', step: 4, suggestions: [40, 50, 60, 70, 80], min: 0, max: PRODUCTION_LIMITS.nhietDoNuocSauVot.max },
+  { key: 'thoiGianNgam', label: 'Thời gian ngâm', unit: 'phút', integer: true, step: 4, suggestions: [30, 45, 60, 90], min: 0, max: PRODUCTION_LIMITS.thoiGianNgam.max },
+  { key: 'brixNuocNgam', label: 'Brix nước ngâm', step: 4, suggestions: [10, 15, 20, 25], min: 0, max: PRODUCTION_LIMITS.brixNuocNgam.max },
+];
+
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 const ProductionMaterialEvaluationEntry: React.FC = () => {
@@ -235,6 +267,9 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
   const draftLoaded = useRef<boolean>(false);
   const previewUrlRef = useRef<string | null>(null);
   const [deviceKeyInput, setDeviceKeyInput] = useState('');
+
+  // FieldFocusEditor state
+  const [activeEditorField, setActiveEditorField] = useState<MaterialNumericField | null>(null);
 
   // Admin self-registration state
   const { user } = useAuth();
@@ -509,6 +544,16 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
       tenHangHoa: '',
       soLoKien: '',
       khoiLuong: 0,
+      // Reset step 4 (thông số ngâm)
+      soLanNgam: 0,
+      nhietDoNuocTruocNgam: 0,
+      nhietDoNuocSauVot: 0,
+      thoiGianNgam: 0,
+      brixNuocNgam: 0,
+      // Reset step 5 (đánh giá + file)
+      danhGiaTruocNgam: '',
+      danhGiaSauNgam: '',
+      file: null,
     }));
   }, []);
 
@@ -590,6 +635,11 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0] ?? null;
+    if (f && f.size > 20 * 1024 * 1024) {
+      toast.error('File vượt quá 20MB. Vui lòng chọn file nhỏ hơn.');
+      e.target.value = '';
+      return;
+    }
     setWizardData(prev => ({ ...prev, file: f }));
     // reset input để cùng file có thể chọn lại
     e.target.value = '';
@@ -910,9 +960,11 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
                 min={0}
                 max={selectedKien?.soLuong ?? undefined}
                 value={wizardData.khoiLuong === 0 ? '' : wizardData.khoiLuong}
-                onChange={(e) => handleKhoiLuongChange(parseNumberInput(e.target.value))}
+                onChange={(e) => handleKhoiLuongChange(parseNumberInput(e.target.value, { min: 0, max: PRODUCTION_LIMITS.khoiLuong.max }))}
                 placeholder="0"
                 disabled={!wizardData.lotProductId}
+                onFocus={wizardData.lotProductId ? (e) => { e.target.blur(); setActiveEditorField('khoiLuong'); } : undefined}
+                onClick={wizardData.lotProductId ? () => setActiveEditorField('khoiLuong') : undefined}
                 className={`w-full min-h-[52px] px-3 py-2 border rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
                   khoiLuongExceeded ? 'border-red-500' : 'border-gray-300'
                 }`}
@@ -996,6 +1048,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
               required
               placeholder="Chọn ngày và giờ chiên"
               allowClear
+              maxDateTime={new Date().toISOString().slice(0, 16)}
             />
             <div>
               <span className="text-xs text-gray-500 mb-2 block">Chọn nhanh giờ chiên cho Ca {selectedShift}:</span>
@@ -1028,6 +1081,10 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
                   value={wizardData.soLanNgam}
                   onChange={(v) => setWizardData(prev => ({ ...prev, soLanNgam: v }))}
                   step="1"
+                  integer
+                  min={0}
+                  max={PRODUCTION_LIMITS.soLanNgam.max}
+                  onTap={() => setActiveEditorField('soLanNgam')}
                 />
               </div>
               <div>
@@ -1035,6 +1092,9 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
                 <NumericInput
                   value={wizardData.nhietDoNuocTruocNgam}
                   onChange={(v) => setWizardData(prev => ({ ...prev, nhietDoNuocTruocNgam: v }))}
+                  min={0}
+                  max={PRODUCTION_LIMITS.nhietDoNuocTruocNgam.max}
+                  onTap={() => setActiveEditorField('nhietDoNuocTruocNgam')}
                 />
               </div>
               <div>
@@ -1042,6 +1102,9 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
                 <NumericInput
                   value={wizardData.nhietDoNuocSauVot}
                   onChange={(v) => setWizardData(prev => ({ ...prev, nhietDoNuocSauVot: v }))}
+                  min={0}
+                  max={PRODUCTION_LIMITS.nhietDoNuocSauVot.max}
+                  onTap={() => setActiveEditorField('nhietDoNuocSauVot')}
                 />
               </div>
               <div>
@@ -1050,6 +1113,10 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
                   value={wizardData.thoiGianNgam}
                   onChange={(v) => setWizardData(prev => ({ ...prev, thoiGianNgam: v }))}
                   step="1"
+                  integer
+                  min={0}
+                  max={PRODUCTION_LIMITS.thoiGianNgam.max}
+                  onTap={() => setActiveEditorField('thoiGianNgam')}
                 />
               </div>
               <div>
@@ -1057,6 +1124,9 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
                 <NumericInput
                   value={wizardData.brixNuocNgam}
                   onChange={(v) => setWizardData(prev => ({ ...prev, brixNuocNgam: v }))}
+                  min={0}
+                  max={PRODUCTION_LIMITS.brixNuocNgam.max}
+                  onTap={() => setActiveEditorField('brixNuocNgam')}
                 />
               </div>
             </div>
@@ -1234,6 +1304,29 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
           onClose={() => setViewingEvalId(null)}
         />
       )}
+
+      {/* FieldFocusEditor overlay */}
+      {(() => {
+        const fieldsForStep = MATERIAL_EVAL_FIELDS.filter(f => f.step === currentStep);
+        const fieldIdx = activeEditorField ? fieldsForStep.findIndex(f => f.key === activeEditorField) : -1;
+        const fieldCfg = fieldIdx >= 0 ? fieldsForStep[fieldIdx] : null;
+        const nextField = fieldIdx >= 0 && fieldIdx < fieldsForStep.length - 1 ? fieldsForStep[fieldIdx + 1] : null;
+        return (
+          <FieldFocusEditor
+            open={!!activeEditorField && !!fieldCfg}
+            label={fieldCfg?.label ?? ''}
+            value={activeEditorField ? (wizardData[activeEditorField] as number) : 0}
+            unit={fieldCfg?.unit}
+            integer={fieldCfg?.integer}
+            min={fieldCfg?.min}
+            max={fieldCfg?.max}
+            suggestions={fieldCfg?.suggestions}
+            onChange={(v) => { if (activeEditorField) setWizardData(prev => ({ ...prev, [activeEditorField]: v })); }}
+            onNext={nextField ? () => setActiveEditorField(nextField.key) : undefined}
+            onClose={() => setActiveEditorField(null)}
+          />
+        );
+      })()}
 
       <KioskFooter />
     </div>

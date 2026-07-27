@@ -147,25 +147,51 @@ export const updateQuotationSchema = z.object({
   ghiChu: z.string().optional(),
 });
 
+// ==================== PRODUCTION ENTRY LIMITS ====================
+// Bảng ngưỡng min/max cho thông số nhập liệu sản xuất.
+// ⚠️ PHẢI sửa cùng lúc với frontend/src/utils/numberInput.ts (PRODUCTION_LIMITS)
+export const PRODUCTION_LIMITS = {
+  nhietDoNuocTruocNgam: { min: 0, max: 200, integer: false },
+  nhietDoNuocSauVot: { min: 0, max: 200, integer: false },
+  giaiDoan1NhietDo: { min: 0, max: 400, integer: false },
+  giaiDoan2NhietDo: { min: 0, max: 400, integer: false },
+  giaiDoan3NhietDo: { min: 0, max: 400, integer: false },
+  giaiDoan4NhietDo: { min: 0, max: 400, integer: false },
+  brixNuocNgam: { min: 0, max: 100, integer: false },
+  giaiDoan1ApSuat: { min: 0, max: 20, integer: false },
+  giaiDoan2ApSuat: { min: 0, max: 20, integer: false },
+  giaiDoan3ApSuat: { min: 0, max: 20, integer: false },
+  giaiDoan4ApSuat: { min: 0, max: 20, integer: false },
+  thoiGianNgam: { min: 0, max: 2880, integer: true },
+  giaiDoan1ThoiGian: { min: 0, max: 2880, integer: true },
+  giaiDoan2ThoiGian: { min: 0, max: 2880, integer: true },
+  giaiDoan3ThoiGian: { min: 0, max: 2880, integer: true },
+  giaiDoan4ThoiGian: { min: 0, max: 2880, integer: true },
+  soLanNgam: { min: 0, max: 40, integer: true },
+  khoiLuong: { min: 0, max: 200000, integer: false },
+  khoiLuongDauVao: { min: 0, max: 200000, integer: false },
+  tongThoiGianSay: { min: 0, max: 11520, integer: true },
+} as const;
+
 // ==================== SYSTEM OPERATION SCHEMAS ====================
 export const createSystemOperationSchema = z.object({
   maChien: z.string().min(1, 'Mã chiên là bắt buộc'),
   thoiGianChien: z.string().min(1, 'Thời gian chiên là bắt buộc'),
   tenMay: z.string().optional(),
   machineId: z.string().optional(),
-  khoiLuongDauVao: z.number().min(0).optional(),
-  giaiDoan1ThoiGian: z.number().min(0).optional(),
-  giaiDoan1NhietDo: z.number().optional(),
-  giaiDoan1ApSuat: z.number().optional(),
-  giaiDoan2ThoiGian: z.number().min(0).optional(),
-  giaiDoan2NhietDo: z.number().optional(),
-  giaiDoan2ApSuat: z.number().optional(),
-  giaiDoan3ThoiGian: z.number().min(0).optional(),
-  giaiDoan3NhietDo: z.number().optional(),
-  giaiDoan3ApSuat: z.number().optional(),
-  giaiDoan4ThoiGian: z.number().min(0).optional(),
-  giaiDoan4NhietDo: z.number().optional(),
-  giaiDoan4ApSuat: z.number().optional(),
+  khoiLuongDauVao: z.number().min(0, 'Khối lượng đầu vào phải từ 0 đến 200000 kg').max(200000, 'Khối lượng đầu vào phải từ 0 đến 200000 kg').optional(),
+  giaiDoan1ThoiGian: z.number().int('GĐ1 Thời gian phải là số nguyên').min(0, 'GĐ1 Thời gian phải từ 0 đến 2880 phút').max(2880, 'GĐ1 Thời gian phải từ 0 đến 2880 phút').optional(),
+  giaiDoan1NhietDo: z.number().min(0, 'GĐ1 Nhiệt độ phải từ 0 đến 400°C').max(400, 'GĐ1 Nhiệt độ phải từ 0 đến 400°C').optional(),
+  giaiDoan1ApSuat: z.number().min(0, 'GĐ1 Áp suất phải từ 0 đến 20 bar').max(20, 'GĐ1 Áp suất phải từ 0 đến 20 bar').optional(),
+  giaiDoan2ThoiGian: z.number().int('GĐ2 Thời gian phải là số nguyên').min(0, 'GĐ2 Thời gian phải từ 0 đến 2880 phút').max(2880, 'GĐ2 Thời gian phải từ 0 đến 2880 phút').optional(),
+  giaiDoan2NhietDo: z.number().min(0, 'GĐ2 Nhiệt độ phải từ 0 đến 400°C').max(400, 'GĐ2 Nhiệt độ phải từ 0 đến 400°C').optional(),
+  giaiDoan2ApSuat: z.number().min(0, 'GĐ2 Áp suất phải từ 0 đến 20 bar').max(20, 'GĐ2 Áp suất phải từ 0 đến 20 bar').optional(),
+  giaiDoan3ThoiGian: z.number().int('GĐ3 Thời gian phải là số nguyên').min(0, 'GĐ3 Thời gian phải từ 0 đến 2880 phút').max(2880, 'GĐ3 Thời gian phải từ 0 đến 2880 phút').optional(),
+  giaiDoan3NhietDo: z.number().min(0, 'GĐ3 Nhiệt độ phải từ 0 đến 400°C').max(400, 'GĐ3 Nhiệt độ phải từ 0 đến 400°C').optional(),
+  giaiDoan3ApSuat: z.number().min(0, 'GĐ3 Áp suất phải từ 0 đến 20 bar').max(20, 'GĐ3 Áp suất phải từ 0 đến 20 bar').optional(),
+  giaiDoan4ThoiGian: z.number().int('GĐ4 Thời gian phải là số nguyên').min(0, 'GĐ4 Thời gian phải từ 0 đến 2880 phút').max(2880, 'GĐ4 Thời gian phải từ 0 đến 2880 phút').optional(),
+  giaiDoan4NhietDo: z.number().min(0, 'GĐ4 Nhiệt độ phải từ 0 đến 400°C').max(400, 'GĐ4 Nhiệt độ phải từ 0 đến 400°C').optional(),
+  giaiDoan4ApSuat: z.number().min(0, 'GĐ4 Áp suất phải từ 0 đến 20 bar').max(20, 'GĐ4 Áp suất phải từ 0 đến 20 bar').optional(),
   ghiChu: z.string().optional(),
   nguoiThucHien: z.string().optional(),
   materialEvaluationId: z.string().optional(),
@@ -177,22 +203,102 @@ export const createBulkSystemOperationSchema = z.object({
 });
 
 export const updateSystemOperationSchema = z.object({
-  khoiLuongDauVao: z.number().min(0).optional(),
-  giaiDoan1ThoiGian: z.number().min(0).optional(),
-  giaiDoan1NhietDo: z.number().optional(),
-  giaiDoan1ApSuat: z.number().optional(),
-  giaiDoan2ThoiGian: z.number().min(0).optional(),
-  giaiDoan2NhietDo: z.number().optional(),
-  giaiDoan2ApSuat: z.number().optional(),
-  giaiDoan3ThoiGian: z.number().min(0).optional(),
-  giaiDoan3NhietDo: z.number().optional(),
-  giaiDoan3ApSuat: z.number().optional(),
-  giaiDoan4ThoiGian: z.number().min(0).optional(),
-  giaiDoan4NhietDo: z.number().optional(),
-  giaiDoan4ApSuat: z.number().optional(),
-  tongThoiGianSay: z.number().min(0).optional(),
+  khoiLuongDauVao: z.number().min(0, 'Khối lượng đầu vào phải từ 0 đến 200000 kg').max(200000, 'Khối lượng đầu vào phải từ 0 đến 200000 kg').optional(),
+  giaiDoan1ThoiGian: z.number().int('GĐ1 Thời gian phải là số nguyên').min(0, 'GĐ1 Thời gian phải từ 0 đến 2880 phút').max(2880, 'GĐ1 Thời gian phải từ 0 đến 2880 phút').optional(),
+  giaiDoan1NhietDo: z.number().min(0, 'GĐ1 Nhiệt độ phải từ 0 đến 400°C').max(400, 'GĐ1 Nhiệt độ phải từ 0 đến 400°C').optional(),
+  giaiDoan1ApSuat: z.number().min(0, 'GĐ1 Áp suất phải từ 0 đến 20 bar').max(20, 'GĐ1 Áp suất phải từ 0 đến 20 bar').optional(),
+  giaiDoan2ThoiGian: z.number().int('GĐ2 Thời gian phải là số nguyên').min(0, 'GĐ2 Thời gian phải từ 0 đến 2880 phút').max(2880, 'GĐ2 Thời gian phải từ 0 đến 2880 phút').optional(),
+  giaiDoan2NhietDo: z.number().min(0, 'GĐ2 Nhiệt độ phải từ 0 đến 400°C').max(400, 'GĐ2 Nhiệt độ phải từ 0 đến 400°C').optional(),
+  giaiDoan2ApSuat: z.number().min(0, 'GĐ2 Áp suất phải từ 0 đến 20 bar').max(20, 'GĐ2 Áp suất phải từ 0 đến 20 bar').optional(),
+  giaiDoan3ThoiGian: z.number().int('GĐ3 Thời gian phải là số nguyên').min(0, 'GĐ3 Thời gian phải từ 0 đến 2880 phút').max(2880, 'GĐ3 Thời gian phải từ 0 đến 2880 phút').optional(),
+  giaiDoan3NhietDo: z.number().min(0, 'GĐ3 Nhiệt độ phải từ 0 đến 400°C').max(400, 'GĐ3 Nhiệt độ phải từ 0 đến 400°C').optional(),
+  giaiDoan3ApSuat: z.number().min(0, 'GĐ3 Áp suất phải từ 0 đến 20 bar').max(20, 'GĐ3 Áp suất phải từ 0 đến 20 bar').optional(),
+  giaiDoan4ThoiGian: z.number().int('GĐ4 Thời gian phải là số nguyên').min(0, 'GĐ4 Thời gian phải từ 0 đến 2880 phút').max(2880, 'GĐ4 Thời gian phải từ 0 đến 2880 phút').optional(),
+  giaiDoan4NhietDo: z.number().min(0, 'GĐ4 Nhiệt độ phải từ 0 đến 400°C').max(400, 'GĐ4 Nhiệt độ phải từ 0 đến 400°C').optional(),
+  giaiDoan4ApSuat: z.number().min(0, 'GĐ4 Áp suất phải từ 0 đến 20 bar').max(20, 'GĐ4 Áp suất phải từ 0 đến 20 bar').optional(),
+  tongThoiGianSay: z.number().int('Tổng thời gian sấy phải là số nguyên').min(0, 'Tổng thời gian sấy phải từ 0 đến 11520 phút').max(11520, 'Tổng thời gian sấy phải từ 0 đến 11520 phút').optional(),
   ghiChu: z.string().optional(),
   nguoiThucHien: z.string().optional(),
+});
+
+// ==================== MATERIAL EVALUATION SCHEMAS ====================
+// Uses z.coerce because multipart/form-data sends numbers as strings
+export const createMaterialEvaluationSchema = z.object({
+  productId: z.string().optional(),
+  lotId: z.string().optional(),
+  lotProductId: z.string().optional(),
+  tenHangHoa: z.string().optional(),
+  soLoKien: z.string().optional(),
+  ca: z.coerce.number().optional(),
+  khoiLuong: z.coerce.number().min(0, 'Khối lượng phải từ 0 đến 200000 kg').max(200000, 'Khối lượng phải từ 0 đến 200000 kg').optional(),
+  nhietDoNuocTruocNgam: z.coerce.number().min(0, 'Nhiệt độ nước trước ngâm phải từ 0 đến 200°C').max(200, 'Nhiệt độ nước trước ngâm phải từ 0 đến 200°C').optional(),
+  nhietDoNuocSauVot: z.coerce.number().min(0, 'Nhiệt độ nước sau vớt phải từ 0 đến 200°C').max(200, 'Nhiệt độ nước sau vớt phải từ 0 đến 200°C').optional(),
+  brixNuocNgam: z.coerce.number().min(0, 'Brix nước ngâm phải từ 0 đến 100').max(100, 'Brix nước ngâm phải từ 0 đến 100').optional(),
+  thoiGianNgam: z.coerce.number().int('Thời gian ngâm phải là số nguyên').min(0, 'Thời gian ngâm phải từ 0 đến 2880 phút').max(2880, 'Thời gian ngâm phải từ 0 đến 2880 phút').optional(),
+  soLanNgam: z.coerce.number().int('Số lần ngâm phải là số nguyên').min(0, 'Số lần ngâm phải từ 0 đến 40').max(40, 'Số lần ngâm phải từ 0 đến 40').optional(),
+  thoiGianChien: z.string().optional(),
+  danhGiaTruocNgam: z.string().optional(),
+  danhGiaSauNgam: z.string().optional(),
+  nguoiThucHien: z.string().optional(),
+  ghiChu: z.string().optional(),
+}).passthrough();
+
+// ==================== FINISHED PRODUCT SCHEMAS ====================
+// Uses z.coerce for PATCH (multipart/form-data sends numbers as strings)
+const finishedProductWeightField = (label: string) =>
+  z.coerce.number().min(0, `${label} phải từ 0 đến 200000 kg`).max(200000, `${label} phải từ 0 đến 200000 kg`).optional();
+
+export const updateFinishedProductSchema = z.object({
+  aKhoiLuong: finishedProductWeightField('Loại A'),
+  bKhoiLuong: finishedProductWeightField('Loại B'),
+  bDauKhoiLuong: finishedProductWeightField('B Dầu'),
+  cKhoiLuong: finishedProductWeightField('Loại C'),
+  vunLonKhoiLuong: finishedProductWeightField('Vụn lớn'),
+  vunNhoKhoiLuong: finishedProductWeightField('Vụn nhỏ'),
+  phePhamKhoiLuong: finishedProductWeightField('Phế phẩm'),
+  uotKhoiLuong: finishedProductWeightField('Ướt'),
+  tongKhoiLuong: finishedProductWeightField('Tổng khối lượng'),
+  khoiLuong: finishedProductWeightField('Khối lượng'),
+  nguoiThucHien: z.string().optional(),
+  ghiChu: z.string().optional(),
+  fileDinhKem: z.string().optional(),
+  // tiLe fields (computed, pass-through)
+  aTiLe: z.coerce.number().optional(),
+  bTiLe: z.coerce.number().optional(),
+  bDauTiLe: z.coerce.number().optional(),
+  cTiLe: z.coerce.number().optional(),
+  vunLonTiLe: z.coerce.number().optional(),
+  vunNhoTiLe: z.coerce.number().optional(),
+  phePhamTiLe: z.coerce.number().optional(),
+  uotTiLe: z.coerce.number().optional(),
+}).passthrough();
+
+export const upsertFinishedProductByBatchMachineSchema = z.object({
+  maChien: z.string().min(1, 'Mã chiên là bắt buộc'),
+  machineSystemId: z.string().min(1, 'Máy là bắt buộc'),
+  thoiGianChien: z.string().optional(),
+  tenHangHoa: z.string().optional(),
+  khoiLuong: z.number().min(0, 'Khối lượng phải từ 0 đến 200000 kg').max(200000, 'Khối lượng phải từ 0 đến 200000 kg').optional(),
+  aKhoiLuong: finishedProductWeightField('Loại A'),
+  bKhoiLuong: finishedProductWeightField('Loại B'),
+  bDauKhoiLuong: finishedProductWeightField('B Dầu'),
+  cKhoiLuong: finishedProductWeightField('Loại C'),
+  vunLonKhoiLuong: finishedProductWeightField('Vụn lớn'),
+  vunNhoKhoiLuong: finishedProductWeightField('Vụn nhỏ'),
+  phePhamKhoiLuong: finishedProductWeightField('Phế phẩm'),
+  uotKhoiLuong: finishedProductWeightField('Ướt'),
+  tongKhoiLuong: finishedProductWeightField('Tổng khối lượng'),
+  nguoiThucHien: z.string().optional(),
+  ghiChu: z.string().optional(),
+  // tiLe fields (computed, pass-through)
+  aTiLe: z.number().optional(),
+  bTiLe: z.number().optional(),
+  bDauTiLe: z.number().optional(),
+  cTiLe: z.number().optional(),
+  vunLonTiLe: z.number().optional(),
+  vunNhoTiLe: z.number().optional(),
+  phePhamTiLe: z.number().optional(),
+  uotTiLe: z.number().optional(),
 });
 
 // ==================== TYPE EXPORTS ====================

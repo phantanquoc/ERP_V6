@@ -24,7 +24,7 @@ import {
   setDeviceKey,
 } from '../../utils/kioskSession';
 import useVirtualKeyboard from '../../hooks/useVirtualKeyboard';
-import { parseNumberInput } from '../../utils/numberInput';
+import { parseNumberInput, PRODUCTION_LIMITS } from '../../utils/numberInput';
 import {
   useFryBatchCodes,
   filterBatchesByShiftAndDate,
@@ -40,6 +40,7 @@ import faceAttendanceService from '../../services/faceAttendanceService';
 import OperatorSelectionScreen from '../../components/production/OperatorSelectionScreen';
 import ShiftSelectionScreen from '../../components/production/ShiftSelectionScreen';
 import KioskFooter from '../../components/production/KioskFooter';
+import FieldFocusEditor from '../../components/production/FieldFocusEditor';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -123,6 +124,28 @@ function isOperationEntered(op: SystemOperation): boolean {
   return (op.nguoiThucHien?.trim() ?? '') !== '' || (op.tongThoiGianSay ?? 0) > 0;
 }
 
+// ─── Draft persistence helpers ──────────────────────────────────────────────
+
+function getDraftKey(productionDate: string, shift: number, maChien: string, machineSystemId: string): string {
+  return `sysop-draft|${productionDate}|${shift}|${maChien}|${machineSystemId}`;
+}
+
+function saveDraft(key: string, data: FormData): void {
+  try { localStorage.setItem(key, JSON.stringify(data)); } catch { /* quota exceeded — ignore */ }
+}
+
+function loadDraft(key: string): FormData | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw) as FormData;
+  } catch { return null; }
+}
+
+function clearDraft(key: string): void {
+  try { localStorage.removeItem(key); } catch { /* ignore */ }
+}
+
 // ─── Session guard screens ───────────────────────────────────────────────────
 
 const NotActivatedScreen: React.FC = () => (
@@ -153,11 +176,15 @@ interface NumericFieldProps {
   onChange: (v: number) => void;
   unit?: string;
   integer?: boolean;
+  min?: number;
+  max?: number;
   /** When true, the field is display-only (e.g. auto-computed total). */
   readOnly?: boolean;
+  /** Called when field is tapped — used to open FieldFocusEditor */
+  onTap?: () => void;
 }
 
-const NumericField: React.FC<NumericFieldProps> = ({ label, value, onChange, unit, integer, readOnly }) => (
+const NumericField: React.FC<NumericFieldProps> = ({ label, value, onChange, unit, integer, readOnly, onTap, min = 0, max }) => (
   <label className="block">
     <span className="block text-sm font-medium text-gray-700 mb-1">
       {label}
@@ -166,18 +193,49 @@ const NumericField: React.FC<NumericFieldProps> = ({ label, value, onChange, uni
     <input
       type="number"
       inputMode={integer ? 'numeric' : 'decimal'}
-      min={0}
+      min={min}
+      max={max}
       readOnly={readOnly}
       className={`w-full min-h-[52px] px-4 py-2 border border-gray-300 rounded-xl text-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
         readOnly ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''
       }`}
       value={value === 0 ? '' : value}
       placeholder="0"
-      // Kẹp về >= 0: công nhân không nhập được giá trị âm
-      onChange={readOnly ? undefined : (e) => onChange(Math.max(0, parseNumberInput(e.target.value)))}
+      onFocus={!readOnly && onTap ? (e) => { e.target.blur(); onTap(); } : undefined}
+      onClick={!readOnly && onTap ? () => onTap() : undefined}
+      onChange={readOnly ? undefined : (e) => onChange(parseNumberInput(e.target.value, { min, max, integer }))}
     />
   </label>
 );
+
+// ─── Field Focus Editor: field order + suggestions ──────────────────────────
+
+interface FieldConfig {
+  key: keyof FormData;
+  label: string;
+  unit?: string;
+  integer?: boolean;
+  suggestions?: number[];
+  min?: number;
+  max?: number;
+}
+
+const SYSTEM_OP_FIELDS: FieldConfig[] = [
+  { key: 'khoiLuongDauVao', label: 'Khối lượng đầu vào', unit: 'kg', suggestions: [300, 350, 400], min: 0, max: PRODUCTION_LIMITS.khoiLuongDauVao.max },
+  { key: 'giaiDoan1ThoiGian', label: 'GĐ1 - Thời gian', unit: 'phút', integer: true, suggestions: [30, 60, 90, 120], min: 0, max: PRODUCTION_LIMITS.giaiDoan1ThoiGian.max },
+  { key: 'giaiDoan1NhietDo', label: 'GĐ1 - Nhiệt độ', unit: '°C', suggestions: [60, 70, 80, 90], min: 0, max: PRODUCTION_LIMITS.giaiDoan1NhietDo.max },
+  { key: 'giaiDoan1ApSuat', label: 'GĐ1 - Áp suất', unit: 'bar', suggestions: [0.5, 0.8, 1.0], min: 0, max: PRODUCTION_LIMITS.giaiDoan1ApSuat.max },
+  { key: 'giaiDoan2ThoiGian', label: 'GĐ2 - Thời gian', unit: 'phút', integer: true, suggestions: [30, 60, 90, 120], min: 0, max: PRODUCTION_LIMITS.giaiDoan2ThoiGian.max },
+  { key: 'giaiDoan2NhietDo', label: 'GĐ2 - Nhiệt độ', unit: '°C', suggestions: [60, 70, 80, 90], min: 0, max: PRODUCTION_LIMITS.giaiDoan2NhietDo.max },
+  { key: 'giaiDoan2ApSuat', label: 'GĐ2 - Áp suất', unit: 'bar', suggestions: [0.5, 0.8, 1.0], min: 0, max: PRODUCTION_LIMITS.giaiDoan2ApSuat.max },
+  { key: 'giaiDoan3ThoiGian', label: 'GĐ3 - Thời gian', unit: 'phút', integer: true, suggestions: [30, 60, 90, 120], min: 0, max: PRODUCTION_LIMITS.giaiDoan3ThoiGian.max },
+  { key: 'giaiDoan3NhietDo', label: 'GĐ3 - Nhiệt độ', unit: '°C', suggestions: [60, 70, 80, 90], min: 0, max: PRODUCTION_LIMITS.giaiDoan3NhietDo.max },
+  { key: 'giaiDoan3ApSuat', label: 'GĐ3 - Áp suất', unit: 'bar', suggestions: [0.5, 0.8, 1.0], min: 0, max: PRODUCTION_LIMITS.giaiDoan3ApSuat.max },
+  { key: 'giaiDoan4ThoiGian', label: 'GĐ4 - Thời gian', unit: 'phút', integer: true, suggestions: [30, 60, 90, 120], min: 0, max: PRODUCTION_LIMITS.giaiDoan4ThoiGian.max },
+  { key: 'giaiDoan4NhietDo', label: 'GĐ4 - Nhiệt độ', unit: '°C', suggestions: [60, 70, 80, 90], min: 0, max: PRODUCTION_LIMITS.giaiDoan4NhietDo.max },
+  { key: 'giaiDoan4ApSuat', label: 'GĐ4 - Áp suất', unit: 'bar', suggestions: [0.5, 0.8, 1.0], min: 0, max: PRODUCTION_LIMITS.giaiDoan4ApSuat.max },
+  // tongThoiGianSay is readOnly — excluded
+];
 
 // ─── Main component ──────────────────────────────────────────────────────────
 
@@ -205,6 +263,9 @@ const ProductionSystemOperationEntry: React.FC = () => {
   const userIsAdmin = user ? isAdmin(user.department) : false;
   const [deviceName, setDeviceName] = useState('');
   const [registering, setRegistering] = useState(false);
+
+  // FieldFocusEditor state
+  const [activeEditorField, setActiveEditorField] = useState<keyof FormData | null>(null);
 
   // Attended operators for the shift
   const {
@@ -257,6 +318,47 @@ const ProductionSystemOperationEntry: React.FC = () => {
     form.giaiDoan4ThoiGian,
     form.tongThoiGianSay,
   ]);
+
+  // ─── Draft auto-save & load ───────────────────────────────────────────────
+  const [usingDraft, setUsingDraft] = useState(false);
+
+  // Auto-save draft when form is dirty (debounced via form change)
+  useEffect(() => {
+    if (step !== 'form' || !selectedMaChien || !selectedMachineSystemId) return;
+    const hasAnyValue =
+      form.giaiDoan1ThoiGian > 0 || form.giaiDoan1NhietDo > 0 || form.giaiDoan1ApSuat > 0 ||
+      form.giaiDoan2ThoiGian > 0 || form.giaiDoan2NhietDo > 0 || form.giaiDoan2ApSuat > 0 ||
+      form.giaiDoan3ThoiGian > 0 || form.giaiDoan3NhietDo > 0 || form.giaiDoan3ApSuat > 0 ||
+      form.giaiDoan4ThoiGian > 0 || form.giaiDoan4NhietDo > 0 || form.giaiDoan4ApSuat > 0 ||
+      form.khoiLuongDauVao > 0;
+    if (hasAnyValue) {
+      const key = getDraftKey(productionDate, selectedShift, selectedMaChien, selectedMachineSystemId);
+      saveDraft(key, form);
+    }
+  }, [step, form, productionDate, selectedShift, selectedMaChien, selectedMachineSystemId]);
+
+  // Load draft when entering form step (if available and newer than DB data)
+  useEffect(() => {
+    if (step !== 'form' || !selectedMaChien || !selectedMachineSystemId) return;
+    const key = getDraftKey(productionDate, selectedShift, selectedMaChien, selectedMachineSystemId);
+    const draft = loadDraft(key);
+    if (draft) {
+      // Draft exists — check if it has meaningful data
+      const draftHasValue =
+        draft.giaiDoan1ThoiGian > 0 || draft.giaiDoan1NhietDo > 0 || draft.giaiDoan1ApSuat > 0 ||
+        draft.giaiDoan2ThoiGian > 0 || draft.giaiDoan2NhietDo > 0 || draft.giaiDoan2ApSuat > 0 ||
+        draft.giaiDoan3ThoiGian > 0 || draft.giaiDoan3NhietDo > 0 || draft.giaiDoan3ApSuat > 0 ||
+        draft.giaiDoan4ThoiGian > 0 || draft.giaiDoan4NhietDo > 0 || draft.giaiDoan4ApSuat > 0 ||
+        draft.khoiLuongDauVao > 0;
+      if (draftHasValue) {
+        setForm(draft);
+        setUsingDraft(true);
+        return;
+      }
+    }
+    setUsingDraft(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, selectedMaChien, selectedMachineSystemId]);
 
   // Data hooks
   const { data: allBatches, isLoading: batchesLoading } = useFryBatchCodes(
@@ -314,9 +416,14 @@ const ProductionSystemOperationEntry: React.FC = () => {
   }, []);
 
   const handleSelectMachine = useCallback((machineSystemId: string) => {
+    // Check if this machine already has entered data
+    const op = machineRows.find(r => r.machineSystemId === machineSystemId);
+    if (op && isOperationEntered(op)) {
+      if (!window.confirm('Máy này đã có dữ liệu vận hành. Bạn muốn xem và chỉnh sửa?')) return;
+    }
     setSelectedMachineSystemId(machineSystemId);
     setStep('form');
-  }, []);
+  }, [machineRows]);
 
   const handleBackToBatch = useCallback(() => {
     setSelectedMaChien('');
@@ -384,6 +491,10 @@ const ProductionSystemOperationEntry: React.FC = () => {
       {
         onSuccess: () => {
           toast.success('Đã lưu thông số vận hành');
+          // Clear draft on success
+          const key = getDraftKey(productionDate, selectedShift, selectedMaChien, selectedMachineSystemId);
+          clearDraft(key);
+          setUsingDraft(false);
           // Return to batch selection for next entry
           handleBackToBatch();
         },
@@ -392,7 +503,7 @@ const ProductionSystemOperationEntry: React.FC = () => {
         },
       },
     );
-  }, [existingOperation?.id, updateSysOp, form, nguoiThucHien, handleBackToBatch]);
+  }, [existingOperation?.id, updateSysOp, form, nguoiThucHien, handleBackToBatch, productionDate, selectedShift, selectedMaChien, selectedMachineSystemId]);
 
   // True when the worker is mid-entry on the form step with at least one value typed.
   const isFormDirty = useCallback((): boolean => {
@@ -766,6 +877,13 @@ const ProductionSystemOperationEntry: React.FC = () => {
                   </div>
                 )}
 
+                {/* Draft indicator */}
+                {usingDraft && !formLocked && (
+                  <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2">
+                    <span className="text-sm text-blue-700">Đang dùng nháp chưa lưu</span>
+                  </div>
+                )}
+
                 {/* Weight + total time */}
                 <section className="bg-white rounded-xl border p-4 space-y-4">
                   <h3 className="text-base font-semibold text-gray-700">Thông tin chung</h3>
@@ -775,7 +893,10 @@ const ProductionSystemOperationEntry: React.FC = () => {
                       unit="kg"
                       readOnly={formLocked}
                       value={form.khoiLuongDauVao}
+                      min={0}
+                      max={PRODUCTION_LIMITS.khoiLuongDauVao.max}
                       onChange={(v) => setField('khoiLuongDauVao', v)}
+                      onTap={!formLocked ? () => setActiveEditorField('khoiLuongDauVao') : undefined}
                     />
                     <NumericField
                       label="Tổng thời gian sấy"
@@ -793,6 +914,9 @@ const ProductionSystemOperationEntry: React.FC = () => {
                   const keyThoiGian = `giaiDoan${stage}ThoiGian` as keyof FormData;
                   const keyNhietDo = `giaiDoan${stage}NhietDo` as keyof FormData;
                   const keyApSuat = `giaiDoan${stage}ApSuat` as keyof FormData;
+                  const limitTG = PRODUCTION_LIMITS[keyThoiGian as keyof typeof PRODUCTION_LIMITS];
+                  const limitND = PRODUCTION_LIMITS[keyNhietDo as keyof typeof PRODUCTION_LIMITS];
+                  const limitAS = PRODUCTION_LIMITS[keyApSuat as keyof typeof PRODUCTION_LIMITS];
                   return (
                     <section key={stage} className="bg-white rounded-xl border p-4 space-y-4">
                       <h3 className="text-base font-semibold text-gray-700">Giai đoạn {stage}</h3>
@@ -803,21 +927,30 @@ const ProductionSystemOperationEntry: React.FC = () => {
                           integer
                           readOnly={formLocked}
                           value={form[keyThoiGian] as number}
+                          min={0}
+                          max={limitTG?.max}
                           onChange={(v) => setField(keyThoiGian, v)}
+                          onTap={!formLocked ? () => setActiveEditorField(keyThoiGian) : undefined}
                         />
                         <NumericField
                           label="Nhiệt độ"
                           unit="°C"
                           readOnly={formLocked}
                           value={form[keyNhietDo] as number}
+                          min={0}
+                          max={limitND?.max}
                           onChange={(v) => setField(keyNhietDo, v)}
+                          onTap={!formLocked ? () => setActiveEditorField(keyNhietDo) : undefined}
                         />
                         <NumericField
                           label="Áp suất"
                           unit="bar"
                           readOnly={formLocked}
                           value={form[keyApSuat] as number}
+                          min={0}
+                          max={limitAS?.max}
                           onChange={(v) => setField(keyApSuat, v)}
+                          onTap={!formLocked ? () => setActiveEditorField(keyApSuat) : undefined}
                         />
                       </div>
                     </section>
@@ -863,6 +996,28 @@ const ProductionSystemOperationEntry: React.FC = () => {
       )}
 
       <KioskFooter />
+
+      {/* FieldFocusEditor overlay */}
+      {(() => {
+        const fieldIdx = activeEditorField ? SYSTEM_OP_FIELDS.findIndex(f => f.key === activeEditorField) : -1;
+        const fieldCfg = fieldIdx >= 0 ? SYSTEM_OP_FIELDS[fieldIdx] : null;
+        const nextField = fieldIdx >= 0 && fieldIdx < SYSTEM_OP_FIELDS.length - 1 ? SYSTEM_OP_FIELDS[fieldIdx + 1] : null;
+        return (
+          <FieldFocusEditor
+            open={!!activeEditorField && !!fieldCfg}
+            label={fieldCfg?.label ?? ''}
+            value={activeEditorField ? (form[activeEditorField] as number) : 0}
+            unit={fieldCfg?.unit}
+            integer={fieldCfg?.integer}
+            min={fieldCfg?.min}
+            max={fieldCfg?.max}
+            suggestions={fieldCfg?.suggestions}
+            onChange={(v) => { if (activeEditorField) setField(activeEditorField, v); }}
+            onNext={nextField ? () => setActiveEditorField(nextField.key) : undefined}
+            onClose={() => setActiveEditorField(null)}
+          />
+        );
+      })()}
     </div>
   );
 };

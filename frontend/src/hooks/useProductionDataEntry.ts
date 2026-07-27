@@ -117,19 +117,41 @@ export function indexFinishedProducts(
 // ─── Mutation: PATCH multiple dirty FinishedProduct records ──────────────────
 
 export interface DirtyRecord {
-  id: string;
+  id?: string;
   data: Partial<FinishedProduct>;
+  /** When id is absent, use upsert by (maChien, machineSystemId) */
+  upsert?: { maChien: string; machineSystemId: string };
+}
+
+export interface SaveResult {
+  cellKey: string;
+  ok: boolean;
+  error?: string;
 }
 
 export const useBatchUpdateFinishedProducts = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (records: DirtyRecord[]) => {
-      // PATCH each dirty record sequentially (could parallel but safer sequential)
-      const results = [];
+    mutationFn: async (records: DirtyRecord[]): Promise<SaveResult[]> => {
+      const results: SaveResult[] = [];
       for (const rec of records) {
-        const result = await finishedProductService.updateFinishedProduct(rec.id, rec.data);
-        results.push(result);
+        const cellKey = rec.upsert
+          ? `${rec.upsert.maChien}|${rec.upsert.machineSystemId}`
+          : rec.id ?? 'unknown';
+        try {
+          if (rec.id) {
+            await finishedProductService.updateFinishedProduct(rec.id, rec.data);
+          } else if (rec.upsert) {
+            await finishedProductService.upsertByBatchMachine({
+              ...rec.data,
+              maChien: rec.upsert.maChien,
+              machineSystemId: rec.upsert.machineSystemId,
+            });
+          }
+          results.push({ cellKey, ok: true });
+        } catch (err: any) {
+          results.push({ cellKey, ok: false, error: err?.message ?? 'Lỗi không xác định' });
+        }
       }
       return results;
     },

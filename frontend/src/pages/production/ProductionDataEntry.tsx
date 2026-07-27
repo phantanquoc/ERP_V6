@@ -8,15 +8,17 @@ import {
   filterBatchesByShiftAndDate,
   indexFinishedProducts,
   DirtyRecord,
+  SaveResult,
 } from '../../hooks/useProductionDataEntry';
 import { useAttendedOperatorsByShift } from '../../hooks/useAttendedOperators';
 import useVirtualKeyboard from '../../hooks/useVirtualKeyboard';
 import { markTab, isKioskTab, hasKioskSession, KIOSK_EXPIRED_EVENT, getSelection, setSelection, clearSelection, getDeviceKey, setDeviceKey } from '../../utils/kioskSession';
-import { parseNumberInput } from '../../utils/numberInput';
+import { parseNumberInput, PRODUCTION_LIMITS } from '../../utils/numberInput';
 import { FinishedProduct } from '../../services/finishedProductService';
 import OperatorSelectionScreen from '../../components/production/OperatorSelectionScreen';
 import ShiftSelectionScreen from '../../components/production/ShiftSelectionScreen';
 import KioskFooter from '../../components/production/KioskFooter';
+import FieldFocusEditor from '../../components/production/FieldFocusEditor';
 import { useAuth } from '../../contexts/AuthContext';
 import { isAdmin } from '../../utils/permissions';
 import faceAttendanceService from '../../services/faceAttendanceService';
@@ -94,16 +96,22 @@ interface NumericInputProps {
   onChange: (val: number) => void;
   placeholder?: string;
   className?: string;
+  /** Called on tap to open FieldFocusEditor */
+  onTap?: () => void;
 }
 
-const NumericInput: React.FC<NumericInputProps> = ({ value, onChange, placeholder, className }) => (
+const NumericInput: React.FC<NumericInputProps> = ({ value, onChange, placeholder, className, onTap }) => (
   <input
     type="number"
     inputMode="decimal"
+    min={0}
+    max={PRODUCTION_LIMITS.sanLuong.max}
     placeholder={placeholder || '0'}
     className={`w-full min-h-[44px] px-2 py-1 border border-gray-300 rounded-lg text-base text-center focus:outline-none focus:ring-2 focus:ring-blue-500 ${className || ''}`}
     value={value === 0 ? '' : value}
-    onChange={(e) => onChange(parseNumberInput(e.target.value))}
+    onFocus={onTap ? (e) => { e.target.blur(); onTap(); } : undefined}
+    onClick={onTap ? () => onTap() : undefined}
+    onChange={(e) => onChange(parseNumberInput(e.target.value, { min: 0, max: PRODUCTION_LIMITS.sanLuong.max }))}
   />
 );
 
@@ -226,7 +234,7 @@ const FullGridPreview: React.FC<FullGridPreviewProps> = ({
                                   : 'border border-gray-200 bg-white'
                               }`}
                               value={value === 0 ? '' : value}
-                              onChange={(e) => updateCell(tab, cellKey, parseNumberInput(e.target.value))}
+                              onChange={(e) => updateCell(tab, cellKey, parseNumberInput(e.target.value, { min: 0, max: PRODUCTION_LIMITS.sanLuong.max }))}
                             />
                           </td>
                         );
@@ -298,6 +306,9 @@ const ProductionDataEntry: React.FC = () => {
   });
   const [showPreview, setShowPreview] = useState(false);
   const [deviceKeyInput, setDeviceKeyInput] = useState('');
+
+  // FieldFocusEditor state: tracks active cell being edited
+  const [editorCell, setEditorCell] = useState<{ tab: QualityTab; cellKey: CellKey; label: string } | null>(null);
 
   // Admin self-registration state
   const { user } = useAuth();
@@ -517,17 +528,16 @@ const ProductionDataEntry: React.FC = () => {
     const records: DirtyRecord[] = [];
     for (const [cellKey, partialData] of dirtyMap) {
       const fp = fpIndex.get(cellKey);
-      if (!fp) continue; // No record to patch
 
       // Build the full record values for recomputing tongKhoiLuong + tiLe
-      const aVal = board.A[cellKey] ?? fp.aKhoiLuong ?? 0;
-      const bVal = board.B[cellKey] ?? fp.bKhoiLuong ?? 0;
-      const bDauVal = board.B_DAU[cellKey] ?? fp.bDauKhoiLuong ?? 0;
-      const cVal = board.C[cellKey] ?? fp.cKhoiLuong ?? 0;
-      const uotVal = board.UOT[cellKey] ?? fp.uotKhoiLuong ?? 0;
-      const vunLon = partialData.vunLonKhoiLuong ?? fp.vunLonKhoiLuong ?? 0;
-      const vunNho = partialData.vunNhoKhoiLuong ?? fp.vunNhoKhoiLuong ?? 0;
-      const phePham = partialData.phePhamKhoiLuong ?? fp.phePhamKhoiLuong ?? 0;
+      const aVal = board.A[cellKey] ?? fp?.aKhoiLuong ?? 0;
+      const bVal = board.B[cellKey] ?? fp?.bKhoiLuong ?? 0;
+      const bDauVal = board.B_DAU[cellKey] ?? fp?.bDauKhoiLuong ?? 0;
+      const cVal = board.C[cellKey] ?? fp?.cKhoiLuong ?? 0;
+      const uotVal = board.UOT[cellKey] ?? fp?.uotKhoiLuong ?? 0;
+      const vunLon = partialData.vunLonKhoiLuong ?? fp?.vunLonKhoiLuong ?? 0;
+      const vunNho = partialData.vunNhoKhoiLuong ?? fp?.vunNhoKhoiLuong ?? 0;
+      const phePham = partialData.phePhamKhoiLuong ?? fp?.phePhamKhoiLuong ?? 0;
 
       const tongKhoiLuong = aVal + bVal + bDauVal + cVal + uotVal + vunLon + vunNho + phePham;
       const calcPercent = (v: number) => tongKhoiLuong === 0 ? 0 : Math.round((v / tongKhoiLuong) * 100 * 100) / 100;
@@ -537,18 +547,6 @@ const ProductionDataEntry: React.FC = () => {
         tongKhoiLuong,
         nguoiThucHien,
       };
-
-      // Recompute tiLe for changed fields
-      if ('aKhoiLuong' in partialData) patchData.aTiLe = calcPercent(aVal);
-      if ('bKhoiLuong' in partialData) patchData.bTiLe = calcPercent(bVal);
-      if ('bDauKhoiLuong' in partialData) patchData.bDauTiLe = calcPercent(bDauVal);
-      if ('cKhoiLuong' in partialData) patchData.cTiLe = calcPercent(cVal);
-      if ('uotKhoiLuong' in partialData) patchData.uotTiLe = calcPercent(uotVal);
-      if ('vunLonKhoiLuong' in partialData) {
-        patchData.vunLonTiLe = calcPercent(vunLon);
-        patchData.vunNhoTiLe = calcPercent(vunNho);
-        patchData.phePhamTiLe = calcPercent(phePham);
-      }
 
       // Always recompute all tiLe since tongKhoiLuong changed
       patchData.aTiLe = calcPercent(aVal);
@@ -570,7 +568,14 @@ const ProductionDataEntry: React.FC = () => {
         delete patchData.phePhamTiLe;
       }
 
-      records.push({ id: fp.id, data: patchData });
+      if (fp) {
+        // Existing record — PATCH by id
+        records.push({ id: fp.id, data: patchData });
+      } else {
+        // No DB record yet — upsert by (maChien, machineSystemId)
+        const [maChien, machineSystemId] = cellKey.split('|');
+        records.push({ upsert: { maChien, machineSystemId }, data: patchData });
+      }
     }
 
     return records;
@@ -610,30 +615,66 @@ const ProductionDataEntry: React.FC = () => {
     }
 
     batchUpdate.mutate(dirtyRecords, {
-      onSuccess: () => {
-        toast.success(`Đã lưu ${dirtyRecords.length} bản ghi sản lượng`);
-        // Clear draft
-        const draftKey = getDraftKey(productionDate, selectedShift);
-        localStorage.removeItem(draftKey);
-        clearSelection();
-        // Reset to name selection
-        setNguoiThucHien('');
-        setOperatorId('');
-        setSelectedShift(0);
-        setActiveTab('A');
-        setProductionDate(todayStr());
-        setShowPreview(false);
-        setBoard({ A: {}, B: {}, B_DAU: {}, C: {}, UOT: {}, VUN_PHE: {} });
-        setBaseline({ A: {}, B: {}, B_DAU: {}, C: {}, UOT: {}, VUN_PHE: {} });
-        setNotes({});
-        setWasteTotal(0);
-        baselineLoaded.current = false;
+      onSuccess: (results: SaveResult[]) => {
+        const successes = results.filter(r => r.ok);
+        const failures = results.filter(r => !r.ok);
+
+        if (failures.length === 0) {
+          // All OK
+          toast.success(`Đã lưu ${successes.length} bản ghi sản lượng`);
+          // Clear draft
+          const draftKey = getDraftKey(productionDate, selectedShift);
+          localStorage.removeItem(draftKey);
+          clearSelection();
+          // Reset to name selection
+          setNguoiThucHien('');
+          setOperatorId('');
+          setSelectedShift(0);
+          setActiveTab('A');
+          setProductionDate(todayStr());
+          setShowPreview(false);
+          setBoard({ A: {}, B: {}, B_DAU: {}, C: {}, UOT: {}, VUN_PHE: {} });
+          setBaseline({ A: {}, B: {}, B_DAU: {}, C: {}, UOT: {}, VUN_PHE: {} });
+          setNotes({});
+          setWasteTotal(0);
+          baselineLoaded.current = false;
+        } else {
+          // Partial failure — report counts, keep board + draft
+          const failedCells = failures.map(f => {
+            const parts = f.cellKey.split('|');
+            const machineLabel = getMachineLabel(parts[1] ?? '');
+            return `${parts[0]} - ${machineLabel}`;
+          }).join(', ');
+          toast.error(
+            `Lưu thành công ${successes.length}/${results.length} bản ghi. ` +
+            `Lỗi tại: ${failedCells}`,
+            { duration: 8000 },
+          );
+          // Update baseline only for successful records
+          setBaseline(prev => {
+            const newBaseline = { ...prev };
+            for (const s of successes) {
+              const [, tab] = Object.entries(board).find(([, tabData]) => s.cellKey in tabData) ?? [];
+              if (tab) {
+                // Mark this cell as synced
+                const tabs: QualityTab[] = ['A', 'B', 'B_DAU', 'C', 'UOT', 'VUN_PHE'];
+                for (const t of tabs) {
+                  if (s.cellKey in board[t]) {
+                    newBaseline[t] = { ...newBaseline[t], [s.cellKey]: board[t][s.cellKey] };
+                  }
+                }
+              }
+            }
+            return newBaseline;
+          });
+          setShowPreview(false);
+        }
       },
       onError: () => {
         toast.error('Lỗi khi lưu sản lượng');
       },
     });
-  }, [computeDirtyRecords, batchUpdate, productionDate, selectedShift]);
+  }, [computeDirtyRecords, batchUpdate, productionDate, selectedShift, board, getMachineLabel]);
 
   // ─── Change operator/shift handlers ──────────────────────────────────────
   // Check if any cell diverges from the loaded DB baseline
@@ -837,11 +878,17 @@ const ProductionDataEntry: React.FC = () => {
             <input
               type="date"
               value={productionDate}
-              onChange={(e) => setProductionDate(e.target.value)}
+              onChange={(e) => {
+                if (hasDirtyData() && !window.confirm('Có dữ liệu chưa lưu. Bạn có chắc muốn đổi ngày? Dữ liệu chưa lưu sẽ bị mất.')) return;
+                setProductionDate(e.target.value);
+              }}
               className="min-h-[44px] px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <button
-              onClick={() => setProductionDate(todayStr())}
+              onClick={() => {
+                if (hasDirtyData() && !window.confirm('Có dữ liệu chưa lưu. Bạn có chắc muốn đổi ngày? Dữ liệu chưa lưu sẽ bị mất.')) return;
+                setProductionDate(todayStr());
+              }}
               className="min-h-[44px] px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-200"
             >
               Hôm nay
@@ -915,6 +962,11 @@ const ProductionDataEntry: React.FC = () => {
                               <NumericInput
                                 value={value}
                                 onChange={(v) => updateCell(activeTab, cellKey, v)}
+                                onTap={() => setEditorCell({
+                                  tab: activeTab,
+                                  cellKey,
+                                  label: `${getMachineLabel(f.maHeThong)} · ${batch.maChien}`,
+                                })}
                               />
                             </td>
                           );
@@ -953,6 +1005,7 @@ const ProductionDataEntry: React.FC = () => {
                     onChange={setWasteTotal}
                     placeholder="0"
                     className="text-lg"
+                    onTap={() => setEditorCell({ tab: 'VUN_PHE', cellKey: '__waste_total__', label: 'Vụn - Phế phẩm (tổng ca)' })}
                   />
                 </div>
               </div>
@@ -976,6 +1029,31 @@ const ProductionDataEntry: React.FC = () => {
       </div>
 
       <KioskFooter />
+
+      {/* FieldFocusEditor overlay — no "Tiep" for DataEntry (complex table navigation) */}
+      <FieldFocusEditor
+        open={!!editorCell}
+        label={editorCell?.label ?? ''}
+        value={
+          editorCell
+            ? editorCell.cellKey === '__waste_total__'
+              ? wasteTotal
+              : (board[editorCell.tab]?.[editorCell.cellKey] ?? 0)
+            : 0
+        }
+        unit="kg"
+        min={0}
+        max={PRODUCTION_LIMITS.sanLuong.max}
+        onChange={(v) => {
+          if (!editorCell) return;
+          if (editorCell.cellKey === '__waste_total__') {
+            setWasteTotal(v);
+          } else {
+            updateCell(editorCell.tab, editorCell.cellKey, v);
+          }
+        }}
+        onClose={() => setEditorCell(null)}
+      />
     </div>
   );
 };

@@ -228,6 +228,34 @@ export class FinishedProductController {
       next(error);
     }
   }
+
+  /**
+   * PUT /api/finished-products/by-batch-machine
+   * Upsert a finished product by (maChien, machineSystemId).
+   * Used by kiosk tablet grid when a cell has no existing record.
+   */
+  async upsertByBatchMachine(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      let userId: string | undefined;
+      if (req.isKioskDevice) {
+        const operatorId = req.kioskOperatorId;
+        if (!operatorId) throw new ValidationError('Thiếu x-operator-id header');
+        userId = operatorId;
+      } else {
+        userId = req.user?.id;
+      }
+
+      const product = await finishedProductService.upsertByBatchMachine(req.body, userId);
+
+      res.json({
+        success: true,
+        data: product,
+        message: 'Lưu thành phẩm thành công',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default new FinishedProductController();

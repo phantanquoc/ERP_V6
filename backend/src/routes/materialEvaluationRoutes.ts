@@ -3,6 +3,8 @@ import materialEvaluationController from '@controllers/materialEvaluationControl
 import { authenticate, authorize, deviceOrJwtAuth } from '@middlewares/auth';
 import { UserRole } from '@types';
 import { createSingleUploadMiddleware } from '@middlewares/upload';
+import { zodValidate } from '@middlewares/zodValidation';
+import { createMaterialEvaluationSchema } from '@schemas';
 
 const router = Router();
 
@@ -190,6 +192,7 @@ router.post(
   '/',
   deviceOrJwtAuth('DATA_ENTRY'),
   uploadMaterialEvaluation,
+  zodValidate(createMaterialEvaluationSchema),
   materialEvaluationController.createMaterialEvaluation
 );
 

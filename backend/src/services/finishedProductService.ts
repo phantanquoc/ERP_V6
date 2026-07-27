@@ -281,6 +281,88 @@ export class FinishedProductService {
   }
 
   /**
+   * Upsert a FinishedProduct by (maChien, machineSystemId).
+   * Creates if not exists, updates if exists. Used by kiosk tablet grid.
+   */
+  async upsertByBatchMachine(data: any, userId?: string) {
+    const { maChien, machineSystemId, ...rest } = data;
+    if (!maChien || !machineSystemId) {
+      throw new ValidationError('Mã chiên và máy là bắt buộc');
+    }
+
+    // Get user's full name if userId is provided
+    let nguoiThucHien = rest.nguoiThucHien || '';
+    if (userId && !rest.nguoiThucHien) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { firstName: true, lastName: true },
+      });
+      if (user) {
+        nguoiThucHien = `${user.lastName} ${user.firstName}`.trim();
+      }
+    }
+
+    // Compute tongKhoiLuong and tiLe
+    const aKhoiLuong = rest.aKhoiLuong || 0;
+    const bKhoiLuong = rest.bKhoiLuong || 0;
+    const bDauKhoiLuong = rest.bDauKhoiLuong || 0;
+    const cKhoiLuong = rest.cKhoiLuong || 0;
+    const vunLonKhoiLuong = rest.vunLonKhoiLuong || 0;
+    const vunNhoKhoiLuong = rest.vunNhoKhoiLuong || 0;
+    const phePhamKhoiLuong = rest.phePhamKhoiLuong || 0;
+    const uotKhoiLuong = rest.uotKhoiLuong || 0;
+
+    const tongKhoiLuong = aKhoiLuong + bKhoiLuong + bDauKhoiLuong + cKhoiLuong + vunLonKhoiLuong + vunNhoKhoiLuong + phePhamKhoiLuong + uotKhoiLuong;
+    const calcPercent = (v: number) => tongKhoiLuong > 0 ? (v / tongKhoiLuong) * 100 : 0;
+
+    // Resolve materialEvaluationId from maChien (for create case)
+    const materialEval = await prisma.materialEvaluation.findFirst({
+      where: { maChien },
+      select: { id: true, thoiGianChien: true, tenHangHoa: true },
+    });
+
+    const upsertData = {
+      aKhoiLuong,
+      bKhoiLuong,
+      bDauKhoiLuong,
+      cKhoiLuong,
+      vunLonKhoiLuong,
+      vunNhoKhoiLuong,
+      phePhamKhoiLuong,
+      uotKhoiLuong,
+      tongKhoiLuong,
+      aTiLe: calcPercent(aKhoiLuong),
+      bTiLe: calcPercent(bKhoiLuong),
+      bDauTiLe: calcPercent(bDauKhoiLuong),
+      cTiLe: calcPercent(cKhoiLuong),
+      vunLonTiLe: calcPercent(vunLonKhoiLuong),
+      vunNhoTiLe: calcPercent(vunNhoKhoiLuong),
+      phePhamTiLe: calcPercent(phePhamKhoiLuong),
+      uotTiLe: calcPercent(uotKhoiLuong),
+      nguoiThucHien,
+      ...(rest.khoiLuong !== undefined ? { khoiLuong: rest.khoiLuong } : {}),
+      ...(rest.ghiChu !== undefined ? { ghiChu: rest.ghiChu } : {}),
+    };
+
+    const product = await prisma.finishedProduct.upsert({
+      where: { maChien_machineSystemId: { maChien, machineSystemId } },
+      update: upsertData,
+      create: {
+        maChien,
+        machineSystemId,
+        thoiGianChien: materialEval?.thoiGianChien ?? new Date(),
+        tenHangHoa: rest.tenHangHoa || materialEval?.tenHangHoa || '',
+        khoiLuong: rest.khoiLuong ?? 0,
+        materialEvaluationId: materialEval?.id ?? null,
+        ...upsertData,
+        createdById: userId ?? null,
+      },
+    });
+
+    return product;
+  }
+
+  /**
    * Build warehouse receipt input rows from a FinishedProduct's 8 grade weights.
    * Grades with weight 0 are skipped. Returns up to 8 rows.
    * Each row tenSanPham = "{base tenHangHoa} - {GRADE_LABELS[field]}"

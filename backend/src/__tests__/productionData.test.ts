@@ -53,12 +53,12 @@ describe('createSystemOperationSchema', () => {
       maChien: 'MC-2026-001',
       thoiGianChien: '2026-06-01T08:00:00Z',
       khoiLuongDauVao: 100.5,
-      giaiDoan1ThoiGian: 1.5,
+      giaiDoan1ThoiGian: 2,
       giaiDoan1NhietDo: 85.3,
-      giaiDoan1ApSuat: -0.5,
-      giaiDoan2ThoiGian: 2.0,
+      giaiDoan1ApSuat: 0.5,
+      giaiDoan2ThoiGian: 2,
       giaiDoan2NhietDo: 90,
-      giaiDoan2ApSuat: -0.3,
+      giaiDoan2ApSuat: 0.3,
       giaiDoan3ThoiGian: 0,
       giaiDoan3NhietDo: 0,
       giaiDoan3ApSuat: 0,
@@ -88,18 +88,14 @@ describe('createSystemOperationSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('should accept decimal time values (not truncated by parseInt)', () => {
+  it('should reject decimal time values (time fields are integer-only)', () => {
     const result = createSystemOperationSchema.safeParse({
       maChien: 'MC-2026-001',
       thoiGianChien: '2026-06-01T08:00:00Z',
       giaiDoan1ThoiGian: 1.5,
       giaiDoan2ThoiGian: 2.7,
     });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.giaiDoan1ThoiGian).toBe(1.5);
-      expect(result.data.giaiDoan2ThoiGian).toBe(2.7);
-    }
+    expect(result.success).toBe(false);
   });
 });
 
