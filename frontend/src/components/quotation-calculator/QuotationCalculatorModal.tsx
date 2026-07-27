@@ -772,7 +772,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                           <tr className="hover:bg-gray-50/50">
-                            <td className="py-1.5 px-2 text-sm text-gray-700">Tỉ lệ thu hồi K3 (%)</td>
+                            <td className="py-1.5 px-2 text-sm text-gray-700">Tỉ lệ thu hồi (%)</td>
                             <td className="py-1.5 px-2"><input type="number" step="0.01" value={currentAdditionalTab.formData.tiLeThuHoi} onChange={(e) => handleAdditionalTabTiLeThuHoiChange(currentAdditionalTab.id, parseNumberInputStr(e.target.value))} className="w-full px-2 py-1.5 text-sm border border-blue-200 rounded-md text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white" placeholder="Nhập" /></td>
                             <td className="py-1.5 px-2"><input type="number" step="0.01" value={currentAdditionalTab.formData.tongKhoiLuongThanhPhamThucTe && currentAdditionalTab.formData.tongNguyenLieuCanSanXuatThucTe ? ((parseFloat(currentAdditionalTab.formData.tongKhoiLuongThanhPhamThucTe) / parseFloat(currentAdditionalTab.formData.tongNguyenLieuCanSanXuatThucTe)) * 100).toFixed(2) : ''} disabled className="w-full px-2 py-1.5 text-sm border border-dashed border-gray-300 rounded-md text-center bg-slate-50 text-emerald-700 font-medium" placeholder="Tự động" /></td>
                           </tr>
@@ -1337,7 +1337,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         <tr className="hover:bg-gray-50/50">
-                          <td className="py-1.5 px-2 text-sm text-gray-700">Tỉ lệ thu hồi K3 (%)</td>
+                          <td className="py-1.5 px-2 text-sm text-gray-700">Tỉ lệ thu hồi (%)</td>
                           <td className="py-1.5 px-2"><input type="number" step="0.01" value={currentTab.formData.tiLeThuHoi} onChange={(e) => handleTiLeThuHoiChange(parseNumberInputStr(e.target.value))} className="w-full px-2 py-1.5 text-sm border border-blue-200 rounded-md text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white" placeholder="Nhập" /></td>
                           <td className="py-1.5 px-2"><input type="number" step="0.01" value={currentTab.formData.tongKhoiLuongThanhPhamThucTe && currentTab.formData.tongNguyenLieuCanSanXuatThucTe ? ((parseFloat(currentTab.formData.tongKhoiLuongThanhPhamThucTe) / parseFloat(currentTab.formData.tongNguyenLieuCanSanXuatThucTe)) * 100).toFixed(2) : ''} disabled className="w-full px-2 py-1.5 text-sm border border-dashed border-gray-300 rounded-md text-center bg-slate-50 text-emerald-700 font-medium" placeholder="Tự động" /></td>
                         </tr>
