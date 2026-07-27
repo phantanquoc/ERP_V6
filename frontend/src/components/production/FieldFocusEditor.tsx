@@ -34,7 +34,8 @@ const FieldFocusEditor: React.FC<FieldFocusEditorProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Sync local value when opening or when value/label changes (field switch via "Tiep")
+  // Sync local value when opening or switching fields (field-identity pair).
+  // Keyed on [open, label] so typing mid-field does NOT re-seed localValue.
   useEffect(() => {
     if (open) {
       setLocalValue(value === 0 ? '' : String(value));
@@ -45,7 +46,8 @@ const FieldFocusEditor: React.FC<FieldFocusEditorProps> = ({
         inputRef.current?.select();
       }, 50);
     }
-  }, [open, value, label]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, label]);
 
   const clampAndNotify = useCallback(
     (raw: number): number => {
