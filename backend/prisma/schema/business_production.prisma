@@ -288,8 +288,9 @@ model WarehouseIssue {
 
 model MaterialEvaluation {
   id                   String   @id @default(cuid())
-  maChien              String   @unique
+  maChien              String
   thoiGianChien        DateTime
+  ngaySanXuat          DateTime? @db.Date // Production day (06:30 boundary); nullable for pre-backfill rows
   ca                   Int? // Production shift (1, 2, or 3); nullable for legacy rows
   tenHangHoa           String
   soLoKien             String
@@ -301,6 +302,7 @@ model MaterialEvaluation {
   brixNuocNgam         Float
   danhGiaTruocNgam     String
   danhGiaSauNgam       String
+  ghiChu               String?
   fileDinhKem          String?
   nguoiThucHien        String
 
@@ -318,6 +320,7 @@ model MaterialEvaluation {
   finishedProducts   FinishedProduct[]
   qualityEvaluations QualityEvaluation[]
 
+  @@unique([maChien, ngaySanXuat])
   @@index([lotProductId])
   @@index([createdById])
   @@map("material_evaluations")
@@ -341,6 +344,7 @@ model SystemOperation {
   maChien         String
   machineSystemId String?
   thoiGianChien   DateTime
+  ngaySanXuat     DateTime? @db.Date // Production day (06:30 boundary)
   khoiLuongDauVao Float?   @default(0)
 
   // Giai đoạn 1
@@ -376,6 +380,7 @@ model SystemOperation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([maChien, ngaySanXuat, machineSystemId])
   @@index([machineSystemId])
   @@map("system_operations")
   @@schema("business")
@@ -385,6 +390,7 @@ model FinishedProduct {
   id            String   @id @default(cuid())
   maChien       String
   thoiGianChien DateTime
+  ngaySanXuat   DateTime? @db.Date // Production day (06:30 boundary)
   tenHangHoa    String
   khoiLuong     Float
 
@@ -439,6 +445,7 @@ model FinishedProduct {
   // Flag: đã nhập kho hay chưa (set true atomically trong warehouse receipt transaction)
   daNhapKho Boolean @default(false)
 
+  ghiChu        String?
   fileDinhKem   String?
   nguoiThucHien String
 
@@ -446,8 +453,9 @@ model FinishedProduct {
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   qualityEvaluations QualityEvaluation[]
+  entryHistory       FinishedProductEntryHistory[]
 
-  @@unique([maChien, machineSystemId])
+  @@unique([maChien, ngaySanXuat, machineSystemId])
   @@index([machineSystemId])
   @@index([internationalProductId])
   @@index([createdById])
@@ -455,10 +463,32 @@ model FinishedProduct {
   @@schema("business")
 }
 
+model FinishedProductEntryHistory {
+  id                String   @id @default(cuid())
+  finishedProductId String
+  maChien           String
+  ngaySanXuat       DateTime? @db.Date
+  machineSystemId   String?
+  grade             String   // e.g. "aKhoiLuong", "bKhoiLuong", etc.
+  khoiLuong         Float    // the weight value entered for this grade
+  employeeId        String?  // soft ref to common.Employee.id — no FK constraint
+  employeeName      String?  // denormalized name for display
+  enteredAt         DateTime @default(now())
+
+  finishedProduct   FinishedProduct @relation(fields: [finishedProductId], references: [id], onDelete: Cascade)
+
+  @@index([finishedProductId])
+  @@index([maChien, ngaySanXuat, machineSystemId])
+  @@index([employeeId])
+  @@map("finished_product_entry_history")
+  @@schema("business")
+}
+
 model QualityEvaluation {
   id            String @id @default(uuid())
   maChien       String
   thoiGianChien String
+  ngaySanXuat   DateTime? @db.Date // Production day (06:30 boundary)
   tenHangHoa    String
   mauSac        String @default("")
 
@@ -503,7 +533,7 @@ model QualityEvaluation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([maChien, machineSystemId])
+  @@unique([maChien, ngaySanXuat, machineSystemId])
   @@index([machineSystemId])
   @@index([createdById])
   @@map("quality_evaluations")
