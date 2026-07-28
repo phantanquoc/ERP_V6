@@ -306,13 +306,17 @@ docker-compose exec -T postgres pg_restore -U erp_user -d erp_database --clean -
 ### 7.4 Backup trên Linux
 
 ```bash
+# Exec bit đã được track trong git (mode 100755) — chỉ cần verify, không phải chmod
+ls -la /opt/erp/scripts/backup.sh   # phải thấy -rwxr-xr-x
+
 # Thêm cron job — backup mỗi ngày lúc 2h sáng
-chmod +x /opt/erp/scripts/backup.sh
 echo "0 2 * * * /opt/erp/scripts/backup.sh >> /opt/erp-backups/cron.log 2>&1" | crontab -
 
 # Kiểm tra cron
 crontab -l
 ```
+
+> Nếu `backup.sh` mất exec bit, cron sẽ fail im lặng (đã xảy ra 2026-05-13 → 2026-06-29, mất 46 ngày backup). Kiểm tra `/opt/erp-backups/cron.log` có entry mới mỗi ngày.
 
 ### 7.5 Chính sách lưu trữ
 
