@@ -4,6 +4,8 @@ import type { AuthenticatedRequest, ApiResponse } from '@types';
 import { getFileUrl } from '@middlewares/upload';
 import { ValidationError } from '@utils/errors';
 import prisma from '@config/database';
+import { getDailySchedule, getScheduleForShift } from '@utils/dailyFryBatchSchedule';
+import { getProductionDay } from '@utils/productionDay';
 
 interface RequestWithFile extends AuthenticatedRequest {
   file?: Express.Multer.File;
@@ -60,7 +62,8 @@ export class MaterialEvaluationController {
   async getMaterialEvaluationByMaChien(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const maChien = req.params.maChien as string;
-      const evaluation = await materialEvaluationService.getMaterialEvaluationByMaChien(maChien);
+      const thoiGianChien = req.query.thoiGianChien as string | undefined;
+      const evaluation = await materialEvaluationService.getMaterialEvaluationByMaChien(maChien, thoiGianChien);
 
       res.json({
         success: true,
@@ -71,13 +74,22 @@ export class MaterialEvaluationController {
     }
   }
 
-  async generateMaChien(_req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async getDailySchedule(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const maChien = await materialEvaluationService.generateMaChien();
+      const productionDay = req.query.productionDay as string | undefined;
+      const shiftRaw = parseInt(req.query.shift as string);
+      const shift = !isNaN(shiftRaw) && shiftRaw >= 1 && shiftRaw <= 3 ? shiftRaw : undefined;
+
+      // Default to the current production day if not specified
+      const day = productionDay || getProductionDay(new Date());
+
+      const schedule = shift
+        ? getScheduleForShift(day, shift)
+        : getDailySchedule(day);
 
       res.json({
         success: true,
-        data: { maChien },
+        data: { productionDay: day, schedule },
       } as ApiResponse<any>);
     } catch (error) {
       next(error);

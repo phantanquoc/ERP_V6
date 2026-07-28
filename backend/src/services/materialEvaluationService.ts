@@ -1,8 +1,10 @@
 import { Prisma } from '@prisma/client';
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
-import { nextStaticCode, staticCodeWhere, nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
+import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import systemOperationService from '@services/systemOperationService';
+import { getProductionDay, productionDayRange, parseLocalDateTimeAsAppTz } from '@utils/productionDay';
+import { isScheduledCode } from '@utils/dailyFryBatchSchedule';
 
 export class MaterialEvaluationService {
   async getAllMaterialEvaluations(
@@ -47,11 +49,11 @@ export class MaterialEvaluationService {
     if (filters?.thoiGianChienFrom || filters?.thoiGianChienTo) {
       const thoiGianChienFilter: Prisma.DateTimeFilter = {};
       if (filters.thoiGianChienFrom) {
-        const d = new Date(filters.thoiGianChienFrom);
+        const d = parseLocalDateTimeAsAppTz(filters.thoiGianChienFrom);
         if (!isNaN(d.getTime())) thoiGianChienFilter.gte = d;
       }
       if (filters.thoiGianChienTo) {
-        const d = new Date(filters.thoiGianChienTo);
+        const d = parseLocalDateTimeAsAppTz(filters.thoiGianChienTo);
         if (!isNaN(d.getTime())) thoiGianChienFilter.lte = d;
       }
       if (Object.keys(thoiGianChienFilter).length > 0) {
@@ -95,28 +97,33 @@ export class MaterialEvaluationService {
     return evaluation;
   }
 
-  async getMaterialEvaluationByMaChien(maChien: string) {
-    const evaluation = await prisma.materialEvaluation.findUnique({
-      where: { maChien },
-      include: {
-        systemOperations: true,
-      },
-    });
+  async getMaterialEvaluationByMaChien(maChien: string, thoiGianChien?: string) {
+    // Day-scope: when thoiGianChien is provided, scope lookup to that production day
+    let evaluation;
+    if (thoiGianChien) {
+      const prodDay = getProductionDay(parseLocalDateTimeAsAppTz(thoiGianChien));
+      const dayRange = productionDayRange(prodDay);
+      evaluation = await prisma.materialEvaluation.findFirst({
+        where: { maChien, thoiGianChien: { gte: dayRange.gte, lt: dayRange.lt } },
+        include: {
+          systemOperations: true,
+        },
+      });
+    } else {
+      // Fallback: when thoiGianChien not provided (legacy callers), use findFirst
+      evaluation = await prisma.materialEvaluation.findFirst({
+        where: { maChien },
+        include: {
+          systemOperations: true,
+        },
+      });
+    }
 
     if (!evaluation) {
       throw new NotFoundError('Material evaluation not found');
     }
 
     return evaluation;
-  }
-
-  async generateMaChien(): Promise<string> {
-    const last = await prisma.materialEvaluation.findFirst({
-      where: { maChien: staticCodeWhere('MC') },
-      orderBy: { maChien: 'desc' },
-      select: { maChien: true },
-    });
-    return nextStaticCode(last?.maChien ?? null, 'MC');
   }
 
   private async generateWarehouseIssueCode(): Promise<string> {
@@ -129,51 +136,34 @@ export class MaterialEvaluationService {
     return nextYearlyCode(last?.maPhieuXuat ?? null, 'PX', year);
   }
 
-  /** True when a Prisma error is a unique-constraint violation on the maChien column. */
-  private isMaChienConflict(err: unknown): boolean {
-    return (
-      err instanceof Prisma.PrismaClientKnownRequestError &&
-      err.code === 'P2002' &&
-      Array.isArray((err.meta as { target?: string[] } | undefined)?.target) &&
-      ((err.meta as { target?: string[] }).target as string[]).some((t) =>
-        t.toLowerCase().includes('machien'),
-      )
-    );
-  }
-
   async createMaterialEvaluation(data: any, userId?: string) {
     // Parse datetime from frontend
     let thoiGianChien: Date;
     if (data.thoiGianChien) {
-      thoiGianChien = new Date(data.thoiGianChien);
+      thoiGianChien = parseLocalDateTimeAsAppTz(data.thoiGianChien);
     } else {
       thoiGianChien = new Date();
     }
 
-    // maChien is generated server-side inside a retry loop. Two tablets submitting
-    // near-simultaneously used to read the same "next" code client-side and collide on
-    // the unique constraint, losing the second worker's data. Generating + creating here
-    // with retry-on-conflict makes concurrent creates safe. Any client-sent maChien is
-    // ignored — the server owns the code.
-    const MAX_ATTEMPTS = 5;
-    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-      data.maChien = await this.generateMaChien();
-      try {
-        return await this.createForGeneratedMaChien(data, thoiGianChien, userId);
-      } catch (err) {
-        if (this.isMaChienConflict(err)) {
-          continue; // regenerate and retry
-        }
-        throw err;
-      }
+    // maChien must be provided by the caller (selected from the schedule).
+    // Legacy three-digit codes (MC-001) are allowed for backward compat but new
+    // entries must use the two-digit scheduled codes (MC-01 through MC-16).
+    if (!data.maChien) {
+      throw new ValidationError('Mã chiên là bắt buộc. Vui lòng chọn từ lịch trình sản xuất.');
     }
-    throw new ValidationError(
-      'Không thể sinh mã chiên do có quá nhiều yêu cầu cùng lúc. Vui lòng thử lại.',
-    );
+
+    // Validate that the code is a valid scheduled code (two-digit format)
+    if (!isScheduledCode(data.maChien)) {
+      throw new ValidationError(
+        `Mã chiên "${data.maChien}" không hợp lệ. Chỉ chấp nhận mã MC-01 đến MC-16.`
+      );
+    }
+
+    return this.createForSelectedCode(data, thoiGianChien, userId);
   }
 
-  /** Dispatches to the correct create path for an already-generated maChien. */
-  private async createForGeneratedMaChien(data: any, thoiGianChien: Date, userId?: string) {
+  /** Creates a MaterialEvaluation for an already-selected schedule code. */
+  private async createForSelectedCode(data: any, thoiGianChien: Date, userId?: string) {
     // If lotProductId is provided, run the transactional create with WarehouseIssue
     if (data.lotProductId) {
       return this.createWithWarehouseLink(data, thoiGianChien, userId);
@@ -184,6 +174,7 @@ export class MaterialEvaluationService {
       data: {
         maChien: data.maChien,
         thoiGianChien,
+        ngaySanXuat: new Date(getProductionDay(thoiGianChien) + 'T00:00:00.000Z'),
         tenHangHoa: data.tenHangHoa,
         soLoKien: data.soLoKien,
         khoiLuong: parseFloat(data.khoiLuong),
@@ -194,6 +185,7 @@ export class MaterialEvaluationService {
         brixNuocNgam: parseFloat(data.brixNuocNgam),
         danhGiaTruocNgam: data.danhGiaTruocNgam,
         danhGiaSauNgam: data.danhGiaSauNgam,
+        ghiChu: data.ghiChu ?? null,
         fileDinhKem: data.fileDinhKem,
         nguoiThucHien: data.nguoiThucHien,
         ca: data.ca != null ? parseInt(data.ca) : null,
@@ -311,6 +303,7 @@ export class MaterialEvaluationService {
         data: {
           maChien: data.maChien,
           thoiGianChien,
+          ngaySanXuat: new Date(getProductionDay(thoiGianChien) + 'T00:00:00.000Z'),
           tenHangHoa,
           soLoKien,
           khoiLuong,
@@ -321,6 +314,7 @@ export class MaterialEvaluationService {
           brixNuocNgam: parseFloat(data.brixNuocNgam),
           danhGiaTruocNgam: data.danhGiaTruocNgam,
           danhGiaSauNgam: data.danhGiaSauNgam,
+          ghiChu: data.ghiChu ?? null,
           fileDinhKem: data.fileDinhKem,
           nguoiThucHien: data.nguoiThucHien,
           ca: data.ca != null ? parseInt(data.ca) : null,
@@ -356,7 +350,7 @@ export class MaterialEvaluationService {
     // Parse datetime from frontend
     let thoiGianChien: Date | undefined;
     if (safeData.thoiGianChien) {
-      thoiGianChien = new Date(safeData.thoiGianChien);
+      thoiGianChien = parseLocalDateTimeAsAppTz(safeData.thoiGianChien);
     }
 
     // Use transaction to update MaterialEvaluation and sync to related tables
@@ -375,6 +369,7 @@ export class MaterialEvaluationService {
           brixNuocNgam: safeData.brixNuocNgam != null ? parseFloat(safeData.brixNuocNgam) : undefined,
           danhGiaTruocNgam: safeData.danhGiaTruocNgam,
           danhGiaSauNgam: safeData.danhGiaSauNgam,
+          ghiChu: 'ghiChu' in safeData ? (safeData.ghiChu ?? null) : undefined,
           fileDinhKem: safeData.fileDinhKem,
           nguoiThucHien: safeData.nguoiThucHien,
           ca: 'ca' in safeData ? (safeData.ca != null ? parseInt(safeData.ca) : null) : undefined,

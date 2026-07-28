@@ -154,7 +154,7 @@ export class FinishedProductController {
    */
   async bulkConfirmReceipt(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { maChienList, warehouseId, lotId } = req.body;
+      const { maChienList, warehouseId, lotId, thoiGianChien } = req.body;
       let employeeId: string;
       if (req.isKioskDevice) {
         const operatorId = req.kioskOperatorId;
@@ -171,6 +171,7 @@ export class FinishedProductController {
         warehouseId,
         lotId,
         employeeId,
+        thoiGianChien,
       );
 
       res.status(201).json({

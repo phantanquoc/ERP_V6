@@ -1,13 +1,38 @@
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
+import { parseLocalDateTimeAsAppTz } from '@utils/productionDay';
 import ExcelJS from 'exceljs';
 
 export class QualityEvaluationService {
-  async getAllQualityEvaluations(page: number = 1, limit: number = 10, machineSystemId?: string) {
+  async getAllQualityEvaluations(
+    page: number = 1,
+    limit: number = 10,
+    machineSystemId?: string,
+    dateRange?: { thoiGianChienFrom?: string; thoiGianChienTo?: string },
+  ) {
     const skip = (page - 1) * limit;
 
     // Filter by machine system
-    const whereClause = machineSystemId ? { machineSystemId } : {};
+    const whereClause: any = machineSystemId ? { machineSystemId } : {};
+
+    // Filter by thoiGianChien date range (stored as UTC ISO string).
+    // Use parseLocalDateTimeAsAppTz to interpret naive datetime strings as APP_TZ,
+    // then convert to UTC ISO for lexicographic comparison against stored values.
+    // This makes the filter TZ-independent (correct regardless of server's TZ env var).
+    if (dateRange?.thoiGianChienFrom || dateRange?.thoiGianChienTo) {
+      const thoiGianChienFilter: any = {};
+      if (dateRange.thoiGianChienFrom) {
+        const d = parseLocalDateTimeAsAppTz(dateRange.thoiGianChienFrom);
+        if (!isNaN(d.getTime())) thoiGianChienFilter.gte = d.toISOString();
+      }
+      if (dateRange.thoiGianChienTo) {
+        const d = parseLocalDateTimeAsAppTz(dateRange.thoiGianChienTo);
+        if (!isNaN(d.getTime())) thoiGianChienFilter.lt = d.toISOString();
+      }
+      if (Object.keys(thoiGianChienFilter).length > 0) {
+        whereClause.thoiGianChien = thoiGianChienFilter;
+      }
+    }
 
     const [data, total] = await Promise.all([
       prisma.qualityEvaluation.findMany({

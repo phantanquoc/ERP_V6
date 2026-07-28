@@ -224,6 +224,7 @@ export const updateSystemOperationSchema = z.object({
 // ==================== MATERIAL EVALUATION SCHEMAS ====================
 // Uses z.coerce because multipart/form-data sends numbers as strings
 export const createMaterialEvaluationSchema = z.object({
+  maChien: z.string().regex(/^MC-\d{2}$/, 'Mã chiên phải có dạng MC-01 đến MC-16'),
   productId: z.string().optional(),
   lotId: z.string().optional(),
   lotProductId: z.string().optional(),
