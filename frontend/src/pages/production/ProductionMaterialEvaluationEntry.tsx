@@ -18,6 +18,8 @@ import {
   X,
 } from 'lucide-react';
 import RawMaterialPicker from '../../components/production/RawMaterialPicker';
+import CascadePicker from '../../components/production/CascadePicker';
+import type { CascadeOption } from '../../components/production/CascadePicker';
 import {
   markTab,
   isKioskTab,
@@ -31,16 +33,14 @@ import {
 } from '../../utils/kioskSession';
 import useVirtualKeyboard from '../../hooks/useVirtualKeyboard';
 import { parseNumberInput, PRODUCTION_LIMITS } from '../../utils/numberInput';
-import { getQuickTimesForShift, computeShiftDatetime } from '../../utils/shiftTime';
 import { useRawMaterials, rawMaterialKeys } from '../../hooks/useRawMaterials';
 import { useAttendedOperatorsByShift } from '../../hooks/useAttendedOperators';
 import { useLotsByProduct, lotsByProductKeys } from '../../hooks/useLotsByProduct';
 import { useKienByProductAndLot, kienByProductAndLotKeys } from '../../hooks/useKienByProductAndLot';
-import materialEvaluationService from '../../services/materialEvaluationService';
+import materialEvaluationService, { MaterialEvaluation } from '../../services/materialEvaluationService';
 import materialEvaluationCriteriaService, { MaterialEvaluationCriteria } from '../../services/materialEvaluationCriteriaService';
 import { materialEvaluationKeys } from '../../hooks/useProductionEntities';
 import { lotProductKeys } from '../../services/lotProductService';
-import DateTimePicker from '../../components/DateTimePicker';
 import OperatorSelectionScreen from '../../components/production/OperatorSelectionScreen';
 import ShiftSelectionScreen from '../../components/production/ShiftSelectionScreen';
 import EvaluationDetailReadOnly from '../../components/production/EvaluationDetailReadOnly';
@@ -49,10 +49,15 @@ import FieldFocusEditor from '../../components/production/FieldFocusEditor';
 import { useAuth } from '../../contexts/AuthContext';
 import { isAdmin } from '../../utils/permissions';
 import faceAttendanceService from '../../services/faceAttendanceService';
+import { useDailyFrySchedule, ScheduledBatch } from '../../hooks/useDailyFrySchedule';
+import { productionDayRange, getCurrentProductionDay } from '../../utils/productionDay';
+import { deriveThoiGianChien } from './deriveThoiGianChien';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type WizardStep = 2 | 3 | 4 | 5;
+type WizardStep = 2 | 3 | 4;
+const FIRST_STEP: WizardStep = 2;
+const LAST_STEP: WizardStep = 4;
 
 interface WizardData {
   // Step 2 (Nguyên liệu)
@@ -62,17 +67,16 @@ interface WizardData {
   tenHangHoa: string;
   soLoKien: string;
   khoiLuong: number;
-  // Step 3 (Thời gian)
-  thoiGianChien: string;
-  // Step 4 (Thông số)
+  // Step 3 (Thông số)
   soLanNgam: number;
   nhietDoNuocTruocNgam: number;
   nhietDoNuocSauVot: number;
   thoiGianNgam: number;
   brixNuocNgam: number;
-  // Step 5 (Đánh giá + File)
+  // Step 4 (Đánh giá + File + Ghi chú)
   danhGiaTruocNgam: string;
   danhGiaSauNgam: string;
+  ghiChu: string;
   file: File | null;
 }
 
@@ -83,7 +87,6 @@ const initialWizardData: WizardData = {
   tenHangHoa: '',
   soLoKien: '',
   khoiLuong: 0,
-  thoiGianChien: '',
   soLanNgam: 0,
   nhietDoNuocTruocNgam: 0,
   nhietDoNuocSauVot: 0,
@@ -91,6 +94,7 @@ const initialWizardData: WizardData = {
   brixNuocNgam: 0,
   danhGiaTruocNgam: '',
   danhGiaSauNgam: '',
+  ghiChu: '',
   file: null,
 };
 
@@ -98,11 +102,6 @@ const DRAFT_KEY_PREFIX = 'material-eval-draft';
 
 function getDraftKey(operator: string, shift: number, date: string): string {
   return `${DRAFT_KEY_PREFIX}|${operator}|${shift}|${date}`;
-}
-
-function todayStr(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 // ─── Session guard screens ───────────────────────────────────────────────────
@@ -167,9 +166,8 @@ interface StepProgressProps {
 const STEP_INFO: { step: WizardStep | 1; icon: React.ComponentType<{ className?: string }>; label: string }[] = [
   { step: 1, icon: User, label: 'Người + Ca' },
   { step: 2, icon: Package, label: 'Nguyên liệu' },
-  { step: 3, icon: Clock, label: 'Thời gian' },
-  { step: 4, icon: Beaker, label: 'Thông số' },
-  { step: 5, icon: ClipboardCheck, label: 'Đánh giá' },
+  { step: 3, icon: Beaker, label: 'Thông số' },
+  { step: 4, icon: ClipboardCheck, label: 'Đánh giá' },
 ];
 
 const StepProgress: React.FC<StepProgressProps> = ({ currentStep, className }) => (
@@ -228,18 +226,18 @@ interface MaterialFieldConfig {
   unit?: string;
   integer?: boolean;
   suggestions?: number[];
-  step: 2 | 4;
+  step: 2 | 3;
   min?: number;
   max?: number;
 }
 
 const MATERIAL_EVAL_FIELDS: MaterialFieldConfig[] = [
   { key: 'khoiLuong', label: 'Khối lượng xuất', unit: 'kg', step: 2, suggestions: [300, 350, 400], min: 0, max: PRODUCTION_LIMITS.khoiLuong.max },
-  { key: 'soLanNgam', label: 'Số lần ngâm', integer: true, step: 4, suggestions: [1, 2, 3], min: 0, max: PRODUCTION_LIMITS.soLanNgam.max },
-  { key: 'nhietDoNuocTruocNgam', label: 'Nhiệt độ nước trước ngâm', unit: '°C', step: 4, suggestions: [40, 50, 60, 70, 80], min: 0, max: PRODUCTION_LIMITS.nhietDoNuocTruocNgam.max },
-  { key: 'nhietDoNuocSauVot', label: 'Nhiệt độ nước sau vớt', unit: '°C', step: 4, suggestions: [40, 50, 60, 70, 80], min: 0, max: PRODUCTION_LIMITS.nhietDoNuocSauVot.max },
-  { key: 'thoiGianNgam', label: 'Thời gian ngâm', unit: 'phút', integer: true, step: 4, suggestions: [30, 45, 60, 90], min: 0, max: PRODUCTION_LIMITS.thoiGianNgam.max },
-  { key: 'brixNuocNgam', label: 'Brix nước ngâm', step: 4, suggestions: [10, 15, 20, 25], min: 0, max: PRODUCTION_LIMITS.brixNuocNgam.max },
+  { key: 'soLanNgam', label: 'Số lần ngâm', integer: true, step: 3, min: 0, max: PRODUCTION_LIMITS.soLanNgam.max },
+  { key: 'nhietDoNuocTruocNgam', label: 'Nhiệt độ nước trước ngâm', unit: '°C', step: 3, min: 0, max: PRODUCTION_LIMITS.nhietDoNuocTruocNgam.max },
+  { key: 'nhietDoNuocSauVot', label: 'Nhiệt độ nước sau vớt', unit: '°C', step: 3, min: 0, max: PRODUCTION_LIMITS.nhietDoNuocSauVot.max },
+  { key: 'thoiGianNgam', label: 'Thời gian ngâm', unit: 'phút', integer: true, step: 3, min: 0, max: PRODUCTION_LIMITS.thoiGianNgam.max },
+  { key: 'brixNuocNgam', label: 'Brix nước ngâm', step: 3, min: 0, max: PRODUCTION_LIMITS.brixNuocNgam.max },
 ];
 
 // ─── Main Component ──────────────────────────────────────────────────────────
@@ -253,10 +251,13 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
   const [selectedShift, setSelectedShift] = useState<number>(() => getSelection()?.shift ?? 0);
   const [nguoiThucHien, setNguoiThucHien] = useState<string>(() => getSelection()?.operator ?? '');
   const [operatorId, setOperatorId] = useState<string>(() => getSelection()?.operatorId ?? '');
-  const [productionDate] = useState<string>(() => {
+  const [productionDate, setProductionDate] = useState<string>(() => {
     const stored = getSelection()?.date;
-    return stored && stored.length > 0 ? stored : todayStr();
+    return stored && stored.length > 0 ? stored : getCurrentProductionDay();
   });
+
+  // ─── Batch code selection state ─────────────────────────────────────────────
+  const [selectedMaChien, setSelectedMaChien] = useState<string>('');
 
   const [currentStep, setCurrentStep] = useState<WizardStep>(2);
   const [wizardData, setWizardData] = useState<WizardData>(initialWizardData);
@@ -283,6 +284,41 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
     data: attendedOperators,
     isLoading: isLoadingAttended,
   } = useAttendedOperatorsByShift(productionDate, selectedShift, 'MATERIAL_EVALUATION');
+
+  // ─── Daily schedule for batch code selection ──────────────────────────────
+  // Derive production day from the worker's selected date (Defect 1 fix)
+  const scheduleProductionDay = productionDate;
+  const { data: scheduledBatches = [], isLoading: isLoadingSchedule } = useDailyFrySchedule(
+    scheduleProductionDay,
+    selectedShift || undefined,
+  );
+
+  // Fetch all evaluations for the production day (to detect existing records for task 4.4)
+  const { from: productionDayStart, to: productionDayEnd } = useMemo(
+    () => productionDayRange(scheduleProductionDay),
+    [scheduleProductionDay],
+  );
+
+  const { data: dayEvalsResult } = useQuery({
+    queryKey: [...materialEvaluationKeys.lists(), 'byDay', scheduleProductionDay],
+    queryFn: () =>
+      materialEvaluationService.getAllMaterialEvaluations(1, 100, {
+        thoiGianChienFrom: productionDayStart,
+        thoiGianChienTo: productionDayEnd,
+      }),
+    enabled: !!selectedShift && !!nguoiThucHien,
+    staleTime: 0,
+  });
+  const dayEvals = dayEvalsResult?.data ?? [];
+
+  // Map maChien -> existing record for quick lookup
+  const existingByCode = useMemo(() => {
+    const map = new Map<string, MaterialEvaluation>();
+    for (const ev of dayEvals) {
+      map.set(ev.maChien, ev);
+    }
+    return map;
+  }, [dayEvals]);
 
   // ─── Today's evaluations (chip list) ──────────────────────────────────────
   const todayStartISO = useMemo(() => {
@@ -376,6 +412,25 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
     [selectedKien, wizardData.khoiLuong],
   );
 
+  // ─── CascadePicker option lists for Lot and Kien ──────────────────────────
+  const lotOptions: CascadeOption[] = useMemo(
+    () => lots.map(l => ({
+      id: l.id,
+      primary: l.tenLo,
+      secondary: l.warehouse ? l.warehouse.tenKho : undefined,
+    })),
+    [lots],
+  );
+
+  const kienOptions: CascadeOption[] = useMemo(
+    () => kienList.map((k, idx) => ({
+      id: k.id,
+      primary: `Kiện ${idx + 1}`,
+      secondary: `Tồn ${k.soLuong} ${k.donViTinh}`,
+    })),
+    [kienList],
+  );
+
   // ─── Draft persistence (localStorage) ─────────────────────────────────────
   const draftKey = useMemo(() => {
     if (!nguoiThucHien || !selectedShift) return null;
@@ -455,6 +510,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
   const handleBackToOperator = useCallback(() => {
     setNguoiThucHien('');
     setOperatorId('');
+    setViewingEvalId(null);
     setCurrentStep(2);
     setWizardData(initialWizardData);
     draftLoaded.current = false;
@@ -466,7 +522,6 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
       wizardData.lotId !== '' ||
       wizardData.lotProductId !== '' ||
       wizardData.khoiLuong > 0 ||
-      wizardData.thoiGianChien !== '' ||
       wizardData.soLanNgam > 0 ||
       wizardData.nhietDoNuocTruocNgam > 0 ||
       wizardData.nhietDoNuocSauVot > 0 ||
@@ -474,6 +529,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
       wizardData.brixNuocNgam > 0 ||
       wizardData.danhGiaTruocNgam !== '' ||
       wizardData.danhGiaSauNgam !== '' ||
+      wizardData.ghiChu !== '' ||
       wizardData.file !== null
     );
   }, [wizardData]);
@@ -487,6 +543,8 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
     setNguoiThucHien('');
     setOperatorId('');
     setSelectedShift(0);
+    setSelectedMaChien('');
+    setViewingEvalId(null);
     setCurrentStep(2);
     setWizardData(initialWizardData);
     draftLoaded.current = false;
@@ -499,10 +557,59 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
     }
     if (draftKey) localStorage.removeItem(draftKey);
     setSelectedShift(0);
+    setSelectedMaChien('');
+    setViewingEvalId(null);
     setCurrentStep(2);
     setWizardData(initialWizardData);
     draftLoaded.current = false;
     // Giữ nguyên nguoiThucHien + productionDate
+  }, [draftKey, isWizardDirty]);
+
+  // ─── Production day change handler ──────────────────────────────────────────
+  const handleProductionDayChange = useCallback((newDay: string) => {
+    if (newDay === productionDate) return;
+    setProductionDate(newDay);
+    // Reset batch selection since schedule changes with production day
+    setSelectedMaChien('');
+    setViewingEvalId(null);
+    setWizardData(initialWizardData);
+    draftLoaded.current = false;
+    // Persist to session
+    setSelection({
+      shift: selectedShift,
+      operator: nguoiThucHien,
+      operatorId,
+      date: newDay,
+      activeTab: '',
+    });
+  }, [productionDate, selectedShift, nguoiThucHien, operatorId]);
+
+  // ─── Batch code selection handler ─────────────────────────────────────────
+  const handleBatchSelect = useCallback((code: string) => {
+    const existing = existingByCode.get(code);
+    if (existing) {
+      // Already saved — open read-only detail view (no editing on kiosk)
+      setViewingEvalId(existing.id);
+      return;
+    }
+    // New record — enter the wizard to create
+    setViewingEvalId(null);
+    setSelectedMaChien(code);
+    setWizardData(initialWizardData);
+    draftLoaded.current = false;
+    setCurrentStep(2);
+  }, [existingByCode]);
+
+  const handleBackToBatchSelect = useCallback(() => {
+    if (isWizardDirty() && !window.confirm('Dữ liệu đang nhập sẽ mất. Quay lại chọn mã?')) {
+      return;
+    }
+    if (draftKey) localStorage.removeItem(draftKey);
+    setSelectedMaChien('');
+    setViewingEvalId(null);
+    setCurrentStep(2);
+    setWizardData(initialWizardData);
+    draftLoaded.current = false;
   }, [draftKey, isWizardDirty]);
 
   // ─── Step navigation ──────────────────────────────────────────────────────
@@ -517,10 +624,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
           !khoiLuongExceeded
         );
       }
-      if (step === 3) {
-        return wizardData.thoiGianChien.length > 0;
-      }
-      // step 4 (thông số) và step 5 (đánh giá + file): không bắt buộc, cho lưu ngay cả khi rỗng
+      // step 3 (thông số) và step 4 (đánh giá + file): không bắt buộc, cho lưu ngay cả khi rỗng
       return true;
     },
     [wizardData, khoiLuongExceeded],
@@ -528,11 +632,11 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
 
   const handleNext = useCallback(() => {
     if (!isStepValid(currentStep)) return;
-    setCurrentStep(prev => (prev < 5 ? ((prev + 1) as WizardStep) : prev));
+    setCurrentStep(prev => (prev < LAST_STEP ? ((prev + 1) as WizardStep) : prev));
   }, [currentStep, isStepValid]);
 
   const handleBack = useCallback(() => {
-    setCurrentStep(prev => (prev > 2 ? ((prev - 1) as WizardStep) : prev));
+    setCurrentStep(prev => (prev > FIRST_STEP ? ((prev - 1) as WizardStep) : prev));
   }, []);
 
   // ─── Step-2 (Nguyên liệu) field handlers ──────────────────────────────────
@@ -545,13 +649,13 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
       tenHangHoa: '',
       soLoKien: '',
       khoiLuong: 0,
-      // Reset step 4 (thông số ngâm)
+      // Reset step 3 (thông số ngâm)
       soLanNgam: 0,
       nhietDoNuocTruocNgam: 0,
       nhietDoNuocSauVot: 0,
       thoiGianNgam: 0,
       brixNuocNgam: 0,
-      // Reset step 5 (đánh giá + file)
+      // Reset step 4 (đánh giá + file)
       danhGiaTruocNgam: '',
       danhGiaSauNgam: '',
       file: null,
@@ -598,23 +702,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
     setWizardData(prev => ({ ...prev, khoiLuong: val }));
   }, []);
 
-  // ─── Step-3 (Thời gian) ──────────────────────────────────────────────────
-  const handleThoiGianChange = useCallback((datetime: string) => {
-    setWizardData(prev => ({ ...prev, thoiGianChien: datetime }));
-  }, []);
-
-  const handleQuickTime = useCallback(
-    (time: string) => {
-      if (!selectedShift) return;
-      setWizardData(prev => ({
-        ...prev,
-        thoiGianChien: computeShiftDatetime(selectedShift, time),
-      }));
-    },
-    [selectedShift],
-  );
-
-  // ─── Step-5 (Đánh giá + File) ────────────────────────────────────────────
+  // ─── Step-4 (Đánh giá + File) ────────────────────────────────────────────
   const handleDanhGiaToggle = useCallback(
     (field: 'danhGiaTruocNgam' | 'danhGiaSauNgam', code: string) => {
       setWizardData(prev => {
@@ -650,6 +738,22 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
     setWizardData(prev => ({ ...prev, file: null }));
   }, []);
 
+  // ─── Derive thoiGianChien from the selected scheduled batch (Defect 2) ────
+  const selectedBatch: ScheduledBatch | undefined = useMemo(
+    () => scheduledBatches.find(b => b.code === selectedMaChien),
+    [scheduledBatches, selectedMaChien],
+  );
+
+  /** Build naive local-time string from production day + batch startTime.
+   * MC-13 to MC-16 have isNextCalendarDay=true (00:30, 02:00, 03:30, 05:00),
+   * meaning their clock time falls on the calendar day AFTER the production day.
+   * Emits "YYYY-MM-DDTHH:mm:00" (no timezone suffix) — backend interprets via APP_TZ. */
+  const derivedThoiGianChien: string = useMemo(() => {
+    if (!selectedBatch) return '';
+    const { hour, minute } = selectedBatch.startTime;
+    return deriveThoiGianChien(scheduleProductionDay, hour, minute, selectedBatch.isNextCalendarDay);
+  }, [selectedBatch, scheduleProductionDay]);
+
   // ─── Submit ───────────────────────────────────────────────────────────────
   const handleSubmit = useCallback(async () => {
     if (submitting) return;
@@ -657,15 +761,18 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
       toast.error('Khối lượng xuất vượt tồn kho');
       return;
     }
+    if (!selectedMaChien) {
+      toast.error('Chưa chọn mã chiên');
+      return;
+    }
+    if (!derivedThoiGianChien) {
+      toast.error('Không xác định được thời gian chiên cho mã này');
+      return;
+    }
 
-    const iso = wizardData.thoiGianChien
-      ? new Date(wizardData.thoiGianChien).toISOString()
-      : '';
-
-    // maChien do backend tự sinh (trong retry loop chống trùng khi nhiều tablet
-    // lưu cùng lúc) — không sinh ở client nữa để tránh race condition.
     const payload = {
-      thoiGianChien: iso,
+      maChien: selectedMaChien,
+      thoiGianChien: derivedThoiGianChien,
       ca: selectedShift,
       tenHangHoa: wizardData.tenHangHoa,
       soLoKien: wizardData.soLoKien,
@@ -677,12 +784,14 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
       brixNuocNgam: wizardData.brixNuocNgam,
       danhGiaTruocNgam: wizardData.danhGiaTruocNgam,
       danhGiaSauNgam: wizardData.danhGiaSauNgam,
+      ghiChu: wizardData.ghiChu || undefined,
       nguoiThucHien,
       ...(wizardData.lotProductId ? { lotProductId: wizardData.lotProductId } : {}),
     };
 
     try {
       setSubmitting(true);
+      // Create new record
       await materialEvaluationService.createMaterialEvaluation(
         payload,
         wizardData.file ?? undefined,
@@ -700,6 +809,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
       if (draftKey) localStorage.removeItem(draftKey);
       draftLoaded.current = true;
       setWizardData(initialWizardData);
+      setSelectedMaChien('');
       setCurrentStep(2);
     } catch (err: any) {
       toast.error('Lỗi khi lưu: ' + (err?.message ?? 'Không xác định'));
@@ -711,7 +821,9 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
     khoiLuongExceeded,
     wizardData,
     selectedShift,
+    selectedMaChien,
     nguoiThucHien,
+    derivedThoiGianChien,
     draftKey,
     queryClient,
   ]);
@@ -802,7 +914,111 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
     );
   }
 
-  const quickTimes = getQuickTimesForShift(selectedShift);
+  // ─── Batch code selection gate (THIRD GATE) ─────────────────────────────
+  if (!selectedMaChien) {
+    return (
+      <div className="h-screen w-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 sm:p-6 flex flex-col">
+        {/* Header: back button + logo + spacer */}
+        <div className="flex-shrink-0 flex items-center py-2">
+          <button
+            onClick={handleBackToOperator}
+            className="flex items-center gap-2 text-base font-medium text-gray-500 hover:text-gray-700"
+          >
+            <ArrowLeft className="w-6 h-6" />
+            Quay lại
+          </button>
+          <img src="/abf-logo.png" alt="An Bình Foods" className="h-12 sm:h-16 object-contain mx-auto" />
+          <div className="w-[110px]" aria-hidden />
+        </div>
+
+        {/* Title + context line */}
+        <div className="flex-shrink-0 text-center py-1">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Chọn mã chiên</h1>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">
+            {nguoiThucHien} <span className="text-gray-400">·</span> Ca {selectedShift}
+            <span className="text-gray-400 mx-1">·</span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="text-gray-500">Ngày SX:</span>
+              <input
+                type="date"
+                value={productionDate}
+                onChange={(e) => handleProductionDayChange(e.target.value)}
+                className="min-h-[36px] px-2 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              />
+            </span>
+          </p>
+        </div>
+
+        {/* Batch grid — fills remaining height */}
+        {isLoadingSchedule ? (
+          <div className="flex-1 flex items-center justify-center gap-3 text-gray-500">
+            <Loader2 className="w-8 h-8 animate-spin" />
+            <span className="text-xl">Đang tải lịch trình...</span>
+          </div>
+        ) : scheduledBatches.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
+            <AlertTriangle className="w-12 h-12 mb-3 text-amber-500" />
+            <p className="text-xl">Không có mã chiên nào cho ca này</p>
+          </div>
+        ) : (
+          <div className="flex-1 min-h-0 flex flex-col gap-3 mt-2">
+            <div className="grid flex-1 min-h-0 w-full grid-cols-2 landscape:grid-cols-3 gap-3 sm:gap-4">
+              {scheduledBatches.map((batch) => {
+                const hasRecord = existingByCode.has(batch.code);
+                const startLabel = `${String(batch.startTime.hour).padStart(2, '0')}:${String(batch.startTime.minute).padStart(2, '0')}`;
+                return (
+                  <button
+                    key={batch.code}
+                    type="button"
+                    onClick={() => handleBatchSelect(batch.code)}
+                    className={`h-full w-full rounded-3xl shadow-lg transition-all duration-300 transform hover:scale-[1.02] hover:shadow-2xl flex flex-col items-center justify-center text-center p-4 ${
+                      hasRecord
+                        ? 'bg-green-500 hover:bg-green-600 text-white'
+                        : 'bg-blue-500 hover:bg-blue-600 text-white'
+                    }`}
+                  >
+                    <span className="text-4xl sm:text-5xl font-black mb-1">{batch.code}</span>
+                    <span className="text-xl sm:text-2xl font-bold opacity-80">{startLabel}</span>
+                    {hasRecord && (
+                      <CheckCircle className="w-7 h-7 mt-2 opacity-90" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Legend */}
+            <div className="flex-shrink-0 flex items-center justify-center gap-6 text-sm text-gray-600">
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-lg bg-blue-500" />
+                <span>Chưa nhập</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-lg bg-green-500 flex items-center justify-center">
+                  <CheckCircle className="w-3.5 h-3.5 text-white" />
+                </div>
+                <span>Đã có dữ liệu (xem)</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Powered by Koola */}
+        <div className="flex-shrink-0 flex items-center justify-center gap-2 py-2 opacity-60">
+          <span className="text-xs text-gray-500">Powered by</span>
+          <img src="/koola-logo.png" alt="Koola" className="h-4 object-contain" />
+          <span className="text-xs font-semibold text-gray-400">KOOLA</span>
+        </div>
+
+        {viewingEvalId && (
+          <EvaluationDetailReadOnly
+            id={viewingEvalId}
+            onClose={() => setViewingEvalId(null)}
+          />
+        )}
+      </div>
+    );
+  }
 
   // ─── Wizard shell ────────────────────────────────────────────────────────
   return (
@@ -813,7 +1029,9 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
           <div className="flex items-center gap-3 min-w-0">
             <img src="/abf-logo.png" alt="An Bình Foods" className={`h-9 object-contain ${keyboardOpen ? 'hidden' : 'hidden sm:block'}`} />
             <div className="min-w-0">
-              <h1 className="text-lg font-semibold text-gray-800 truncate">Đánh giá ngâm</h1>
+              <h1 className="text-lg font-semibold text-gray-800 truncate">
+                Nhập {selectedMaChien}
+              </h1>
               <p className={`text-sm text-gray-600 truncate ${keyboardOpen ? 'hidden' : ''}`}>
                 {nguoiThucHien} <span className="text-gray-400">·</span> Ca {selectedShift}
               </p>
@@ -899,54 +1117,36 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Lô <span className="text-red-500">*</span>
               </label>
-              <select
+              <CascadePicker
+                options={lotOptions}
                 value={wizardData.lotId}
-                onChange={(e) => handleLotChange(e.target.value)}
+                onChange={handleLotChange}
                 disabled={!wizardData.productId}
-                className="w-full min-h-[52px] px-3 py-2 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-              >
-                <option value="">
-                  {!wizardData.productId
-                    ? '-- Chọn sản phẩm trước --'
-                    : loadingLots
-                    ? 'Đang tải...'
-                    : lots.length === 0
-                    ? 'Không có lô tồn kho'
-                    : '-- Chọn lô --'}
-                </option>
-                {lots.map(l => (
-                  <option key={l.id} value={l.id}>
-                    {l.tenLo}{l.warehouse ? ` (${l.warehouse.tenKho})` : ''}
-                  </option>
-                ))}
-              </select>
+                loading={loadingLots}
+                placeholderDisabled="-- Chọn sản phẩm trước --"
+                placeholderReady="-- Chọn lô --"
+                emptyMessage="Không có lô tồn kho"
+                overlayTitle="Chọn lô"
+                searchPlaceholder="Tìm theo tên lô hoặc kho..."
+              />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Kiện <span className="text-red-500">*</span>
               </label>
-              <select
+              <CascadePicker
+                options={kienOptions}
                 value={wizardData.lotProductId}
-                onChange={(e) => handleKienChange(e.target.value)}
+                onChange={handleKienChange}
                 disabled={!wizardData.lotId}
-                className="w-full min-h-[52px] px-3 py-2 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-              >
-                <option value="">
-                  {!wizardData.lotId
-                    ? '-- Chọn lô trước --'
-                    : loadingKien
-                    ? 'Đang tải...'
-                    : kienList.length === 0
-                    ? 'Không có kiện tồn kho'
-                    : '-- Chọn kiện --'}
-                </option>
-                {kienList.map((k, idx) => (
-                  <option key={k.id} value={k.id}>
-                    Kiện {idx + 1} · Tồn {k.soLuong} {k.donViTinh}
-                  </option>
-                ))}
-              </select>
+                loading={loadingKien}
+                placeholderDisabled="-- Chọn lô trước --"
+                placeholderReady="-- Chọn kiện --"
+                emptyMessage="Không có kiện tồn kho"
+                overlayTitle="Chọn kiện"
+                searchPlaceholder="Tìm theo kiện..."
+              />
             </div>
 
             <div>
@@ -1038,42 +1238,21 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
         {currentStep === 3 && (
           <div className="max-w-2xl mx-auto px-4 space-y-4">
             <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-              <Clock className="w-5 h-5 text-blue-600" />
-              Thời gian chiên
-            </h2>
-            <DateTimePicker
-              label="Thời gian chiên"
-              value={wizardData.thoiGianChien}
-              onChange={handleThoiGianChange}
-              required
-              placeholder="Chọn ngày và giờ chiên"
-              allowClear
-              maxDateTime={new Date().toISOString().slice(0, 16)}
-            />
-            <div>
-              <span className="text-sm text-gray-500 mb-2 block">Chọn nhanh giờ chiên cho Ca {selectedShift}:</span>
-              <div className="flex flex-wrap gap-2">
-                {quickTimes.map((time) => (
-                  <button
-                    key={time}
-                    type="button"
-                    onClick={() => handleQuickTime(time)}
-                    className="px-3 py-2 min-h-[44px] text-base font-medium border border-blue-200 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 hover:border-blue-300 transition-colors"
-                  >
-                    {time}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {currentStep === 4 && (
-          <div className="max-w-2xl mx-auto px-4 space-y-4">
-            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
               <Beaker className="w-5 h-5 text-blue-600" />
-              Thông số chiên
+              Thông số ngâm
             </h2>
+
+            {/* Read-only derived time display (Defect 2) */}
+            {selectedBatch && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+                <Clock className="w-4 h-4 shrink-0" />
+                <span>
+                  Thời gian chiên: <strong>{String(selectedBatch.startTime.hour).padStart(2, '0')}:{String(selectedBatch.startTime.minute).padStart(2, '0')}</strong>
+                  {selectedBatch.isNextCalendarDay && <span className="ml-1 text-blue-600">(ngày kế)</span>}
+                </span>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Số lần ngâm</label>
@@ -1133,7 +1312,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
           </div>
         )}
 
-        {currentStep === 5 && (
+        {currentStep === 4 && (
           <div className="max-w-2xl mx-auto px-4 space-y-6">
             <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
               <ClipboardCheck className="w-5 h-5 text-blue-600" />
@@ -1207,6 +1386,19 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
+                Ghi chú (tuỳ chọn)
+              </label>
+              <textarea
+                value={wizardData.ghiChu}
+                onChange={(e) => setWizardData(prev => ({ ...prev, ghiChu: e.target.value }))}
+                placeholder="Nhập ghi chú nếu có..."
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Ảnh nguyên liệu (tuỳ chọn)
               </label>
               <input
@@ -1262,7 +1454,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
       {/* Footer — nút điều hướng: Quay lại (trái) + Tiếp tục/Xác nhận (phải) */}
       <div className={`fixed bottom-0 left-0 right-0 bg-white border-t z-10 transition-transform duration-200 ${keyboardOpen ? 'translate-y-full' : ''}`}>
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-          {currentStep > 2 ? (
+          {currentStep > FIRST_STEP ? (
             <button
               type="button"
               onClick={handleBack}
@@ -1272,9 +1464,16 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
               Quay lại
             </button>
           ) : (
-            <span aria-hidden="true" />
+            <button
+              type="button"
+              onClick={handleBackToBatchSelect}
+              className="min-h-[52px] px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 rounded-lg text-base font-medium flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-gray-400"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              Chọn mã khác
+            </button>
           )}
-          {currentStep < 5 ? (
+          {currentStep < LAST_STEP ? (
             <button
               type="button"
               onClick={handleNext}

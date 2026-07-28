@@ -117,11 +117,20 @@ export function indexFinishedProducts(
 
 // ─── Mutation: PATCH multiple dirty FinishedProduct records ──────────────────
 
+export interface EntryHistoryRow {
+  grade: string;
+  khoiLuong: number;
+  employeeId?: string;
+  employeeName?: string;
+}
+
 export interface DirtyRecord {
   id?: string;
   data: Partial<FinishedProduct>;
   /** When id is absent, use upsert by (maChien, machineSystemId) */
   upsert?: { maChien: string; machineSystemId: string };
+  /** Per-grade attribution rows (only for cells with grade-tab changes, not waste-only) */
+  entryHistory?: EntryHistoryRow[];
 }
 
 export interface SaveResult {
@@ -140,14 +149,17 @@ export const useBatchUpdateFinishedProducts = () => {
           ? `${rec.upsert.maChien}|${rec.upsert.machineSystemId}`
           : rec.id ?? 'unknown';
         try {
-          if (rec.id) {
-            await finishedProductService.updateFinishedProduct(rec.id, rec.data);
-          } else if (rec.upsert) {
+          if (rec.upsert) {
+            // Upsert path: handles both new records and sends entry history
             await finishedProductService.upsertByBatchMachine({
               ...rec.data,
               maChien: rec.upsert.maChien,
               machineSystemId: rec.upsert.machineSystemId,
+              entryHistory: rec.entryHistory,
             });
+          } else if (rec.id) {
+            // Existing record by id: PATCH the record
+            await finishedProductService.updateFinishedProduct(rec.id, rec.data);
           }
           results.push({ cellKey, ok: true });
         } catch (err: any) {

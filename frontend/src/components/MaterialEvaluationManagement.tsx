@@ -17,11 +17,14 @@ import { useLotsByProduct, lotsByProductKeys } from '../hooks/useLotsByProduct';
 import { useKienByProductAndLot } from '../hooks/useKienByProductAndLot';
 import { lotProductKeys } from '../services/lotProductService';
 import { materialEvaluationKeys } from '../hooks/useProductionEntities';
+import { useDailyFrySchedule } from '../hooks/useDailyFrySchedule';
+import { productionDayRange, getCurrentProductionDay } from '../utils/productionDay';
 import toast from 'react-hot-toast';
 
 
 interface MaterialEvaluationManagementProps {
   onCreateSystemOperation?: (maChien: string, thoiGianChien: string) => void;
+  productionDay?: string;
 }
 
 const normalizeSearchText = (value: string): string =>
@@ -31,7 +34,7 @@ const normalizeSearchText = (value: string): string =>
     .toLowerCase()
     .trim();
 
-const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> = ({ onCreateSystemOperation }) => {
+const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> = ({ onCreateSystemOperation, productionDay: productionDayProp }) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { data: productionEmployees = [], isLoading: loadingProductionEmployees } = useProductionEmployees();
@@ -51,6 +54,10 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
   );
 
   const selectedKien = kienList.find(k => k.id === lotProductId) ?? null;
+
+  // Daily schedule production day — prefer prop from parent, fallback to current
+  const currentProductionDay = useMemo(() => productionDayProp || getCurrentProductionDay(), [productionDayProp]);
+
   const [evaluations, setEvaluations] = useState<MaterialEvaluation[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -99,6 +106,21 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
     ca: null,
   });
 
+  // Daily schedule for batch code picker (depends on formData.ca)
+  const { data: scheduledBatches = [] } = useDailyFrySchedule(
+    currentProductionDay,
+    formData.ca ? Number(formData.ca) : undefined,
+  );
+
+  // Map maChien -> existing evaluation for the current production day (task 4.4)
+  const existingByCode = useMemo(() => {
+    const map = new Map<string, MaterialEvaluation>();
+    for (const ev of evaluations) {
+      map.set(ev.maChien, ev);
+    }
+    return map;
+  }, [evaluations]);
+
   const filteredProductionEmployees = useMemo(() => {
     const keyword = normalizeSearchText(formData.nguoiThucHien || '');
 
@@ -124,17 +146,22 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
   useEffect(() => {
     loadEvaluations();
     loadCriteria();
-  }, []);
+  }, [currentProductionDay]);
 
 
   const loadEvaluations = async () => {
     try {
       setLoading(true);
       setError('');
-      const result = await materialEvaluationService.getAllMaterialEvaluations(1, 1000);
+      // Filter by production day: 06:30 on that day to 06:30 next day
+      const range = productionDayRange(currentProductionDay);
+      const result = await materialEvaluationService.getAllMaterialEvaluations(1, 1000, {
+        thoiGianChienFrom: range.from,
+        thoiGianChienTo: range.to,
+      });
       setEvaluations(result.data);
     } catch (err: any) {
-      setError(err.message || 'Lỗi tải dữ liệu');
+      setError(err.message || 'Loi tai du lieu');
       console.error(err);
     } finally {
       setLoading(false);
@@ -275,7 +302,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
 
 
 
-  const handleOpenModal = async (evaluation?: MaterialEvaluation) => {
+  const handleOpenModal = (evaluation?: MaterialEvaluation) => {
     if (evaluation) {
       setIsEditing(true);
       setSelectedEvaluation(evaluation);
@@ -305,28 +332,23 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
         ? `${user.lastName || ''} ${user.firstName || ''}`.trim()
         : '';
 
-      // Generate ma chien from API
-      try {
-        const maChien = await materialEvaluationService.generateMaChien();
-        setFormData({
-          maChien,
-          thoiGianChien: '',
-          tenHangHoa: '',
-          soLoKien: '',
-          khoiLuong: 0,
-          soLanNgam: 0,
-          nhietDoNuocTruocNgam: 0,
-          nhietDoNuocSauVot: 0,
-          thoiGianNgam: 0,
-          brixNuocNgam: 0,
-          danhGiaTruocNgam: '',
-          danhGiaSauNgam: '',
-          nguoiThucHien,
-          ca: null,
-        });
-      } catch (err: any) {
-        setError(err.message || 'Lỗi tạo mã chiên');
-      }
+      // Batch code is now selected from schedule — no auto-generation
+      setFormData({
+        maChien: '',
+        thoiGianChien: '',
+        tenHangHoa: '',
+        soLoKien: '',
+        khoiLuong: 0,
+        soLanNgam: 0,
+        nhietDoNuocTruocNgam: 0,
+        nhietDoNuocSauVot: 0,
+        thoiGianNgam: 0,
+        brixNuocNgam: 0,
+        danhGiaTruocNgam: '',
+        danhGiaSauNgam: '',
+        nguoiThucHien,
+        ca: null,
+      });
     }
     setIsModalOpen(true);
   };
@@ -536,17 +558,24 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
       {/* Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+            <table className="w-full border-collapse text-xs">
               <thead>
                 <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-                  <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
-                  <th className="px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã chiên</th>
-                  <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian chiên</th>
-                  <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Ca</th>
-                  <th className="px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên hàng hóa</th>
-                  <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Khối lượng (Kg)</th>
-                  <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian ngâm (Phút)</th>
-                  <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
+                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">STT</th>
+                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Ma chien</th>
+                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Thoi gian chien</th>
+                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Ten hang hoa</th>
+                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">So lo kien</th>
+                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">KL (Kg/tua)</th>
+                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">So lan ngam</th>
+                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Nhiet do truoc ngam</th>
+                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Nhiet do sau vot</th>
+                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">TG ngam (Phut)</th>
+                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Brix nuoc ngam</th>
+                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">DG truoc ngam</th>
+                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">DG sau ngam</th>
+                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Ghi chu</th>
+                  <th className="px-2 py-2 text-center font-semibold text-gray-900 whitespace-nowrap">Thao tac</th>
                 </tr>
               </thead>
               <tbody>
@@ -562,52 +591,59 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   });
                   if (loading) return (
                   <tr>
-                    <td colSpan={8} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">Đang tải...</td>
+                    <td colSpan={15} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">Dang tai...</td>
                   </tr>
                 );
                   if (filteredEvaluations.length === 0) return (
                   <tr>
-                    <td colSpan={8} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">Chưa có dữ liệu</td>
+                    <td colSpan={15} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">Chua co du lieu</td>
                   </tr>
                 );
                   return filteredEvaluations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((evaluation, index) => (
                   <tr
                     key={evaluation.id}
                     onClick={() => handleViewDetail(evaluation)}
-                    className={`border-b border-gray-200 hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all ${
+                    className={`border-b border-gray-200 hover:bg-blue-50 cursor-pointer transition-all ${
                       index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                     }`}
                   >
-                    <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                    <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">{evaluation.maChien}</td>
-                    <td className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-700 border-r border-gray-200">{formatDateTime(evaluation.thoiGianChien)}</td>
-                    <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{evaluation.ca != null ? `Ca ${evaluation.ca}` : '-'}</td>
-                    <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm font-medium text-gray-900 border-r border-gray-200">{evaluation.tenHangHoa}</td>
-                    <td className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{evaluation.khoiLuong}</td>
-                    <td className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">{evaluation.thoiGianNgam}</td>
-                    <td className="px-3 py-2 sm:px-6 sm:py-4">
-                      <div className="flex items-center justify-center gap-3">
+                    <td className="px-2 py-1.5 text-gray-900 border-r border-gray-200 text-center">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                    <td className="px-2 py-1.5 font-semibold text-blue-600 border-r border-gray-200 whitespace-nowrap">{evaluation.maChien}</td>
+                    <td className="px-2 py-1.5 text-gray-700 border-r border-gray-200 whitespace-nowrap">{formatDateTime(evaluation.thoiGianChien)}</td>
+                    <td className="px-2 py-1.5 text-gray-900 border-r border-gray-200">{evaluation.tenHangHoa}</td>
+                    <td className="px-2 py-1.5 text-gray-900 border-r border-gray-200">{evaluation.soLoKien || '-'}</td>
+                    <td className="px-2 py-1.5 text-gray-900 border-r border-gray-200 text-center">{evaluation.khoiLuong}</td>
+                    <td className="px-2 py-1.5 text-gray-900 border-r border-gray-200 text-center">{evaluation.soLanNgam}</td>
+                    <td className="px-2 py-1.5 text-gray-900 border-r border-gray-200 text-center">{evaluation.nhietDoNuocTruocNgam}</td>
+                    <td className="px-2 py-1.5 text-gray-900 border-r border-gray-200 text-center">{evaluation.nhietDoNuocSauVot}</td>
+                    <td className="px-2 py-1.5 text-gray-900 border-r border-gray-200 text-center">{evaluation.thoiGianNgam}</td>
+                    <td className="px-2 py-1.5 text-gray-900 border-r border-gray-200 text-center">{evaluation.brixNuocNgam}</td>
+                    <td className="px-2 py-1.5 text-gray-700 border-r border-gray-200 max-w-[120px] truncate" title={evaluation.danhGiaTruocNgam}>{evaluation.danhGiaTruocNgam || '-'}</td>
+                    <td className="px-2 py-1.5 text-gray-700 border-r border-gray-200 max-w-[120px] truncate" title={evaluation.danhGiaSauNgam}>{evaluation.danhGiaSauNgam || '-'}</td>
+                    <td className="px-2 py-1.5 text-gray-700 border-r border-gray-200 max-w-[100px] truncate" title={evaluation.ghiChu || ''}>{evaluation.ghiChu || '-'}</td>
+                    <td className="px-2 py-1.5">
+                      <div className="flex items-center justify-center gap-1">
                         <button
                           onClick={(e) => { e.stopPropagation(); handleOpenModal(evaluation); }}
-                          className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
-                          title="Chỉnh sửa"
+                          className="p-1 text-green-600 hover:bg-green-100 rounded-md transition-colors"
+                          title="Chinh sua"
                         >
-                          <Edit className="w-5 h-5" />
+                          <Edit className="w-4 h-4" />
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDelete(evaluation.id); }}
-                          className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
-                          title="Xóa"
+                          className="p-1 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                          title="Xoa"
                         >
-                          <Trash2 className="w-5 h-5" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
                         {onCreateSystemOperation && (
                           <button
                             onClick={(e) => { e.stopPropagation(); handleCreateSystemOperation(evaluation); }}
-                            className="p-1.5 text-purple-600 hover:bg-purple-100 rounded-md transition-colors"
-                            title="Tạo thông số vận hành"
+                            className="p-1 text-purple-600 hover:bg-purple-100 rounded-md transition-colors"
+                            title="Tao thong so van hanh"
                           >
-                            <Settings className="w-5 h-5" />
+                            <Settings className="w-4 h-4" />
                           </button>
                         )}
                       </div>
@@ -694,17 +730,58 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Mã chiên <span className="text-red-500">*</span> <span className="text-xs text-gray-500 font-normal">(tự sinh)</span>
+                    Mã chiên <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    name="maChien"
-                    value={formData.maChien}
-                    onChange={handleInputChange}
-                    required
-                    readOnly
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed focus:ring-blue-500 focus:border-blue-500"
-                  />
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      name="maChien"
+                      value={formData.maChien}
+                      readOnly
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  ) : (
+                    <select
+                      name="maChien"
+                      value={formData.maChien}
+                      onChange={(e) => {
+                        const code = e.target.value;
+                        const existing = existingByCode.get(code);
+                        if (existing) {
+                          // Task 4.4: Load existing record for editing instead of creating duplicate
+                          setIsEditing(true);
+                          setSelectedEvaluation(existing);
+                          let thoiGianChienLocal = '';
+                          if (existing.thoiGianChien) {
+                            const date = new Date(existing.thoiGianChien);
+                            const year = date.getFullYear();
+                            const month = String(date.getMonth() + 1).padStart(2, '0');
+                            const day = String(date.getDate()).padStart(2, '0');
+                            const hours = String(date.getHours()).padStart(2, '0');
+                            const minutes = String(date.getMinutes()).padStart(2, '0');
+                            thoiGianChienLocal = `${year}-${month}-${day}T${hours}:${minutes}`;
+                          }
+                          setFormData({
+                            ...existing,
+                            thoiGianChien: thoiGianChienLocal,
+                            ca: existing.ca ?? null,
+                          });
+                          toast.success('Đã tải bản ghi hiện có để chỉnh sửa');
+                        } else {
+                          setFormData(prev => ({ ...prev, maChien: code }));
+                        }
+                      }}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">{!formData.ca ? '-- Chon ca truoc --' : '-- Chon ma chien --'}</option>
+                      {scheduledBatches.map((batch) => (
+                        <option key={batch.code} value={batch.code}>
+                          {batch.code} ({String(batch.startTime.hour).padStart(2, '0')}:{String(batch.startTime.minute).padStart(2, '0')})
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 <div className="md:col-span-2">
@@ -715,7 +792,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                       </label>
                       <select
                         value={formData.ca ?? ''}
-                        onChange={(e) => setFormData(prev => ({ ...prev, ca: e.target.value ? parseInt(e.target.value) : null }))}
+                        onChange={(e) => setFormData(prev => ({ ...prev, ca: e.target.value ? parseInt(e.target.value) : null, maChien: '' }))}
                         required
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                       >

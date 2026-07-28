@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   ClipboardCheck,
@@ -8,12 +8,14 @@ import {
   FlaskConical,
   Tablet,
   ExternalLink,
+  Calendar,
 } from 'lucide-react';
 import MaterialEvaluationManagement from '../../components/MaterialEvaluationManagement';
 import SystemOperationManagement from '../../components/SystemOperationManagement';
 import FinishedProductManagement from '../../components/FinishedProductManagement';
 import QualityEvaluationManagement from '../../components/QualityEvaluationManagement';
 import { activate as activateKiosk } from '../../utils/kioskSession';
+import { getCurrentProductionDay } from '../../utils/productionDay';
 
 type Tab = 'materialEvaluation' | 'systemOperation' | 'finishedProduct' | 'qualityEvaluation';
 
@@ -40,6 +42,10 @@ const ProductionData = () => {
   const [selectedMaChien, setSelectedMaChien] = useState('');
   const [selectedThoiGianChien, setSelectedThoiGianChien] = useState('');
 
+  // Production day filter — defaults to current production day (respects 06:30 boundary)
+  const defaultProductionDay = useMemo(() => getCurrentProductionDay(), []);
+  const [productionDay, setProductionDay] = useState<string>(defaultProductionDay);
+
   useEffect(() => {
     const currentTab = searchParams.get('tab');
     if (currentTab !== activeTab) {
@@ -60,32 +66,44 @@ const ProductionData = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <FlaskConical className="w-6 h-6 text-blue-600" />
-            Dữ liệu sản xuất
+            Du lieu san xuat
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Đánh giá nguyên liệu, thông số vận hành, thành phẩm và đánh giá chất lượng
+            Danh gia nguyen lieu, thong so van hanh, thanh pham va danh gia chat luong
           </p>
         </div>
-        <button
-          onClick={() => {
-            activateKiosk();
-            if (activeTab === 'materialEvaluation') {
-              window.open('/production/nhap-lieu-danh-gia', '_blank');
-            } else {
-              window.open('/production/nhap-lieu', '_blank');
-            }
-          }}
-          className="shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-          title={activeTab === 'materialEvaluation'
-            ? 'Mở trang nhập liệu đánh giá nguyên liệu dành cho tablet (tab mới)'
-            : 'Mở trang nhập liệu sản lượng dành cho nhân viên trên tablet (tab mới)'}
-        >
-          <Tablet className="w-4 h-4" />
-          {activeTab === 'materialEvaluation'
-            ? 'Mở nhập liệu đánh giá (Tablet)'
-            : 'Mở nhập liệu sản lượng (Tablet)'}
-          <ExternalLink className="w-3.5 h-3.5 opacity-70" />
-        </button>
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-gray-500" />
+            <label className="text-sm font-medium text-gray-600 whitespace-nowrap">Ngay SX:</label>
+            <input
+              type="date"
+              value={productionDay}
+              onChange={(e) => setProductionDay(e.target.value)}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <button
+            onClick={() => {
+              activateKiosk();
+              if (activeTab === 'materialEvaluation') {
+                window.open('/production/nhap-lieu-danh-gia', '_blank');
+              } else {
+                window.open('/production/nhap-lieu', '_blank');
+              }
+            }}
+            className="shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+            title={activeTab === 'materialEvaluation'
+              ? 'Mo trang nhap lieu danh gia nguyen lieu danh cho tablet (tab moi)'
+              : 'Mo trang nhap lieu san luong danh cho nhan vien tren tablet (tab moi)'}
+          >
+            <Tablet className="w-4 h-4" />
+            {activeTab === 'materialEvaluation'
+              ? 'Mo nhap lieu (Tablet)'
+              : 'Mo nhap lieu san luong (Tablet)'}
+            <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -110,16 +128,17 @@ const ProductionData = () => {
 
       {/* Content */}
       {activeTab === 'materialEvaluation' && (
-        <MaterialEvaluationManagement onCreateSystemOperation={handleCreateSystemOperation} />
+        <MaterialEvaluationManagement onCreateSystemOperation={handleCreateSystemOperation} productionDay={productionDay} />
       )}
       {activeTab === 'systemOperation' && (
         <SystemOperationManagement
           initialMaChien={selectedMaChien}
           initialThoiGianChien={selectedThoiGianChien}
+          productionDay={productionDay}
         />
       )}
-      {activeTab === 'finishedProduct' && <FinishedProductManagement />}
-      {activeTab === 'qualityEvaluation' && <QualityEvaluationManagement />}
+      {activeTab === 'finishedProduct' && <FinishedProductManagement productionDay={productionDay} />}
+      {activeTab === 'qualityEvaluation' && <QualityEvaluationManagement productionDay={productionDay} />}
     </div>
   );
 };

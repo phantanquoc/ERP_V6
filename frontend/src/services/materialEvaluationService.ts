@@ -14,9 +14,11 @@ export interface MaterialEvaluation {
   brixNuocNgam: number;
   danhGiaTruocNgam: string;
   danhGiaSauNgam: string;
+  ghiChu?: string | null;
   fileDinhKem?: string;
   nguoiThucHien: string;
   ca?: number | null;
+  lotProductId?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
