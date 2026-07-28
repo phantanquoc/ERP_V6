@@ -290,9 +290,12 @@ export class FinishedProductService {
       throw new ValidationError('Mã chiên và máy là bắt buộc');
     }
 
-    // Get user's full name if userId is provided
+    // Determine if the client explicitly sent nguoiThucHien
+    const clientSentOperator = 'nguoiThucHien' in rest && !!rest.nguoiThucHien;
+
+    // Resolve operator name for the create branch (always needed)
     let nguoiThucHien = rest.nguoiThucHien || '';
-    if (userId && !rest.nguoiThucHien) {
+    if (userId && !nguoiThucHien) {
       const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { firstName: true, lastName: true },
@@ -339,13 +342,24 @@ export class FinishedProductService {
       vunNhoTiLe: calcPercent(vunNhoKhoiLuong),
       phePhamTiLe: calcPercent(phePhamKhoiLuong),
       uotTiLe: calcPercent(uotKhoiLuong),
-      nguoiThucHien,
       ...(rest.khoiLuong !== undefined ? { khoiLuong: rest.khoiLuong } : {}),
+    };
+
+    // Update branch: only stamp nguoiThucHien when client explicitly sent it
+    const updateData = {
+      ...upsertData,
+      ...(clientSentOperator ? { nguoiThucHien } : {}),
+    };
+
+    // Create branch: always stamp nguoiThucHien (required field)
+    const createData = {
+      ...upsertData,
+      nguoiThucHien,
     };
 
     const product = await prisma.finishedProduct.upsert({
       where: { maChien_machineSystemId: { maChien, machineSystemId } },
-      update: upsertData,
+      update: updateData,
       create: {
         maChien,
         machineSystemId,
@@ -353,7 +367,7 @@ export class FinishedProductService {
         tenHangHoa: rest.tenHangHoa || materialEval?.tenHangHoa || '',
         khoiLuong: rest.khoiLuong ?? 0,
         materialEvaluationId: materialEval?.id ?? null,
-        ...upsertData,
+        ...createData,
         createdById: userId ?? null,
       },
     });

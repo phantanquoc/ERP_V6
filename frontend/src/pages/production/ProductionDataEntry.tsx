@@ -591,6 +591,8 @@ const ProductionDataEntry: React.FC = () => {
   // ─── Compute dirty records ───────────────────────────────────────────────
   const computeDirtyRecords = useCallback((): DirtyRecord[] => {
     const dirtyMap = new Map<CellKey, Partial<FinishedProduct>>();
+    // Track which cell keys have at least one grade-tab change (not waste-only)
+    const gradeTabDirty = new Set<CellKey>();
 
     // Check non-waste tabs
     const nonWasteTabs: { tab: QualityTab; field: string }[] = [
@@ -608,6 +610,7 @@ const ProductionDataEntry: React.FC = () => {
           const existing = dirtyMap.get(cellKey) || {};
           (existing as Record<string, number>)[field] = value;
           dirtyMap.set(cellKey, existing);
+          gradeTabDirty.add(cellKey);
         }
       }
     }
@@ -647,7 +650,8 @@ const ProductionDataEntry: React.FC = () => {
       const patchData: Partial<FinishedProduct> = {
         ...partialData,
         tongKhoiLuong,
-        nguoiThucHien,
+        // Only stamp operator when at least one grade tab changed for this cell
+        ...(gradeTabDirty.has(cellKey) ? { nguoiThucHien } : {}),
       };
 
       // Always recompute all tiLe since tongKhoiLuong changed
@@ -791,7 +795,8 @@ const ProductionDataEntry: React.FC = () => {
   }, [board, baseline, wasteTotal]);
 
   const handleChangeShift = useCallback(() => {
-    if (hasDirtyData() && !window.confirm('Có dữ liệu chưa lưu. Đổi ca sẽ giữ nguyên draft nhưng phải chọn lại ca. Tiếp tục?')) {
+    if (hasDirtyData()) {
+      toast.error('Vui lòng lưu dữ liệu trước khi đổi ca.');
       return;
     }
     setSelectedShift(0);
@@ -800,7 +805,8 @@ const ProductionDataEntry: React.FC = () => {
   }, [hasDirtyData]);
 
   const handleChangeOperator = useCallback(() => {
-    if (hasDirtyData() && !window.confirm('Có dữ liệu chưa lưu. Đổi người sẽ giữ nguyên draft nhưng phải chọn lại người + ca. Tiếp tục?')) {
+    if (hasDirtyData()) {
+      toast.error('Vui lòng lưu dữ liệu trước khi đổi người thực hiện.');
       return;
     }
     clearSelection();
