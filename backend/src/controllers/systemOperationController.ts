@@ -7,9 +7,15 @@ export class SystemOperationController {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
-      const tenMay = req.query.tenMay as string;
+      const machineSystemId = req.query.machineSystemId as string | undefined;
+      const thoiGianChienFrom = typeof req.query.thoiGianChienFrom === 'string' ? req.query.thoiGianChienFrom : undefined;
+      const thoiGianChienTo = typeof req.query.thoiGianChienTo === 'string' ? req.query.thoiGianChienTo : undefined;
 
-      const result = await systemOperationService.getAllSystemOperations(page, limit, tenMay);
+      const dateRange = thoiGianChienFrom || thoiGianChienTo
+        ? { thoiGianChienFrom, thoiGianChienTo }
+        : undefined;
+
+      const result = await systemOperationService.getAllSystemOperations(page, limit, machineSystemId, dateRange);
 
       res.json({
         success: true,
@@ -53,7 +59,8 @@ export class SystemOperationController {
   async getSystemOperationsByMaChien(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const maChien = req.params.maChien as string;
-      const operations = await systemOperationService.getSystemOperationsByMaChien(maChien);
+      const thoiGianChien = req.query.thoiGianChien as string | undefined;
+      const operations = await systemOperationService.getSystemOperationsByMaChien(maChien, thoiGianChien);
 
       res.json({
         success: true,

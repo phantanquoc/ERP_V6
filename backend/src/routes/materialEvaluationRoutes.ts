@@ -52,23 +52,36 @@ router.get(
 
 /**
  * @swagger
- * /api/material-evaluations/generate-code:
- *   post:
+ * /api/material-evaluations/schedule:
+ *   get:
  *     tags: [Material Evaluations]
- *     summary: "Tạo mã đánh giá vật liệu"
- *     description: "Roles cho phép: ADMIN, DEPARTMENT_HEAD, TEAM_LEAD, EMPLOYEE"
+ *     summary: "Lịch trình mã chiên trong ngày sản xuất"
+ *     description: "Trả về 16 mã chiên MC-01 đến MC-16 cho ngày sản xuất. Có thể lọc theo ca."
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: productionDay
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: "Ngày sản xuất (YYYY-MM-DD). Mặc định: ngày sản xuất hiện tại."
+ *       - in: query
+ *         name: shift
+ *         schema:
+ *           type: integer
+ *           enum: [1, 2, 3]
+ *         description: "Lọc theo ca (1, 2, hoặc 3)"
  *     responses:
  *       200:
- *         description: "Tạo mã đánh giá thành công"
+ *         description: "Lấy lịch trình thành công"
  *       401:
  *         description: "Không có quyền truy cập"
  */
-router.post(
-  '/generate-code',
+router.get(
+  '/schedule',
   deviceOrJwtAuth('DATA_ENTRY'),
-  materialEvaluationController.generateMaChien
+  materialEvaluationController.getDailySchedule
 );
 
 /**

@@ -2,6 +2,7 @@ import prisma from '@config/database';
 import { NotFoundError, ValidationError, ConflictError } from '@utils/errors';
 import warehouseReceiptService from '@services/warehouseReceiptService';
 import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
+import { getProductionDay, productionDayRange, parseLocalDateTimeAsAppTz } from '@utils/productionDay';
 import ExcelJS from 'exceljs';
 
 // ─── Grade → SKU label mapping ────────────────────────────────────────────────
@@ -51,16 +52,18 @@ export class FinishedProductService {
     // Filter by machine system
     const whereClause: any = machineSystemId ? { machineSystemId } : {};
 
-    // Filter by thoiGianChien date range
+    // Filter by thoiGianChien date range.
+    // Use parseLocalDateTimeAsAppTz to interpret naive datetime strings as APP_TZ,
+    // making the filter TZ-independent (correct regardless of server's TZ env var).
     if (dateRange?.thoiGianChienFrom || dateRange?.thoiGianChienTo) {
       const thoiGianChienFilter: any = {};
       if (dateRange.thoiGianChienFrom) {
-        const d = new Date(dateRange.thoiGianChienFrom);
+        const d = parseLocalDateTimeAsAppTz(dateRange.thoiGianChienFrom);
         if (!isNaN(d.getTime())) thoiGianChienFilter.gte = d;
       }
       if (dateRange.thoiGianChienTo) {
-        const d = new Date(dateRange.thoiGianChienTo);
-        if (!isNaN(d.getTime())) thoiGianChienFilter.lte = d;
+        const d = parseLocalDateTimeAsAppTz(dateRange.thoiGianChienTo);
+        if (!isNaN(d.getTime())) thoiGianChienFilter.lt = d;
       }
       if (Object.keys(thoiGianChienFilter).length > 0) {
         whereClause.thoiGianChien = thoiGianChienFilter;
@@ -157,7 +160,7 @@ export class FinishedProductService {
     const product = await prisma.finishedProduct.create({
       data: {
         maChien: data.maChien,
-        thoiGianChien: new Date(data.thoiGianChien),
+        thoiGianChien: parseLocalDateTimeAsAppTz(data.thoiGianChien),
         tenHangHoa: data.tenHangHoa,
         khoiLuong: data.khoiLuong,
         machineSystemId: data.machineSystemId ?? null,
@@ -281,11 +284,12 @@ export class FinishedProductService {
   }
 
   /**
-   * Upsert a FinishedProduct by (maChien, machineSystemId).
+   * Upsert a FinishedProduct by (maChien, ngaySanXuat, machineSystemId).
    * Creates if not exists, updates if exists. Used by kiosk tablet grid.
+   * Accepts optional `entryHistory` array for per-grade attribution.
    */
   async upsertByBatchMachine(data: any, userId?: string) {
-    const { maChien, machineSystemId, ...rest } = data;
+    const { maChien, machineSystemId, entryHistory, ...rest } = data;
     if (!maChien || !machineSystemId) {
       throw new ValidationError('Mã chiên và máy là bắt buộc');
     }
@@ -305,6 +309,11 @@ export class FinishedProductService {
       }
     }
 
+    // Derive ngaySanXuat from thoiGianChien using the 06:30 production-day boundary
+    const thoiGianChienDate = rest.thoiGianChien ? parseLocalDateTimeAsAppTz(rest.thoiGianChien) : new Date();
+    const prodDayStr = getProductionDay(thoiGianChienDate);
+    const ngaySanXuat = new Date(prodDayStr + 'T00:00:00.000Z');
+
     // Compute tongKhoiLuong and tiLe
     const aKhoiLuong = rest.aKhoiLuong || 0;
     const bKhoiLuong = rest.bKhoiLuong || 0;
@@ -319,8 +328,14 @@ export class FinishedProductService {
     const calcPercent = (v: number) => tongKhoiLuong > 0 ? (v / tongKhoiLuong) * 100 : 0;
 
     // Resolve materialEvaluationId from maChien (for create case)
+    // Day-scope when thoiGianChien is available in the request
+    let materialEvalWhere: any = { maChien };
+    if (rest.thoiGianChien) {
+      const dayRange = productionDayRange(prodDayStr);
+      materialEvalWhere = { maChien, thoiGianChien: { gte: dayRange.gte, lt: dayRange.lt } };
+    }
     const materialEval = await prisma.materialEvaluation.findFirst({
-      where: { maChien },
+      where: materialEvalWhere,
       select: { id: true, thoiGianChien: true, tenHangHoa: true },
     });
 
@@ -343,6 +358,7 @@ export class FinishedProductService {
       phePhamTiLe: calcPercent(phePhamKhoiLuong),
       uotTiLe: calcPercent(uotKhoiLuong),
       ...(rest.khoiLuong !== undefined ? { khoiLuong: rest.khoiLuong } : {}),
+      ...('ghiChu' in rest ? { ghiChu: rest.ghiChu ?? null } : {}),
     };
 
     // Update branch: only stamp nguoiThucHien when client explicitly sent it
@@ -358,12 +374,13 @@ export class FinishedProductService {
     };
 
     const product = await prisma.finishedProduct.upsert({
-      where: { maChien_machineSystemId: { maChien, machineSystemId } },
+      where: { maChien_ngaySanXuat_machineSystemId: { maChien, ngaySanXuat, machineSystemId } },
       update: updateData,
       create: {
         maChien,
         machineSystemId,
-        thoiGianChien: materialEval?.thoiGianChien ?? new Date(),
+        ngaySanXuat,
+        thoiGianChien: materialEval?.thoiGianChien ?? thoiGianChienDate,
         tenHangHoa: rest.tenHangHoa || materialEval?.tenHangHoa || '',
         khoiLuong: rest.khoiLuong ?? 0,
         materialEvaluationId: materialEval?.id ?? null,
@@ -371,6 +388,38 @@ export class FinishedProductService {
         createdById: userId ?? null,
       },
     });
+
+    // Persist per-grade entry-history rows (non-fatal: attribution failure must not fail save)
+    if (Array.isArray(entryHistory) && entryHistory.length > 0) {
+      try {
+        for (const entry of entryHistory) {
+          if (!entry.grade || entry.khoiLuong == null) continue;
+          // Replace semantics: delete existing record for this FP+grade, then create new
+          await prisma.finishedProductEntryHistory.deleteMany({
+            where: {
+              finishedProductId: product.id,
+              grade: entry.grade,
+            },
+          });
+          await prisma.finishedProductEntryHistory.create({
+            data: {
+              finishedProductId: product.id,
+              maChien,
+              ngaySanXuat,
+              machineSystemId,
+              grade: entry.grade,
+              khoiLuong: typeof entry.khoiLuong === 'number' ? entry.khoiLuong : parseFloat(entry.khoiLuong),
+              employeeId: entry.employeeId ?? null,
+              employeeName: entry.employeeName ?? null,
+              enteredAt: new Date(),
+            },
+          });
+        }
+      } catch (err) {
+        // Attribution failure must not fail the main save
+        console.error('[finishedProductService] Entry history write failed:', err);
+      }
+    }
 
     return product;
   }
@@ -530,6 +579,7 @@ export class FinishedProductService {
     warehouseId: string,
     lotId: string,
     userId: string,
+    thoiGianChien?: string,
   ) {
     // Input validation
     if (!maChienList || maChienList.length === 0) {
@@ -567,8 +617,15 @@ export class FinishedProductService {
     }
 
     // Fetch all FinishedProduct rows for all listed maChien in one query
+    // Day-scope: only fetch rows for the same production day when thoiGianChien is provided
+    let fpWhere: any = { maChien: { in: maChienList } };
+    if (thoiGianChien) {
+      const prodDay = getProductionDay(parseLocalDateTimeAsAppTz(thoiGianChien));
+      const dayRange = productionDayRange(prodDay);
+      fpWhere = { maChien: { in: maChienList }, thoiGianChien: { gte: dayRange.gte, lt: dayRange.lt } };
+    }
     const allFPs = await prisma.finishedProduct.findMany({
-      where: { maChien: { in: maChienList } },
+      where: fpWhere,
     });
 
     // Validate: every maChien must have at least one FP row
@@ -730,9 +787,9 @@ export class FinishedProductService {
         });
       }
 
-      // Mark all FinishedProduct rows of selected maChien as received
+      // Mark all FinishedProduct rows of selected maChien as received (day-scoped)
       await tx.finishedProduct.updateMany({
-        where: { maChien: { in: maChienList } },
+        where: fpWhere,
         data: { daNhapKho: true },
       });
     });
@@ -833,6 +890,11 @@ export class FinishedProductService {
     const data = await prisma.finishedProduct.findMany({
       where,
       orderBy: { createdAt: 'desc' },
+      include: {
+        entryHistory: {
+          orderBy: { enteredAt: 'desc' },
+        },
+      },
     });
 
     const workbook = new ExcelJS.Workbook();
@@ -846,15 +908,20 @@ export class FinishedProductService {
       { header: 'Hệ thống máy', key: 'machineSystemId', width: 20 },
       { header: 'KL đầu vào (kg)', key: 'khoiLuong', width: 15 },
       { header: 'A (kg)', key: 'aKhoiLuong', width: 12 },
+      { header: 'Người nhập A', key: 'aEnteredBy', width: 18 },
       { header: 'A (%)', key: 'aTiLe', width: 10 },
       { header: 'B (kg)', key: 'bKhoiLuong', width: 12 },
+      { header: 'Người nhập B', key: 'bEnteredBy', width: 18 },
       { header: 'B (%)', key: 'bTiLe', width: 10 },
       { header: 'B Dầu (kg)', key: 'bDauKhoiLuong', width: 12 },
+      { header: 'Người nhập B Dầu', key: 'bDauEnteredBy', width: 18 },
       { header: 'C (kg)', key: 'cKhoiLuong', width: 12 },
+      { header: 'Người nhập C', key: 'cEnteredBy', width: 18 },
       { header: 'Vụn lớn (kg)', key: 'vunLonKhoiLuong', width: 12 },
       { header: 'Vụn nhỏ (kg)', key: 'vunNhoKhoiLuong', width: 12 },
       { header: 'Phế phẩm (kg)', key: 'phePhamKhoiLuong', width: 12 },
       { header: 'Ướt (kg)', key: 'uotKhoiLuong', width: 12 },
+      { header: 'Người nhập Ướt', key: 'uotEnteredBy', width: 18 },
       { header: 'Tổng KL (kg)', key: 'tongKhoiLuong', width: 15 },
       { header: 'Người thực hiện', key: 'nguoiThucHien', width: 20 },
     ];
@@ -867,6 +934,18 @@ export class FinishedProductService {
     };
 
     data.forEach((item, index) => {
+      // Build per-grade attribution lookup from entryHistory
+      // For pre-cut-over records with no history, these remain empty (no invented attribution)
+      const historyByGrade: Record<string, string> = {};
+      if (item.entryHistory && item.entryHistory.length > 0) {
+        for (const h of item.entryHistory) {
+          // Most recent entry per grade (already ordered by enteredAt desc)
+          if (!historyByGrade[h.grade]) {
+            historyByGrade[h.grade] = h.employeeName || '';
+          }
+        }
+      }
+
       worksheet.addRow({
         stt: index + 1,
         maChien: item.maChien,
@@ -875,15 +954,20 @@ export class FinishedProductService {
         machineSystemId: item.machineSystemId || '',
         khoiLuong: item.khoiLuong,
         aKhoiLuong: item.aKhoiLuong,
+        aEnteredBy: historyByGrade['aKhoiLuong'] || '',
         aTiLe: item.aTiLe,
         bKhoiLuong: item.bKhoiLuong,
+        bEnteredBy: historyByGrade['bKhoiLuong'] || '',
         bTiLe: item.bTiLe,
         bDauKhoiLuong: item.bDauKhoiLuong,
+        bDauEnteredBy: historyByGrade['bDauKhoiLuong'] || '',
         cKhoiLuong: item.cKhoiLuong,
+        cEnteredBy: historyByGrade['cKhoiLuong'] || '',
         vunLonKhoiLuong: item.vunLonKhoiLuong,
         vunNhoKhoiLuong: item.vunNhoKhoiLuong,
         phePhamKhoiLuong: item.phePhamKhoiLuong,
         uotKhoiLuong: item.uotKhoiLuong,
+        uotEnteredBy: historyByGrade['uotKhoiLuong'] || '',
         tongKhoiLuong: item.tongKhoiLuong,
         nguoiThucHien: item.nguoiThucHien || '',
       });
