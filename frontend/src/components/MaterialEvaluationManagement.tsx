@@ -161,7 +161,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
       });
       setEvaluations(result.data);
     } catch (err: any) {
-      setError(err.message || 'Loi tai du lieu');
+      setError(err.message || 'Lỗi tải dữ liệu');
       console.error(err);
     } finally {
       setLoading(false);
@@ -626,7 +626,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                         <button
                           onClick={(e) => { e.stopPropagation(); handleOpenModal(evaluation); }}
                           className="p-1 text-green-600 hover:bg-green-100 rounded-md transition-colors"
-                          title="Chinh sua"
+                          title="Chỉnh sửa"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
@@ -641,7 +641,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                           <button
                             onClick={(e) => { e.stopPropagation(); handleCreateSystemOperation(evaluation); }}
                             className="p-1 text-purple-600 hover:bg-purple-100 rounded-md transition-colors"
-                            title="Tao thong so van hanh"
+                            title="Tạo thông số vận hành"
                           >
                             <Settings className="w-4 h-4" />
                           </button>
@@ -774,7 +774,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                       required
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                     >
-                      <option value="">{!formData.ca ? '-- Chon ca truoc --' : '-- Chon ma chien --'}</option>
+                      <option value="">{!formData.ca ? '-- Chọn ca trước --' : '-- Chọn mã chiên --'}</option>
                       {scheduledBatches.map((batch) => (
                         <option key={batch.code} value={batch.code}>
                           {batch.code} ({String(batch.startTime.hour).padStart(2, '0')}:{String(batch.startTime.minute).padStart(2, '0')})

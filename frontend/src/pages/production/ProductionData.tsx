@@ -66,16 +66,16 @@ const ProductionData = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <FlaskConical className="w-6 h-6 text-blue-600" />
-            Du lieu san xuat
+            Dữ liệu sản xuất
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Danh gia nguyen lieu, thong so van hanh, thanh pham va danh gia chat luong
+            Đánh giá nguyên liệu, thông số vận hành, thành phẩm và đánh giá chất lượng
           </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-gray-500" />
-            <label className="text-sm font-medium text-gray-600 whitespace-nowrap">Ngay SX:</label>
+            <label className="text-sm font-medium text-gray-600 whitespace-nowrap">Ngày SX:</label>
             <input
               type="date"
               value={productionDay}
@@ -94,13 +94,13 @@ const ProductionData = () => {
             }}
             className="shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
             title={activeTab === 'materialEvaluation'
-              ? 'Mo trang nhap lieu danh gia nguyen lieu danh cho tablet (tab moi)'
-              : 'Mo trang nhap lieu san luong danh cho nhan vien tren tablet (tab moi)'}
+              ? 'Mở trang nhập liệu đánh giá nguyên liệu dành cho tablet (tab mới)'
+              : 'Mở trang nhập liệu sản lượng dành cho nhân viên trên tablet (tab mới)'}
           >
             <Tablet className="w-4 h-4" />
             {activeTab === 'materialEvaluation'
-              ? 'Mo nhap lieu (Tablet)'
-              : 'Mo nhap lieu san luong (Tablet)'}
+              ? 'Mở nhập liệu (Tablet)'
+              : 'Mở nhập liệu sản lượng (Tablet)'}
             <ExternalLink className="w-3.5 h-3.5 opacity-70" />
           </button>
         </div>
