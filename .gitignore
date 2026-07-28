@@ -44,6 +44,14 @@ nginx/ssl/*.pem
 nginx/ssl/*.key
 nginx/ssl/*.crt
 
+# Certbot state trên prod — chứa private key thật, không bao giờ commit
+nginx/ssl/live/
+nginx/ssl/archive/
+nginx/ssl/accounts/
+nginx/ssl/renewal/
+nginx/ssl/renewal-hooks/
+!nginx/ssl/.gitkeep
+
 # Docker volumes (local)
 postgres_data/
 
@@ -57,6 +65,9 @@ docs/chatbot-test-results.json
 
 # Prisma local backups (chứa snapshot dữ liệu thật)
 backend/prisma/backups/
+
+# Backup output ở root (script backup.sh ghi ra đây trên prod)
+backups/
 
 # Local reports (weekly summaries, screenshot checks)
 reports/
