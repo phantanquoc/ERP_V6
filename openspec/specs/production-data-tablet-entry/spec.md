@@ -32,7 +32,7 @@ When unsaved entered data exists, the system SHALL require the worker to save be
 #### Scenario: Operator name is stamped on save
 
 - **WHEN** the worker selects their name and saves an entry
-- **THEN** the saved `nguoiThucHien` is the chosen name, not the activating admin's name
+- **THEN** the saved entry records that worker as the person who entered it
 
 #### Scenario: Switching operator with unsaved data is blocked
 
@@ -87,38 +87,43 @@ The board SHALL present six quality tabs: Hang A, Hang B, Hang B dau, Hang C, Uo
 
 ### Requirement: Fry-batch matrix filtered by date and shift
 
-For each non-waste tab, the board SHALL show a matrix whose rows are the real fry-batches filtered by the selected shift (`ca`) and the local date of `thoiGianChien` equal to the production date, and whose columns are the 8 active fryers. Each row SHALL show STT, ma chien, thoi gian chien and ten hang hoa as auto-filled read-only values; only per-machine weight and a Ghi chu text field are editable. There SHALL be no operator column. If no fry-batch matches, a Vietnamese empty state SHALL be shown.
+For each non-waste tab, the board SHALL show a matrix whose rows are the fry batches for the selected production day (`ngaySanXuat`) and shift, and whose columns are the 8 active fryers. Rows SHALL come from the daily fry-batch schedule for that production day and shift, so a scheduled batch appears whether or not a record exists for it yet. Each row SHALL show STT, ma chien, thoi gian chien and ten hang hoa as auto-filled read-only values; only per-machine weight is editable. There SHALL be no operator column. If no batch matches, a Vietnamese empty state SHALL be shown.
 
-#### Scenario: Rows match the shift and date
+#### Scenario: Rows match the shift and production day
 
-- **WHEN** the production date and shift are set
-- **THEN** only fry-batches with that `ca` and that local `thoiGianChien` date appear as rows
+- **WHEN** the production day and shift are set
+- **THEN** only the scheduled batches for that shift and production day appear as rows
 
 #### Scenario: Read-only batch metadata
 
 - **WHEN** a row is shown
 - **THEN** thoi gian chien and ten hang hoa are displayed read-only and cannot be edited
 
-#### Scenario: Empty shift/date
+#### Scenario: After-midnight batches appear under the starting day
 
-- **WHEN** no fry-batch matches the shift and date
+- **WHEN** the worker selects shift 3 for a production day
+- **THEN** the batches running after midnight appear as rows under that production day, not under the next calendar date
+
+#### Scenario: Empty shift/day
+
+- **WHEN** no batch matches the shift and production day
 - **THEN** a Vietnamese empty-state message is shown instead of an empty grid
 
 ### Requirement: Waste tab shift-total distribution
 
 The "Vun - Phe pham" tab SHALL accept a single total for the whole shift (one input, not a matrix). On save, that total SHALL be split evenly across all cells (number of batches x 8 machines), and each cell's share SHALL be split evenly across the three fields `vunLonKhoiLuong`, `vunNhoKhoiLuong`, `phePhamKhoiLuong` (each = cell share / 3).
 
-Because the distribution touches every batch x machine cell, it SHALL NOT reassign `nguoiThucHien` on records that already exist. Entering the shift waste total MUST NOT overwrite the operator recorded for grade weights entered by other workers.
+Because the distribution touches every batch x machine cell, it SHALL NOT create per-grade attribution records for the worker who entered the total, and SHALL NOT reassign attribution recorded for grades other workers entered.
 
 #### Scenario: Even distribution
 
 - **WHEN** the worker enters a shift total on the waste tab and there are N batches
 - **THEN** each of the N x 8 cells receives total/(N x 8), and each cell's three waste fields each receive that share divided by 3
 
-#### Scenario: Distribution does not reassign operators
+#### Scenario: Distribution does not reassign attribution
 
 - **WHEN** the worker responsible for Uot enters the shift waste total and confirms, while other workers had already saved grade weights for those batches
-- **THEN** the waste shares are written to every cell, and the operator names recorded for those other grades remain unchanged
+- **THEN** the waste shares are written to every cell, and the attribution recorded for those other grades remains unchanged
 
 ### Requirement: Load existing values
 
@@ -137,7 +142,7 @@ When a changed cell has no existing `FinishedProduct` record in the database, th
 
 When saving multiple records and some writes fail, the system SHALL report the outcome explicitly: how many records saved successfully, how many failed, and which cells failed. The system MUST NOT report success when any write failed.
 
-`nguoiThucHien` SHALL be written only for records in which at least one of the five grade weights (Hang A, Hang B, Hang B dau, Hang C, Uot) changed. A record that is dirty only because of the even waste distribution SHALL keep the operator name already stored on it. Because `nguoiThucHien` is a required field, a record being created for the first time SHALL still receive the current operator's name even when only a distributed waste share was entered.
+For each grade weight the worker changed, the system SHALL record per-grade attribution identifying the entering worker, the grade, the batch, the machine and the time. Cells that became dirty only through the even waste distribution SHALL NOT produce attribution records.
 
 #### Scenario: Only changed cells are written
 
@@ -159,20 +164,15 @@ When saving multiple records and some writes fail, the system SHALL report the o
 - **WHEN** several cells are saved and at least one write fails
 - **THEN** the system shows how many succeeded, how many failed, and which cells failed, in Vietnamese
 
-#### Scenario: Operator stamped only on grades they entered
+#### Scenario: Attribution recorded per changed grade
 
-- **WHEN** one worker saves a Hang A weight for a batch and machine, and later a different worker saves a Hang B weight for the same batch and machine
-- **THEN** the record's `nguoiThucHien` is the second worker, because that worker changed a grade weight on that record
+- **WHEN** the worker changes a Hang A weight and a Hang B weight and confirms
+- **THEN** attribution records exist for both grades naming that worker
 
-#### Scenario: Waste-only record keeps its operator
+#### Scenario: Waste-only cell produces no attribution
 
-- **WHEN** an existing record receives only a distributed waste share and no grade weight changed on it
-- **THEN** the record keeps the operator name it already had and is not reassigned to the worker who entered the waste total
-
-#### Scenario: New record created by waste distribution alone
-
-- **WHEN** a record that does not yet exist in the database receives only a distributed waste share
-- **THEN** the record is created with the current operator's name, satisfying the required field
+- **WHEN** a cell becomes dirty only through the even waste distribution
+- **THEN** no per-grade attribution record is created for that cell
 
 ### Requirement: Draft auto-save
 
@@ -408,17 +408,17 @@ The system SHALL expose a full-screen worker data-entry page at `/production/nha
 
 ### Requirement: Operation-parameters entry wizard
 
-The operation-parameters page SHALL guide the worker through a step wizard: select shift, select operator, select a fry batch (`maChien`) for the chosen shift and production date, select a machine, then enter the operation parameters. Shift and operator selection SHALL reuse the shared `ShiftSelectionScreen` and `OperatorSelectionScreen` components. The batch list SHALL be filtered to the selected shift and date (same source as the output page).
+The operation-parameters page SHALL guide the worker through a step wizard: select shift, select operator, select a fry batch (`maChien`) for the chosen shift and production day, select a machine, then enter the operation parameters. Shift and operator selection SHALL reuse the shared `ShiftSelectionScreen` and `OperatorSelectionScreen` components. The batch list SHALL come from the daily fry-batch schedule for the selected shift and production day (same source as the output page).
 
 #### Scenario: Shift and operator required before parameter entry
 
 - **WHEN** the page loads with a valid kiosk session and no shift or operator selected
 - **THEN** the shift-selection screen is shown first, then operator selection, before any batch or parameter entry is available
 
-#### Scenario: Batch list scoped to shift and date
+#### Scenario: Batch list scoped to shift and production day
 
-- **WHEN** the worker has selected a shift and the production date is set
-- **THEN** only fry batches (`maChien`) matching that shift and date are offered for selection
+- **WHEN** the worker has selected a shift and the production day is set
+- **THEN** only the scheduled batch codes for that shift and production day are offered for selection
 
 #### Scenario: Parameters entered per machine
 
@@ -444,15 +444,22 @@ Saving the operation-parameters form SHALL PATCH the pre-created `SystemOperatio
 
 When a `MaterialEvaluation` (fry batch) is created, the system SHALL automatically generate the empty child rows (`SystemOperation`, `FinishedProduct`, `QualityEvaluation`) for every active production machine, on BOTH create paths (warehouse-linked and legacy). This SHALL happen server-side without any manual desktop action. The generation SHALL be a non-fatal side effect: if it fails, the `MaterialEvaluation` creation SHALL still succeed and the error SHALL be logged rather than propagated.
 
+Child rows SHALL be keyed by (`maChien`, `ngaySanXuat`, machine) so that the same batch code on different production days produces independent rows. Generation SHALL only occur when a worker actually enters data for a batch; scheduled codes with no entry SHALL NOT be pre-populated.
+
 #### Scenario: Child rows exist after batch creation (warehouse-linked)
 
-- **WHEN** a `MaterialEvaluation` is created via the warehouse-linked path with a new `maChien`
-- **THEN** empty `SystemOperation`, `FinishedProduct`, and `QualityEvaluation` rows exist for each active production machine tied to that `maChien`
+- **WHEN** a `MaterialEvaluation` is created via the warehouse-linked path for a scheduled code and production day
+- **THEN** empty `SystemOperation`, `FinishedProduct`, and `QualityEvaluation` rows exist for each active production machine tied to that code and production day
 
 #### Scenario: Child rows exist after batch creation (legacy)
 
-- **WHEN** a `MaterialEvaluation` is created via the legacy path with a new `maChien`
-- **THEN** empty `SystemOperation`, `FinishedProduct`, and `QualityEvaluation` rows exist for each active production machine tied to that `maChien`
+- **WHEN** a `MaterialEvaluation` is created via the legacy path for a scheduled code and production day
+- **THEN** empty `SystemOperation`, `FinishedProduct`, and `QualityEvaluation` rows exist for each active production machine tied to that code and production day
+
+#### Scenario: Same code on a later production day generates its own rows
+
+- **WHEN** a batch with the same code is created on a later production day
+- **THEN** a separate set of child rows is generated and the earlier day's rows are neither reused nor overwritten
 
 #### Scenario: Child-row generation failure does not fail batch creation
 
@@ -462,7 +469,7 @@ When a `MaterialEvaluation` (fry batch) is created, the system SHALL automatical
 
 #### Scenario: No duplicate generation
 
-- **WHEN** child rows already exist for a `maChien`
+- **WHEN** child rows already exist for a code on that production day
 - **THEN** the auto-generation does not create duplicate rows for that batch
 
 ### Requirement: Operation-parameters hub button and entry type
@@ -555,4 +562,72 @@ In the table layout, the header row SHALL be sticky when scrolling vertically an
 
 - **WHEN** the worker scrolls the table horizontally to reach distant machine columns
 - **THEN** the fry-batch code column remains visible and the machine header row remains identifiable
+
+### Requirement: Material evaluation selects a scheduled batch
+
+Both material-evaluation entry surfaces — the desktop management screen and the tablet kiosk screen — SHALL require the worker to select a batch code from the daily schedule for the chosen production day and shift. Neither surface SHALL generate or accept a freely typed new batch code.
+
+#### Scenario: Kiosk offers scheduled codes for the shift
+
+- **WHEN** the worker has selected a shift on the kiosk evaluation screen
+- **THEN** only that shift's scheduled batch codes for the production day are offered
+
+#### Scenario: Desktop offers scheduled codes
+
+- **WHEN** an admin creates a material evaluation on the desktop screen
+- **THEN** the batch code is chosen from the daily schedule and cannot be typed as a new arbitrary code
+
+#### Scenario: Selecting a code that already has data
+
+- **WHEN** the worker selects a scheduled code that already has an evaluation record for that production day
+- **THEN** the existing values are loaded for editing rather than a duplicate record being created
+
+### Requirement: Warehouse package drives commodity and weight
+
+After selecting a batch code, the material-evaluation flow SHALL let the worker select a warehouse package, and SHALL fill `tenHangHoa` and `khoiLuong` from that package instead of requiring manual entry. The existing warehouse linkage SHALL be preserved on the saved record.
+
+#### Scenario: Auto-fill from the selected package
+
+- **WHEN** the worker selects a warehouse package for a batch
+- **THEN** the commodity name and weight are filled from that package and are not typed by hand
+
+#### Scenario: Warehouse linkage preserved
+
+- **WHEN** the evaluation is saved after selecting a package
+- **THEN** the record retains its link to that warehouse package and issue
+
+### Requirement: Material evaluation table columns
+
+The material-evaluation table SHALL present these columns in order: STT, Ma chien, Thoi gian chien, Ten hang hoa, So lo kien, Khoi luong (Kg/tua), So lan ngam, Nhiet do nuoc truoc khi ngam, Nhiet do nuoc sau vot, Thoi gian ngam (Phut), Brix nuoc ngam, Danh gia nguyen lieu truoc khi ngam, Danh gia nguyen lieu sau khi ngam, Ghi chu.
+
+Lot and package SHALL remain a single combined column backed by the existing single stored field. A `ghiChu` field SHALL be stored on the evaluation record so the Ghi chu column persists.
+
+#### Scenario: Table renders the defined columns
+
+- **WHEN** the material-evaluation table is displayed
+- **THEN** the fourteen listed columns are present in the listed order
+
+#### Scenario: Note persists
+
+- **WHEN** the worker enters a note on an evaluation and saves
+- **THEN** the note is stored on the record and appears in the Ghi chu column after reload
+
+### Requirement: Production data page filters by production day
+
+The Dữ liệu sản xuất page SHALL filter its data by production day and SHALL default to the current production day on load.
+
+#### Scenario: Defaults to today
+
+- **WHEN** the page is opened
+- **THEN** the data shown is scoped to the current production day without the user setting a filter
+
+#### Scenario: Changing the production day
+
+- **WHEN** the user selects a different production day
+- **THEN** all tabs on the page show data for that production day
+
+#### Scenario: Current production day before 06:30
+
+- **WHEN** the page is opened at 02:00
+- **THEN** the default production day is the previous calendar date, matching the 06:30 cycle
 
