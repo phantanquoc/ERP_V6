@@ -63,12 +63,19 @@ class QualityEvaluationService {
     return formData;
   }
 
-  async getAllQualityEvaluations(page: number = 1, limit: number = 10, machineSystemId?: string): Promise<PaginatedResponse> {
+  async getAllQualityEvaluations(
+    page: number = 1,
+    limit: number = 10,
+    machineSystemId?: string,
+    dateRange?: { thoiGianChienFrom?: string; thoiGianChienTo?: string },
+  ): Promise<PaginatedResponse> {
     try {
       const params: any = { page, limit };
       if (machineSystemId) {
         params.machineSystemId = machineSystemId;
       }
+      if (dateRange?.thoiGianChienFrom) params.thoiGianChienFrom = dateRange.thoiGianChienFrom;
+      if (dateRange?.thoiGianChienTo) params.thoiGianChienTo = dateRange.thoiGianChienTo;
 
       const response = await apiClient.get('/quality-evaluations', { params });
       return response.data;

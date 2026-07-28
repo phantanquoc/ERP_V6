@@ -38,6 +38,8 @@ interface FinishedProductWarehouseReceiptModalProps {
   product: FinishedProduct | null;
   /** Bulk mode: list of maChien values to receipt together */
   maChienList?: string[];
+  /** Production day for day-scoping the bulk receipt query */
+  productionDay?: string;
   onSuccess?: () => void;
 }
 
@@ -48,6 +50,7 @@ const FinishedProductWarehouseReceiptModal: React.FC<FinishedProductWarehouseRec
   onClose,
   product,
   maChienList = [],
+  productionDay,
   onSuccess,
 }) => {
   const isBulkMode = maChienList.length > 0;
@@ -120,10 +123,13 @@ const FinishedProductWarehouseReceiptModal: React.FC<FinishedProductWarehouseRec
   const onSubmit = async (values: ReceiptFormValues) => {
     try {
       if (isBulkMode) {
+        // Compute thoiGianChien from productionDay for day-scoped query
+        const thoiGianChien = productionDay ? `${productionDay}T06:30:00` : undefined;
         await bulkConfirmMutation.mutateAsync({
           maChienList,
           warehouseId: values.warehouseId,
           lotId: values.lotId,
+          thoiGianChien,
         });
       } else {
         if (!product) return;

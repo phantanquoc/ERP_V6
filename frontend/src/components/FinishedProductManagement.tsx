@@ -10,6 +10,7 @@ import TableFilter, { FilterField } from './TableFilter';
 import { useActiveFryerMachineSystems } from '../hooks/useMachineSystemDetails';
 import { useQueryClient } from '@tanstack/react-query';
 import { finishedProductKeys } from '../hooks/useFinishedProducts';
+import { productionDayRange } from '../utils/productionDay';
 
 // Special constant for "Tổng các máy" tab
 const TOTAL_ALL_MACHINES = '__TOTAL_ALL_MACHINES__';
@@ -171,7 +172,11 @@ const AdjustMachinesModal: React.FC<AdjustMachinesModalProps> = ({ maChien, prod
   );
 };
 
-const FinishedProductManagement: React.FC = () => {
+interface FinishedProductManagementProps {
+  productionDay?: string;
+}
+
+const FinishedProductManagement: React.FC<FinishedProductManagementProps> = ({ productionDay }) => {
   const { user } = useAuth();
   const machineSystemsQuery = useActiveFryerMachineSystems();
   const machineSystems = machineSystemsQuery.data?.data ?? [];
@@ -228,14 +233,14 @@ const FinishedProductManagement: React.FC = () => {
       setCurrentPage(1);
       loadProducts();
     }
-  }, [selectedMachineSystemId]);
+  }, [selectedMachineSystemId, productionDay]);
 
   // Load all products when "Tổng các máy" tab is selected
   useEffect(() => {
     if (selectedMachineSystemId === TOTAL_ALL_MACHINES) {
       loadAllProducts();
     }
-  }, [selectedMachineSystemId]);
+  }, [selectedMachineSystemId, productionDay]);
 
   // Auto-select "Tổng các máy" by default when list loads
   useEffect(() => {
@@ -251,7 +256,13 @@ const FinishedProductManagement: React.FC = () => {
     try {
       setLoading(true);
       setError('');
-      const result = await finishedProductService.getAllFinishedProducts(1, 1000, selectedMachineSystemId || undefined);
+      // Compute production day range (06:30 to 06:30 next day)
+      let dateRange: { thoiGianChienFrom?: string; thoiGianChienTo?: string } | undefined;
+      if (productionDay) {
+        const range = productionDayRange(productionDay);
+        dateRange = { thoiGianChienFrom: range.from, thoiGianChienTo: range.to };
+      }
+      const result = await finishedProductService.getAllFinishedProducts(1, 1000, selectedMachineSystemId || undefined, dateRange);
       setProducts(result.data);
     } catch (err: any) {
       setError(err.message || 'Lỗi tải dữ liệu');
@@ -266,8 +277,14 @@ const FinishedProductManagement: React.FC = () => {
     try {
       setLoading(true);
       setError('');
+      // Compute production day range (06:30 to 06:30 next day)
+      let dateRange: { thoiGianChienFrom?: string; thoiGianChienTo?: string } | undefined;
+      if (productionDay) {
+        const range = productionDayRange(productionDay);
+        dateRange = { thoiGianChienFrom: range.from, thoiGianChienTo: range.to };
+      }
       // Fetch all products without machine filter
-      const result = await finishedProductService.getAllFinishedProducts(1, 10000);
+      const result = await finishedProductService.getAllFinishedProducts(1, 10000, undefined, dateRange);
       setAllProducts(result.data);
     } catch (err: any) {
       setError(err.message || 'Lỗi tải dữ liệu tổng hợp');
@@ -1158,6 +1175,7 @@ const FinishedProductManagement: React.FC = () => {
       <FinishedProductWarehouseReceiptModal
         isOpen={isReceiptModalOpen}
         product={selectedProductForReceipt}
+        productionDay={productionDay}
         onClose={() => {
           setIsReceiptModalOpen(false);
           setSelectedProductForReceipt(null);
@@ -1174,6 +1192,7 @@ const FinishedProductManagement: React.FC = () => {
         isOpen={isBulkReceiptModalOpen}
         product={null}
         maChienList={selectedMaChienList}
+        productionDay={productionDay}
         onClose={() => setIsBulkReceiptModalOpen(false)}
         onSuccess={() => {
           setIsBulkReceiptModalOpen(false);

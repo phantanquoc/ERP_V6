@@ -32,10 +32,17 @@ export interface SystemOperation {
 }
 
 class SystemOperationService {
-  async getAllSystemOperations(page: number = 1, limit: number = 10, machineSystemId?: string): Promise<{ data: SystemOperation[], pagination: any }> {
+  async getAllSystemOperations(
+    page: number = 1,
+    limit: number = 10,
+    machineSystemId?: string,
+    dateRange?: { thoiGianChienFrom?: string; thoiGianChienTo?: string },
+  ): Promise<{ data: SystemOperation[], pagination: any }> {
     try {
       const params: any = { page, limit };
       if (machineSystemId) params.machineSystemId = machineSystemId;
+      if (dateRange?.thoiGianChienFrom) params.thoiGianChienFrom = dateRange.thoiGianChienFrom;
+      if (dateRange?.thoiGianChienTo) params.thoiGianChienTo = dateRange.thoiGianChienTo;
 
        const response = await apiClient.get('/system-operations', {
         params,

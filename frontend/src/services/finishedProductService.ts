@@ -89,6 +89,7 @@ export interface BulkReceiptPayload {
   maChienList: string[];
   warehouseId: string;
   lotId: string;
+  thoiGianChien?: string;
 }
 
 /** Response from POST /finished-products/bulk-warehouse-receipt */

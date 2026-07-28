@@ -9,6 +9,7 @@ import {
   indexFinishedProducts,
   DirtyRecord,
   SaveResult,
+  EntryHistoryRow,
 } from '../../hooks/useProductionDataEntry';
 import { useAttendedOperatorsByShift } from '../../hooks/useAttendedOperators';
 import useVirtualKeyboard from '../../hooks/useVirtualKeyboard';
@@ -674,18 +675,34 @@ const ProductionDataEntry: React.FC = () => {
         delete patchData.phePhamTiLe;
       }
 
-      if (fp) {
-        // Existing record — PATCH by id
-        records.push({ id: fp.id, data: patchData });
-      } else {
-        // No DB record yet — upsert by (maChien, machineSystemId)
-        const [maChien, machineSystemId] = cellKey.split('|');
-        records.push({ upsert: { maChien, machineSystemId }, data: patchData });
+      // Build per-grade entry-history rows ONLY for grade-tab-dirty cells (task 5.4/5.5).
+      // Cells dirty only through waste distribution produce NO entry-history rows.
+      let entryHistory: EntryHistoryRow[] | undefined;
+      if (gradeTabDirty.has(cellKey)) {
+        entryHistory = [];
+        // Check each grade tab for this cell
+        for (const { tab, field } of nonWasteTabs) {
+          const currentVal = board[tab][cellKey];
+          const baselineVal = baseline[tab]?.[cellKey] ?? 0;
+          if (currentVal !== undefined && currentVal !== baselineVal) {
+            entryHistory.push({
+              grade: field,
+              khoiLuong: currentVal,
+              employeeId: operatorId || undefined,
+              employeeName: nguoiThucHien || undefined,
+            });
+          }
+        }
+        if (entryHistory.length === 0) entryHistory = undefined;
       }
+
+      // Always use upsert path so entry history flows through
+      const [maChien, machineSystemId] = cellKey.split('|');
+      records.push({ upsert: { maChien, machineSystemId }, data: patchData, entryHistory });
     }
 
     return records;
-  }, [board, baseline, fpIndex, nguoiThucHien]);
+  }, [board, baseline, fpIndex, nguoiThucHien, operatorId]);
 
   // Helper: convert system code (e.g. "HT-CCK-01") to display label ("Máy 01")
   const getMachineLabel = (maHeThong: string): string => {

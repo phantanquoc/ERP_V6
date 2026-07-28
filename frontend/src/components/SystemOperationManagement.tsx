@@ -8,6 +8,7 @@ import TableFilter, { FilterField } from './TableFilter';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductionEmployees } from '../hooks/useProductionEmployees';
 import { useActiveFryerMachineSystems } from '../hooks/useMachineSystemDetails';
+import { productionDayRange } from '../utils/productionDay';
 
 interface FormData {
   maChien: string;
@@ -27,9 +28,10 @@ interface SystemOperationManagementProps {
   initialMaChien?: string;
   initialThoiGianChien?: string;
   lockedMachineSystemId?: string;
+  productionDay?: string;
 }
 
-const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ initialMaChien, initialThoiGianChien, lockedMachineSystemId }) => {
+const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ initialMaChien, initialThoiGianChien, lockedMachineSystemId, productionDay }) => {
   const { user } = useAuth();
   const { data: productionEmployees = [] } = useProductionEmployees();
   const machineSystemsQuery = useActiveFryerMachineSystems();
@@ -85,7 +87,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
 
   useEffect(() => {
     loadOperations();
-  }, []);
+  }, [productionDay]);
 
   useEffect(() => {
     if (lockedMachineSystemId) {
@@ -105,7 +107,13 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
     try {
       setLoading(true);
       setError('');
-      const result = await systemOperationService.getAllSystemOperations(1, 1000, selectedMachineSystemId || undefined);
+      // Compute production day range (06:30 to 06:30 next day)
+      let dateRange: { thoiGianChienFrom?: string; thoiGianChienTo?: string } | undefined;
+      if (productionDay) {
+        const range = productionDayRange(productionDay);
+        dateRange = { thoiGianChienFrom: range.from, thoiGianChienTo: range.to };
+      }
+      const result = await systemOperationService.getAllSystemOperations(1, 1000, selectedMachineSystemId || undefined, dateRange);
       setOperations(result.data);
     } catch (err: any) {
       setError(err.message || 'Lỗi tải dữ liệu');

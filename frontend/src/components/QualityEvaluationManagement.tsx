@@ -5,8 +5,13 @@ import { useAuth } from '../contexts/AuthContext';
 import QualityEvaluationModal from './QualityEvaluationModal';
 import TableFilter, { FilterField } from './TableFilter';
 import { useActiveFryerMachineSystems } from '../hooks/useMachineSystemDetails';
+import { productionDayRange } from '../utils/productionDay';
 
-const QualityEvaluationManagement: React.FC = () => {
+interface QualityEvaluationManagementProps {
+  productionDay?: string;
+}
+
+const QualityEvaluationManagement: React.FC<QualityEvaluationManagementProps> = ({ productionDay }) => {
   const { user } = useAuth();
   const machineSystemsQuery = useActiveFryerMachineSystems();
   const machineSystems = machineSystemsQuery.data?.data ?? [];
@@ -57,7 +62,7 @@ const QualityEvaluationManagement: React.FC = () => {
   useEffect(() => {
     loadEvaluations();
     setCurrentPage(1);
-  }, [selectedMachineSystemId]);
+  }, [selectedMachineSystemId, productionDay]);
 
   useEffect(() => {
     loadEvaluations();
@@ -67,7 +72,13 @@ const QualityEvaluationManagement: React.FC = () => {
     try {
       setLoading(true);
       setError('');
-      const result = await qualityEvaluationService.getAllQualityEvaluations(currentPage, 1000, selectedMachineSystemId || undefined);
+      // Compute production day range (06:30 to 06:30 next day)
+      let dateRange: { thoiGianChienFrom?: string; thoiGianChienTo?: string } | undefined;
+      if (productionDay) {
+        const range = productionDayRange(productionDay);
+        dateRange = { thoiGianChienFrom: range.from, thoiGianChienTo: range.to };
+      }
+      const result = await qualityEvaluationService.getAllQualityEvaluations(currentPage, 1000, selectedMachineSystemId || undefined, dateRange);
       setEvaluations(result.data);
       setTotalPages(result.pagination.totalPages);
     } catch (err: any) {
