@@ -644,28 +644,35 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
         searchPlaceholder="Tìm kiếm mã chiên, tên hàng hóa..."
       />
 
-      {/* Table */}
+      {/* Table — header row is pinned while scrolling down, STT + Mã chiên pinned while
+          scrolling right, so the 16 columns stay readable without losing the batch code.
+          The scroll container needs a bounded height for `sticky top-0` to have anything
+          to stick to, hence max-h + overflow-auto instead of overflow-x-auto. */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-auto max-h-[70vh]">
             <table className="w-full border-collapse text-xs">
               <thead>
-                <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">STT</th>
-                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Mã chiên</th>
-                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Ca</th>
-                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Thời gian chiên</th>
-                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Tên hàng hóa</th>
-                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Số lô kiện</th>
-                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">KL (Kg/tua)</th>
-                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Số lần ngâm</th>
-                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Nhiệt độ trước ngâm</th>
-                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Nhiệt độ sau vớt</th>
-                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">TG ngâm (Phút)</th>
-                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Brix nước ngâm</th>
-                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">ĐG trước ngâm</th>
-                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">ĐG sau ngâm</th>
-                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Ghi chú</th>
-                  <th className="px-2 py-2 text-center font-semibold text-gray-900 whitespace-nowrap">Thao tác</th>
+                <tr>
+                  {/* STT width is locked because the next pinned column offsets by it
+                      (left-[44px]) — if the browser widened it the two would misalign.
+                      border-collapse drops borders on sticky cells, so the divider on the
+                      pinned edge and under the header row is drawn with box-shadow. */}
+                  <th className="sticky top-0 left-0 z-30 w-[44px] min-w-[44px] max-w-[44px] bg-gray-100 px-2 py-2 text-center font-semibold text-gray-900 whitespace-nowrap shadow-[0_2px_0_0_#d1d5db]">STT</th>
+                  <th className="sticky top-0 left-[44px] z-30 bg-gray-100 px-2 py-2 text-left font-semibold text-gray-900 whitespace-nowrap shadow-[2px_0_0_0_#d1d5db,0_2px_0_0_#d1d5db]">Mã chiên</th>
+                  <th className="sticky top-0 z-20 bg-gray-100 shadow-[0_2px_0_0_#d1d5db] px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Ca</th>
+                  <th className="sticky top-0 z-20 bg-gray-100 shadow-[0_2px_0_0_#d1d5db] px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Thời gian chiên</th>
+                  <th className="sticky top-0 z-20 bg-gray-100 shadow-[0_2px_0_0_#d1d5db] px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Tên hàng hóa</th>
+                  <th className="sticky top-0 z-20 bg-gray-100 shadow-[0_2px_0_0_#d1d5db] px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Số lô kiện</th>
+                  <th className="sticky top-0 z-20 bg-gray-100 shadow-[0_2px_0_0_#d1d5db] px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">KL (Kg/tua)</th>
+                  <th className="sticky top-0 z-20 bg-gray-100 shadow-[0_2px_0_0_#d1d5db] px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Số lần ngâm</th>
+                  <th className="sticky top-0 z-20 bg-gray-100 shadow-[0_2px_0_0_#d1d5db] px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Nhiệt độ trước ngâm</th>
+                  <th className="sticky top-0 z-20 bg-gray-100 shadow-[0_2px_0_0_#d1d5db] px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Nhiệt độ sau vớt</th>
+                  <th className="sticky top-0 z-20 bg-gray-100 shadow-[0_2px_0_0_#d1d5db] px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">TG ngâm (Phút)</th>
+                  <th className="sticky top-0 z-20 bg-gray-100 shadow-[0_2px_0_0_#d1d5db] px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Brix nước ngâm</th>
+                  <th className="sticky top-0 z-20 bg-gray-100 shadow-[0_2px_0_0_#d1d5db] px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">ĐG trước ngâm</th>
+                  <th className="sticky top-0 z-20 bg-gray-100 shadow-[0_2px_0_0_#d1d5db] px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">ĐG sau ngâm</th>
+                  <th className="sticky top-0 z-20 bg-gray-100 shadow-[0_2px_0_0_#d1d5db] px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Ghi chú</th>
+                  <th className="sticky top-0 z-20 bg-gray-100 shadow-[0_2px_0_0_#d1d5db] px-2 py-2 text-center font-semibold text-gray-900 whitespace-nowrap">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
@@ -704,13 +711,15 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                         <tr
                           key={`empty-${row.code}`}
                           onClick={() => handleOpenModalForScheduled(row)}
-                          className={`border-b border-gray-200 hover:bg-blue-50 cursor-pointer transition-all ${
+                          className={`group border-b border-gray-200 hover:bg-blue-50 cursor-pointer transition-all ${
                             index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                           }`}
                           title={`Chưa nhập — bấm để nhập dữ liệu cho ${row.code}`}
                         >
-                          <td className="px-2 py-1.5 text-gray-400 border-r border-gray-200 text-center">{index + 1}</td>
-                          <td className="px-2 py-1.5 font-semibold text-blue-400 border-r border-gray-200 whitespace-nowrap">{row.code}</td>
+                          {/* Pinned columns carry their own background: a transparent
+                              sticky cell would let the scrolling columns show through. */}
+                          <td className={`sticky left-0 z-10 px-2 py-1.5 text-gray-400 border-r border-gray-200 text-center group-hover:bg-blue-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>{index + 1}</td>
+                          <td className={`sticky left-[44px] z-10 px-2 py-1.5 font-semibold text-blue-400 border-r border-gray-200 whitespace-nowrap group-hover:bg-blue-50 shadow-[2px_0_0_0_#e5e7eb] ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>{row.code}</td>
                           {/* Shift comes from the schedule, so it is known even before
                               anyone enters data — show it instead of a dash. */}
                           <td className="px-2 py-1.5 text-gray-400 border-r border-gray-200 text-center whitespace-nowrap">{row.shift != null ? `Ca ${row.shift}` : '—'}</td>
@@ -733,12 +742,12 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   <tr
                     key={evaluation.id}
                     onClick={() => handleViewDetail(evaluation)}
-                    className={`border-b border-gray-200 hover:bg-blue-50 cursor-pointer transition-all ${
+                    className={`group border-b border-gray-200 hover:bg-blue-50 cursor-pointer transition-all ${
                       index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                     }`}
                   >
-                    <td className="px-2 py-1.5 text-gray-900 border-r border-gray-200 text-center">{index + 1}</td>
-                    <td className="px-2 py-1.5 font-semibold text-blue-600 border-r border-gray-200 whitespace-nowrap">{evaluation.maChien}</td>
+                    <td className={`sticky left-0 z-10 px-2 py-1.5 text-gray-900 border-r border-gray-200 text-center group-hover:bg-blue-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>{index + 1}</td>
+                    <td className={`sticky left-[44px] z-10 px-2 py-1.5 font-semibold text-blue-600 border-r border-gray-200 whitespace-nowrap group-hover:bg-blue-50 shadow-[2px_0_0_0_#e5e7eb] ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>{evaluation.maChien}</td>
                     {/* Fall back to the schedule's shift when the record has no ca —
                         legacy rows predate the field but their code still maps to a shift. */}
                     <td className="px-2 py-1.5 text-gray-700 border-r border-gray-200 text-center whitespace-nowrap">
