@@ -523,12 +523,16 @@ model TaxReport {
   ngayDatHang    DateTime
   tenHangHoa     String
   soLuong        Float
-  donViTinh      String
+  // donViTinh / ghiChu / fileUrl were renamed in the model without a migration, so the
+  // field names and the real columns drifted apart and every read failed with P2022.
+  // Mapped rather than migrated: the columns already hold the data, only the
+  // Prisma-side names moved.
+  donViTinh      String          @map("donVi")
   giaTriDonHang  Float
   soTienDongThue Float?
   trangThai      TaxReportStatus @default(CHUA_BAO_CAO)
-  ghiChu         String?
-  fileUrl        String?
+  ghiChu         String?         @map("ghiChi")
+  fileUrl        String?         @map("fileDinhKem")
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   order          Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
