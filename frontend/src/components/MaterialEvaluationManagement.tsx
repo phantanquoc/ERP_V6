@@ -59,8 +59,6 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
   const currentProductionDay = useMemo(() => productionDayProp || getCurrentProductionDay(), [productionDayProp]);
 
   const [evaluations, setEvaluations] = useState<MaterialEvaluation[]>([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -112,6 +110,11 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
     formData.ca ? Number(formData.ca) : undefined,
   );
 
+  // Full 16-batch schedule for the table — unlike scheduledBatches above this is
+  // never narrowed by formData.ca, so picking a shift in the modal does not shrink
+  // the table behind it.
+  const { data: fullDaySchedule = [] } = useDailyFrySchedule(currentProductionDay);
+
   // Map maChien -> existing evaluation for the current production day (task 4.4)
   const existingByCode = useMemo(() => {
     const map = new Map<string, MaterialEvaluation>();
@@ -120,6 +123,36 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
     }
     return map;
   }, [evaluations]);
+
+  // Rows shown in the table: one per scheduled batch code for the production day,
+  // whether or not a worker has entered data yet. A row with `evaluation: null` is a
+  // placeholder — the batch is on the schedule but nothing has been recorded.
+  // Legacy codes (MC-047 and similar, pre-cut-over) are not on the schedule, so any
+  // evaluation whose code is absent from it is appended to avoid hiding real data.
+  const scheduleRows = useMemo(() => {
+    const rows = fullDaySchedule.map((batch) => ({
+      code: batch.code,
+      shift: batch.shift as number | null,
+      startTime: batch.startTime as { hour: number; minute: number } | null,
+      ngaySanXuat: batch.ngaySanXuat as string | null,
+      isNextCalendarDay: batch.isNextCalendarDay,
+      evaluation: existingByCode.get(batch.code) ?? null,
+    }));
+
+    const scheduledCodes = new Set(fullDaySchedule.map((b) => b.code));
+    const offSchedule = evaluations
+      .filter((ev) => !scheduledCodes.has(ev.maChien))
+      .map((ev) => ({
+        code: ev.maChien,
+        shift: ev.ca ?? null,
+        startTime: null as { hour: number; minute: number } | null,
+        ngaySanXuat: null as string | null,
+        isNextCalendarDay: false,
+        evaluation: ev,
+      }));
+
+    return [...rows, ...offSchedule];
+  }, [fullDaySchedule, existingByCode, evaluations]);
 
   const filteredProductionEmployees = useMemo(() => {
     const keyword = normalizeSearchText(formData.nguoiThucHien || '');
@@ -353,6 +386,62 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
     setIsModalOpen(true);
   };
 
+  /**
+   * Open the create form for a scheduled batch that has no record yet, pre-filling
+   * the code, shift and start time from the schedule so the worker only has to enter
+   * the measurements. Mirrors handleOpenModal()'s create branch otherwise.
+   */
+  const handleOpenModalForScheduled = (row: {
+    code: string;
+    shift: number | null;
+    startTime: { hour: number; minute: number } | null;
+    ngaySanXuat: string | null;
+    isNextCalendarDay: boolean;
+  }) => {
+    setIsEditing(false);
+    setSelectedEvaluation(null);
+
+    const nguoiThucHien = user
+      ? `${user.lastName || ''} ${user.firstName || ''}`.trim()
+      : '';
+
+    // ngaySanXuat is the production day, which is NOT the calendar date for the
+    // after-midnight batches (MC-13..MC-16 run 00:30–05:00 the next morning). Advance
+    // the calendar date by one when isNextCalendarDay is set, otherwise MC-16 would
+    // get 05:00 on the production day itself — before the 06:30 boundary, i.e. the
+    // previous production day.
+    let thoiGianChien = '';
+    if (row.startTime && row.ngaySanXuat) {
+      let dateStr = row.ngaySanXuat;
+      if (row.isNextCalendarDay) {
+        const d = new Date(`${row.ngaySanXuat}T12:00:00`);
+        d.setDate(d.getDate() + 1);
+        dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      }
+      const hh = String(row.startTime.hour).padStart(2, '0');
+      const mm = String(row.startTime.minute).padStart(2, '0');
+      thoiGianChien = `${dateStr}T${hh}:${mm}`;
+    }
+
+    setFormData({
+      maChien: row.code,
+      thoiGianChien,
+      tenHangHoa: '',
+      soLoKien: '',
+      khoiLuong: 0,
+      soLanNgam: 0,
+      nhietDoNuocTruocNgam: 0,
+      nhietDoNuocSauVot: 0,
+      thoiGianNgam: 0,
+      brixNuocNgam: 0,
+      danhGiaTruocNgam: '',
+      danhGiaSauNgam: '',
+      nguoiThucHien,
+      ca: row.shift,
+    });
+    setIsModalOpen(true);
+  };
+
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedEvaluation(null);
@@ -551,7 +640,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
       <TableFilter
         filters={evaluationFilterFields}
         values={filterValues}
-        onChange={(v) => { setFilterValues(v); setCurrentPage(1); }}
+        onChange={setFilterValues}
         searchPlaceholder="Tìm kiếm mã chiên, tên hàng hóa..."
       />
 
@@ -580,13 +669,17 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
               </thead>
               <tbody>
                 {(() => {
-                  const filteredEvaluations = evaluations.filter(evaluation => {
+                  // Filter over schedule rows, not raw evaluations: a placeholder row
+                  // matches on its batch code so searching "MC-09" still finds the
+                  // scheduled slot even when nothing has been entered for it.
+                  const filteredRows = scheduleRows.filter(row => {
+                    const ev = row.evaluation;
                     const search = (filterValues._search || '').toLowerCase();
                     const matchSearch = !search ||
-                      (evaluation.maChien || '').toLowerCase().includes(search) ||
-                      (evaluation.tenHangHoa || '').toLowerCase().includes(search);
-                    const matchMaChien = !filterValues.maChien || (evaluation.maChien || '').toLowerCase().includes(filterValues.maChien.toLowerCase());
-                    const matchTenHangHoa = !filterValues.tenHangHoa || (evaluation.tenHangHoa || '').toLowerCase().includes(filterValues.tenHangHoa.toLowerCase());
+                      row.code.toLowerCase().includes(search) ||
+                      (ev?.tenHangHoa || '').toLowerCase().includes(search);
+                    const matchMaChien = !filterValues.maChien || row.code.toLowerCase().includes(filterValues.maChien.toLowerCase());
+                    const matchTenHangHoa = !filterValues.tenHangHoa || (ev?.tenHangHoa || '').toLowerCase().includes(filterValues.tenHangHoa.toLowerCase());
                     return matchSearch && matchMaChien && matchTenHangHoa;
                   });
                   if (loading) return (
@@ -594,12 +687,45 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                     <td colSpan={15} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">Đang tải...</td>
                   </tr>
                 );
-                  if (filteredEvaluations.length === 0) return (
+                  if (filteredRows.length === 0) return (
                   <tr>
                     <td colSpan={15} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">Chưa có dữ liệu</td>
                   </tr>
                 );
-                  return filteredEvaluations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((evaluation, index) => (
+                  return filteredRows.map((row, index) => {
+                    const evaluation = row.evaluation;
+
+                    // Placeholder row: batch is on the day's schedule but no record yet.
+                    if (!evaluation) {
+                      const hh = String(row.startTime?.hour ?? 0).padStart(2, '0');
+                      const mm = String(row.startTime?.minute ?? 0).padStart(2, '0');
+                      return (
+                        <tr
+                          key={`empty-${row.code}`}
+                          onClick={() => handleOpenModalForScheduled(row)}
+                          className={`border-b border-gray-200 hover:bg-blue-50 cursor-pointer transition-all ${
+                            index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                          }`}
+                          title={`Chưa nhập — bấm để nhập dữ liệu cho ${row.code}`}
+                        >
+                          <td className="px-2 py-1.5 text-gray-400 border-r border-gray-200 text-center">{index + 1}</td>
+                          <td className="px-2 py-1.5 font-semibold text-blue-400 border-r border-gray-200 whitespace-nowrap">{row.code}</td>
+                          <td className="px-2 py-1.5 text-gray-400 border-r border-gray-200 whitespace-nowrap">{hh}:{mm}</td>
+                          {Array.from({ length: 11 }).map((_, i) => (
+                            <td key={i} className="px-2 py-1.5 text-gray-300 border-r border-gray-200 text-center">—</td>
+                          ))}
+                          <td className="px-2 py-1.5">
+                            <div className="flex items-center justify-center">
+                              <span className="px-2 py-0.5 text-[11px] font-medium text-gray-500 bg-gray-100 border border-gray-200 rounded-full whitespace-nowrap">
+                                Chưa nhập
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return (
                   <tr
                     key={evaluation.id}
                     onClick={() => handleViewDetail(evaluation)}
@@ -607,7 +733,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                       index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                     }`}
                   >
-                    <td className="px-2 py-1.5 text-gray-900 border-r border-gray-200 text-center">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                    <td className="px-2 py-1.5 text-gray-900 border-r border-gray-200 text-center">{index + 1}</td>
                     <td className="px-2 py-1.5 font-semibold text-blue-600 border-r border-gray-200 whitespace-nowrap">{evaluation.maChien}</td>
                     <td className="px-2 py-1.5 text-gray-700 border-r border-gray-200 whitespace-nowrap">{formatDateTime(evaluation.thoiGianChien)}</td>
                     <td className="px-2 py-1.5 text-gray-900 border-r border-gray-200">{evaluation.tenHangHoa}</td>
@@ -633,7 +759,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDelete(evaluation.id); }}
                           className="p-1 text-red-600 hover:bg-red-100 rounded-md transition-colors"
-                          title="Xoa"
+                          title="Xóa"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -649,63 +775,29 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                       </div>
                     </td>
                   </tr>
-                ));
+                    );
+                  });
                 })()}
               </tbody>
             </table>
           </div>
       </div>
-      {(() => {
-        const filteredEvaluations = evaluations.filter(evaluation => {
-          const search = (filterValues._search || '').toLowerCase();
-          const matchSearch = !search ||
-            (evaluation.maChien || '').toLowerCase().includes(search) ||
-            (evaluation.tenHangHoa || '').toLowerCase().includes(search);
-          const matchMaChien = !filterValues.maChien || (evaluation.maChien || '').toLowerCase().includes(filterValues.maChien.toLowerCase());
-          const matchTenHangHoa = !filterValues.tenHangHoa || (evaluation.tenHangHoa || '').toLowerCase().includes(filterValues.tenHangHoa.toLowerCase());
-          return matchSearch && matchMaChien && matchTenHangHoa;
-        });
-        const totalItems = filteredEvaluations.length;
-        const totalPages = Math.ceil(totalItems / itemsPerPage);
-        return totalPages > 1 ? (
-          <div className="flex items-center justify-between mt-4 px-2">
-            <span className="text-sm text-gray-600">
-              Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
+      {/* Progress summary — replaces pagination: the schedule is a fixed 16 rows per
+          production day, so all of them are shown at once and what matters is how many
+          have been filled in. */}
+      {!loading && scheduleRows.length > 0 && (
+        <div className="flex items-center justify-between mt-4 px-2">
+          <span className="text-sm text-gray-600">
+            Đã nhập <span className="font-semibold text-gray-900">{scheduleRows.filter(r => r.evaluation).length}</span>
+            {' / '}{scheduleRows.length} mã chiên
+          </span>
+          {scheduleRows.some(r => !r.evaluation) && (
+            <span className="text-sm text-gray-500">
+              Còn {scheduleRows.filter(r => !r.evaluation).length} mã chưa nhập
             </span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Trước
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1)
-                .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
-                .map((page, idx, arr) => (
-                  <React.Fragment key={page}>
-                    {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
-                    <button
-                      onClick={() => setCurrentPage(page)}
-                      className={`px-3 py-1.5 text-sm rounded-md ${
-                        page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  </React.Fragment>
-                ))}
-              <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Sau
-              </button>
-            </div>
-          </div>
-        ) : null;
-      })()}
+          )}
+        </div>
+      )}
 
       {/* Create/Edit Modal */}
       <Modal isOpen={isModalOpen} onClose={handleCloseModal} showBackdrop>
