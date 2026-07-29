@@ -289,6 +289,38 @@ describe('renameCategory', () => {
   });
 });
 
+describe('writable-field whitelist', () => {
+  it('drops unknown keys instead of passing them to Prisma', async () => {
+    db.internationalProduct.findUnique.mockResolvedValue(null);
+    db.internationalProduct.create.mockImplementation(({ data }: any) => data);
+
+    await service.createProduct({
+      maSanPham: 'BB-001-X',
+      tenSanPham: 'Thùng carton',
+      loaiSanPham: 'Bao bì',
+      donViTinh: 'Cái',
+      // The controller forwards req.body wholesale, so a stray key must not reach Prisma.
+      id: 'attacker-supplied',
+      createdAt: '1999-01-01',
+      khongTonTai: 'x',
+    });
+
+    const passed = db.internationalProduct.create.mock.calls[0][0].data;
+    expect(Object.keys(passed).sort()).toEqual(
+      ['donViTinh', 'loaiSanPham', 'maSanPham', 'tenSanPham'].sort()
+    );
+  });
+
+  it('carries donViTinh through an update', async () => {
+    const existing = { id: 'p1', maSanPham: 'BB-001-X', tenSanPham: 'Thùng carton' };
+    db.internationalProduct.findUnique.mockResolvedValueOnce(existing);
+    db.internationalProduct.update.mockImplementation(({ data }: any) => data);
+
+    const result = await service.updateProduct('p1', { donViTinh: 'Cuộn', id: 'nope' });
+    expect(result).toEqual({ donViTinh: 'Cuộn' });
+  });
+});
+
 describe('addCategory', () => {
   it('refuses a name whose abbreviation collides with an existing category', async () => {
     db.productCategory.findUnique.mockResolvedValue(null);

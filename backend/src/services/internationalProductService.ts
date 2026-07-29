@@ -219,12 +219,15 @@ export class InternationalProductService {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Danh sách sản phẩm quốc tế');
 
+    // Column order mirrors the on-screen table so an export is recognisable, and
+    // includes đơn vị tính — without it the export drops a field the UI now shows.
     worksheet.columns = [
-      { header: 'Mã sản phẩm', key: 'maSanPham', width: 20 },
-      { header: 'Tên sản phẩm', key: 'tenSanPham', width: 30 },
-      { header: 'Mô tả sản phẩm', key: 'moTaSanPham', width: 40 },
-      { header: 'Loại sản phẩm', key: 'loaiSanPham', width: 20 },
-      { header: 'Ngày tạo', key: 'createdAt', width: 20 },
+      { header: 'Mã hàng hóa', key: 'maSanPham', width: 20 },
+      { header: 'Tên hàng hóa', key: 'tenSanPham', width: 40 },
+      { header: 'Loại hàng hóa', key: 'loaiSanPham', width: 26 },
+      { header: 'Đơn vị tính', key: 'donViTinh', width: 12 },
+      { header: 'Mô tả', key: 'moTaSanPham', width: 40 },
+      { header: 'Ngày tạo', key: 'createdAt', width: 14 },
     ];
 
     worksheet.getRow(1).font = { bold: true };
@@ -238,8 +241,9 @@ export class InternationalProductService {
       worksheet.addRow({
         maSanPham: item.maSanPham,
         tenSanPham: item.tenSanPham,
-        moTaSanPham: item.moTaSanPham || '',
         loaiSanPham: item.loaiSanPham || '',
+        donViTinh: item.donViTinh || '',
+        moTaSanPham: item.moTaSanPham || '',
         createdAt: new Date(item.createdAt).toLocaleDateString('vi-VN'),
       });
     });
