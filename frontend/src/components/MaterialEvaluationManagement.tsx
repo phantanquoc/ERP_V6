@@ -652,6 +652,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                 <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
                   <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">STT</th>
                   <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Mã chiên</th>
+                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Ca</th>
                   <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Thời gian chiên</th>
                   <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Tên hàng hóa</th>
                   <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Số lô kiện</th>
@@ -684,12 +685,12 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   });
                   if (loading) return (
                   <tr>
-                    <td colSpan={15} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">Đang tải...</td>
+                    <td colSpan={16} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">Đang tải...</td>
                   </tr>
                 );
                   if (filteredRows.length === 0) return (
                   <tr>
-                    <td colSpan={15} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">Chưa có dữ liệu</td>
+                    <td colSpan={16} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">Chưa có dữ liệu</td>
                   </tr>
                 );
                   return filteredRows.map((row, index) => {
@@ -710,6 +711,9 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                         >
                           <td className="px-2 py-1.5 text-gray-400 border-r border-gray-200 text-center">{index + 1}</td>
                           <td className="px-2 py-1.5 font-semibold text-blue-400 border-r border-gray-200 whitespace-nowrap">{row.code}</td>
+                          {/* Shift comes from the schedule, so it is known even before
+                              anyone enters data — show it instead of a dash. */}
+                          <td className="px-2 py-1.5 text-gray-400 border-r border-gray-200 text-center whitespace-nowrap">{row.shift != null ? `Ca ${row.shift}` : '—'}</td>
                           <td className="px-2 py-1.5 text-gray-400 border-r border-gray-200 whitespace-nowrap">{hh}:{mm}</td>
                           {Array.from({ length: 11 }).map((_, i) => (
                             <td key={i} className="px-2 py-1.5 text-gray-300 border-r border-gray-200 text-center">—</td>
@@ -735,6 +739,11 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   >
                     <td className="px-2 py-1.5 text-gray-900 border-r border-gray-200 text-center">{index + 1}</td>
                     <td className="px-2 py-1.5 font-semibold text-blue-600 border-r border-gray-200 whitespace-nowrap">{evaluation.maChien}</td>
+                    {/* Fall back to the schedule's shift when the record has no ca —
+                        legacy rows predate the field but their code still maps to a shift. */}
+                    <td className="px-2 py-1.5 text-gray-700 border-r border-gray-200 text-center whitespace-nowrap">
+                      {evaluation.ca != null ? `Ca ${evaluation.ca}` : (row.shift != null ? `Ca ${row.shift}` : '-')}
+                    </td>
                     <td className="px-2 py-1.5 text-gray-700 border-r border-gray-200 whitespace-nowrap">{formatDateTime(evaluation.thoiGianChien)}</td>
                     <td className="px-2 py-1.5 text-gray-900 border-r border-gray-200">{evaluation.tenHangHoa}</td>
                     <td className="px-2 py-1.5 text-gray-900 border-r border-gray-200">{evaluation.soLoKien || '-'}</td>
