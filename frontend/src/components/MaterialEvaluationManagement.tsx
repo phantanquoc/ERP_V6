@@ -562,20 +562,20 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
               <thead>
                 <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
                   <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">STT</th>
-                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Ma chien</th>
-                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Thoi gian chien</th>
-                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Ten hang hoa</th>
-                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">So lo kien</th>
+                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Mã chiên</th>
+                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Thời gian chiên</th>
+                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Tên hàng hóa</th>
+                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Số lô kiện</th>
                   <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">KL (Kg/tua)</th>
-                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">So lan ngam</th>
-                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Nhiet do truoc ngam</th>
-                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Nhiet do sau vot</th>
-                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">TG ngam (Phut)</th>
-                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Brix nuoc ngam</th>
-                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">DG truoc ngam</th>
-                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">DG sau ngam</th>
-                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Ghi chu</th>
-                  <th className="px-2 py-2 text-center font-semibold text-gray-900 whitespace-nowrap">Thao tac</th>
+                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Số lần ngâm</th>
+                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Nhiệt độ trước ngâm</th>
+                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Nhiệt độ sau vớt</th>
+                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">TG ngâm (Phút)</th>
+                  <th className="px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Brix nước ngâm</th>
+                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">ĐG trước ngâm</th>
+                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">ĐG sau ngâm</th>
+                  <th className="px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Ghi chú</th>
+                  <th className="px-2 py-2 text-center font-semibold text-gray-900 whitespace-nowrap">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
@@ -591,12 +591,12 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   });
                   if (loading) return (
                   <tr>
-                    <td colSpan={15} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">Dang tai...</td>
+                    <td colSpan={15} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">Đang tải...</td>
                   </tr>
                 );
                   if (filteredEvaluations.length === 0) return (
                   <tr>
-                    <td colSpan={15} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">Chua co du lieu</td>
+                    <td colSpan={15} className="px-3 py-4 sm:px-6 sm:py-8 text-center text-gray-500">Chưa có dữ liệu</td>
                   </tr>
                 );
                   return filteredEvaluations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((evaluation, index) => (
