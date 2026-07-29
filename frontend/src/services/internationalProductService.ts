@@ -82,10 +82,29 @@ export interface GenerateCodeResponse {
 }
 
 export const internationalProductService = {
-  async getAllProducts(page: number = 1, limit: number = 10, search?: string, loaiSanPham?: string): Promise<PaginatedResponse> {
+  async getAllProducts(
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+    loaiSanPham?: string,
+    options?: {
+      maSanPham?: string;
+      tenSanPham?: string;
+      donViTinh?: string;
+      sortBy?: string;
+      sortOrder?: 'asc' | 'desc';
+    }
+  ): Promise<PaginatedResponse> {
     const params: Record<string, any> = { page, limit };
     if (search) params.search = search;
     if (loaiSanPham) params.loaiSanPham = loaiSanPham;
+    // Column filters and sort are resolved server-side; empty values are dropped so the
+    // URL stays readable and the backend falls back to its defaults.
+    if (options?.maSanPham) params.maSanPham = options.maSanPham;
+    if (options?.tenSanPham) params.tenSanPham = options.tenSanPham;
+    if (options?.donViTinh) params.donViTinh = options.donViTinh;
+    if (options?.sortBy) params.sortBy = options.sortBy;
+    if (options?.sortOrder) params.sortOrder = options.sortOrder;
 
     const response = await apiClient.get('/international-products', { params });
     return response as unknown as PaginatedResponse;
@@ -133,11 +152,25 @@ export const internationalProductService = {
     return response as unknown as GenerateCodeResponse;
   },
 
-  async exportToExcel(filters?: { search?: string; loaiSanPham?: string }): Promise<void> {
+  async exportToExcel(filters?: {
+    search?: string;
+    loaiSanPham?: string;
+    maSanPham?: string;
+    tenSanPham?: string;
+    donViTinh?: string;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }): Promise<void> {
     const token = localStorage.getItem('accessToken');
     const params = new URLSearchParams();
+    // Mirror the list params so the downloaded file matches the current view.
     if (filters?.search) params.append('search', filters.search);
     if (filters?.loaiSanPham) params.append('loaiSanPham', filters.loaiSanPham);
+    if (filters?.maSanPham) params.append('maSanPham', filters.maSanPham);
+    if (filters?.tenSanPham) params.append('tenSanPham', filters.tenSanPham);
+    if (filters?.donViTinh) params.append('donViTinh', filters.donViTinh);
+    if (filters?.sortBy) params.append('sortBy', filters.sortBy);
+    if (filters?.sortOrder) params.append('sortOrder', filters.sortOrder);
 
     const url = `${API_BASE_URL}/international-products/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
     const response = await fetch(url, {

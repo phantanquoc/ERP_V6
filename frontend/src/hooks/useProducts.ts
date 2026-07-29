@@ -10,19 +10,45 @@ export const productKeys = {
   detail: (id: string) => [...productKeys.details(), id] as const,
 };
 
+/** Columns the list can be sorted by. Mirrors the backend whitelist. */
+export const PRODUCT_SORT_FIELDS = [
+  'maSanPham',
+  'tenSanPham',
+  'loaiSanPham',
+  'donViTinh',
+  'moTaSanPham',
+  'createdAt',
+] as const;
+
+export type ProductSortField = (typeof PRODUCT_SORT_FIELDS)[number];
+
 export interface ProductFilters {
   page?: number;
   limit?: number;
   search?: string;
   loaiSanPham?: string;
+  maSanPham?: string;
+  tenSanPham?: string;
+  donViTinh?: string;
+  sortBy?: ProductSortField;
+  sortOrder?: 'asc' | 'desc';
 }
 
 export function useProducts(filters: ProductFilters = {}) {
-  const { page = 1, limit = 10, search, loaiSanPham } = filters;
+  const {
+    page = 1, limit = 10, search, loaiSanPham,
+    maSanPham, tenSanPham, donViTinh, sortBy, sortOrder,
+  } = filters;
 
+  // Sort and column filters are part of the query key: changing either has to refetch,
+  // since both are applied by the server across the whole result set, not on the page.
   return useQuery({
-    queryKey: productKeys.list({ page, limit, search, loaiSanPham }),
-    queryFn: () => internationalProductService.getAllProducts(page, limit, search, loaiSanPham),
+    queryKey: productKeys.list({
+      page, limit, search, loaiSanPham, maSanPham, tenSanPham, donViTinh, sortBy, sortOrder,
+    }),
+    queryFn: () => internationalProductService.getAllProducts(page, limit, search, loaiSanPham, {
+      maSanPham, tenSanPham, donViTinh, sortBy, sortOrder,
+    }),
   });
 }
 
