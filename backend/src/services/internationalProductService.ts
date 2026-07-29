@@ -2,18 +2,28 @@ import prisma from '@config/database';
 import logger from '@config/logger';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
-import { nextStaticCode, staticCodeWhere } from '@utils/codeGenerator';
+import {
+  categoryAbbr,
+  rewriteCodePrefix,
+  suggestAvailableProductCodeFor,
+} from '@utils/productCode';
 import type { PaginatedResponse } from '@types';
 import ExcelJS from 'exceljs';
 
 export class InternationalProductService {
-  async generateProductCode(): Promise<string> {
-    const last = await prisma.internationalProduct.findFirst({
-      where: { maSanPham: staticCodeWhere('SP') },
-      orderBy: { maSanPham: 'desc' },
-      select: { maSanPham: true },
+  /**
+   * Suggest a code in LOAI-STT-TENVIETTAT form. Returns '' when the category is missing,
+   * since the prefix is derived from it — the UI then leaves the field for the user.
+   *
+   * This is a suggestion, not a reservation: the user may edit it, and the unique
+   * constraint on maSanPham is what actually guarantees correctness.
+   */
+  async generateProductCode(tenSanPham?: string, loaiSanPham?: string): Promise<string> {
+    if (!loaiSanPham) return '';
+    return suggestAvailableProductCodeFor(prisma, {
+      tenSanPham: tenSanPham || '',
+      loaiSanPham,
     });
-    return nextStaticCode(last?.maSanPham ?? null, 'SP');
   }
 
   async getAllProducts(
@@ -79,43 +89,79 @@ export class InternationalProductService {
     return product;
   }
 
+  /**
+   * Whitelist the writable columns. The controller forwards req.body wholesale, so an
+   * unexpected key would otherwise reach Prisma and fail with an opaque error.
+   */
+  private pickProductFields(data: any) {
+    const out: Record<string, any> = {};
+    for (const key of ['tenSanPham', 'moTaSanPham', 'loaiSanPham', 'donViTinh'] as const) {
+      if (data[key] !== undefined) out[key] = data[key];
+    }
+    return out;
+  }
+
   async createProduct(data: any): Promise<any> {
-    // Validate required fields
     if (!data.tenSanPham) {
-      throw new ValidationError('Missing required fields');
+      throw new ValidationError('Thiếu tên hàng hóa');
     }
 
-    // Generate product code if not provided
-    if (!data.maSanPham) {
-      data.maSanPham = await this.generateProductCode();
+    // The client sends the code the user sees (possibly hand-edited). Fall back to a
+    // suggestion only when it left the field empty.
+    const maSanPham = (data.maSanPham || '').trim()
+      || (await this.generateProductCode(data.tenSanPham, data.loaiSanPham));
+
+    if (!maSanPham) {
+      throw new ValidationError('Thiếu mã hàng hóa — chọn loại hàng hóa để hệ thống gợi ý mã');
     }
 
-    // Check if product code already exists
     const existingProduct = await prisma.internationalProduct.findUnique({
-      where: { maSanPham: data.maSanPham },
+      where: { maSanPham },
     });
 
     if (existingProduct) {
-      throw new ValidationError('Product code already exists');
+      throw new ValidationError(`Mã hàng hóa "${maSanPham}" đã tồn tại`);
     }
 
-    const product = await prisma.internationalProduct.create({
-      data,
+    return prisma.internationalProduct.create({
+      data: {
+        ...this.pickProductFields(data),
+        // Repeated explicitly so Prisma sees the required column; the guard above
+        // already rejected a missing name.
+        tenSanPham: data.tenSanPham,
+        maSanPham,
+      },
     });
-
-    return product;
   }
 
   async updateProduct(id: string, data: any): Promise<any> {
-    // Check if product exists
-    await this.getProductById(id);
+    const current = await this.getProductById(id);
 
-    const product = await prisma.internationalProduct.update({
+    // The code is user-editable, so a change has to be checked against other rows —
+    // excluding this one, otherwise saving a product without touching its code fails.
+    if (data.maSanPham !== undefined) {
+      const nextCode = (data.maSanPham || '').trim();
+      if (!nextCode) {
+        throw new ValidationError('Mã hàng hóa không được để trống');
+      }
+      if (nextCode !== current.maSanPham) {
+        const clash = await prisma.internationalProduct.findUnique({
+          where: { maSanPham: nextCode },
+        });
+        if (clash && clash.id !== id) {
+          throw new ValidationError(`Mã hàng hóa "${nextCode}" đã tồn tại`);
+        }
+      }
+      data = { ...data, maSanPham: nextCode };
+    }
+
+    return prisma.internationalProduct.update({
       where: { id },
-      data,
+      data: {
+        ...this.pickProductFields(data),
+        ...(data.maSanPham !== undefined ? { maSanPham: data.maSanPham } : {}),
+      },
     });
-
-    return product;
   }
 
   async deleteProduct(id: string): Promise<void> {
@@ -229,6 +275,31 @@ export class InternationalProductService {
     return allCategories;
   }
 
+  /**
+   * Reject a category name whose abbreviation collides with an existing category.
+   *
+   * Abbreviations are derived from the name, and they become the code prefix — two
+   * categories sharing one ("Nguyên liệu" and "Nhiên liệu" are both NL) would make their
+   * products' codes indistinguishable. Rejecting is better than auto-suffixing, which
+   * would produce prefixes nobody can predict from the name.
+   */
+  private async assertAbbrAvailable(name: string, excludeName?: string): Promise<void> {
+    const abbr = categoryAbbr(name);
+    if (!abbr) {
+      throw new ValidationError('Tên loại hàng hóa phải có ít nhất một chữ cái hoặc số');
+    }
+
+    const others = await this.getCategories();
+    const clash = others.find(
+      (other) => other !== excludeName && other !== name && categoryAbbr(other) === abbr
+    );
+    if (clash) {
+      throw new ValidationError(
+        `Viết tắt "${abbr}" của loại "${name}" trùng với loại "${clash}". Đổi tên để viết tắt khác nhau.`
+      );
+    }
+  }
+
   async addCategory(name: string): Promise<any> {
     if (!name || !name.trim()) {
       throw new ValidationError('Tên loại hàng hóa không được để trống');
@@ -243,29 +314,120 @@ export class InternationalProductService {
       throw new ValidationError('Loại hàng hóa này đã tồn tại');
     }
 
+    await this.assertAbbrAvailable(trimmed);
+
     return prisma.productCategory.create({
       data: { name: trimmed },
     });
   }
 
-  async renameCategory(oldName: string, newName: string): Promise<number> {
-    if (!oldName || !newName) {
+  /**
+   * What renaming a category would do to its products' codes, without writing anything.
+   * The UI shows this for confirmation, because a rename rewrites codes in bulk.
+   */
+  async previewRenameCategory(
+    oldName: string,
+    newName: string
+  ): Promise<{
+    oldAbbr: string;
+    newAbbr: string;
+    changes: Array<{ id: string; tenSanPham: string; maCu: string; maMoi: string }>;
+    unchanged: Array<{ id: string; tenSanPham: string; maCu: string }>;
+  }> {
+    if (!oldName || !newName || !newName.trim()) {
       throw new ValidationError('Tên loại hàng hóa không được để trống');
     }
+    const trimmed = newName.trim();
 
-    // Update in ProductCategory table
-    await prisma.productCategory.updateMany({
-      where: { name: oldName },
-      data: { name: newName },
-    });
+    const oldAbbr = categoryAbbr(oldName);
+    const newAbbr = categoryAbbr(trimmed);
 
-    // Update in products table
-    const result = await prisma.internationalProduct.updateMany({
+    const products = await prisma.internationalProduct.findMany({
       where: { loaiSanPham: oldName },
-      data: { loaiSanPham: newName },
+      select: { id: true, maSanPham: true, tenSanPham: true },
+      orderBy: { maSanPham: 'asc' },
     });
 
-    return result.count;
+    const changes: Array<{ id: string; tenSanPham: string; maCu: string; maMoi: string }> = [];
+    const unchanged: Array<{ id: string; tenSanPham: string; maCu: string }> = [];
+
+    for (const p of products) {
+      const maMoi = rewriteCodePrefix(p.maSanPham, newAbbr);
+      if (maMoi !== p.maSanPham) {
+        changes.push({ id: p.id, tenSanPham: p.tenSanPham, maCu: p.maSanPham, maMoi });
+      } else {
+        // Either the abbreviation did not change, or the code is a legacy two-segment
+        // one that rewriteCodePrefix deliberately leaves alone.
+        unchanged.push({ id: p.id, tenSanPham: p.tenSanPham, maCu: p.maSanPham });
+      }
+    }
+
+    return { oldAbbr, newAbbr, changes, unchanged };
+  }
+
+  /**
+   * Rename a category and rewrite the code prefix of every product in it.
+   *
+   * All writes go in one transaction: a partial rename would leave products whose code
+   * prefix disagrees with their category.
+   */
+  async renameCategory(
+    oldName: string,
+    newName: string
+  ): Promise<{ count: number; codesUpdated: number }> {
+    if (!oldName || !newName || !newName.trim()) {
+      throw new ValidationError('Tên loại hàng hóa không được để trống');
+    }
+    const trimmed = newName.trim();
+
+    if (trimmed !== oldName) {
+      const duplicate = await prisma.productCategory.findUnique({ where: { name: trimmed } });
+      if (duplicate) {
+        throw new ValidationError('Loại hàng hóa này đã tồn tại');
+      }
+    }
+
+    await this.assertAbbrAvailable(trimmed, oldName);
+
+    const { changes } = await this.previewRenameCategory(oldName, trimmed);
+
+    // Guard against a rewritten code colliding with one outside this category, which
+    // would otherwise surface as a raw Prisma unique-constraint error mid-transaction.
+    if (changes.length > 0) {
+      const targets = changes.map((c) => c.maMoi);
+      const movingIds = new Set(changes.map((c) => c.id));
+      const clashes = await prisma.internationalProduct.findMany({
+        where: { maSanPham: { in: targets } },
+        select: { id: true, maSanPham: true },
+      });
+      const blocking = clashes.filter((c) => !movingIds.has(c.id));
+      if (blocking.length > 0) {
+        throw new ValidationError(
+          `Không thể đổi tên: mã mới ${blocking.map((b) => `"${b.maSanPham}"`).join(', ')} đã thuộc hàng hóa khác`
+        );
+      }
+    }
+
+    return prisma.$transaction(async (tx) => {
+      await tx.productCategory.updateMany({
+        where: { name: oldName },
+        data: { name: trimmed },
+      });
+
+      const result = await tx.internationalProduct.updateMany({
+        where: { loaiSanPham: oldName },
+        data: { loaiSanPham: trimmed },
+      });
+
+      for (const change of changes) {
+        await tx.internationalProduct.update({
+          where: { id: change.id },
+          data: { maSanPham: change.maMoi },
+        });
+      }
+
+      return { count: result.count, codesUpdated: changes.length };
+    });
   }
 
   async deleteCategory(name: string): Promise<number> {

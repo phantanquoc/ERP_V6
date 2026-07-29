@@ -1,5 +1,6 @@
 import prisma from '@config/database';
-import { nextYearlyCode, yearlyCodeWhere, nextStaticCode, staticCodeWhere } from '../utils/codeGenerator';
+import { nextYearlyCode, yearlyCodeWhere } from '../utils/codeGenerator';
+import { suggestAvailableProductCodeFor, UNCLASSIFIED_CATEGORY } from '@utils/productCode';
 import { ValidationError, ConflictError, NotFoundError } from '@utils/errors';
 
 interface CreateReceiptInput {
@@ -235,14 +236,18 @@ class WarehouseReceiptService {
     });
 
     if (!product) {
-      const lastProduct = await prisma.internationalProduct.findFirst({
-        where: { maSanPham: staticCodeWhere('SP') },
-        orderBy: { maSanPham: 'desc' },
-        select: { maSanPham: true },
+      // Codes follow LOAI-STT-TENVIETTAT, and the prefix is derived from the category.
+      // Both callers pass one, but the parameter is optional — rather than invent a
+      // category that is not in the standard list (which is what produced the current
+      // Nguyên liệu / Nguyên vật liệu drift), mark it explicitly so it shows up as
+      // needing review instead of hiding inside a plausible-looking category.
+      const resolvedLoai = loaiSanPham || UNCLASSIFIED_CATEGORY;
+      const maSanPham = await suggestAvailableProductCodeFor(prisma, {
+        tenSanPham,
+        loaiSanPham: resolvedLoai,
       });
-      const maSanPham = nextStaticCode(lastProduct?.maSanPham ?? null, 'SP');
       product = await prisma.internationalProduct.create({
-        data: { maSanPham, tenSanPham, donViTinh, loaiSanPham: loaiSanPham || undefined },
+        data: { maSanPham, tenSanPham, donViTinh, loaiSanPham: resolvedLoai },
       });
     }
 

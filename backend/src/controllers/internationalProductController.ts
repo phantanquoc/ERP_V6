@@ -110,9 +110,12 @@ export class InternationalProductController {
     }
   }
 
-  async generateProductCode(_req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async generateProductCode(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const code = await internationalProductService.generateProductCode();
+      // Both are query params: the code is derived from the product name and its
+      // category, so the client asks for a suggestion as the user fills the form.
+      const { tenSanPham, loaiSanPham } = req.query as Record<string, string | undefined>;
+      const code = await internationalProductService.generateProductCode(tenSanPham, loaiSanPham);
 
       const response: ApiResponse<any> = {
         success: true,
@@ -188,15 +191,34 @@ export class InternationalProductController {
     }
   }
 
-  async renameCategory(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  /** Preview of what a category rename does to product codes — writes nothing. */
+  async previewRenameCategory(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { oldName, newName } = req.body;
-      const count = await internationalProductService.renameCategory(oldName, newName);
+      const preview = await internationalProductService.previewRenameCategory(oldName, newName);
 
       res.json({
         success: true,
-        data: { count },
-        message: `Đã cập nhật ${count} sản phẩm`,
+        data: preview,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async renameCategory(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { oldName, newName } = req.body;
+      const { count, codesUpdated } = await internationalProductService.renameCategory(oldName, newName);
+
+      const message = codesUpdated > 0
+        ? `Đã cập nhật ${count} hàng hóa, trong đó ${codesUpdated} mã được đổi theo tên loại mới`
+        : `Đã cập nhật ${count} hàng hóa`;
+
+      res.json({
+        success: true,
+        data: { count, codesUpdated },
+        message,
       });
     } catch (error) {
       next(error);
