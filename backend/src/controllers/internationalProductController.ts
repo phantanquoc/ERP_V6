@@ -1,5 +1,8 @@
 import { Response, NextFunction } from 'express';
-import internationalProductService from '@services/internationalProductService';
+import internationalProductService, {
+  ProductSortField,
+  ProductListFilters,
+} from '@services/internationalProductService';
 import { AuthenticatedRequest, ApiResponse } from '@types';
 
 export class InternationalProductController {
@@ -10,7 +13,14 @@ export class InternationalProductController {
       const search = req.query.search as string;
       const loaiSanPham = req.query.loaiSanPham as string;
 
-      const result = await internationalProductService.getAllProducts(page, limit, search, loaiSanPham);
+      const result = await internationalProductService.getAllProducts(page, limit, search, loaiSanPham, {
+        maSanPham: req.query.maSanPham as string | undefined,
+        tenSanPham: req.query.tenSanPham as string | undefined,
+        donViTinh: req.query.donViTinh as string | undefined,
+        // Validated against a whitelist in the service, not here.
+        sortBy: req.query.sortBy as ProductSortField | undefined,
+        sortOrder: req.query.sortOrder as 'asc' | 'desc' | undefined,
+      });
 
       const response: ApiResponse<any> = {
         success: true,
@@ -130,13 +140,16 @@ export class InternationalProductController {
 
   async exportToExcel(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const filters: any = {};
-      if (req.query.search) {
-        filters.search = req.query.search as string;
-      }
-      if (req.query.loaiSanPham) {
-        filters.loaiSanPham = req.query.loaiSanPham as string;
-      }
+      // Same params as the list endpoint, so the export matches the current view.
+      const filters: ProductListFilters = {
+        search: (req.query.search as string) || undefined,
+        loaiSanPham: (req.query.loaiSanPham as string) || undefined,
+        maSanPham: (req.query.maSanPham as string) || undefined,
+        tenSanPham: (req.query.tenSanPham as string) || undefined,
+        donViTinh: (req.query.donViTinh as string) || undefined,
+        sortBy: req.query.sortBy as ProductSortField | undefined,
+        sortOrder: req.query.sortOrder as 'asc' | 'desc' | undefined,
+      };
 
       const buffer = await internationalProductService.exportToExcel(filters);
 

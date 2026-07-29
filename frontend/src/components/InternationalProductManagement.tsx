@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { Plus, Edit, Trash2, Download, Settings } from 'lucide-react';
 import ConfirmDialog from './common/ConfirmDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import internationalProductService, { InternationalProduct } from '../services/internationalProductService';
 import { useProducts, productKeys } from '../hooks/useProducts';
+import type { ProductSortField } from '../hooks/useProducts';
+import SortableColumnHeader from './common/SortableColumnHeader';
 import { useDebounce } from '../hooks/useDebounce';
 import TableFilter, { FilterField } from './TableFilter';
 import { useAuth } from '../contexts/AuthContext';
@@ -18,10 +20,20 @@ const InternationalProductManagement: React.FC = () => {
   const canCreateEdit = user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD || user?.role === UserRole.TEAM_LEAD;
   const canDelete = user?.role === UserRole.ADMIN;
   const canManageCategories = user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD;
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', loaiSanPham: '' });
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({
+    _search: '', loaiSanPham: '', maSanPham: '', tenSanPham: '', donViTinh: '',
+  });
   const searchTerm = filterValues._search || '';
   const debouncedSearch = useDebounce(searchTerm, 300);
   const loaiSanPhamFilter = filterValues.loaiSanPham || '';
+  // Column filters go through the same debounce as the search box: they are free text and
+  // each change would otherwise fire a request per keystroke.
+  const debouncedMaSanPham = useDebounce(filterValues.maSanPham || '', 300);
+  const debouncedTenSanPham = useDebounce(filterValues.tenSanPham || '', 300);
+  const donViTinhFilter = filterValues.donViTinh || '';
+  // Newest-first by default, matching the previous fixed ordering.
+  const [sortBy, setSortBy] = useState<ProductSortField>('createdAt');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [showModal, setShowModal] = useState(false);
@@ -67,16 +79,51 @@ const InternationalProductManagement: React.FC = () => {
     limit: pageSize,
     search: debouncedSearch || undefined,
     loaiSanPham: loaiSanPhamFilter || undefined,
+    maSanPham: debouncedMaSanPham || undefined,
+    tenSanPham: debouncedTenSanPham || undefined,
+    donViTinh: donViTinhFilter || undefined,
+    sortBy,
+    sortOrder,
   });
-  // Backend now paginates AND filters — no client-side filtering (that broke pagination).
+  // Backend paginates, filters AND sorts — nothing is filtered or reordered here, since
+  // this only holds one page of rows.
   const products = productsResponse?.data || [];
   const pagination = productsResponse?.pagination;
-  const hasActiveFilter = !!(debouncedSearch || loaiSanPhamFilter);
+  const hasActiveFilter = !!(
+    debouncedSearch || loaiSanPhamFilter || debouncedMaSanPham || debouncedTenSanPham || donViTinhFilter
+  );
 
-  // Reset to page 1 whenever filters or page size change so we never land on an out-of-range page.
+  /** Units offered in the ĐVT column filter, taken from the rows in view. */
+  const unitOptions = useMemo(
+    () => [...new Set(products.map((p) => p.donViTinh).filter((u): u is string => !!u))].sort(
+      (a, b) => a.localeCompare(b, 'vi')
+    ),
+    [products]
+  );
+
+  // Reset to page 1 whenever filters, sort or page size change so we never land on an
+  // out-of-range page. Sort is included because it changes which rows fall on page 1.
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, loaiSanPhamFilter, pageSize]);
+  }, [debouncedSearch, loaiSanPhamFilter, debouncedMaSanPham, debouncedTenSanPham, donViTinhFilter, sortBy, sortOrder, pageSize]);
+
+  /**
+   * Clicking a column header sorts by it. Clicking the active column flips the direction;
+   * switching column starts ascending, which reads more naturally for text and codes.
+   */
+  const handleSort = (key: string) => {
+    const field = key as ProductSortField;
+    if (sortBy === field) {
+      setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(field);
+      setSortOrder('asc');
+    }
+  };
+
+  const handleColumnFilter = (key: string, value: string) => {
+    setFilterValues((prev) => ({ ...prev, [key]: value }));
+  };
 
 
 
@@ -273,9 +320,15 @@ const InternationalProductManagement: React.FC = () => {
           <button
             onClick={async () => {
               try {
+                // Export what is on screen: same filters and sort as the table.
                 await internationalProductService.exportToExcel({
                   search: debouncedSearch || undefined,
                   loaiSanPham: loaiSanPhamFilter || undefined,
+                  maSanPham: debouncedMaSanPham || undefined,
+                  tenSanPham: debouncedTenSanPham || undefined,
+                  donViTinh: donViTinhFilter || undefined,
+                  sortBy,
+                  sortOrder,
                 });
               } catch (error) {
                 console.error('Error exporting to Excel:', error);
@@ -313,24 +366,67 @@ const InternationalProductManagement: React.FC = () => {
         <table className="w-full min-w-[720px] border-collapse">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-300">
+              {/* STT is a running row number, not a column of data, so it is neither
+                  sortable nor filterable. */}
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 w-12">
                 STT
               </th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 w-32">
-                Mã hàng hóa
-              </th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
-                Tên hàng hóa
-              </th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 w-40">
-                Loại hàng hóa
-              </th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 w-20">
-                ĐVT
-              </th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
-                Mô tả
-              </th>
+              <SortableColumnHeader
+                label="Mã hàng hóa"
+                sortKey="maSanPham"
+                activeSortKey={sortBy}
+                activeSortOrder={sortOrder}
+                onSort={handleSort}
+                filterKey="maSanPham"
+                filterValue={filterValues.maSanPham || ''}
+                onFilterChange={handleColumnFilter}
+                filterPlaceholder="VD: NLT"
+                className="w-32"
+              />
+              <SortableColumnHeader
+                label="Tên hàng hóa"
+                sortKey="tenSanPham"
+                activeSortKey={sortBy}
+                activeSortOrder={sortOrder}
+                onSort={handleSort}
+                filterKey="tenSanPham"
+                filterValue={filterValues.tenSanPham || ''}
+                onFilterChange={handleColumnFilter}
+                filterPlaceholder="VD: mít sấy"
+              />
+              <SortableColumnHeader
+                label="Loại hàng hóa"
+                sortKey="loaiSanPham"
+                activeSortKey={sortBy}
+                activeSortOrder={sortOrder}
+                onSort={handleSort}
+                filterKey="loaiSanPham"
+                filterValue={filterValues.loaiSanPham || ''}
+                onFilterChange={handleColumnFilter}
+                // Categories are a known set, so a dropdown avoids typos and matches the
+                // exact-match filter the server applies to this column.
+                filterOptions={categories}
+                className="w-40"
+              />
+              <SortableColumnHeader
+                label="ĐVT"
+                sortKey="donViTinh"
+                activeSortKey={sortBy}
+                activeSortOrder={sortOrder}
+                onSort={handleSort}
+                filterKey="donViTinh"
+                filterValue={filterValues.donViTinh || ''}
+                onFilterChange={handleColumnFilter}
+                filterOptions={unitOptions}
+                className="w-20"
+              />
+              <SortableColumnHeader
+                label="Mô tả"
+                sortKey="moTaSanPham"
+                activeSortKey={sortBy}
+                activeSortOrder={sortOrder}
+                onSort={handleSort}
+              />
               <th className="px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-gray-600 w-24">
                 Hành động
               </th>
@@ -350,7 +446,9 @@ const InternationalProductManagement: React.FC = () => {
                     <div className="flex flex-col items-center gap-2">
                       <span>Không tìm thấy hàng hóa khớp bộ lọc</span>
                       <button
-                        onClick={() => setFilterValues({ _search: '', loaiSanPham: '' })}
+                        onClick={() => setFilterValues({
+                          _search: '', loaiSanPham: '', maSanPham: '', tenSanPham: '', donViTinh: '',
+                        })}
                         className="text-sm text-blue-600 hover:underline"
                       >
                         Xóa bộ lọc

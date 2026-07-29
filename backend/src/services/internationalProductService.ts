@@ -10,6 +10,31 @@ import {
 import type { PaginatedResponse } from '@types';
 import ExcelJS from 'exceljs';
 
+/**
+ * Columns the list may be sorted by. Whitelisted so a client-supplied `sortBy` cannot
+ * reach an arbitrary column or a relation.
+ */
+export const PRODUCT_SORT_FIELDS = [
+  'maSanPham',
+  'tenSanPham',
+  'loaiSanPham',
+  'donViTinh',
+  'moTaSanPham',
+  'createdAt',
+] as const;
+
+export type ProductSortField = (typeof PRODUCT_SORT_FIELDS)[number];
+
+export interface ProductListFilters {
+  search?: string;
+  loaiSanPham?: string;
+  maSanPham?: string;
+  tenSanPham?: string;
+  donViTinh?: string;
+  sortBy?: ProductSortField;
+  sortOrder?: 'asc' | 'desc';
+}
+
 export class InternationalProductService {
   /**
    * Suggest a code in LOAI-STT-TENVIETTAT form. Returns '' when the category is missing,
@@ -26,32 +51,71 @@ export class InternationalProductService {
     });
   }
 
+  /**
+   * Build the `where` clause shared by the list and the Excel export, so an export
+   * reflects exactly the rows the user is looking at.
+   *
+   * Per-column filters narrow within the global search rather than replacing it.
+   */
+  private buildProductWhere(filters?: ProductListFilters): any {
+    const where: any = {};
+
+    if (filters?.search) {
+      where.OR = [
+        { maSanPham: { contains: filters.search, mode: 'insensitive' as const } },
+        { tenSanPham: { contains: filters.search, mode: 'insensitive' as const } },
+        { moTaSanPham: { contains: filters.search, mode: 'insensitive' as const } },
+      ];
+    }
+    if (filters?.loaiSanPham) {
+      where.loaiSanPham = filters.loaiSanPham;
+    }
+    if (filters?.maSanPham) {
+      where.maSanPham = { contains: filters.maSanPham, mode: 'insensitive' as const };
+    }
+    if (filters?.tenSanPham) {
+      where.tenSanPham = { contains: filters.tenSanPham, mode: 'insensitive' as const };
+    }
+    if (filters?.donViTinh) {
+      where.donViTinh = { contains: filters.donViTinh, mode: 'insensitive' as const };
+    }
+
+    return where;
+  }
+
+  /**
+   * Resolve the sort clause, falling back to newest-first.
+   *
+   * Sorting runs in the database, not over the returned page: the list is paginated
+   * server-side, so sorting one page would order 20 rows out of many. `sortBy` is
+   * whitelisted so a query param cannot reach an arbitrary column.
+   */
+  private buildProductOrderBy(filters?: ProductListFilters): any {
+    const sortBy: ProductSortField = PRODUCT_SORT_FIELDS.includes(filters?.sortBy as ProductSortField)
+      ? (filters!.sortBy as ProductSortField)
+      : 'createdAt';
+    const sortOrder = filters?.sortOrder === 'asc' ? 'asc' : 'desc';
+    return { [sortBy]: sortOrder };
+  }
+
   async getAllProducts(
     page: number = 1,
     limit: number = 10,
     search?: string,
-    loaiSanPham?: string
+    loaiSanPham?: string,
+    filters?: ProductListFilters
   ): Promise<PaginatedResponse<any>> {
     const { skip } = getPaginationParams(page, limit);
 
-    const where: any = {};
-    if (search) {
-      where.OR = [
-        { maSanPham: { contains: search, mode: 'insensitive' as const } },
-        { tenSanPham: { contains: search, mode: 'insensitive' as const } },
-        { moTaSanPham: { contains: search, mode: 'insensitive' as const } },
-      ];
-    }
-    if (loaiSanPham) {
-      where.loaiSanPham = loaiSanPham;
-    }
+    const where = this.buildProductWhere({ ...filters, search, loaiSanPham });
+    const orderBy = this.buildProductOrderBy(filters);
 
     const [products, total] = await Promise.all([
       prisma.internationalProduct.findMany({
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
       }),
       prisma.internationalProduct.count({ where }),
     ]);
@@ -197,23 +261,11 @@ export class InternationalProductService {
     });
   }
 
-  async exportToExcel(filters?: any): Promise<Buffer> {
-    const where: any = {};
-
-    if (filters?.search) {
-      where.OR = [
-        { maSanPham: { contains: filters.search, mode: 'insensitive' as const } },
-        { tenSanPham: { contains: filters.search, mode: 'insensitive' as const } },
-        { moTaSanPham: { contains: filters.search, mode: 'insensitive' as const } },
-      ];
-    }
-    if (filters?.loaiSanPham) {
-      where.loaiSanPham = filters.loaiSanPham;
-    }
-
+  async exportToExcel(filters?: ProductListFilters): Promise<Buffer> {
+    // Same where/orderBy as the list, so the file matches what is on screen.
     const data = await prisma.internationalProduct.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
+      where: this.buildProductWhere(filters),
+      orderBy: this.buildProductOrderBy(filters),
     });
 
     const workbook = new ExcelJS.Workbook();
