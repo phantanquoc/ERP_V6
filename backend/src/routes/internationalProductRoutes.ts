@@ -113,6 +113,14 @@ router.post(
   internationalProductController.addCategory
 );
 
+// Read-only preview of the code rewrites a rename would perform. POST because it takes
+// a body, not because it mutates anything.
+router.post(
+  '/categories/rename-preview',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  internationalProductController.previewRenameCategory
+);
+
 router.put(
   '/categories/rename',
   authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),

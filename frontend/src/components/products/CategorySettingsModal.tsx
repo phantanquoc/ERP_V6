@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import { Plus, Edit, Trash2, X } from 'lucide-react';
 import Modal from '../Modal';
-import internationalProductService from '../../services/internationalProductService';
+import internationalProductService, { RenameCategoryPreview } from '../../services/internationalProductService';
+import { categoryAbbr as abbreviate } from '../../utils/productCode';
 
 interface CategorySettingsModalProps {
   isOpen: boolean;
@@ -16,6 +17,10 @@ const CategorySettingsModal: React.FC<CategorySettingsModalProps> = ({ isOpen, c
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editCategoryName, setEditCategoryName] = useState('');
   const [loading, setLoading] = useState(false);
+  /** Pending rename awaiting confirmation, with the code rewrites it would perform. */
+  const [renamePreview, setRenamePreview] = useState<
+    (RenameCategoryPreview & { oldName: string; newName: string }) | null
+  >(null);
 
   const handleClose = () => {
     setEditingCategory(null);
@@ -43,6 +48,10 @@ const CategorySettingsModal: React.FC<CategorySettingsModalProps> = ({ isOpen, c
     }
   };
 
+  /**
+   * Renaming a category changes its abbreviation, which is the prefix of every product
+   * code in it — so this asks the server what would change and confirms before saving.
+   */
   const handleRename = async (oldName: string) => {
     const newName = editCategoryName.trim();
     if (!newName || newName === oldName) {
@@ -53,12 +62,28 @@ const CategorySettingsModal: React.FC<CategorySettingsModalProps> = ({ isOpen, c
       toast.error('Loại hàng hóa này đã tồn tại');
       return;
     }
+
     setLoading(true);
     try {
-      await internationalProductService.renameCategory(oldName, newName);
+      const preview = await internationalProductService.previewRenameCategory(oldName, newName);
+      setLoading(false);
+      setRenamePreview({ oldName, newName, ...preview.data });
+    } catch (error: any) {
+      setLoading(false);
+      toast.error(error.response?.data?.message || 'Lỗi khi kiểm tra thay đổi mã');
+    }
+  };
+
+  const confirmRename = async () => {
+    if (!renamePreview) return;
+    const { oldName, newName } = renamePreview;
+    setLoading(true);
+    try {
+      const res = await internationalProductService.renameCategory(oldName, newName);
       onChanged();
       setEditingCategory(null);
-      toast.success('Đã đổi tên loại hàng hóa');
+      setRenamePreview(null);
+      toast.success(res.message || 'Đã đổi tên loại hàng hóa');
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Lỗi khi đổi tên');
     } finally {
@@ -124,7 +149,14 @@ const CategorySettingsModal: React.FC<CategorySettingsModalProps> = ({ isOpen, c
                       autoFocus
                     />
                   ) : (
-                    <span className="text-sm text-gray-900">{cat}</span>
+                    <span className="text-sm text-gray-900 flex items-center gap-2">
+                      {cat}
+                      {/* The abbreviation is the code prefix for this category, shown so
+                          the effect of a rename is visible before opening the editor. */}
+                      <span className="px-1.5 py-0.5 text-[11px] font-mono text-gray-600 bg-gray-200 rounded">
+                        {abbreviate(cat)}
+                      </span>
+                    </span>
                   )}
                   <div className="flex items-center gap-1">
                     {editingCategory === cat ? (
@@ -149,6 +181,94 @@ const CategorySettingsModal: React.FC<CategorySettingsModalProps> = ({ isOpen, c
           </div>
         </div>
       </div>
+
+      {/* Rename confirmation — a rename rewrites the code prefix of every product in the
+          category, so the exact list is shown before committing. */}
+      {renamePreview && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setRenamePreview(null)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl w-full max-w-lg flex flex-col max-h-[80vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b">
+              <h3 className="font-semibold text-gray-900">Xác nhận đổi tên loại hàng hóa</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                "{renamePreview.oldName}" → "{renamePreview.newName}"
+              </p>
+              <p className="text-sm text-gray-600">
+                Viết tắt:{' '}
+                <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">{renamePreview.oldAbbr}</span>
+                {' → '}
+                <span className="font-mono bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">{renamePreview.newAbbr}</span>
+              </p>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+              {renamePreview.changes.length > 0 ? (
+                <div>
+                  <p className="text-sm font-medium text-gray-900 mb-2">
+                    {renamePreview.changes.length} mã hàng hóa sẽ đổi theo:
+                  </p>
+                  <div className="space-y-1">
+                    {renamePreview.changes.map((c) => (
+                      <div key={c.id} className="text-xs flex items-center gap-2">
+                        <span className="font-mono text-gray-500 line-through">{c.maCu}</span>
+                        <span className="text-gray-400">→</span>
+                        <span className="font-mono text-blue-700 font-medium">{c.maMoi}</span>
+                        <span className="text-gray-500 truncate">{c.tenSanPham}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-600">
+                  Không có mã nào thay đổi (viết tắt giữ nguyên).
+                </p>
+              )}
+
+              {renamePreview.unchanged.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-1">
+                    {renamePreview.unchanged.length} mã giữ nguyên
+                  </p>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Mã không theo cấu trúc LOẠI-STT-TÊNVIẾTTẮT nên không tự đổi được — sửa tay nếu cần.
+                  </p>
+                  <div className="space-y-1">
+                    {renamePreview.unchanged.map((u) => (
+                      <div key={u.id} className="text-xs flex items-center gap-2">
+                        <span className="font-mono text-gray-600">{u.maCu}</span>
+                        <span className="text-gray-500 truncate">{u.tenSanPham}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="px-5 py-4 border-t flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setRenamePreview(null)}
+                className="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={confirmRename}
+                disabled={loading}
+                className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {loading ? 'Đang lưu...' : 'Đổi tên và cập nhật mã'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Modal>
   );
 };

@@ -131,8 +131,9 @@ function setupTransactionMock() {
       id: `ip-${data.maSanPham}`,
       ...data,
     }));
-    // tx.internationalProduct.findFirst for code generation (findFirst order by desc)
-    // already handled above (returns null → lastNum = 0 → SP001)
+    // Code generation reads sibling codes for the category prefix; none exist yet, so
+    // the suggested code is the first sequence for that category.
+    mockTx.internationalProduct.findMany.mockResolvedValue([]);
     mockTx.lotProduct.findFirst.mockResolvedValue(null);
     mockTx.lotProduct.create.mockImplementation(({ data }: any) => ({
       id: `lp-${Date.now()}`,

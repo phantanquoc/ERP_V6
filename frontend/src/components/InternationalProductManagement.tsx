@@ -36,7 +36,13 @@ const InternationalProductManagement: React.FC = () => {
     tenSanPham: '',
     moTaSanPham: '',
     loaiSanPham: '',
+    donViTinh: '',
   });
+  /**
+   * True once the user edits the code by hand. Auto-suggestion then stops, so typing a
+   * code and going back to fix a typo in the name does not silently discard it.
+   */
+  const [codeTouched, setCodeTouched] = useState(false);
 
   // Category management state
   const [categories, setCategories] = useState<string[]>([]);
@@ -81,11 +87,14 @@ const InternationalProductManagement: React.FC = () => {
     }
 
     try {
-      // Không truyền maSanPham — backend tự sinh để đảm bảo atomic
+      // The code is user-editable now, so send whatever is in the field. Left empty,
+      // the backend falls back to its own suggestion.
       await internationalProductService.createProduct({
+        maSanPham: formData.maSanPham.trim(),
         tenSanPham: formData.tenSanPham,
         moTaSanPham: formData.moTaSanPham,
         loaiSanPham: formData.loaiSanPham,
+        donViTinh: formData.donViTinh,
       });
       toast.success('Tạo hàng hóa thành công');
       setShowModal(false);
@@ -103,12 +112,18 @@ const InternationalProductManagement: React.FC = () => {
       toast.error('Vui lòng nhập tên hàng hóa');
       return;
     }
+    if (!formData.maSanPham.trim()) {
+      toast.error('Vui lòng nhập mã hàng hóa');
+      return;
+    }
 
     try {
       await internationalProductService.updateProduct(editingProduct.id, {
+        maSanPham: formData.maSanPham.trim(),
         tenSanPham: formData.tenSanPham,
         moTaSanPham: formData.moTaSanPham,
         loaiSanPham: formData.loaiSanPham,
+        donViTinh: formData.donViTinh,
       });
       toast.success('Cập nhật hàng hóa thành công');
       setShowModal(false);
@@ -141,20 +156,13 @@ const InternationalProductManagement: React.FC = () => {
     }
   };
 
-  const openCreateModal = async () => {
+  const openCreateModal = () => {
     setEditingProduct(null);
-    setFormData({ maSanPham: '', tenSanPham: '', moTaSanPham: '', loaiSanPham: '' });
+    setFormData({ maSanPham: '', tenSanPham: '', moTaSanPham: '', loaiSanPham: '', donViTinh: '' });
+    // The code is derived from name + category, so there is nothing to suggest until the
+    // user has entered them — no fetch on open.
+    setCodeTouched(false);
     setShowModal(true);
-    // Fetch preview code
-    setGeneratingCode(true);
-    try {
-      const res = await internationalProductService.generateProductCode();
-      setFormData(prev => ({ ...prev, maSanPham: res.data?.code ?? '' }));
-    } catch {
-      // Leave blank — backend will still auto-generate on submit
-    } finally {
-      setGeneratingCode(false);
-    }
   };
 
   const openEditModal = (product: InternationalProduct) => {
@@ -164,8 +172,39 @@ const InternationalProductManagement: React.FC = () => {
       tenSanPham: product.tenSanPham,
       moTaSanPham: product.moTaSanPham || '',
       loaiSanPham: product.loaiSanPham || '',
+      donViTinh: product.donViTinh || '',
     });
+    // An existing code is the user's, never auto-replaced.
+    setCodeTouched(true);
     setShowModal(true);
+  };
+
+  /**
+   * Fetch a suggested code for the current name + category.
+   *
+   * `force` is set by the explicit "Gợi ý" button and overwrites whatever is in the
+   * field; the automatic path never overwrites a code the user typed.
+   */
+  const suggestCode = async (force: boolean) => {
+    if (!formData.loaiSanPham) return;
+    if (!force && codeTouched) return;
+
+    setGeneratingCode(true);
+    try {
+      const res = await internationalProductService.generateProductCode(
+        formData.tenSanPham,
+        formData.loaiSanPham,
+      );
+      const code = res.data?.code ?? '';
+      if (code) {
+        setFormData(prev => ({ ...prev, maSanPham: code }));
+        if (force) setCodeTouched(false);
+      }
+    } catch {
+      // Suggestion is best-effort; the user can always type a code by hand.
+    } finally {
+      setGeneratingCode(false);
+    }
   };
 
   const openDetailModal = (product: InternationalProduct) => {
@@ -174,17 +213,37 @@ const InternationalProductManagement: React.FC = () => {
   };
 
   const resetForm = () => {
+    setCodeTouched(false);
     setFormData({
       maSanPham: '',
       tenSanPham: '',
       moTaSanPham: '',
       loaiSanPham: '',
+      donViTinh: '',
     });
     setEditingProduct(null);
   };
 
+  /**
+   * Suggest a code once the user has entered a name and picked a category.
+   *
+   * Debounced because the name changes on every keystroke. Skipped while editing an
+   * existing product and once the user has touched the code (codeTouched is checked
+   * inside suggestCode).
+   */
+  useEffect(() => {
+    if (!showModal || editingProduct || codeTouched) return;
+    if (!formData.tenSanPham.trim() || !formData.loaiSanPham) return;
+
+    const timer = setTimeout(() => { void suggestCode(false); }, 500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showModal, editingProduct, codeTouched, formData.tenSanPham, formData.loaiSanPham]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    // Editing the code by hand takes it out of auto-suggestion.
+    if (name === 'maSanPham') setCodeTouched(true);
     setFormData(prev => ({
       ...prev,
       [name]: value,
@@ -266,6 +325,9 @@ const InternationalProductManagement: React.FC = () => {
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 w-40">
                 Loại hàng hóa
               </th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600 w-20">
+                ĐVT
+              </th>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
                 Mô tả
               </th>
@@ -277,13 +339,13 @@ const InternationalProductManagement: React.FC = () => {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                   Đang tải...
                 </td>
               </tr>
             ) : products.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-gray-500">
+                <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
                   {hasActiveFilter ? (
                     <div className="flex flex-col items-center gap-2">
                       <span>Không tìm thấy hàng hóa khớp bộ lọc</span>
@@ -317,6 +379,9 @@ const InternationalProductManagement: React.FC = () => {
                   </td>
                   <td className="px-3 py-2 text-sm text-gray-700">
                     {product.loaiSanPham || <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
+                    {product.donViTinh || <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-3 py-2 text-sm text-gray-500 max-w-xs truncate" title={product.moTaSanPham || ''}>
                     {product.moTaSanPham || <span className="text-gray-300">—</span>}
@@ -418,6 +483,7 @@ const InternationalProductManagement: React.FC = () => {
         onClose={() => setShowModal(false)}
         onChange={handleInputChange}
         onSubmit={editingProduct ? handleUpdate : handleCreate}
+        onSuggestCode={() => { void suggestCode(true); }}
       />
 
       {/* Detail Modal */}

@@ -55,9 +55,15 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ isOpen, product
                 <label className="block text-sm font-medium text-gray-500">Tên hàng hóa</label>
                 <p className="mt-1 text-sm text-gray-900">{product.tenSanPham}</p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-500">Loại hàng hóa</label>
-                <p className="mt-1 text-sm text-gray-900">{product.loaiSanPham || '-'}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-500">Loại hàng hóa</label>
+                  <p className="mt-1 text-sm text-gray-900">{product.loaiSanPham || '-'}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-500">Đơn vị tính</label>
+                  <p className="mt-1 text-sm text-gray-900">{product.donViTinh || '-'}</p>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-500">Mô tả hàng hóa</label>

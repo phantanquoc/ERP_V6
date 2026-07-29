@@ -22,12 +22,25 @@ export interface CreateProductData {
   tenSanPham: string;
   moTaSanPham?: string;
   loaiSanPham?: string;
+  donViTinh?: string;
 }
 
 export interface UpdateProductData {
+  // The code is user-editable, so updates may carry it.
+  maSanPham?: string;
   tenSanPham?: string;
   moTaSanPham?: string;
   loaiSanPham?: string;
+  donViTinh?: string;
+}
+
+export interface RenameCategoryPreview {
+  oldAbbr: string;
+  newAbbr: string;
+  /** Products whose code will be rewritten to the new prefix. */
+  changes: Array<{ id: string; tenSanPham: string; maCu: string; maMoi: string }>;
+  /** Products keeping their code — legacy formats, or an unchanged abbreviation. */
+  unchanged: Array<{ id: string; tenSanPham: string; maCu: string }>;
 }
 
 export interface PaginatedResponse {
@@ -108,8 +121,15 @@ export const internationalProductService = {
     return response as unknown as { success: boolean; message: string };
   },
 
-  async generateProductCode(): Promise<GenerateCodeResponse> {
-    const response = await apiClient.get('/international-products/generate-code');
+  /**
+   * Ask for a suggested code. The code is LOAI-STT-TENVIETTAT, so it needs both the
+   * product name and its category; without a category the server returns an empty code.
+   */
+  async generateProductCode(tenSanPham?: string, loaiSanPham?: string): Promise<GenerateCodeResponse> {
+    const params: Record<string, string> = {};
+    if (tenSanPham) params.tenSanPham = tenSanPham;
+    if (loaiSanPham) params.loaiSanPham = loaiSanPham;
+    const response = await apiClient.get('/international-products/generate-code', { params });
     return response as unknown as GenerateCodeResponse;
   },
 
@@ -144,9 +164,22 @@ export const internationalProductService = {
     return response as unknown as { success: boolean; data: any; message: string };
   },
 
-  async renameCategory(oldName: string, newName: string): Promise<{ success: boolean; data: { count: number }; message: string }> {
+  /**
+   * What a rename would do to product codes, without saving. Renaming a category
+   * changes its abbreviation, which is the code prefix, so this is shown for
+   * confirmation before the bulk rewrite.
+   */
+  async previewRenameCategory(oldName: string, newName: string): Promise<{
+    success: boolean;
+    data: RenameCategoryPreview;
+  }> {
+    const response = await apiClient.post('/international-products/categories/rename-preview', { oldName, newName });
+    return response as unknown as { success: boolean; data: RenameCategoryPreview };
+  },
+
+  async renameCategory(oldName: string, newName: string): Promise<{ success: boolean; data: { count: number; codesUpdated: number }; message: string }> {
     const response = await apiClient.put('/international-products/categories/rename', { oldName, newName });
-    return response as unknown as { success: boolean; data: { count: number }; message: string };
+    return response as unknown as { success: boolean; data: { count: number; codesUpdated: number }; message: string };
   },
 
   async deleteCategory(name: string): Promise<{ success: boolean; data: { count: number }; message: string }> {

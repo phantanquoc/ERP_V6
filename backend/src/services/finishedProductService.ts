@@ -2,6 +2,7 @@ import prisma from '@config/database';
 import { NotFoundError, ValidationError, ConflictError } from '@utils/errors';
 import warehouseReceiptService from '@services/warehouseReceiptService';
 import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
+import { suggestAvailableProductCodeFor } from '@utils/productCode';
 import { getProductionDay, productionDayRange, parseLocalDateTimeAsAppTz } from '@utils/productionDay';
 import ExcelJS from 'exceljs';
 
@@ -728,17 +729,15 @@ export class FinishedProductService {
           where: { tenSanPham: { equals: input.tenSanPham, mode: 'insensitive' } },
         });
         if (!lotProduct) {
-          // Generate a new product code — use a safe approach inside transaction
-          const lastProduct = await tx.internationalProduct.findFirst({
-            where: { maSanPham: { startsWith: 'SP' } },
-            orderBy: { maSanPham: 'desc' },
-            select: { maSanPham: true },
-          });
-          // Simple increment: SP001 -> SP002
-          const lastNum = lastProduct ? parseInt(lastProduct.maSanPham.replace('SP', ''), 10) : 0;
-          const maSanPham = `SP${String(lastNum + 1).padStart(3, '0')}`;
           const cachedLoai = loaiSanPhamCache.get(input.tenHangHoaBase);
-          const loaiSanPham = cachedLoai ? cachedLoai : 'Thành phẩm';
+          const loaiSanPham = cachedLoai ? cachedLoai : 'Thành phẩm sấy';
+          // Codes follow LOAI-STT-TENVIETTAT. The previous implementation matched
+          // `startsWith: 'SP'`, which also caught real codes like SPK-MSV2, and
+          // parseInt('K-MSV2') produced NaN -> a literal 'SPNaN' code.
+          const maSanPham = await suggestAvailableProductCodeFor(tx, {
+            tenSanPham: input.tenSanPham,
+            loaiSanPham,
+          });
           lotProduct = await tx.internationalProduct.create({
             data: { maSanPham, tenSanPham: input.tenSanPham, donViTinh: 'Kg', loaiSanPham },
           });

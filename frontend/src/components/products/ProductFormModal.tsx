@@ -1,5 +1,5 @@
 import React from 'react';
-import { X } from 'lucide-react';
+import { X, RefreshCw } from 'lucide-react';
 import Modal from '../Modal';
 
 export interface ProductFormData {
@@ -7,7 +7,11 @@ export interface ProductFormData {
   tenSanPham: string;
   moTaSanPham: string;
   loaiSanPham: string;
+  donViTinh: string;
 }
+
+/** Units in use across the catalogue. Free text is still allowed. */
+const COMMON_UNITS = ['Kg', 'Thùng', 'Cái', 'Cuộn', 'Đôi', 'Can', 'Xô', 'Bịch', 'Miếng', 'Xe'];
 
 interface ProductFormModalProps {
   isOpen: boolean;
@@ -18,10 +22,12 @@ interface ProductFormModalProps {
   onClose: () => void;
   onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => void;
   onSubmit: () => void;
+  /** Re-request a suggested code. Omitted renders no suggest button. */
+  onSuggestCode?: () => void;
 }
 
 const ProductFormModal: React.FC<ProductFormModalProps> = ({
-  isOpen, isEditing, formData, categories, generatingCode, onClose, onChange, onSubmit,
+  isOpen, isEditing, formData, categories, generatingCode, onClose, onChange, onSubmit, onSuggestCode,
 }) => (
   <Modal isOpen={isOpen} onClose={onClose} showBackdrop>
     <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-1rem)] sm:max-w-2xl sm:w-full flex flex-col max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
@@ -32,21 +38,9 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
         </button>
       </div>
       <div className="overflow-y-auto flex-1 p-4 sm:p-6">
+        {/* Name and category come first: the code is derived from them, so filling them
+            in order is what lets the suggestion appear. */}
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Mã hàng hóa
-              {!isEditing && <span className="ml-2 text-xs text-gray-400 font-normal">(tự động sinh)</span>}
-            </label>
-            <input
-              type="text"
-              name="maSanPham"
-              value={generatingCode ? 'Đang sinh mã...' : formData.maSanPham}
-              readOnly
-              placeholder="SP-0001"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
-            />
-          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Tên hàng hóa <span className="text-red-500">*</span>
@@ -60,17 +54,67 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
               required
             />
           </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Loại hàng hóa</label>
+              <select
+                name="loaiSanPham"
+                value={formData.loaiSanPham}
+                onChange={onChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">-- Chọn loại hàng hóa --</option>
+                {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Đơn vị tính</label>
+              {/* A list of suggestions rather than a closed select: the catalogue already
+                  mixes units and a new one should not require a code change. */}
+              <input
+                type="text"
+                name="donViTinh"
+                list="product-unit-options"
+                value={formData.donViTinh}
+                onChange={onChange}
+                placeholder="VD: Kg, Thùng, Cái"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              />
+              <datalist id="product-unit-options">
+                {COMMON_UNITS.map(u => <option key={u} value={u} />)}
+              </datalist>
+            </div>
+          </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Loại hàng hóa</label>
-            <select
-              name="loaiSanPham"
-              value={formData.loaiSanPham}
-              onChange={onChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">-- Chọn loại hàng hóa --</option>
-              {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-            </select>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Mã hàng hóa <span className="text-red-500">*</span>
+              <span className="ml-2 text-xs text-gray-400 font-normal">
+                LOẠI-STT-TÊNVIẾTTẮT, sửa được
+              </span>
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                name="maSanPham"
+                value={formData.maSanPham}
+                onChange={onChange}
+                placeholder={generatingCode ? 'Đang gợi ý mã...' : 'VD: NLT-001-MTLB'}
+                disabled={generatingCode}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono disabled:bg-gray-100"
+              />
+              {onSuggestCode && (
+                <button
+                  type="button"
+                  onClick={onSuggestCode}
+                  disabled={generatingCode || !formData.loaiSanPham}
+                  title={!formData.loaiSanPham ? 'Chọn loại hàng hóa để gợi ý mã' : 'Gợi ý lại mã theo tên và loại'}
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <RefreshCw className={`w-4 h-4 ${generatingCode ? 'animate-spin' : ''}`} />
+                  Gợi ý
+                </button>
+              )}
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả hàng hóa</label>
