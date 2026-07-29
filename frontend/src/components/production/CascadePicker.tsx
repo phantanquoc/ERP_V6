@@ -168,7 +168,7 @@ const CascadePicker: React.FC<CascadePickerProps> = ({
                 type="button"
                 onClick={handleClose}
                 className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200"
-                aria-label="Dong"
+                aria-label="Đóng"
               >
                 <X className="w-5 h-5" />
               </button>
