@@ -1,9 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import warehouseService, {
   CreateWarehouseData,
+  UpdateWarehouseData,
   CreateLotData,
   AddProductToLotData,
-  MoveProductData
+  MoveProductData,
+  UpdateLotProductData,
 } from '../services/warehouseService';
 
 // Query keys for cache management
@@ -56,6 +58,19 @@ export const useDeleteWarehouse = () => {
 
   return useMutation({
     mutationFn: (id: string) => warehouseService.deleteWarehouse(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
+    },
+  });
+};
+
+// Hook to update warehouse
+export const useUpdateWarehouse = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateWarehouseData }) =>
+      warehouseService.updateWarehouse(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
     },
@@ -135,6 +150,31 @@ export const useUpdateProductQuantity = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
       queryClient.invalidateQueries({ queryKey: warehouseKeys.lotProducts() });
+    },
+  });
+};
+
+// Hook to update lot product (includes maKien)
+export const useUpdateLotProduct = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateLotProductData }) =>
+      warehouseService.updateLotProduct(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: warehouseKeys.lotProducts() });
+    },
+  });
+};
+
+// Hook to generate warehouse code (fire-on-demand, no caching)
+export const useGenerateWarehouseCode = () => {
+  return useMutation({
+    mutationFn: async () => {
+      const res = await warehouseService.generateWarehouseCode();
+      const code = (res as any)?.data?.data?.code || (res as any)?.data?.code;
+      return code as string | undefined;
     },
   });
 };

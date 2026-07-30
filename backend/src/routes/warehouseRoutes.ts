@@ -3,6 +3,7 @@ import {
   getAllWarehouses,
   generateWarehouseCode,
   createWarehouse,
+  updateWarehouse,
   deleteWarehouse,
 } from '@controllers/warehouseController';
 import lotController from '@controllers/lotController';
@@ -65,6 +66,35 @@ router.post('/', createWarehouse);
 /**
  * @swagger
  * /api/warehouses/{id}:
+ *   put:
+ *     summary: Cập nhật thông tin kho
+ *     tags: [Warehouses]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của kho
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Cập nhật kho thành công
+ *       404:
+ *         description: Không tìm thấy kho
+ */
+router.put('/:id', updateWarehouse);
+
+/**
+ * @swagger
+ * /api/warehouses/{id}:
  *   delete:
  *     summary: Xóa kho
  *     tags: [Warehouses]
@@ -109,4 +139,3 @@ router.delete('/:id', deleteWarehouse);
 router.get('/:warehouseId/lots', getLotsByWarehouse);
 
 export default router;
-
