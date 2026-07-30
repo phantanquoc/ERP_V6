@@ -296,7 +296,7 @@ export class MaterialEvaluationService {
 
       // 6. Build snapshot fields
       const tenHangHoa = lotProduct.internationalProduct.tenSanPham;
-      const soLoKien = `${lotProduct.lot.tenLo}-${lotProduct.id.slice(-4)}`;
+      const soLoKien = lotProduct.maKien ?? `${lotProduct.lot.tenLo}-${lotProduct.id.slice(-4)}`;
 
       // 7. Create MaterialEvaluation with both FKs
       const newEvaluation = await tx.materialEvaluation.create({

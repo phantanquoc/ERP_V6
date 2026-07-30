@@ -1,5 +1,5 @@
 import prisma from '@config/database';
-import { ValidationError } from '@utils/errors';
+import { ValidationError, NotFoundError, ConflictError } from '@utils/errors';
 
 interface AddProductInput {
   lotId: string;
@@ -8,6 +8,14 @@ interface AddProductInput {
   donViTinh: string;
 }
 
+interface UpdateLotProductInput {
+  maKien?: string;
+  soLuong?: number;
+  donViTinh?: string;
+  giaThanh?: number;
+}
+
+/** @deprecated Use UpdateLotProductInput instead */
 interface UpdateQuantityInput {
   soLuong?: number;
   donViTinh?: string;
@@ -52,13 +60,24 @@ class LotProductService {
       throw Object.assign(new Error(`Sản phẩm "${existing.internationalProduct?.tenSanPham}" đã được thêm vào lô này trước đó`), { status: 400 });
     }
 
-    return prisma.lotProduct.create({
+    // Fetch lot to build default maKien
+    const lot = await prisma.lot.findUnique({ where: { id: input.lotId } });
+
+    // Create first, then update with the generated maKien (needs the new id)
+    const created = await prisma.lotProduct.create({
       data: {
         lotId: input.lotId,
         internationalProductId: input.internationalProductId,
         soLuong: parseFloat(input.soLuong.toString()),
         donViTinh: input.donViTinh,
       },
+      include: { internationalProduct: true, lot: true },
+    });
+
+    const maKien = `${lot?.tenLo ?? input.lotId.slice(-4)}-${created.id.slice(-4)}`;
+    return prisma.lotProduct.update({
+      where: { id: created.id },
+      data: { maKien },
       include: { internationalProduct: true, lot: true },
     });
   }
@@ -107,16 +126,35 @@ class LotProductService {
     return { data: result, message: 'Di chuyển sản phẩm thành công' };
   }
 
+  /** @deprecated Use updateLotProduct instead */
   async updateQuantity(id: string, input: UpdateQuantityInput) {
-    return prisma.lotProduct.update({
-      where: { id },
-      data: {
-        soLuong: input.soLuong !== undefined ? parseFloat(input.soLuong.toString()) : undefined,
-        donViTinh: input.donViTinh || undefined,
-        giaThanh: input.giaThanh !== undefined ? parseFloat(input.giaThanh.toString()) : undefined,
-      },
-      include: { internationalProduct: true },
-    });
+    return this.updateLotProduct(id, input);
+  }
+
+  async updateLotProduct(id: string, input: UpdateLotProductInput) {
+    const existing = await prisma.lotProduct.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundError('Không tìm thấy kiện');
+    }
+
+    try {
+      return await prisma.lotProduct.update({
+        where: { id },
+        data: {
+          maKien: input.maKien !== undefined ? (input.maKien || null) : undefined,
+          soLuong: input.soLuong !== undefined ? parseFloat(input.soLuong.toString()) : undefined,
+          donViTinh: input.donViTinh || undefined,
+          giaThanh: input.giaThanh !== undefined ? parseFloat(input.giaThanh.toString()) : undefined,
+        },
+        include: { internationalProduct: true },
+      });
+    } catch (err: any) {
+      // Prisma unique constraint violation
+      if (err?.code === 'P2002') {
+        throw new ConflictError('Mã kiện đã tồn tại trong lô này');
+      }
+      throw err;
+    }
   }
 
   /**
