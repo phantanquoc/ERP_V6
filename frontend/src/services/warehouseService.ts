@@ -33,6 +33,7 @@ export interface LotProduct {
   internationalProductId: string;
   soLuong: number;
   donViTinh: string;
+  maKien?: string;
   giaThanh?: number; // Giá thành/đơn vị (VND)
   createdAt: string;
   updatedAt: string;
@@ -46,9 +47,37 @@ export interface LotProduct {
   lot?: Lot;
 }
 
+export interface UpdateLotProductData {
+  maKien?: string;
+  soLuong?: number;
+  donViTinh?: string;
+  giaThanh?: number;
+}
+
 export interface CreateWarehouseData {
   maKho?: string;
   tenKho: string;
+  loaiKho?: string;
+  diaChi?: string;
+  dienTich?: number | string | null;
+  sucChua?: number | string | null;
+  nguoiQuanLy?: string;
+  soDienThoai?: string;
+  trangThai?: string;
+  ghiChu?: string;
+}
+
+export interface UpdateWarehouseData {
+  maKho?: string;
+  tenKho?: string;
+  loaiKho?: string;
+  diaChi?: string;
+  dienTich?: number | string | null;
+  sucChua?: number | string | null;
+  nguoiQuanLy?: string;
+  soDienThoai?: string;
+  trangThai?: string;
+  ghiChu?: string;
 }
 
 export interface CreateLotData {
@@ -73,6 +102,7 @@ const warehouseService = {
   getAllWarehouses: () => apiClient.get('/warehouses'),
   generateWarehouseCode: () => apiClient.get('/warehouses/generate-code'),
   createWarehouse: (data: CreateWarehouseData) => apiClient.post('/warehouses', data),
+  updateWarehouse: (id: string, data: UpdateWarehouseData) => apiClient.put(`/warehouses/${id}`, data),
   deleteWarehouse: (id: string) => apiClient.delete(`/warehouses/${id}`),
 
   // Lot APIs
@@ -86,6 +116,8 @@ const warehouseService = {
   removeProductFromLot: (id: string) => apiClient.delete(`/lot-products/${id}`),
   moveProductBetweenLots: (data: MoveProductData) => apiClient.put('/lot-products/move', data),
   updateProductQuantity: (id: string, data: { soLuong?: number; donViTinh?: string; giaThanh?: number }) =>
+    apiClient.put(`/lot-products/${id}`, data),
+  updateLotProduct: (id: string, data: UpdateLotProductData) =>
     apiClient.put(`/lot-products/${id}`, data),
 };
 

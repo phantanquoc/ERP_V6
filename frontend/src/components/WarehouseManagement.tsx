@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { Plus, Trash2, MoveRight, Package, Warehouse as WarehouseIcon, PackagePlus } from 'lucide-react';
-import { Warehouse, Lot, LotProduct } from '../services/warehouseService';
+import { Plus, Trash2, MoveRight, Package, Warehouse as WarehouseIcon, PackagePlus, Pencil } from 'lucide-react';
+import type { Warehouse, LotProduct } from '../services/warehouseService';
 import {
   useWarehouses,
-  useCreateWarehouse, useDeleteWarehouse,
+  useCreateWarehouse, useDeleteWarehouse, useUpdateWarehouse,
   useCreateLot, useDeleteLot,
   useAddProductToLot, useRemoveProductFromLot, useMoveProductBetweenLots,
+  useGenerateWarehouseCode, useUpdateLotProduct,
 } from '../hooks';
 import { useProducts } from '../hooks';
 import { parseNumberInputStr } from '../utils/numberInput';
@@ -28,11 +29,14 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
   const { data: warehousesData, isLoading: loading } = useWarehouses();
   const createWarehouse = useCreateWarehouse();
   const deleteWarehouse = useDeleteWarehouse();
+  const updateWarehouse = useUpdateWarehouse();
   const createLot = useCreateLot();
   const deleteLot = useDeleteLot();
   const addProductToLot = useAddProductToLot();
   const removeProductFromLot = useRemoveProductFromLot();
   const moveProductBetweenLots = useMoveProductBetweenLots();
+  const generateWarehouseCode = useGenerateWarehouseCode();
+  const updateLotProduct = useUpdateLotProduct();
 
   // Fetch all international products via TanStack Query
   const { data: productsData } = useProducts({ page: 1, limit: 1000 });
@@ -57,12 +61,26 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
 
   // Modal states
   const [showWarehouseModal, setShowWarehouseModal] = useState(false);
+  const [showEditWarehouseModal, setShowEditWarehouseModal] = useState(false);
   const [showLotModal, setShowLotModal] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
   const [showMoveModal, setShowMoveModal] = useState(false);
+  const [showEditLotProductModal, setShowEditLotProductModal] = useState(false);
 
-  // Form states
-  const [newWarehouseName, setNewWarehouseName] = useState('');
+  // Edit lot product state
+  const [editingLotProduct, setEditingLotProduct] = useState<LotProduct | null>(null);
+  const [editLotProductForm, setEditLotProductForm] = useState({ maKien: '', soLuong: '', donViTinh: '' });
+
+  // Form states — create warehouse
+  const [newWarehouseForm, setNewWarehouseForm] = useState({
+    maKho: '', tenKho: '', loaiKho: '', diaChi: '', dienTich: '', sucChua: '',
+    nguoiQuanLy: '', soDienThoai: '', trangThai: 'active', ghiChu: '',
+  });
+  // Form states — edit warehouse
+  const [editWarehouseForm, setEditWarehouseForm] = useState({
+    maKho: '', tenKho: '', loaiKho: '', diaChi: '', dienTich: '', sucChua: '',
+    nguoiQuanLy: '', soDienThoai: '', trangThai: 'active', ghiChu: '',
+  });
   const [newLotName, setNewLotName] = useState('');
   const [selectedLotId, setSelectedLotId] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
@@ -95,19 +113,88 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
   }, [warehouses, initialWarehouseId]);
 
   const handleCreateWarehouse = async () => {
-    if (!newWarehouseName.trim()) {
+    if (!newWarehouseForm.tenKho.trim()) {
       toast.error('Vui lòng nhập tên kho');
       return;
     }
 
     try {
-      await createWarehouse.mutateAsync({ tenKho: newWarehouseName });
+      await createWarehouse.mutateAsync({
+        tenKho: newWarehouseForm.tenKho,
+        maKho: newWarehouseForm.maKho || undefined,
+        loaiKho: newWarehouseForm.loaiKho || undefined,
+        diaChi: newWarehouseForm.diaChi || undefined,
+        dienTich: newWarehouseForm.dienTich ? parseFloat(newWarehouseForm.dienTich) : undefined,
+        sucChua: newWarehouseForm.sucChua ? parseFloat(newWarehouseForm.sucChua) : undefined,
+        nguoiQuanLy: newWarehouseForm.nguoiQuanLy || undefined,
+        soDienThoai: newWarehouseForm.soDienThoai || undefined,
+        trangThai: newWarehouseForm.trangThai || 'active',
+        ghiChu: newWarehouseForm.ghiChu || undefined,
+      });
       toast.success('Tạo kho thành công');
       setShowWarehouseModal(false);
-      setNewWarehouseName('');
+      setNewWarehouseForm({ maKho: '', tenKho: '', loaiKho: '', diaChi: '', dienTich: '', sucChua: '', nguoiQuanLy: '', soDienThoai: '', trangThai: 'active', ghiChu: '' });
     } catch (error: any) {
       toast.error(error instanceof Error ? error.message : 'Lỗi khi tạo kho');
     }
+  };
+
+  const openEditWarehouseModal = (warehouse: Warehouse) => {
+    setEditWarehouseForm({
+      maKho: warehouse.maKho || '',
+      tenKho: warehouse.tenKho || '',
+      loaiKho: warehouse.loaiKho || '',
+      diaChi: warehouse.diaChi || '',
+      dienTich: warehouse.dienTich != null ? String(warehouse.dienTich) : '',
+      sucChua: warehouse.sucChua != null ? String(warehouse.sucChua) : '',
+      nguoiQuanLy: warehouse.nguoiQuanLy || '',
+      soDienThoai: warehouse.soDienThoai || '',
+      trangThai: warehouse.trangThai || 'active',
+      ghiChu: warehouse.ghiChu || '',
+    });
+    setShowEditWarehouseModal(true);
+  };
+
+  const handleUpdateWarehouse = async () => {
+    if (!selectedWarehouse) return;
+    if (!editWarehouseForm.tenKho.trim()) {
+      toast.error('Tên kho là bắt buộc');
+      return;
+    }
+
+    try {
+      await updateWarehouse.mutateAsync({
+        id: selectedWarehouse.id,
+        data: {
+          maKho: editWarehouseForm.maKho || undefined,
+          tenKho: editWarehouseForm.tenKho,
+          loaiKho: editWarehouseForm.loaiKho || undefined,
+          diaChi: editWarehouseForm.diaChi || undefined,
+          dienTich: editWarehouseForm.dienTich ? parseFloat(editWarehouseForm.dienTich) : null,
+          sucChua: editWarehouseForm.sucChua ? parseFloat(editWarehouseForm.sucChua) : null,
+          nguoiQuanLy: editWarehouseForm.nguoiQuanLy || undefined,
+          soDienThoai: editWarehouseForm.soDienThoai || undefined,
+          trangThai: editWarehouseForm.trangThai,
+          ghiChu: editWarehouseForm.ghiChu || undefined,
+        },
+      });
+      toast.success('Cập nhật kho thành công');
+      setShowEditWarehouseModal(false);
+    } catch (error: any) {
+      toast.error(error instanceof Error ? error.message : 'Lỗi khi cập nhật kho');
+    }
+  };
+
+  const openCreateWarehouseModal = async () => {
+    setNewWarehouseForm({ maKho: '', tenKho: '', loaiKho: '', diaChi: '', dienTich: '', sucChua: '', nguoiQuanLy: '', soDienThoai: '', trangThai: 'active', ghiChu: '' });
+    setShowWarehouseModal(true);
+    // Prefill maKho from generate endpoint
+    try {
+      const code = await generateWarehouseCode.mutateAsync();
+      if (code) {
+        setNewWarehouseForm(prev => ({ ...prev, maKho: code }));
+      }
+    } catch { /* ignore — user can fill manually */ }
   };
 
   const handleDeleteWarehouse = async (id: string) => {
@@ -231,6 +318,40 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
     setShowMoveModal(true);
   };
 
+  const openEditLotProductModal = (product: LotProduct) => {
+    setEditingLotProduct(product);
+    setEditLotProductForm({
+      maKien: product.maKien ?? '',
+      soLuong: String(product.soLuong),
+      donViTinh: product.donViTinh,
+    });
+    setShowEditLotProductModal(true);
+  };
+
+  const handleUpdateLotProduct = async () => {
+    if (!editingLotProduct) return;
+    const soLuongVal = parseFloat(editLotProductForm.soLuong);
+    if (isNaN(soLuongVal) || soLuongVal < 0) {
+      toast.error('Số lượng không hợp lệ');
+      return;
+    }
+    try {
+      await updateLotProduct.mutateAsync({
+        id: editingLotProduct.id,
+        data: {
+          maKien: editLotProductForm.maKien,
+          soLuong: soLuongVal,
+          donViTinh: editLotProductForm.donViTinh || undefined,
+        },
+      });
+      toast.success('Cập nhật kiện thành công');
+      setShowEditLotProductModal(false);
+      setEditingLotProduct(null);
+    } catch (error: any) {
+      toast.error(error instanceof Error ? error.message : 'Lỗi khi cập nhật kiện');
+    }
+  };
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
@@ -252,7 +373,10 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
                 }`}
               >
                 <WarehouseIcon className="w-3.5 h-3.5" />
-                {warehouse.tenKho}
+                <span className="flex flex-col items-start leading-tight">
+                  <span>{warehouse.tenKho}</span>
+                  <span className="text-[10px] text-gray-400 font-normal">{warehouse.maKho}</span>
+                </span>
                 {warehouse.lots && warehouse.lots.length > 0 && (
                   <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
                     selectedWarehouse?.id === warehouse.id
@@ -265,7 +389,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
               </button>
             ))}
             <button
-              onClick={() => setShowWarehouseModal(true)}
+              onClick={openCreateWarehouseModal}
               className="whitespace-nowrap py-3 px-4 border-b-2 border-transparent font-medium text-sm text-green-600 hover:text-green-700 hover:border-green-400 hover:bg-green-50/50 transition-colors flex items-center gap-1.5"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -279,14 +403,37 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
       {selectedWarehouse && (
         <div className="bg-white rounded-lg shadow">
           {/* Warehouse Header */}
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 px-4 sm:px-6 py-4 border-b border-gray-200">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 px-4 sm:px-6 py-4 border-b border-gray-200">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg mt-0.5">
                 <WarehouseIcon className="w-5 h-5 text-blue-600" />
               </div>
-              <div>
+              <div className="space-y-1">
                 <h2 className="text-base font-semibold text-gray-900">{selectedWarehouse.tenKho}</h2>
-                <p className="text-xs text-gray-500">{selectedWarehouse.lots?.length || 0} lô</p>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                  <span className="font-mono">{selectedWarehouse.maKho}</span>
+                  {selectedWarehouse.diaChi && <span>📍 {selectedWarehouse.diaChi}</span>}
+                  {selectedWarehouse.loaiKho && <span>Loại: {selectedWarehouse.loaiKho}</span>}
+                  {selectedWarehouse.nguoiQuanLy && <span>QL: {selectedWarehouse.nguoiQuanLy}</span>}
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                  <span>{selectedWarehouse.lots?.length || 0} lô</span>
+                  <span>
+                    {(() => {
+                      const allLotProducts = selectedWarehouse.lots?.flatMap(l => l.lotProducts || []) || [];
+                      const inStock = allLotProducts.filter(lp => lp.soLuong > 0).length;
+                      const total = allLotProducts.length;
+                      return `${inStock} còn hàng / ${total} tổng kiện`;
+                    })()}
+                  </span>
+                  {selectedWarehouse.trangThai && (
+                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                      selectedWarehouse.trangThai === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {selectedWarehouse.trangThai === 'active' ? 'Đang hoạt động' : selectedWarehouse.trangThai}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
@@ -296,6 +443,13 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
               >
                 <Plus className="w-4 h-4" />
                 Thêm lô
+              </button>
+              <button
+                onClick={() => openEditWarehouseModal(selectedWarehouse)}
+                className="px-3 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <Pencil className="w-4 h-4" />
+                Sửa kho
               </button>
               <button
                 onClick={() => handleDeleteWarehouse(selectedWarehouse.id)}
@@ -329,7 +483,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
                       </div>
                       <div>
                         <h3 className="text-sm font-semibold text-gray-800">{lot.tenLo}</h3>
-                        <p className="text-xs text-gray-400">{lot.lotProducts?.length || 0} sản phẩm</p>
+                        <p className="text-xs text-gray-400">{lot.lotProducts?.length || 0} kiện</p>
                       </div>
                     </div>
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
@@ -356,16 +510,22 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
                   {/* Products in Lot */}
                   {lot?.lotProducts && lot.lotProducts.length > 0 ? (
                     <div className="overflow-x-auto">
-                      <table className="w-full min-w-[520px] table-fixed">
+                      <table className="w-full min-w-[700px] table-fixed">
                         <thead className="bg-gray-50">
                           <tr>
-                            <th className="w-[50%] px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            <th className="w-[18%] px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                              Mã kiện
+                            </th>
+                            <th className="w-[14%] px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                              Mã hàng hóa
+                            </th>
+                            <th className="w-[30%] px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                               Tên hàng hóa
                             </th>
-                            <th className="w-[30%] px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            <th className="w-[20%] px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                               Số lượng
                             </th>
-                            <th className="w-[20%] px-4 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            <th className="w-[18%] px-3 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
                               Hành động
                             </th>
                           </tr>
@@ -373,17 +533,30 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
                         <tbody className="divide-y divide-gray-100 bg-white">
                           {lot.lotProducts.map((product, idx) => (
                             <tr key={product.id} className={`hover:bg-blue-50/40 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
-                              <td className="px-4 py-3 text-sm text-gray-900 flex items-center gap-2">
-                                <Package className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                                {product.internationalProduct?.tenSanPham || '-'}
+                              <td className="px-3 py-3 text-sm text-gray-700 font-mono">
+                                {product.maKien ?? `${lot.tenLo}-${product.id.slice(-4)}`}
                               </td>
-                              <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                              <td className="px-3 py-3 text-sm text-gray-600 font-mono">
+                                {product.internationalProduct?.maSanPham || ''}
+                              </td>
+                              <td className="px-3 py-3 text-sm text-gray-900 flex items-center gap-2">
+                                <Package className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                {product.internationalProduct?.tenSanPham || ''}
+                              </td>
+                              <td className="px-3 py-3 text-sm font-medium text-gray-900">
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md text-xs font-semibold">
                                   {product.soLuong} {product.donViTinh}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-sm">
+                              <td className="px-3 py-3 text-sm">
                                 <div className="flex justify-center gap-2">
+                                  <button
+                                    onClick={() => openEditLotProductModal(product)}
+                                    className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                                    title="Sửa kiện"
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </button>
                                   <button
                                     onClick={() => openMoveModal(product)}
                                     className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
@@ -473,41 +646,133 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
       )}
 
       {/* Create Warehouse Modal */}
-      <Modal isOpen={showWarehouseModal} onClose={() => { setShowWarehouseModal(false); setNewWarehouseName(''); }} showBackdrop>
-          <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-96 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+      <Modal isOpen={showWarehouseModal} onClose={() => { setShowWarehouseModal(false); }} showBackdrop>
+          <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-[28rem] flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
               <h2 className="text-xl font-bold">Tạo kho mới</h2>
             </div>
-            <div className="p-6 overflow-y-auto flex-1">
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tên kho <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={newWarehouseName}
-                onChange={(e) => setNewWarehouseName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="Nhập tên kho"
-              />
+            <div className="p-6 overflow-y-auto flex-1 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Mã kho</label>
+                  <input type="text" value={newWarehouseForm.maKho} onChange={(e) => setNewWarehouseForm(f => ({ ...f, maKho: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Tự động" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tên kho <span className="text-red-500">*</span></label>
+                  <input type="text" value={newWarehouseForm.tenKho} onChange={(e) => setNewWarehouseForm(f => ({ ...f, tenKho: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Nhập tên kho" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Loại kho</label>
+                  <input type="text" value={newWarehouseForm.loaiKho} onChange={(e) => setNewWarehouseForm(f => ({ ...f, loaiKho: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Loại kho" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
+                  <select value={newWarehouseForm.trangThai} onChange={(e) => setNewWarehouseForm(f => ({ ...f, trangThai: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
+                    <option value="active">Đang hoạt động</option>
+                    <option value="inactive">Ngưng hoạt động</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Vị trí</label>
+                <input type="text" value={newWarehouseForm.diaChi} onChange={(e) => setNewWarehouseForm(f => ({ ...f, diaChi: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Vị trí kho" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Diện tích (m²)</label>
+                  <input type="number" value={newWarehouseForm.dienTich} onChange={(e) => setNewWarehouseForm(f => ({ ...f, dienTich: parseNumberInputStr(e.target.value) }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" placeholder="0" min="0" step="0.01" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Sức chứa</label>
+                  <input type="number" value={newWarehouseForm.sucChua} onChange={(e) => setNewWarehouseForm(f => ({ ...f, sucChua: parseNumberInputStr(e.target.value) }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" placeholder="0" min="0" step="1" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Người quản lý</label>
+                  <input type="text" value={newWarehouseForm.nguoiQuanLy} onChange={(e) => setNewWarehouseForm(f => ({ ...f, nguoiQuanLy: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Tên người quản lý" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Số điện thoại</label>
+                  <input type="text" value={newWarehouseForm.soDienThoai} onChange={(e) => setNewWarehouseForm(f => ({ ...f, soDienThoai: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" placeholder="SĐT" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
+                <textarea value={newWarehouseForm.ghiChu} onChange={(e) => setNewWarehouseForm(f => ({ ...f, ghiChu: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" rows={2} placeholder="Ghi chú" />
+              </div>
             </div>
-            <div className="flex flex-col sm:flex-row sm:justify-end gap-2">
-              <button
-                onClick={() => {
-                  setShowWarehouseModal(false);
-                  setNewWarehouseName('');
-                }}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Hủy
-              </button>
-              <button
-                onClick={handleCreateWarehouse}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Tạo mới
-              </button>
+            <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-200 shrink-0">
+              <button onClick={() => setShowWarehouseModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">Hủy</button>
+              <button onClick={handleCreateWarehouse} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">Tạo mới</button>
             </div>
+          </div>
+      </Modal>
+
+      {/* Edit Warehouse Modal */}
+      <Modal isOpen={showEditWarehouseModal} onClose={() => setShowEditWarehouseModal(false)} showBackdrop>
+          <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-[28rem] flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+              <h2 className="text-xl font-bold">Sửa kho</h2>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Mã kho</label>
+                  <input type="text" value={editWarehouseForm.maKho} onChange={(e) => setEditWarehouseForm(f => ({ ...f, maKho: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tên kho <span className="text-red-500">*</span></label>
+                  <input type="text" value={editWarehouseForm.tenKho} onChange={(e) => setEditWarehouseForm(f => ({ ...f, tenKho: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Loại kho</label>
+                  <input type="text" value={editWarehouseForm.loaiKho} onChange={(e) => setEditWarehouseForm(f => ({ ...f, loaiKho: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
+                  <select value={editWarehouseForm.trangThai} onChange={(e) => setEditWarehouseForm(f => ({ ...f, trangThai: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
+                    <option value="active">Đang hoạt động</option>
+                    <option value="inactive">Ngưng hoạt động</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Vị trí</label>
+                <input type="text" value={editWarehouseForm.diaChi} onChange={(e) => setEditWarehouseForm(f => ({ ...f, diaChi: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Diện tích (m²)</label>
+                  <input type="number" value={editWarehouseForm.dienTich} onChange={(e) => setEditWarehouseForm(f => ({ ...f, dienTich: parseNumberInputStr(e.target.value) }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" min="0" step="0.01" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Sức chứa</label>
+                  <input type="number" value={editWarehouseForm.sucChua} onChange={(e) => setEditWarehouseForm(f => ({ ...f, sucChua: parseNumberInputStr(e.target.value) }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" min="0" step="1" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Người quản lý</label>
+                  <input type="text" value={editWarehouseForm.nguoiQuanLy} onChange={(e) => setEditWarehouseForm(f => ({ ...f, nguoiQuanLy: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Số điện thoại</label>
+                  <input type="text" value={editWarehouseForm.soDienThoai} onChange={(e) => setEditWarehouseForm(f => ({ ...f, soDienThoai: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
+                <textarea value={editWarehouseForm.ghiChu} onChange={(e) => setEditWarehouseForm(f => ({ ...f, ghiChu: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" rows={2} />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-200 shrink-0">
+              <button onClick={() => setShowEditWarehouseModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">Hủy</button>
+              <button onClick={handleUpdateWarehouse} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">Cập nhật</button>
             </div>
           </div>
       </Modal>
@@ -634,6 +899,56 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
             </div>
           </div>
         </div>
+      </Modal>
+
+      {/* Edit Lot Product Modal */}
+      <Modal isOpen={showEditLotProductModal} onClose={() => { setShowEditLotProductModal(false); setEditingLotProduct(null); }} showBackdrop>
+          <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-96 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+              <h2 className="text-xl font-bold">Sửa kiện</h2>
+              {editingLotProduct && (
+                <span className="text-sm text-gray-400 font-mono">
+                  {editingLotProduct.internationalProduct?.maSanPham}
+                </span>
+              )}
+            </div>
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Mã kiện</label>
+                <input
+                  type="text"
+                  value={editLotProductForm.maKien}
+                  onChange={(e) => setEditLotProductForm(f => ({ ...f, maKien: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+                  placeholder="Mã kiện"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Số lượng <span className="text-red-500">*</span></label>
+                <input
+                  type="number"
+                  value={editLotProductForm.soLuong}
+                  onChange={(e) => setEditLotProductForm(f => ({ ...f, soLuong: parseNumberInputStr(e.target.value) }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                  placeholder="Số lượng"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Đơn vị tính</label>
+                <UnitSelect
+                  value={editLotProductForm.donViTinh}
+                  onChange={(val) => setEditLotProductForm(f => ({ ...f, donViTinh: val }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-200 shrink-0">
+              <button onClick={() => { setShowEditLotProductModal(false); setEditingLotProduct(null); }} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">Hủy</button>
+              <button onClick={handleUpdateLotProduct} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">Cập nhật</button>
+            </div>
+          </div>
       </Modal>
 
       {/* Move Product Modal */}
