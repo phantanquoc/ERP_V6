@@ -267,6 +267,13 @@ class WarehouseReceiptService {
         donViTinh: donViTinh || product.donViTinh || 'Kg',
       },
     });
+    // Auto-generate maKien from lot tenLo + last 4 chars of id
+    const lot = await prisma.lot.findUnique({ where: { id: lotId } });
+    const autoMaKien = `${lot?.tenLo ?? lotId.slice(-4)}-${lotProduct.id.slice(-4)}`;
+    lotProduct = await prisma.lotProduct.update({
+      where: { id: lotProduct.id },
+      data: { maKien: autoMaKien },
+    });
     return { id: lotProduct.id, soLuong: 0 };
   }
 }

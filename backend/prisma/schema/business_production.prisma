@@ -216,6 +216,7 @@ model LotProduct {
   internationalProductId String
   soLuong                Float
   donViTinh              String
+  maKien                 String?
   createdAt              DateTime             @default(now())
   updatedAt              DateTime             @updatedAt
   giaThanh               Float?               @default(100000)
@@ -225,6 +226,7 @@ model LotProduct {
   warehouseReceipts      WarehouseReceipt[]
   warehouseIssues        WarehouseIssue[]
 
+  @@unique([lotId, maKien])
   @@map("lot_products")
   @@schema("business")
 }

@@ -755,6 +755,12 @@ export class FinishedProductService {
               donViTinh: 'Kg',
             },
           });
+          // Auto-generate maKien from tenLo + last 4 chars of id
+          const autoMaKien = `${input.tenLo}-${lpRecord.id.slice(-4)}`;
+          lpRecord = await tx.lotProduct.update({
+            where: { id: lpRecord.id },
+            data: { maKien: autoMaKien },
+          });
         }
 
         const soLuongTruoc = lpRecord.soLuong;
