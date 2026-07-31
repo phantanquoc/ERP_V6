@@ -1,18 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Download, Edit, Eye, Trash2, FileText, Upload } from 'lucide-react';
+import { Plus, Download, Trash2 } from 'lucide-react';
 import debtService, { Debt, DebtSummary } from '../services/debtService';
 import { useSupplierOptions } from '../hooks/useSuppliers';
 import DatePicker from './DatePicker';
 import Modal from './Modal';
 import { parseNumberInputStr } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
-
-interface SupplierOption {
-  id: string;
-  maNhaCungCap: string;
-  tenNhaCungCap: string;
-}
 
 interface DebtManagementProps {
   month?: number;

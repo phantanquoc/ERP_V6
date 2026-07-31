@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Edit, Eye, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import warehouseService, { Warehouse, LotProduct } from '../services/warehouseService';
 import Modal from './Modal';
 import { parseNumberInput } from '../utils/numberInput';

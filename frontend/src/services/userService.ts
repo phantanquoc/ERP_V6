@@ -1,5 +1,4 @@
 import apiClient from './apiClient';
-import { User as UserType } from '../types/auth';
 
 interface PaginatedResponse<T> {
   data: T[];

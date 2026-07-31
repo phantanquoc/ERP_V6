@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Eye, Edit, Trash2, Calendar, DollarSign, FileText, Upload, Download } from 'lucide-react';
+import { Edit, Trash2, Calendar, FileText, Download } from 'lucide-react';
 import taxReportService, { TaxReport, TaxReportStatus, TaxReportInput } from '../services/taxReportService';
 import Modal from './Modal';
 import { parseNumberInput } from '../utils/numberInput';

@@ -234,7 +234,7 @@ class AuthService {
     }
   }
 
-  static async register(userData: RegisterRequest): Promise<AuthResponse> {
+  static async register(_userData: RegisterRequest): Promise<AuthResponse> {
     throw new Error('Đăng ký tài khoản hiện chưa được hỗ trợ');
   }
 

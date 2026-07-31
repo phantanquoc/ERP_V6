@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Loader2 } from 'lucide-react';
-import { privateFeedbackService, FeedbackType } from '../services/privateFeedbackService';
+import { FeedbackType } from '../services/privateFeedbackService';
 import { API_BASE_URL } from '../config/api';
 import FileUpload from './FileUpload';
-import { ModalForm, ModalFooter } from './ModalForm';
+import { ModalForm } from './ModalForm';
 
 interface PrivateFeedbackModalProps {
   isOpen: boolean;

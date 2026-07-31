@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
 import {
   Plus,
-  Edit,
   Trash2,
-  Eye,
   X,
   AlertCircle,
   CheckCircle,

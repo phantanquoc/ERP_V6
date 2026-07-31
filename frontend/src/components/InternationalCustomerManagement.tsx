@@ -1,13 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import DatePicker from './DatePicker';
-import { Plus, Edit, Trash2, Eye, MapPin, X, Download } from 'lucide-react';
+import { Plus, Trash2, MapPin, X, Download } from 'lucide-react';
 import TableFilter, { FilterField } from './TableFilter';
 import Modal from './Modal';
 import { parseNumberInput } from '../utils/numberInput';
 import internationalCustomerService, {
   InternationalCustomer,
-  CreateInternationalCustomerRequest,
-  UpdateInternationalCustomerRequest
+  CreateInternationalCustomerRequest
 } from '../services/internationalCustomerService';
 import { useCustomers, customerKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';

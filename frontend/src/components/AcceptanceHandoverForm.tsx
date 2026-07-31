@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Plus, Trash2, X } from 'lucide-react';
 import FileUpload from './FileUpload';
 import Modal from './Modal';

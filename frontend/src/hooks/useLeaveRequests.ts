@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import leaveRequestService, { LeaveRequest, CreateLeaveRequestData } from '../services/leaveRequestService';
+import leaveRequestService, { CreateLeaveRequestData } from '../services/leaveRequestService';
 
 // Query keys for cache management
 export const leaveRequestKeys = {
@@ -34,7 +34,7 @@ export const useMyLeaveRequests = (filters: LeaveRequestFilters = {}) => {
   
   return useQuery({
     queryKey: leaveRequestKeys.myList({ page, limit, status }),
-    queryFn: () => leaveRequestService.getMyLeaveRequests({ page, limit, status }),
+    queryFn: () => leaveRequestService.getAllLeaveRequests({ page, limit, status }),
   });
 };
 

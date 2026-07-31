@@ -2,9 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Users,
   Plus,
-  Download,
-  Edit,
-  Eye,
   Trash2,
   Lock,
   Unlock,
@@ -67,12 +64,6 @@ interface FormData {
   secondaryDepartments: SecondaryDeptEntry[];
   supervisor1Id?: string;
   supervisor2Id?: string;
-}
-
-interface Department {
-  id: string;
-  name: string;
-  code: string;
 }
 
 interface SubDepartment {
@@ -389,7 +380,7 @@ const UserManagement: React.FC = () => {
           return;
         }
 
-        const newUser = await userService.createUser({
+        await userService.createUser({
           email: formData.email,
           firstName: formData.firstName,
           lastName: formData.lastName,
@@ -690,11 +681,7 @@ const UserManagement: React.FC = () => {
               <div className="mt-6 pt-6 border-t border-gray-200">
                 <h3 className="text-lg font-semibold text-gray-800 mb-4">Bộ phận phụ</h3>
                 {(() => {
-                  const list = selectedUser.secondaryDepartments?.length
-                    ? selectedUser.secondaryDepartments
-                    : selectedUser.secondaryDepartmentId
-                      ? [{ departmentName: selectedUser.secondaryDepartmentName, subDepartmentName: selectedUser.secondarySubDepartmentName, role: selectedUser.secondaryRole ?? '' }]
-                      : [];
+                  const list = selectedUser.secondaryDepartments ?? [];
                   if (list.length === 0) return <p className="text-sm text-gray-400 italic">Không có bộ phận phụ</p>;
                   return (
                     <div className="space-y-2">

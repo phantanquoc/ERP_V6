@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Eye, X, Upload, Settings, Save } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Settings, Save } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import Modal from './Modal';
 import ConfirmDeleteModal from './common/ConfirmDeleteModal';
@@ -283,15 +283,6 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
     }
   };
 
-  // Convert criteria codes to text descriptions
-  const getCriteriaText = (codes: string): string => {
-    if (!codes) return '';
-    const codeArray = codes.split(',').map(c => parseInt(c.trim())).filter(c => !isNaN(c));
-    return codeArray.map(code => {
-      const criterion = criteria.find(c => c.code === code);
-      return criterion ? `${code}. ${criterion.description}` : `${code}. (Không tìm thấy)`;
-    }).join('; ');
-  };
 
   const formatDateTime = (datetime: string) => {
     if (!datetime) return '-';
@@ -361,7 +352,9 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
       setIsEditing(false);
       setSelectedEvaluation(null);
 
-      const nguoiThucHien = user?.employeeCode ?? '';
+      const nguoiThucHien = user
+        ? `${user.lastName || ''} ${user.firstName || ''}`.trim()
+        : '';
 
       // Batch code is now selected from schedule — no auto-generation
       setFormData({
@@ -399,7 +392,9 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
     setIsEditing(false);
     setSelectedEvaluation(null);
 
-    const nguoiThucHien = user?.employeeCode ?? '';
+    const nguoiThucHien = user
+      ? `${user.lastName || ''} ${user.firstName || ''}`.trim()
+      : '';
 
     // ngaySanXuat is the production day, which is NOT the calendar date for the
     // after-midnight batches (MC-13..MC-16 run 00:30–05:00 the next morning). Advance
@@ -974,7 +969,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                               type="button"
                               onMouseDown={(e) => {
                                 e.preventDefault();
-                                handleNguoiThucHienSelect(employee.maNhanVien);
+                                handleNguoiThucHienSelect(employee.name);
                               }}
                               className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-blue-50 focus:bg-blue-50"
                             >

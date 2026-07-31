@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Settings, Shield, History, Clock, LogOut, ChevronDown } from 'lucide-react';
+import { User, Shield, History, Clock, LogOut, ChevronDown } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import PersonalInfoModal from './PersonalInfoModal';
 import LoginHistoryModal from './LoginHistoryModal';

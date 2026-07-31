@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Calculator, TrendingUp, FileText, DollarSign } from 'lucide-react';
 import TaxReportTab from '../../components/TaxReportTab';
 import taxReportService, { TaxReport, TaxReportStatus } from '../../services/taxReportService';

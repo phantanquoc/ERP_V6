@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Save } from 'lucide-react';
-import workShiftService, { WorkShift } from '@services/workShiftService';
+import workShiftService from '@services/workShiftService';
 import Modal from './Modal';
 
 interface Props {

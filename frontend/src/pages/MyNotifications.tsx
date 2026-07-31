@@ -16,7 +16,6 @@ import { AppNotification } from '../services/notificationService';
 import {
   NOTIFICATION_TYPE_GROUPS,
   detectDatePreset,
-  getPresetDates,
 } from '../components/myNotificationsUtils';
 
 // ---- URL state helpers --------------------------------------------------

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import DatePicker from './DatePicker';
 import { taskService, TaskPriority, CreateTaskData } from '../services/taskService';
 import { Calendar, Users, FileText, AlertCircle } from 'lucide-react';

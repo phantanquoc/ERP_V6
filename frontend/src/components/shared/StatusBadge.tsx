@@ -1,5 +1,3 @@
-import React from 'react';
-
 export type BadgeTone = 'green' | 'blue' | 'yellow' | 'red' | 'gray';
 
 const TONE_CLASSES: Record<BadgeTone, string> = {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Eye, Edit, Trash2, Package, Calculator, Download, AlertCircle, CheckCircle } from 'lucide-react';
+import { Edit, Trash2, Package, Calculator, Download, AlertCircle, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import TableFilter, { FilterField } from './TableFilter';
 import ConfirmDialog from './common/ConfirmDialog';
@@ -75,7 +75,7 @@ interface OrderManagementProps {
   customerType?: 'Quốc tế' | 'Nội địa' | 'all';
 }
 
-const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, customerType }) => {
+const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
   const { user } = useAuth();
   const canEdit = user?.role === 'ADMIN' || user?.role === 'DEPARTMENT_HEAD';
   const [filterValues, setFilterValues] = useState<Record<string, string>>({
@@ -111,7 +111,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, c
 
   const queryClient = useQueryClient();
   const filterCustomerType = customerType === 'all' ? undefined : customerType;
-  const { data: ordersData, isLoading: loading, refetch: refetchOrders } = useOrders({
+  const { data: ordersData, isLoading: loading } = useOrders({
     page: currentPage,
     limit,
     search: filterValues._search || undefined,

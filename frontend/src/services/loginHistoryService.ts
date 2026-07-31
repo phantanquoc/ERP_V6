@@ -11,13 +11,6 @@ export interface LoginHistory {
   loginAt: string;
 }
 
-interface LoginHistoryResponse {
-  success: boolean;
-  data: LoginHistory[];
-  total: number;
-  message?: string;
-}
-
 class LoginHistoryService {
   /**
    * Get login history for the current user

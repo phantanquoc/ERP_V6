@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Edit, Trash2, Eye, FileText, X, Download, Warehouse, SlidersHorizontal } from 'lucide-react';
+import { Trash2, Eye, FileText, X, Download, Warehouse, SlidersHorizontal } from 'lucide-react';
 import finishedProductService, { FinishedProduct } from '../services/finishedProductService';
 import FinishedProductModal from './FinishedProductModal';
 import FinishedProductViewModal from './FinishedProductViewModal';

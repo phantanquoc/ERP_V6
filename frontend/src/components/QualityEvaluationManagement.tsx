@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Edit, Trash2, Eye, Download } from 'lucide-react';
+import { Edit, Trash2, Download } from 'lucide-react';
 import qualityEvaluationService, { QualityEvaluation } from '../services/qualityEvaluationService';
 import { useAuth } from '../contexts/AuthContext';
 import QualityEvaluationModal from './QualityEvaluationModal';
@@ -20,11 +20,9 @@ const QualityEvaluationManagement: React.FC<QualityEvaluationManagementProps> = 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [selectedEvaluation, setSelectedEvaluation] = useState<QualityEvaluation | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const itemsPerPage = 10;
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maChien: '', tenHangHoa: '' });
 

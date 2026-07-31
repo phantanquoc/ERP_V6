@@ -65,8 +65,6 @@ const SPOOF_COOLDOWN_FRAMES  = 15;     // keep spoof flag N frames after last de
 const LM_NOSE_TIP    = 1;
 const LM_L_EYE_INNER = 133;
 const LM_R_EYE_INNER = 362;
-const LM_L_EYE_OUTER = 33;
-const LM_R_EYE_OUTER = 263;
 const LM_L_CHEEK     = 234;
 const LM_R_CHEEK     = 454;
 const LM_FOREHEAD    = 10;
@@ -198,7 +196,7 @@ export class ScreenSpoofDetector {
 
   // Pixel-analysis state
   private brightnessHist: number[] = [];
-  private prevScore = 0;
+  private _prevScore = 0;
   private reasons: string[] = [];
 
   // Landmark parallax state

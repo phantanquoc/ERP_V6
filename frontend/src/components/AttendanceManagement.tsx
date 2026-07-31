@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Plus, Edit2, Trash2, Download, Settings, Table, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import attendanceService from '@services/attendanceService';
 import { useEmployees, useAttendanceByDateRange, attendanceKeys } from '../hooks';

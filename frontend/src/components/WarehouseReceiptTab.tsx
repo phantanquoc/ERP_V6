@@ -257,7 +257,6 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
     }
   };
 
-  const searchTerm = (filterValues._search || '').toLowerCase();
   const filteredReceipts = receipts.filter((r) => {
     // Period filter
     if (month || year) {

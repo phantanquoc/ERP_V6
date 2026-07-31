@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { X, Calendar, FileText, Eye, Clock, User, Users, Flag, AlertCircle, Download, Edit2, Trash2, RefreshCw, Search } from 'lucide-react';
+import { X, Calendar, FileText, Clock, User, Users, Flag, AlertCircle, Download, Trash2, RefreshCw, Search } from 'lucide-react';
 import workPlanService, { WorkPlan, WorkPlanPriority, WorkPlanStatus } from '../services/workPlanService';
 import { useWorkPlans, useMyWorkPlans, useDeleteWorkPlan, useUpdateWorkPlan } from '../hooks/useWorkPlans';
 import { useAuth } from '../contexts/AuthContext';

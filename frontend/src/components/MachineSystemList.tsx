@@ -63,12 +63,6 @@ const MACHINE_SYSTEM_CATEGORIES: { value: MachineSystemCategory; label: string }
   { value: 'KHAC', label: 'Khác' },
 ];
 
-const DETAIL_SORTS: { value: NonNullable<MachineSystemDetailFilters['sortBy']>; label: string }[] = [
-  { value: 'maChiTiet', label: 'Mã chi tiết' },
-  { value: 'tenChiTiet', label: 'Tên chi tiết' },
-  { value: 'loaiChiTiet', label: 'Loại' },
-  { value: 'thuTu', label: 'Thứ tự' },
-];
 
 const Combobox = ({
   value,
@@ -216,13 +210,13 @@ const MachineSystemList = () => {
     sortBy: 'maHeThong',
     sortOrder: 'asc',
   });
-  const [detailFilters, setDetailFilters] = useState<MachineSystemDetailFilters>({
+  const [detailFilters] = useState<MachineSystemDetailFilters>({
     page: 1,
     limit: 10,
     sortBy: 'thuTu',
     sortOrder: 'asc',
   });
-  const [systemPageIndex, setSystemPageIndex] = useState(0);
+  const [systemPageIndex] = useState(0);
 
   const systemsQuery = useMachineSystems(systemFilters);
   const allSystemsQuery = useMachineSystems({ page: 1, limit: 200, hoatDong: true, sortBy: 'maHeThong', sortOrder: 'asc' });
@@ -302,7 +296,7 @@ const MachineSystemList = () => {
   const nextCodeQuery = useNextMachineSystemCode(
     systemModal?.mode === 'create' ? systemForm.loaiHeThong : undefined
   );
-  const [fetchedCode, setFetchedCode] = useState('');
+  const [, setFetchedCode] = useState('');
 
   useEffect(() => {
     if (systemModal?.mode === 'create' && nextCodeQuery.data?.data?.code) {

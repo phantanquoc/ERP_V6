@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { quotationService, CreateQuotationRequest } from '../services/quotationService';
+import { quotationService } from '../services/quotationService';
 import materialStandardService, { MaterialStandard } from '../services/materialStandardService';
 import { QuotationRequest } from '../services/quotationRequestService';
 import warehouseService from '../services/warehouseService';
@@ -214,7 +214,7 @@ export function useQuotationCalculator(
         const codeResponse = await quotationService.generateQuotationCode();
         const baseCode = codeResponse.data.code;
 
-        const loadedTabs = await Promise.all(items.map(async (item: any, index: number) => {
+        const loadedTabs = await Promise.all(items.map(async (_item: any, index: number) => {
           const savedProduct = regularProducts[index];
           const maBaoGia = savedProduct?.maBaoGia || `${baseCode}-${index + 1}`;
           if (savedProduct) {

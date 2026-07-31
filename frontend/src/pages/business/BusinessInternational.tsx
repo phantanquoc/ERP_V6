@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Globe,
@@ -67,7 +67,7 @@ const BusinessInternational = () => {
     cao: 0
   });
 
-  const [loading, setLoading] = useState(false);
+  const [_loading, setLoading] = useState(false);
 
   // Load data on mount and when month/year changes
   useEffect(() => {

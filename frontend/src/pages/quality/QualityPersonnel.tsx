@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Users,
@@ -79,7 +79,7 @@ const QualityPersonnel = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [evaluations, setEvaluations] = useState<EmployeeEvaluation[]>([]);
   const [attendances, setAttendances] = useState<AttendanceRecord[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [_loading, setLoading] = useState(false);
 
   // Evaluation filters
   const currentDate = new Date();
