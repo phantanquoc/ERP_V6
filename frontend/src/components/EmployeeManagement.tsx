@@ -156,6 +156,7 @@ const EmployeeManagement: React.FC = () => {
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [, setUsers] = useState<any[]>([]);
   const [formData, setFormData] = useState<FormData>({
     employeeCode: '',
     positionId: '',

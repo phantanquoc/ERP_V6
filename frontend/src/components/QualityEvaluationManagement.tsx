@@ -23,6 +23,7 @@ const QualityEvaluationManagement: React.FC<QualityEvaluationManagementProps> = 
   const [isEditing, setIsEditing] = useState(false);
   const [selectedEvaluation, setSelectedEvaluation] = useState<QualityEvaluation | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const itemsPerPage = 10;
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maChien: '', tenHangHoa: '' });
 
