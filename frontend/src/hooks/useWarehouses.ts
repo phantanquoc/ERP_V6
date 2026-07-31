@@ -6,6 +6,7 @@ import warehouseService, {
   AddProductToLotData,
   MoveProductData,
   UpdateLotProductData,
+  type WarehouseReceiptHistory,
 } from '../services/warehouseService';
 
 // Query keys for cache management
@@ -16,6 +17,9 @@ export const warehouseKeys = {
   details: () => [...warehouseKeys.all, 'detail'] as const,
   detail: (id: string) => [...warehouseKeys.details(), id] as const,
   lotProducts: () => [...warehouseKeys.all, 'lotProducts'] as const,
+  /** Prefix for every receipt-history query — invalidate this after any receipt mutation. */
+  receiptHistories: () => [...warehouseKeys.all, 'receiptHistory'] as const,
+  receiptHistory: (lotProductId: string) => [...warehouseKeys.receiptHistories(), lotProductId] as const,
 };
 
 // Hook to get all warehouses
@@ -176,6 +180,19 @@ export const useGenerateWarehouseCode = () => {
       const code = (res as any)?.data?.data?.code || (res as any)?.data?.code;
       return code as string | undefined;
     },
+  });
+};
+
+// Hook to get receipt history for a lot product (lazy — only fetches when lotProductId is set)
+export const useReceiptHistory = (lotProductId: string | null) => {
+  return useQuery<WarehouseReceiptHistory[]>({
+    queryKey: warehouseKeys.receiptHistory(lotProductId ?? ''),
+    queryFn: async () => {
+      // apiClient already unwraps to the JSON body, so the array is at .data
+      const res = await warehouseService.getReceiptHistory(lotProductId!);
+      return res.data ?? [];
+    },
+    enabled: !!lotProductId,
   });
 };
 

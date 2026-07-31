@@ -18,6 +18,7 @@ export interface WarehouseReceipt {
   soLuongSau: number;   // Số lượng tồn kho sau khi nhập
   donViTinh: string;
   ghiChu?: string;
+  mucDich?: string | null;
   isLocked?: boolean;
   createdAt: string;
   updatedAt: string;
@@ -37,7 +38,9 @@ export interface CreateWarehouseReceiptData {
   soLuongNhap: number;
   donViTinh: string;
   ghiChu?: string;
+  mucDich?: string;
   supplyRequestId?: string;
+  loaiSanPham?: string;
 }
 
 const warehouseReceiptService = {

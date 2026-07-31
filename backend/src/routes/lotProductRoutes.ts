@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import lotProductController from '@controllers/lotProductController';
+import { getLotProductReceiptHistory } from '@controllers/warehouseReceiptController';
 
 const {
   getAllLotProducts,
@@ -22,6 +23,7 @@ router.get('/kien', deviceOrJwtAuth('DATA_ENTRY'), getKienByProductAndLot);
 router.get('/', authenticate, getAllLotProducts);
 router.post('/', authenticate, addProductToLot);
 router.put('/move', authenticate, moveProductBetweenLots);
+router.get('/:lotProductId/receipt-history', authenticate, getLotProductReceiptHistory);
 router.put('/:id', authenticate, updateProductQuantity);
 router.delete('/:id', authenticate, removeProductFromLot);
 
