@@ -410,7 +410,9 @@ const MaterialStandardManagement: React.FC = () => {
                     <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">{standard.tenDinhMuc}</td>
                     <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{summarizeInputItems(standard)}</td>
                     <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
-                      {standard.kgNguyenLieuTren1KgThanhPham ?? '—'}
+                      {standard.kgNguyenLieuTren1KgThanhPham != null
+                        ? Number(standard.kgNguyenLieuTren1KgThanhPham).toFixed(2)
+                        : '—'}
                     </td>
                     <td className="px-6 py-4 text-center border-r border-gray-200">
                       {standard.loaiDinhMuc ? (
@@ -678,7 +680,7 @@ const MaterialStandardManagement: React.FC = () => {
                           )}
                         </div>
                         <div className="w-full sm:w-32">
-                          <label className="block text-xs font-medium text-gray-700 mb-1">Tỉ lệ (%)</label>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Kg nguyên liệu</label>
                           <input
                             type="number"
                             step="0.01"
@@ -795,7 +797,7 @@ const MaterialStandardManagement: React.FC = () => {
                           )}
                         </div>
                         <div className="w-full sm:w-32">
-                          <label className="block text-xs font-medium text-gray-700 mb-1">Tỉ lệ (%)</label>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Kg thành phẩm</label>
                           <input
                             type="number"
                             step="0.01"
@@ -885,7 +887,7 @@ const MaterialStandardManagement: React.FC = () => {
                     <label className="block text-sm font-medium text-gray-500">Khối lượng thu hồi</label>
                     <p className="mt-1 text-sm text-gray-900">
                       {selectedStandard.kgNguyenLieuTren1KgThanhPham
-                        ? `${selectedStandard.kgNguyenLieuTren1KgThanhPham} kg nguyên liệu → 1 kg thành phẩm`
+                        ? `${Number(selectedStandard.kgNguyenLieuTren1KgThanhPham).toFixed(2)} kg nguyên liệu → 1 kg thành phẩm`
                         : '—'}
                     </p>
                   </div>
@@ -925,7 +927,7 @@ const MaterialStandardManagement: React.FC = () => {
                         <tr>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">STT</th>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tên nguyên liệu</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tỉ lệ (%)</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Kg nguyên liệu</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
@@ -933,7 +935,7 @@ const MaterialStandardManagement: React.FC = () => {
                           <tr key={index}>
                             <td className="px-4 py-3 text-sm text-gray-900">{index + 1}</td>
                             <td className="px-4 py-3 text-sm text-gray-900">{item.tenNguyenLieu}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">{item.tiLe}%</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{item.tiLe} kg</td>
                           </tr>
                         ))}
                       </tbody>
@@ -954,7 +956,7 @@ const MaterialStandardManagement: React.FC = () => {
                         <tr>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">STT</th>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tên thành phẩm</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tỉ lệ (%)</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Kg thành phẩm</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
@@ -962,7 +964,7 @@ const MaterialStandardManagement: React.FC = () => {
                           <tr key={index}>
                             <td className="px-4 py-3 text-sm text-gray-900">{index + 1}</td>
                             <td className="px-4 py-3 text-sm text-gray-900">{item.tenThanhPham}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">{item.tiLe}%</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{item.tiLe} kg</td>
                           </tr>
                         ))}
                       </tbody>
