@@ -207,7 +207,7 @@ const ProductionManagement = () => {
       }
 
       if (warehouseRes.status === 'fulfilled') {
-        const warehouses = warehouseRes.value.data?.data || warehouseRes.value.data || [];
+        const warehouses = (warehouseRes.value as any).data?.data || (warehouseRes.value as any).data || [];
         const allLots = warehouses.flatMap((w: any) => w.lots || []);
         const coHang = warehouses.filter((w: any) => (w.lots || []).some((l: any) => (l.lotProducts || []).length > 0)).length;
         const loTrong = allLots.filter((l: any) => !(l.lotProducts || []).length).length;
@@ -226,7 +226,7 @@ const ProductionManagement = () => {
       };
 
       if (receiptRes.status === 'fulfilled') {
-        const receipts = receiptRes.value.data || [];
+        const receipts = (receiptRes.value as any).data || [];
         setReceiptIssueStats(prev => ({
           ...prev,
           totalReceipts: receipts.length,
@@ -235,7 +235,7 @@ const ProductionManagement = () => {
       }
 
       if (issueRes.status === 'fulfilled') {
-        const issues = issueRes.value.data || [];
+        const issues = (issueRes.value as any).data || [];
         setReceiptIssueStats(prev => ({
           ...prev,
           totalIssues: issues.length,
@@ -244,7 +244,7 @@ const ProductionManagement = () => {
       }
 
       if (supplyRes.status === 'fulfilled') {
-        const supplies = supplyRes.value.data || [];
+        const supplies = (supplyRes.value as any).data || [];
         const daCungCap = supplies.filter((s: any) => s.trangThai === 'Đã cung cấp').length;
         setSupplyStats({
           total: supplies.length,

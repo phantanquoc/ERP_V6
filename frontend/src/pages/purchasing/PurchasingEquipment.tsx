@@ -46,6 +46,7 @@ interface PurchaseRequest {
   supplyRequestId?: string;
   createdAt: string;
   updatedAt: string;
+  items?: { id: string; tenHangHoa: string; soLuong: number; donViTinh: string; phanLoai: string; giaDuKien?: number; nhaCungCapId?: string | null }[];
 }
 
 const VALID_TABS = ['suppliers', 'orderList', 'purchaseRequestList'] as const;
@@ -77,7 +78,7 @@ const PurchasingEquipment = () => {
   useEffect(() => {
     const fetchSupplierStats = async () => {
       try {
-        const response = await supplierService.getAllSuppliers(1, 1000, undefined, 'Thiết bị');
+        const response = await supplierService.getAllSuppliers(1, 1000, undefined, 'Thiết bị') as any;
         const allSuppliers = response.data || [];
         setCardSupplierStats({
           total: allSuppliers.length,
@@ -95,7 +96,7 @@ const PurchasingEquipment = () => {
   useEffect(() => {
     const fetchPRStats = async () => {
       try {
-        const response = await purchaseRequestService.getAllPurchaseRequests(1, 1000, undefined, selectedMonth, selectedYear);
+        const response = await purchaseRequestService.getAllPurchaseRequests(1, 1000, undefined, selectedMonth, selectedYear) as any;
         const allPR = response.data || [];
 
         // Helper: PR matches Thiet bi category if at least 1 item has supplier.phanLoaiNCC === 'Thiết bị'
@@ -174,7 +175,7 @@ const PurchasingEquipment = () => {
       setSupplierLoading(true);
       const response = await supplierService.getAllSuppliers(supplierPage, 10, supplierSearch || undefined, 'Thiết bị');
       setSuppliers(response.data || []);
-      setSupplierTotalPages(response.totalPages || 1);
+      setSupplierTotalPages(response.pagination?.totalPages || 1);
     } catch (error) {
       console.error('Error fetching suppliers:', error);
     } finally {
@@ -189,7 +190,8 @@ const PurchasingEquipment = () => {
 
   const openAddSupplierModal = async () => {
     try {
-      const { code } = await supplierService.generateCode('Thiết bị');
+      const codeRes = await supplierService.generateCode('Thiết bị') as any;
+      const code = codeRes.data?.code || codeRes.code;
       const userStr = localStorage.getItem('user');
       const user = userStr ? JSON.parse(userStr) : null;
       setSupplierFormData({

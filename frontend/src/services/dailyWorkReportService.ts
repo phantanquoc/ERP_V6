@@ -173,7 +173,7 @@ class DailyWorkReportService {
   async getSubmittedCount(): Promise<number> {
     try {
       const response = await apiClient.get('/daily-work-reports/submitted-count');
-      return response.data?.count ?? 0;
+      return (response.data as { count: number })?.count ?? 0;
     } catch (error: any) {
       throw new Error(error instanceof Error ? error.message : 'Không thể tải số báo cáo');
     }

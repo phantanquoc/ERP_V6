@@ -206,7 +206,7 @@ export function useQuotationCalculator(
     const items = getItems();
 
     try {
-      const response = await quotationCalculatorService.getByQuotationRequestId(quotationRequest.id);
+      const response = await quotationCalculatorService.getByQuotationRequestId(quotationRequest.id) as any;
       if (response.success && response.data) {
         const calculator = response.data;
         const regularProducts = calculator.products.filter((p: any) => !p.isAdditionalCost);
@@ -867,7 +867,7 @@ export function useQuotationCalculator(
     if (!productName && !materialName) { alert('Vui lòng chọn sản phẩm đầu ra hoặc nguyên liệu đầu vào trước'); return; }
     setInventoryCheckResult({ show: true, loading: true, productName: productName || '', materialName: materialName || '', items: [], materialItems: [] });
     try {
-      const response = await warehouseService.getAllLotProducts();
+      const response = await warehouseService.getAllLotProducts() as any;
       const lotProducts = response.data?.data || response.data || [];
       const matchedProducts = productName ? lotProducts.filter((lp: any) => lp.internationalProduct?.tenSanPham === productName) : [];
       const items = matchedProducts.map((lp: any) => ({ tenKho: lp.lot?.warehouse?.tenKho || 'N/A', tenLo: lp.lot?.tenLo || 'N/A', soLuong: lp.soLuong || 0, giaThanh: lp.giaThanh || 0, donViTinh: lp.donViTinh || 'KG' }));

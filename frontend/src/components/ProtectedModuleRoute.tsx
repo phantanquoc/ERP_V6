@@ -9,10 +9,9 @@ interface ProtectedModuleRouteProps {
   fallbackPath?: string;
 }
 
-const ProtectedModuleRoute: React.FC<ProtectedModuleRouteProps> = ({ 
-  children, 
-  module, 
-  _fallbackPath = '/dashboard'
+const ProtectedModuleRoute: React.FC<ProtectedModuleRouteProps> = ({
+  children,
+  module,
 }) => {
   const { user, isAuthenticated } = useAuth();
 

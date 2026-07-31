@@ -32,7 +32,7 @@ class InternalInspectionService {
        const response = await apiClient.get('/internal-inspections', {
         params,
       });
-       return response.data || [];
+       return (response.data as InternalInspection[]) || [];
     } catch (error) {
       console.error('Error fetching inspections:', error);
       throw error;
@@ -83,7 +83,7 @@ class InternalInspectionService {
        const response = await apiClient.get('/internal-inspections', {
         params: { search: query },
       });
-       return response.data || [];
+       return (response.data as InternalInspection[]) || [];
     } catch (error) {
       console.error('Error searching inspections:', error);
       throw error;

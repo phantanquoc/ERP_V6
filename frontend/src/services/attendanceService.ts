@@ -9,14 +9,24 @@ export interface AttendanceRecord {
   employeeCode: string;
   employeeName: string;
   positionName: string;
+  positionId?: string;
   departmentId: string | null;
   departmentName: string | null;
   attendanceDate: string;
   checkInTimes: string[];
   checkOutTimes: string[];
+  regularCheckInTimes?: string[];
+  regularCheckOutTimes?: string[];
+  overtimeCheckInTimes?: string[];
+  overtimeCheckOutTimes?: string[];
   workHours: number;
+  regularHours?: number;
+  overtimeHours?: number;
   status: 'PRESENT' | 'LATE' | 'ABSENT' | 'ON_LEAVE' | 'OVERTIME';
+  regularStatus?: 'PRESENT' | 'LATE' | 'ABSENT' | 'ON_LEAVE' | 'OVERTIME';
+  hasOvertime?: boolean;
   notes: string | null;
+  overtimeNotes?: string | null;
 }
 
 export interface IndividualAttendanceRecord {
@@ -57,7 +67,7 @@ class AttendanceService {
       const response = await apiClient.get('/attendances/date-range', {
         params: { startDate, endDate },
       });
-      return response.data || [];
+      return (response.data || []) as AttendanceRecord[];
     } catch (error) {
       console.error('Error fetching attendance by date range:', error);
       throw error;
@@ -72,7 +82,7 @@ class AttendanceService {
           endDate: toLocalIsoBoundary(endDate, 'end'),
         },
       });
-      return response.data || [];
+      return (response.data || []) as IndividualAttendanceRecord[];
     } catch (error) {
       console.error('Error fetching employee attendance:', error);
       throw error;
@@ -132,7 +142,7 @@ class AttendanceService {
         },
       });
 
-      const records = response.data || [];
+      const records = (response.data || []) as IndividualAttendanceRecord[];
       return records.length > 0 ? records[0] : null;
     } catch (error) {
       console.error('Error fetching today attendance:', error);
@@ -153,7 +163,7 @@ class AttendanceService {
         },
       });
 
-      return response.data || [];
+      return (response.data || []) as IndividualAttendanceRecord[];
     } catch (error) {
       console.error('Error fetching today attendances:', error);
       return [];

@@ -196,7 +196,6 @@ export class ScreenSpoofDetector {
 
   // Pixel-analysis state
   private brightnessHist: number[] = [];
-  private _prevScore = 0;
   private reasons: string[] = [];
 
   // Landmark parallax state

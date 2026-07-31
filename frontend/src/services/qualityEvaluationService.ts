@@ -29,6 +29,9 @@ export interface QualityEvaluation {
   doNgot: string;
   doGion: string;
   
+  // Đánh giá tổng quan
+  danhGiaTongQuan?: string;
+
   // Đề xuất điều chỉnh cải tiến
   deXuatDieuChinh: string;
   

@@ -43,7 +43,7 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
   const fetchWarehouses = async () => {
     setLoading(true);
     try {
-      const response = await warehouseService.getAllWarehouses();
+      const response = await warehouseService.getAllWarehouses() as any;
       console.log('Warehouses response:', response);
 
       let warehouseData: Warehouse[] = [];

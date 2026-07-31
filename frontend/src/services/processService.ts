@@ -7,7 +7,10 @@ export interface ProcessFlowchartCost {
   id?: string;
   loaiChiPhi: string;  // Nhân công/Vật tư/Phụ liệu
   tenChiPhi?: string;  // Tên chi phí (do user nhập)
+  dvt?: string;        // Đơn vị tính (alias for donVi)
   donVi?: string;      // Người/Kg/Cái
+  nguoiCaiDoi?: string; // Người cải đổi
+  fileUrl?: string;    // File đính kèm cho chi phí
   dinhMucLaoDong?: number; // Định mức lao động (do user nhập khi tạo định mức)
   donViDinhMucLaoDong?: string; // Đơn vị định mức lao động (Người/giờ, Kg/giờ, v.v.)
   soLuongNguyenLieu?: number; // Số lượng nguyên liệu cần hoàn thành (Kg)
@@ -38,6 +41,8 @@ export interface ProcessFlowchartSection {
   noiDungCongViec?: string;
   fileUrl?: string;    // File đính kèm cho phân đoạn (legacy, kept for backward compat)
   stt?: number;
+  tiepNhanNguyenLieu?: boolean; // Phân đoạn tiếp nhận nguyên liệu
+  loaiChiPhi?: string; // Loại chi phí áp dụng cho phân đoạn
   costs: ProcessFlowchartCost[];
   files?: SectionFile[];
 }

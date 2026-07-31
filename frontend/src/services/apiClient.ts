@@ -37,6 +37,7 @@ export interface ApiResponse<T> {
 interface RequestOptions extends RequestInit {
   headers?: Record<string, string>;
   params?: Record<string, any>;
+  responseType?: string;
   /** When true, a 401 in kiosk tab will NOT dispatch KIOSK_EXPIRED_EVENT */
   skipKioskExpiry?: boolean;
 }

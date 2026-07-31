@@ -453,7 +453,6 @@ const FaceAdminPage: React.FC = () => {
   // ─── Detection loop ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!cameraOn) return;
-    let _closed = false;
 
     const detect = async () => {
       const video = videoRef.current;

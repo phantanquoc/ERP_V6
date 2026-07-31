@@ -10,7 +10,7 @@ const DataEntryHub: React.FC = () => {
     markTab('DATA_ENTRY_HUB');
   }, []);
 
-  const entryTypes = [
+  const entryTypes: { key: string; title: string; description: string; icon: React.ElementType; route: string; color: string; disabled?: boolean }[] = [
     {
       key: 'material-evaluation',
       title: 'Đánh giá nguyên liệu',

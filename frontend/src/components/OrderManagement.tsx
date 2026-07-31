@@ -119,7 +119,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
     status: filterValues.trangThaiSanXuat || undefined,
   });
 
-  const orders = ordersData?.data || [];
+  const orders = (ordersData as any)?.data || [];
   const totalItems = (ordersData as any)?.pagination?.total ?? 0;
   const totalPages = (ordersData as any)?.pagination?.totalPages ?? 1;
 

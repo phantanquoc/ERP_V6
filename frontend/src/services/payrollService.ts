@@ -78,7 +78,7 @@ class PayrollService {
       const response = await apiClient.get('/payrolls', {
         params: { month, year },
       });
-      return response.data || [];
+      return (response.data as PayrollItem[]) || [];
     } catch (error) {
       console.error('Error fetching payrolls:', error);
       throw error;

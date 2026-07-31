@@ -78,6 +78,7 @@ export interface MachineSystemFilters {
   trangThai?: MachineStatus;
   loaiHeThong?: MachineSystemCategory;
   maHeThongPrefix?: string;
+  khuVuc?: string;
   sortBy?: 'maHeThong' | 'tenHeThong' | 'createdAt' | 'updatedAt';
   sortOrder?: SortOrder;
 }
@@ -150,6 +151,7 @@ export interface MachineStatusLogFilters {
 }
 
 export interface CloneMachineSystemRequest {
+  maHeThong?: string;
   overrides?: {
     maHeThong?: string;
     tenHeThong?: string;

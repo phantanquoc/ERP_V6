@@ -47,7 +47,7 @@ const PartialFulfillmentModal: React.FC<PartialFulfillmentModalProps> = ({
   const fetchWarehouses = async () => {
     setLoadingWarehouses(true);
     try {
-      const res = await warehouseService.getAllWarehouses();
+      const res = await warehouseService.getAllWarehouses() as any;
       setWarehouses(res.data?.data || res.data || []);
     } catch (err) {
       console.error('Error fetching warehouses:', err);
@@ -59,7 +59,7 @@ const PartialFulfillmentModal: React.FC<PartialFulfillmentModalProps> = ({
   const fetchLots = async (warehouseId: string) => {
     setLoadingLots(true);
     try {
-      const res = await warehouseService.getLotsByWarehouse(warehouseId);
+      const res = await warehouseService.getLotsByWarehouse(warehouseId) as any;
       const allLots: Lot[] = res.data?.data || res.data || [];
       setLots(allLots);
     } catch (err) {

@@ -73,7 +73,7 @@ class NotificationService {
       const params: Record<string, string | number> = { limit };
       if (since) params.since = since;
       const response = await apiClient.get('/notifications', { params });
-      return response.data || [];
+      return (response.data as AppNotification[]) || [];
     } catch (error) {
       console.error('Error fetching notifications:', error);
       throw error;
@@ -83,7 +83,7 @@ class NotificationService {
   async getUnreadCount(): Promise<number> {
     try {
       const response = await apiClient.get('/notifications/unread/count');
-      return response.data?.count ?? 0;
+      return (response.data as { count: number })?.count ?? 0;
     } catch (error) {
       console.error('Error fetching unread count:', error);
       return 0;
@@ -93,7 +93,7 @@ class NotificationService {
   async getUnreadNotifications(): Promise<AppNotification[]> {
     try {
       const response = await apiClient.get('/notifications/unread');
-      return response.data || [];
+      return (response.data as AppNotification[]) || [];
     } catch (error) {
       console.error('Error fetching unread notifications:', error);
       throw error;

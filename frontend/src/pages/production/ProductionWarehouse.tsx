@@ -59,25 +59,25 @@ const ProductionWarehouse = () => {
         ]);
 
         if (warehouseRes.status === 'fulfilled') {
-          setWarehouses(warehouseRes.value.data?.data || warehouseRes.value.data || []);
+          setWarehouses((warehouseRes.value as any).data?.data || (warehouseRes.value as any).data || []);
         } else {
           console.error('Error fetching warehouses:', warehouseRes.reason);
         }
 
         if (receiptRes.status === 'fulfilled') {
-          setReceipts(receiptRes.value.data?.data || receiptRes.value.data || []);
+          setReceipts((receiptRes.value as any).data?.data || (receiptRes.value as any).data || []);
         } else {
           console.error('Error fetching receipts:', receiptRes.reason);
         }
 
         if (issueRes.status === 'fulfilled') {
-          setIssues(issueRes.value.data?.data || issueRes.value.data || []);
+          setIssues((issueRes.value as any).data?.data || (issueRes.value as any).data || []);
         } else {
           console.error('Error fetching issues:', issueRes.reason);
         }
 
         if (supplyRes.status === 'fulfilled') {
-          setSupplyRequests(supplyRes.value.data?.data || supplyRes.value.data || []);
+          setSupplyRequests((supplyRes.value as any).data?.data || (supplyRes.value as any).data || []);
         } else {
           console.error('Error fetching supply requests:', supplyRes.reason);
         }
@@ -234,10 +234,7 @@ const ProductionWarehouse = () => {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
 
-  const _openDetailModal = (item: any) => {
-    setSelectedItem(item);
-    setIsDetailModalOpen(true);
-  };
+
 
   const closeDetailModal = () => {
     setIsDetailModalOpen(false);

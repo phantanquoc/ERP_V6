@@ -5,6 +5,8 @@ export interface ProductionEmployeeOption {
   id: string;
   name: string;
   employeeCode: string;
+  maNhanVien?: string;
+  positionName?: string;
 }
 
 export const productionEmployeeKeys = {

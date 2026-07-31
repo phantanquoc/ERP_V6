@@ -40,6 +40,11 @@ export interface QuotationRequest {
   createdAt: string;
   updatedAt: string;
   items: QuotationRequestItem[];
+  // Top-level shortcuts (populated by some endpoints)
+  productId?: string;
+  tenSanPham?: string;
+  soLuong?: number;
+  donViTinh?: string;
 }
 
 export interface CreateQuotationRequestData {

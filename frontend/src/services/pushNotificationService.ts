@@ -20,10 +20,10 @@ class PushNotificationService {
    * Fetch the VAPID public key from the backend.
    */
   async getVapidPublicKey(): Promise<string> {
-    const response = await apiClient.get<{ success: boolean; data: { publicKey: string } }>(
+    const response = await apiClient.get<{ publicKey: string }>(
       '/notifications/push/vapid-public-key'
     );
-    return response.data?.data?.publicKey ?? response.data?.publicKey ?? '';
+    return response.data?.publicKey ?? '';
   }
 
   /**

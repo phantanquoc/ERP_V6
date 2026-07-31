@@ -115,7 +115,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
 
   const fetchWarehouses = async () => {
     try {
-      const response = await warehouseService.getAllWarehouses();
+      const response = await warehouseService.getAllWarehouses() as any;
       const data = response.data?.data || response.data || [];
       setWarehouses(Array.isArray(data) ? data : []);
     } catch (error) {

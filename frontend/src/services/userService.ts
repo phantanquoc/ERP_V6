@@ -94,6 +94,15 @@ class UserService {
     }
   }
 
+  async toggleUserStatus(id: string): Promise<any> {
+    try {
+      const response = await apiClient.patch(`/users/${id}/toggle-status`);
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
   async deleteUser(id: string): Promise<void> {
     try {
        await apiClient.delete(`/users/${id}`);
