@@ -380,7 +380,7 @@ const ProductionProcessManagement: React.FC = () => {
   const handleEditProcess = async (process: ProductionProcess) => {
     try {
       const response = await productionProcessService.getProductionProcessById(process.id);
-      const fullProcess = response.data;
+      const fullProcess = response.data as ProductionProcess;
 
       setEditingProcess(fullProcess);
       setSelectedTemplateId(fullProcess.processId);

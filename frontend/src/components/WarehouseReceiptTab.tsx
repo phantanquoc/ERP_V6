@@ -134,7 +134,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
       const response = await warehouseReceiptService.generateReceiptCode();
       setEditingId(null);
       setFormData({
-        maPhieuNhap: response.data.code,
+        maPhieuNhap: (response.data as { code: string }).code,
         warehouseId: '',
         lotId: '',
         lotProductId: '',

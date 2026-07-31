@@ -37,7 +37,7 @@ export const useOrdersCount = (customerType?: string) => {
     queryKey: [...orderKeys.count(), customerType],
     queryFn: async () => {
       const response = await orderService.getAllOrders(1, 1, undefined, customerType);
-      return response.pagination.total;
+      return response.pagination?.total ?? 0;
     },
     staleTime: 2 * 60 * 1000,
   });

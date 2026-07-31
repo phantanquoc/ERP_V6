@@ -84,7 +84,7 @@ const CreatePurchaseRequestModal: React.FC<CreatePurchaseRequestModalProps> = ({
   const generateCode = async () => {
     try {
       const response = await purchaseRequestService.generateCode();
-      setMaYeuCau(response.data.code);
+      setMaYeuCau((response.data as { code: string }).code);
     } catch (error) {
       console.error('Error generating code:', error);
     }

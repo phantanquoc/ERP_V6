@@ -102,7 +102,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
       const response = await warehouseReceiptService.generateReceiptCode();
       setSingleForm((prev) => ({
         ...prev,
-        maPhieuNhap: response.data.code,
+        maPhieuNhap: (response.data as { code: string }).code,
         internationalProductId: '',
         tenSanPham: '',
         loaiSanPham: '',
@@ -188,7 +188,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
       for (const item of selectedItems) {
         // Generate code for each receipt
         const codeRes = await warehouseReceiptService.generateReceiptCode();
-        const code = codeRes.data.code;
+        const code = (codeRes.data as { code: string }).code;
 
         const warehouse = warehouses.find((w) => w.id === item.warehouseId);
         const lot = getLotsForWarehouse(item.warehouseId).find((l) => l.id === item.lotId);

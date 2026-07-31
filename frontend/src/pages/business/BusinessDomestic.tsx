@@ -131,7 +131,7 @@ const BusinessDomestic = () => {
   const loadOrderStats = async () => {
     try {
       const response = await orderService.getAllOrders(1, 10000, undefined, 'Nội địa', undefined, undefined, undefined, selectedMonth, selectedYear);
-      const data = response.data;
+      const data = response.data as any[];
 
       setOrderStats({
         total: data.length,

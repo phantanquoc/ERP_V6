@@ -135,8 +135,8 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
     setLoading(true);
     try {
       const response = await supplyRequestService.getAllSupplyRequests(currentPage, itemsPerPage, searchTerm);
-      setRequests(response.data);
-      setTotalItems(response.pagination?.totalItems || response.data.length);
+      setRequests(response.data as SupplyRequest[]);
+      setTotalItems(response.pagination?.totalItems || (response.data as SupplyRequest[]).length);
     } catch (error: any) {
       alert(error.response?.data?.message || 'Lỗi khi tải danh sách yêu cầu cung cấp');
     } finally {

@@ -98,9 +98,9 @@ const GeneralPricing = () => {
       });
 
       setOrderStats({
-        total: ordersAllRes.pagination.total,
-        quocTe: ordersQuocTeRes.pagination.total,
-        noiDia: ordersNoiDiaRes.pagination.total
+        total: ordersAllRes.pagination?.total ?? 0,
+        quocTe: ordersQuocTeRes.pagination?.total ?? 0,
+        noiDia: ordersNoiDiaRes.pagination?.total ?? 0
       });
     } catch (error) {
       console.error('Error fetching stats:', error);

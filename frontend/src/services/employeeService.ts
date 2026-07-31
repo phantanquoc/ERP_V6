@@ -222,7 +222,7 @@ class EmployeeService {
   async generateEmployeeCode(): Promise<string> {
     try {
       const response = await apiClient.post('/employees/generate-code', {});
-      return response.data.employeeCode;
+      return (response.data as { employeeCode: string }).employeeCode;
     } catch (error) {
       throw this.handleError(error);
     }
