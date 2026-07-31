@@ -16,7 +16,7 @@ export const generateReceiptCode = async (_req: Request, res: Response, next: Ne
 
 export const createWarehouseReceipt = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { maPhieuNhap, employeeId, maNhanVien, tenNhanVien, warehouseId, tenKho, lotId, tenLo, lotProductId, tenSanPham, soLuongNhap, donViTinh, ghiChu, supplyRequestId, loaiSanPham } = req.body;
+    const { maPhieuNhap, employeeId, maNhanVien, tenNhanVien, warehouseId, tenKho, lotId, tenLo, lotProductId, tenSanPham, soLuongNhap, donViTinh, ghiChu, mucDich, supplyRequestId, loaiSanPham } = req.body;
 
     if (!maPhieuNhap || !employeeId || !warehouseId || !lotId || !tenSanPham || soLuongNhap === undefined || soLuongNhap === null) {
       res.status(400).json({ success: false, message: 'Thiếu thông tin bắt buộc' });
@@ -26,7 +26,7 @@ export const createWarehouseReceipt = async (req: Request, res: Response, next: 
     const receipt = await warehouseReceiptService.create({
       maPhieuNhap, employeeId, maNhanVien, tenNhanVien,
       warehouseId, tenKho, lotId, tenLo, lotProductId,
-      tenSanPham, soLuongNhap, donViTinh, ghiChu, supplyRequestId, loaiSanPham,
+      tenSanPham, soLuongNhap, donViTinh, ghiChu, mucDich, supplyRequestId, loaiSanPham,
     });
 
     res.status(201).json({ success: true, data: receipt, message: 'Tạo phiếu nhập kho thành công' });
@@ -101,10 +101,10 @@ export const batchCreateWarehouseReceipts = async (req: Request, res: Response, 
 export const updateWarehouseReceipt = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { id } = req.params;
-    const { warehouseId, tenKho, lotId, tenLo, lotProductId, tenSanPham, soLuongNhap, donViTinh, ghiChu } = req.body;
+    const { warehouseId, tenKho, lotId, tenLo, lotProductId, tenSanPham, soLuongNhap, donViTinh, ghiChu, mucDich } = req.body;
 
     const receipt = await warehouseReceiptService.update(id, {
-      warehouseId, tenKho, lotId, tenLo, lotProductId, tenSanPham, soLuongNhap, donViTinh, ghiChu,
+      warehouseId, tenKho, lotId, tenLo, lotProductId, tenSanPham, soLuongNhap, donViTinh, ghiChu, mucDich,
     });
 
     res.status(200).json({ success: true, message: 'Cập nhật phiếu nhập kho thành công', data: receipt });
@@ -119,6 +119,20 @@ export const updateWarehouseReceipt = async (req: Request, res: Response, next: 
     }
     if (error instanceof ConflictError) {
       res.status(409).json({ success: false, message: error.message });
+      return;
+    }
+    next(error);
+  }
+};
+
+export const getLotProductReceiptHistory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { lotProductId } = req.params;
+    const history = await warehouseReceiptService.getByLotProduct(lotProductId);
+    res.status(200).json({ success: true, data: history });
+  } catch (error: any) {
+    if (error instanceof NotFoundError) {
+      res.status(404).json({ success: false, message: error.message });
       return;
     }
     next(error);

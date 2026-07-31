@@ -47,6 +47,20 @@ export interface LotProduct {
   lot?: Lot;
 }
 
+export interface WarehouseReceiptHistory {
+  id: string;
+  maPhieuNhap: string;
+  ngayNhap: string;
+  maNhanVien: string;
+  tenNhanVien: string;
+  mucDich: string | null;
+  soLuongNhap: number;
+  soLuongTruoc: number;
+  soLuongSau: number;
+  donViTinh: string;
+  ghiChu: string | null;
+}
+
 export interface UpdateLotProductData {
   maKien?: string;
   soLuong?: number;
@@ -119,6 +133,8 @@ const warehouseService = {
     apiClient.put(`/lot-products/${id}`, data),
   updateLotProduct: (id: string, data: UpdateLotProductData) =>
     apiClient.put(`/lot-products/${id}`, data),
+  getReceiptHistory: (lotProductId: string) =>
+    apiClient.get<WarehouseReceiptHistory[]>(`/lot-products/${lotProductId}/receipt-history`),
 };
 
 export default warehouseService;

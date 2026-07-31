@@ -17,6 +17,7 @@ interface CreateReceiptInput {
   soLuongNhap: number;
   donViTinh?: string;
   ghiChu?: string;
+  mucDich?: string;
   supplyRequestId?: string;
   loaiSanPham?: string;
 }
@@ -31,6 +32,7 @@ interface UpdateReceiptInput {
   soLuongNhap: number;
   donViTinh?: string;
   ghiChu?: string;
+  mucDich?: string;
 }
 
 class WarehouseReceiptService {
@@ -98,6 +100,7 @@ class WarehouseReceiptService {
           soLuongSau,
           donViTinh: input.donViTinh ?? '',
           ghiChu: input.ghiChu,
+          mucDich: input.mucDich,
           ...(input.supplyRequestId ? { supplyRequestId: input.supplyRequestId } : {}),
         },
       }),
@@ -174,6 +177,7 @@ class WarehouseReceiptService {
           soLuongSau,
           donViTinh: input.donViTinh ?? '',
           ghiChu: input.ghiChu,
+          mucDich: input.mucDich,
         },
       });
 
@@ -213,6 +217,30 @@ class WarehouseReceiptService {
       await tx.warehouseReceipt.delete({ where: { id } });
 
       return { id };
+    });
+  }
+
+  async getByLotProduct(lotProductId: string) {
+    const lotProduct = await prisma.lotProduct.findUnique({ where: { id: lotProductId } });
+    if (!lotProduct) {
+      throw new NotFoundError('Không tìm thấy sản phẩm trong lô');
+    }
+    return prisma.warehouseReceipt.findMany({
+      where: { lotProductId },
+      orderBy: { ngayNhap: 'asc' },
+      select: {
+        id: true,
+        maPhieuNhap: true,
+        ngayNhap: true,
+        maNhanVien: true,
+        tenNhanVien: true,
+        mucDich: true,
+        soLuongNhap: true,
+        soLuongTruoc: true,
+        soLuongSau: true,
+        donViTinh: true,
+        ghiChu: true,
+      },
     });
   }
 

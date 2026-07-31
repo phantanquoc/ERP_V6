@@ -248,6 +248,7 @@ model WarehouseReceipt {
   soLuongNhap     Float
   soLuongSau      Float          @default(0) // Số lượng tồn kho sau khi nhập
   donViTinh       String
+  mucDich         String?        // Mục đích nhập kho (VD: "Nhập từ thu mua", "Nhập thành phẩm")
   ghiChu          String?
   supplyRequestId String?
   supplyRequest   SupplyRequest? @relation(fields: [supplyRequestId], references: [id])

@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { Plus, Trash2, MoveRight, Package, Warehouse as WarehouseIcon, PackagePlus, Pencil } from 'lucide-react';
+import { Plus, Trash2, MoveRight, Package, Warehouse as WarehouseIcon, PackagePlus, Pencil, History } from 'lucide-react';
 import type { Warehouse, LotProduct } from '../services/warehouseService';
 import {
   useWarehouses,
   useCreateWarehouse, useDeleteWarehouse, useUpdateWarehouse,
   useCreateLot, useDeleteLot,
   useAddProductToLot, useRemoveProductFromLot, useMoveProductBetweenLots,
-  useGenerateWarehouseCode, useUpdateLotProduct,
+  useGenerateWarehouseCode, useUpdateLotProduct, useReceiptHistory,
 } from '../hooks';
 import { useProducts } from '../hooks';
 import { parseNumberInputStr } from '../utils/numberInput';
@@ -37,6 +37,11 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
   const moveProductBetweenLots = useMoveProductBetweenLots();
   const generateWarehouseCode = useGenerateWarehouseCode();
   const updateLotProduct = useUpdateLotProduct();
+
+  // Receipt history drill-down state
+  const [historyLotProduct, setHistoryLotProduct] = useState<LotProduct | null>(null);
+  const { data: receiptHistory, isLoading: historyLoading, isError: historyError, refetch: retryHistory } =
+    useReceiptHistory(historyLotProduct?.id ?? null);
 
   // Fetch all international products via TanStack Query
   const { data: productsData } = useProducts({ page: 1, limit: 1000 });
@@ -544,9 +549,14 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
                                 {product.internationalProduct?.tenSanPham || ''}
                               </td>
                               <td className="px-3 py-3 text-sm font-medium text-gray-900">
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md text-xs font-semibold">
+                                <button
+                                  onClick={() => setHistoryLotProduct(product)}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md text-xs font-semibold hover:bg-blue-100 transition-colors cursor-pointer"
+                                  title="Xem lịch sử nhập kho"
+                                >
                                   {product.soLuong} {product.donViTinh}
-                                </span>
+                                  <History className="w-3 h-3 opacity-50" />
+                                </button>
                               </td>
                               <td className="px-3 py-3 text-sm">
                                 <div className="flex justify-center gap-2">
@@ -1031,6 +1041,85 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
                 Di chuyển
               </button>
             </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Receipt History Modal — click số tồn để xem lịch sử nhập kho */}
+      <Modal isOpen={!!historyLotProduct} onClose={() => setHistoryLotProduct(null)} showBackdrop>
+        <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-[56rem] flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Lịch sử nhập kho</h2>
+              {historyLotProduct && (
+                <p className="text-sm text-gray-500 mt-0.5">
+                  {historyLotProduct.internationalProduct?.tenSanPham ?? ''} — Mã kiện: <span className="font-mono">{historyLotProduct.maKien ?? historyLotProduct.id.slice(-8)}</span>
+                </p>
+              )}
+            </div>
+            <button onClick={() => setHistoryLotProduct(null)} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">✕</button>
+          </div>
+          <div className="overflow-y-auto flex-1 p-4">
+            {historyLoading ? (
+              <div className="flex items-center justify-center py-12 text-gray-400">
+                <svg className="animate-spin w-6 h-6 mr-2" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+                Đang tải lịch sử...
+              </div>
+            ) : historyError ? (
+              <div className="text-center py-12">
+                <p className="text-sm text-red-500 mb-3">Không thể tải lịch sử nhập kho</p>
+                <button onClick={() => retryHistory()} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">Thử lại</button>
+              </div>
+            ) : !receiptHistory || receiptHistory.length === 0 ? (
+              <div className="text-center py-12">
+                <History className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+                <p className="text-sm text-gray-400">Chưa có lần nhập kho nào</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[700px] text-sm">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Mã phiếu</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Ngày nhập</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Người nhập</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Mục đích</th>
+                      <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Số lượng nhập</th>
+                      <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Tồn trước</th>
+                      <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Tồn sau</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Ghi chú</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {receiptHistory.map((r, idx) => {
+                      const d = new Date(r.ngayNhap);
+                      const ngayHien = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                      return (
+                        <tr key={r.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
+                          <td className="px-3 py-2.5 font-mono text-xs text-gray-600">{r.maPhieuNhap}</td>
+                          <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{ngayHien}</td>
+                          <td className="px-3 py-2.5 text-gray-700">{r.tenNhanVien}</td>
+                          <td className="px-3 py-2.5 text-gray-600">{r.mucDich ?? '—'}</td>
+                          <td className="px-3 py-2.5 text-right font-semibold text-green-700">+{r.soLuongNhap} {r.donViTinh}</td>
+                          <td className="px-3 py-2.5 text-right text-gray-500">{r.soLuongTruoc}</td>
+                          <td className="px-3 py-2.5 text-right font-medium text-blue-700">{r.soLuongSau}</td>
+                          <td className="px-3 py-2.5 text-gray-500 text-xs">{r.ghiChu ?? '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+          <div className="flex justify-between items-center px-6 py-3 border-t border-gray-100 shrink-0 bg-gray-50/50">
+            <span className="text-xs text-gray-400">
+              {receiptHistory ? `${receiptHistory.length} lần nhập` : ''}
+            </span>
+            <button onClick={() => setHistoryLotProduct(null)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">Đóng</button>
           </div>
         </div>
       </Modal>

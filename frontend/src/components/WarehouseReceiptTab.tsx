@@ -7,7 +7,19 @@ import warehouseService, { Warehouse, Lot, LotProduct } from '../services/wareho
 import { useAuth } from '../contexts/AuthContext';
 import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
-import { warehouseKeys } from '../hooks';
+import { warehouseKeys, useProducts } from '../hooks';
+import ProductCombobox from './common/ProductCombobox';
+import UnitSelect from './common/UnitSelect';
+import { DON_VI_TINH_OPTIONS } from '../constants/units';
+
+/** Purpose presets — cover the common cases; the field stays free text for the rest. */
+const MUC_DICH_PRESETS = [
+  'Nhập từ thu mua',
+  'Nhập thành phẩm sản xuất',
+  'Nhập trả lại từ bộ phận',
+  'Nhập điều chuyển kho',
+  'Kiểm kê điều chỉnh',
+];
 
 interface WarehouseReceiptTabProps {
   month?: number;
@@ -41,13 +53,24 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
     setShowDetailModal(true);
   };
 
+  // Product catalogue for the searchable picker (supports adding a product new to the lot)
+  const { data: productsData } = useProducts({ page: 1, limit: 1000 });
+  const allProducts = productsData?.data || [];
+
   const [formData, setFormData] = useState({
     maPhieuNhap: '',
     warehouseId: '',
     lotId: '',
     lotProductId: '',
+    // Product identity — set when adding a product not yet in the lot.
+    // lotProductId stays empty in that case; the backend resolves/creates it.
+    internationalProductId: '',
+    tenSanPham: '',
+    loaiSanPham: '',
+    donViTinh: '',
     soLuongNhap: 0,
     ghiChu: '',
+    mucDich: '',
   });
 
   useEffect(() => {
@@ -115,8 +138,13 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
         warehouseId: '',
         lotId: '',
         lotProductId: '',
+        internationalProductId: '',
+        tenSanPham: '',
+        loaiSanPham: '',
+        donViTinh: '',
         soLuongNhap: 0,
         ghiChu: '',
+        mucDich: '',
       });
       setShowModal(true);
     } catch (error: any) {
@@ -131,8 +159,13 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
       warehouseId: receipt.warehouseId,
       lotId: receipt.lotId,
       lotProductId: receipt.lotProductId,
+      internationalProductId: '',
+      tenSanPham: receipt.tenSanPham || '',
+      loaiSanPham: '',
+      donViTinh: receipt.donViTinh || '',
       soLuongNhap: receipt.soLuongNhap,
       ghiChu: receipt.ghiChu || '',
+      mucDich: receipt.mucDich || '',
     });
     // Set lots and lotProducts based on current receipt's warehouse/lot
     const warehouse = warehouses.find(w => w.id === receipt.warehouseId);
@@ -150,6 +183,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
       fetchReceipts();
       fetchWarehouses();
       queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: warehouseKeys.receiptHistories() });
     } catch (error: any) {
       alert(error.response?.data?.message || 'Lỗi khi xóa phiếu nhập kho');
     }
@@ -158,8 +192,13 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.warehouseId || !formData.lotId || !formData.lotProductId) {
-      alert('Vui lòng điền đầy đủ thông tin');
+    if (!formData.warehouseId || !formData.lotId) {
+      alert('Vui lòng chọn kho và lô');
+      return;
+    }
+    // Either an existing kiện in the lot, or a product name for a new one
+    if (!formData.lotProductId && !formData.tenSanPham) {
+      alert('Vui lòng chọn hàng hóa hoặc nhập tên hàng hóa mới');
       return;
     }
 
@@ -176,10 +215,11 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
           lotId: formData.lotId,
           tenLo: lot?.tenLo || '',
           lotProductId: formData.lotProductId,
-          tenSanPham: lotProduct?.internationalProduct?.tenSanPham || '',
+          tenSanPham: lotProduct?.internationalProduct?.tenSanPham || formData.tenSanPham,
           soLuongNhap: formData.soLuongNhap,
-          donViTinh: lotProduct?.donViTinh || '',
+          donViTinh: lotProduct?.donViTinh || formData.donViTinh,
           ghiChu: formData.ghiChu,
+          mucDich: formData.mucDich || undefined,
         });
         alert('Cập nhật phiếu nhập kho thành công!');
       } else {
@@ -192,11 +232,14 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
           tenKho: warehouse?.tenKho || '',
           lotId: formData.lotId,
           tenLo: lot?.tenLo || '',
-          lotProductId: formData.lotProductId,
-          tenSanPham: lotProduct?.internationalProduct?.tenSanPham || '',
+          // Omit when adding a product not yet in the lot — backend resolves/creates it
+          lotProductId: formData.lotProductId || undefined,
+          tenSanPham: lotProduct?.internationalProduct?.tenSanPham || formData.tenSanPham,
           soLuongNhap: formData.soLuongNhap,
-          donViTinh: lotProduct?.donViTinh || '',
+          donViTinh: lotProduct?.donViTinh || formData.donViTinh,
           ghiChu: formData.ghiChu,
+          mucDich: formData.mucDich || undefined,
+          loaiSanPham: formData.loaiSanPham || undefined,
         });
         alert('Tạo phiếu nhập kho thành công!');
       }
@@ -206,6 +249,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
       fetchReceipts();
       fetchWarehouses(); // Refresh to get updated quantities
       queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: warehouseKeys.receiptHistories() });
     } catch (error: any) {
       alert(error.response?.data?.message || 'Lỗi khi xử lý phiếu nhập kho');
     } finally {
@@ -591,26 +635,78 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                 </select>
               </div>
 
-              {/* Chọn hàng hóa nhập kho */}
+              {/* Chọn hàng hóa nhập kho — tìm kiếm được, cho phép hàng mới chưa có trong lô */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Chọn hàng hóa nhập kho <span className="text-red-500">*</span>
+                  Hàng hóa nhập kho <span className="text-red-500">*</span>
                 </label>
-                <select
-                  value={formData.lotProductId}
-                  onChange={(e) => setFormData({ ...formData, lotProductId: e.target.value })}
-                  required
+                <ProductCombobox
+                  products={allProducts}
+                  value={formData.internationalProductId || null}
                   disabled={!formData.lotId}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                >
-                  <option value="">-- Chọn sản phẩm --</option>
-                  {Array.isArray(lotProducts) && lotProducts.map((lotProduct) => (
-                    <option key={lotProduct.id} value={lotProduct.id}>
-                      {lotProduct.internationalProduct?.tenSanPham} (Tồn: {lotProduct.soLuong} {lotProduct.donViTinh})
-                    </option>
-                  ))}
-                </select>
+                  lotProducts={lotProducts}
+                  allowCreate
+                  onChange={(productId, product) => {
+                    // Link to the kiện already in this lot when there is one, so the
+                    // receipt tops up existing stock instead of creating a second kiện.
+                    const existing = lotProducts.find(
+                      (lp) => lp.internationalProductId === productId
+                    );
+                    setFormData((prev) => ({
+                      ...prev,
+                      internationalProductId: productId ?? '',
+                      lotProductId: existing?.id ?? '',
+                      tenSanPham: product?.tenSanPham ?? '',
+                      loaiSanPham: product?.loaiSanPham ?? '',
+                      donViTinh:
+                        existing?.donViTinh ??
+                        (product?.donViTinh && DON_VI_TINH_OPTIONS.includes(product.donViTinh)
+                          ? product.donViTinh
+                          : prev.donViTinh),
+                    }));
+                  }}
+                  onCreateNew={(tenSanPham) => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      internationalProductId: '',
+                      lotProductId: '',
+                      tenSanPham,
+                      loaiSanPham: '',
+                    }));
+                  }}
+                />
+                {/* Tell the user which of the three cases they're in */}
+                {formData.lotProductId ? (
+                  (() => {
+                    const lp = lotProducts.find((p) => p.id === formData.lotProductId);
+                    return lp ? (
+                      <p className="mt-1 text-xs text-blue-600">
+                        Đã có trong lô — kiện {lp.maKien ?? lp.id.slice(-4)}, tồn {lp.soLuong} {lp.donViTinh}. Số lượng sẽ được cộng dồn.
+                      </p>
+                    ) : null;
+                  })()
+                ) : formData.tenSanPham ? (
+                  <p className="mt-1 text-xs text-green-600">
+                    {formData.internationalProductId
+                      ? `Hàng hóa chưa có trong lô này — kiện mới sẽ được tạo khi lưu phiếu`
+                      : `Hàng hóa mới "${formData.tenSanPham}" sẽ được tạo khi lưu phiếu`}
+                  </p>
+                ) : null}
               </div>
+
+              {/* Đơn vị tính — chỉ cần khi tạo kiện mới (kiện có sẵn đã có ĐVT) */}
+              {!formData.lotProductId && formData.tenSanPham && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Đơn vị tính <span className="text-red-500">*</span>
+                  </label>
+                  <UnitSelect
+                    value={formData.donViTinh}
+                    onChange={(val) => setFormData({ ...formData, donViTinh: val })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              )}
 
               {/* Số lượng nhập kho */}
               <div>
@@ -627,7 +723,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   placeholder="Nhập số lượng"
                 />
-                {/* Chú thích lịch sử thay đổi số lượng */}
+                {/* Chú thích lịch sử thay đổi số lượng — kiện đã có trong lô */}
                 {formData.lotProductId && (
                   <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                     <div className="flex items-center gap-2 text-sm text-blue-800">
@@ -660,6 +756,32 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                     )}
                   </div>
                 )}
+                {/* Kiện mới — chưa có tồn, nêu rõ số lượng sẽ là tồn ban đầu */}
+                {!formData.lotProductId && formData.tenSanPham && formData.soLuongNhap > 0 && (
+                  <p className="mt-2 text-xs text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1.5">
+                    Kiện mới — tồn sau nhập: {formData.soLuongNhap} {formData.donViTinh}
+                  </p>
+                )}
+              </div>
+
+              {/* Mục đích nhập */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Mục đích nhập
+                </label>
+                <input
+                  type="text"
+                  list="muc-dich-presets-tab"
+                  value={formData.mucDich}
+                  onChange={(e) => setFormData({ ...formData, mucDich: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="VD: Nhập từ thu mua, Nhập thành phẩm sản xuất..."
+                />
+                <datalist id="muc-dich-presets-tab">
+                  {MUC_DICH_PRESETS.map((p) => (
+                    <option key={p} value={p} />
+                  ))}
+                </datalist>
               </div>
 
               {/* Ghi chú */}

@@ -7,6 +7,9 @@ import { SupplyRequest } from '../services/supplyRequestService';
 import { parseNumberInput } from '../utils/numberInput';
 import Modal from './Modal';
 import UnitSelect from './common/UnitSelect';
+import ProductCombobox from './common/ProductCombobox';
+import { useProducts } from '../hooks';
+import { DON_VI_TINH_OPTIONS } from '../constants/units';
 
 interface CreateWarehouseReceiptModalProps {
   isOpen: boolean;
@@ -26,6 +29,15 @@ interface ItemRow {
   selected: boolean;
 }
 
+/** Purpose presets — cover the common cases; the field stays free text for the rest. */
+const MUC_DICH_PRESETS = [
+  'Nhập từ thu mua',
+  'Nhập thành phẩm sản xuất',
+  'Nhập trả lại từ bộ phận',
+  'Nhập điều chuyển kho',
+  'Kiểm kê điều chỉnh',
+];
+
 const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = ({
   isOpen,
   onClose,
@@ -37,24 +49,35 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
   const [lotsMap, setLotsMap] = useState<Record<string, Lot[]>>({});
   const [loading, setLoading] = useState(false);
   const [itemRows, setItemRows] = useState<ItemRow[]>([]);
+  // Shared purpose for every receipt in a batch — all rows come from one supply request,
+  // so one purpose describes them all rather than repeating it per row.
+  const [batchMucDich, setBatchMucDich] = useState('');
 
   // For single-item fallback (no supplyRequest)
   const [singleForm, setSingleForm] = useState({
     maPhieuNhap: '',
     warehouseId: '',
     lotId: '',
+    internationalProductId: '' as string | null,
     tenSanPham: '',
+    loaiSanPham: '',
     soLuongNhap: 0,
     donViTinh: '',
     ghiChu: '',
+    mucDich: '',
   });
+
+  // Product list for the searchable combobox (existing products, with create-new support)
+  const { data: productsData } = useProducts({ page: 1, limit: 1000 });
+  const products = productsData?.data || [];
 
   useEffect(() => {
     if (isOpen) {
       fetchWarehouses();
 
       if (supplyRequest?.items && supplyRequest.items.length > 0) {
-        // Multi-item mode
+        // Multi-item mode — default the purpose to the supply-request case
+        setBatchMucDich('Nhập từ thu mua');
         setItemRows(
           supplyRequest.items.map((item) => ({
             tenSanPham: item.tenGoi,
@@ -77,7 +100,14 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
   const generateCode = async () => {
     try {
       const response = await warehouseReceiptService.generateReceiptCode();
-      setSingleForm((prev) => ({ ...prev, maPhieuNhap: response.data.code }));
+      setSingleForm((prev) => ({
+        ...prev,
+        maPhieuNhap: response.data.code,
+        internationalProductId: '',
+        tenSanPham: '',
+        loaiSanPham: '',
+        mucDich: '',
+      }));
     } catch (error) {
       console.error('Error generating receipt code:', error);
     }
@@ -100,6 +130,14 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
     setLotsMap((prev) => ({ ...prev, [warehouseId]: lots }));
     return lots;
   };
+
+  // Kiện in the lot currently picked in single mode — drives the stock annotation
+  const singleLotProducts = React.useMemo(() => {
+    if (!singleForm.warehouseId || !singleForm.lotId) return [];
+    const warehouse = warehouses.find((w) => w.id === singleForm.warehouseId);
+    const lot = warehouse?.lots?.find((l) => l.id === singleForm.lotId);
+    return lot?.lotProducts ?? [];
+  }, [warehouses, singleForm.warehouseId, singleForm.lotId]);
 
   const updateItemRow = (index: number, field: keyof ItemRow, value: any) => {
     setItemRows((prev) => {
@@ -168,9 +206,10 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
           soLuongNhap: item.soLuong,
           donViTinh: item.donViTinh,
           ghiChu: item.ghiChu,
+          mucDich: batchMucDich || undefined,
           supplyRequestId: supplyRequest?.id,
           loaiSanPham: item.phanLoai,
-        } as any);
+        });
         successCount++;
       }
 
@@ -214,6 +253,8 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
         soLuongNhap: singleForm.soLuongNhap,
         donViTinh: singleForm.donViTinh,
         ghiChu: singleForm.ghiChu,
+        mucDich: singleForm.mucDich || undefined,
+        loaiSanPham: singleForm.loaiSanPham || undefined,
       });
 
       alert('Tạo phiếu nhập kho thành công!');
@@ -236,6 +277,12 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
   return (
     <Modal isOpen={isOpen} onClose={onClose} showBackdrop>
       <div className="bg-white rounded-lg shadow-xl w-full max-w-[900px] flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        {/* Purpose suggestions shared by both single and batch mode */}
+        <datalist id="muc-dich-presets">
+          {MUC_DICH_PRESETS.map((p) => (
+            <option key={p} value={p} />
+          ))}
+        </datalist>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
           <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
             <PackagePlus className="w-5 h-5 text-green-600" />
@@ -264,6 +311,21 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
         {isMultiItem ? (
           /* ═══ MULTI-ITEM MODE ═══ */
           <form onSubmit={handleBatchSubmit}>
+            {/* Shared purpose for the whole batch */}
+            <div className="mb-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Mục đích nhập <span className="text-xs font-normal text-gray-400">(áp dụng cho tất cả phiếu)</span>
+              </label>
+              <input
+                type="text"
+                list="muc-dich-presets"
+                value={batchMucDich}
+                onChange={(e) => setBatchMucDich(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                placeholder="VD: Nhập từ thu mua"
+              />
+            </div>
+
             {/* Quick apply to all */}
             <div className="flex items-center gap-3 mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
               <span className="text-xs font-medium text-gray-500 uppercase">Áp dụng cho tất cả:</span>
@@ -413,15 +475,69 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
               <input type="text" value={singleForm.maPhieuNhap} disabled className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tên sản phẩm <span className="text-red-500">*</span></label>
-              <input
-                type="text"
-                value={singleForm.tenSanPham}
-                onChange={(e) => setSingleForm({ ...singleForm, tenSanPham: e.target.value })}
-                required
-                placeholder="Nhập tên sản phẩm"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              <label className="block text-sm font-medium text-gray-700 mb-1">Hàng hóa <span className="text-red-500">*</span></label>
+              <ProductCombobox
+                products={products}
+                value={singleForm.internationalProductId || null}
+                lotProducts={singleLotProducts}
+                allowCreate
+                onChange={(productId, product) => {
+                  const existing = singleLotProducts.find(
+                    (lp) => lp.internationalProductId === productId
+                  );
+                  setSingleForm((prev) => ({
+                    ...prev,
+                    internationalProductId: productId ?? '',
+                    tenSanPham: product?.tenSanPham ?? '',
+                    loaiSanPham: product?.loaiSanPham ?? '',
+                    // Prefer the kiện's unit when the lot already holds this product
+                    donViTinh:
+                      existing?.donViTinh ??
+                      (product?.donViTinh && DON_VI_TINH_OPTIONS.includes(product.donViTinh)
+                        ? product.donViTinh
+                        : prev.donViTinh),
+                  }));
+                }}
+                onCreateNew={(tenSanPham) => {
+                  // New product — backend resolveOrCreateLotProduct will create it on submit
+                  setSingleForm((prev) => ({
+                    ...prev,
+                    internationalProductId: '',
+                    tenSanPham,
+                    loaiSanPham: '',
+                  }));
+                }}
               />
+              {(() => {
+                if (singleForm.tenSanPham && !singleForm.internationalProductId) {
+                  return (
+                    <p className="mt-1 text-xs text-green-600">
+                      Sản phẩm mới "{singleForm.tenSanPham}" sẽ được tạo khi lưu phiếu
+                    </p>
+                  );
+                }
+                if (!singleForm.internationalProductId) return null;
+                if (!singleForm.lotId) {
+                  return (
+                    <p className="mt-1 text-xs text-gray-400">
+                      Chọn kho và lô bên dưới để xem tồn kho hiện tại
+                    </p>
+                  );
+                }
+                const kien = singleLotProducts.find(
+                  (lp) => lp.internationalProductId === singleForm.internationalProductId
+                );
+                return kien ? (
+                  <p className="mt-1 text-xs text-blue-600">
+                    Đã có trong lô — kiện {kien.maKien ?? kien.id.slice(-4)}, tồn {kien.soLuong}{' '}
+                    {kien.donViTinh}. Số lượng sẽ được cộng dồn.
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-green-600">
+                    Hàng hóa chưa có trong lô này — kiện mới sẽ được tạo khi lưu phiếu
+                  </p>
+                );
+              })()}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -472,6 +588,17 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
                     <option key={l.id} value={l.id}>{l.tenLo}</option>
                   ))}
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mục đích nhập</label>
+              <input
+                type="text"
+                list="muc-dich-presets"
+                value={singleForm.mucDich}
+                onChange={(e) => setSingleForm({ ...singleForm, mucDich: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                placeholder="VD: Nhập từ thu mua, Nhập thành phẩm sản xuất, Nhập trả lại..."
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
