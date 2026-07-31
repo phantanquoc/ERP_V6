@@ -270,7 +270,7 @@ const DailyWorkReportList: React.FC = () => {
 
       {/* View Report Modal */}
       <Modal isOpen={!!viewReport} onClose={() => setViewReport(null)} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        {viewReport && <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
             <div className="bg-gradient-to-r from-green-600 to-teal-600 px-6 py-4 shrink-0">
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-bold text-white">Chi tiết báo cáo</h3>
@@ -379,7 +379,7 @@ const DailyWorkReportList: React.FC = () => {
                 )}
               </div>
             </div>
-          </div>
+          </div>}
       </Modal>
 
         {/* Modal */}

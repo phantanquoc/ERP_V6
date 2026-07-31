@@ -62,7 +62,7 @@ const ProductionDepartment = () => {
   const loadOrderStats = async () => {
     try {
       const response = await orderService.getAllOrders(1, 10000, undefined, undefined, undefined, undefined, undefined, selectedMonth, selectedYear);
-      const orders = response.data;
+      const orders = (response.data ?? []) as any[];
 
       setOrderStats({
         total: orders.length,

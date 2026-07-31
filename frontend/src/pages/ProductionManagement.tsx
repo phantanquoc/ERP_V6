@@ -184,7 +184,7 @@ const ProductionManagement = () => {
       }
 
       if (orderRes.status === 'fulfilled') {
-        const orders = orderRes.value.data;
+        const orders = (orderRes.value.data ?? []) as any[];
         setOrderStats({
           total: orders.length,
           choLenKeHoach: orders.filter((o: any) => o.trangThaiSanXuat === 'CHO_LEN_KE_HOACH').length,

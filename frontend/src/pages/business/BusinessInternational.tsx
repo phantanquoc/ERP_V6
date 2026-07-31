@@ -133,7 +133,7 @@ const BusinessInternational = () => {
   const loadOrderStats = async () => {
     try {
       const response = await orderService.getAllOrders(1, 10000, undefined, 'Quốc tế', undefined, undefined, undefined, selectedMonth, selectedYear);
-      const data = response.data;
+      const data = response.data as any[];
 
       setOrderStats({
         total: data.length,

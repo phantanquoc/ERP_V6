@@ -111,7 +111,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
       const response = await warehouseIssueService.generateIssueCode();
       setEditingId(null);
       setFormData({
-        maPhieuXuat: response.data.maPhieuXuat,
+        maPhieuXuat: (response.data as { maPhieuXuat: string }).maPhieuXuat,
         warehouseId: '',
         lotId: '',
         lotProductId: '',

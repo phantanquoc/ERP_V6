@@ -72,7 +72,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
   const generateCode = async () => {
     try {
       const response = await warehouseIssueService.generateIssueCode();
-      setMaPhieuXuatBase(response.data.maPhieuXuat);
+      setMaPhieuXuatBase((response.data as { maPhieuXuat: string }).maPhieuXuat);
     } catch (error) {
       console.error('Error generating issue code:', error);
     }

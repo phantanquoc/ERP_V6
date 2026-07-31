@@ -61,7 +61,7 @@ const GeneralManagement = () => {
         setStats({
           ycbg: { total: ycbgAll.pagination.total, quocTe: ycbgQt.pagination.total, noiDia: ycbgNd.pagination.total },
           bangBaoGia: { total: baoGiaAll.pagination.total, quocTe: baoGiaQt.pagination.total, noiDia: baoGiaNd.pagination.total },
-          donHang: { total: dhAll.pagination.total, quocTe: dhQt.pagination.total, noiDia: dhNd.pagination.total },
+          donHang: { total: dhAll.pagination?.total ?? 0, quocTe: dhQt.pagination?.total ?? 0, noiDia: dhNd.pagination?.total ?? 0 },
           chiPhiChung: { total: cpChung.pagination.total, exportCost: cpXuatKhau.pagination.total },
         });
 
@@ -242,7 +242,7 @@ const GeneralManagement = () => {
                     outerRadius={100}
                     paddingAngle={5}
                     dataKey="value"
-                    label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
+                    label={({ name, value, percent }: { name: string; value: number; percent: number }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
                   >
                     {chart.data.map((_, i) => (
                       <Cell key={i} fill={COLORS[i % COLORS.length]} />

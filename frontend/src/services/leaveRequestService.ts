@@ -56,7 +56,7 @@ class LeaveRequestService {
 
   async createLeaveRequest(data: CreateLeaveRequestData): Promise<LeaveRequest> {
     const response = await apiClient.post(this.baseURL, data);
-    return response.data.data;
+    return (response.data as { data: LeaveRequest }).data;
   }
 
   async getAllLeaveRequests(params?: {
@@ -96,12 +96,12 @@ class LeaveRequestService {
 
   async getLeaveRequestById(id: string): Promise<LeaveRequest> {
     const response = await apiClient.get(`${this.baseURL}/${id}`);
-    return response.data.data;
+    return (response.data as { data: LeaveRequest }).data;
   }
 
   async approveLeaveRequest(id: string, approvedBy: string): Promise<LeaveRequest> {
     const response = await apiClient.patch(`${this.baseURL}/${id}/approve`, { approvedBy });
-    return response.data.data;
+    return (response.data as { data: LeaveRequest }).data;
   }
 
   async rejectLeaveRequest(id: string, approvedBy: string, rejectionReason: string): Promise<LeaveRequest> {
@@ -109,7 +109,7 @@ class LeaveRequestService {
       approvedBy,
       rejectionReason,
     });
-    return response.data.data;
+    return (response.data as { data: LeaveRequest }).data;
   }
 
   async exportToExcel(filters?: { status?: string; employeeId?: string; leaveType?: string }): Promise<void> {
