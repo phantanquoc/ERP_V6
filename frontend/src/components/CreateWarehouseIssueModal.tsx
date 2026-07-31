@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { SupplyRequest } from '../services/supplyRequestService';
 import { parseNumberInput } from '../utils/numberInput';
 import Modal from './Modal';
+import LotProductCombobox from './common/LotProductCombobox';
 
 interface CreateWarehouseIssueModalProps {
   isOpen: boolean;
@@ -139,6 +140,16 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
       }
       if (row.soLuongXuat <= 0) {
         alert(`Dòng ${i + 1}: Số lượng xuất phải lớn hơn 0`);
+        return;
+      }
+      // Guard against issuing more than what's in the kiện — backend would reject,
+      // but catching it here saves a round trip and names the row that's wrong.
+      const lp = row.lotProducts.find((p) => p.id === row.lotProductId);
+      if (lp && row.soLuongXuat > lp.soLuong) {
+        alert(
+          `Dòng ${i + 1}: Số lượng xuất (${row.soLuongXuat}) vượt tồn kho của kiện ` +
+          `${lp.maKien ?? ''} (còn ${lp.soLuong} ${lp.donViTinh})`
+        );
         return;
       }
     }
@@ -279,20 +290,15 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
                       </select>
                     </div>
 
-                    {/* Sản phẩm */}
+                    {/* Sản phẩm — searchable, chỉ hiện kiện còn tồn */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Sản phẩm <span className="text-red-500">*</span></label>
-                      <select value={row.lotProductId}
-                        onChange={(e) => updateRow(index, { lotProductId: e.target.value })}
-                        required disabled={!row.lotId}
-                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500 disabled:bg-gray-100">
-                        <option value="">Chọn sản phẩm</option>
-                        {row.lotProducts.map(lp => (
-                          <option key={lp.id} value={lp.id}>
-                            {lp.internationalProduct?.tenSanPham} - Tồn: {lp.soLuong} {lp.donViTinh}
-                          </option>
-                        ))}
-                      </select>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Kiện hàng <span className="text-red-500">*</span></label>
+                      <LotProductCombobox
+                        lotProducts={row.lotProducts}
+                        value={row.lotProductId || null}
+                        disabled={!row.lotId}
+                        onChange={(lotProductId) => updateRow(index, { lotProductId: lotProductId ?? '' })}
+                      />
                     </div>
                   </div>
 
@@ -306,11 +312,15 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
                         className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500" />
                       {row.lotProductId && (() => {
                         const lp = row.lotProducts.find(lp => lp.id === row.lotProductId);
-                        return lp ? (
-                          <p className="text-xs text-gray-500 mt-1">
-                            Tồn kho: {lp.soLuong} {lp.donViTinh} → Sau xuất: {(lp.soLuong - row.soLuongXuat).toFixed(2)}
+                        if (!lp) return null;
+                        const isOver = row.soLuongXuat > lp.soLuong;
+                        return (
+                          <p className={`text-xs mt-1 ${isOver ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                            {isOver
+                              ? `Vượt tồn kho — kiện chỉ còn ${lp.soLuong} ${lp.donViTinh}`
+                              : `Tồn kho: ${lp.soLuong} ${lp.donViTinh} → Sau xuất: ${(lp.soLuong - row.soLuongXuat).toFixed(2)}`}
                           </p>
-                        ) : null;
+                        );
                       })()}
                     </div>
 
