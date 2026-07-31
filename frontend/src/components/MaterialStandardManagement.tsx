@@ -928,6 +928,7 @@ const MaterialStandardManagement: React.FC = () => {
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">STT</th>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tên nguyên liệu</th>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Kg nguyên liệu</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tỉ lệ (%)</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
@@ -936,6 +937,7 @@ const MaterialStandardManagement: React.FC = () => {
                             <td className="px-4 py-3 text-sm text-gray-900">{index + 1}</td>
                             <td className="px-4 py-3 text-sm text-gray-900">{item.tenNguyenLieu}</td>
                             <td className="px-4 py-3 text-sm text-gray-900">{item.tiLe} kg</td>
+                            <td className="px-4 py-3 text-sm text-gray-500">{item.tiLe}%</td>
                           </tr>
                         ))}
                       </tbody>
@@ -957,6 +959,7 @@ const MaterialStandardManagement: React.FC = () => {
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">STT</th>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tên thành phẩm</th>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Kg thành phẩm</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tỉ lệ (%)</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
@@ -965,6 +968,7 @@ const MaterialStandardManagement: React.FC = () => {
                             <td className="px-4 py-3 text-sm text-gray-900">{index + 1}</td>
                             <td className="px-4 py-3 text-sm text-gray-900">{item.tenThanhPham}</td>
                             <td className="px-4 py-3 text-sm text-gray-900">{item.tiLe} kg</td>
+                            <td className="px-4 py-3 text-sm text-gray-500">{item.tiLe}%</td>
                           </tr>
                         ))}
                       </tbody>
