@@ -186,13 +186,8 @@ const TechnicalManagement = () => {
     : 0;
 
   const repairTotal = summary.repairHandovers.repairRequestTotal ?? summary.repairHandovers.repairRequestsByStatus.reduce((s, r) => s + r.total, 0);
-  const _acceptanceRate = repairTotal > 0
-    ? Math.round((summary.repairHandovers.acceptanceHandovers / repairTotal) * 100)
-    : 0;
-
   const pendingRepairs = summary.repairHandovers.repairRequestsByStatus.find((r) => r.trangThai === 'Chờ xử lý')?.total ?? 0;
 
-  const _activeProjects = summary.projects.activeProjects ?? 0;
   const spareParts = summary.spareParts ?? { total: 0, lowStock: 0, outOfStock: 0 };
   const faultRecordTotal = summary.coDien.faultRecordTotal ?? summary.coDien.faultRecordsByStatus.reduce((s, r) => s + r.total, 0);
 
@@ -211,11 +206,6 @@ const TechnicalManagement = () => {
     label: item.trangThai,
     value: item.total,
     color: STATUS_COLORS[i % STATUS_COLORS.length],
-  }));
-
-  const _projectDonutData = summary.projects.projectsByStatus.map((item) => ({
-    name: item.trangThai,
-    value: item.total,
   }));
 
   const machineDot = machineActiveRate >= 80 ? 'bg-emerald-500' : machineActiveRate >= 60 ? 'bg-amber-400' : 'bg-red-500';

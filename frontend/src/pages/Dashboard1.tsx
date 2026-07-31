@@ -247,7 +247,7 @@ const Dashboard1: React.FC = () => {
     enabled: canSeeStats,
   });
 
-  const purchaseRequests = purchaseRequestsData?.data || [];
+  const purchaseRequests = (purchaseRequestsData as any)?.data || [];
 
   // Dashboard stats queries
   const { data: ordersData } = useQuery({
@@ -403,28 +403,28 @@ const Dashboard1: React.FC = () => {
   });
 
   // Compute department stats from real data
-  const orders = ordersData?.data || [];
-  const quotations = quotationsData?.data || [];
-  const customers = customersData?.data || [];
-  const feedbacks = Array.isArray(feedbacksData) ? feedbacksData : (feedbacksData?.data || []);
-  const processes = processesData?.data || [];
-  const inspections = Array.isArray(inspectionsData) ? inspectionsData : (inspectionsData?.data || []);
-  const qualityEvals = qualityEvalData?.data || [];
-  const employees = employeesData?.data || [];
-  const invoices = invoicesData?.data || [];
-  const costs = costsData?.data || [];
-  const debtSummary = debtSummaryData?.data?.data || debtSummaryData?.data || {};
-  const taxReports = taxReportsData?.data || [];
-  const machines = machineSystemsData?.data || [];
-  const machineSystems = machineSystemsData?.data || [];
-  const repairRequests = repairRequestsData?.data || [];
-  const faultRecords = faultRecordsData?.data || [];
-  const spareParts = sparePartsData?.data || [];
-  const projects = projectsData?.data || [];
-  const finishedProducts = finishedProductsData?.data || [];
-  const suppliers = suppliersData?.data || [];
-  const supplyRequests = supplyRequestsData?.data || [];
-  const workPlans = workPlansData?.data || [];
+  const orders = (ordersData as any)?.data || [];
+  const quotations = (quotationsData as any)?.data || [];
+  const customers = (customersData as any)?.data || [];
+  const feedbacks = Array.isArray(feedbacksData) ? feedbacksData : ((feedbacksData as any)?.data || []);
+  const processes = (processesData as any)?.data || [];
+  const inspections = Array.isArray(inspectionsData) ? inspectionsData : ((inspectionsData as any)?.data || []);
+  const qualityEvals = (qualityEvalData as any)?.data || [];
+  const employees = (employeesData as any)?.data || [];
+  const invoices = (invoicesData as any)?.data || [];
+  const costs = (costsData as any)?.data || [];
+  const debtSummary = (debtSummaryData as any)?.data?.data || (debtSummaryData as any)?.data || {};
+  const taxReports = (taxReportsData as any)?.data || [];
+  const machines = (machineSystemsData as any)?.data || [];
+  const machineSystems = (machineSystemsData as any)?.data || [];
+  const repairRequests = (repairRequestsData as any)?.data || [];
+  const faultRecords = (faultRecordsData as any)?.data || [];
+  const spareParts = (sparePartsData as any)?.data || [];
+  const projects = (projectsData as any)?.data || [];
+  const finishedProducts = (finishedProductsData as any)?.data || [];
+  const suppliers = (suppliersData as any)?.data || [];
+  const supplyRequests = (supplyRequestsData as any)?.data || [];
+  const workPlans = (workPlansData as any)?.data || [];
   const overtimeCount = overtimePlansData?.total ?? 0;
   const overtimePendingCount = overtimePlansPendingData?.total ?? 0;
 
@@ -461,7 +461,7 @@ const Dashboard1: React.FC = () => {
   // Derived counts — always reflect the active period filter
   const workPlanCount             = filteredWorkPlans.length;
   const purchaseRequestCount      = filteredPurchaseRequests.length;
-  const purchaseRequestPendingCount = useMemo(() => filteredPurchaseRequests.filter(
+  const purchaseRequestPendingCount = useMemo(() => (filteredPurchaseRequests as PurchaseRequest[]).filter(
     (r: PurchaseRequest) => r.trangThai === 'Chờ duyệt'
   ).length, [filteredPurchaseRequests]);
   // ──────────────────────────────────────────────────────────────────────────

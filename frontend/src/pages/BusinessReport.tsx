@@ -49,10 +49,10 @@ const BusinessReport: React.FC = () => {
           customerFeedbackService.getAllFeedbacks({ customerType: 'Nội địa' }),
         ]);
 
-        const intlOrders = ordersIntl.data || [];
-        const domOrders = ordersDom.data || [];
-        const intlCustomers = customersIntl.data || [];
-        const domCustomers = customersDom.data || [];
+        const intlOrders = (ordersIntl as any).data || [];
+        const domOrders = (ordersDom as any).data || [];
+        const intlCustomers = (customersIntl as any).data || [];
+        const domCustomers = (customersDom as any).data || [];
         const intlFeedback = feedbackIntl || [];
         const domFeedback = feedbackDom || [];
 

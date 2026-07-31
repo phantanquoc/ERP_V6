@@ -22,7 +22,7 @@ class WorkShiftService {
   async getAll(): Promise<WorkShift[]> {
     try {
       const response = await apiClient.get('/work-shifts');
-      return response.data || [];
+      return (response.data as WorkShift[]) || [];
     } catch (error) {
       console.error('Error fetching work shifts:', error);
       throw error;

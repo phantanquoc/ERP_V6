@@ -31,13 +31,13 @@ const PAGE_KEYS = [
 
 const DataEntryPositionConfig: React.FC = () => {
   const [selectedPageKey, setSelectedPageKey] = useState<string>('PRODUCTION_OUTPUT');
-  const { data: positions, isLoading: isLoadingPositions } = usePositions(1, 1000);
+  const { data: positions, isLoading: isLoadingPositions } = usePositions();
   const { data: mappings, isLoading: isLoadingMappings } = useDataEntryPageMappings(selectedPageKey);
   const addMapping = useAddPageMapping();
   const removeMapping = useRemovePageMapping();
 
   const selectedPage = PAGE_KEYS.find((p) => p.key === selectedPageKey);
-  const allPositions = positions?.data || [];
+  const allPositions = positions || [];
   const mappedPositionIds = new Set((mappings || []).map((m) => m.positionId));
   const unmappedPositions = allPositions.filter((p) => !mappedPositionIds.has(p.id));
 

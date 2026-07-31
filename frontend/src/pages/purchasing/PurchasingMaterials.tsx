@@ -49,7 +49,7 @@ interface PurchaseRequest {
   supplyRequestId?: string;
   createdAt: string;
   updatedAt: string;
-  items?: { id: string; tenHangHoa: string; soLuong: number; donViTinh: string; phanLoai: string; giaDuKien?: number }[];
+  items?: { id: string; tenHangHoa: string; soLuong: number; donViTinh: string; phanLoai: string; giaDuKien?: number; nhaCungCapId?: string | null }[];
 }
 
 const VALID_TABS = ['suppliers', 'orderList', 'purchaseRequestList'] as const;
@@ -85,7 +85,7 @@ const PurchasingMaterials = () => {
   useEffect(() => {
     const fetchSupplierStats = async () => {
       try {
-        const response = await supplierService.getAllSuppliers(1, 1000, undefined, 'NVL');
+        const response = await supplierService.getAllSuppliers(1, 1000, undefined, 'NVL') as any;
         const allSuppliers = response.data || [];
         setCardSupplierStats({
           total: allSuppliers.length,
@@ -103,7 +103,7 @@ const PurchasingMaterials = () => {
   useEffect(() => {
     const fetchPRStats = async () => {
       try {
-        const response = await purchaseRequestService.getAllPurchaseRequests(1, 1000, undefined, selectedMonth, selectedYear);
+        const response = await purchaseRequestService.getAllPurchaseRequests(1, 1000, undefined, selectedMonth, selectedYear) as any;
         const allPR = response.data || [];
 
         // Helper: PR matches NVL category if at least 1 item has supplier.phanLoaiNCC === 'NVL'
@@ -199,7 +199,7 @@ const PurchasingMaterials = () => {
       setSupplierLoading(true);
       const response = await supplierService.getAllSuppliers(supplierPage, 10, supplierSearch || undefined, 'NVL');
       setSuppliers(response.data || []);
-      setSupplierTotalPages(response.totalPages || 1);
+      setSupplierTotalPages(response.pagination?.totalPages || 1);
     } catch (error) {
       console.error('Error fetching suppliers:', error);
     } finally {
@@ -218,7 +218,8 @@ const PurchasingMaterials = () => {
       return;
     }
     try {
-      const { code } = await supplierService.generateCode('NVL');
+      const codeRes = await supplierService.generateCode('NVL') as any;
+      const code = codeRes.data?.code || codeRes.code;
       setSupplierFormData({
         maNhaCungCap: code,
         tenNhaCungCap: '',

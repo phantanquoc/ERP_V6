@@ -16,7 +16,7 @@ class DocService {
   async listDocs(): Promise<DocItem[]> {
     try {
       const response = await apiClient.get('/docs');
-      return response.data || [];
+      return (response.data as DocItem[]) || [];
     } catch (error) {
       console.error('Error fetching docs list:', error);
       throw error;

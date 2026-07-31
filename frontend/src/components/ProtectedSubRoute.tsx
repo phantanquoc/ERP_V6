@@ -10,11 +10,10 @@ interface ProtectedSubRouteProps {
   fallbackPath?: string;
 }
 
-const ProtectedSubRoute: React.FC<ProtectedSubRouteProps> = ({ 
-  children, 
-  department, 
-  subModule, 
-  _fallbackPath = '/dashboard'
+const ProtectedSubRoute: React.FC<ProtectedSubRouteProps> = ({
+  children,
+  department,
+  subModule,
 }) => {
   const { user, isAuthenticated } = useAuth();
 

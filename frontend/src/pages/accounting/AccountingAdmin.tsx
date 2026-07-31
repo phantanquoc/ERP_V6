@@ -97,7 +97,7 @@ const AccountingAdmin = () => {
         ]);
 
         // Calculate total asset value from warehouses
-        const warehouses = warehousesRes.data?.data || warehousesRes.data || [];
+        const warehouses = (warehousesRes as any).data?.data || (warehousesRes as any).data || [];
         let tongTaiSan = 0;
         warehouses.forEach((warehouse: any) => {
           warehouse.lots?.forEach((lot: any) => {
@@ -109,7 +109,7 @@ const AccountingAdmin = () => {
         });
 
         // Get debt summary
-        const debtSummary = debtSummaryRes.data?.data || debtSummaryRes.data || {};
+        const debtSummary = (debtSummaryRes as any).data?.data || (debtSummaryRes as any).data || {};
         setAssetOverview({
           tongTaiSan,
           tongCongNo: debtSummary.tongPhaiTra || 0,
@@ -152,7 +152,7 @@ const AccountingAdmin = () => {
         });
 
         // Orders overview
-        const orders = ordersRes.data || [];
+        const orders = (ordersRes as any).data || [];
         setOrderOverview({
           total: orders.length,
           dangSanXuat: orders.filter((o: any) => o.trangThaiSanXuat === 'DANG_SAN_XUAT').length,

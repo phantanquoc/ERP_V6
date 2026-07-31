@@ -332,9 +332,9 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
                     {quotation.maBaoGia}
                   </td>
                   <td className="px-6 py-4 text-sm border-r border-gray-200">
-                    {quotation.quotationRequestId?.calculator?.products && quotation.quotationRequestId.calculator.products.length > 0 ? (
+                    {(quotation.quotationRequestId as any)?.calculator?.products && (quotation.quotationRequestId as any).calculator.products.length > 0 ? (
                       <div className="space-y-1">
-                        {quotation.quotationRequestId.calculator.products.map((product: any, idx: number) => {
+                        {(quotation.quotationRequestId as any).calculator.products.map((product: any, idx: number) => {
                           const giaBaoKhach = (product.giaHoaVon || 0) + (product.loiNhuanCongThem || 0);
                           const tiGiaUSD = product.tiGiaUSD || 0;
                           const giaBaoKhachUSD = tiGiaUSD > 0 ? giaBaoKhach / tiGiaUSD : 0;

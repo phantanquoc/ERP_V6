@@ -27,10 +27,13 @@ export interface SecondaryDepartmentEntry {
 
 export interface User {
   _id: string;
+  id?: string;          // alias for _id (some contexts use id instead of _id)
   username: string;
   email: string;
   firstName: string;
   lastName: string;
+  fullName?: string;    // derived display name (firstName + lastName)
+  name?: string;        // alias for fullName (some components use name)
   role: UserRole;
   department?: string;         // department CODE (perm-code form, e.g. 'quality') for RBAC
   departmentCode?: string;     // raw backend department code (e.g. 'DEPT_QUALITY')

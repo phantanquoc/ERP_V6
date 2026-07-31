@@ -104,7 +104,13 @@ const QualityProcess = () => {
   };
 
   const [isProcessModalOpen, setIsProcessModalOpen] = useState(false);
-  const [processFormData, setProcessFormData] = useState({
+  const [processFormData, setProcessFormData] = useState<{
+    tenNhanVien: string;
+    tenQuyTrinh: string;
+    loaiQuyTrinh: string;
+    luuDo: string;
+    sections: ProcessSection[];
+  }>({
     tenNhanVien: '',
     tenQuyTrinh: '',
     loaiQuyTrinh: '',
@@ -134,31 +140,6 @@ const QualityProcess = () => {
   });
 
   // Process List handlers
-  const _handleOpenProcessModal = () => {
-    setProcessFormData({
-      tenNhanVien: '',
-      tenQuyTrinh: '',
-      loaiQuyTrinh: '',
-      luuDo: '',
-      sections: [
-        {
-          id: '1',
-          tenPhanDoan: '',
-          noiDungCongViec: '',
-          costs: []
-        }
-      ]
-    });
-    setCurrentSectionCost({
-      sectionId: '1',
-      loaiChiPhi: 'Nhân công',
-      tenChiPhi: '',
-      dvt: '',
-      donViTinh: ''
-    });
-    setIsProcessModalOpen(true);
-  };
-
   const handleCloseProcessModal = () => {
     setIsProcessModalOpen(false);
   };
@@ -225,7 +206,7 @@ const QualityProcess = () => {
         if (section.id === currentSectionCost.sectionId) {
           // Count existing costs of the same type
           const sameTypeCount = section.costs.filter(c => c.loaiChiPhi === currentSectionCost.loaiChiPhi).length + 1;
-          const _displayName = `${currentSectionCost.loaiChiPhi} ${sameTypeCount}`;
+          void sameTypeCount; // used indirectly via displayLabel in render
 
           return {
             ...section,
@@ -297,15 +278,6 @@ const QualityProcess = () => {
 
     setProcessDetails([...processDetails, ...newProcessDetails]);
     handleCloseProcessModal();
-  };
-
-  const _handleDeleteProcess = (id: number) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa quy trình này?')) {
-      setProcessDetails(processDetails.filter(p => p.id !== id).map((p, idx) => ({
-        ...p,
-        stt: idx + 1
-      })));
-    }
   };
 
   const tabs = [

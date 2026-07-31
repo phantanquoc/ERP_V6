@@ -136,7 +136,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
     try {
       const response = await supplyRequestService.getAllSupplyRequests(currentPage, itemsPerPage, searchTerm);
       setRequests(response.data as SupplyRequest[]);
-      setTotalItems(response.pagination?.totalItems || (response.data as SupplyRequest[]).length);
+      setTotalItems(response.pagination?.total || (response.data as SupplyRequest[]).length);
     } catch (error: any) {
       alert(error.response?.data?.message || 'Lỗi khi tải danh sách yêu cầu cung cấp');
     } finally {
@@ -240,7 +240,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
     setInventoryCheckResult({ show: true, loading: true, productName: productNames.join(', '), items: [], allResults: [] });
 
     try {
-      const response = await warehouseService.getAllLotProducts();
+      const response = await warehouseService.getAllLotProducts() as any;
       const lotProducts = response.data?.data || response.data || [];
 
       const allResults = productNames.map(name => {

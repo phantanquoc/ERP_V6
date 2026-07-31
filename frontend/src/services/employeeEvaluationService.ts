@@ -230,6 +230,8 @@ export interface AuditLogEntry {
 export interface CopyPreviousMonthResult {
   copied: number;
   skipped: number;
+  copiedCount: number;
+  sourcePeriod: string;
 }
 
 // ── Comment update request ─────────────────────────────────────────────────
@@ -389,7 +391,7 @@ class EmployeeEvaluationService {
   async getPendingCount(): Promise<number> {
     try {
       const response = await apiClient.get('/employee-evaluations/pending-count');
-      return response.data?.count ?? 0;
+      return (response.data as { count: number })?.count ?? 0;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -400,7 +402,7 @@ class EmployeeEvaluationService {
       const response = await apiClient.get(
         `/employee-evaluations/subordinates/${month}/${year}`
       );
-      return response.data || [];
+      return (response.data as any[]) || [];
     } catch (error) {
       throw this.handleError(error);
     }
@@ -451,7 +453,7 @@ class EmployeeEvaluationService {
       const response = await apiClient.get(
         `/employee-evaluations/evaluations/details/${detailId}/evidence`
       );
-      return response.data || [];
+      return (response.data as EvaluationEvidence[]) || [];
     } catch (error) {
       throw this.handleError(error);
     }
@@ -511,7 +513,7 @@ class EmployeeEvaluationService {
       const response = await apiClient.get(
         `/employee-evaluations/evaluations/${evaluationId}/audit-log`
       );
-      return response.data || [];
+      return (response.data as AuditLogEntry[]) || [];
     } catch (error) {
       throw this.handleError(error);
     }
@@ -573,7 +575,7 @@ class EmployeeEvaluationService {
       const response = await apiClient.get(
         `/employee-evaluations/evaluations/${evaluationId}/goals`
       );
-      return response.data || [];
+      return (response.data as EvaluationGoal[]) || [];
     } catch (error) {
       throw this.handleError(error);
     }
@@ -617,7 +619,7 @@ class EmployeeEvaluationService {
       const response = await apiClient.get(
         `/employee-evaluations/evaluations/${evaluationId}/idp-items`
       );
-      return response.data || [];
+      return (response.data as EvaluationIdpItem[]) || [];
     } catch (error) {
       throw this.handleError(error);
     }
