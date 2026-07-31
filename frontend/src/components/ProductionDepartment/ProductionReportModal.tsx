@@ -130,8 +130,8 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
       const totalWeight = rows.reduce((sum, row) => sum + (row.tongKhoiLuong || 0), 0);
 
       // Update khoiLuongThanhPhamThucTe and recalculate auto values
-      const tiLeThuHoi = selectedMaterialStandard?.tiLeThuHoi || 0;
-      const autoValues = calculateAutoValues(formData.soMeThucTe, totalWeight, tiLeThuHoi);
+      const kgNguyenLieuTren1KgThanhPham = selectedMaterialStandard?.kgNguyenLieuTren1KgThanhPham || 0;
+      const autoValues = calculateAutoValues(formData.soMeThucTe, totalWeight, kgNguyenLieuTren1KgThanhPham);
 
       setFormData(prev => ({
         ...prev,
@@ -149,9 +149,11 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
   };
 
   // Hàm tính toán tự động
-  const calculateAutoValues = (soMeThucTe: number, khoiLuongThanhPhamThucTe: number, tiLeThuHoi: number) => {
+  // tongKL_TP_DM = tongKL_NL / kgNguyenLieuTren1KgThanhPham
+  // (kgNguyenLieuTren1KgThanhPham: số kg NL để tạo 1kg TP, trước đây là tiLeThuHoi %)
+  const calculateAutoValues = (soMeThucTe: number, khoiLuongThanhPhamThucTe: number, kgNguyenLieuTren1KgThanhPham: number) => {
     const tongKL_NL = soMeThucTe * 50;
-    const tongKL_TP_DM = tongKL_NL * (tiLeThuHoi / 100);
+    const tongKL_TP_DM = kgNguyenLieuTren1KgThanhPham > 0 ? tongKL_NL / kgNguyenLieuTren1KgThanhPham : 0;
     const chenhLech = khoiLuongThanhPhamThucTe - tongKL_TP_DM;
 
     setChenhLechValue(chenhLech);
@@ -167,9 +169,8 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
     if (selected) {
       setSelectedMaterialStandard(selected);
 
-      // Tính toán lại khi thay đổi định mức
-      const tiLeThuHoi = selected.tiLeThuHoi || 0;
-      const autoValues = calculateAutoValues(formData.soMeThucTe, formData.khoiLuongThanhPhamThucTe, tiLeThuHoi);
+      const kgNguyenLieuTren1KgThanhPham = selected.kgNguyenLieuTren1KgThanhPham || 0;
+      const autoValues = calculateAutoValues(formData.soMeThucTe, formData.khoiLuongThanhPhamThucTe, kgNguyenLieuTren1KgThanhPham);
 
       setFormData(prev => ({
         ...prev,
@@ -255,7 +256,7 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
               {materialStandards.map((standard) => (
                 <option key={standard.id} value={standard.id}>
                   {standard.maDinhMuc} - {standard.tenDinhMuc}
-                  {standard.tiLeThuHoi ? ` (Tỉ lệ thu hồi: ${standard.tiLeThuHoi}%)` : ''}
+                  {standard.kgNguyenLieuTren1KgThanhPham ? ` (${standard.kgNguyenLieuTren1KgThanhPham} kg NL → 1kg TP)` : ''}
                 </option>
               ))}
             </select>
@@ -332,8 +333,8 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
               value={formData.soMeThucTe}
               onChange={(e) => {
                 const soMeThucTe = parseNumberInput(e.target.value);
-                const tiLeThuHoi = selectedMaterialStandard?.tiLeThuHoi || 0;
-                const autoValues = calculateAutoValues(soMeThucTe, formData.khoiLuongThanhPhamThucTe, tiLeThuHoi);
+                const kgNguyenLieuTren1KgThanhPham = selectedMaterialStandard?.kgNguyenLieuTren1KgThanhPham || 0;
+                const autoValues = calculateAutoValues(soMeThucTe, formData.khoiLuongThanhPhamThucTe, kgNguyenLieuTren1KgThanhPham);
                 setFormData({
                   ...formData,
                   soMeThucTe,
@@ -387,8 +388,8 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
               value={formData.khoiLuongThanhPhamThucTe}
               onChange={(e) => {
                 const khoiLuongThanhPhamThucTe = parseNumberInput(e.target.value);
-                const tiLeThuHoi = selectedMaterialStandard?.tiLeThuHoi || 0;
-                const autoValues = calculateAutoValues(formData.soMeThucTe, khoiLuongThanhPhamThucTe, tiLeThuHoi);
+                const kgNguyenLieuTren1KgThanhPham = selectedMaterialStandard?.kgNguyenLieuTren1KgThanhPham || 0;
+                const autoValues = calculateAutoValues(formData.soMeThucTe, khoiLuongThanhPhamThucTe, kgNguyenLieuTren1KgThanhPham);
                 setFormData({
                   ...formData,
                   khoiLuongThanhPhamThucTe,

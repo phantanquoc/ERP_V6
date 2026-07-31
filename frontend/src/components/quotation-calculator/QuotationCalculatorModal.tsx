@@ -1110,9 +1110,9 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                           <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>LOẠI CHI PHÍ</th>
                           <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>TÊN CHI PHÍ</th>
                           <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>ĐVT</th>
-                          <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>ĐỊNH MỨC LAO ĐỘNG</th>
+                          <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>ĐỊNH MỨC THỰC HIỆN</th>
                           <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>ĐƠN VỊ</th>
-                          <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>SỐ LƯỢNG NGUYÊN LIỆU CẦN HOÀN THÀNH (Kg)</th>
+                          <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>KHỐI LƯỢNG CẦN THỰC HIỆN (Kg)</th>
                           <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>SỐ PHÚT CẦN THỰC HIỆN XONG</th>
                           <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" colSpan={2}>SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ CẦN DÙNG</th>
                           <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" colSpan={2}>KẾ HOẠCH</th>
@@ -1591,9 +1591,9 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>LOẠI CHI PHÍ</th>
                       <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>TÊN CHI PHÍ</th>
                       <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>ĐVT</th>
-                      <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>ĐỊNH MỨC LAO ĐỘNG</th>
+                      <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>ĐỊNH MỨC THỰC HIỆN</th>
                       <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>ĐƠN VỊ</th>
-                      <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>SỐ LƯỢNG NGUYÊN LIỆU CẦN HOÀN THÀNH (Kg)</th>
+                      <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>KHỐI LƯỢNG CẦN THỰC HIỆN (Kg)</th>
                       <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" rowSpan={2}>SỐ PHÚT CẦN THỰC HIỆN XONG</th>
                       <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" colSpan={2}>SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ CẦN DÙNG</th>
                       <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" colSpan={2}>KẾ HOẠCH</th>

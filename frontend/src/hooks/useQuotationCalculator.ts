@@ -547,7 +547,10 @@ export function useQuotationCalculator(
     if (standard) {
       setTabsData(prev => {
         const n = [...prev];
-        n[activeTab] = { ...n[activeTab], selectedStandard: standard, formData: { ...n[activeTab].formData, maDinhMuc: standard.maDinhMuc, tenDinhMuc: standard.tenDinhMuc, tiLeThuHoi: standard.tiLeThuHoi?.toString() || '', sanPhamDauRa: '', nguyenLieuDauVao: '' } };
+        n[activeTab] = { ...n[activeTab], selectedStandard: standard, formData: { ...n[activeTab].formData, maDinhMuc: standard.maDinhMuc, tenDinhMuc: standard.tenDinhMuc,
+          // Báo giá vẫn dùng % — đổi ngược từ "kgNL/1kgTP" về %: 100 / kgNguyenLieuTren1KgThanhPham
+          tiLeThuHoi: standard.kgNguyenLieuTren1KgThanhPham ? (100 / standard.kgNguyenLieuTren1KgThanhPham).toFixed(4) : '',
+          sanPhamDauRa: '', nguyenLieuDauVao: '' } };
         return n;
       });
     }
@@ -657,7 +660,9 @@ export function useQuotationCalculator(
   const handleAdditionalTabStandardChange = (tabId: string, standardId: string) => {
     const standard = materialStandards.find(s => s.id === standardId);
     if (standard) {
-      setAdditionalCostTabs(prev => prev.map(tab => tab.id === tabId ? { ...tab, selectedStandard: standard, formData: { ...tab.formData, maDinhMuc: standard.maDinhMuc, tenDinhMuc: standard.tenDinhMuc, tiLeThuHoi: standard.tiLeThuHoi?.toString() || '', sanPhamDauRa: '', nguyenLieuDauVao: '' } } : tab));
+      setAdditionalCostTabs(prev => prev.map(tab => tab.id === tabId ? { ...tab, selectedStandard: standard, formData: { ...tab.formData, maDinhMuc: standard.maDinhMuc, tenDinhMuc: standard.tenDinhMuc,
+          tiLeThuHoi: standard.kgNguyenLieuTren1KgThanhPham ? (100 / standard.kgNguyenLieuTren1KgThanhPham).toFixed(4) : '',
+          sanPhamDauRa: '', nguyenLieuDauVao: '' } } : tab));
     }
   };
 

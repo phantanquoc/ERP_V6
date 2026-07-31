@@ -27,9 +27,9 @@ const productionCostColumns: ProductionCostColumn[] = [
   { key: 'loaiChiPhi', label: 'LOẠI CHI PHÍ', className: 'text-center' },
   { key: 'tenChiPhi', label: 'TÊN CHI PHÍ' },
   { key: 'donVi', label: 'ĐVT', className: 'text-center' },
-  { key: 'dinhMucLaoDong', label: 'ĐỊNH MỨC LAO ĐỘNG', className: 'text-center' },
+  { key: 'dinhMucLaoDong', label: 'ĐỊNH MỨC THỰC HIỆN', className: 'text-center' },
   { key: 'donViDinhMucLaoDong', label: 'ĐƠN VỊ', className: 'text-center' },
-  { key: 'soLuongNguyenLieu', label: 'SỐ LƯỢNG NGUYÊN LIỆU (Kg)', className: 'text-center' },
+  { key: 'soLuongNguyenLieu', label: 'KHỐI LƯỢNG CẦN THỰC HIỆN (Kg)', className: 'text-center' },
   { key: 'soPhutThucHien', label: 'SỐ PHÚT THỰC HIỆN', className: 'text-center' },
   { key: 'soLuongKeHoach', label: 'SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ', subLabel: 'KẾ HOẠCH', group: 'laborQuantity', className: 'text-center bg-blue-50 font-medium' },
   { key: 'soLuongThucTe', label: 'SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ', subLabel: 'THỰC TẾ', group: 'laborQuantity', className: 'text-center' },
@@ -261,18 +261,19 @@ const ProductionProcessManagement: React.FC = () => {
   };
 
   // Tính tổng nguyên liệu cần sản xuất
-  const calculateTongNguyenLieu = (khoiLuong: number, tiLeThuHoi: number, tiLeSanPham: number): number => {
-    // Công thức: Tổng nguyên liệu = Khối lượng đầu ra sản phẩm / (Tỉ lệ thu hồi / 100) / (% sản phẩm đầu ra / 100)
-    if (tiLeThuHoi > 0 && tiLeSanPham > 0) {
-      return khoiLuong / (tiLeThuHoi / 100) / (tiLeSanPham / 100);
+  // Công thức: Tổng NL = Khối lượng TP / (tiLe sản phẩm%) * kgNguyenLieuTren1KgThanhPham
+  // (kgNguyenLieuTren1KgThanhPham = số kg NL cần để tạo 1kg TP)
+  const calculateTongNguyenLieu = (khoiLuong: number, kgNguyenLieuTren1KgThanhPham: number, tiLeSanPham: number): number => {
+    if (kgNguyenLieuTren1KgThanhPham > 0 && tiLeSanPham > 0) {
+      return khoiLuong * kgNguyenLieuTren1KgThanhPham / (tiLeSanPham / 100);
     }
     return 0;
   };
 
   const handleKhoiLuongChange = (khoiLuong: number) => {
-    const tiLeThuHoi = selectedMaterialStandard?.tiLeThuHoi || 0;
+    const kgNguyenLieuTren1KgThanhPham = selectedMaterialStandard?.kgNguyenLieuTren1KgThanhPham || 0;
     const tiLeSanPham = getTiLeSanPham(formData.sanPhamDauRa, selectedMaterialStandard);
-    const tongNguyenLieu = calculateTongNguyenLieu(khoiLuong, tiLeThuHoi, tiLeSanPham);
+    const tongNguyenLieu = calculateTongNguyenLieu(khoiLuong, kgNguyenLieuTren1KgThanhPham, tiLeSanPham);
     setFormData(prev => ({
       ...prev,
       khoiLuong,
@@ -281,9 +282,9 @@ const ProductionProcessManagement: React.FC = () => {
   };
 
   const handleSanPhamDauRaChange = (sanPhamDauRa: string) => {
-    const tiLeThuHoi = selectedMaterialStandard?.tiLeThuHoi || 0;
+    const kgNguyenLieuTren1KgThanhPham = selectedMaterialStandard?.kgNguyenLieuTren1KgThanhPham || 0;
     const tiLeSanPham = getTiLeSanPham(sanPhamDauRa, selectedMaterialStandard);
-    const tongNguyenLieu = calculateTongNguyenLieu(formData.khoiLuong, tiLeThuHoi, tiLeSanPham);
+    const tongNguyenLieu = calculateTongNguyenLieu(formData.khoiLuong, kgNguyenLieuTren1KgThanhPham, tiLeSanPham);
     setFormData(prev => ({
       ...prev,
       sanPhamDauRa,
@@ -774,7 +775,7 @@ const ProductionProcessManagement: React.FC = () => {
                     {materialStandards.map((standard) => (
                       <option key={standard.id} value={standard.id}>
                         {standard.maDinhMuc} - {standard.tenDinhMuc}
-                        {standard.tiLeThuHoi ? ` (Tỉ lệ thu hồi: ${standard.tiLeThuHoi}%)` : ''}
+                        {standard.kgNguyenLieuTren1KgThanhPham ? ` (${standard.kgNguyenLieuTren1KgThanhPham} kg NL → 1kg TP)` : ''}
                       </option>
                     ))}
                   </select>
@@ -838,10 +839,11 @@ const ProductionProcessManagement: React.FC = () => {
                         <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">LOẠI CHI PHÍ</th>
                         <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">TÊN CHI PHÍ</th>
                         <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">ĐVT</th>
-                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">ĐỊNH MỨC LAO ĐỘNG</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">ĐỊNH MỨC THỰC HIỆN</th>
                         <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">ĐƠN VỊ</th>
-                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 bg-green-100">SỐ LƯỢNG NGUYÊN LIỆU (Kg)</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 bg-green-100">KHỐI LƯỢNG CẦN THỰC HIỆN (Kg)</th>
                         <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 bg-green-100">SỐ PHÚT THỰC HIỆN</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 bg-yellow-50">NĂNG SUẤT (ĐVT/phút)</th>
                         <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 bg-green-100" colSpan={2}>SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ</th>
                       </tr>
                       <tr className="bg-gray-50">
@@ -855,7 +857,7 @@ const ProductionProcessManagement: React.FC = () => {
                         <th className="border border-gray-200 px-3 py-2"></th>
                         <th className="border border-gray-200 px-3 py-2"></th>
                         <th className="border border-gray-200 px-3 py-2"></th>
-                        <th className="border border-gray-200 px-3 py-2"></th>
+                        <th className="border border-gray-200 px-3 py-2 text-center text-xs text-gray-400">ĐVT/phút</th>
                         <th className="border border-gray-200 px-3 py-2 text-center text-xs font-semibold text-gray-900 bg-green-50">KẾ HOẠCH</th>
                         <th className="border border-gray-200 px-3 py-2 text-center text-xs font-semibold text-gray-900 bg-green-50">THỰC TẾ</th>
                       </tr>
@@ -939,6 +941,34 @@ const ProductionProcessManagement: React.FC = () => {
                                   className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
                                   placeholder="0"
                                 />
+                              </td>
+                              {/* Năng suất thực hiện theo phút — độc lập với dinhMucLaoDong */}
+                              <td className="border border-gray-200 px-3 py-2 text-center bg-yellow-50">
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="number"
+                                    step="0.001"
+                                    min="0"
+                                    value={(cost as any).nangSuatTrenPhut || ''}
+                                    onChange={(e) => handleInputChange(sectionIndex, costIndex, 'nangSuatTrenPhut', e.target.value)}
+                                    className="w-16 px-1 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500 text-center text-xs"
+                                    placeholder="0"
+                                  />
+                                  <input
+                                    type="text"
+                                    list="nang-suat-don-vi-list"
+                                    value={(cost as any).donViNangSuat || ''}
+                                    onChange={(e) => handleInputChange(sectionIndex, costIndex, 'donViNangSuat', e.target.value)}
+                                    className="w-12 px-1 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500 text-xs"
+                                    placeholder="đvt"
+                                  />
+                                  <datalist id="nang-suat-don-vi-list">
+                                    <option value="kg" />
+                                    <option value="cái" />
+                                    <option value="lít" />
+                                  </datalist>
+                                  <span className="text-xs text-gray-400">/ph</span>
+                                </div>
                               </td>
                               <td className="border border-gray-200 px-3 py-2 text-center bg-blue-50">
                                 <input
@@ -1083,8 +1113,8 @@ const ProductionProcessManagement: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Định mức NVL</label>
                   <p className="text-sm text-gray-900">
                     {viewingProcess.materialStandard?.tenDinhMuc || '-'}
-                    {viewingProcess.materialStandard?.tiLeThuHoi && (
-                      <span className="text-gray-600"> (Tỉ lệ thu hồi: {viewingProcess.materialStandard.tiLeThuHoi}%)</span>
+                    {viewingProcess.materialStandard?.kgNguyenLieuTren1KgThanhPham && (
+                      <span className="text-gray-600"> ({viewingProcess.materialStandard.kgNguyenLieuTren1KgThanhPham} kg NL → 1kg TP)</span>
                     )}
                   </p>
                 </div>
