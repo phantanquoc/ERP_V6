@@ -79,7 +79,7 @@ const RawMaterialPicker: React.FC<RawMaterialPickerProps> = ({
       >
         <span className={selectedProduct ? 'text-gray-900 truncate' : 'text-gray-400'}>
           {selectedProduct
-            ? `${selectedProduct.tenSanPham} – ${selectedProduct.maSanPham}`
+            ? `${selectedProduct.maSanPham} – ${selectedProduct.tenSanPham}`
             : loading
               ? 'Đang tải...'
               : '-- Chọn sản phẩm --'}
@@ -167,9 +167,9 @@ const RawMaterialPicker: React.FC<RawMaterialPickerProps> = ({
                         : 'border-gray-200 bg-white hover:bg-gray-50'
                     }`}
                   >
-                    <span className="text-lg font-semibold text-gray-900">{p.tenSanPham}</span>
+                    <span className="text-lg font-semibold text-gray-900">{p.maSanPham}</span>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-sm text-gray-700 truncate">{p.maSanPham}</span>
+                      <span className="text-sm text-gray-500 truncate">{p.tenSanPham}</span>
                       {p.loaiSanPham && (
                         <span className="text-xs text-gray-500 shrink-0">– {p.loaiSanPham}</span>
                       )}

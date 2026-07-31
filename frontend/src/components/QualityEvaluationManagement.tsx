@@ -30,7 +30,7 @@ const QualityEvaluationManagement: React.FC<QualityEvaluationManagementProps> = 
 
   const productFilterFields: FilterField[] = [
     { key: 'maChien', label: 'Mã chiên', type: 'text' },
-    { key: 'tenHangHoa', label: 'Tên hàng hóa', type: 'text' },
+    { key: 'tenHangHoa', label: 'Mã hàng hóa', type: 'text' },
   ];
 
   // Get current user's full name
@@ -348,13 +348,13 @@ const QualityEvaluationManagement: React.FC<QualityEvaluationManagementProps> = 
                 <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
                 <th className="px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã chiên</th>
                 <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian chiên</th>
-                <th className="px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên hàng hóa</th>
+                <th className="px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã hàng hóa</th>
                 <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Màu sắc</th>
                 <th className="hidden md:table-cell px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Mùi hương</th>
                 <th className="hidden md:table-cell px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Vị</th>
                 <th className="hidden lg:table-cell px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Độ ngọt</th>
                 <th className="hidden lg:table-cell px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Độ giòn</th>
-                <th className="hidden md:table-cell px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người thực hiện</th>
+                <th className="hidden md:table-cell px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã NV thực hiện</th>
                 <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
               </tr>
             </thead>

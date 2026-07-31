@@ -77,7 +77,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
 
   const evaluationFilterFields: FilterField[] = [
     { key: 'maChien', label: 'Mã chiên', type: 'text' },
-    { key: 'tenHangHoa', label: 'Tên hàng hóa', type: 'text' },
+    { key: 'tenHangHoa', label: 'Mã hàng hóa', type: 'text' },
   ];
 
   // Criteria states
@@ -361,9 +361,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
       setIsEditing(false);
       setSelectedEvaluation(null);
 
-      const nguoiThucHien = user
-        ? `${user.lastName || ''} ${user.firstName || ''}`.trim()
-        : '';
+      const nguoiThucHien = user?.employeeCode ?? '';
 
       // Batch code is now selected from schedule — no auto-generation
       setFormData({
@@ -401,9 +399,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
     setIsEditing(false);
     setSelectedEvaluation(null);
 
-    const nguoiThucHien = user
-      ? `${user.lastName || ''} ${user.firstName || ''}`.trim()
-      : '';
+    const nguoiThucHien = user?.employeeCode ?? '';
 
     // ngaySanXuat is the production day, which is NOT the calendar date for the
     // after-midnight batches (MC-13..MC-16 run 00:30–05:00 the next morning). Advance
@@ -661,7 +657,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   <th className="sticky top-0 left-[44px] z-30 bg-gray-100 px-2 py-2 text-left font-semibold text-gray-900 whitespace-nowrap shadow-[2px_0_0_0_#d1d5db,0_2px_0_0_#d1d5db]">Mã chiên</th>
                   <th className="sticky top-0 z-20 bg-gray-100 shadow-[0_2px_0_0_#d1d5db] px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Ca</th>
                   <th className="sticky top-0 z-20 bg-gray-100 shadow-[0_2px_0_0_#d1d5db] px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Thời gian chiên</th>
-                  <th className="sticky top-0 z-20 bg-gray-100 shadow-[0_2px_0_0_#d1d5db] px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Tên hàng hóa</th>
+                  <th className="sticky top-0 z-20 bg-gray-100 shadow-[0_2px_0_0_#d1d5db] px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Mã hàng hóa</th>
                   <th className="sticky top-0 z-20 bg-gray-100 shadow-[0_2px_0_0_#d1d5db] px-2 py-2 text-left font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Số lô kiện</th>
                   <th className="sticky top-0 z-20 bg-gray-100 shadow-[0_2px_0_0_#d1d5db] px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">KL (Kg/tua)</th>
                   <th className="sticky top-0 z-20 bg-gray-100 shadow-[0_2px_0_0_#d1d5db] px-2 py-2 text-center font-semibold text-gray-900 border-r border-gray-200 whitespace-nowrap">Số lần ngâm</th>
@@ -978,7 +974,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                               type="button"
                               onMouseDown={(e) => {
                                 e.preventDefault();
-                                handleNguoiThucHienSelect(employee.name);
+                                handleNguoiThucHienSelect(employee.maNhanVien);
                               }}
                               className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-blue-50 focus:bg-blue-50"
                             >

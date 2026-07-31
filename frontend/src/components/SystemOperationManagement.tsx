@@ -197,7 +197,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
 
   const handleOpenModal = (operation?: SystemOperation) => {
     loadMaterialEvaluations();
-    const currentUserName = user ? `${user.lastName} ${user.firstName}` : '';
+    const currentUserName = user?.employeeCode ?? '';
     if (operation) {
       setIsEditing(true);
       setSelectedOperation(operation);
@@ -438,13 +438,13 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
               <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
                 <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
                 <th className="px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã chiên</th>
-                <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên máy</th>
+                <th className="hidden sm:table-cell px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã máy</th>
                 <th className="px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian chiên</th>
                 <th className="hidden md:table-cell px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Khối lượng đầu vào (kg)</th>
                 <th className="hidden md:table-cell px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Tổng thời gian sấy</th>
                 <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
                 <th className="hidden lg:table-cell px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ghi chú</th>
-                <th className="hidden lg:table-cell px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người thực hiện</th>
+                <th className="hidden lg:table-cell px-3 py-2 sm:px-6 sm:py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã NV thực hiện</th>
                 <th className="px-3 py-2 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
               </tr>
             </thead>
@@ -821,7 +821,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
                   />
                   <datalist id="production-employees-list">
                     {productionEmployees.map(emp => (
-                      <option key={emp.id} value={emp.name} />
+                      <option key={emp.id} value={emp.maNhanVien} />
                     ))}
                   </datalist>
                 </div>

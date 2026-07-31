@@ -150,7 +150,7 @@ const MaterialStandardManagement: React.FC = () => {
         i === index
           ? {
               ...item,
-              tenNguyenLieu: product.tenSanPham,
+              tenNguyenLieu: product.maSanPham,
               internationalProductId: product.id,
               internationalProduct: {
                 id: product.id,
@@ -200,7 +200,7 @@ const MaterialStandardManagement: React.FC = () => {
         i === index
           ? {
               ...item,
-              tenThanhPham: product.tenSanPham,
+              tenThanhPham: product.maSanPham,
               internationalProductId: product.id,
               internationalProduct: {
                 id: product.id,
@@ -319,8 +319,8 @@ const MaterialStandardManagement: React.FC = () => {
 
   const standardFilterFields: FilterField[] = [
     { key: 'maDinhMuc', label: 'Mã định mức', type: 'text' },
-    { key: 'tenDinhMuc', label: 'Tên thành phẩm đầu ra', type: 'text' },
-    { key: 'tenNguyenLieu', label: 'Tên nguyên liệu đầu vào', type: 'text' },
+    { key: 'tenDinhMuc', label: 'Mã thành phẩm đầu ra', type: 'text' },
+    { key: 'tenNguyenLieu', label: 'Mã nguyên liệu đầu vào', type: 'text' },
     { key: 'loaiDinhMuc', label: 'Loại định mức', type: 'text' },
   ];
 
@@ -381,8 +381,8 @@ const MaterialStandardManagement: React.FC = () => {
             <thead>
               <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã định mức</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên thành phẩm đầu ra</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên nguyên liệu đầu vào</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã thành phẩm đầu ra</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã nguyên liệu đầu vào</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Khối lượng thu hồi (kg NL → 1kg TP)</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Loại định mức</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày tạo</th>
@@ -926,7 +926,7 @@ const MaterialStandardManagement: React.FC = () => {
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">STT</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tên nguyên liệu</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Mã nguyên liệu</th>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Kg nguyên liệu</th>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tỉ lệ (%)</th>
                         </tr>
@@ -957,7 +957,7 @@ const MaterialStandardManagement: React.FC = () => {
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">STT</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tên thành phẩm</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Mã thành phẩm</th>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Kg thành phẩm</th>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tỉ lệ (%)</th>
                         </tr>

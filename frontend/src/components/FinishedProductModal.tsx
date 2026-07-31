@@ -77,7 +77,7 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tên hàng hóa <span className="text-red-500">*</span>
+                Mã hàng hóa <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -116,7 +116,7 @@ const FinishedProductModal: React.FC<FinishedProductModalProps> = ({
               />
               <datalist id="finished-product-employees-list">
                 {productionEmployees.map(employee => (
-                  <option key={employee.id} value={employee.name} />
+                  <option key={employee.id} value={employee.maNhanVien} />
                 ))}
               </datalist>
             </div>
