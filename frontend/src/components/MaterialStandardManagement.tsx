@@ -14,9 +14,8 @@ import { parseNumberInput, parseNumberInputStr } from '../utils/numberInput';
 interface FormData {
   maDinhMuc: string;
   tenDinhMuc: string;
-  loaiDinhMuc: 'RAW_MATERIAL' | 'EQUIPMENT';
-  kgThuHoi: string;
-  tiLeThuHoi: string;
+  /** Số kg nguyên liệu cần để tạo ra 1 kg thành phẩm — nhập trực tiếp, không tính từ % */
+  kgNguyenLieuTren1KgThanhPham: string;
   ghiChu: string;
   inputItems: MaterialStandardInputItem[];
   items: MaterialStandardItem[];
@@ -27,7 +26,7 @@ const MaterialStandardManagement: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maDinhMuc: '', tenDinhMuc: '', loaiDinhMuc: '' });
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maDinhMuc: '', tenDinhMuc: '', tenNguyenLieu: '', loaiDinhMuc: '' });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -37,9 +36,7 @@ const MaterialStandardManagement: React.FC = () => {
   const [formData, setFormData] = useState<FormData>({
     maDinhMuc: '',
     tenDinhMuc: '',
-    loaiDinhMuc: 'RAW_MATERIAL',
-    kgThuHoi: '',
-    tiLeThuHoi: '',
+    kgNguyenLieuTren1KgThanhPham: '',
     ghiChu: '',
     inputItems: [],
     items: [],
@@ -132,8 +129,36 @@ const MaterialStandardManagement: React.FC = () => {
   const handleInputItemChange = (index: number, field: 'tenNguyenLieu' | 'tiLe', value: string | number) => {
     setFormData(prev => ({
       ...prev,
+      inputItems: prev.inputItems.map((item, i) => {
+        if (i !== index) return item;
+        const next = { ...item, [field]: field === 'tiLe' ? parseNumberInput(value as string) : value };
+        // Gõ tay tên khác với sản phẩm đã chọn thì bỏ link — id cũ không còn đúng
+        if (field === 'tenNguyenLieu' && item.internationalProduct?.tenSanPham !== value) {
+          next.internationalProductId = null;
+          next.internationalProduct = null;
+        }
+        return next;
+      })
+    }));
+  };
+
+  /** Chọn sản phẩm từ danh mục cho item đầu vào — lưu cả id để backend suy được loại định mức. */
+  const selectInputItemProduct = (index: number, product: InternationalProduct) => {
+    setFormData(prev => ({
+      ...prev,
       inputItems: prev.inputItems.map((item, i) =>
-        i === index ? { ...item, [field]: field === 'tiLe' ? parseNumberInput(value as string) : value } : item
+        i === index
+          ? {
+              ...item,
+              tenNguyenLieu: product.tenSanPham,
+              internationalProductId: product.id,
+              internationalProduct: {
+                id: product.id,
+                tenSanPham: product.tenSanPham,
+                loaiSanPham: product.loaiSanPham ?? null,
+              },
+            }
+          : item
       )
     }));
   };
@@ -155,8 +180,35 @@ const MaterialStandardManagement: React.FC = () => {
   const handleItemChange = (index: number, field: 'tenThanhPham' | 'tiLe', value: string | number) => {
     setFormData(prev => ({
       ...prev,
-      items: prev.items.map((item, i) => 
-        i === index ? { ...item, [field]: field === 'tiLe' ? parseNumberInput(value as string) : value } : item
+      items: prev.items.map((item, i) => {
+        if (i !== index) return item;
+        const next = { ...item, [field]: field === 'tiLe' ? parseNumberInput(value as string) : value };
+        if (field === 'tenThanhPham' && item.internationalProduct?.tenSanPham !== value) {
+          next.internationalProductId = null;
+          next.internationalProduct = null;
+        }
+        return next;
+      })
+    }));
+  };
+
+  /** Chọn sản phẩm từ danh mục cho item đầu ra — lưu cả id để backend suy được loại định mức. */
+  const selectOutputItemProduct = (index: number, product: InternationalProduct) => {
+    setFormData(prev => ({
+      ...prev,
+      items: prev.items.map((item, i) =>
+        i === index
+          ? {
+              ...item,
+              tenThanhPham: product.tenSanPham,
+              internationalProductId: product.id,
+              internationalProduct: {
+                id: product.id,
+                tenSanPham: product.tenSanPham,
+                loaiSanPham: product.loaiSanPham ?? null,
+              },
+            }
+          : item
       )
     }));
   };
@@ -170,8 +222,9 @@ const MaterialStandardManagement: React.FC = () => {
       if (isEditMode && selectedStandard) {
         await materialStandardService.updateMaterialStandard(selectedStandard.id, {
           tenDinhMuc: formData.tenDinhMuc,
-          loaiDinhMuc: formData.loaiDinhMuc,
-          tiLeThuHoi: formData.tiLeThuHoi ? parseFloat(formData.tiLeThuHoi) : undefined,
+          kgNguyenLieuTren1KgThanhPham: formData.kgNguyenLieuTren1KgThanhPham
+            ? parseFloat(formData.kgNguyenLieuTren1KgThanhPham)
+            : null,
           ghiChu: formData.ghiChu,
           inputItems: formData.inputItems,
           items: formData.items,
@@ -181,8 +234,9 @@ const MaterialStandardManagement: React.FC = () => {
         const createData: CreateMaterialStandardRequest = {
           maDinhMuc: formData.maDinhMuc,
           tenDinhMuc: formData.tenDinhMuc,
-          loaiDinhMuc: formData.loaiDinhMuc,
-          tiLeThuHoi: formData.tiLeThuHoi ? parseFloat(formData.tiLeThuHoi) : undefined,
+          kgNguyenLieuTren1KgThanhPham: formData.kgNguyenLieuTren1KgThanhPham
+            ? parseFloat(formData.kgNguyenLieuTren1KgThanhPham)
+            : undefined,
           ghiChu: formData.ghiChu,
           inputItems: formData.inputItems,
           items: formData.items,
@@ -219,9 +273,7 @@ const MaterialStandardManagement: React.FC = () => {
       setFormData({
         maDinhMuc: code,
         tenDinhMuc: '',
-        loaiDinhMuc: 'RAW_MATERIAL',
-        kgThuHoi: '',
-        tiLeThuHoi: '',
+        kgNguyenLieuTren1KgThanhPham: '',
         ghiChu: '',
         inputItems: [],
         items: [],
@@ -235,14 +287,10 @@ const MaterialStandardManagement: React.FC = () => {
   const openEditModal = (standard: MaterialStandard) => {
     setIsEditMode(true);
     setSelectedStandard(standard);
-    const storedPercent = standard.tiLeThuHoi;
-    const derivedKg = storedPercent != null ? (Math.round((storedPercent / 100) * 1000000) / 1000000).toString() : '';
     setFormData({
       maDinhMuc: standard.maDinhMuc,
       tenDinhMuc: standard.tenDinhMuc,
-      loaiDinhMuc: standard.loaiDinhMuc,
-      kgThuHoi: derivedKg,
-      tiLeThuHoi: storedPercent?.toString() || '',
+      kgNguyenLieuTren1KgThanhPham: standard.kgNguyenLieuTren1KgThanhPham?.toString() || '',
       ghiChu: standard.ghiChu || '',
       inputItems: standard.inputItems || [],
       items: standard.items || [],
@@ -260,32 +308,38 @@ const MaterialStandardManagement: React.FC = () => {
     setSelectedStandard(null);
   };
 
-  const getLoaiDinhMucLabel = (type: string): string => {
-    return type === 'RAW_MATERIAL' ? 'Nguyên liệu - Thành phẩm' : 'Vật tư - Thiết bị';
+  /** Nguyên liệu đầu vào để hiển thị ở danh sách: item tiLe cao nhất, kèm +N nếu còn item khác. */
+  const summarizeInputItems = (standard: MaterialStandard): string => {
+    const items = standard.inputItems ?? [];
+    if (items.length === 0) return '—';
+    const top = [...items].sort((a, b) => (b.tiLe ?? 0) - (a.tiLe ?? 0))[0];
+    const rest = items.length - 1;
+    return rest > 0 ? `${top.tenNguyenLieu} +${rest}` : top.tenNguyenLieu;
   };
 
   const standardFilterFields: FilterField[] = [
     { key: 'maDinhMuc', label: 'Mã định mức', type: 'text' },
-    { key: 'tenDinhMuc', label: 'Tên định mức', type: 'text' },
-    { key: 'loaiDinhMuc', label: 'Loại định mức', type: 'select', options: [
-      { value: 'RAW_MATERIAL', label: 'Nguyên liệu - Thành phẩm' },
-      { value: 'EQUIPMENT', label: 'Vật tư - Thiết bị' },
-    ]},
+    { key: 'tenDinhMuc', label: 'Tên thành phẩm đầu ra', type: 'text' },
+    { key: 'tenNguyenLieu', label: 'Tên nguyên liệu đầu vào', type: 'text' },
+    { key: 'loaiDinhMuc', label: 'Loại định mức', type: 'text' },
   ];
 
   const filteredStandards = standards.filter(standard => {
+    const inputNames = (standard.inputItems ?? []).map(i => (i.tenNguyenLieu || '').toLowerCase());
     const search = (filterValues._search || '').toLowerCase();
     if (search) {
       const matchSearch =
         (standard.maDinhMuc || '').toLowerCase().includes(search) ||
         (standard.tenDinhMuc || '').toLowerCase().includes(search) ||
-        (standard.loaiDinhMuc || '').toLowerCase().includes(search);
+        (standard.loaiDinhMuc || '').toLowerCase().includes(search) ||
+        inputNames.some(n => n.includes(search));
       if (!matchSearch) return false;
     }
     const matchMaDM = !filterValues.maDinhMuc || (standard.maDinhMuc || '').toLowerCase().includes(filterValues.maDinhMuc.toLowerCase());
     const matchTenDM = !filterValues.tenDinhMuc || (standard.tenDinhMuc || '').toLowerCase().includes(filterValues.tenDinhMuc.toLowerCase());
+    const matchTenNL = !filterValues.tenNguyenLieu || inputNames.some(n => n.includes(filterValues.tenNguyenLieu.toLowerCase()));
     const matchLoaiDM = !filterValues.loaiDinhMuc || (standard.loaiDinhMuc || '').toLowerCase().includes(filterValues.loaiDinhMuc.toLowerCase());
-    return matchMaDM && matchTenDM && matchLoaiDM;
+    return matchMaDM && matchTenDM && matchTenNL && matchLoaiDM;
   });
 
   return (
@@ -327,9 +381,10 @@ const MaterialStandardManagement: React.FC = () => {
             <thead>
               <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã định mức</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên định mức</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên thành phẩm đầu ra</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên nguyên liệu đầu vào</th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Khối lượng thu hồi (kg NL → 1kg TP)</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Loại định mức</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Tỉ lệ thu hồi (%)</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày tạo</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
               </tr>
@@ -337,11 +392,11 @@ const MaterialStandardManagement: React.FC = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">Đang tải...</td>
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">Đang tải...</td>
                 </tr>
               ) : filteredStandards.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">Không có định mức nào</td>
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">Không có định mức nào</td>
                 </tr>
               ) : (
                 filteredStandards.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((standard, index) => (
@@ -353,17 +408,16 @@ const MaterialStandardManagement: React.FC = () => {
                   >
                     <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">{standard.maDinhMuc}</td>
                     <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-200">{standard.tenDinhMuc}</td>
-                    <td className="px-6 py-4 text-center border-r border-gray-200">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                        standard.loaiDinhMuc === 'RAW_MATERIAL'
-                          ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                          : 'bg-purple-100 text-purple-700 border border-purple-300'
-                      }`}>
-                        {getLoaiDinhMucLabel(standard.loaiDinhMuc)}
-                      </span>
-                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{summarizeInputItems(standard)}</td>
                     <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
-                      {standard.tiLeThuHoi ? `${standard.tiLeThuHoi}%` : '-'}
+                      {standard.kgNguyenLieuTren1KgThanhPham ?? '—'}
+                    </td>
+                    <td className="px-6 py-4 text-center border-r border-gray-200">
+                      {standard.loaiDinhMuc ? (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 border border-blue-300">
+                          {standard.loaiDinhMuc}
+                        </span>
+                      ) : '—'}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200 text-center">
                       {new Date(standard.createdAt).toLocaleDateString('vi-VN')}
@@ -476,22 +530,16 @@ const MaterialStandardManagement: React.FC = () => {
                     />
                   </div>
 
+                  {/* Loại định mức sinh tự động từ loại hàng hóa đầu vào → đầu ra */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Loại định mức *</label>
-                    <select
-                      name="loaiDinhMuc"
-                      value={formData.loaiDinhMuc}
-                      onChange={handleInputChange}
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="RAW_MATERIAL">Nguyên liệu - Thành phẩm</option>
-                      <option value="EQUIPMENT">Vật tư - Thiết bị</option>
-                    </select>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Loại định mức</label>
+                    <div className="w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-100 text-gray-600 text-sm">
+                      {selectedStandard?.loaiDinhMuc || 'Tự động theo loại hàng hóa đầu vào → đầu ra'}
+                    </div>
                   </div>
 
                   <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tên định mức *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tên thành phẩm đầu ra *</label>
                     <input
                       type="text"
                       name="tenDinhMuc"
@@ -503,41 +551,25 @@ const MaterialStandardManagement: React.FC = () => {
                   </div>
 
                   <div className="sm:col-span-2">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Khối lượng thành phẩm thu hồi (kg)</label>
-                        <input
-                          type="number"
-                          step="0.001"
-                          name="kgThuHoi"
-                          value={formData.kgThuHoi}
-                          onChange={(e) => {
-                            const kgStr = parseNumberInputStr(e.target.value);
-                            const kgNum = parseFloat(kgStr);
-                            const percent = !isNaN(kgNum) && kgStr !== '' ? Math.round(kgNum * 100 * 10000) / 10000 : '';
-                            setFormData(prev => ({ ...prev, kgThuHoi: kgStr, tiLeThuHoi: percent.toString() }));
-                          }}
-                          placeholder="VD: 0.2"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        <p className="mt-1 text-xs text-gray-500">Khối lượng thành phẩm thu được từ 1kg nguyên liệu đầu vào</p>
-                        {formData.kgThuHoi && parseFloat(formData.kgThuHoi) > 1 && (
-                          <p className="mt-1 text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded px-2 py-1">
-                            Tỉ lệ thu hồi trên 100% là bất thường. Vui lòng kiểm tra lại giá trị nhập.
-                          </p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Tỉ lệ thu hồi (%)</label>
-                        <input
-                          type="text"
-                          value={formData.tiLeThuHoi}
-                          disabled
-                          className="w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-100 text-gray-600 cursor-not-allowed"
-                          placeholder="Tự động tính"
-                        />
-                      </div>
-                    </div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Khối lượng thu hồi (kg NL → 1kg TP)</label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      name="kgNguyenLieuTren1KgThanhPham"
+                      value={formData.kgNguyenLieuTren1KgThanhPham}
+                      onChange={(e) => {
+                        const kgStr = parseNumberInputStr(e.target.value);
+                        setFormData(prev => ({ ...prev, kgNguyenLieuTren1KgThanhPham: kgStr }));
+                      }}
+                      placeholder="VD: 4.5"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Số kg nguyên liệu cần để tạo ra 1 kg thành phẩm</p>
+                    {formData.kgNguyenLieuTren1KgThanhPham && parseFloat(formData.kgNguyenLieuTren1KgThanhPham) < 1 && (
+                      <p className="mt-1 text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded px-2 py-1">
+                        Cần dưới 1 kg nguyên liệu cho 1 kg thành phẩm là bất thường. Vui lòng kiểm tra lại giá trị nhập.
+                      </p>
+                    )}
                   </div>
 
                   <div className="sm:col-span-2">
@@ -623,7 +655,7 @@ const MaterialStandardManagement: React.FC = () => {
                                         item.tenNguyenLieu === product.tenSanPham ? 'bg-blue-100 font-medium' : ''
                                       }`}
                                       onClick={() => {
-                                        handleInputItemChange(index, 'tenNguyenLieu', product.tenSanPham);
+                                        selectInputItemProduct(index, product);
                                         setOpenInputDropdownIndex(null);
                                         setInputProductSearchTerms(prev => ({ ...prev, [index]: '' }));
                                       }}
@@ -740,7 +772,7 @@ const MaterialStandardManagement: React.FC = () => {
                                         item.tenThanhPham === product.tenSanPham ? 'bg-blue-100 font-medium' : ''
                                       }`}
                                       onClick={() => {
-                                        handleItemChange(index, 'tenThanhPham', product.tenSanPham);
+                                        selectOutputItemProduct(index, product);
                                         setOpenDropdownIndex(null);
                                         setProductSearchTerms(prev => ({ ...prev, [index]: '' }));
                                       }}
@@ -834,25 +866,27 @@ const MaterialStandardManagement: React.FC = () => {
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Loại định mức</label>
                     <p className="mt-1">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        selectedStandard.loaiDinhMuc === 'RAW_MATERIAL' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
-                      }`}>
-                        {getLoaiDinhMucLabel(selectedStandard.loaiDinhMuc)}
-                      </span>
+                      {selectedStandard.loaiDinhMuc ? (
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {selectedStandard.loaiDinhMuc}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-gray-400">—</span>
+                      )}
                     </p>
                   </div>
 
                   <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium text-gray-500">Tên định mức</label>
+                    <label className="block text-sm font-medium text-gray-500">Tên thành phẩm đầu ra</label>
                     <p className="mt-1 text-sm text-gray-900">{selectedStandard.tenDinhMuc}</p>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-500">Tỉ lệ thu hồi thành phẩm</label>
+                    <label className="block text-sm font-medium text-gray-500">Khối lượng thu hồi</label>
                     <p className="mt-1 text-sm text-gray-900">
-                      {selectedStandard.tiLeThuHoi
-                        ? `${selectedStandard.tiLeThuHoi}% (${Math.round((selectedStandard.tiLeThuHoi / 100) * 1000000) / 1000000} kg/1kg NL)`
-                        : '-'}
+                      {selectedStandard.kgNguyenLieuTren1KgThanhPham
+                        ? `${selectedStandard.kgNguyenLieuTren1KgThanhPham} kg nguyên liệu → 1 kg thành phẩm`
+                        : '—'}
                     </p>
                   </div>
 

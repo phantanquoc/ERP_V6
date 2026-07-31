@@ -31,6 +31,8 @@ interface CreateProductionProcessData {
         donViDinhMucLaoDong?: string;
         soLuongNguyenLieu?: number;
         soPhutThucHien?: number;
+        nangSuatTrenPhut?: number;
+        donViNangSuat?: string;
         soLuongKeHoach?: number;
         soLuongThucTe?: number;
       }>;

@@ -473,6 +473,9 @@ model ProductionFlowchartCost {
   donViDinhMucLaoDong String?
   soLuongNguyenLieu   Float?
   soPhutThucHien      Float?
+  // Năng suất thực hiện, độc lập với dinhMucLaoDong — không tham gia công thức soLuongKeHoach
+  nangSuatTrenPhut    Float?
+  donViNangSuat       String?
   soLuongKeHoach      Float?
   soLuongThucTe       Float?
   giaKeHoach          Float?
@@ -605,9 +608,13 @@ model WorkShift {
 model MaterialStandard {
   id                  String                      @id @default(cuid())
   maDinhMuc           String                      @unique
+  // Tên thành phẩm đầu ra của định mức (nhãn UI: "Tên thành phẩm đầu ra")
   tenDinhMuc          String
-  loaiDinhMuc         MaterialStandardType
-  tiLeThuHoi          Float?
+  // Sinh tự động từ loaiSanPham của item đầu vào → đầu ra, vd "Nguyên liệu → Thành phẩm".
+  // Cache để filter/sort; tính lại mỗi lần ghi trong materialStandardService.
+  loaiDinhMuc         String?
+  // Số kg nguyên liệu cần để tạo ra 1 kg thành phẩm, vd 4.5
+  kgNguyenLieuTren1KgThanhPham Float?
   ghiChu              String?
   createdAt           DateTime                    @default(now())
   updatedAt           DateTime                    @updatedAt
@@ -620,27 +627,36 @@ model MaterialStandard {
 }
 
 model MaterialStandardItem {
-  id                 String           @id @default(cuid())
-  materialStandardId String
-  tenThanhPham       String
-  tiLe               Float
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
-  materialStandard   MaterialStandard @relation(fields: [materialStandardId], references: [id], onDelete: Cascade)
+  id                     String                @id @default(cuid())
+  materialStandardId     String
+  tenThanhPham           String
+  tiLe                   Float
+  // Link tới sản phẩm trong danh mục, để suy ra loaiSanPham cho loaiDinhMuc.
+  // Nullable — tenThanhPham vẫn hợp lệ như text tự do khi không link được.
+  internationalProductId String?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+  materialStandard       MaterialStandard      @relation(fields: [materialStandardId], references: [id], onDelete: Cascade)
+  internationalProduct   InternationalProduct? @relation(fields: [internationalProductId], references: [id], onDelete: SetNull)
 
+  @@index([internationalProductId])
   @@map("material_standard_items")
   @@schema("common")
 }
 
 model MaterialStandardInputItem {
-  id                 String           @id @default(cuid())
-  materialStandardId String
-  tenNguyenLieu      String
-  tiLe               Float            @default(0)
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
-  materialStandard   MaterialStandard @relation("MaterialStandardInputItems", fields: [materialStandardId], references: [id], onDelete: Cascade)
+  id                     String                @id @default(cuid())
+  materialStandardId     String
+  tenNguyenLieu          String
+  tiLe                   Float                 @default(0)
+  // Link tới sản phẩm trong danh mục, để suy ra loaiSanPham cho loaiDinhMuc.
+  internationalProductId String?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+  materialStandard       MaterialStandard      @relation("MaterialStandardInputItems", fields: [materialStandardId], references: [id], onDelete: Cascade)
+  internationalProduct   InternationalProduct? @relation(fields: [internationalProductId], references: [id], onDelete: SetNull)
 
+  @@index([internationalProductId])
   @@map("material_standard_input_items")
   @@schema("common")
 }

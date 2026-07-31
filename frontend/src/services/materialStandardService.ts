@@ -8,24 +8,38 @@ interface PaginatedResponse<T> {
   totalPages: number;
 }
 
+/** Sản phẩm đã link từ danh mục — dùng để suy loại định mức và hiển thị loại hàng hóa. */
+export interface LinkedProduct {
+  id: string;
+  tenSanPham: string;
+  loaiSanPham: string | null;
+}
+
 export interface MaterialStandardItem {
   id?: string;
   tenThanhPham: string;
   tiLe: number;
+  internationalProductId?: string | null;
+  internationalProduct?: LinkedProduct | null;
 }
 
 export interface MaterialStandardInputItem {
   id?: string;
   tenNguyenLieu: string;
   tiLe: number;
+  internationalProductId?: string | null;
+  internationalProduct?: LinkedProduct | null;
 }
 
 export interface MaterialStandard {
   id: string;
   maDinhMuc: string;
+  /** Tên thành phẩm đầu ra */
   tenDinhMuc: string;
-  loaiDinhMuc: 'RAW_MATERIAL' | 'EQUIPMENT';
-  tiLeThuHoi?: number;
+  /** Sinh tự động ở backend, vd "Nguyên liệu → Thành phẩm" */
+  loaiDinhMuc?: string | null;
+  /** Số kg nguyên liệu cần để tạo ra 1 kg thành phẩm */
+  kgNguyenLieuTren1KgThanhPham?: number | null;
   ghiChu?: string;
   createdAt: string;
   updatedAt: string;
@@ -36,8 +50,7 @@ export interface MaterialStandard {
 interface CreateMaterialStandardRequest {
   maDinhMuc: string;
   tenDinhMuc: string;
-  loaiDinhMuc: 'RAW_MATERIAL' | 'EQUIPMENT';
-  tiLeThuHoi?: number;
+  kgNguyenLieuTren1KgThanhPham?: number;
   ghiChu?: string;
   items?: MaterialStandardItem[];
   inputItems?: MaterialStandardInputItem[];
@@ -45,8 +58,7 @@ interface CreateMaterialStandardRequest {
 
 interface UpdateMaterialStandardRequest {
   tenDinhMuc?: string;
-  loaiDinhMuc?: 'RAW_MATERIAL' | 'EQUIPMENT';
-  tiLeThuHoi?: number;
+  kgNguyenLieuTren1KgThanhPham?: number | null;
   ghiChu?: string;
   items?: MaterialStandardItem[];
   inputItems?: MaterialStandardInputItem[];
@@ -115,5 +127,5 @@ class MaterialStandardService {
 }
 
 export default new MaterialStandardService();
-export type { MaterialStandard, MaterialStandardItem, MaterialStandardInputItem, CreateMaterialStandardRequest, UpdateMaterialStandardRequest };
+export type { CreateMaterialStandardRequest, UpdateMaterialStandardRequest };
 

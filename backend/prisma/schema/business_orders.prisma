@@ -87,6 +87,8 @@ model InternationalProduct {
   quotationRequestItems QuotationRequestItem[]
   finishedProducts      FinishedProduct[]
   reorderRule           ProductReorderRule?
+  materialStandardItems      MaterialStandardItem[]
+  materialStandardInputItems MaterialStandardInputItem[]
 
   @@index([tenSanPham])
   @@index([loaiSanPham])

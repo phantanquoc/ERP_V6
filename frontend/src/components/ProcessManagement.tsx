@@ -35,9 +35,9 @@ const processCostColumns: ProcessCostColumn[] = [
   { key: 'loaiChiPhi', label: 'LOẠI CHI PHÍ', className: 'text-center' },
   { key: 'tenChiPhi', label: 'TÊN CHI PHÍ' },
   { key: 'donVi', label: 'ĐVT', className: 'text-center' },
-  { key: 'dinhMucLaoDong', label: 'ĐỊNH MỨC LAO ĐỘNG', modes: ['standard-only', 'production'], className: 'text-center' },
+  { key: 'dinhMucLaoDong', label: 'ĐỊNH MỨC THỰC HIỆN', modes: ['standard-only', 'production'], className: 'text-center' },
   { key: 'donViDinhMucLaoDong', label: 'ĐƠN VỊ', modes: ['standard-only', 'production'], className: 'text-center' },
-  { key: 'soLuongNguyenLieu', label: 'SỐ LƯỢNG NGUYÊN LIỆU CẦN HOÀN THÀNH (Kg)', modes: ['production'], className: 'text-center' },
+  { key: 'soLuongNguyenLieu', label: 'KHỐI LƯỢNG CẦN THỰC HIỆN (Kg)', modes: ['production'], className: 'text-center' },
   { key: 'soPhutThucHien', label: 'SỐ PHÚT CẦN THỰC HIỆN XONG', modes: ['production'], className: 'text-center' },
   { key: 'soLuongKeHoach', label: 'SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ CẦN DÙNG', subLabel: 'SỐ LƯỢNG', modes: ['production'], group: 'laborQuantity', className: 'text-center' },
   { key: 'soLuongThucTe', label: 'SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ CẦN DÙNG', subLabel: 'THỰC TẾ', modes: ['production'], group: 'laborQuantity', className: 'text-center' },
@@ -1654,11 +1654,11 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                       <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-32">LOẠI CHI PHÍ</th>
                       <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-40">TÊN CHI PHÍ</th>
                       <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-20">ĐVT</th>
-                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 bg-green-100 w-32">ĐỊNH MỨC LAO ĐỘNG</th>
+                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 bg-green-100 w-32">ĐỊNH MỨC THỰC HIỆN</th>
                       <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 bg-green-100 w-24">ĐƠN VỊ</th>
                       {mode === 'production' && (
                         <>
-                          <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold bg-green-100">SỐ LƯỢNG NGUYÊN LIỆU (Kg)</th>
+                          <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold bg-green-100">KHỐI LƯỢNG CẦN THỰC HIỆN (Kg)</th>
                           <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold bg-green-100">SỐ PHÚT THỰC HIỆN</th>
                           <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold bg-green-100" colSpan={2}>SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ</th>
                         </>
@@ -1780,7 +1780,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                                 />
                               )}
                             </td>
-                            {/* ĐƠN VỊ ĐỊNH MỨC LAO ĐỘNG */}
+                            {/* ĐƠN VỊ ĐỊNH MỨC THỰC HIỆN */}
                             <td className={`border border-gray-400 px-3 py-2 text-center ${mode === 'production' ? 'bg-gray-100' : 'bg-green-50'}`}>
                               {mode === 'production' ? (
                                 // Mode production - chỉ hiển thị, không cho sửa
@@ -1798,7 +1798,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                             </td>
                             {mode === 'production' && (
                               <>
-                                {/* SỐ LƯỢNG NGUYÊN LIỆU */}
+                                {/* KHỐI LƯỢNG CẦN THỰC HIỆN */}
                                 <td className="border border-gray-400 px-3 py-2 text-center bg-green-50">
                                   <input
                                     type="number"
