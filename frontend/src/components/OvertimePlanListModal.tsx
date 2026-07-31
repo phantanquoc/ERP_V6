@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import {
-  Clock, Calendar, FileText, Eye, Check, XCircle, Users, AlertCircle, Plus,
-  Pencil, Trash2, FileImage, FileSpreadsheet, FileCode,
+  Clock, Calendar, FileText, Check, XCircle, Users, AlertCircle, Plus,
+  Trash2, FileImage, FileSpreadsheet, FileCode,
 } from 'lucide-react';
 import { OvertimePlan, OvertimePlanStatus } from '../services/overtimePlanService';
 import { useOvertimePlans, useMyOvertimePlans, useApprovePlan, useDeleteOvertimePlan } from '../hooks/useOvertimePlans';

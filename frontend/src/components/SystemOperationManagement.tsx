@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Eye, X, Settings } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Settings } from 'lucide-react';
 import systemOperationService, { SystemOperation, GiaiDoan } from '../services/systemOperationService';
 import materialEvaluationService, { MaterialEvaluation } from '../services/materialEvaluationService';
 import Modal from './Modal';
@@ -303,11 +303,6 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
     }
   };
 
-  const calculateTongThoiGianSay = (data: FormData): number => {
-    return data.giaiDoan1.thoiGian + data.giaiDoan2.thoiGian +
-           data.giaiDoan3.thoiGian + data.giaiDoan4.thoiGian;
-  };
-
   const getTrangThaiLabel = (status: string): string => {
     switch (status) {
       case 'DANG_HOAT_DONG':
@@ -332,10 +327,6 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
       default:
         return 'bg-gray-100 text-gray-800';
     }
-  };
-
-  const handleRemoveMachine = async (_machine: { id: string; tenMay?: string }) => {
-    // Machine removal is handled in MachineSystemList; this function is preserved for compatibility
   };
 
   return (

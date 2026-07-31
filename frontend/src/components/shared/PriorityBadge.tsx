@@ -1,4 +1,3 @@
-import React from 'react';
 import StatusBadge, { type BadgeTone } from './StatusBadge';
 
 const PRIORITY_TONE: Record<string, BadgeTone> = {

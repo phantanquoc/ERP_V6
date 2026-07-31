@@ -516,7 +516,6 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
                     const dots = inMonth ? getStatusDots(dateStr) : [];
                     const isToday = dateStr === todayStr;
                     const isSelected = dateStr === selectedDay;
-                    const hasData = dots.length > 0;
                     const dayNum = parseInt(dateStr.slice(8, 10), 10);
 
                     return (

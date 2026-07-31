@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import toast from 'react-hot-toast';
-import { Plus, Edit, Trash2, Eye, X, Download, Search } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Download, Search } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getFileUrl } from '../config/api';
 import { useSpareParts, useCreateSparePart, useUpdateSparePart, useDeleteSparePart } from '../hooks/useSpareParts';

@@ -146,8 +146,8 @@ class ApiClient {
 
       if (!response.ok) {
         let errorMessage = data.message || `HTTP ${response.status}`;
-        if (data.errors && typeof data.errors === 'object') {
-          const fieldErrors = Object.entries(data.errors as Record<string, string>)
+        if (data.error && typeof data.error === 'object') {
+          const fieldErrors = Object.entries(data.error as Record<string, string>)
             .map(([field, msg]) => `${field}: ${msg}`)
             .join('; ');
           if (fieldErrors) errorMessage = fieldErrors;

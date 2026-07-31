@@ -197,7 +197,7 @@ const FaceAdminPage: React.FC = () => {
   const [enrollMsg,      setEnrollMsg]      = useState('');
   const [enrollMode,     setEnrollMode]     = useState<'new' | 'variation'>('new');
   const [ovalState,      setOvalState]      = useState<OvalState>('waiting');
-  const [stableProgress,  setStableProgress] = useState(0);
+  const [_stableProgress,  setStableProgress] = useState(0);
   const [poseFeedback,    setPoseFeedback]    = useState('');
   const [showKioskMenu,   setShowKioskMenu]   = useState(false);
 
@@ -396,7 +396,7 @@ const FaceAdminPage: React.FC = () => {
   // ─── Draw oval overlay ─────────────────────────────────────────────────────
   const drawOverlay = useCallback((
     ow: number, oh: number,
-    detected: boolean, inOval: boolean, progress: number, state: OvalState,
+    detected: boolean, _inOval: boolean, progress: number, state: OvalState,
     boxMirrored?: { x: number; y: number; width: number; height: number },
   ) => {
     const canvas = overlayRef.current;
@@ -453,7 +453,7 @@ const FaceAdminPage: React.FC = () => {
   // ─── Detection loop ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!cameraOn) return;
-    let closed = false;
+    let _closed = false;
 
     const detect = async () => {
       const video = videoRef.current;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, AlertCircle, CheckCircle, Info, Copy, Lock, MinusCircle, FileText } from 'lucide-react';
+import { X, Save, AlertCircle, CheckCircle, Info, Copy, Lock, MinusCircle } from 'lucide-react';
 import { parseNumberInput } from '../utils/numberInput';
 import employeeEvaluationService, { EvaluationDetail, EvaluationDetailsResponse, EvaluationMode } from '../services/employeeEvaluationService';
 import notificationService from '../services/notificationService';

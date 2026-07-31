@@ -103,7 +103,7 @@ export const DEPARTMENT_PERMISSIONS: DepartmentPermission[] = [
 // Kiểm tra quyền truy cập module dựa trên phòng ban
 export const hasModuleAccess = (
   module: string,
-  userRole: UserRole,
+  _userRole: UserRole,
   userDepartment?: string,
   secondaryDepartments?: SecondaryDepartmentEntry[]
 ): boolean => {

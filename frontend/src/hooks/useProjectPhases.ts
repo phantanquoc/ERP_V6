@@ -13,7 +13,6 @@ import projectService, {
   UpdateProjectTaskRequest,
   UpdateProjectUpdateRequest,
   UpdateTaskGroupRequest,
-  ProjectApproval,
 } from '../services/projectService';
 import { projectKeys } from './useProjects';
 

@@ -12,7 +12,7 @@ interface ProtectedModuleRouteProps {
 const ProtectedModuleRoute: React.FC<ProtectedModuleRouteProps> = ({ 
   children, 
   module, 
-  fallbackPath = '/dashboard' 
+  _fallbackPath = '/dashboard'
 }) => {
   const { user, isAuthenticated } = useAuth();
 
@@ -24,7 +24,7 @@ const ProtectedModuleRoute: React.FC<ProtectedModuleRouteProps> = ({
     module,
     user.role,
     user.department,
-    user.secondaryDepartments ?? user.secondaryDepartment
+    user.secondaryDepartments ?? user.secondaryDepartments
   );
 
   if (!hasAccess) {

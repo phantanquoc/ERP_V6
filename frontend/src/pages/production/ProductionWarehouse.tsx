@@ -234,7 +234,7 @@ const ProductionWarehouse = () => {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
 
-  const openDetailModal = (item: any) => {
+  const _openDetailModal = (item: any) => {
     setSelectedItem(item);
     setIsDetailModalOpen(true);
   };

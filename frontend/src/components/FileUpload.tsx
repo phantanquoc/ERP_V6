@@ -28,7 +28,6 @@ const FileUpload: React.FC<FileUploadProps> = ({
   maxSizeMB = 100,
   disabled = false,
   label,
-  helpText,
   existingFileUrl,
   existingFileName,
   onRemoveExisting,
@@ -73,11 +72,6 @@ const FileUpload: React.FC<FileUploadProps> = ({
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
-
-  const acceptDisplay = accept
-    .split(',')
-    .map(ext => ext.replace('.', '').toUpperCase())
-    .join(', ');
 
   if (compact) {
     return (

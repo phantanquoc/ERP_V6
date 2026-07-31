@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle, XCircle, Eye, Calendar, Clock, FileText, User, AlertCircle, Download } from 'lucide-react';
+import { CheckCircle, XCircle, Calendar, Clock, FileText, AlertCircle, Download } from 'lucide-react';
 import leaveRequestService, { LeaveRequest } from '@services/leaveRequestService';
 import { useAuth } from '@contexts/AuthContext';
 import { useLeaveRequests, leaveRequestKeys } from '../hooks';

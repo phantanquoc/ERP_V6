@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   Download,
-  Edit,
-  Eye,
   Trash2,
   AlertCircle,
   CheckCircle,
@@ -64,26 +62,6 @@ interface Employee {
   };
 }
 
-interface Position {
-  id: string;
-  code: string;
-  name: string;
-}
-
-interface Department {
-  id: string;
-  code: string;
-  name: string;
-}
-
-interface PositionLevel {
-  id: string;
-  positionId: string;
-  level: string;
-  baseSalary: number;
-  kpiSalary: number;
-}
-
 interface FormData {
   employeeCode: string;
   userId?: string;
@@ -139,7 +117,6 @@ const EmployeeManagement: React.FC = () => {
   const { data: positions = [] } = usePositions(canManageEmployees);
   const { data: departments = [] } = useDepartments();
 
-  const [users, setUsers] = useState<User[]>([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', contractType: '', status: '', department: '' });

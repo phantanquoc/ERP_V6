@@ -348,7 +348,7 @@ export const useDeleteEvidence = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ evidenceId, detailId }: { evidenceId: string; detailId: string }) =>
+    mutationFn: ({ evidenceId }: { evidenceId: string; detailId: string }) =>
       employeeEvaluationService.deleteEvidence(evidenceId),
     onSuccess: (_data, { detailId }) => {
       queryClient.invalidateQueries({ queryKey: evaluationKeys.evidence(detailId) });

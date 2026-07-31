@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Target, Eye, Check, XCircle, FileText, ChevronLeft, Star } from 'lucide-react';
+import { X, Target, Check, XCircle, FileText, ChevronLeft, Star } from 'lucide-react';
 import { taskService, Task, TaskPriority, TaskAcceptanceStatus } from '../services/taskService';
 import { useAuth } from '../contexts/AuthContext';
 import { getFileUrl } from '../config/api';
@@ -145,7 +145,7 @@ const TaskListModal: React.FC<TaskListModalProps> = ({ isOpen, onClose, isAdmin 
     if (!selectedTask) return null;
     const priorityBadge = getPriorityBadge(selectedTask.mucDoUuTien);
     const myStatus = getMyAcceptanceStatus(selectedTask);
-    const isRecipient = user?._id && selectedTask.nguoiNhanIds
+    const isRecipient = user?._id && selectedTask.nguoiNhan
       ? (selectedTask as any).nguoiNhanIds?.includes(user._id)
       : selectedTask.nguoiNhan?.some(n => n.id === user?._id);
 

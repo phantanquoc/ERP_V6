@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { Plus, Eye, Edit2, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useMaintenanceRecords, useDeleteMaintenanceRecord } from '../hooks/useMaintenanceRecords';
 import { useMachineSystems } from '../hooks/useMachineSystemDetails';
 import MaintenanceRecordForm from './MaintenanceRecordForm';
@@ -52,10 +52,6 @@ const MaintenanceRecordList = ({ lockedMachineSystemId }: MaintenanceRecordListP
     }
   };
 
-  const openEdit = (record: MaintenanceRecord) => {
-    setSelectedRecord(record);
-    setModalMode('edit');
-  };
 
   const openView = (record: MaintenanceRecord) => {
     setSelectedRecord(record);

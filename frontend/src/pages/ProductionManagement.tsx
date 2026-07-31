@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Cog, Package, ClipboardList,
-  CheckCircle, AlertTriangle, XCircle, Clock,
+  CheckCircle,
   TrendingUp, ArrowRight, RefreshCw, Warehouse,
   Factory, FileBarChart
 } from 'lucide-react';
@@ -19,7 +19,6 @@ import supplyRequestService from '../services/supplyRequestService';
 
 // ── Constants ──
 const MACHINE_COLORS = ['#10B981', '#F59E0B', '#EF4444'];
-const CHART_COLORS = ['#6B7280', '#F59E0B', '#3B82F6', '#8B5CF6', '#14B8A6', '#6366F1', '#10B981'];
 
 // ── Skeleton ──
 const DashboardSkeleton = () => (

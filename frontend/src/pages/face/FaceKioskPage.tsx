@@ -21,7 +21,6 @@ const MIN_FACE_AREA     = 0.04;
 const QUALITY_GATE      = 3;
 
 const CHALLENGE_EAR_THRESHOLD   = 0.18;
-const CHALLENGE_EAR_FRAMES      = 2;
 const CHALLENGE_TIMEOUT_MS      = 8000;
 
 const L_EYE = [33, 160, 158, 133, 153, 144];

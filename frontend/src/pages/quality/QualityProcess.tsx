@@ -48,16 +48,6 @@ interface ProcessDetail {
   sections: ProcessSection[];
 }
 
-interface Process {
-  id: number;
-  stt: number;
-  luuDo: string;
-  noiDungCongViec: string;
-  loaiChiPhi: string;
-  tenChiPhi: string;
-  dvt: string;
-}
-
 const VALID_TABS = ['processList', 'productionProcess', 'orderList', 'inspection'] as const;
 type TabType = typeof VALID_TABS[number];
 
@@ -144,7 +134,7 @@ const QualityProcess = () => {
   });
 
   // Process List handlers
-  const handleOpenProcessModal = () => {
+  const _handleOpenProcessModal = () => {
     setProcessFormData({
       tenNhanVien: '',
       tenQuyTrinh: '',
@@ -235,7 +225,7 @@ const QualityProcess = () => {
         if (section.id === currentSectionCost.sectionId) {
           // Count existing costs of the same type
           const sameTypeCount = section.costs.filter(c => c.loaiChiPhi === currentSectionCost.loaiChiPhi).length + 1;
-          const displayName = `${currentSectionCost.loaiChiPhi} ${sameTypeCount}`;
+          const _displayName = `${currentSectionCost.loaiChiPhi} ${sameTypeCount}`;
 
           return {
             ...section,
@@ -309,7 +299,7 @@ const QualityProcess = () => {
     handleCloseProcessModal();
   };
 
-  const handleDeleteProcess = (id: number) => {
+  const _handleDeleteProcess = (id: number) => {
     if (window.confirm('Bạn có chắc chắn muốn xóa quy trình này?')) {
       setProcessDetails(processDetails.filter(p => p.id !== id).map((p, idx) => ({
         ...p,
@@ -646,7 +636,7 @@ const QualityProcess = () => {
                           <div className="mb-3 overflow-x-auto">
                             <table className="w-full min-w-[650px] border-collapse border border-gray-300">
                               <tbody>
-                                {section.costs.map((cost, costIndex) => {
+                                {section.costs.map((cost, _costIndex) => {
                                   // Count how many costs of the same type appear before this one
                                   const sameTypeIndex = section.costs.filter(c => c.loaiChiPhi === cost.loaiChiPhi).indexOf(cost) + 1;
                                   const displayLabel = `${cost.loaiChiPhi} ${sameTypeIndex}`;

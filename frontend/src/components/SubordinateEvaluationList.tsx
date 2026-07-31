@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Eye, CheckCircle, Clock, ChevronDown, ChevronRight, Search, ClipboardEdit, Zap, Lock } from 'lucide-react';
+import { Eye, Clock, ChevronDown, ChevronRight, Search, ClipboardEdit, Zap, Lock } from 'lucide-react';
 import employeeEvaluationService, { EvaluationDetailsResponse, EvaluationMode } from '@services/employeeEvaluationService';
 
 interface Subordinate {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Edit, Eye, Trash2, Plus, X, Download, AlertCircle, CheckCircle, Upload, FileText } from 'lucide-react';
+import { Trash2, Plus, X, Download, AlertCircle, CheckCircle, Upload, FileText } from 'lucide-react';
 import Modal from './Modal';
 import invoiceService, { Invoice } from '../services/invoiceService';
 import TableFilter, { FilterField } from './TableFilter';

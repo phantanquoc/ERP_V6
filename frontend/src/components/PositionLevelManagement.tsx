@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Plus, Edit, Trash2, AlertCircle, CheckCircle, X, Users, Copy,
+  Plus, Trash2, AlertCircle, CheckCircle, X, Users, Copy,
   Search, ChevronLeft, DollarSign, TrendingUp, AlertTriangle, FileDown,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -186,7 +186,7 @@ const PositionLevelManagement = ({ initialPositionId }: { initialPositionId?: st
   const handleCopyFrom = async () => {
     if (!selectedPosition || !copySourceId) return;
     try {
-      const src = await positionLevelService.getLevelsByPosition(copySourceId);
+      const src = await positionLevelService.getAllLevelsByPosition(copySourceId);
       if (src.length === 0) { setError('Vị trí nguồn không có cấp độ nào'); return; }
       let ok = 0, dup = 0;
       for (const lvl of src) {

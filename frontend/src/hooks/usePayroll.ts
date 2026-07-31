@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import payrollService, { PayrollItem, PayrollDetail, PayrollSettings } from '../services/payrollService';
+import payrollService from '../services/payrollService';
 
 // Query keys for cache management
 export const payrollKeys = {
