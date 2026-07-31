@@ -65,7 +65,7 @@ const QualityEvaluationModal: React.FC<QualityEvaluationModalProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tên hàng hóa</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Mã hàng hóa</label>
                 <input
                   type="text"
                   value={formData.tenHangHoa || ''}
@@ -236,7 +236,7 @@ const QualityEvaluationModal: React.FC<QualityEvaluationModalProps> = ({
             />
             <datalist id="quality-evaluation-employees-list">
               {productionEmployees.map(employee => (
-                <option key={employee.id} value={employee.name} />
+                <option key={employee.id} value={employee.maNhanVien} />
               ))}
             </datalist>
           </div>

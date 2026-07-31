@@ -11,6 +11,9 @@ export interface ProductionFlowchartCost {
   donViDinhMucLaoDong?: string;
   soLuongNguyenLieu?: number;
   soPhutThucHien?: number;
+  /** Năng suất thực hiện — đơn vị: donViNangSuat/phút, độc lập với soLuongKeHoach */
+  nangSuatTrenPhut?: number;
+  donViNangSuat?: string;
   soLuongKeHoach?: number;
   soLuongThucTe?: number;
   giaKeHoach?: number;

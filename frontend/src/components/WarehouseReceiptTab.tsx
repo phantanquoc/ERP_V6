@@ -43,7 +43,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maPhieuNhap: '', tenNhanVien: '', tenKho: '', tenSanPham: '' });
   const receiptFilterFields: FilterField[] = [
     { key: 'maPhieuNhap', label: 'Mã phiếu', type: 'text' },
-    { key: 'tenNhanVien', label: 'Nhân viên', type: 'text' },
+    { key: 'tenNhanVien', label: 'Mã nhân viên', type: 'text' },
     { key: 'tenKho', label: 'Kho', type: 'text' },
     { key: 'tenSanPham', label: 'Sản phẩm', type: 'text' },
   ];
@@ -313,7 +313,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
             <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã phiếu</th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày nhập</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Nhân viên</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã nhân viên</th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Kho</th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Lô</th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Sản phẩm</th>

@@ -490,7 +490,7 @@ const ProductionProcessManagement: React.FC = () => {
     { key: 'maQuyTrinhSanXuat', label: 'Mã QTSX', type: 'text' },
     { key: 'tenQuyTrinhSanXuat', label: 'Tên QTSX', type: 'text' },
     { key: 'maNVSanXuat', label: 'Mã NV', type: 'text' },
-    { key: 'tenNVSanXuat', label: 'Tên NV', type: 'text' },
+    { key: 'tenNVSanXuat', label: 'Mã NV', type: 'text' },
   ];
 
   return (
@@ -531,7 +531,7 @@ const ProductionProcessManagement: React.FC = () => {
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã QTSX</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên quy trình sản xuất</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã NV</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên nhân viên</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã NV</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Định mức NVL</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Sản phẩm đầu ra</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Khối lượng (Kg)</th>
