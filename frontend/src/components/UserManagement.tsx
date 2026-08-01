@@ -515,19 +515,19 @@ const UserManagement: React.FC = () => {
                     </td>
                     <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200">
                       <div>{getRoleDisplayName(user.role)}</div>
-                      {(user.secondaryDepartments ?? []).map((s, i) => (
+                      {(user.secondaryDepartments ?? []).map((s: any, i: number) => (
                         <div key={i} className="text-xs text-blue-600 mt-0.5">(Phụ {i+1}) {getRoleDisplayName(s.role)}</div>
                       ))}
                     </td>
                     <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200">
                       <div>{user.departmentName || '-'}</div>
-                      {(user.secondaryDepartments ?? []).map((s, i) => (
+                      {(user.secondaryDepartments ?? []).map((s: any, i: number) => (
                         <div key={i} className="text-xs text-blue-600 mt-0.5">(Phụ {i+1}) {s.departmentName}</div>
                       ))}
                     </td>
                     <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200">
                       <div>{user.subDepartmentName || '-'}</div>
-                      {(user.secondaryDepartments ?? []).map((s, i) => s.subDepartmentName ? (
+                      {(user.secondaryDepartments ?? []).map((s: any, i: number) => s.subDepartmentName ? (
                         <div key={i} className="text-xs text-blue-600 mt-0.5">(Phụ {i+1}) {s.subDepartmentName}</div>
                       ) : null)}
                     </td>

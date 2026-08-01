@@ -119,7 +119,7 @@ class AcceptanceHandoverService {
   async createAcceptanceHandover(data: CreateAcceptanceHandoverRequest, file?: File): Promise<ApiResponse<AcceptanceHandover>> {
     try {
       const formData = new FormData();
-      appendFormFields(formData, data as Record<string, unknown>);
+      appendFormFields(formData, data as unknown as Record<string, unknown>);
       if (file) {
         formData.append('file', file);
       }

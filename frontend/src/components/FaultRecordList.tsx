@@ -474,7 +474,7 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
     }
   };
 
-  const pager = (pagination: typeof recordsQuery.data.pagination, page: number, setPage: (page: number) => void) => {
+  const pager = (pagination: any, page: number, setPage: (page: number) => void): JSX.Element | null => {
     if (!pagination || pagination.totalPages <= 1) return null;
     return (
       <div className="flex items-center justify-between border-t border-gray-200 px-3 py-2 text-sm">

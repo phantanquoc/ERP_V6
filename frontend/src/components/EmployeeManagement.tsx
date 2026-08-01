@@ -89,13 +89,6 @@ interface FormData {
   notes?: string;
 }
 
-interface User {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-}
-
 const EmployeeManagement: React.FC = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -184,7 +177,7 @@ const EmployeeManagement: React.FC = () => {
   });
 
   // React Query hook for position levels (automatically fetches when positionId changes)
-  const { data: positionLevels = [] } = usePositionLevelsByPosition(formData.positionId);
+  const { data: positionLevels = [] } = usePositionLevelsByPosition(formData.positionId ?? '');
 
   useEffect(() => {
     if (canManageUsers) {
@@ -1088,7 +1081,7 @@ const EmployeeManagement: React.FC = () => {
                   <button
                     onClick={() => {
                       closeDetailModal();
-                      openEditModal(selectedEmployee);
+                      openEditModal(selectedEmployee!);
                     }}
                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                   >

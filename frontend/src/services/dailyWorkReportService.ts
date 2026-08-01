@@ -101,7 +101,7 @@ class DailyWorkReportService {
        const response = await apiClient.get('/daily-work-reports/my-statistics', {
         params: { month, year },
       });
-       return response.data;
+       return response.data as ReportStatistics;
     } catch (error: any) {
        throw new Error(error instanceof Error ? error.message : 'Không thể tải thống kê');
     }
@@ -110,7 +110,7 @@ class DailyWorkReportService {
   async getReportById(id: string): Promise<DailyWorkReport> {
     try {
        const response = await apiClient.get(`/daily-work-reports/${id}`);
-       return response.data;
+       return response.data as DailyWorkReport;
     } catch (error: any) {
        throw new Error(error instanceof Error ? error.message : 'Không thể tải báo cáo');
     }
@@ -133,7 +133,7 @@ class DailyWorkReportService {
       }
 
        const response = await apiClient.post('/daily-work-reports', formData);
-       return response.data;
+       return response.data as DailyWorkReport;
     } catch (error: any) {
        throw new Error(error instanceof Error ? error.message : 'Không thể tạo báo cáo');
     }
@@ -156,7 +156,7 @@ class DailyWorkReportService {
       }
 
        const response = await apiClient.patch(`/daily-work-reports/${id}`, formData);
-       return response.data;
+       return response.data as DailyWorkReport;
     } catch (error: any) {
        throw new Error(error instanceof Error ? error.message : 'Không thể cập nhật báo cáo');
     }

@@ -188,16 +188,16 @@ export const updateSystemOperationSchema = z.object({
 export const repairRequestItemSchema = z.object({
   tenHeThong: z.string().min(1, 'Tên hệ thống/thiết bị là bắt buộc'),
   tinhTrangThietBi: z.string().min(1, 'Khu vực sử dụng là bắt buộc'),
-  loaiLoi: z.enum(['Lỗi mới', 'Lỗi lặp lại'], {
-    errorMap: () => ({ message: 'Vui lòng chọn loại lỗi' }),
+  loaiLoi: z.enum(['Lỗi mới', 'Lỗi lặp lại'] as const, {
+    message: 'Vui lòng chọn loại lỗi',
   }),
   noiDungLoi: z.string().min(1, 'Nội dung lỗi là bắt buộc'),
 });
 
 // Schema cho yêu cầu sửa chữa (multi-item — items validated manually via validateRepairItems)
 export const repairRequestSchema = z.object({
-  priority: z.enum(['khan_cap', 'cao', 'trung_binh', 'thap'], {
-    errorMap: () => ({ message: 'Vui lòng chọn mức độ ưu tiên' }),
+  priority: z.enum(['khan_cap', 'cao', 'trung_binh', 'thap'] as const, {
+    message: 'Vui lòng chọn mức độ ưu tiên',
   }),
   notes: z.string().optional(),
   files: z.any().optional(),
@@ -207,8 +207,8 @@ export const repairRequestSchema = z.object({
 export const generalRequestSchema = z.object({
   title: z.string().min(1, 'Tiêu đề là bắt buộc').max(200, 'Tiêu đề không được quá 200 ký tự'),
   description: z.string().min(10, 'Mô tả phải có ít nhất 10 ký tự').max(1000, 'Mô tả không được quá 1000 ký tự'),
-  priority: z.enum(['low', 'medium', 'high'], {
-    errorMap: () => ({ message: 'Vui lòng chọn mức độ ưu tiên' })
+  priority: z.enum(['low', 'medium', 'high'] as const, {
+    message: 'Vui lòng chọn mức độ ưu tiên'
   }),
   department: z.string().min(1, 'Phòng ban là bắt buộc'),
   attachments: z.any().optional()

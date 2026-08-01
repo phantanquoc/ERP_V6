@@ -29,7 +29,7 @@ class PositionService {
   async getAllPositions(): Promise<Position[]> {
     try {
       const response = await apiClient.get('/positions');
-      return response.data;
+      return response.data as Position[];
     } catch (error) {
       throw this.handleError(error);
     }
@@ -38,7 +38,7 @@ class PositionService {
   async getPositionById(id: string): Promise<Position> {
     try {
       const response = await apiClient.get(`/positions/${id}`);
-      return response.data;
+      return response.data as Position;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -47,7 +47,7 @@ class PositionService {
   async createPosition(data: Omit<Position, 'id' | 'createdAt' | 'updatedAt'>): Promise<Position> {
     try {
       const response = await apiClient.post('/positions', data);
-      return response.data;
+      return response.data as Position;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -56,7 +56,7 @@ class PositionService {
   async updatePosition(id: string, data: Partial<Position>): Promise<Position> {
     try {
       const response = await apiClient.patch(`/positions/${id}`, data);
-      return response.data;
+      return response.data as Position;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -91,7 +91,7 @@ class PositionService {
   async getAllPositionLevels(): Promise<any[]> {
     try {
       const response = await apiClient.get('/position-levels');
-      return response.data;
+      return response.data as any[];
     } catch (error) {
       throw this.handleError(error);
     }
@@ -100,7 +100,7 @@ class PositionService {
   async getPositionLevelsByPosition(positionId: string): Promise<any[]> {
     try {
       const response = await apiClient.get(`/position-levels/${positionId}/levels`);
-      return response.data;
+      return response.data as any[];
     } catch (error) {
       throw this.handleError(error);
     }

@@ -209,14 +209,14 @@ class MachineSystemService {
 
   async createMachineSystem(data: CreateMachineSystemRequest, file?: File): Promise<ApiResponse<MachineSystem>> {
     const formData = new FormData();
-    appendFormFields(formData, data as Record<string, unknown>);
+    appendFormFields(formData, data as unknown as Record<string, unknown>);
     if (file) formData.append('file', file);
     return apiClient.post<MachineSystem>('/machine-systems', formData);
   }
 
   async updateMachineSystem(id: string, data: UpdateMachineSystemRequest, file?: File): Promise<ApiResponse<MachineSystem>> {
     const formData = new FormData();
-    appendFormFields(formData, data as Record<string, unknown>);
+    appendFormFields(formData, data as unknown as Record<string, unknown>);
     if (file) formData.append('file', file);
     return apiClient.put<MachineSystem>(`/machine-systems/${id}`, formData);
   }
@@ -247,7 +247,7 @@ class MachineSystemService {
 
   async createDetail(data: CreateMachineSystemDetailRequest, file?: File): Promise<ApiResponse<MachineSystemDetail>> {
     const formData = new FormData();
-    appendFormFields(formData, data as Record<string, unknown>);
+    appendFormFields(formData, data as unknown as Record<string, unknown>);
     if (file) formData.append('file', file);
     return apiClient.post<MachineSystemDetail>('/machine-system-details', formData);
   }

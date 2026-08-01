@@ -132,7 +132,7 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
         currentEvalId = created.id;
         // Notify parent of the new evaluationId so it can update its state
         if (!evaluationId && onEvaluationCreated) {
-          onEvaluationCreated(currentEvalId);
+          onEvaluationCreated(currentEvalId ?? '');
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Lỗi tạo đánh giá');
@@ -520,12 +520,12 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
 
                   {/* Full-mode: Goals tab */}
                   {evaluationMode === 'FULL' && fullModeTab === 'goals' && resolvedEvalId && (
-                    <GoalsForm evaluationId={resolvedEvalId} readOnly={selfEvalLocked} />
+                    <GoalsForm evaluationId={resolvedEvalId ?? ''} readOnly={selfEvalLocked} existingGoals={[]} />
                   )}
 
                   {/* Full-mode: IDP tab */}
                   {evaluationMode === 'FULL' && fullModeTab === 'idp' && resolvedEvalId && (
-                    <IDPForm evaluationId={resolvedEvalId} readOnly={selfEvalLocked} />
+                    <IDPForm evaluationId={resolvedEvalId ?? ''} readOnly={selfEvalLocked} existingItems={[]} />
                   )}
 
                   {/* Full-mode: Evidence tab */}
@@ -534,7 +534,7 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                       {details.map(d => d.detailId && (
                         <div key={d.detailId} className="border border-gray-100 rounded-lg p-3">
                           <p className="text-xs font-medium text-gray-700 mb-2">{d.title}</p>
-                          <EvidenceUpload detailId={d.detailId} readOnly={selfEvalLocked} />
+                          <EvidenceUpload detailId={d.detailId ?? ''} readOnly={selfEvalLocked} existingEvidence={[]} />
                         </div>
                       ))}
                     </div>

@@ -25,17 +25,17 @@ class HolidayService {
   async list(year?: number): Promise<Holiday[]> {
     const params = year ? { year } : undefined;
     const response = await apiClient.get('/holidays', { params });
-    return response.data;
+    return response.data as Holiday[];
   }
 
   async create(data: CreateHolidayData): Promise<Holiday> {
     const response = await apiClient.post('/holidays', data);
-    return response.data;
+    return response.data as Holiday;
   }
 
   async update(id: string, data: UpdateHolidayData): Promise<Holiday> {
     const response = await apiClient.put(`/holidays/${id}`, data);
-    return response.data;
+    return response.data as Holiday;
   }
 
   async delete(id: string): Promise<void> {

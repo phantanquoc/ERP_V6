@@ -19,7 +19,7 @@ const AccountingTax = () => {
     try {
       setLoading(true);
       const response = await taxReportService.getAllTaxReports(1, 1000, undefined, selectedMonth, selectedYear);
-      setTaxReports(response.data);
+      setTaxReports(response.data as TaxReport[] || []);
     } catch (error) {
       console.error('Error loading tax reports:', error);
     } finally {

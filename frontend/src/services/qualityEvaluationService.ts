@@ -81,7 +81,7 @@ class QualityEvaluationService {
       if (dateRange?.thoiGianChienTo) params.thoiGianChienTo = dateRange.thoiGianChienTo;
 
       const response = await apiClient.get('/quality-evaluations', { params });
-      return response.data;
+      return response.data as unknown as PaginatedResponse;
     } catch (error: any) {
       throw new Error(error instanceof Error ? error.message : 'Lỗi tải dữ liệu đánh giá chất lượng');
     }
@@ -90,7 +90,7 @@ class QualityEvaluationService {
   async getQualityEvaluationById(id: string): Promise<QualityEvaluation> {
     try {
       const response = await apiClient.get(`/quality-evaluations/${id}`);
-      return response.data;
+      return response.data as unknown as QualityEvaluation;
     } catch (error: any) {
       throw new Error(error instanceof Error ? error.message : 'Lỗi tải dữ liệu đánh giá chất lượng');
     }
@@ -101,10 +101,10 @@ class QualityEvaluationService {
       if (file) {
         const formData = this.buildFormData(data, file);
         const response = await apiClient.post('/quality-evaluations', formData);
-        return response.data;
+        return response.data as unknown as QualityEvaluation;
       }
       const response = await apiClient.post('/quality-evaluations', data);
-      return response.data;
+      return response.data as unknown as QualityEvaluation;
     } catch (error: any) {
       throw new Error(error instanceof Error ? error.message : 'Lỗi tạo đánh giá chất lượng');
     }
@@ -115,10 +115,10 @@ class QualityEvaluationService {
       if (file) {
         const formData = this.buildFormData(data, file);
         const response = await apiClient.put(`/quality-evaluations/${id}`, formData);
-        return response.data;
+        return response.data as unknown as QualityEvaluation;
       }
       const response = await apiClient.put(`/quality-evaluations/${id}`, data);
-      return response.data;
+      return response.data as unknown as QualityEvaluation;
     } catch (error: any) {
       throw new Error(error instanceof Error ? error.message : 'Lỗi cập nhật đánh giá chất lượng');
     }

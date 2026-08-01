@@ -22,7 +22,7 @@ class DataEntryPagePositionService {
       const response = await apiClient.get(
         `/data-entry-page-positions/pages/${pageKey}/positions`
       );
-      return response.data;
+      return response.data as DataEntryPageMapping[];
     } catch (error) {
       throw this.handleError(error);
     }
@@ -34,7 +34,7 @@ class DataEntryPagePositionService {
         `/data-entry-page-positions/pages/${pageKey}/positions`,
         { positionId }
       );
-      return response.data;
+      return response.data as DataEntryPageMapping;
     } catch (error) {
       throw this.handleError(error);
     }

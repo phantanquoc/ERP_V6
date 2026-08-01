@@ -224,7 +224,7 @@ const BusinessReport: React.FC = () => {
                     outerRadius={100}
                     paddingAngle={5}
                     dataKey="value"
-                    label={({ name, value, percent }: { name: string; value: number; percent: number }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
+                    label={({ name, value, percent }: any) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
                   >
                     {chart.data.map((_, i) => (
                       <Cell key={i} fill={COLORS[i % COLORS.length]} />

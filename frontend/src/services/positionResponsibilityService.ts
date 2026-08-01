@@ -22,7 +22,7 @@ class PositionResponsibilityService {
   async getAllResponsibilities(positionId: string): Promise<PositionResponsibility[]> {
     try {
       const response = await apiClient.get(`/position-responsibilities/${positionId}/responsibilities`);
-      return response.data;
+      return response.data as PositionResponsibility[];
     } catch (error) {
       throw this.handleError(error);
     }
@@ -31,7 +31,7 @@ class PositionResponsibilityService {
   async getResponsibilityById(id: string): Promise<PositionResponsibility> {
     try {
       const response = await apiClient.get(`/position-responsibilities/responsibility/${id}`);
-      return response.data;
+      return response.data as PositionResponsibility;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -43,7 +43,7 @@ class PositionResponsibilityService {
   ): Promise<PositionResponsibility> {
     try {
       const response = await apiClient.post(`/position-responsibilities/${positionId}/responsibilities`, data);
-      return response.data;
+      return response.data as PositionResponsibility;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -55,7 +55,7 @@ class PositionResponsibilityService {
   ): Promise<PositionResponsibility> {
     try {
       const response = await apiClient.patch(`/position-responsibilities/responsibility/${id}`, data);
-      return response.data;
+      return response.data as PositionResponsibility;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -78,7 +78,7 @@ class PositionResponsibilityService {
         `/position-responsibilities/${targetPositionId}/responsibilities/copy-from/${sourcePositionId}`,
         {}
       );
-      return response.data;
+      return response.data as PositionResponsibility[];
     } catch (error) {
       throw this.handleError(error);
     }
@@ -87,7 +87,7 @@ class PositionResponsibilityService {
   async rescaleResponsibilityWeights(positionId: string): Promise<PositionResponsibility[]> {
     try {
       const response = await apiClient.post(`/position-responsibilities/${positionId}/responsibilities/rescale`, {});
-      return response.data;
+      return response.data as PositionResponsibility[];
     } catch (error) {
       throw this.handleError(error);
     }

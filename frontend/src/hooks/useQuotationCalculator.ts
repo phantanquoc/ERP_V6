@@ -195,6 +195,7 @@ export function useQuotationCalculator(
   const emptyAdditionalFormData = (maBaoGia: string) => ({
     maBaoGia, maDinhMuc: '', tenDinhMuc: '', tiLeThuHoi: '', sanPhamDauRa: '', nguyenLieuDauVao: '',
     thanhPhamTonKho: '', tongThanhPhamCanSxThem: '', tongNguyenLieuCanSanXuat: '', nguyenLieuTonKho: '', nguyenLieuCanNhapThem: '',
+    tongKhoiLuongThanhPhamThucTe: '', thanhPhamTonKhoThucTe: '', tongThanhPhamCanSxThemThucTe: '', tongNguyenLieuCanSanXuatThucTe: '',
     ghiChu: '', thoiGianChoPhepToiDa: '', ngayBatDauSanXuat: '', ngayBatDauSanXuatThucTe: '', ngayHoanThanhThucTe: '',
     chiPhiSanXuatKeHoach: '', chiPhiSanXuatThucTe: '', chiPhiChungKeHoach: '', chiPhiChungThucTe: '',
     chiPhiXuatKhauKeHoach: '', chiPhiXuatKhauThucTe: '', giaHoaVon: '', loiNhuanCongThem: '',
@@ -567,7 +568,7 @@ export function useQuotationCalculator(
       const processData = { ...resData, flowchart: resData?.flowchart ?? null };
       setTabsData(prev => {
         const n = [...prev];
-        n[activeTab] = { ...n[activeTab], selectedProcess: processData };
+        n[activeTab] = { ...n[activeTab], selectedProcess: processData as any };
         // Auto-fill thoiGianChoPhepToiDa from production process thoiGian
         if (processData.thoiGian) {
           n[activeTab].formData.thoiGianChoPhepToiDa = String(processData.thoiGian);
@@ -674,7 +675,7 @@ export function useQuotationCalculator(
       const processData = { ...resData, flowchart: resData?.flowchart ?? null };
       setAdditionalCostTabs(prev => prev.map(tab => {
         if (tab.id !== tabId) return tab;
-        const updated = { ...tab, selectedProcess: processData };
+        const updated = { ...tab, selectedProcess: processData as any };
         // Auto-fill thoiGianChoPhepToiDa from production process thoiGian
         if (processData.thoiGian) {
           updated.formData = { ...updated.formData, thoiGianChoPhepToiDa: String(processData.thoiGian) };
@@ -1012,7 +1013,7 @@ export function useQuotationCalculator(
     try {
       if (isOrderSummaryTab || isRevenueTab) { setLoading(false); setShowCreateQuotationModal(true); return; }
       const calculatorData = buildCalculatorData();
-      if (calculatorData) await quotationCalculatorService.upsertCalculator(calculatorData);
+      if (calculatorData) await quotationCalculatorService.upsertCalculator(calculatorData as any);
       alert('Lưu dữ liệu thành công!');
     } catch (error: any) { console.error('Error in handleSubmit:', error); alert(error.response?.data?.message || 'Lỗi khi lưu dữ liệu'); }
     finally { setLoading(false); }
@@ -1023,7 +1024,7 @@ export function useQuotationCalculator(
     setLoading(true);
     try {
       const calculatorData = buildCalculatorData();
-      if (calculatorData) await quotationCalculatorService.upsertCalculator(calculatorData);
+      if (calculatorData) await quotationCalculatorService.upsertCalculator(calculatorData as any);
       alert('Lưu dữ liệu thành công!');
     } catch (error: any) { console.error('Error in handleSaveOrderSummaryData:', error); alert(error.response?.data?.message || 'Lỗi khi lưu dữ liệu'); }
     finally { setLoading(false); }

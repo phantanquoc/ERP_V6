@@ -32,7 +32,7 @@ const AcceptanceHandoverViewModal = ({ isOpen, onClose, acceptanceHandoverId, no
 
       if (acceptanceHandoverId) {
         const response = await acceptanceHandoverService.getAcceptanceHandoverById(acceptanceHandoverId);
-        setData(response.data || response);
+        setData(response.data || response as any);
       } else if (notificationMessage) {
         // Fallback: parse mã nghiệm thu từ message (e.g. "NT-001")
         const match = notificationMessage.match(/NT-\d+/);

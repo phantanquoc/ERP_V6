@@ -121,7 +121,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
     if (srId) {
       supplyRequestService.getSupplyRequestById(srId).then((res) => {
         if (res.data) {
-          setSelectedRequest(res.data);
+          setSelectedRequest(res.data as SupplyRequest);
           setModalMode('view');
           setShowModal(true);
         }
@@ -816,7 +816,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
           if (selectedRequest?.id) {
             try {
               const res = await supplyRequestService.getSupplyRequestById(selectedRequest.id);
-              if (res.data) setSelectedRequest(res.data);
+              if (res.data) setSelectedRequest(res.data as SupplyRequest);
             } catch (err) {
               console.error('Refresh selected supply request failed:', err);
             }

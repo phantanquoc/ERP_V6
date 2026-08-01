@@ -26,7 +26,7 @@ const TaxReportTab: React.FC<TaxReportTabProps> = ({ month, year }) => {
     try {
       setLoading(true);
       const response = await taxReportService.getAllTaxReports(1, 100, undefined, month, year);
-      setTaxReports(response.data);
+      setTaxReports(response.data as TaxReport[] || []);
     } catch (error) {
       console.error('Error loading tax reports:', error);
       alert('Lỗi khi tải danh sách báo cáo thuế');

@@ -94,10 +94,16 @@ function lapVariance(gray: Uint8ClampedArray, w: number, h: number): number {
   return s2 / n - m * m;
 }
 
-function edgeRatio(gray: Uint8ClampedArray, w: number, h: number, threshold: number): number {
+function edgeRatio(gray: Uint8ClampedArray, w: number, h: number, x0: number, y0: number, x1: number, y1: number): number {
+  const threshold = 30;
   let edges = 0, total = 0;
-  for (let y = 1; y < h - 1; y++) {
-    for (let x = 1; x < w - 1; x++) {
+  const yStart = Math.max(1, Math.floor(y0));
+  const yEnd = Math.min(h - 1, Math.floor(y1));
+  const xStart = Math.max(1, Math.floor(x0));
+  const xEnd = Math.min(w - 1, Math.floor(x1));
+
+  for (let y = yStart; y < yEnd; y++) {
+    for (let x = xStart; x < xEnd; x++) {
       const i = y * w + x;
       const gx = Math.abs(gray[i + 1] - gray[i - 1]);
       const gy = Math.abs(gray[i + w] - gray[i - w]);
@@ -348,8 +354,6 @@ export class ScreenSpoofDetector {
       this.lastIsSpoof = false;
     }
 
-    this.prevScore = score;
-
     return {
       isSpoof: this.lastIsSpoof,
       score,
@@ -364,7 +368,6 @@ export class ScreenSpoofDetector {
     this.spoofConfirmCount = 0;
     this.spoofCooldownFrames = 0;
     this.lastIsSpoof = false;
-    this.prevScore = 0;
     this.reasons = [];
     this.lastSignals = {};
     this.frame = 0;
@@ -425,10 +428,10 @@ export class ScreenSpoofDetector {
     const bx1e = Math.min(cw, Math.floor(fx1 + fw * BORDER_MARGIN));
     const by1e = Math.min(ch, Math.floor(fy1 + fh * BORDER_MARGIN));
 
-    const topEdge   = by0 < fy    ? edgeRatio(gray, cw, fx, by0, fx1, fy)    : 0;
-    const botEdge   = fy1 < by1e  ? edgeRatio(gray, cw, fx, fy1, fx1, by1e) : 0;
-    const leftEdge  = bx0 < fx    ? edgeRatio(gray, cw, bx0, fy, fx, fy1)   : 0;
-    const rightEdge = fx1 < bx1e  ? edgeRatio(gray, cw, fx1, fy, bx1e, fy1) : 0;
+    const topEdge   = by0 < fy    ? edgeRatio(gray, cw, ch, fx, by0, fx1, fy)    : 0;
+    const botEdge   = fy1 < by1e  ? edgeRatio(gray, cw, ch, fx, fy1, fx1, by1e) : 0;
+    const leftEdge  = bx0 < fx    ? edgeRatio(gray, cw, ch, bx0, fy, fx, fy1)   : 0;
+    const rightEdge = fx1 < bx1e  ? edgeRatio(gray, cw, ch, fx1, fy, bx1e, fy1) : 0;
 
     // Check if edges form a rect: strong on ≥ 2 opposite sides, face centre is brighter than surround
     const oppositePairs = [

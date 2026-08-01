@@ -487,7 +487,7 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
                               {primary.icon}
                               {primary.label}
                             </button>
-                            <ResponsiveRowActions actions={overflow} menuLabel="Thêm" alwaysMenu />
+                            <ResponsiveRowActions actions={overflow as any} menuLabel="Thêm" alwaysMenu />
                           </div>
                         );
                       })()}

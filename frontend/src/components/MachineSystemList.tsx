@@ -740,7 +740,7 @@ const MachineSystemList = () => {
                     <div className="flex items-center gap-2">
                       <div className="relative flex-1">
                         <input
-                          disabled={systemModal?.mode === 'view'}
+                          disabled={systemModal?.mode !== 'create'}
                           value={systemForm.nguoiThucHien ?? ''}
                           onFocus={() => setIsEmployeeDropdownOpen(true)}
                           readOnly
@@ -907,7 +907,7 @@ const MachineSystemList = () => {
                       return;
                     }
                     try {
-                      await cloneSystem.mutateAsync({ id: system.id, data: { maHeThong: maHeThong.trim(), tenHeThong: tenHeThong.trim() } });
+                      await cloneSystem.mutateAsync({ id: system.id, data: { overrides: { maHeThong: maHeThong.trim(), tenHeThong: tenHeThong.trim() } } });
                       setCloneDialog(null);
                     } catch (err) {
                       setCloneError(err instanceof Error ? err.message : 'Không nhân bản được hệ thống');

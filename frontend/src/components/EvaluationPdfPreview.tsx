@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FileText, Download, Loader2, AlertCircle } from 'lucide-react';
-import { downloadPdf } from '../services/employeeEvaluationService';
+import employeeEvaluationService from '../services/employeeEvaluationService';
 
 interface EvaluationPdfPreviewProps {
   evaluationId: string;
@@ -25,7 +25,7 @@ const EvaluationPdfPreview: React.FC<EvaluationPdfPreviewProps> = ({
     setError(null);
 
     try {
-      const blob = await downloadPdf(evaluationId);
+      const blob = await employeeEvaluationService.downloadPdf(evaluationId);
       const url = URL.createObjectURL(blob);
 
       // Build a descriptive filename

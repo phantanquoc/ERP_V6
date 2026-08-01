@@ -135,7 +135,7 @@ class EmployeeService {
       const params: Record<string, string | number> = { page, limit };
       if (departmentId) params.departmentId = departmentId;
       const response = await apiClient.get('/employees', { params });
-      return response;
+      return response as unknown as PaginatedResponse<Employee>;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -178,7 +178,7 @@ class EmployeeService {
   async getEmployeeById(id: string): Promise<Employee> {
     try {
       const response = await apiClient.get(`/employees/${id}`);
-      return response.data;
+      return response.data as unknown as Employee;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -187,7 +187,7 @@ class EmployeeService {
   async getEmployeeByCode(code: string): Promise<Employee> {
     try {
       const response = await apiClient.get(`/employees/code/${code}`);
-      return response.data;
+      return response.data as unknown as Employee;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -196,7 +196,7 @@ class EmployeeService {
   async createEmployee(data: CreateEmployeeRequest): Promise<Employee> {
     try {
       const response = await apiClient.post('/employees', data);
-      return response.data;
+      return response.data as unknown as Employee;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -205,7 +205,7 @@ class EmployeeService {
   async updateEmployee(id: string, data: UpdateEmployeeRequest): Promise<Employee> {
     try {
       const response = await apiClient.patch(`/employees/${id}`, data);
-      return response.data;
+      return response.data as unknown as Employee;
     } catch (error) {
       throw this.handleError(error);
     }

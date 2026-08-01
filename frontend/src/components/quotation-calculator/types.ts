@@ -88,6 +88,10 @@ export interface AdditionalTabFormData {
   tongNguyenLieuCanSanXuat: string;
   nguyenLieuTonKho: string;
   nguyenLieuCanNhapThem: string;
+  tongKhoiLuongThanhPhamThucTe: string;
+  thanhPhamTonKhoThucTe: string;
+  tongThanhPhamCanSxThemThucTe: string;
+  tongNguyenLieuCanSanXuatThucTe: string;
   ghiChu: string;
   thoiGianChoPhepToiDa: string;
   ngayBatDauSanXuat: string;

@@ -164,7 +164,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
       onClose={onClose}
       title="Tạo yêu cầu cung cấp"
       maxWidth="4xl"
-      footer={<ModalFooter onClose={onClose} onSubmit={handleSubmit} submitLabel="Tạo yêu cầu" isLoading={loading} />}
+      footer={<ModalFooter onClose={onClose} onSubmit={handleSubmit as any} submitLabel="Tạo yêu cầu" isLoading={loading} />}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Tên nhân viên + Bộ phận */}

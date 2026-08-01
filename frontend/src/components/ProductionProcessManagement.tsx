@@ -152,7 +152,7 @@ const ProductionProcessManagement: React.FC = () => {
     setLoading(true);
     try {
       const response = await productionProcessService.getAllProductionProcesses(1, 1000);
-      setProductionProcesses(response.data);
+      setProductionProcesses(response.data as ProductionProcess[] || []);
     } catch (error) {
       console.error('Error loading production processes:', error);
       alert('Lỗi khi tải danh sách quy trình sản xuất');
@@ -369,7 +369,7 @@ const ProductionProcessManagement: React.FC = () => {
   const handleViewProcess = async (process: ProductionProcess) => {
     try {
       const response = await productionProcessService.getProductionProcessById(process.id);
-      setViewingProcess(response.data);
+      setViewingProcess(response.data as ProductionProcess);
       setIsViewModalOpen(true);
     } catch (error) {
       console.error('Error loading process details:', error);
@@ -448,7 +448,7 @@ const ProductionProcessManagement: React.FC = () => {
       // Nếu đang xem chi tiết, reload lại
       if (viewingProcess && viewingProcess.id === id) {
         const response = await productionProcessService.getProductionProcessById(id);
-        setViewingProcess(response.data);
+        setViewingProcess(response.data as ProductionProcess);
       }
     } catch (error: any) {
       console.error('Error syncing from template:', error);
@@ -1004,7 +1004,7 @@ const ProductionProcessManagement: React.FC = () => {
                                 <FileUpload
                                   files={[]}
                                   onChange={(files) => {
-                                    if (files[0]) handleSectionFileUpload(sectionIndex, files[0]);
+                                    if (files[0]) handleSectionFileUpload(sectionIndex, [files[0]]);
                                   }}
                                   compact
                                 />

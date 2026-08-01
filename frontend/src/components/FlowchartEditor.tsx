@@ -32,8 +32,9 @@ const FlowchartEditor: React.FC<FlowchartEditorProps> = ({ processId, processNam
         setSections([createEmptySection(1)]);
         setIsEditMode(false);
       }
-    } catch (error: any) {
-      if (error.response?.status === 404) {
+    } catch (error: unknown) {
+      const err = error as any;
+      if (err.response?.status === 404) {
         // No flowchart exists, start with one empty section
         setSections([createEmptySection(1)]);
         setIsEditMode(false);
@@ -48,18 +49,19 @@ const FlowchartEditor: React.FC<FlowchartEditorProps> = ({ processId, processNam
 
   const createEmptySection = (stt: number): ProcessFlowchartSection => ({
     phanDoan: `Phân đoạn ${stt}`,
-    tiepNhanNguyenLieu: '',
+    tiepNhanNguyenLieu: undefined,
     noiDungCongViec: '',
     loaiChiPhi: '',
     stt,
-    costs: [],
+    costs: [] as ProcessFlowchartCost[],
   });
 
   const createEmptyCost = (): ProcessFlowchartCost => ({
     tenChiPhi: '',
     dvt: '',
     nguoiCaiDoi: '',
-    fileUrl: '',
+    fileUrl: undefined,
+    loaiChiPhi: '',
   });
 
   const handleAddSection = () => {
@@ -209,8 +211,8 @@ const FlowchartEditor: React.FC<FlowchartEditorProps> = ({ processId, processNam
                   <div className="col-span-1 font-medium text-gray-700">Tiếp nhận nguyên liệu</div>
                   <div className="col-span-3">
                     <textarea
-                      value={section.tiepNhanNguyenLieu || ''}
-                      onChange={(e) => handleSectionChange(sectionIndex, 'tiepNhanNguyenLieu', e.target.value)}
+                      value={String(section.tiepNhanNguyenLieu || '')}
+                      onChange={(e) => handleSectionChange(sectionIndex, 'tiepNhanNguyenLieu', e.target.value as any)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       rows={2}
                       placeholder="Nhập thông tin tiếp nhận nguyên liệu..."

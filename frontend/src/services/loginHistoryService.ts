@@ -23,7 +23,7 @@ class LoginHistoryService {
       );
 
       if (response.success) {
-        return response.data;
+        return response.data ?? [];
       }
 
       throw new Error(response.message || 'Failed to fetch login history');
@@ -50,7 +50,7 @@ class LoginHistoryService {
 
       if (response.success) {
         return {
-          data: response.data,
+          data: response.data ?? [],
           total: (response as any).total,
         };
       }

@@ -193,7 +193,7 @@ class FaultRecordService {
   async create(data: CreateFaultRecordRequest, file?: File): Promise<ApiResponse<FaultRecord>> {
     try {
       const formData = new FormData();
-      appendFormFields(formData, data as Record<string, unknown>);
+      appendFormFields(formData, data as unknown as Record<string, unknown>);
       if (file) formData.append('file', file);
 
       return await apiClient.post<FaultRecord>('/fault-records', formData);

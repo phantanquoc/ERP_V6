@@ -108,12 +108,12 @@ class TimesheetService {
     if (filters?.departmentId) params.departmentId = filters.departmentId;
     if (filters?.positionId) params.positionId = filters.positionId;
     const response = await apiClient.get('/timesheet/monthly', { params });
-    return response.data;
+    return response.data as unknown as TimesheetMonthlyResponse;
   }
 
   async upsertCell(data: UpsertTimesheetCellData): Promise<TimesheetCell> {
     const response = await apiClient.post('/timesheet/cell', data);
-    return response.data;
+    return response.data as unknown as TimesheetCell;
   }
 
   async upsertOverride(data: UpsertTimesheetOverrideData): Promise<any> {

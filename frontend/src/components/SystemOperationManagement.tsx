@@ -211,7 +211,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
         giaiDoan3: operation.giaiDoan3,
         giaiDoan4: operation.giaiDoan4,
         trangThai: operation.trangThai,
-        ghiChu: operation.ghiChu,
+        ghiChu: operation.ghiChu ?? '',
         nguoiThucHien: operation.nguoiThucHien || currentUserName,
       });
     } else {

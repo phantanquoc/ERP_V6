@@ -178,7 +178,7 @@ class RepairRequestService {
 
   async create(data: CreateRepairRequestRequest, file?: File): Promise<ApiResponse<RepairRequest>> {
     const formData = new FormData();
-    appendFormFields(formData, data as Record<string, unknown>);
+    appendFormFields(formData, data as unknown as Record<string, unknown>);
     if (file) formData.append('file', file);
     return apiClient.post<RepairRequest>('/repair-requests', formData);
   }

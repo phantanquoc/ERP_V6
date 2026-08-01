@@ -173,9 +173,9 @@ const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({ isOpen, onClose }
         gender:    formData.gender as 'Nam' | 'Nữ' | 'Khác' | undefined,
         weight:    formData.weight ? Number(formData.weight) : undefined,
         height:    formData.height ? Number(formData.height) : undefined,
-        shirtSize: formData.shirtSize || undefined,
-        pantSize:  formData.pantSize  || undefined,
-        shoeSize:  formData.shoeSize  || undefined,
+        shirtSize: (formData.shirtSize || undefined) as 'S' | 'M' | 'L' | 'XL' | 'XXL' | undefined,
+        pantSize:  (formData.pantSize  || undefined) as '28' | '29' | '30' | '31' | '32' | '33' | '34' | undefined,
+        shoeSize:  (formData.shoeSize  || undefined) as '35' | '36' | '37' | '38' | '39' | '40' | '41' | '42' | '43' | '44' | undefined,
       });
 
       setSubmitSuccess(true);

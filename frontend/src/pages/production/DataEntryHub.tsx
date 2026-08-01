@@ -7,8 +7,8 @@ const DataEntryHub: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    markTab('DATA_ENTRY_HUB');
-  }, []);
+    markTab();
+  });
 
   const entryTypes: { key: string; title: string; description: string; icon: React.ElementType; route: string; color: string; disabled?: boolean }[] = [
     {

@@ -142,7 +142,7 @@ const PurchasingEquipment = () => {
     try {
       setPurchaseRequestLoading(true);
       const response = await purchaseRequestService.getAllPurchaseRequests(purchaseRequestPage, 10, purchaseRequestSearch || undefined);
-      setPurchaseRequests(response.data || []);
+      setPurchaseRequests(response.data as PurchaseRequest[] || []);
       setTotalPages(response.pagination?.totalPages || 1);
     } catch (error) {
       console.error('Error fetching purchase requests:', error);
@@ -174,7 +174,7 @@ const PurchasingEquipment = () => {
     try {
       setSupplierLoading(true);
       const response = await supplierService.getAllSuppliers(supplierPage, 10, supplierSearch || undefined, 'Thiết bị');
-      setSuppliers(response.data || []);
+      setSuppliers(response.data as Supplier[] || []);
       setSupplierTotalPages(response.pagination?.totalPages || 1);
     } catch (error) {
       console.error('Error fetching suppliers:', error);

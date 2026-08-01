@@ -108,7 +108,7 @@ export const workPlanService = {
 
      const response = await apiClient.post('/work-plans', formData);
 
-     return response.data;
+     return response.data as unknown as WorkPlan;
   },
 
   async getAllWorkPlans(
@@ -143,7 +143,7 @@ export const workPlanService = {
 
   async getWorkPlanById(id: string): Promise<WorkPlan> {
      const response = await apiClient.get(`/work-plans/${id}`);
-     return response.data;
+     return response.data as unknown as WorkPlan;
   },
 
   async updateWorkPlan(id: string, data: UpdateWorkPlanData, files?: File[]): Promise<WorkPlan> {
@@ -175,7 +175,7 @@ export const workPlanService = {
 
      const response = await apiClient.put(`/work-plans/${id}`, formData);
 
-     return response.data;
+     return response.data as unknown as WorkPlan;
   },
 
   async deleteWorkPlan(id: string): Promise<void> {
