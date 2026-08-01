@@ -544,7 +544,6 @@ const FaceAdminPage: React.FC = () => {
 
     loopRef.current = requestAnimationFrame(detect);
     return () => {
-      closed = true;
       if (loopRef.current) cancelAnimationFrame(loopRef.current);
       faceMeshRef.current?.close();
     };

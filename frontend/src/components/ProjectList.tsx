@@ -191,7 +191,7 @@ const ProjectList = () => {
   }, []);
 
   const togglePhaseCollapse = (phaseId: string) => {
-    setCollapsedPhases((prev) => { const next = new Set(prev); next.has(phaseId) ? next.delete(phaseId) : next.add(phaseId); return next; });
+    setCollapsedPhases((prev) => { const next = new Set(prev); if (next.has(phaseId)) { next.delete(phaseId); } else { next.add(phaseId); } return next; });
   };
   const collapseAll = () => setCollapsedPhases(new Set(phases.map(p => p.id)));
   const expandAll = () => setCollapsedPhases(new Set());
@@ -1307,10 +1307,6 @@ const GroupedTasksRenderer = ({
   const allTasks = phase.tasks ?? [];
   const hasGroups = groups.length > 0;
 
-  if (!hasGroups) {
-    return <TaskTable tasks={allTasks} canWrite={canWrite} onEdit={onEditTask} onDelete={onDeleteTask} viewMode={viewMode} projectId={projectId} onMoveTask={onMoveTask} onDragEnd={onDragEnd} onStatusChange={onStatusChange} />;
-  }
-
   const ungroupedTasks = allTasks.filter(t => !t.projectTaskGroupId);
 
   const groupedSections: { groupId: string | null; tasks: ProjectTask[] }[] = groups.map((g) => ({
@@ -1353,6 +1349,11 @@ const GroupedTasksRenderer = ({
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+
+  // Early return AFTER hooks (Rules of Hooks: hooks must not be called conditionally)
+  if (!hasGroups) {
+    return <TaskTable tasks={allTasks} canWrite={canWrite} onEdit={onEditTask} onDelete={onDeleteTask} viewMode={viewMode} projectId={projectId} onMoveTask={onMoveTask} onDragEnd={onDragEnd} onStatusChange={onStatusChange} />;
+  }
 
   const isPlan = viewMode === 'plan';
   const colCount = isPlan ? (canWrite ? 6 : 5) : (canWrite ? 9 : 8);
