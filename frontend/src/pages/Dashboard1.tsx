@@ -388,12 +388,16 @@ const Dashboard1: React.FC = () => {
     enabled: canSeeStats,
   });
 
-  const { data: evaluationPendingCount = 0 } = useQuery({
+  const { data: evaluationPendingCountRaw = 0 } = useQuery({
     queryKey: ['dashboard', 'evaluationPendingCount'],
     queryFn: () => employeeEvaluationService.getPendingCount(),
     enabled: canSeeStats,
     staleTime: 2 * 60 * 1000,
   });
+  // Đảm bảo luôn là number (tránh [object Object] nếu API trả về object)
+  const evaluationPendingCount = typeof evaluationPendingCountRaw === 'object'
+    ? ((evaluationPendingCountRaw as any)?.count ?? 0)
+    : Number(evaluationPendingCountRaw);
 
   const { data: reportUnreadCount = 0 } = useQuery({
     queryKey: ['dashboard', 'reportSubmittedCount'],
@@ -461,9 +465,10 @@ const Dashboard1: React.FC = () => {
   // Derived counts — always reflect the active period filter
   const workPlanCount             = filteredWorkPlans.length;
   const purchaseRequestCount      = filteredPurchaseRequests.length;
-  const purchaseRequestPendingCount = useMemo(() => (filteredPurchaseRequests as PurchaseRequest[]).filter(
+  // Đếm ALL pending requests (không lọc theo kỳ) — tránh miss yêu cầu tháng trước còn chờ duyệt
+  const purchaseRequestPendingCount = useMemo(() => (purchaseRequests as PurchaseRequest[]).filter(
     (r: PurchaseRequest) => r.trangThai === 'Chờ duyệt'
-  ).length, [filteredPurchaseRequests]);
+  ).length, [purchaseRequests]);
   // ──────────────────────────────────────────────────────────────────────────
 
   // Mutation for approving/rejecting purchase requests
