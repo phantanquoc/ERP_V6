@@ -11,7 +11,7 @@ class DepartmentService {
    async getAllDepartments(): Promise<Department[]> {
     try {
        const response = await apiClient.get('/departments/public/all');
-       return response.data;
+       return response.data as Department[];
     } catch (error) {
       throw this.handleError(error);
     }
@@ -20,7 +20,7 @@ class DepartmentService {
   async getDepartmentById(id: string): Promise<Department> {
     try {
        const response = await apiClient.get(`/departments/${id}`);
-       return response.data;
+       return response.data as Department;
     } catch (error) {
       throw this.handleError(error);
     }

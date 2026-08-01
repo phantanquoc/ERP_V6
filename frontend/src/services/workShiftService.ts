@@ -32,7 +32,7 @@ class WorkShiftService {
   async create(data: WorkShiftInput): Promise<WorkShift> {
     try {
       const response = await apiClient.post('/work-shifts', data);
-      return response.data;
+      return response.data as unknown as WorkShift;
     } catch (error) {
       console.error('Error creating work shift:', error);
       throw error;
@@ -42,7 +42,7 @@ class WorkShiftService {
   async update(id: string, data: Partial<WorkShift>): Promise<WorkShift> {
     try {
       const response = await apiClient.put(`/work-shifts/${id}`, data);
-      return response.data;
+      return response.data as unknown as WorkShift;
     } catch (error) {
       console.error('Error updating work shift:', error);
       throw error;

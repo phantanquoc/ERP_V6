@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { overtimePlanService, OvertimePlanStatus, CreateOvertimePlanData } from '../services/overtimePlanService';
+import { overtimePlanService, CreateOvertimePlanData } from '../services/overtimePlanService';
 import { attendanceKeys } from './useAttendance';
 
 export const overtimePlanKeys = {
@@ -83,7 +83,7 @@ export function useApprovePlan() {
       id: string;
       trangThai: 'DA_DUYET' | 'TU_CHOI';
       lyDoTuChoi?: string;
-    }) => overtimePlanService.approvePlan(id, trangThai as OvertimePlanStatus, lyDoTuChoi),
+    }) => overtimePlanService.approvePlan(id, trangThai as 'DA_DUYET' | 'TU_CHOI', lyDoTuChoi),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: overtimePlanKeys.lists() });
       queryClient.invalidateQueries({ queryKey: overtimePlanKeys.myLists() });

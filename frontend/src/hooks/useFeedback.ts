@@ -38,7 +38,7 @@ export const usePrivateFeedbacks = (filters: FeedbackFilters = {}) => {
   
   return useQuery({
     queryKey: privateFeedbackKeys.list({ page, limit, ...rest }),
-    queryFn: () => privateFeedbackService.getAll({ page, limit, ...rest }),
+    queryFn: () => privateFeedbackService.getAll({ page, limit, ...rest } as any),
   });
 };
 
@@ -65,7 +65,7 @@ export const useCreatePrivateFeedback = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: privateFeedbackService.create.bind(privateFeedbackService),
+    mutationFn: privateFeedbackService.create.bind(privateFeedbackService) as any,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: privateFeedbackKeys.lists() });
       queryClient.invalidateQueries({ queryKey: privateFeedbackKeys.stats() });

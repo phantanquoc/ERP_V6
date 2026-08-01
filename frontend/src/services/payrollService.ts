@@ -88,7 +88,7 @@ class PayrollService {
   async getPayrollDetail(payrollId: string): Promise<PayrollDetail> {
     try {
       const response = await apiClient.get(`/payrolls/${payrollId}/detail`);
-      return response.data;
+      return response.data as PayrollDetail;
     } catch (error) {
       console.error('Error fetching payroll detail:', error);
       throw error;
@@ -128,7 +128,7 @@ class PayrollService {
   async getPayrollSettings(): Promise<PayrollSettings> {
     try {
       const response = await apiClient.get('/payrolls/settings');
-      return response.data;
+      return response.data as PayrollSettings;
     } catch (error) {
       console.error('Error fetching payroll settings:', error);
       throw error;
@@ -138,7 +138,7 @@ class PayrollService {
   async updatePayrollSettings(data: Partial<Omit<PayrollSettings, 'id'>>): Promise<PayrollSettings> {
     try {
       const response = await apiClient.put('/payrolls/settings', data);
-      return response.data;
+      return response.data as PayrollSettings;
     } catch (error) {
       console.error('Error updating payroll settings:', error);
       throw error;
@@ -157,7 +157,7 @@ class PayrollService {
   async sendPayrollNotifications(month: number, year: number): Promise<{ count: number }> {
     try {
       const response = await apiClient.post('/payrolls/send-notifications', { month, year });
-      return response.data;
+      return response.data as { count: number };
     } catch (error) {
       console.error('Error sending payroll notifications:', error);
       throw error;
@@ -169,7 +169,7 @@ class PayrollService {
       const response = await apiClient.get('/payrolls/my-payroll', {
         params: { month, year },
       });
-      return response.data;
+      return response.data as PayrollDetail;
     } catch (error) {
       console.error('Error fetching my payroll:', error);
       throw error;

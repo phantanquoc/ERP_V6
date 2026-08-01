@@ -30,17 +30,17 @@ export interface UpdateAttendanceCodeData {
 class AttendanceCodeService {
   async list(): Promise<AttendanceCode[]> {
     const response = await apiClient.get('/attendance-codes');
-    return response.data;
+    return response.data as AttendanceCode[];
   }
 
   async create(data: CreateAttendanceCodeData): Promise<AttendanceCode> {
     const response = await apiClient.post('/attendance-codes', data);
-    return response.data;
+    return response.data as AttendanceCode;
   }
 
   async update(id: string, data: UpdateAttendanceCodeData): Promise<AttendanceCode> {
     const response = await apiClient.put(`/attendance-codes/${id}`, data);
-    return response.data;
+    return response.data as AttendanceCode;
   }
 
   async delete(id: string): Promise<void> {

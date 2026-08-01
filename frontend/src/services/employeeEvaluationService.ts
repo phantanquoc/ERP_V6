@@ -246,7 +246,7 @@ class EmployeeEvaluationService {
       const response = await apiClient.get('/employee-evaluations/evaluations', {
         params: { month, year },
       });
-      return response.data;
+      return response.data as unknown as EmployeeEvaluation[];
     } catch (error) {
       throw this.handleError(error);
     }
@@ -259,7 +259,7 @@ class EmployeeEvaluationService {
         const response = await apiClient.get(
           `/employee-evaluations/evaluations/${evaluationId}/details`
         );
-        return response.data;
+        return response.data as unknown as EvaluationDetailsResponse;
       }
 
       // Try self-evaluation endpoint first, fall back on 403
@@ -267,13 +267,13 @@ class EmployeeEvaluationService {
         const response = await apiClient.get(
           `/employee-evaluations/my-evaluation/${evaluationId}`
         );
-        return response.data;
+        return response.data as unknown as EvaluationDetailsResponse;
       } catch (error: any) {
         if (error instanceof ApiError && error.statusCode === 403) {
           const response = await apiClient.get(
             `/employee-evaluations/evaluations/${evaluationId}/details`
           );
-          return response.data;
+          return response.data as unknown as EvaluationDetailsResponse;
         }
         throw error;
       }
@@ -413,7 +413,7 @@ class EmployeeEvaluationService {
       const response = await apiClient.get('/employee-evaluations/completion-stats', {
         params: { month, year },
       });
-      return response.data;
+      return response.data as unknown as CompletionStats;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -468,7 +468,7 @@ class EmployeeEvaluationService {
         formData,
         { headers: { 'Content-Type': 'multipart/form-data' } }
       );
-      return response.data;
+      return response.data as unknown as EvaluationEvidence;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -525,7 +525,7 @@ class EmployeeEvaluationService {
       const response = await apiClient.get(
         `/employee-evaluations/evaluations/${evaluationId}/payroll-preview`
       );
-      return response.data;
+      return response.data as unknown as PayrollPreview;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -538,7 +538,7 @@ class EmployeeEvaluationService {
         `/employee-evaluations/evaluations/${evaluationId}/pdf`,
         { responseType: 'blob' }
       );
-      return response.data;
+      return response.data as unknown as Blob;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -550,7 +550,7 @@ class EmployeeEvaluationService {
       const response = await apiClient.get('/employee-evaluations/calibration/heatmap', {
         params: { month, year },
       });
-      return response.data;
+      return response.data as unknown as CalibrationHeatmap;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -563,7 +563,7 @@ class EmployeeEvaluationService {
         `/employee-evaluations/evaluations/${evaluationId}/copy-previous-month`,
         {}
       );
-      return response.data;
+      return response.data as unknown as CopyPreviousMonthResult;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -587,7 +587,7 @@ class EmployeeEvaluationService {
         `/employee-evaluations/evaluations/${evaluationId}/goals`,
         body
       );
-      return response.data;
+      return response.data as unknown as EvaluationGoal;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -599,7 +599,7 @@ class EmployeeEvaluationService {
         `/employee-evaluations/evaluations/${evaluationId}/goals/${goalId}`,
         body
       );
-      return response.data;
+      return response.data as unknown as EvaluationGoal;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -631,7 +631,7 @@ class EmployeeEvaluationService {
         `/employee-evaluations/evaluations/${evaluationId}/idp-items`,
         body
       );
-      return response.data;
+      return response.data as unknown as EvaluationIdpItem;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -643,7 +643,7 @@ class EmployeeEvaluationService {
         `/employee-evaluations/evaluations/${evaluationId}/idp-items/${idpId}`,
         body
       );
-      return response.data;
+      return response.data as unknown as EvaluationIdpItem;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -699,7 +699,7 @@ class EmployeeEvaluationService {
       const response = await apiClient.get(
         `/employee-evaluations/evaluations/${evaluationId}/peer-feedback/aggregate`
       );
-      return response.data;
+      return response.data as unknown as PeerFeedbackAggregate;
     } catch (error) {
       throw this.handleError(error);
     }

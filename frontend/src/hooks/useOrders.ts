@@ -57,7 +57,7 @@ export const useCreateOrder = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: orderService.createOrderFromQuotation.bind(orderService),
+    mutationFn: orderService.createOrderFromQuotation.bind(orderService) as any,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
       queryClient.invalidateQueries({ queryKey: orderKeys.count() });

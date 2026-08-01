@@ -772,7 +772,7 @@ const ProjectList = () => {
                     <h4 className="font-semibold text-gray-900">Công việc chưa phân giai đoạn</h4>
                     {canWrite(selectedProject) && <button onClick={() => { setError(''); setPhatSinhForm({ tieuDe: '', nguoiPhuTrach: '', mucDoUuTien: '', ghiChu: '' }); setPhatSinhModal({ projectPhaseId: null }); }} className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs"><Plus className="h-3.5 w-3.5" /> Thêm phát sinh</button>}
                   </div>
-                  <TaskTable tasks={filterTasks(unphasedTasks)} canWrite={canWrite(selectedProject)} onEdit={(task) => openTaskModal('edit', null, task)} onDelete={removeTask} viewMode="actual" projectId={selectedProject.id} onMoveTask={(taskId, dir) => moveTask(taskId, dir, unphasedTasks, null)} onDragEnd={(event) => handleTaskDragEnd(event, unphasedTasks, null)} phaseId={null} onStatusChange={quickStatusChange} />
+                  <TaskTable tasks={filterTasks(unphasedTasks)} canWrite={canWrite(selectedProject)} onEdit={(task) => openTaskModal('edit', null, task)} onDelete={removeTask as any} viewMode="actual" projectId={selectedProject.id} onMoveTask={(taskId, dir) => moveTask(taskId, dir, unphasedTasks, null)} onDragEnd={(event: any) => handleTaskDragEnd(event, unphasedTasks, null)} phaseId={null} onStatusChange={quickStatusChange} />
                 </div>
                 </>
                 )}
@@ -1441,6 +1441,7 @@ const TaskTable = ({
   projectId,
   onMoveTask,
   onDragEnd,
+  phaseId: _phaseId,
   onStatusChange,
 }: {
   tasks: ProjectTask[];
@@ -1450,7 +1451,8 @@ const TaskTable = ({
   viewMode?: 'plan' | 'actual';
   projectId?: string;
   onMoveTask?: (taskId: string, direction: -1 | 1) => void;
-  onDragEnd?: (event: DragEndEvent) => void;
+  onDragEnd?: (event: any) => void;
+  phaseId?: string | null;
   onStatusChange?: (taskId: string, newStatus: string) => void;
 }) => {
   const isPlan = viewMode === 'plan';

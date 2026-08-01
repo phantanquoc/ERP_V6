@@ -153,7 +153,7 @@ const PurchasingMaterials = () => {
       setActiveTab('purchaseRequestList');
       purchaseRequestService.getPurchaseRequestById(prId).then((res) => {
         if (res.data) {
-          setSelectedPurchaseRequest(res.data);
+          setSelectedPurchaseRequest(res.data as PurchaseRequest);
         }
       }).catch((err) => {
         console.error('Error loading purchase request from URL:', err);
@@ -165,7 +165,7 @@ const PurchasingMaterials = () => {
     try {
       setPurchaseRequestLoading(true);
       const response = await purchaseRequestService.getAllPurchaseRequests(purchaseRequestPage, 10, purchaseRequestSearch || undefined);
-      setPurchaseRequests(response.data || []);
+      setPurchaseRequests(response.data as PurchaseRequest[] || []);
       setTotalPages(response.pagination?.totalPages || 1);
     } catch (error) {
       console.error('Error fetching purchase requests:', error);
@@ -198,7 +198,7 @@ const PurchasingMaterials = () => {
     try {
       setSupplierLoading(true);
       const response = await supplierService.getAllSuppliers(supplierPage, 10, supplierSearch || undefined, 'NVL');
-      setSuppliers(response.data || []);
+      setSuppliers(response.data as Supplier[] || []);
       setSupplierTotalPages(response.pagination?.totalPages || 1);
     } catch (error) {
       console.error('Error fetching suppliers:', error);

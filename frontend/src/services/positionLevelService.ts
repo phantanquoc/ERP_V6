@@ -15,7 +15,7 @@ class PositionLevelService {
   async getAllLevelsByPosition(positionId: string): Promise<PositionLevel[]> {
     try {
       const response = await apiClient.get(`/position-levels/${positionId}/levels`);
-      return response.data;
+      return response.data as PositionLevel[];
     } catch (error) {
       throw this.handleError(error);
     }
@@ -24,7 +24,7 @@ class PositionLevelService {
   async getLevelById(id: string): Promise<PositionLevel> {
     try {
       const response = await apiClient.get(`/position-levels/level/${id}`);
-      return response.data;
+      return response.data as PositionLevel;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -33,7 +33,7 @@ class PositionLevelService {
   async createLevel(positionId: string, data: Omit<PositionLevel, 'id' | 'positionId' | 'createdAt' | 'updatedAt'>): Promise<PositionLevel> {
     try {
       const response = await apiClient.post(`/position-levels/${positionId}/levels`, data);
-      return response.data;
+      return response.data as PositionLevel;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -42,7 +42,7 @@ class PositionLevelService {
   async updateLevel(id: string, data: Partial<PositionLevel>): Promise<PositionLevel> {
     try {
       const response = await apiClient.patch(`/position-levels/level/${id}`, data);
-      return response.data;
+      return response.data as PositionLevel;
     } catch (error) {
       throw this.handleError(error);
     }

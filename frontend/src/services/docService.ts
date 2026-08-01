@@ -26,7 +26,7 @@ class DocService {
   async getDocContent(slug: string): Promise<DocContent> {
     try {
       const response = await apiClient.get(`/docs/${slug}`);
-      return response.data;
+      return response.data as DocContent;
     } catch (error) {
       console.error('Error fetching doc content:', error);
       throw error;

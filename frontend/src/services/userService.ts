@@ -61,7 +61,7 @@ class UserService {
    async getAllUsers(page: number = 1, limit: number = 10): Promise<PaginatedResponse<any>> {
     try {
        const response = await apiClient.get('/users', { params: { page, limit } });
-       return response.data;
+       return response.data as unknown as PaginatedResponse<any>;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -131,7 +131,7 @@ class UserService {
   async adminResetPassword(userId: string, newPassword: string): Promise<{ newPassword: string }> {
     try {
       const response = await apiClient.post(`/users/${userId}/reset-password`, { newPassword });
-      return response.data;
+      return response.data as unknown as { newPassword: string };
     } catch (error) {
       throw this.handleError(error);
     }

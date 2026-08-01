@@ -15,7 +15,7 @@ const STATUS_OPTIONS: { value: MachineStatus; label: string }[] = [
 
 const schema = z.object({
   trangThaiMoi: z.enum(['HOAT_DONG', 'BAO_TRI', 'NGUNG_HOAT_DONG'], {
-    errorMap: () => ({ message: 'Vui lòng chọn trạng thái' }),
+    message: 'Vui lòng chọn trạng thái',
   }),
   nguyenNhan: z.string().min(1, 'Nguyên nhân là bắt buộc'),
   ghiChu: z.string().optional(),

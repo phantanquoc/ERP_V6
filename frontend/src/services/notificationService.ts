@@ -103,7 +103,7 @@ class NotificationService {
   async getLatestEvaluationNotification(): Promise<AppNotification | null> {
     try {
       const response = await apiClient.get('/notifications/evaluation/latest');
-      return response.data || null;
+      return (response.data as AppNotification) || null;
     } catch (error) {
       console.error('Error fetching latest evaluation notification:', error);
       throw error;
@@ -113,7 +113,7 @@ class NotificationService {
   async getUnreadCountByType(): Promise<Record<string, number>> {
     try {
       const response = await apiClient.get('/notifications/unread/count-by-type');
-      return response.data || {};
+      return response.data as Record<string, number>;
     } catch (error) {
       console.error('Error fetching unread count by type:', error);
       return {};
@@ -123,7 +123,7 @@ class NotificationService {
   async markAsRead(notificationId: string): Promise<AppNotification> {
     try {
       const response = await apiClient.patch(`/notifications/${notificationId}/read`, {});
-      return response.data;
+      return response.data as AppNotification;
     } catch (error) {
       console.error('Error marking notification as read:', error);
       throw error;

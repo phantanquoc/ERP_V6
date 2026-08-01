@@ -57,8 +57,8 @@ type ViewMode = 'table' | 'calendar';
 
 type CalendarModalData = {
   type: 'cell';
-  employee: { name: string; code: string };
-  day: Date;
+  employee?: { name: string; code: string };
+  day?: Date;
   record: AttendanceRecord;
 } | {
   type: 'row';
@@ -295,7 +295,7 @@ const AttendanceManagement: React.FC = () => {
       attendanceDate: record.attendanceDate.split('T')[0],
       checkInTime: '',
       checkOutTime: '',
-      status: record.status,
+      status: 'PRESENT',
       notes: '',
     });
     setShowModal(true);
@@ -522,10 +522,10 @@ const AttendanceManagement: React.FC = () => {
 
     // Build record lookup from ALL attendance data (not department-filtered)
     // Calendar employees are already filtered by department, so records just need date+employee match
-    const recordMap = new Map<string, AttendanceRecord>();
+    const recordMap = new Map<string, any>();
     attendances.forEach(record => {
       const dateKey = toLocalDateKey(new Date(record.attendanceDate));
-      recordMap.set(`${record.employeeCode}_${dateKey}`, record);
+      recordMap.set(`${record.employeeCode}_${dateKey}`, record as any);
     });
 
     // Build employee list from full employees list (all employees, not just those with records)
@@ -801,7 +801,7 @@ const AttendanceManagement: React.FC = () => {
                         const hhmm = formatTimeInAppTz(lastIso);
                         return `Ra ngày kế: ${wd}, ${dd}/${mm} ${hhmm} (Ca đêm)`;
                       })() : undefined;
-                      const handleView = (rec: AttendanceRecord) => {
+                      const handleView = (rec: any) => {
                         setCalendarModal({ type: 'cell', record: rec });
                       };
                       return (
@@ -809,7 +809,7 @@ const AttendanceManagement: React.FC = () => {
                         <tr
                           onClick={() => handleView(record)}
                           className={`border-b border-gray-200 hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all ${
-                            index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                            (index as number) % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                           }`}
                         >
                           <td className="px-3 py-3 sm:px-6 sm:py-4 border-r border-gray-200">
@@ -1437,7 +1437,7 @@ const AttendanceManagement: React.FC = () => {
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
             <div className="bg-blue-600 px-3 py-3 sm:px-6 sm:py-4 flex justify-between items-center">
               <h3 className="text-lg font-bold text-white">
-                {calendarModal.employee.name} &mdash; {formatDateObj(calendarModal.day)}
+                {calendarModal.employee?.name ?? ''} &mdash; {formatDateObj(calendarModal.day ?? new Date())}
               </h3>
               <button onClick={() => setCalendarModal(null)} className="text-white hover:text-gray-200">&#10005;</button>
             </div>
@@ -1748,7 +1748,7 @@ const AttendanceManagement: React.FC = () => {
           .sort((a, b) => a.emp.name.localeCompare(b.emp.name, 'vi'));
         const counts = { PRESENT: 0, LATE: 0, ABSENT: 0, ON_LEAVE: 0, OVERTIME: 0 };
         dayEmployees.forEach(({ record }) => {
-          if (record && counts[record.status] !== undefined) counts[record.status]++;
+          if (record && (counts as any)[record.status] !== undefined) (counts as any)[record.status]++;
         });
         return (
           <Modal isOpen onClose={() => setCalendarModal(null)} showBackdrop closeOnBackdrop>

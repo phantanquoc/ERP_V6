@@ -17,15 +17,15 @@ import {
 
 const rowSchema = z.object({
   tenSanPham: z.string().min(1, 'Tên sản phẩm không được để trống'),
-  soLuongNhap: z.number({ invalid_type_error: 'Số lượng phải là số' }).positive('Số lượng phải lớn hơn 0'),
+  soLuongNhap: z.preprocess((v) => (v === '' ? undefined : Number(v)), z.number().positive('Số lượng phải lớn hơn 0')),
   donViTinh: z.string().default('Kg'),
-});
+}) as any;
 
 const receiptSchema = z.object({
   warehouseId: z.string().min(1, 'Vui lòng chọn kho nhập'),
   lotId: z.string().min(1, 'Vui lòng chọn lô hàng'),
   rows: z.array(rowSchema).default([]),
-});
+}) as any;
 
 type ReceiptFormValues = z.infer<typeof receiptSchema>;
 
@@ -79,7 +79,7 @@ const FinishedProductWarehouseReceiptModal: React.FC<FinishedProductWarehouseRec
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<ReceiptFormValues>({
-    resolver: zodResolver(receiptSchema),
+    resolver: zodResolver(receiptSchema) as any,
     defaultValues: { warehouseId: '', lotId: '', rows: [] },
   });
 
@@ -217,7 +217,7 @@ const FinishedProductWarehouseReceiptModal: React.FC<FinishedProductWarehouseRec
                       ))}
                     </select>
                     {errors.warehouseId && (
-                      <p className="mt-1 text-xs text-red-600">{errors.warehouseId.message}</p>
+                      <p className="mt-1 text-xs text-red-600">{String(errors.warehouseId.message)}</p>
                     )}
                   </div>
 
@@ -238,7 +238,7 @@ const FinishedProductWarehouseReceiptModal: React.FC<FinishedProductWarehouseRec
                       ))}
                     </select>
                     {errors.lotId && (
-                      <p className="mt-1 text-xs text-red-600">{errors.lotId.message}</p>
+                      <p className="mt-1 text-xs text-red-600">{String(errors.lotId.message)}</p>
                     )}
                   </div>
                 </div>
@@ -279,7 +279,7 @@ const FinishedProductWarehouseReceiptModal: React.FC<FinishedProductWarehouseRec
                             {/* Product name (read-only label) */}
                             <div className="flex-1 min-w-0">
                               <span className="text-sm font-medium text-gray-800 truncate block">
-                                {field.tenSanPham}
+                                {(field as any).tenSanPham}
                               </span>
                               <input type="hidden" {...register(`rows.${index}.tenSanPham`)} />
                             </div>
@@ -293,9 +293,9 @@ const FinishedProductWarehouseReceiptModal: React.FC<FinishedProductWarehouseRec
                                 className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                 placeholder="Số lượng"
                               />
-                              {errors.rows?.[index]?.soLuongNhap && (
+                              {(errors.rows as any)?.[index]?.soLuongNhap && (
                                 <p className="text-xs text-red-600 mt-0.5">
-                                  {errors.rows[index]!.soLuongNhap!.message}
+                                  {String((errors.rows as any)?.[index]?.soLuongNhap?.message ?? '')}
                                 </p>
                               )}
                             </div>

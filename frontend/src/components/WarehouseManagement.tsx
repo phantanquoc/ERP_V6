@@ -61,7 +61,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
 
   const warehouses = React.useMemo(() => {
     if (!warehousesData) return [];
-    return sortWarehouses(warehousesData);
+    return sortWarehouses(warehousesData as Warehouse[]);
   }, [warehousesData]);
 
   // Modal states

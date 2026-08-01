@@ -21,7 +21,7 @@ class AttendedOperatorsService {
           pageKey,
         },
       });
-      return response.data;
+      return response.data as AttendedOperator[];
     } catch (error) {
       throw this.handleError(error);
     }

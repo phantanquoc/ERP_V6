@@ -68,7 +68,7 @@ const GeneralManagement = () => {
         // Group orders by month (current year)
         const currentYear = new Date().getFullYear();
         const monthCounts = new Array(12).fill(0);
-        (ordersData.data || []).forEach((order: any) => {
+        ((ordersData as any).data || []).forEach((order: any) => {
           const d = new Date(order.ngayDatHang);
           if (d.getFullYear() === currentYear) monthCounts[d.getMonth()]++;
         });
@@ -76,7 +76,7 @@ const GeneralManagement = () => {
 
         // Group quotations by month (current year)
         const qMonthCounts = new Array(12).fill(0);
-        (quotationsData.data || []).forEach((q: any) => {
+        ((quotationsData as any).data || []).forEach((q: any) => {
           const d = new Date(q.createdAt);
           if (d.getFullYear() === currentYear) qMonthCounts[d.getMonth()]++;
         });
@@ -242,7 +242,7 @@ const GeneralManagement = () => {
                     outerRadius={100}
                     paddingAngle={5}
                     dataKey="value"
-                    label={({ name, value, percent }: { name: string; value: number; percent: number }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
+                    label={({ name, value, percent }: any) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
                   >
                     {chart.data.map((_, i) => (
                       <Cell key={i} fill={COLORS[i % COLORS.length]} />

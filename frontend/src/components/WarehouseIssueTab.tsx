@@ -57,7 +57,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
 
   const fetchIssues = async () => {
     try {
-      const response = await warehouseIssueService.getAllWarehouseIssues();
+      const response = await warehouseIssueService.getAllWarehouseIssues() as any;
       console.log('Issues response:', response);
       // Kiểm tra nếu response.data là object có property data
       if (response.data && Array.isArray(response.data.data)) {
@@ -76,7 +76,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
 
   const fetchWarehouses = async () => {
     try {
-      const response = await warehouseService.getAllWarehouses();
+      const response = await warehouseService.getAllWarehouses() as any;
       console.log('Warehouses response:', response);
       // Kiểm tra nếu response.data là object có property data
       if (response.data && Array.isArray(response.data.data)) {

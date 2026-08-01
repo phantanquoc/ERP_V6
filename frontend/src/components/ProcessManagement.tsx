@@ -1093,7 +1093,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                                   onChange={(e) => {
                                     const newFiles = [...(section.files || [])];
                                     newFiles[fileIndex] = { ...newFiles[fileIndex], description: e.target.value };
-                                    handleSectionChange(sectionIndex, 'files', newFiles);
+                                    handleSectionChange(sectionIndex, 'files', JSON.parse(JSON.stringify(newFiles)));
                                   }}
                                   className="text-xs border border-gray-300 rounded px-2 py-1 w-32"
                                 />
@@ -1117,7 +1117,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                                     onClick={() => {
                                       const newFiles = [...(section.files || [])];
                                       [newFiles[fileIndex - 1], newFiles[fileIndex]] = [newFiles[fileIndex], newFiles[fileIndex - 1]];
-                                      handleSectionChange(sectionIndex, 'files', newFiles.map((f: any, i: number) => ({ ...f, order: i })));
+                                      handleSectionChange(sectionIndex, 'files', JSON.parse(JSON.stringify(newFiles.map((f: any, i: number) => ({ ...f, order: i })))));
                                     }}
                                     className="text-gray-500 hover:text-gray-700 text-xs"
                                   >
@@ -1130,7 +1130,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                                     onClick={() => {
                                       const newFiles = [...(section.files || [])];
                                       [newFiles[fileIndex], newFiles[fileIndex + 1]] = [newFiles[fileIndex + 1], newFiles[fileIndex]];
-                                      handleSectionChange(sectionIndex, 'files', newFiles.map((f: any, i: number) => ({ ...f, order: i })));
+                                      handleSectionChange(sectionIndex, 'files', JSON.parse(JSON.stringify(newFiles.map((f: any, i: number) => ({ ...f, order: i })))));
                                     }}
                                     className="text-gray-500 hover:text-gray-700 text-xs"
                                   >
@@ -1141,7 +1141,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                                   type="button"
                                   onClick={() => {
                                     const newFiles = (section.files || []).filter((_: any, i: number) => i !== fileIndex);
-                                    handleSectionChange(sectionIndex, 'files', newFiles.map((f: any, i: number) => ({ ...f, order: i })));
+                                    handleSectionChange(sectionIndex, 'files', JSON.parse(JSON.stringify(newFiles.map((f: any, i: number) => ({ ...f, order: i })))));
                                   }}
                                   className="text-red-500 hover:text-red-700"
                                 >

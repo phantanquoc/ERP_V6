@@ -80,7 +80,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
 
   const fetchWarehouses = async () => {
     try {
-      const response = await warehouseService.getAllWarehouses();
+      const response = await warehouseService.getAllWarehouses() as any;
       if (response.data && Array.isArray(response.data.data)) {
         setWarehouses(response.data.data);
       } else if (Array.isArray(response.data)) {

@@ -65,7 +65,7 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ month, year }) => {
     try {
       setLoading(true);
       const response = await debtService.getAllDebts(month, year);
-      setDebtData(response.data || []);
+      setDebtData(response.data as Debt[] || []);
     } catch (error) {
       console.error('Error fetching debts:', error);
       alert('Lỗi khi tải danh sách công nợ');
@@ -77,7 +77,7 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ month, year }) => {
   const fetchSummary = async () => {
     try {
       const response = await debtService.getDebtSummary(month, year);
-      setSummary(response.data || summary);
+      setSummary(response.data as DebtSummary || summary);
     } catch (error) {
       console.error('Error fetching summary:', error);
     }
@@ -160,7 +160,7 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ month, year }) => {
 
     try {
       setLoading(true);
-      await debtService.createDebt(formData);
+      await debtService.createDebt(formData as any);
       alert('Thêm công nợ thành công!');
       setIsAddModalOpen(false);
       setFormData({
@@ -199,7 +199,7 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ month, year }) => {
 
     try {
       setLoading(true);
-      await debtService.updateDebt(selectedDebt.id, formData);
+      await debtService.updateDebt(selectedDebt.id, formData as any);
       alert('Cập nhật công nợ thành công!');
       setIsEditModalOpen(false);
       setSelectedDebt(null);
@@ -462,7 +462,7 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ month, year }) => {
                     required
                     value={formData.tenNhaCungCap}
                     onChange={(e) => {
-                      const selected = suppliers.find(s => s.tenNhaCungCap === e.target.value);
+                      const selected = suppliers.find((s: any) => s.tenNhaCungCap === e.target.value);
                       setFormData({
                         ...formData,
                         tenNhaCungCap: e.target.value,
@@ -472,7 +472,7 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ month, year }) => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
                   >
                     <option value="">-- Chọn nhà cung cấp --</option>
-                    {suppliers.map(s => (
+                    {suppliers.map((s: any) => (
                       <option key={s.id} value={s.tenNhaCungCap}>{s.tenNhaCungCap}</option>
                     ))}
                   </select>
@@ -724,7 +724,7 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ month, year }) => {
                     required
                     value={formData.tenNhaCungCap}
                     onChange={(e) => {
-                      const selected = suppliers.find(s => s.tenNhaCungCap === e.target.value);
+                      const selected = suppliers.find((s: any) => s.tenNhaCungCap === e.target.value);
                       setFormData({
                         ...formData,
                         tenNhaCungCap: e.target.value,
@@ -734,7 +734,7 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ month, year }) => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
                   >
                     <option value="">-- Chọn nhà cung cấp --</option>
-                    {suppliers.map(s => (
+                    {suppliers.map((s: any) => (
                       <option key={s.id} value={s.tenNhaCungCap}>{s.tenNhaCungCap}</option>
                     ))}
                   </select>

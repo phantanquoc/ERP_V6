@@ -461,7 +461,7 @@ const ExportCostManagement: React.FC = () => {
           </div>
 
           {/* Tab navigation — shown only when editing and ADMIN/DEPARTMENT_HEAD (task 11.3/11.4) */}
-          {editingCost && (user?.role === 'ADMIN' || user?.role === 'DEPARTMENT_HEAD') && (
+          {editingCost && (String(user?.role) === 'ADMIN' || String(user?.role) === 'DEPARTMENT_HEAD') && (
             <div className="flex border-b border-gray-200 px-6 shrink-0">
               <button
                 type="button"
@@ -549,7 +549,7 @@ const ExportCostManagement: React.FC = () => {
                     Đơn vị tính
                   </label>
                   <UnitSelect
-                    value={formData.donViTinh}
+                    value={formData.donViTinh ?? ''}
                     onChange={(val) => setFormData({ ...formData, donViTinh: val })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                   />

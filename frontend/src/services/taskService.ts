@@ -76,8 +76,8 @@ export const taskService = {
     }
 
      const response = await apiClient.post('/tasks', formData);
-     
-     return response.data;
+
+     return response.data as unknown as Task;
   },
 
   async getAllTasks(params?: {
@@ -88,9 +88,9 @@ export const taskService = {
     department?: string;
   }): Promise<{ data: Task[]; total: number; page: number; totalPages: number }> {
      const response = await apiClient.get('/tasks', { params });
-     
+
      return {
-       data: response.data,
+       data: response.data as unknown as Task[],
        total: (response as any).pagination.total,
        page: (response as any).pagination.page,
        totalPages: (response as any).pagination.totalPages,
@@ -102,9 +102,9 @@ export const taskService = {
     limit?: number;
   }): Promise<{ data: Task[]; total: number; page: number; totalPages: number }> {
      const response = await apiClient.get('/tasks/my-tasks', { params });
-     
+
      return {
-       data: response.data,
+       data: response.data as unknown as Task[],
        total: (response as any).pagination.total,
        page: (response as any).pagination.page,
        totalPages: (response as any).pagination.totalPages,
@@ -113,7 +113,7 @@ export const taskService = {
 
   async getTaskById(id: string): Promise<Task> {
      const response = await apiClient.get(`/tasks/${id}`);
-     return response.data;
+     return response.data as unknown as Task;
   },
 
   async updateTask(id: string, data: Partial<CreateTaskData>): Promise<Task> {
@@ -137,8 +137,8 @@ export const taskService = {
     }
 
      const response = await apiClient.put(`/tasks/${id}`, formData);
- 
-     return response.data;
+
+     return response.data as unknown as Task;
   },
 
   async deleteTask(id: string): Promise<void> {
@@ -147,12 +147,12 @@ export const taskService = {
 
   async acceptTask(id: string, trangThai: TaskAcceptanceStatus): Promise<Task> {
     const response = await apiClient.patch(`/tasks/${id}/accept`, { trangThai });
-    return response.data;
+    return response.data as unknown as Task;
   },
 
   async evaluateTask(id: string, data: { diemDanhGia: number; noiDungDanhGia?: string }): Promise<Task> {
     const response = await apiClient.patch(`/tasks/${id}/evaluate`, data);
-    return response.data;
+    return response.data as unknown as Task;
   },
 };
 

@@ -42,7 +42,7 @@ class InternalInspectionService {
   async getInspectionById(id: string): Promise<InternalInspection> {
     try {
        const response = await apiClient.get(`/internal-inspections/${id}`);
-       return response.data;
+       return response.data as InternalInspection;
     } catch (error) {
       console.error('Error fetching inspection:', error);
       throw error;
@@ -52,7 +52,7 @@ class InternalInspectionService {
   async createInspection(data: any): Promise<InternalInspection> {
     try {
        const response = await apiClient.post('/internal-inspections', data);
-       return response.data;
+       return response.data as InternalInspection;
     } catch (error) {
       console.error('Error creating inspection:', error);
       throw error;
@@ -62,7 +62,7 @@ class InternalInspectionService {
   async updateInspection(id: string, data: any): Promise<InternalInspection> {
     try {
        const response = await apiClient.patch(`/internal-inspections/${id}`, data);
-       return response.data;
+       return response.data as InternalInspection;
     } catch (error) {
       console.error('Error updating inspection:', error);
       throw error;

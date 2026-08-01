@@ -12,7 +12,7 @@ type KioskState = 'loading' | 'waiting' | 'challenge' | 'processing' | 'result' 
 type FacePos    = 'none' | 'centered' | 'offcenter' | 'multiface';
 type ChallengePhase = 'active' | 'done';
 
-type ChallengeType = 'blink';
+type ChallengeType = 'blink' | 'look_left' | 'look_right' | 'look_up';
 
 const CENTER_ZONE       = 0.30;
 const MAX_YAW           = 0.25;
@@ -30,6 +30,9 @@ const MOUTH = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375];
 
 const CHALLENGE_LABELS: Record<ChallengeType, string> = {
   blink: 'CHỚP MẮT',
+  look_left: 'NHÌN TRÁI',
+  look_right: 'NHÌN PHẢI',
+  look_up: 'NHÌN TRÊN',
 };
 
 interface ResultDisplay {
