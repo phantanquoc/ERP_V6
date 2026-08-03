@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import payrollService from '../services/payrollService';
+import payrollService, { PayrollSettings } from '../services/payrollService';
 
 // Query keys for cache management
 export const payrollKeys = {
@@ -70,7 +70,7 @@ export const useUpdatePayrollSettings = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { standardWorkDays?: number; overtimeRate?: number }) =>
+    mutationFn: (data: Partial<Omit<PayrollSettings, 'id'>>) =>
       payrollService.updatePayrollSettings(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: payrollKeys.settings() });

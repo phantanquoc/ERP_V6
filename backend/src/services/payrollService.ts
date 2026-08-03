@@ -622,28 +622,70 @@ export class PayrollService {
         data: {
           standardWorkDays: 26,
           overtimeRate: 0,
+          mealAllowancePerDay: 0,
+          overtimeMealAllowance: 25000,
+          sundayMealAllowance: 0,
+          fuelPricePerKm: 0,
+          otRateWeekday: 1.5,
+          otRateWeekdayExtra: 2.1,
+          otRateSunday: 2,
+          otRateSundayExtra: 2.7,
+          otRateHoliday: 3,
         },
       });
     }
     return settings;
   }
 
-  async updatePayrollSettings(data: { standardWorkDays?: number; overtimeRate?: number }): Promise<any> {
+  async updatePayrollSettings(data: {
+    standardWorkDays?: number;
+    overtimeRate?: number;
+    mealAllowancePerDay?: number;
+    overtimeMealAllowance?: number;
+    sundayMealAllowance?: number;
+    fuelPricePerKm?: number;
+    otRateWeekday?: number;
+    otRateWeekdayExtra?: number;
+    otRateSunday?: number;
+    otRateSundayExtra?: number;
+    otRateHoliday?: number;
+  }): Promise<any> {
     let settings = await prisma.payrollSettings.findFirst();
     if (!settings) {
+      // Nếu chưa có settings, tạo mới với values từ data hoặc defaults
       settings = await prisma.payrollSettings.create({
         data: {
           standardWorkDays: data.standardWorkDays ?? 26,
           overtimeRate: data.overtimeRate ?? 0,
+          mealAllowancePerDay: data.mealAllowancePerDay ?? 0,
+          overtimeMealAllowance: data.overtimeMealAllowance ?? 25000,
+          sundayMealAllowance: data.sundayMealAllowance ?? 0,
+          fuelPricePerKm: data.fuelPricePerKm ?? 0,
+          otRateWeekday: data.otRateWeekday ?? 1.5,
+          otRateWeekdayExtra: data.otRateWeekdayExtra ?? 2.1,
+          otRateSunday: data.otRateSunday ?? 2,
+          otRateSundayExtra: data.otRateSundayExtra ?? 2.7,
+          otRateHoliday: data.otRateHoliday ?? 3,
         },
       });
     } else {
+      // Update chỉ những fields được truyền vào
+      const updateData: any = {};
+      if (data.standardWorkDays !== undefined) updateData.standardWorkDays = data.standardWorkDays;
+      if (data.overtimeRate !== undefined) updateData.overtimeRate = data.overtimeRate;
+      if (data.mealAllowancePerDay !== undefined) updateData.mealAllowancePerDay = data.mealAllowancePerDay;
+      if (data.overtimeMealAllowance !== undefined) updateData.overtimeMealAllowance = data.overtimeMealAllowance;
+      if (data.sundayMealAllowance !== undefined) updateData.sundayMealAllowance = data.sundayMealAllowance;
+      if (data.fuelPricePerKm !== undefined) updateData.fuelPricePerKm = data.fuelPricePerKm;
+      if (data.otRateWeekday !== undefined) updateData.otRateWeekday = data.otRateWeekday;
+      if (data.otRateWeekdayExtra !== undefined) updateData.otRateWeekdayExtra = data.otRateWeekdayExtra;
+      if (data.otRateSunday !== undefined) updateData.otRateSunday = data.otRateSunday;
+      if (data.otRateSundayExtra !== undefined) updateData.otRateSundayExtra = data.otRateSundayExtra;
+      if (data.otRateHoliday !== undefined) updateData.otRateHoliday = data.otRateHoliday;
+
       settings = await prisma.payrollSettings.update({
         where: { id: settings.id },
-        data: {
-          standardWorkDays: data.standardWorkDays ?? settings.standardWorkDays,
-          overtimeRate: data.overtimeRate ?? settings.overtimeRate,
-        },
+        data: updateData,
       });
     }
     return settings;
