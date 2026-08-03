@@ -6,6 +6,7 @@ import { isAdmin } from '../utils/permissions';
 import systemSettingsService from '../services/systemSettingsService';
 import NotificationPreferencesSection from '../components/NotificationPreferencesSection';
 import DeviceManagementSection from '../components/DeviceManagementSection';
+import CategoryManagementSection from '../components/CategoryManagementSection';
 
 const THEMES = [
   {
@@ -95,7 +96,7 @@ const SystemSettingsPage: React.FC = () => {
         </h1>
         <p className="text-gray-500 mt-1">
           {activeTab === 'system' && userIsAdmin
-            ? 'Quản lý theme và slogan cho toàn bộ hệ thống'
+            ? 'Quản lý theme, slogan và các danh mục phân loại hệ thống'
             : 'Tùy chỉnh trải nghiệm của bạn'}
         </p>
       </div>
@@ -230,6 +231,9 @@ const SystemSettingsPage: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {/* Quản lý danh mục */}
+          <CategoryManagementSection />
 
           {/* Công cụ quản trị */}
           <div className="mb-6">
