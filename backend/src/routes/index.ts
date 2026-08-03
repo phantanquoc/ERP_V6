@@ -79,6 +79,7 @@ const ROUTE_MAP: Record<string, string> = {
   timesheet: '/api/timesheet',
   dataEntryPagePosition: '/api/data-entry-page-positions',
   attendedOperators: '/api/kiosk',
+  lookup: '/api/lookups',
 };
 
 export const registerRoutes = (app: Express): void => {
