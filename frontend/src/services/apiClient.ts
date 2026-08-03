@@ -12,10 +12,21 @@ import { isKioskTab, getDeviceKey, getSelection, KIOSK_EXPIRED_EVENT } from '../
  */
 export class ApiError extends Error {
   public statusCode: number;
+  /**
+   * Parsed error response body, when the server sent one.
+   *
+   * Some endpoints flatten machine-readable detail alongside `message` that callers
+   * need in order to react (e.g. the shared-lookup 409 carries
+   * `{ requiresConfirmation, oldLabel, newLabel, affectedRecords }` to drive a cascade
+   * confirmation dialog). Optional and purely additive — callers that only read
+   * `statusCode`/`message` are unaffected.
+   */
+  public body?: unknown;
 
-  constructor(statusCode: number, message: string) {
+  constructor(statusCode: number, message: string, body?: unknown) {
     super(message);
     this.statusCode = statusCode;
+    this.body = body;
     this.name = 'ApiError';
     Object.setPrototypeOf(this, ApiError.prototype);
   }
@@ -153,7 +164,7 @@ class ApiClient {
             .join('; ');
           if (fieldErrors) errorMessage = fieldErrors;
         }
-        throw new ApiError(response.status, errorMessage);
+        throw new ApiError(response.status, errorMessage, data);
       }
 
       return data;

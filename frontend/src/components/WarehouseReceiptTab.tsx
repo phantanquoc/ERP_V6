@@ -10,7 +10,7 @@ import TableFilter, { FilterField } from './TableFilter';
 import { warehouseKeys, useProducts } from '../hooks';
 import ProductCombobox from './common/ProductCombobox';
 import UnitSelect from './common/UnitSelect';
-import { DON_VI_TINH_OPTIONS } from '../constants/units';
+import { useUnitOptions } from '../hooks/useLookups';
 
 /** Purpose presets — cover the common cases; the field stays free text for the rest. */
 const MUC_DICH_PRESETS = [
@@ -29,6 +29,8 @@ interface WarehouseReceiptTabProps {
 const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  // Unit list from the shared lookup API; drives the auto-fill guard.
+  const { isKnownUnit } = useUnitOptions();
   const [receipts, setReceipts] = useState<WarehouseReceipt[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [lots, setLots] = useState<Lot[]>([]);
@@ -659,9 +661,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                       loaiSanPham: product?.loaiSanPham ?? '',
                       donViTinh:
                         existing?.donViTinh ??
-                        (product?.donViTinh && DON_VI_TINH_OPTIONS.includes(product.donViTinh)
-                          ? product.donViTinh
-                          : prev.donViTinh),
+                        (isKnownUnit(product?.donViTinh) ? product.donViTinh : prev.donViTinh),
                     }));
                   }}
                   onCreateNew={(tenSanPham) => {
