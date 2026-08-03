@@ -1499,3 +1499,59 @@ model MonthlyTimesheetOverride {
   @@map("monthly_timesheet_overrides")
   @@schema("common")
 }
+
+/// Shared classification labels (unit of measure, expense type, material category, ...).
+/// Single polymorphic table discriminated by `group`.
+/// NOTE: the physical columns each group cascades into are hard-coded in
+/// LOOKUP_COLUMN_MAP (backend/src/services/lookupService.ts). If you add or rename a
+/// column that stores one of these labels, you MUST update LOOKUP_COLUMN_MAP too.
+model Lookup {
+  id        String   @id @default(cuid())
+  group     String
+  code      String
+  label     String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  changeLogs LookupChangeLog[]
+
+  @@unique([group, code])
+  @@index([group, isActive, sortOrder])
+  @@map("lookups")
+  @@schema("common")
+}
+
+/// Immutable audit trail for every Lookup modification. Rows are never updated or
+/// deleted; there are deliberately no update/delete endpoints for this table.
+model LookupChangeLog {
+  id              String             @id @default(cuid())
+  lookupId        String?
+  group           String
+  action          LookupChangeAction
+  oldLabel        String?
+  newLabel        String?
+  affectedRecords Int                @default(0)
+  affectedTables  Json?              @db.JsonB
+  changedByUserId String?
+  createdAt       DateTime           @default(now())
+
+  lookup Lookup? @relation(fields: [lookupId], references: [id], onDelete: SetNull)
+
+  @@index([lookupId, createdAt(sort: Desc)])
+  @@index([group, createdAt(sort: Desc)])
+  @@map("lookup_change_logs")
+  @@schema("common")
+}
+
+enum LookupChangeAction {
+  CREATE
+  UPDATE_LABEL
+  CASCADE_RENAME
+  UPDATE_SORT_ORDER
+  SOFT_DELETE
+  REACTIVATE
+
+  @@schema("common")
+}
