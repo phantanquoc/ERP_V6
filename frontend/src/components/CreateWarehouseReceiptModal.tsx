@@ -9,7 +9,7 @@ import Modal from './Modal';
 import UnitSelect from './common/UnitSelect';
 import ProductCombobox from './common/ProductCombobox';
 import { useProducts } from '../hooks';
-import { DON_VI_TINH_OPTIONS } from '../constants/units';
+import { useUnitOptions } from '../hooks/useLookups';
 
 interface CreateWarehouseReceiptModalProps {
   isOpen: boolean;
@@ -45,6 +45,8 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
   onSuccess,
 }) => {
   const { user } = useAuth();
+  // Unit list from the shared lookup API; drives the auto-fill guard.
+  const { isKnownUnit } = useUnitOptions();
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [lotsMap, setLotsMap] = useState<Record<string, Lot[]>>({});
   const [loading, setLoading] = useState(false);
@@ -493,9 +495,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
                     // Prefer the kiện's unit when the lot already holds this product
                     donViTinh:
                       existing?.donViTinh ??
-                      (product?.donViTinh && DON_VI_TINH_OPTIONS.includes(product.donViTinh)
-                        ? product.donViTinh
-                        : prev.donViTinh),
+                      (isKnownUnit(product?.donViTinh) ? product!.donViTinh : prev.donViTinh),
                   }));
                 }}
                 onCreateNew={(tenSanPham) => {

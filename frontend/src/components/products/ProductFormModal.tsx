@@ -1,6 +1,8 @@
 import React from 'react';
 import { X, RefreshCw } from 'lucide-react';
 import Modal from '../Modal';
+import { useLookups } from '../../hooks/useLookups';
+import { LOOKUP_GROUPS } from '../../types/lookup';
 
 export interface ProductFormData {
   maSanPham: string;
@@ -10,8 +12,27 @@ export interface ProductFormData {
   donViTinh: string;
 }
 
-/** Units in use across the catalogue. Free text is still allowed. */
-const COMMON_UNITS = ['Kg', 'Thùng', 'Cái', 'Cuộn', 'Đôi', 'Can', 'Xô', 'Bịch', 'Miếng', 'Xe'];
+/**
+ * Unit suggestions, sourced from the shared lookup API — change: shared-lookup-table.
+ *
+ * This replaced a hardcoded 10-value array that diverged from `constants/units.ts`
+ * (13 values). The two lists disagreeing is what broke unit auto-fill in the warehouse
+ * forms; both now converge on the same API-managed list.
+ *
+ * Kept as a datalist rather than a closed <select>: the field is deliberately free text
+ * so a brand-new unit does not require an admin round-trip before a product can be saved.
+ * A separate component so the parent can stay a pure presentational arrow function.
+ */
+const UnitSuggestions: React.FC = () => {
+  const { data: units } = useLookups(LOOKUP_GROUPS.DON_VI_TINH);
+  return (
+    <datalist id="product-unit-options">
+      {units.map((u) => (
+        <option key={u.id} value={u.label} />
+      ))}
+    </datalist>
+  );
+};
 
 interface ProductFormModalProps {
   isOpen: boolean;
@@ -80,9 +101,7 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 placeholder="VD: Kg, Thùng, Cái"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               />
-              <datalist id="product-unit-options">
-                {COMMON_UNITS.map(u => <option key={u} value={u} />)}
-              </datalist>
+              <UnitSuggestions />
             </div>
           </div>
           <div>

@@ -14,7 +14,8 @@ import { parseNumberInputStr } from '../utils/numberInput';
 import Modal from './Modal';
 import ProductCombobox from './common/ProductCombobox';
 import UnitSelect from './common/UnitSelect';
-import { DEFAULT_DON_VI_TINH, DON_VI_TINH_OPTIONS } from '../constants/units';
+import { DEFAULT_DON_VI_TINH } from '../constants/units';
+import { useUnitOptions } from '../hooks/useLookups';
 
 interface WarehouseManagementProps {
   initialWarehouseId?: string;
@@ -24,6 +25,9 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
   const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  // Unit list from the shared lookup API; drives the auto-fill guard below.
+  const { isKnownUnit } = useUnitOptions();
 
   // React Query hooks for warehouses
   const { data: warehousesData, isLoading: loading } = useWarehouses();
@@ -844,11 +848,14 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
                   value={selectedProductId || null}
                   onChange={(productId, product) => {
                     setSelectedProductId(productId ?? '');
-                    // Auto-fill unit from product if it matches a standard option
-                    if (product?.donViTinh && DON_VI_TINH_OPTIONS.includes(product.donViTinh)) {
-                      setProductUnit(product.donViTinh);
+                    // Auto-fill unit from the product when it is a known lookup value.
+                    // Backed by the API, so units like Đôi/Can/Xe now match instead of
+                    // being silently skipped (leaving a wrong unit in the form).
+                    const unit = product?.donViTinh;
+                    if (isKnownUnit(unit)) {
+                      setProductUnit(unit);
                     } else if (!productId) {
-                      // Reset to default when clearing
+                      // Reset to default only when the selection is cleared.
                       setProductUnit(DEFAULT_DON_VI_TINH);
                     }
                   }}
