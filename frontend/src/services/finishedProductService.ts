@@ -7,6 +7,8 @@ export interface FinishedProduct {
   maChien: string;
   thoiGianChien: string;
   tenHangHoa: string;
+  /** Commodity code — the identifier the kiosk screens display. Null on rows with no product link. */
+  maSanPham?: string | null;
   khoiLuong: number;
 
   // Machine info

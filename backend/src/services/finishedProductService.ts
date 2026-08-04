@@ -163,6 +163,7 @@ export class FinishedProductService {
         maChien: data.maChien,
         thoiGianChien: parseLocalDateTimeAsAppTz(data.thoiGianChien),
         tenHangHoa: data.tenHangHoa,
+        maSanPham: data.maSanPham ?? null,
         khoiLuong: data.khoiLuong,
         machineSystemId: data.machineSystemId ?? null,
         materialEvaluationId: data.materialEvaluationId,
@@ -337,7 +338,7 @@ export class FinishedProductService {
     }
     const materialEval = await prisma.materialEvaluation.findFirst({
       where: materialEvalWhere,
-      select: { id: true, thoiGianChien: true, tenHangHoa: true },
+      select: { id: true, thoiGianChien: true, tenHangHoa: true, maSanPham: true },
     });
 
     const upsertData = {
@@ -383,6 +384,7 @@ export class FinishedProductService {
         ngaySanXuat,
         thoiGianChien: materialEval?.thoiGianChien ?? thoiGianChienDate,
         tenHangHoa: rest.tenHangHoa || materialEval?.tenHangHoa || '',
+        maSanPham: rest.maSanPham ?? materialEval?.maSanPham ?? null,
         khoiLuong: rest.khoiLuong ?? 0,
         materialEvaluationId: materialEval?.id ?? null,
         ...createData,

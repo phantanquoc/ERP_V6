@@ -28,7 +28,6 @@ import { parseNumberInput, PRODUCTION_LIMITS } from '../../utils/numberInput';
 import {
   useFryBatchCodes,
   filterBatchesByShiftAndDate,
-  useSystemOperationByBatchAndFryer,
   useSystemOperationsByMaChien,
   useUpdateSystemOperationEntry,
 } from '../../hooks/useProductionDataEntry';
@@ -361,7 +360,12 @@ const ProductionSystemOperationEntry: React.FC = () => {
   }, [step, selectedMaChien, selectedMachineSystemId]);
 
   // Data hooks
-  const { data: allBatches, isLoading: batchesLoading } = useFryBatchCodes(
+  const {
+    data: allBatches,
+    isLoading: batchesLoading,
+    isError: batchesError,
+    refetch: refetchBatches,
+  } = useFryBatchCodes(
     productionDate,
     selectedShift,
   );
@@ -376,14 +380,24 @@ const ProductionSystemOperationEntry: React.FC = () => {
     [allBatches, selectedShift, productionDate],
   );
 
-  const {
-    data: existingOperation,
-    isLoading: existingLoading,
-  } = useSystemOperationByBatchAndFryer(selectedMaChien, selectedMachineSystemId);
+  // The row for the chosen machine is already in machineRows — deriving it avoids a
+  // second request to the same endpoint that useSystemOperationsByMaChien just made.
+  const existingOperation = useMemo(
+    () =>
+      selectedMachineSystemId
+        ? machineRows.find((op) => op.machineSystemId === selectedMachineSystemId) ?? null
+        : null,
+    [machineRows, selectedMachineSystemId],
+  );
+  const existingLoading = machinesLoading;
 
-  // When existing operation loads, hydrate the form with its values
+  // When the existing operation loads, hydrate the form with its values — unless a
+  // draft is already in the form. The draft is what the worker typed and has not
+  // saved; letting a later-arriving DB response overwrite it lost their input while
+  // the "đang dùng nháp" banner still claimed the draft was in use.
   useEffect(() => {
     if (!existingOperation) return;
+    if (usingDraft) return;
     setForm({
       giaiDoan1ThoiGian: existingOperation.giaiDoan1?.thoiGian ?? 0,
       giaiDoan1NhietDo: existingOperation.giaiDoan1?.nhietDo ?? 0,
@@ -400,7 +414,7 @@ const ProductionSystemOperationEntry: React.FC = () => {
       khoiLuongDauVao: existingOperation.khoiLuongDauVao ?? 0,
       tongThoiGianSay: existingOperation.tongThoiGianSay ?? 0,
     });
-  }, [existingOperation]);
+  }, [existingOperation, usingDraft]);
 
   const updateSysOp = useUpdateSystemOperationEntry();
 
@@ -754,6 +768,20 @@ const ProductionSystemOperationEntry: React.FC = () => {
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
               </div>
+            ) : batchesError ? (
+              <div className="text-center py-12 bg-white rounded-xl border">
+                <AlertTriangle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+                <p className="text-gray-700 font-medium">Không tải được danh sách mã chiên</p>
+                <p className="text-sm text-gray-500 mt-1 mb-4">
+                  Kiểm tra kết nối mạng rồi thử lại.
+                </p>
+                <button
+                  onClick={() => void refetchBatches()}
+                  className="min-h-[44px] px-5 py-2 bg-blue-600 text-white rounded-lg font-medium"
+                >
+                  Thử lại
+                </button>
+              </div>
             ) : filteredBatches.length === 0 ? (
               <div className="text-center py-12 bg-white rounded-xl border">
                 <p className="text-gray-500">
@@ -777,7 +805,8 @@ const ProductionSystemOperationEntry: React.FC = () => {
                       <div className="min-w-0 flex-1">
                         <div className="text-lg font-semibold text-gray-800 truncate">{batch.maChien}</div>
                         <div className="text-sm text-gray-500 truncate">
-                          {formatTime(batch.thoiGianChien)} · {batch.tenHangHoa}
+                          {formatTime(batch.thoiGianChien)}
+                          {batch.maSanPham ? ` · ${batch.maSanPham}` : ''}
                         </div>
                       </div>
                       <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
@@ -805,6 +834,9 @@ const ProductionSystemOperationEntry: React.FC = () => {
               <>
                 <h2 className="text-base font-semibold text-gray-700 mb-3">
                   Chọn máy cho mã chiên <span className="text-blue-600">{selectedMaChien}</span>
+                  {selectedBatch?.maSanPham && (
+                    <span className="text-gray-500 font-normal"> · {selectedBatch.maSanPham}</span>
+                  )}
                 </h2>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {machineRows.map((op) => {
@@ -866,6 +898,26 @@ const ProductionSystemOperationEntry: React.FC = () => {
               </div>
             ) : (
               <>
+                {/* Context strip — 14 parameter fields with only a small grey breadcrumb
+                    left the worker unsure which batch and machine they were filling in. */}
+                <div className="bg-white rounded-xl border px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+                  <span className="text-base font-bold text-gray-800">{selectedMaChien}</span>
+                  {selectedBatch?.maSanPham && (
+                    <span className="text-base font-semibold text-blue-700">{selectedBatch.maSanPham}</span>
+                  )}
+                  {selectedMachine && (
+                    <span className="text-base font-semibold text-gray-700">
+                      {getMachineLabel(selectedMachine.maHeThong)}
+                    </span>
+                  )}
+                  {selectedBatch && (
+                    <span className="text-sm text-gray-500">
+                      {formatTime(selectedBatch.thoiGianChien)}
+                    </span>
+                  )}
+                  <span className="text-sm text-gray-500">Ca {selectedShift}</span>
+                </div>
+
                 {/* Locked banner — máy đang bảo trì/ngưng: chỉ xem, không sửa */}
                 {formLocked && (
                   <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">

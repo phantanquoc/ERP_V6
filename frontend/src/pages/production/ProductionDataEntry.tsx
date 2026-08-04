@@ -14,6 +14,7 @@ import {
 import { useAttendedOperatorsByShift } from '../../hooks/useAttendedOperators';
 import useVirtualKeyboard from '../../hooks/useVirtualKeyboard';
 import useIsNarrowScreen from '../../hooks/useIsNarrowScreen';
+import { useDebounce } from '../../hooks/useDebounce';
 import { markTab, isKioskTab, hasKioskSession, KIOSK_EXPIRED_EVENT, getSelection, setSelection, clearSelection, getDeviceKey, setDeviceKey } from '../../utils/kioskSession';
 import { parseNumberInput, PRODUCTION_LIMITS } from '../../utils/numberInput';
 import { FinishedProduct } from '../../services/finishedProductService';
@@ -50,15 +51,12 @@ const QUALITY_TABS: TabConfig[] = [
 type CellKey = string;
 // Board data: tab -> cellKey -> value (kg)
 type BoardData = Record<QualityTab, Record<CellKey, number>>;
-// Notes: cellKey -> ghiChu text
-type NotesData = Record<CellKey, string>;
 // Waste total for the shift
 type WasteTotal = number;
 
 // Draft stored in localStorage
 interface DraftData {
   board: BoardData;
-  notes: NotesData;
   wasteTotal: WasteTotal;
 }
 
@@ -79,6 +77,42 @@ function todayStr(): string {
 const VALID_TABS: QualityTab[] = ['A', 'B', 'B_DAU', 'C', 'UOT', 'VUN_PHE'];
 function isValidTab(v: string): v is QualityTab {
   return (VALID_TABS as string[]).includes(v);
+}
+
+/**
+ * Parse a stored draft, keeping only the shape we expect. A draft written before a
+ * tab key changed, or one that is corrupt, must not be cast blindly into the board.
+ * Returns null when nothing usable can be recovered.
+ */
+function parseDraft(raw: string): DraftData | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object') return null;
+
+  const candidate = parsed as Partial<DraftData>;
+  const board: BoardData = { A: {}, B: {}, B_DAU: {}, C: {}, UOT: {}, VUN_PHE: {} };
+
+  if (candidate.board && typeof candidate.board === 'object') {
+    for (const [tabKey, cells] of Object.entries(candidate.board)) {
+      if (!isValidTab(tabKey) || !cells || typeof cells !== 'object') continue;
+      for (const [cellKey, value] of Object.entries(cells as Record<string, unknown>)) {
+        if (typeof value === 'number' && Number.isFinite(value)) {
+          board[tabKey][cellKey] = value;
+        }
+      }
+    }
+  }
+
+  const wasteTotal =
+    typeof candidate.wasteTotal === 'number' && Number.isFinite(candidate.wasteTotal)
+      ? candidate.wasteTotal
+      : 0;
+
+  return { board, wasteTotal };
 }
 
 function formatDateVN(dateStr: string): string {
@@ -102,7 +136,10 @@ interface NumericInputProps {
   onTap?: () => void;
 }
 
-const NumericInput: React.FC<NumericInputProps> = ({ value, onChange, placeholder, className, onTap }) => (
+// Memoized: the matrix renders batches × machines inputs (~64 on a full shift) and
+// every keystroke replaces the board object, so without this one keystroke re-renders
+// every cell.
+const NumericInput: React.FC<NumericInputProps> = React.memo(({ value, onChange, placeholder, className, onTap }) => (
   <input
     type="number"
     inputMode="decimal"
@@ -115,7 +152,8 @@ const NumericInput: React.FC<NumericInputProps> = ({ value, onChange, placeholde
     onClick={onTap ? () => onTap() : undefined}
     onChange={(e) => onChange(parseNumberInput(e.target.value, { min: 0, max: PRODUCTION_LIMITS.sanLuong.max }))}
   />
-);
+));
+NumericInput.displayName = 'NumericInput';
 
 // ─── Session guard screens ───────────────────────────────────────────────────
 
@@ -141,11 +179,19 @@ const ExpiredScreen: React.FC = () => (
 
 // ─── Full-Grid Editable Preview ─────────────────────────────────────────────
 
+/** A fry batch as the board and preview need it. */
+interface BatchRow {
+  maChien: string;
+  thoiGianChien: string;
+  tenHangHoa: string;
+  maSanPham?: string | null;
+}
+
 interface FullGridPreviewProps {
   board: BoardData;
   baseline: BaselineData;
   updateCell: (tab: QualityTab, cellKey: CellKey, value: number) => void;
-  filteredBatches: { maChien: string; thoiGianChien: string; tenHangHoa: string }[];
+  filteredBatches: BatchRow[];
   fryers: { id: string; maHeThong: string }[];
   wasteTotal: number;
   nguoiThucHien: string;
@@ -155,6 +201,8 @@ interface FullGridPreviewProps {
   onEdit: () => void;
   isPending: boolean;
   getMachineLabel: (maHeThong: string) => string;
+  /** Progress while a multi-cell save is running, so a long save is not a blank wait. */
+  saveProgress?: { done: number; total: number } | null;
 }
 
 const FullGridPreview: React.FC<FullGridPreviewProps> = ({
@@ -171,6 +219,7 @@ const FullGridPreview: React.FC<FullGridPreviewProps> = ({
   onEdit,
   isPending,
   getMachineLabel,
+  saveProgress,
 }) => {
   const NON_WASTE_TABS: { key: QualityTab; label: string }[] = [
     { key: 'A', label: 'Hàng A' },
@@ -184,45 +233,44 @@ const FullGridPreview: React.FC<FullGridPreviewProps> = ({
   // Focus editor state for preview cells
   const [previewEditorCell, setPreviewEditorCell] = useState<{ tab: QualityTab; cellKey: CellKey; label: string } | null>(null);
 
-  // A cell qualifies when value !== 0 OR value !== baseline for same tab+cellKey
-  const cellQualifies = (tab: QualityTab, cellKey: CellKey): boolean => {
-    const val = board[tab]?.[cellKey] ?? 0;
-    const baseVal = baseline[tab]?.[cellKey] ?? 0;
-    return val !== 0 || val !== baseVal;
-  };
+  // A cell qualifies when it holds a value or differs from the loaded baseline.
+  const cellQualifies = useCallback(
+    (tab: QualityTab, cellKey: CellKey): boolean => {
+      const val = board[tab]?.[cellKey] ?? 0;
+      const baseVal = baseline[tab]?.[cellKey] ?? 0;
+      return val !== 0 || baseVal !== 0;
+    },
+    [board, baseline],
+  );
 
-  // For each batch card, determine which grade columns have qualifying cells
-  const getCardData = (batch: { maChien: string; thoiGianChien: string; tenHangHoa: string }) => {
-    const qualifyingTabs: { key: QualityTab; label: string }[] = [];
-    let hasAnyQualifying = false;
-
-    for (const tab of NON_WASTE_TABS) {
-      let tabHasQualifying = false;
-      for (const f of fryers) {
-        const cellKey = `${batch.maChien}|${f.id}`;
-        if (cellQualifies(tab.key, cellKey)) {
-          tabHasQualifying = true;
-          break;
+  // Which grade columns of each card have qualifying cells. Memoized: this is
+  // O(batches × grades × machines) and the preview re-renders on every keystroke
+  // in its own focus editor.
+  const cardsData = useMemo(
+    () =>
+      filteredBatches.map((batch) => {
+        const qualifyingTabs: { key: QualityTab; label: string }[] = [];
+        for (const tab of NON_WASTE_TABS) {
+          const tabHasQualifying = fryers.some((f) =>
+            cellQualifies(tab.key, `${batch.maChien}|${f.id}`),
+          );
+          if (tabHasQualifying) qualifyingTabs.push(tab);
         }
-      }
-      if (tabHasQualifying) {
-        qualifyingTabs.push(tab);
-        hasAnyQualifying = true;
-      }
-    }
+        return { batch, qualifyingTabs, hasAnyQualifying: qualifyingTabs.length > 0 };
+      }),
+    // NON_WASTE_TABS is a module-invariant literal rebuilt per render; excluded on purpose.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filteredBatches, fryers, cellQualifies],
+  );
 
-    return { qualifyingTabs, hasAnyQualifying };
-  };
-
-  // Build cards data
-  const cardsData = filteredBatches.map((batch) => ({
-    batch,
-    ...getCardData(batch),
-  }));
-
-  const visibleCards = showAll
-    ? filteredBatches.map((batch) => ({ batch, qualifyingTabs: NON_WASTE_TABS, hasAnyQualifying: true }))
-    : cardsData.filter((c) => c.hasAnyQualifying);
+  const visibleCards = useMemo(
+    () =>
+      showAll
+        ? filteredBatches.map((batch) => ({ batch, qualifyingTabs: NON_WASTE_TABS, hasAnyQualifying: true }))
+        : cardsData.filter((c) => c.hasAnyQualifying),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [showAll, filteredBatches, cardsData],
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -243,7 +291,9 @@ const FullGridPreview: React.FC<FullGridPreviewProps> = ({
               className="flex-1 min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
             >
               {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-              Xác nhận
+              {isPending && saveProgress && saveProgress.total > 0
+                ? `Đang lưu ${saveProgress.done}/${saveProgress.total}`
+                : 'Xác nhận'}
             </button>
           </div>
           <div className="flex items-center gap-2 text-sm text-gray-700 px-1 overflow-hidden min-w-0">
@@ -292,7 +342,8 @@ const FullGridPreview: React.FC<FullGridPreviewProps> = ({
               <div className="px-3 py-2 bg-gray-50 border-b">
                 <p className="text-sm font-bold text-gray-800">{batch.maChien}</p>
                 <p className="text-xs text-gray-500">
-                  {formatTime(batch.thoiGianChien)} · {batch.tenHangHoa}
+                  {formatTime(batch.thoiGianChien)}
+                  {batch.maSanPham ? ` · ${batch.maSanPham}` : ''}
                 </p>
               </div>
               {/* Sub-table: machines (rows) × grades (columns) */}
@@ -335,7 +386,9 @@ const FullGridPreview: React.FC<FullGridPreviewProps> = ({
                               onClick={() => setPreviewEditorCell({
                                 tab: tab.key,
                                 cellKey,
-                                label: `${getMachineLabel(f.maHeThong)} · ${batch.maChien} · ${tab.label}`,
+                                label: `${getMachineLabel(f.maHeThong)} · ${batch.maChien}${
+                                  batch.maSanPham ? ` · ${batch.maSanPham}` : ''
+                                } · ${tab.label}`,
                               })}
                             >
                               <div className="min-h-[36px] flex items-center justify-center">
@@ -362,7 +415,7 @@ const FullGridPreview: React.FC<FullGridPreviewProps> = ({
                 Tổng: {wasteTotal} kg (chia đều cho {filteredBatches.length} mã chiên x {fryers.length} máy = {filteredBatches.length * fryers.length} ô)
               </p>
               <p>
-                Mỗi ô: {(wasteTotal / (filteredBatches.length * fryers.length)).toFixed(3)} kg
+                Mỗi ô: {(Math.round((wasteTotal / (filteredBatches.length * fryers.length)) * 100) / 100).toFixed(2)} kg
               </p>
             </div>
           ) : (
@@ -433,7 +486,6 @@ const ProductionDataEntry: React.FC = () => {
   const [board, setBoard] = useState<BoardData>(() => ({
     A: {}, B: {}, B_DAU: {}, C: {}, UOT: {}, VUN_PHE: {},
   }));
-  const [notes, setNotes] = useState<NotesData>({});
   const [wasteTotal, setWasteTotal] = useState<WasteTotal>(0);
 
   // Baseline: loaded DB values (for dirty tracking)
@@ -441,6 +493,12 @@ const ProductionDataEntry: React.FC = () => {
     A: {}, B: {}, B_DAU: {}, C: {}, UOT: {}, VUN_PHE: {},
   }));
   const baselineLoaded = useRef(false);
+  // Tracks whether the board holds unsaved edits, so a background refetch cannot
+  // replace them with database values mid-entry. A ref, not state: the baseline
+  // effect reads it without wanting to re-run when it flips.
+  const boardDirtyRef = useRef(false);
+  // How many cells a running save has left to go, so a 60-cell save is not a blank wait.
+  const [saveProgress, setSaveProgress] = useState<{ done: number; total: number } | null>(null);
 
   // Mark this tab as kiosk on mount + read device key from URL query param
   useEffect(() => {
@@ -471,10 +529,35 @@ const ProductionDataEntry: React.FC = () => {
   }, [selectedShift, nguoiThucHien, operatorId, productionDate, activeTab]);
 
   // Data hooks
-  const { data: allBatches, isLoading: batchesLoading } = useFryBatchCodes(productionDate, selectedShift);
-  const { data: fryersResult, isLoading: fryersLoading } = useActiveFryerMachineSystems();
-  const { data: allFinishedProducts, isLoading: fpLoading } = useAllFinishedProducts(productionDate);
+  const {
+    data: allBatches,
+    isLoading: batchesLoading,
+    isError: batchesError,
+    refetch: refetchBatches,
+  } = useFryBatchCodes(productionDate, selectedShift);
+  const {
+    data: fryersResult,
+    isLoading: fryersLoading,
+    isError: fryersError,
+    refetch: refetchFryers,
+  } = useActiveFryerMachineSystems();
+  const {
+    data: allFinishedProducts,
+    isLoading: fpLoading,
+    isError: fpError,
+    refetch: refetchFinishedProducts,
+  } = useAllFinishedProducts(productionDate, selectedShift);
   const batchUpdate = useBatchUpdateFinishedProducts();
+
+  // A failed request must not read as "no data": the worker would go looking for an
+  // admin about missing fry batches when the real problem is the network.
+  const loadFailed = batchesError || fryersError || fpError;
+
+  const handleRetryLoad = useCallback(() => {
+    if (batchesError) void refetchBatches();
+    if (fryersError) void refetchFryers();
+    if (fpError) void refetchFinishedProducts();
+  }, [batchesError, fryersError, fpError, refetchBatches, refetchFryers, refetchFinishedProducts]);
 
   const fryers = useMemo(() => fryersResult?.data ?? [], [fryersResult?.data]);
   const fryerIds = useMemo(() => fryers.map((f) => f.id), [fryers]);
@@ -493,8 +576,19 @@ const ProductionDataEntry: React.FC = () => {
 
   // Load existing DB values into board + set baseline when data changes
   useEffect(() => {
-    if (!selectedShift || filteredBatches.length === 0 || fpIndex.size === 0) {
+    // A shift with no FinishedProduct rows yet is a valid EMPTY baseline, not an
+    // unloaded state: it is the normal condition of every new shift. Treating it as
+    // unloaded used to suppress draft writing entirely, so a reload lost the whole
+    // shift — exactly when the worker had typed the most.
+    if (!selectedShift || filteredBatches.length === 0) {
       baselineLoaded.current = false;
+      return;
+    }
+
+    // Do not overwrite values the worker has typed but not yet saved. A background
+    // refetch (any invalidation of the production keys) re-runs this effect, and
+    // without this guard it would replace the in-progress board with DB values.
+    if (baselineLoaded.current && boardDirtyRef.current) {
       return;
     }
 
@@ -529,39 +623,51 @@ const ProductionDataEntry: React.FC = () => {
     // Load draft overlay (if exists for this date+shift)
     const draftKey = getDraftKey(productionDate, selectedShift);
     const savedDraft = localStorage.getItem(draftKey);
-    if (savedDraft) {
-      try {
-        const draft: DraftData = JSON.parse(savedDraft);
-        // Start with DB values, overlay draft for cells that have draft values
-        const merged: BoardData = { ...newBoard };
-        for (const tab of Object.keys(draft.board) as QualityTab[]) {
-          merged[tab] = { ...newBoard[tab] };
-          for (const [key, val] of Object.entries(draft.board[tab])) {
-            // Only overlay draft if the cell differs from baseline (i.e., user had entered something)
-            if (val !== (newBaseline[tab]?.[key] ?? 0)) {
-              merged[tab][key] = val;
-            }
+    const draft = savedDraft ? parseDraft(savedDraft) : null;
+    if (draft) {
+      // Start with DB values, overlay draft for cells that have draft values
+      const merged: BoardData = { ...newBoard };
+      for (const tab of VALID_TABS) {
+        merged[tab] = { ...newBoard[tab] };
+        const draftTab = draft.board[tab];
+        if (!draftTab) continue;
+        for (const [key, val] of Object.entries(draftTab)) {
+          // Only overlay draft if the cell differs from baseline (i.e., user had entered something)
+          if (val !== (newBaseline[tab]?.[key] ?? 0)) {
+            merged[tab][key] = val;
           }
         }
-        setBoard(merged);
-        setNotes(draft.notes || {});
-        setWasteTotal(draft.wasteTotal || 0);
-      } catch {
-        setBoard(newBoard);
       }
+      setBoard(merged);
+      setWasteTotal(draft.wasteTotal);
     } else {
       setBoard(newBoard);
     }
     baselineLoaded.current = true;
   }, [selectedShift, productionDate, filteredBatches, fryerIds, fpIndex]);
 
-  // Auto-save draft to localStorage on board/notes/wasteTotal change
+  // Auto-save draft to localStorage on board/wasteTotal change.
+  // Debounced: the board can hold ~64 cells and serializing on every keystroke
+  // blocks the main thread on a tablet.
+  const draftPayload = useMemo<DraftData>(
+    () => ({ board, wasteTotal }),
+    [board, wasteTotal],
+  );
+  const debouncedDraft = useDebounce(draftPayload, 400);
+
   useEffect(() => {
     if (!selectedShift || !baselineLoaded.current) return;
     const draftKey = getDraftKey(productionDate, selectedShift);
-    const draft: DraftData = { board, notes, wasteTotal };
-    localStorage.setItem(draftKey, JSON.stringify(draft));
-  }, [board, notes, wasteTotal, productionDate, selectedShift]);
+    try {
+      localStorage.setItem(draftKey, JSON.stringify(debouncedDraft));
+    } catch {
+      // Quota exceeded or storage blocked. Throwing here would crash the screen,
+      // so tell the worker their draft is not protected and keep going.
+      toast.error('Không lưu được bản nháp — vui lòng lưu sớm để tránh mất dữ liệu', {
+        id: 'draft-write-failed',
+      });
+    }
+  }, [debouncedDraft, productionDate, selectedShift]);
 
   // ─── Cell update handler ─────────────────────────────────────────────────
   const updateCell = useCallback((tab: QualityTab, cellKey: CellKey, value: number) => {
@@ -621,11 +727,13 @@ const ProductionDataEntry: React.FC = () => {
       const baselineVal = baseline.VUN_PHE?.[cellKey] ?? 0;
       if (value !== baselineVal) {
         const existing = dirtyMap.get(cellKey) || {};
-        // Split evenly into 3 waste fields
+        // Split into 3 waste fields. Rounding each share independently loses up to
+        // 0.02 kg per cell, so the last field absorbs the remainder and the three
+        // fields sum to exactly the cell's share.
         const perField = Math.round((value / 3) * 100) / 100;
         existing.vunLonKhoiLuong = perField;
         existing.vunNhoKhoiLuong = perField;
-        existing.phePhamKhoiLuong = perField;
+        existing.phePhamKhoiLuong = Math.round((value - perField * 2) * 100) / 100;
         dirtyMap.set(cellKey, existing);
       }
     }
@@ -705,11 +813,52 @@ const ProductionDataEntry: React.FC = () => {
   }, [board, baseline, fpIndex, nguoiThucHien, operatorId]);
 
   // Helper: convert system code (e.g. "HT-CCK-01") to display label ("Máy 01")
-  const getMachineLabel = (maHeThong: string): string => {
+  const getMachineLabel = useCallback((maHeThong: string): string => {
     const match = maHeThong.match(/(\d+)$/);
     return match ? `Máy ${match[1]}` : maHeThong;
-  };
+  }, []);
 
+  // A cell key holds the machine's id, not its code. Resolving through this map is
+  // what keeps error messages naming a machine instead of a CUID fragment.
+  const machineLabelById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const f of fryers) {
+      map.set(f.id, getMachineLabel(f.maHeThong));
+    }
+    return map;
+  }, [fryers, getMachineLabel]);
+
+  // Traversal order for the editor's "next field" control: every machine of a batch,
+  // batch by batch. Memoized because it is O(batches × machines) and the editor's
+  // onNext prop is evaluated on every render of this component, editor open or not.
+  const cellTraversal = useMemo(() => {
+    const order: { cellKey: CellKey; label: string }[] = [];
+    for (const batch of filteredBatches) {
+      for (const f of fryers) {
+        order.push({
+          cellKey: `${batch.maChien}|${f.id}`,
+          label: `${getMachineLabel(f.maHeThong)} · ${batch.maChien}${
+            batch.maSanPham ? ` · ${batch.maSanPham}` : ''
+          }`,
+        });
+      }
+    }
+    return order;
+  }, [filteredBatches, fryers, getMachineLabel]);
+
+  const nextCellHandler = useMemo(() => {
+    if (!editorCell || editorCell.tab === 'VUN_PHE' || editorCell.cellKey === '__waste_total__') {
+      return undefined;
+    }
+    const currentIdx = cellTraversal.findIndex((t) => t.cellKey === editorCell.cellKey);
+    const nextIdx = currentIdx + 1;
+    // Hidden at the last cell of the tab rather than advancing into another tab.
+    if (currentIdx < 0 || nextIdx >= cellTraversal.length) return undefined;
+    return () => {
+      const next = cellTraversal[nextIdx];
+      setEditorCell({ tab: editorCell.tab, cellKey: next.cellKey, label: next.label });
+    };
+  }, [editorCell, cellTraversal]);
 
   // ─── Handlers ────────────────────────────────────────────────────────────
   const handleSave = useCallback(() => {
@@ -737,8 +886,13 @@ const ProductionDataEntry: React.FC = () => {
       return;
     }
 
-    batchUpdate.mutate(dirtyRecords, {
+    setSaveProgress({ done: 0, total: dirtyRecords.length });
+    batchUpdate.mutate({
+      records: dirtyRecords,
+      onProgress: (done, total) => setSaveProgress({ done, total }),
+    }, {
       onSuccess: (results: SaveResult[]) => {
+        setSaveProgress(null);
         const successes = results.filter(r => r.ok);
         const failures = results.filter(r => !r.ok);
 
@@ -758,15 +912,14 @@ const ProductionDataEntry: React.FC = () => {
           setShowPreview(false);
           setBoard({ A: {}, B: {}, B_DAU: {}, C: {}, UOT: {}, VUN_PHE: {} });
           setBaseline({ A: {}, B: {}, B_DAU: {}, C: {}, UOT: {}, VUN_PHE: {} });
-          setNotes({});
           setWasteTotal(0);
           baselineLoaded.current = false;
         } else {
           // Partial failure — report counts, keep board + draft
           const failedCells = failures.map(f => {
-            const parts = f.cellKey.split('|');
-            const machineLabel = getMachineLabel(parts[1] ?? '');
-            return `${parts[0]} - ${machineLabel}`;
+            const [maChien, machineSystemId] = f.cellKey.split('|');
+            const machineLabel = machineLabelById.get(machineSystemId ?? '') ?? 'Máy không xác định';
+            return `${maChien} - ${machineLabel}`;
           }).join(', ');
           toast.error(
             `Lưu thành công ${successes.length}/${results.length} bản ghi. ` +
@@ -794,10 +947,11 @@ const ProductionDataEntry: React.FC = () => {
         }
       },
       onError: () => {
+        setSaveProgress(null);
         toast.error('Lỗi khi lưu sản lượng');
       },
     });
-  }, [computeDirtyRecords, batchUpdate, productionDate, selectedShift, board, getMachineLabel]);
+  }, [computeDirtyRecords, batchUpdate, productionDate, selectedShift, board, machineLabelById]);
 
   // ─── Change operator/shift handlers ──────────────────────────────────────
   // Check if any cell diverges from the loaded DB baseline
@@ -810,6 +964,12 @@ const ProductionDataEntry: React.FC = () => {
     }
     return wasteTotal > 0;
   }, [board, baseline, wasteTotal]);
+
+  // Mirror the dirty state into a ref the baseline-loading effect can read without
+  // taking it as a dependency, so a background refetch never clobbers live input.
+  useEffect(() => {
+    boardDirtyRef.current = hasDirtyData();
+  }, [hasDirtyData]);
 
   const handleChangeShift = useCallback(() => {
     if (hasDirtyData()) {
@@ -946,6 +1106,7 @@ const ProductionDataEntry: React.FC = () => {
         onEdit={() => setShowPreview(false)}
         isPending={batchUpdate.isPending}
         getMachineLabel={getMachineLabel}
+        saveProgress={saveProgress}
       />
     );
   }
@@ -1052,7 +1213,29 @@ const ProductionDataEntry: React.FC = () => {
 
         {!isLoading && activeTab !== 'VUN_PHE' && (
           <>
-            {filteredBatches.length === 0 ? (
+            {loadFailed ? (
+              <div className="text-center py-12 bg-white rounded-lg border">
+                <AlertTriangle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+                <p className="text-gray-700 font-medium">Không tải được dữ liệu</p>
+                <p className="text-sm text-gray-500 mt-1 mb-4">
+                  Kiểm tra kết nối mạng rồi thử lại. Đây không phải là "chưa có mã chiên".
+                </p>
+                <button
+                  onClick={handleRetryLoad}
+                  className="min-h-[44px] px-5 py-2 bg-blue-600 text-white rounded-lg font-medium"
+                >
+                  Thử lại
+                </button>
+              </div>
+            ) : fryers.length === 0 ? (
+              <div className="text-center py-12 bg-white rounded-lg border">
+                <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto mb-3" />
+                <p className="text-gray-700 font-medium">Chưa có máy sản xuất nào đang hoạt động</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  Không thể nhập sản lượng khi chưa có máy. Nhờ admin kiểm tra trạng thái hệ thống máy.
+                </p>
+              </div>
+            ) : filteredBatches.length === 0 ? (
               <div className="text-center py-12 bg-white rounded-lg border">
                 <p className="text-gray-500">Không có mã chiên nào cho Ca {selectedShift} ngày {formatDateVN(productionDate)}.</p>
                 <p className="text-sm text-gray-400 mt-1">Hãy kiểm tra lại ca và ngày sản xuất.</p>
@@ -1066,7 +1249,8 @@ const ProductionDataEntry: React.FC = () => {
                     <div>
                       <p className="text-lg font-bold text-gray-800">{batch.maChien}</p>
                       <p className="text-sm text-gray-500">
-                        {formatTime(batch.thoiGianChien)} · {batch.tenHangHoa}
+                        {formatTime(batch.thoiGianChien)}
+                        {batch.maSanPham ? ` · ${batch.maSanPham}` : ''}
                       </p>
                     </div>
                     {/* Machine rows */}
@@ -1086,7 +1270,9 @@ const ProductionDataEntry: React.FC = () => {
                                 onTap={() => setEditorCell({
                                   tab: activeTab,
                                   cellKey,
-                                  label: `${getMachineLabel(f.maHeThong)} · ${batch.maChien}`,
+                                  label: `${getMachineLabel(f.maHeThong)} · ${batch.maChien}${
+                                    batch.maSanPham ? ` · ${batch.maSanPham}` : ''
+                                  }`,
                                 })}
                               />
                             </div>
@@ -1106,7 +1292,7 @@ const ProductionDataEntry: React.FC = () => {
                       <th className="px-2 py-2 text-left font-semibold text-gray-700 border-r w-10">STT</th>
                       <th className="sticky left-0 z-30 bg-gray-100 px-2 py-2 text-left font-semibold text-gray-700 border-r min-w-[100px]">Mã chiên</th>
                       <th className="px-2 py-2 text-left font-semibold text-gray-700 border-r min-w-[70px]">Giờ chiên</th>
-                      <th className="px-2 py-2 text-left font-semibold text-gray-700 border-r min-w-[120px]">Nguyên liệu</th>
+                      <th className="px-2 py-2 text-left font-semibold text-gray-700 border-r min-w-[120px]">Mã hàng hóa</th>
                       {fryers.map((f) => (
                         <th key={f.id} className="px-1 py-2 text-center font-semibold text-gray-700 border-r min-w-[70px]">
                           {getMachineLabel(f.maHeThong)}
@@ -1120,7 +1306,7 @@ const ProductionDataEntry: React.FC = () => {
                         <td className="px-2 py-1 text-gray-600 border-r">{idx + 1}</td>
                         <td className="sticky left-0 z-20 bg-white px-2 py-1 text-gray-800 font-medium border-r">{batch.maChien}</td>
                         <td className="px-2 py-1 text-gray-600 border-r">{formatTime(batch.thoiGianChien)}</td>
-                        <td className="px-2 py-1 text-gray-600 border-r truncate max-w-[150px]">{batch.tenHangHoa}</td>
+                        <td className="px-2 py-1 text-gray-700 border-r font-medium">{batch.maSanPham || '—'}</td>
                         {fryers.map((f) => {
                           const cellKey = `${batch.maChien}|${f.id}`;
                           const value = board[activeTab]?.[cellKey] ?? 0;
@@ -1132,7 +1318,9 @@ const ProductionDataEntry: React.FC = () => {
                                 onTap={() => setEditorCell({
                                   tab: activeTab,
                                   cellKey,
-                                  label: `${getMachineLabel(f.maHeThong)} · ${batch.maChien}`,
+                                  label: `${getMachineLabel(f.maHeThong)} · ${batch.maChien}${
+                                    batch.maSanPham ? ` · ${batch.maSanPham}` : ''
+                                  }`,
                                 })}
                               />
                             </td>
@@ -1170,7 +1358,7 @@ const ProductionDataEntry: React.FC = () => {
               {filteredBatches.length > 0 && wasteTotal > 0 && (
                 <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
                   <p>
-                    Mỗi ô: {(wasteTotal / (filteredBatches.length * fryerIds.length)).toFixed(3)} kg
+                    Mỗi ô: {(Math.round((wasteTotal / (filteredBatches.length * fryerIds.length)) * 100) / 100).toFixed(2)} kg
                     ({filteredBatches.length} mã x {fryerIds.length} máy = {filteredBatches.length * fryerIds.length} ô)
                   </p>
                   <p>Mỗi loại (vụn lớn/nhỏ/phế phẩm): {(wasteTotal / (filteredBatches.length * fryerIds.length) / 3).toFixed(3)} kg</p>
@@ -1211,26 +1399,7 @@ const ProductionDataEntry: React.FC = () => {
           }
         }}
         onClose={() => setEditorCell(null)}
-        onNext={editorCell && editorCell.tab !== 'VUN_PHE' && editorCell.cellKey !== '__waste_total__' ? (() => {
-          // Build traversal order: all machines of each batch, batch by batch
-          const traversal: { cellKey: CellKey; label: string }[] = [];
-          for (const batch of filteredBatches) {
-            for (const f of fryers) {
-              traversal.push({
-                cellKey: `${batch.maChien}|${f.id}`,
-                label: `${getMachineLabel(f.maHeThong)} · ${batch.maChien}`,
-              });
-            }
-          }
-          const currentIdx = traversal.findIndex((t) => t.cellKey === editorCell.cellKey);
-          const nextIdx = currentIdx + 1;
-          // Hide at last cell of tab
-          if (nextIdx >= traversal.length) return undefined;
-          return () => {
-            const next = traversal[nextIdx];
-            setEditorCell({ tab: editorCell.tab, cellKey: next.cellKey, label: next.label });
-          };
-        })() : undefined}
+        onNext={nextCellHandler}
       />
     </div>
   );

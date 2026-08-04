@@ -20,7 +20,13 @@ const toFullName = (employee: Employee): string => {
   return `${lastName} ${firstName}`.trim();
 };
 
-export const useProductionEmployees = () => {
+/**
+ * Full production-employee list, used as the fallback when the attended list does not
+ * hold the worker. `enabled` is a parameter because this fetches up to 500 rows and the
+ * kiosk usually never leaves attended mode — loading it on mount was a wasted request
+ * on every visit to the operator gate.
+ */
+export const useProductionEmployees = (enabled: boolean = true) => {
   return useQuery({
     queryKey: productionEmployeeKeys.list(),
     queryFn: async (): Promise<ProductionEmployeeOption[]> => {
@@ -40,5 +46,6 @@ export const useProductionEmployees = () => {
         .filter(employee => employee.name);
     },
     staleTime: 5 * 60 * 1000,
+    enabled,
   });
 };

@@ -16,7 +16,26 @@ export const productionEntryKeys = {
     [...productionEntryKeys.all, 'systemOp', maChien, machineSystemId] as const,
   finishedProduct: (maChien: string, machineSystemId: string) =>
     [...productionEntryKeys.all, 'finishedProduct', maChien, machineSystemId] as const,
+  systemOpsByMaChien: (maChien: string) =>
+    [...productionEntryKeys.all, 'systemOpsByMaChien', maChien] as const,
 };
+
+/**
+ * Page size for the board's two list queries. A shift is ~8 batches × ~8 machines,
+ * so this is far above any real day — but when a response is truncated the board
+ * would silently miss cells, so `warnIfTruncated` surfaces it instead.
+ */
+const BOARD_PAGE_LIMIT = 500;
+
+function warnIfTruncated(what: string, received: number, pagination: unknown): void {
+  const total = (pagination as { total?: number } | undefined)?.total;
+  if (typeof total === 'number' && total > received) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[useProductionDataEntry] ${what}: nhận ${received}/${total} bản ghi — danh sách bị cắt ở ${BOARD_PAGE_LIMIT}.`,
+    );
+  }
+}
 
 // ─── Helpers: compute local day ISO boundaries ──────────────────────────────
 
@@ -39,11 +58,12 @@ export const useFryBatchCodes = (productionDate: string, selectedShift: number) 
   return useQuery({
     queryKey: productionEntryKeys.batches(productionDate, selectedShift),
     queryFn: async (): Promise<MaterialEvaluation[]> => {
-      const result = await materialEvaluationService.getAllMaterialEvaluations(1, 500, {
+      const result = await materialEvaluationService.getAllMaterialEvaluations(1, BOARD_PAGE_LIMIT, {
         ca: selectedShift,
         thoiGianChienFrom: range!.from,
         thoiGianChienTo: range!.to,
       });
+      warnIfTruncated('Mã chiên', result.data.length, result.pagination);
       return result.data;
     },
     enabled: !!productionDate && selectedShift > 0,
@@ -77,16 +97,25 @@ export function filterBatchesByShiftAndDate(
 
 // ─── Hook: load FinishedProducts for a production date ──────────────────────
 
-export const useAllFinishedProducts = (productionDate: string) => {
+/**
+ * FinishedProduct rows for a production date.
+ *
+ * Scoped to the whole day rather than the shift: `FinishedProduct` has no shift
+ * column, so the server cannot narrow it, and a day-scoped cache is shared across
+ * the three shifts instead of being refetched per shift. `shift` participates in
+ * the key only so switching shift re-reads the cache coherently.
+ */
+export const useAllFinishedProducts = (productionDate: string, _shift?: number) => {
   const range = productionDate ? getLocalDayRange(productionDate) : null;
 
   return useQuery({
     queryKey: productionEntryKeys.finishedProducts(productionDate),
     queryFn: async (): Promise<FinishedProduct[]> => {
-      const result = await finishedProductService.getAllFinishedProducts(1, 500, undefined, {
+      const result = await finishedProductService.getAllFinishedProducts(1, BOARD_PAGE_LIMIT, undefined, {
         thoiGianChienFrom: range!.from,
         thoiGianChienTo: range!.to,
       });
+      warnIfTruncated('Sản lượng', result.data.length, result.pagination);
       return result.data;
     },
     enabled: !!productionDate,
@@ -139,53 +168,70 @@ export interface SaveResult {
   error?: string;
 }
 
+export interface BatchUpdateInput {
+  records: DirtyRecord[];
+  /** Called as each cell settles, so the UI can show progress on a long save. */
+  onProgress?: (done: number, total: number) => void;
+}
+
 export const useBatchUpdateFinishedProducts = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (records: DirtyRecord[]): Promise<SaveResult[]> => {
-      const results: SaveResult[] = [];
-      for (const rec of records) {
-        const cellKey = rec.upsert
-          ? `${rec.upsert.maChien}|${rec.upsert.machineSystemId}`
-          : rec.id ?? 'unknown';
-        try {
-          if (rec.upsert) {
-            // Upsert path: handles both new records and sends entry history
-            await finishedProductService.upsertByBatchMachine({
-              ...rec.data,
-              maChien: rec.upsert.maChien,
-              machineSystemId: rec.upsert.machineSystemId,
-              entryHistory: rec.entryHistory,
-            });
-          } else if (rec.id) {
-            // Existing record by id: PATCH the record
-            await finishedProductService.updateFinishedProduct(rec.id, rec.data);
+    mutationFn: async ({ records, onProgress }: BatchUpdateInput): Promise<SaveResult[]> => {
+      const total = records.length;
+      let done = 0;
+      // Concurrent, not sequential: a full shift can be ~64 dirty cells, and one
+      // round-trip after another made the worker wait for the sum of them.
+      // allSettled keeps the per-cell outcome the partial-failure report needs.
+      const settled = await Promise.allSettled(
+        records.map(async (rec): Promise<SaveResult> => {
+          const cellKey = rec.upsert
+            ? `${rec.upsert.maChien}|${rec.upsert.machineSystemId}`
+            : rec.id ?? 'unknown';
+          try {
+            if (rec.upsert) {
+              // Upsert path: handles both new records and sends entry history
+              await finishedProductService.upsertByBatchMachine({
+                ...rec.data,
+                maChien: rec.upsert.maChien,
+                machineSystemId: rec.upsert.machineSystemId,
+                entryHistory: rec.entryHistory,
+              });
+            } else if (rec.id) {
+              // Existing record by id: PATCH the record
+              await finishedProductService.updateFinishedProduct(rec.id, rec.data);
+            }
+            return { cellKey, ok: true };
+          } catch (err: any) {
+            return { cellKey, ok: false, error: err?.message ?? 'Lỗi không xác định' };
+          } finally {
+            done += 1;
+            onProgress?.(done, total);
           }
-          results.push({ cellKey, ok: true });
-        } catch (err: any) {
-          results.push({ cellKey, ok: false, error: err?.message ?? 'Lỗi không xác định' });
-        }
-      }
-      return results;
+        }),
+      );
+
+      return settled.map((outcome, idx) => {
+        if (outcome.status === 'fulfilled') return outcome.value;
+        const rec = records[idx];
+        const cellKey = rec?.upsert
+          ? `${rec.upsert.maChien}|${rec.upsert.machineSystemId}`
+          : rec?.id ?? 'unknown';
+        return { cellKey, ok: false, error: outcome.reason?.message ?? 'Lỗi không xác định' };
+      });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: productionEntryKeys.all });
+      // Only the finished-product lists this board reads. Invalidating the whole
+      // materialEvaluations namespace refetched every MaterialEvaluation screen and
+      // re-ran the board's baseline effect for no reason.
+      queryClient.invalidateQueries({
+        queryKey: [...productionEntryKeys.all, 'finishedProducts'],
+      });
     },
   });
 };
 
 // ─── Legacy hooks (kept for backward compat if needed elsewhere) ─────────────
-
-export const useSystemOperationByBatchAndFryer = (maChien: string, machineSystemId: string) =>
-  useQuery({
-    queryKey: productionEntryKeys.systemOp(maChien, machineSystemId),
-    queryFn: async (): Promise<SystemOperation | null> => {
-      const ops = await systemOperationService.getSystemOperationsByMaChien(maChien);
-      const match = ops.find((op) => op.machineSystemId === machineSystemId);
-      return match ?? null;
-    },
-    enabled: !!maChien && !!machineSystemId,
-  });
 
 /**
  * All SystemOperation rows seeded for a fry batch (one per machine that was active
@@ -193,10 +239,13 @@ export const useSystemOperationByBatchAndFryer = (maChien: string, machineSystem
  * the seeded rows — NOT from the current active-machine list — so a machine that went
  * into maintenance mid-shift still shows up with its data, and a machine reactivated
  * after creation never appears with no row to fill.
+ *
+ * Callers that need one machine's row should pick it out of this result rather than
+ * issuing a second query against the same endpoint.
  */
 export const useSystemOperationsByMaChien = (maChien: string) =>
   useQuery({
-    queryKey: [...productionEntryKeys.all, 'systemOpsByMaChien', maChien] as const,
+    queryKey: productionEntryKeys.systemOpsByMaChien(maChien),
     queryFn: (): Promise<SystemOperation[]> =>
       systemOperationService.getSystemOperationsByMaChien(maChien),
     enabled: !!maChien,
@@ -219,7 +268,10 @@ export const useUpdateSystemOperationEntry = () => {
     mutationFn: ({ id, data }: { id: string; data: Partial<SystemOperation> }) =>
       systemOperationService.updateSystemOperation(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: productionEntryKeys.all });
+      // Only the operation rows, not every MaterialEvaluation screen.
+      queryClient.invalidateQueries({
+        queryKey: [...productionEntryKeys.all, 'systemOpsByMaChien'],
+      });
     },
   });
 };

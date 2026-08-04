@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { ArrowLeft, Loader2, Search, User, X, UserPlus } from 'lucide-react';
 import { useProductionEmployees } from '../../hooks/useProductionEmployees';
+import { useDebounce } from '../../hooks/useDebounce';
 import { AttendedOperator } from '../../services/attendedOperatorsService';
 
 interface OperatorSelectionScreenProps {
@@ -31,22 +32,27 @@ const OperatorSelectionScreen: React.FC<OperatorSelectionScreenProps> = ({
   attendedOperators,
   isLoadingAttended,
 }) => {
-  const { data: allEmployees, isLoading: isLoadingAll } = useProductionEmployees();
   const [search, setSearch] = useState('');
   const [showFallback, setShowFallback] = useState(false);
 
   // Determine which list to show
   const isAttendedMode = attendedOperators !== undefined && !showFallback;
+  // Only fetch the full list once the worker actually asks for it.
+  const { data: allEmployees, isLoading: isLoadingAll } = useProductionEmployees(!isAttendedMode);
   const employees = isAttendedMode ? attendedOperators : allEmployees;
   const isLoading = isAttendedMode ? isLoadingAttended : isLoadingAll;
 
+  // Debounced: the fallback list can hold 500 rows and each keystroke re-runs an
+  // NFD-normalizing filter over all of them, which is visibly slow on a tablet.
+  const debouncedSearch = useDebounce(search, 250);
+
   const filteredEmployees = useMemo(() => {
-    const keyword = normalizeSearchText(search);
+    const keyword = normalizeSearchText(debouncedSearch);
     if (!keyword) return employees ?? [];
     return (employees ?? []).filter((emp) =>
       normalizeSearchText(`${emp.name} ${emp.employeeCode}`).includes(keyword),
     );
-  }, [employees, search]);
+  }, [employees, debouncedSearch]);
 
   if (isLoading) {
     return (

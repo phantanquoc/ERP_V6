@@ -176,6 +176,7 @@ export class MaterialEvaluationService {
         thoiGianChien,
         ngaySanXuat: new Date(getProductionDay(thoiGianChien) + 'T00:00:00.000Z'),
         tenHangHoa: data.tenHangHoa,
+        maSanPham: data.maSanPham ?? null,
         soLoKien: data.soLoKien,
         khoiLuong: parseFloat(data.khoiLuong),
         soLanNgam: parseInt(data.soLanNgam),
@@ -296,6 +297,7 @@ export class MaterialEvaluationService {
 
       // 6. Build snapshot fields
       const tenHangHoa = lotProduct.internationalProduct.tenSanPham;
+      const maSanPham = lotProduct.internationalProduct.maSanPham;
       const soLoKien = lotProduct.maKien ?? `${lotProduct.lot.tenLo}-${lotProduct.id.slice(-4)}`;
 
       // 7. Create MaterialEvaluation with both FKs
@@ -305,6 +307,7 @@ export class MaterialEvaluationService {
           thoiGianChien,
           ngaySanXuat: new Date(getProductionDay(thoiGianChien) + 'T00:00:00.000Z'),
           tenHangHoa,
+          maSanPham,
           soLoKien,
           khoiLuong,
           soLanNgam: parseInt(data.soLanNgam),
@@ -361,6 +364,7 @@ export class MaterialEvaluationService {
         data: {
           thoiGianChien,
           tenHangHoa: safeData.tenHangHoa,
+          maSanPham: 'maSanPham' in safeData ? (safeData.maSanPham ?? null) : undefined,
           soLoKien: safeData.soLoKien,
           soLanNgam: safeData.soLanNgam != null ? parseInt(safeData.soLanNgam) : undefined,
           nhietDoNuocTruocNgam: safeData.nhietDoNuocTruocNgam != null ? parseFloat(safeData.nhietDoNuocTruocNgam) : undefined,

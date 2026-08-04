@@ -5,6 +5,8 @@ export interface MaterialEvaluation {
   maChien: string;
   thoiGianChien: string;
   tenHangHoa: string;
+  /** Commodity code — the identifier the kiosk screens display. Null on rows with no product link. */
+  maSanPham?: string | null;
   soLoKien: string;
   khoiLuong: number;
   soLanNgam: number;
