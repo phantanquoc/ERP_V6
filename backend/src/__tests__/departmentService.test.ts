@@ -11,6 +11,29 @@ jest.mock('@config/database', () => ({
   },
 }));
 
+/**
+ * Stub the cache layer.
+ *
+ * `departmentService` caches its listing in Redis. Without this mock the suite opened a
+ * real ioredis connection: `getAllDepartments` then returned whatever the dev instance
+ * happened to hold, so the "empty array" case saw stale departments, and a slow or
+ * unreachable Redis blew the 5s test timeout. Both failures were unrelated to the code
+ * under test — the suite was asserting on the state of a shared server.
+ *
+ * `cacheGet` always misses, so every assertion exercises the real Prisma path.
+ */
+jest.mock('@utils/cache', () => ({
+  __esModule: true,
+  cacheGet: jest.fn().mockResolvedValue(null),
+  cacheSet: jest.fn().mockResolvedValue(undefined),
+  cacheDel: jest.fn().mockResolvedValue(undefined),
+  cacheDelPattern: jest.fn().mockResolvedValue(undefined),
+  CACHE_KEYS: {
+    DEPARTMENTS: 'cache:departments',
+    SYSTEM_SETTINGS: 'cache:system-settings',
+  },
+}));
+
 import prisma from '@config/database';
 import { DepartmentService } from '@services/departmentService';
 import { NotFoundError } from '@utils/errors';
