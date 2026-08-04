@@ -162,3 +162,17 @@ function localDateTimeToUTC(dateStr: string, hour: number, minute: number, secon
   // naiveUtc shifted backward by offsetMinutes
   return new Date(naiveUtc.getTime() - offsetMinutes * 60 * 1000);
 }
+
+/**
+ * Extract the numeric production shift from a work-shift name.
+ *
+ * Only the three production shifts ("Ca 1"/"Ca 2"/"Ca 3") yield a number; office
+ * shifts ("Hành chính", "Văn phòng") and unrecognized names yield null, because the
+ * kiosk entry pages are scoped to production shifts.
+ */
+export function parseProductionShift(shiftName: string | null | undefined): number | null {
+  if (!shiftName) return null;
+  const match = shiftName.match(/^Ca\s+([123])$/i);
+  if (!match) return null;
+  return parseInt(match[1], 10);
+}

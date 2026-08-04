@@ -579,12 +579,18 @@ model Attendance {
   workHours      Float            @default(0)
   status         AttendanceStatus @default(PRESENT)
   isOvertime     Boolean          @default(false)
+  /// Production shift (1/2/3) recorded AT check-in time, using the shift windows in
+  /// force then. Null for office shifts, or when no window matched. Read this rather
+  /// than re-deriving from checkInTime: the windows change over time, so re-deriving
+  /// scores the past by today's rules.
+  shift          Int?
   notes          String?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   employee       Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@index([employeeId, attendanceDate, isOvertime])
+  @@index([attendanceDate, shift])
   @@map("attendances")
   @@schema("common")
 }

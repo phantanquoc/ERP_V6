@@ -4,6 +4,7 @@ import { AttendanceStatus, Prisma } from '@prisma/client';
 import ExcelJS from 'exceljs';
 import workShiftService from './workShiftService';
 import { getTodayInAppTz } from '@utils/dateUtils';
+import { parseProductionShift } from '@utils/productionDay';
 
 const MAX_SHIFT_HOURS = 20;
 
@@ -214,6 +215,11 @@ export class AttendanceService {
 
     // Determine work shift based on check-in time
     const shiftName = await workShiftService.determineShift(checkInTime);
+    // Record the numeric production shift alongside the note. Consumers must read
+    // this column rather than re-deriving from checkInTime later: the shift windows
+    // change over time, so a later re-derivation scores the past by today's rules.
+    // Null for office shifts ("Hành chính"/"Văn phòng") and when nothing matched.
+    const shiftNumber = parseProductionShift(shiftName);
 
     // Tìm ca đang mở (chưa checkout) trong ngày
     const openAttendance = await db.attendance.findFirst({
@@ -234,6 +240,7 @@ export class AttendanceService {
           checkInTime,
           status: AttendanceStatus.PRESENT,
           notes: shiftName || openAttendance.notes,
+          shift: shiftNumber ?? openAttendance.shift,
         },
       });
     }
@@ -246,6 +253,7 @@ export class AttendanceService {
         checkInTime,
         status: AttendanceStatus.PRESENT,
         notes: shiftName || undefined,
+        shift: shiftNumber,
       },
     });
   }
