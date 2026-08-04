@@ -166,6 +166,7 @@ export class SystemOperationService {
                 thoiGianChien: materialEvaluation.thoiGianChien,
                 ngaySanXuat,
                 tenHangHoa: materialEvaluation.tenHangHoa,
+                maSanPham: materialEvaluation.maSanPham,
                 khoiLuong: 0,
                 nguoiThucHien: '',
                 machineSystemId: ms.id,

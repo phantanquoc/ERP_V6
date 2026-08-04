@@ -38,7 +38,7 @@ import { useAttendedOperatorsByShift } from '../../hooks/useAttendedOperators';
 import { useLotsByProduct, lotsByProductKeys } from '../../hooks/useLotsByProduct';
 import { useKienByProductAndLot, kienByProductAndLotKeys } from '../../hooks/useKienByProductAndLot';
 import materialEvaluationService, { MaterialEvaluation } from '../../services/materialEvaluationService';
-import materialEvaluationCriteriaService, { MaterialEvaluationCriteria } from '../../services/materialEvaluationCriteriaService';
+import materialEvaluationCriteriaService from '../../services/materialEvaluationCriteriaService';
 import { materialEvaluationKeys } from '../../hooks/useProductionEntities';
 import { lotProductKeys } from '../../services/lotProductService';
 import OperatorSelectionScreen from '../../components/production/OperatorSelectionScreen';
@@ -65,6 +65,8 @@ interface WizardData {
   lotId: string;
   lotProductId: string;
   tenHangHoa: string;
+  /** Commodity code — the identifier the kiosk screens display. */
+  maSanPham: string;
   soLoKien: string;
   khoiLuong: number;
   // Step 3 (Thông số)
@@ -85,6 +87,7 @@ const initialWizardData: WizardData = {
   lotId: '',
   lotProductId: '',
   tenHangHoa: '',
+  maSanPham: '',
   soLoKien: '',
   khoiLuong: 0,
   soLanNgam: 0,
@@ -262,12 +265,9 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<WizardStep>(2);
   const [wizardData, setWizardData] = useState<WizardData>(initialWizardData);
   const [submitting, setSubmitting] = useState(false);
-  const [criteria, setCriteria] = useState<MaterialEvaluationCriteria[]>([]);
-  const [criteriaLoading, setCriteriaLoading] = useState(false);
   const [viewingEvalId, setViewingEvalId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const draftLoaded = useRef<boolean>(false);
-  const previewUrlRef = useRef<string | null>(null);
   const [deviceKeyInput, setDeviceKeyInput] = useState('');
 
   // FieldFocusEditor state
@@ -367,27 +367,28 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
     });
   }, [selectedShift, nguoiThucHien, operatorId, productionDate]);
 
-  // ─── Load criteria on mount ───────────────────────────────────────────────
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        setCriteriaLoading(true);
-        const data = await materialEvaluationCriteriaService.getAllCriteria();
-        if (!cancelled) setCriteria(data);
-      } catch (err) {
-        console.error('Load criteria failed', err);
-      } finally {
-        if (!cancelled) setCriteriaLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // ─── Criteria ─────────────────────────────────────────────────────────────
+  // react-query rather than a hand-rolled effect: this gets caching across mounts and
+  // a real error state. The previous version only console.error'd, so a failed load
+  // showed the worker an empty criteria list with no explanation.
+  const {
+    data: criteria = [],
+    isLoading: criteriaLoading,
+    isError: criteriaError,
+    refetch: refetchCriteria,
+  } = useQuery({
+    queryKey: ['materialEvaluationCriteria', 'list'] as const,
+    queryFn: () => materialEvaluationCriteriaService.getAllCriteria(),
+    staleTime: 5 * 60 * 1000,
+  });
 
   // ─── Data hooks (cascade kho) ─────────────────────────────────────────────
-  const { data: rawMaterials = [], isLoading: loadingRawMaterials } = useRawMaterials();
+  const {
+    data: rawMaterials = [],
+    isLoading: loadingRawMaterials,
+    isError: rawMaterialsError,
+    refetch: refetchRawMaterials,
+  } = useRawMaterials();
   const { data: lots = [], isLoading: loadingLots } = useLotsByProduct(wizardData.productId || null);
   const { data: kienList = [], isLoading: loadingKien } = useKienByProductAndLot(
     wizardData.productId || null,
@@ -417,15 +418,20 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
     () => lots.map(l => ({
       id: l.id,
       primary: l.tenLo,
-      secondary: l.warehouse ? l.warehouse.tenKho : undefined,
+      secondary: l.warehouse
+        ? `${l.warehouse.maKho} – ${l.warehouse.tenKho}`
+        : undefined,
     })),
     [lots],
   );
 
+  // Label packages by their real code so the label matches what gets saved as
+  // soLoKien. A positional label ("Kiện 2") shifts whenever the API reorders and
+  // matches nothing the worker can look up afterwards.
   const kienOptions: CascadeOption[] = useMemo(
     () => kienList.map((k, idx) => ({
       id: k.id,
-      primary: `Kiện ${idx + 1}`,
+      primary: k.maKien || `Kiện ${idx + 1}`,
       secondary: `Tồn ${k.soLuong} ${k.donViTinh}`,
     })),
     [kienList],
@@ -460,31 +466,33 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
     if (!draftKey || !draftLoaded.current) return;
     const { file: _file, ...rest } = wizardData;
     void _file;
-    localStorage.setItem(draftKey, JSON.stringify(rest));
+    try {
+      localStorage.setItem(draftKey, JSON.stringify(rest));
+    } catch {
+      // Storage full or blocked — the screen must keep working, but the worker
+      // needs to know a reload would lose what they typed.
+      toast.error('Không lưu được bản nháp — vui lòng lưu sớm để tránh mất dữ liệu', {
+        id: 'draft-write-failed',
+      });
+    }
   }, [wizardData, draftKey]);
 
-  // ─── File preview URL cleanup ─────────────────────────────────────────────
-  const filePreviewUrl = useMemo(() => {
-    if (previewUrlRef.current) {
-      URL.revokeObjectURL(previewUrlRef.current);
-      previewUrlRef.current = null;
-    }
-    if (wizardData.file) {
-      const url = URL.createObjectURL(wizardData.file);
-      previewUrlRef.current = url;
-      return url;
-    }
-    return null;
-  }, [wizardData.file]);
+  // ─── File preview URL ─────────────────────────────────────────────────────
+  // An effect, not a memo: creating and revoking an object URL is a side effect,
+  // and React may discard or re-run a memo, revoking a URL that is still rendered.
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!wizardData.file) {
+      setFilePreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(wizardData.file);
+    setFilePreviewUrl(url);
     return () => {
-      if (previewUrlRef.current) {
-        URL.revokeObjectURL(previewUrlRef.current);
-        previewUrlRef.current = null;
-      }
+      URL.revokeObjectURL(url);
     };
-  }, []);
+  }, [wizardData.file]);
 
   // ─── Handlers: operator + shift + session end ─────────────────────────────
   const handleShiftSelect = useCallback((shift: number) => {
@@ -647,6 +655,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
       lotId: '',
       lotProductId: '',
       tenHangHoa: '',
+      maSanPham: '',
       soLoKien: '',
       khoiLuong: 0,
       // Reset step 3 (thông số ngâm)
@@ -680,17 +689,22 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
           ...prev,
           lotProductId: kienId,
           tenHangHoa: '',
+          maSanPham: '',
           soLoKien: '',
           khoiLuong: 0,
         }));
         return;
       }
       const lot = lots.find(l => l.id === wizardData.lotId);
-      const soLoKienLabel = `${lot?.tenLo ?? ''}-${kienId.slice(-4)}`;
+      // Prefer the package's own code: it is what the picker showed and what the
+      // worker can look the package up by later. The lot-plus-id-fragment form is
+      // only a fallback for packages recorded before maKien existed.
+      const soLoKienLabel = chosen.maKien || `${lot?.tenLo ?? ''}-${kienId.slice(-4)}`;
       setWizardData(prev => ({
         ...prev,
         lotProductId: kienId,
         tenHangHoa: chosen.internationalProduct?.tenSanPham ?? prev.tenHangHoa,
+        maSanPham: chosen.internationalProduct?.maSanPham ?? prev.maSanPham,
         soLoKien: soLoKienLabel,
         khoiLuong: 0,
       }));
@@ -775,6 +789,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
       thoiGianChien: derivedThoiGianChien,
       ca: selectedShift,
       tenHangHoa: wizardData.tenHangHoa,
+      maSanPham: wizardData.maSanPham || undefined,
       soLoKien: wizardData.soLoKien,
       khoiLuong: wizardData.khoiLuong,
       soLanNgam: wizardData.soLanNgam,
@@ -1110,6 +1125,8 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
                 value={wizardData.productId}
                 onChange={handleProductChange}
                 loading={loadingRawMaterials}
+                isError={rawMaterialsError}
+                onRetry={refetchRawMaterials}
               />
             </div>
 
@@ -1323,6 +1340,20 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
               <div className="flex items-center gap-2 text-sm text-gray-500">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 Đang tải danh mục đánh giá...
+              </div>
+            ) : criteriaError ? (
+              <div className="border border-red-200 bg-red-50 rounded-lg p-4 text-center">
+                <AlertTriangle className="w-8 h-8 text-red-400 mx-auto mb-2" />
+                <p className="text-sm text-red-800 mb-3">
+                  Không tải được danh mục đánh giá. Không thể chấm điểm khi thiếu danh mục.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void refetchCriteria()}
+                  className="min-h-[44px] px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium"
+                >
+                  Thử lại
+                </button>
               </div>
             ) : (
               <>

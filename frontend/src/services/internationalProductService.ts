@@ -12,9 +12,18 @@ export interface InternationalProduct {
   updatedAt: string;
 }
 
+/**
+ * A raw material as the kiosk picker sees it: an InternationalProduct plus the
+ * total Kg currently in stock. Zero-stock materials are still returned so the
+ * picker's reveal-all control has something to reveal.
+ */
+export interface RawMaterial extends InternationalProduct {
+  tongTonKho: number;
+}
+
 export interface RawMaterialsResponse {
   success: boolean;
-  data: InternationalProduct[];
+  data: RawMaterial[];
 }
 
 export interface CreateProductData {

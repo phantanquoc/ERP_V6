@@ -505,11 +505,42 @@ export class InternationalProductService {
     return result.count;
   }
 
-  async getRawMaterials(): Promise<any[]> {
-    return prisma.internationalProduct.findMany({
+  /**
+   * Raw materials for the kiosk picker, each carrying its total available Kg stock.
+   *
+   * Zero-stock materials are returned rather than filtered out: the picker hides them
+   * by default but offers a reveal-all control, which workers need when material has
+   * physically arrived before the warehouse has issued its receipt.
+   */
+  async getRawMaterials(): Promise<Array<Record<string, unknown> & { tongTonKho: number }>> {
+    const products = await prisma.internationalProduct.findMany({
       where: { loaiSanPham: { startsWith: 'Nguyên liệu', mode: 'insensitive' } },
       orderBy: { maSanPham: 'asc' },
     });
+
+    if (products.length === 0) {
+      return [];
+    }
+
+    // One aggregate for every product, not one query per product.
+    const stockRows = await prisma.lotProduct.groupBy({
+      by: ['internationalProductId'],
+      where: {
+        internationalProductId: { in: products.map(p => p.id) },
+        soLuong: { gt: 0 },
+        donViTinh: 'Kg',
+      },
+      _sum: { soLuong: true },
+    });
+
+    const stockByProduct = new Map(
+      stockRows.map(row => [row.internationalProductId, row._sum.soLuong ?? 0]),
+    );
+
+    return products.map(product => ({
+      ...product,
+      tongTonKho: stockByProduct.get(product.id) ?? 0,
+    }));
   }
 
   async getStockSummary(productId: string): Promise<{

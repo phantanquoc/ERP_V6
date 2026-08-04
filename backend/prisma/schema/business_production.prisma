@@ -296,6 +296,7 @@ model MaterialEvaluation {
   ngaySanXuat          DateTime? @db.Date // Production day (06:30 boundary); nullable for pre-backfill rows
   ca                   Int? // Production shift (1, 2, or 3); nullable for legacy rows
   tenHangHoa           String
+  maSanPham            String? // Commodity code — the identifier shown on kiosk screens; null when there is no warehouse link to derive it from
   soLoKien             String
   khoiLuong            Float
   soLanNgam            Int
@@ -326,6 +327,7 @@ model MaterialEvaluation {
   @@unique([maChien, ngaySanXuat])
   @@index([lotProductId])
   @@index([createdById])
+  @@index([maSanPham])
   @@map("material_evaluations")
   @@schema("business")
 }
@@ -395,6 +397,7 @@ model FinishedProduct {
   thoiGianChien DateTime
   ngaySanXuat   DateTime? @db.Date // Production day (06:30 boundary)
   tenHangHoa    String
+  maSanPham     String? // Commodity code — the identifier shown on kiosk screens; null when there is no product link to derive it from
   khoiLuong     Float
 
   // Relation to MachineSystem
@@ -462,6 +465,7 @@ model FinishedProduct {
   @@index([machineSystemId])
   @@index([internationalProductId])
   @@index([createdById])
+  @@index([maSanPham])
   @@map("finished_products")
   @@schema("business")
 }

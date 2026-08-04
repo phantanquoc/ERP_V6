@@ -87,7 +87,7 @@ The board SHALL present six quality tabs: Hang A, Hang B, Hang B dau, Hang C, Uo
 
 ### Requirement: Fry-batch matrix filtered by date and shift
 
-For each non-waste tab, the board SHALL show a matrix whose rows are the fry batches for the selected production day (`ngaySanXuat`) and shift, and whose columns are the 8 active fryers. Rows SHALL come from the daily fry-batch schedule for that production day and shift, so a scheduled batch appears whether or not a record exists for it yet. Each row SHALL show STT, ma chien, thoi gian chien and ten hang hoa as auto-filled read-only values; only per-machine weight is editable. There SHALL be no operator column. If no batch matches, a Vietnamese empty state SHALL be shown.
+For each non-waste tab, the board SHALL show a matrix whose rows are the fry batches for the selected production day (`ngaySanXuat`) and shift, and whose columns are the 8 active fryers. Rows SHALL come from the daily fry-batch schedule for that production day and shift, so a scheduled batch appears whether or not a record exists for it yet. Each row SHALL show STT, ma chien, thoi gian chien and the commodity code (`maSanPham`) as auto-filled read-only values; only per-machine weight is editable. There SHALL be no operator column. If no batch matches, a Vietnamese empty state SHALL be shown.
 
 #### Scenario: Rows match the shift and production day
 
@@ -97,7 +97,7 @@ For each non-waste tab, the board SHALL show a matrix whose rows are the fry bat
 #### Scenario: Read-only batch metadata
 
 - **WHEN** a row is shown
-- **THEN** thoi gian chien and ten hang hoa are displayed read-only and cannot be edited
+- **THEN** thoi gian chien and the commodity code are displayed read-only and cannot be edited
 
 #### Scenario: After-midnight batches appear under the starting day
 
@@ -113,12 +113,24 @@ For each non-waste tab, the board SHALL show a matrix whose rows are the fry bat
 
 The "Vun - Phe pham" tab SHALL accept a single total for the whole shift (one input, not a matrix). On save, that total SHALL be split evenly across all cells (number of batches x 8 machines), and each cell's share SHALL be split evenly across the three fields `vunLonKhoiLuong`, `vunNhoKhoiLuong`, `phePhamKhoiLuong` (each = cell share / 3).
 
+The three fields SHALL sum to exactly the cell's share: rounding each independently loses weight, so the remainder SHALL be absorbed rather than dropped. Distributed values SHALL be displayed at the same precision they are persisted, so the figures the worker reviews are the figures saved.
+
 Because the distribution touches every batch x machine cell, it SHALL NOT create per-grade attribution records for the worker who entered the total, and SHALL NOT reassign attribution recorded for grades other workers entered.
 
 #### Scenario: Even distribution
 
 - **WHEN** the worker enters a shift total on the waste tab and there are N batches
 - **THEN** each of the N x 8 cells receives total/(N x 8), and each cell's three waste fields each receive that share divided by 3
+
+#### Scenario: Three waste fields sum to the cell share
+
+- **WHEN** a cell's share does not divide evenly into three
+- **THEN** the three waste fields still sum to exactly that cell's share
+
+#### Scenario: Preview matches what is persisted
+
+- **WHEN** the worker reviews distributed waste values in the preview and confirms
+- **THEN** the values persisted match the values displayed, at the same precision
 
 #### Scenario: Distribution does not reassign attribution
 
@@ -140,7 +152,9 @@ On confirm, the system SHALL write only the cells the worker actually changed (d
 
 When a changed cell has no existing `FinishedProduct` record in the database, the system SHALL create that record and save the entered value. The system MUST NOT skip such cells silently.
 
-When saving multiple records and some writes fail, the system SHALL report the outcome explicitly: how many records saved successfully, how many failed, and which cells failed. The system MUST NOT report success when any write failed.
+When saving multiple records and some writes fail, the system SHALL report the outcome explicitly: how many records saved successfully, how many failed, and which cells failed. The system MUST NOT report success when any write failed. A failed cell SHALL be named by the machine's own identifier, not by an internal record id.
+
+Writes SHALL NOT be issued strictly one after another, and the worker SHALL see that saving is in progress while it runs.
 
 For each grade weight the worker changed, the system SHALL record per-grade attribution identifying the entering worker, the grade, the batch, the machine and the time. Cells that became dirty only through the even waste distribution SHALL NOT produce attribution records.
 
@@ -164,6 +178,16 @@ For each grade weight the worker changed, the system SHALL record per-grade attr
 - **WHEN** several cells are saved and at least one write fails
 - **THEN** the system shows how many succeeded, how many failed, and which cells failed, in Vietnamese
 
+#### Scenario: Failed cell names the machine
+
+- **WHEN** a cell fails to save
+- **THEN** the message names that machine by its own identifier, not by an internal record id
+
+#### Scenario: Saving shows progress
+
+- **WHEN** many cells are being saved
+- **THEN** the worker sees that saving is in progress until it completes
+
 #### Scenario: Attribution recorded per changed grade
 
 - **WHEN** the worker changes a Hang A weight and a Hang B weight and confirms
@@ -178,6 +202,14 @@ For each grade weight the worker changed, the system SHALL record per-grade attr
 
 Typing SHALL auto-save a draft to localStorage keyed by production date and shift, surviving reload and tab close, and switching tabs SHALL preserve the draft. The draft MUST NOT be written to the database until confirm.
 
+The draft SHALL be saved regardless of whether any `FinishedProduct` record already exists for that production day and shift. A day and shift with no existing records is a valid empty baseline, not an unloaded state, and MUST NOT suppress draft writing.
+
+Draft writing SHALL tolerate storage failure: if the browser rejects the write, the system SHALL NOT crash the screen, and SHALL surface that the draft could not be saved. Draft writing SHALL NOT run synchronously on every keystroke.
+
+A stored draft SHALL be validated against the expected shape before being loaded into the board; a corrupt or outdated draft MUST NOT be cast blindly into board state.
+
+Loading existing values from the database MUST NOT overwrite cells the worker has changed but not yet saved. When a background refresh completes while unsaved changes are present, those changes SHALL be preserved.
+
 #### Scenario: Draft survives reload
 
 - **WHEN** the worker enters values and reloads the page for the same date and shift
@@ -188,11 +220,139 @@ Typing SHALL auto-save a draft to localStorage keyed by production date and shif
 - **WHEN** the worker switches between quality tabs
 - **THEN** values entered on the previous tab are preserved
 
+#### Scenario: Draft saved on a shift with no existing records
+
+- **WHEN** the worker enters values for a production day and shift that has no `FinishedProduct` records yet, and then reloads
+- **THEN** the entered values are restored from the draft
+
+#### Scenario: Storage failure does not crash
+
+- **WHEN** the browser rejects the draft write because storage is full
+- **THEN** the screen keeps working and the worker is told the draft could not be saved
+
+#### Scenario: Background refresh preserves unsaved input
+
+- **WHEN** the worker has unsaved changes in the matrix and a background data refresh completes
+- **THEN** the worker's unsaved values remain in the cells
+
+### Requirement: Raw-material picker filtered by stock
+
+The raw-material picker on the kiosk material-evaluation screen SHALL default to showing only materials that currently hold stock, and SHALL display each material's available quantity alongside its identifier. The picker SHALL provide a control to reveal every raw material regardless of stock, so a worker can still record an evaluation for material that has physically arrived before the warehouse has issued its receipt. That reveal control SHALL NOT persist across openings of the picker — each opening SHALL start from the stock-only default.
+
+The backend raw-material endpoint SHALL report each material's total available quantity. It SHALL NOT exclude zero-stock materials from the response, because the reveal control depends on them being present.
+
+#### Scenario: Only in-stock materials shown by default
+
+- **WHEN** the worker opens the raw-material picker
+- **THEN** only materials with available stock greater than zero are listed, each showing its available quantity
+
+#### Scenario: Reveal all materials
+
+- **WHEN** the worker activates the reveal-all control
+- **THEN** every raw material is listed, including those with no stock, and the out-of-stock ones are marked as such
+
+#### Scenario: Reveal state resets on reopen
+
+- **WHEN** the worker reveals all materials, closes the picker, and opens it again
+- **THEN** the picker shows only in-stock materials again
+
+#### Scenario: Zero-stock material remains recordable
+
+- **WHEN** material has physically arrived but no warehouse receipt exists yet, and the worker reveals all materials and selects it
+- **THEN** the selection is accepted and the flow continues
+
+### Requirement: Commodity code as the displayed identifier
+
+On the kiosk entry screens, the raw material SHALL be identified by its commodity code (`maSanPham`), not by its name. The fry-batch matrix, the narrow-screen batch cards, the preview card headers, and the batch-selection buttons SHALL display the commodity code and SHALL NOT display the material name.
+
+The raw-material picker is exempt: because it is where the worker chooses, it SHALL display the commodity code prominently together with the material name and available quantity.
+
+The focus-editor overlay label SHALL include the commodity code alongside the machine and fry-batch code, so the worker editing a value full-screen can see which material the value belongs to. The operation-parameters machine-selection heading and its parameter-entry step SHALL likewise show the commodity code.
+
+#### Scenario: Matrix shows the code
+
+- **WHEN** the fry-batch matrix is displayed
+- **THEN** the material column shows the commodity code and the column heading names it as the commodity code
+
+#### Scenario: Picker shows both code and name
+
+- **WHEN** the raw-material picker lists a material
+- **THEN** both its commodity code and its name are shown, with the code as the primary label
+
+#### Scenario: Focus editor names the material
+
+- **WHEN** the worker opens the focus editor for a cell
+- **THEN** the overlay label shows the machine, the fry-batch code, and the commodity code
+
+#### Scenario: Parameter entry shows the material
+
+- **WHEN** the worker is entering operation parameters for a fry batch
+- **THEN** the commodity code for that batch is visible on the parameter-entry step
+
+### Requirement: Commodity code persisted on entry records
+
+`MaterialEvaluation` and `FinishedProduct` SHALL each store the commodity code of the material they refer to. The system SHALL set it when the record is created, both when the record originates from a warehouse lot and when it is created without one. Child `FinishedProduct` rows seeded for a fry batch SHALL inherit the code from their parent evaluation. Because records may exist without a warehouse link, the stored code MAY be absent, and the display SHALL degrade to showing no code rather than failing.
+
+#### Scenario: Code stored from a warehouse lot
+
+- **WHEN** a material evaluation is created by selecting a warehouse package
+- **THEN** the record stores the commodity code of that package's product
+
+#### Scenario: Seeded output rows inherit the code
+
+- **WHEN** a material evaluation is created and its per-machine output rows are seeded
+- **THEN** every seeded row carries the same commodity code as the evaluation
+
+#### Scenario: Code stored without a warehouse lot
+
+- **WHEN** a record is created without a warehouse package reference but the material is known
+- **THEN** the record stores that material's commodity code
+
+#### Scenario: Missing code degrades gracefully
+
+- **WHEN** a record has no stored commodity code
+- **THEN** the screen renders without a code and does not error
+
+### Requirement: Package identified by its real package code
+
+The package (kiện) picker SHALL label each package by its stored package code (`maKien`), not by its position in the returned list. The value persisted as the package reference on the evaluation record SHALL be that same package code, so the label the worker saw matches the value stored. When a package has no stored code, the picker MAY fall back to a positional label, and the persisted value SHALL then identify the package unambiguously by other means.
+
+#### Scenario: Package code shown and stored
+
+- **WHEN** the worker selects a package that has a stored package code
+- **THEN** the picker showed that code as the label, and the saved record stores the same code
+
+#### Scenario: Package without a code
+
+- **WHEN** a package has no stored package code
+- **THEN** the picker shows a positional label and the saved record still identifies the package unambiguously
+
+### Requirement: Data-loading failure distinguished from empty data
+
+When loading fry batches, machines, finished products, operations, or evaluation criteria fails, the kiosk screens SHALL show that loading failed and offer a retry, and SHALL NOT present the failure as an absence of data. An empty result SHALL keep showing the existing empty-state message.
+
+When the active-machine list is empty, the screen SHALL show an empty state rather than a matrix with no editable cells.
+
+#### Scenario: Load failure is reported as a failure
+
+- **WHEN** the fry-batch request fails
+- **THEN** the screen states that loading failed and offers a retry, rather than saying no fry batches exist
+
+#### Scenario: Genuine empty result keeps its message
+
+- **WHEN** the fry-batch request succeeds and returns nothing
+- **THEN** the existing Vietnamese empty-state message for that shift and production day is shown
+
+#### Scenario: No active machines
+
+- **WHEN** the active-machine list is empty
+- **THEN** an empty state is shown instead of a matrix with no editable cells
+
 ### Requirement: Preview, confirm, and reset
 
 Tapping Save SHALL show a Vietnamese preview of the entered output data and SHALL NOT write to the database. "Xac nhan" performs the dirty-only PATCH; "Sua lai" returns to the form keeping the draft. On PATCH, each record's percentage fields SHALL be recomputed (`round((weight/total)*100, 2)`, total 0 -> 0), `tongKhoiLuong` set to the sum of the eight weights, and `nguoiThucHien` set to the chosen name. After a confirmed save, the page SHALL reset to the name-selection screen and clear that date+shift draft.
 
-The preview SHALL be laid out as a **card list by fry-batch code**. Each card header SHALL display the fry-batch code, fry time and commodity name as read-only context. Inside each card, a sub-table SHALL place **machines as rows and the five non-waste quality grades (Hang A, Hang B, Hang B dau, Hang C, Uot) as columns**, so the whole card fits the portrait tablet width without horizontal scrolling.
+The preview SHALL be laid out as a **card list by fry-batch code**. Each card header SHALL display the fry-batch code, fry time and commodity code as read-only context. Inside each card, a sub-table SHALL place **machines as rows and the five non-waste quality grades (Hang A, Hang B, Hang B dau, Hang C, Uot) as columns**, so the whole card fits the portrait tablet width without horizontal scrolling.
 
 By default the preview SHALL show **only cells that were entered or changed** — a cell qualifies when its value is non-zero or differs from the loaded database baseline. Quality-grade columns in which no cell of that card qualifies SHALL be hidden, and cards in which no cell qualifies SHALL be hidden entirely. The preview SHALL provide a control to reveal every fry-batch x machine x grade cell so the worker can fill in cells that were missed.
 

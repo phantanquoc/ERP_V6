@@ -24,6 +24,8 @@ export interface LotProduct {
   internationalProductId: string;
   soLuong: number;
   donViTinh: string;
+  /** Real package code, e.g. "Lô Nguyên Liệu-s6hp". Null on packages created before it was recorded. */
+  maKien?: string | null;
   giaThanh?: number;
   createdAt: string;
   updatedAt: string;
