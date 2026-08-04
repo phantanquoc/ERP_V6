@@ -17,6 +17,14 @@ import { initWebSocket, shutdownWebSocket } from '@services/wsManager';
 
 const app: Express = express();
 
+// Behind nginx, so req.ip must come from the proxy headers rather than the socket —
+// otherwise every request looks like it originates from the nginx container and the
+// rate limiter buckets the whole internet into one key.
+//
+// Set to 1 (not `true`): trust exactly one hop, our own nginx. Trusting every hop would
+// let a client prepend a fake X-Forwarded-For entry and have Express believe it.
+app.set('trust proxy', 1);
+
 // CORS — hỗ trợ nhiều origin (phân cách bằng dấu phẩy trong CORS_ORIGIN)
 const allowedOrigins = env.CORS_ORIGIN.split(',').map((o) => o.trim());
 

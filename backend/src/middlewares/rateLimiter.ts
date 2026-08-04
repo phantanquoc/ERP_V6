@@ -1,3 +1,4 @@
+import type { Request } from 'express';
 import rateLimit, { type Store } from 'express-rate-limit';
 import RedisStore, { type RedisReply } from 'rate-limit-redis';
 import { env } from '@config/env';
@@ -5,6 +6,38 @@ import redis from '@config/redis';
 import logger from '@config/logger';
 
 const isDev = env.NODE_ENV === 'development';
+
+/**
+ * Resolve the client IP for rate-limit bucketing.
+ *
+ * The previous implementation read `x-forwarded-for` verbatim. That header is
+ * attacker-controlled: nginx is configured with `$proxy_add_x_forwarded_for`, which
+ * APPENDS the real IP to whatever the client sent, so a request carrying
+ * `X-Forwarded-For: 1.1.1.1` arrives as `1.1.1.1, <real-ip>`. Using the whole string as
+ * the key meant a caller could mint a fresh bucket per request and bypass every limit
+ * simply by varying that header.
+ *
+ * `X-Real-IP` is set by nginx to `$remote_addr` (see nginx conf) and overwrites anything
+ * the client sent, so it cannot be spoofed from outside. We prefer it, then fall back to
+ * `req.ip` — which is trustworthy because `trust proxy` is enabled in index.ts — and only
+ * then to the LAST entry of x-forwarded-for, the hop nginx itself appended.
+ */
+function resolveClientIp(req: Request): string {
+  const realIp = req.headers['x-real-ip'];
+  if (typeof realIp === 'string' && realIp.trim()) return realIp.trim();
+
+  if (req.ip) return req.ip;
+
+  const xff = req.headers['x-forwarded-for'];
+  if (typeof xff === 'string' && xff.trim()) {
+    // Last hop is the one appended by our own proxy; earlier entries are client-supplied.
+    const parts = xff.split(',').map((s) => s.trim()).filter(Boolean);
+    const last = parts[parts.length - 1];
+    if (last) return last;
+  }
+
+  return 'unknown';
+}
 
 function createStore(prefix: string): Store | undefined {
   try {
@@ -26,9 +59,7 @@ export const globalLimiter = rateLimit({
   legacyHeaders: false,
   store: createStore('global'),
   message: { success: false, message: 'Quá nhiều request, vui lòng thử lại sau' },
-  keyGenerator: (req) => {
-    return req.headers['x-forwarded-for'] as string || req.ip || 'unknown';
-  },
+  keyGenerator: resolveClientIp,
 });
 
 export const authLimiter = rateLimit({
@@ -38,9 +69,7 @@ export const authLimiter = rateLimit({
   legacyHeaders: false,
   store: createStore('auth'),
   message: { success: false, message: 'Quá nhiều lần thử đăng nhập, vui lòng thử lại sau 15 phút' },
-  keyGenerator: (req) => {
-    return req.headers['x-forwarded-for'] as string || req.ip || 'unknown';
-  },
+  keyGenerator: resolveClientIp,
 });
 
 export const sensitiveRouteLimiter = rateLimit({
@@ -50,7 +79,5 @@ export const sensitiveRouteLimiter = rateLimit({
   legacyHeaders: false,
   store: createStore('sensitive'),
   message: { success: false, message: 'Quá nhiều request, vui lòng thử lại sau' },
-  keyGenerator: (req) => {
-    return req.headers['x-forwarded-for'] as string || req.ip || 'unknown';
-  },
+  keyGenerator: resolveClientIp,
 });
