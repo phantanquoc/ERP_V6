@@ -20,6 +20,31 @@ jest.mock('@config/database', () => ({
   default: {},
 }));
 
+/**
+ * Stub the cache layer.
+ *
+ * `lookupService` caches active listings in Redis. Importing it for real would open a
+ * live ioredis connection from the test process — which both couples these unit tests
+ * to a running Redis and leaves a handle open, so Jest never exits ("Jest did not exit
+ * one second after the test run has completed").
+ *
+ * `cacheGet` always reports a miss, so every assertion still exercises the real query
+ * path rather than a cached shortcut. The spies are exported so tests can assert that
+ * writes invalidate the right group.
+ */
+export const mockCacheGet = jest.fn().mockResolvedValue(null);
+export const mockCacheSet = jest.fn().mockResolvedValue(undefined);
+export const mockCacheDel = jest.fn().mockResolvedValue(undefined);
+
+jest.mock('@utils/cache', () => ({
+  __esModule: true,
+  cacheGet: (...args: unknown[]) => mockCacheGet(...args),
+  cacheSet: (...args: unknown[]) => mockCacheSet(...args),
+  cacheDel: (...args: unknown[]) => mockCacheDel(...args),
+  cacheDelPattern: jest.fn().mockResolvedValue(undefined),
+  CACHE_KEYS: {},
+}));
+
 import prisma from '@config/database';
 import {
   LookupService,
@@ -970,5 +995,73 @@ describe('getHistory', () => {
 
   it('requires either a lookupId or a group', async () => {
     await expect(service.getHistory({})).rejects.toThrow(ValidationError);
+  });
+});
+
+describe('LookupService — Redis caching', () => {
+  beforeEach(() => {
+    mockCacheGet.mockClear();
+    mockCacheSet.mockClear();
+    mockCacheDel.mockClear();
+    mockCacheGet.mockResolvedValue(null);
+  });
+
+  it('serves a cache hit without touching the database', async () => {
+    const cached = [{ id: 'c1', group: 'DON_VI_TINH', code: 'KG', label: 'Kg' }];
+    mockCacheGet.mockResolvedValueOnce(cached);
+
+    const findMany = jest.fn();
+    (prisma as unknown as { lookup: unknown }).lookup = { findMany };
+
+    const rows = await service.getAll('DON_VI_TINH');
+
+    expect(rows).toEqual(cached);
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
+  it('does NOT cache the admin (includeInactive) or edit-form (includeValue) variants', async () => {
+    // Those listings are per-view; caching them would multiply keys for no hit rate.
+    await service.getAll('DON_VI_TINH', { includeInactive: true });
+    await service.getAll('DON_VI_TINH', { includeValue: 'Đôi' });
+
+    expect(mockCacheGet).not.toHaveBeenCalled();
+    expect(mockCacheSet).not.toHaveBeenCalled();
+  });
+
+  it('refuses to cache an unknown group so query strings cannot flood Redis', async () => {
+    // `group` comes straight from the query string. Caching arbitrary values would let
+    // any caller mint unbounded keys (?group=aaa, ?group=aab, ...), and with an
+    // allkeys-lru policy that quietly evicts the real cached data.
+    const rows = await service.getAll('KHONG_TON_TAI');
+
+    expect(rows).toEqual([]);
+    expect(mockCacheGet).not.toHaveBeenCalled();
+    expect(mockCacheSet).not.toHaveBeenCalled();
+  });
+
+  it('invalidates the group after a cascade rename', async () => {
+    const lk = seedLookup({ label: 'Kg' });
+    seedRows('lotProduct', [{ donViTinh: 'Kg' }]);
+    mockCacheDel.mockClear();
+
+    await service.cascadeRename(lk.id, 'Kg', 'KgRenamed', 'DON_VI_TINH', 'user-1');
+
+    expect(mockCacheDel).toHaveBeenCalledWith('cache:lookups:DON_VI_TINH');
+  });
+
+  it('a failed cascade must not leave the cache cleared as if it had succeeded', async () => {
+    // invalidateGroup runs only after the transaction commits, so a rollback leaves the
+    // cached listing intact — it still matches the unchanged database.
+    const lk = seedLookup({ label: 'Kg' });
+    seedRows('lotProduct', [{ donViTinh: 'Kg' }]);
+    store.failOnModel = 'lotProduct';
+    mockCacheDel.mockClear();
+
+    await expect(
+      service.cascadeRename(lk.id, 'Kg', 'KgRenamed', 'DON_VI_TINH', 'user-1')
+    ).rejects.toThrow();
+
+    expect(mockCacheDel).not.toHaveBeenCalled();
+    expect(store.lookups[0].label).toBe('Kg');
   });
 });

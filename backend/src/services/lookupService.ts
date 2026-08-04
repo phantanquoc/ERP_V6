@@ -1,7 +1,23 @@
 import prisma from '@config/database';
 import { NotFoundError, ValidationError, ConflictError } from '@utils/errors';
 import { slugifyToUpperCode } from '@utils/permissions';
+import { cacheGet, cacheSet, cacheDel } from '@utils/cache';
 import type { Lookup, LookupChangeLog, Prisma } from '@prisma/client';
+
+/**
+ * Cache key for a group's active lookups.
+ *
+ * Group names are fixed UPPER_SNAKE_CASE identifiers, so they are safe to interpolate.
+ */
+const lookupCacheKey = (group: string) => `cache:lookups:${group}`;
+
+/**
+ * Lookups are reference data — a handful of edits per year — so a long TTL is
+ * appropriate. Correctness does not depend on it: every write path calls
+ * `invalidateGroup`, and the TTL only bounds staleness if a cache-delete is ever lost
+ * (e.g. Redis restarted mid-write).
+ */
+const LOOKUP_CACHE_TTL = 3600; // 1 hour
 
 /**
  * Shared lookup (classification) service — change: shared-lookup-table.
@@ -308,16 +324,56 @@ export class LookupService {
 
     const { includeInactive = false, includeValue } = options;
 
+    // Only the plain active-only listing is cached. That is the shape every dropdown in
+    // the app requests, it is identical for all users, and lookups change a few times a
+    // year at most. The `includeInactive` (admin table) and `includeValue` (edit-form
+    // preservation) variants are per-view and comparatively rare — caching them would
+    // multiply keys for no real hit rate, so they always read through.
+    //
+    // `group` must also be a KNOWN group. `group` arrives straight from a query string,
+    // so caching arbitrary values would let any caller mint an unbounded number of keys
+    // (`?group=aaa`, `?group=aab`, …) — each one an empty array held for an hour. The
+    // eviction policy is allkeys-lru, so that would quietly push real cached data out.
+    // Unknown groups still return [] as before; they just never reach Redis.
+    const isKnownGroup = Object.prototype.hasOwnProperty.call(LOOKUP_COLUMN_MAP, group);
+    const cacheable = !includeInactive && !includeValue && isKnownGroup;
+    if (cacheable) {
+      const cached = await cacheGet<Lookup[]>(lookupCacheKey(group));
+      if (cached) return cached;
+    }
+
     const where: Prisma.LookupWhereInput = includeInactive
       ? { group }
       : includeValue
         ? { group, OR: [{ isActive: true }, { label: includeValue }] }
         : { group, isActive: true };
 
-    return prisma.lookup.findMany({
+    const rows = await prisma.lookup.findMany({
       where,
       orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
     });
+
+    if (cacheable) {
+      await cacheSet(lookupCacheKey(group), rows, LOOKUP_CACHE_TTL);
+    }
+
+    return rows;
+  }
+
+  /**
+   * Drop a group's cached listing after a write.
+   *
+   * Always called AFTER the transaction commits, never inside it: a rollback would
+   * otherwise leave the cache cleared while the data never changed — harmless, but it
+   * also means a delete issued inside a doomed transaction is wasted work. Clearing
+   * after commit keeps the invariant simple: cache is dropped exactly when data really
+   * changed.
+   *
+   * `cacheDel` swallows its own errors, so a Redis outage degrades to a stale read for
+   * at most LOOKUP_CACHE_TTL rather than failing the write the admin just made.
+   */
+  private async invalidateGroup(group: string): Promise<void> {
+    await cacheDel(lookupCacheKey(group));
   }
 
   /** Get one lookup plus its usage count across every mapped column. */
@@ -355,7 +411,7 @@ export class LookupService {
     }
 
     // Audit row is written with the lookup so a create is never unlogged.
-    return prisma.$transaction(async (tx) => {
+    const created = await prisma.$transaction(async (tx) => {
       const created = await tx.lookup.create({
         data: {
           group,
@@ -381,6 +437,9 @@ export class LookupService {
 
       return created;
     });
+
+    await this.invalidateGroup(group);
+    return created;
   }
 
   /**
@@ -478,7 +537,9 @@ export class LookupService {
     }
 
     // No cascade needed: plain update plus its audit rows, atomically.
-    return prisma.$transaction(async (tx) => {
+    // The two branches above delegate to cascadeRename / applyNonLabelUpdate, each of
+    // which invalidates the group itself — so only this path needs its own call.
+    const updated = await prisma.$transaction(async (tx) => {
       const updateData: Prisma.LookupUpdateInput = {};
       if (labelChanged) updateData.label = data.label as string;
       if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder;
@@ -537,6 +598,9 @@ export class LookupService {
 
       return updated;
     });
+
+    await this.invalidateGroup(lookup.group);
+    return updated;
   }
 
   private buildNonLabelUpdate(data: UpdateLookupData): UpdateLookupData {
@@ -551,7 +615,7 @@ export class LookupService {
     rest: UpdateLookupData,
     changedByUserId: string | null
   ): Promise<Lookup> {
-    return prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx) => {
       const updated = await tx.lookup.update({ where: { id: lookup.id }, data: rest });
 
       if (rest.sortOrder !== undefined && rest.sortOrder !== lookup.sortOrder) {
@@ -586,6 +650,9 @@ export class LookupService {
 
       return updated;
     });
+
+    await this.invalidateGroup(lookup.group);
+    return updated;
   }
 
   /**
@@ -620,7 +687,7 @@ export class LookupService {
 
     const refs = getUniqueColumnsForGroup(group);
 
-    return prisma.$transaction(
+    const renamed = await prisma.$transaction(
       async (tx) => {
         const affectedTables: LookupUsageBreakdownEntry[] = [];
         let affectedRecords = 0;
@@ -665,6 +732,9 @@ export class LookupService {
       },
       { timeout: CASCADE_TRANSACTION_TIMEOUT_MS, maxWait: 5_000 }
     );
+
+    await this.invalidateGroup(group);
+    return renamed;
   }
 
   /**
@@ -684,7 +754,7 @@ export class LookupService {
       );
     }
 
-    return prisma.$transaction(async (tx) => {
+    const deleted = await prisma.$transaction(async (tx) => {
       const updated = await tx.lookup.update({
         where: { id },
         data: { isActive: false },
@@ -705,6 +775,9 @@ export class LookupService {
 
       return updated;
     });
+
+    await this.invalidateGroup(lookup.group);
+    return deleted;
   }
 
   /** Paginated change history for one lookup or a whole group, newest first. */
