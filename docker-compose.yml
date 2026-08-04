@@ -65,9 +65,24 @@ services:
     image: redis:7-alpine
     container_name: erp_redis
     restart: unless-stopped
-    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+    # --requirepass: defence in depth. The port is not published, but without a password
+    #   any container that can reach the Docker network can read and write the cache.
+    # --save "" / --appendonly no: Redis here is a pure cache (lookup listings and
+    #   rate-limit counters). Nothing needs to survive a restart, so the periodic RDB
+    #   fork was wasted I/O.
+    command: >
+      redis-server
+      --requirepass "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"
+      --maxmemory 128mb
+      --maxmemory-policy allkeys-lru
+      --save ""
+      --appendonly no
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      # Must authenticate, otherwise the probe gets NOAUTH and the container never
+      # reports healthy.
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -102,7 +117,8 @@ services:
       LOG_LEVEL: warn
       FACE_DATA_SECRET: ${FACE_DATA_SECRET:-change_me_face_data_secret}
       AI_SERVICE_URL: http://erp_ai:8001
-      REDIS_URL: redis://redis:6379
+      # Password comes from .env; the URL form keeps ioredis config unchanged.
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@anbinhfoods.net}
