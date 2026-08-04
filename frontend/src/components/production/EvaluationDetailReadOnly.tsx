@@ -128,7 +128,7 @@ const EvaluationDetailReadOnly: React.FC<EvaluationDetailReadOnlyProps> = ({ id,
               <div className="space-y-2">
                 <SectionTitle>Nguyên liệu</SectionTitle>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Field label="Tên hàng hoá" value={evalData.tenHangHoa} />
+                  <Field label="Mã hàng hóa" value={evalData.maSanPham || '—'} />
                   <Field label="Số lô/kiện" value={evalData.soLoKien} />
                   <Field label="Khối lượng (kg)" value={evalData.khoiLuong} />
                 </div>

@@ -418,9 +418,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
     () => lots.map(l => ({
       id: l.id,
       primary: l.tenLo,
-      secondary: l.warehouse
-        ? `${l.warehouse.maKho} – ${l.warehouse.tenKho}`
-        : undefined,
+      secondary: l.warehouse?.maKho,
     })),
     [lots],
   );
@@ -1118,7 +1116,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Sản phẩm nguyên liệu <span className="text-red-500">*</span>
+                Mã hàng hóa <span className="text-red-500">*</span>
               </label>
               <RawMaterialPicker
                 products={rawMaterials}
