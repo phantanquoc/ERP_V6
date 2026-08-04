@@ -167,7 +167,7 @@ interface StepProgressProps {
 }
 
 const STEP_INFO: { step: WizardStep | 1; icon: React.ComponentType<{ className?: string }>; label: string }[] = [
-  { step: 1, icon: User, label: 'Người + Ca' },
+  { step: 1, icon: User, label: 'Đăng nhập' },
   { step: 2, icon: Package, label: 'Nguyên liệu' },
   { step: 3, icon: Beaker, label: 'Thông số' },
   { step: 4, icon: ClipboardCheck, label: 'Đánh giá' },
