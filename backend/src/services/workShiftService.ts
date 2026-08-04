@@ -240,6 +240,13 @@ class WorkShiftService {
     return h * 60 + m;
   }
 
+  /**
+   * The check-in window is half-open [start, end): `end` is the first minute the
+   * window does NOT accept, so adjacent shifts meet when one's end equals the next
+   * one's start. Configuring `end` as "the last minute we accept" instead leaves a
+   * one-minute hole where a scan matches no shift at all — that happened in
+   * production with Ca 1 ending 06:29 while Hành chính started 06:30.
+   */
   private validateShiftTimes(data: {
     startTime: string;
     endTime: string;
