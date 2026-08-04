@@ -120,10 +120,10 @@ const RawMaterialPicker: React.FC<RawMaterialPickerProps> = ({
       >
         <span className={selectedProduct ? 'text-gray-900 truncate' : 'text-gray-400'}>
           {selectedProduct
-            ? `${selectedProduct.maSanPham} – ${selectedProduct.tenSanPham}`
+            ? selectedProduct.maSanPham
             : loading
               ? 'Đang tải...'
-              : '-- Chọn sản phẩm --'}
+              : '-- Chọn mã hàng hóa --'}
         </span>
         <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
       </button>
@@ -140,7 +140,7 @@ const RawMaterialPicker: React.FC<RawMaterialPickerProps> = ({
                   autoFocus
                   type="text"
                   inputMode="search"
-                  placeholder="Tìm theo mã, tên hoặc loại..."
+                  placeholder="Tìm theo mã hàng hóa..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="w-full min-h-[44px] pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -240,7 +240,7 @@ const RawMaterialPicker: React.FC<RawMaterialPickerProps> = ({
               <div className="flex flex-col items-center justify-center py-16 text-gray-400">
                 <PackageSearch className="w-10 h-10 mb-2" />
                 {search.trim() ? (
-                  <p className="text-sm">Không tìm thấy sản phẩm phù hợp</p>
+                  <p className="text-sm">Không tìm thấy mã hàng hóa phù hợp</p>
                 ) : !showAll && hiddenCount > 0 ? (
                   <>
                     <p className="text-sm mb-3">Không có nguyên liệu nào còn hàng trong kho</p>
@@ -272,7 +272,7 @@ const RawMaterialPicker: React.FC<RawMaterialPickerProps> = ({
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <span className="text-lg font-semibold text-gray-900">{p.maSanPham}</span>
+                      <span className="text-xl font-bold text-gray-900">{p.maSanPham}</span>
                       <span
                         className={`text-sm font-medium shrink-0 ${
                           outOfStock ? 'text-gray-400' : 'text-green-700'
@@ -283,12 +283,11 @@ const RawMaterialPicker: React.FC<RawMaterialPickerProps> = ({
                           : `${formatStock(p.tongTonKho)} ${p.donViTinh || 'Kg'}`}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-sm text-gray-500 truncate">{p.tenSanPham}</span>
-                      {p.loaiSanPham && (
-                        <span className="text-xs text-gray-500 shrink-0">– {p.loaiSanPham}</span>
-                      )}
-                    </div>
+                    {p.loaiSanPham && (
+                      <div className="mt-0.5">
+                        <span className="text-xs text-gray-500">{p.loaiSanPham}</span>
+                      </div>
+                    )}
                   </button>
                 );
               })
