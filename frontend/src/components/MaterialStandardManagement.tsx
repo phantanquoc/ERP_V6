@@ -319,7 +319,7 @@ const MaterialStandardManagement: React.FC = () => {
 
   const standardFilterFields: FilterField[] = [
     { key: 'maDinhMuc', label: 'Mã định mức', type: 'text' },
-    { key: 'tenDinhMuc', label: 'Mã thành phẩm đầu ra', type: 'text' },
+    { key: 'tenDinhMuc', label: 'Tên định mức', type: 'text' },
     { key: 'tenNguyenLieu', label: 'Mã nguyên liệu đầu vào', type: 'text' },
     { key: 'loaiDinhMuc', label: 'Loại định mức', type: 'text' },
   ];
@@ -358,7 +358,7 @@ const MaterialStandardManagement: React.FC = () => {
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Định mức NVL</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Danh sách định mức</h2>
         <button
           onClick={openCreateModal}
           className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -381,7 +381,7 @@ const MaterialStandardManagement: React.FC = () => {
             <thead>
               <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã định mức</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã thành phẩm đầu ra</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên định mức</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã nguyên liệu đầu vào</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Khối lượng thu hồi (kg NL → 1kg TP)</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Loại định mức</th>
@@ -541,7 +541,7 @@ const MaterialStandardManagement: React.FC = () => {
                   </div>
 
                   <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tên thành phẩm đầu ra *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tên định mức *</label>
                     <input
                       type="text"
                       name="tenDinhMuc"
@@ -879,7 +879,7 @@ const MaterialStandardManagement: React.FC = () => {
                   </div>
 
                   <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium text-gray-500">Tên thành phẩm đầu ra</label>
+                    <label className="block text-sm font-medium text-gray-500">Tên định mức</label>
                     <p className="mt-1 text-sm text-gray-900">{selectedStandard.tenDinhMuc}</p>
                   </div>
 
