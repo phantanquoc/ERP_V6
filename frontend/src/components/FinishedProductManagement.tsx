@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Trash2, Eye, FileText, X, Download, Warehouse, SlidersHorizontal } from 'lucide-react';
 import finishedProductService, { FinishedProduct } from '../services/finishedProductService';
 import FinishedProductModal from './FinishedProductModal';
@@ -86,7 +86,7 @@ const AdjustMachinesModal: React.FC<AdjustMachinesModalProps> = ({ maChien, prod
   return (
     <Modal isOpen onClose={onClose} showBackdrop closeOnBackdrop={false}>
       <div
-        className="bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 flex flex-col max-h-[calc(100vh-2rem)]"
+        className="bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 flex flex-col modal-viewport-h"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-orange-50 to-orange-100 shrink-0 flex items-center justify-between">
@@ -238,6 +238,7 @@ const FinishedProductManagement: React.FC<FinishedProductManagementProps> = ({ p
   // Load all products when "Tổng các máy" tab is selected
   useEffect(() => {
     if (selectedMachineSystemId === TOTAL_ALL_MACHINES) {
+      setCurrentPage(1);
       loadAllProducts();
     }
   }, [selectedMachineSystemId, productionDay]);
@@ -537,6 +538,23 @@ const FinishedProductManagement: React.FC<FinishedProductManagementProps> = ({ p
     return matchSearch && matchMaChien && matchTenHangHoa;
   });
 
+  // Both tabs share one `currentPage` and render exclusively, so pagination is
+  // derived from whichever list is active. `safePage` clamps at render time so the
+  // first frame after the list shrinks (row deleted, bulk receipt then reload) is
+  // already correct — otherwise slice() on a stale high page returns [] and the
+  // table renders blank with no message.
+  const isTotalTab = selectedMachineSystemId === TOTAL_ALL_MACHINES;
+  const totalItems = isTotalTab ? filteredAggregated.length : filteredProducts.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const safePage = totalPages > 0 ? Math.min(currentPage, totalPages) : 1;
+
+  // Reconcile the state itself so the page buttons highlight the page actually shown.
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
   // State for viewing aggregated product detail
   const [selectedAggregatedProduct, setSelectedAggregatedProduct] = useState<AggregatedProduct | null>(null);
   const [isAggregatedViewModalOpen, setIsAggregatedViewModalOpen] = useState(false);
@@ -556,26 +574,39 @@ const FinishedProductManagement: React.FC<FinishedProductManagementProps> = ({ p
     setIsAggregatedViewModalOpen(true);
   };
 
-  // Initialise checkbox selection: tick rows not yet received when tab becomes active
+  // Initialise checkbox selection ONCE per (tab, production day) context.
+  // Seeding is keyed on a context ref instead of on every `allProducts` change so a
+  // background reload (per-machine adjust, bulk receipt) never wipes manual ticks.
+  const seededSelectionKeyRef = useRef<string | null>(null);
+  const selectionContextKey = `${selectedMachineSystemId}|${productionDay ?? ''}`;
+
   useEffect(() => {
-    if (selectedMachineSystemId === TOTAL_ALL_MACHINES && filteredAggregated.length > 0) {
-      setSelectedMaChienSet(
-        new Set(filteredAggregated.filter((p) => !p.daNhapKho).map((p) => p.maChien)),
-      );
-    } else if (selectedMachineSystemId !== TOTAL_ALL_MACHINES) {
+    if (selectedMachineSystemId !== TOTAL_ALL_MACHINES) {
+      seededSelectionKeyRef.current = null;
       setSelectedMaChienSet(new Set());
+      return;
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMachineSystemId, aggregatedByMaChien]);
+    // Wait until the aggregated rows for this context have arrived, then seed once.
+    if (seededSelectionKeyRef.current === selectionContextKey || aggregatedByMaChien.length === 0) {
+      return;
+    }
+    seededSelectionKeyRef.current = selectionContextKey;
+    setSelectedMaChienSet(
+      new Set(aggregatedByMaChien.filter((p) => !p.daNhapKho).map((p) => p.maChien)),
+    );
+  }, [selectedMachineSystemId, selectionContextKey, aggregatedByMaChien]);
 
   const handleToggleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedMaChienSet(
-        new Set(filteredAggregated.filter((p) => !p.daNhapKho).map((p) => p.maChien)),
-      );
-    } else {
-      setSelectedMaChienSet(new Set());
-    }
+    // Only affects rows currently visible under the active filter; hidden rows keep their state.
+    const visiblePending = filteredAggregated.filter((p) => !p.daNhapKho).map((p) => p.maChien);
+    setSelectedMaChienSet((prev) => {
+      const next = new Set(prev);
+      visiblePending.forEach((maChien) => {
+        if (checked) next.add(maChien);
+        else next.delete(maChien);
+      });
+      return next;
+    });
   };
 
   const handleToggleRow = (maChien: string, checked: boolean) => {
@@ -590,7 +621,11 @@ const FinishedProductManagement: React.FC<FinishedProductManagementProps> = ({ p
   const pendingRows = filteredAggregated.filter((p) => !p.daNhapKho);
   const allPendingSelected =
     pendingRows.length > 0 && pendingRows.every((p) => selectedMaChienSet.has(p.maChien));
-  const selectedMaChienList = Array.from(selectedMaChienSet);
+  // Never submit batches hidden by the active filter: intersect the selection with
+  // the pending rows actually on screen.
+  const selectedMaChienList = pendingRows
+    .filter((p) => selectedMaChienSet.has(p.maChien))
+    .map((p) => p.maChien);
 
   const formatDateTime = (datetime: string) => {
     if (!datetime) return '-';
@@ -923,7 +958,7 @@ const FinishedProductManagement: React.FC<FinishedProductManagementProps> = ({ p
                     </td>
                   </tr>
                 ) : (
-                  filteredAggregated.map((product, index) => (
+                  filteredAggregated.slice((safePage - 1) * itemsPerPage, safePage * itemsPerPage).map((product, index) => (
                     <tr
                       key={product.maChien}
                       className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${
@@ -941,7 +976,7 @@ const FinishedProductManagement: React.FC<FinishedProductManagementProps> = ({ p
                         />
                       </td>
                       <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
-                        {index + 1}
+                        {(safePage - 1) * itemsPerPage + index + 1}
                       </td>
                       <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm font-semibold border-r border-gray-200">
                         <span className={product.daNhapKho ? 'text-gray-400' : 'text-green-600'}>
@@ -1020,6 +1055,44 @@ const FinishedProductManagement: React.FC<FinishedProductManagementProps> = ({ p
               </tbody>
             </table>
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4 px-2">
+              <span className="text-sm text-gray-600">
+                Hiển thị {(safePage - 1) * itemsPerPage + 1}–{Math.min(safePage * itemsPerPage, totalItems)} / {totalItems} mục
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(Math.max(1, safePage - 1))}
+                  disabled={safePage === 1}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Trước
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(page => page === 1 || page === totalPages || Math.abs(page - safePage) <= 2)
+                  .map((page, idx, arr) => (
+                    <React.Fragment key={page}>
+                      {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                      <button
+                        onClick={() => setCurrentPage(page)}
+                        className={`px-3 py-1.5 text-sm rounded-md ${page === safePage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
+                      >
+                        {page}
+                      </button>
+                    </React.Fragment>
+                  ))}
+                <button
+                  onClick={() => setCurrentPage(Math.min(totalPages, safePage + 1))}
+                  disabled={safePage === totalPages}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Sau
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1057,7 +1130,7 @@ const FinishedProductManagement: React.FC<FinishedProductManagementProps> = ({ p
                     </td>
                   </tr>
                 ) : (
-                  filteredProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((product, index) => (
+                  filteredProducts.slice((safePage - 1) * itemsPerPage, safePage * itemsPerPage).map((product, index) => (
                     <tr
                       key={product.id}
                       onClick={() => handleView(product)}
@@ -1066,7 +1139,7 @@ const FinishedProductManagement: React.FC<FinishedProductManagementProps> = ({ p
                       }`}
                     >
                       <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
-                        {(currentPage - 1) * itemsPerPage + index + 1}
+                        {(safePage - 1) * itemsPerPage + index + 1}
                       </td>
                       <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
                         {product.maChien}
@@ -1112,46 +1185,42 @@ const FinishedProductManagement: React.FC<FinishedProductManagementProps> = ({ p
           </div>
 
           {/* Pagination */}
-          {(() => {
-            const totalItems = filteredProducts.length;
-            const totalPages = Math.ceil(totalItems / itemsPerPage);
-            return totalPages > 1 ? (
-              <div className="flex items-center justify-between mt-4 px-2">
-                <span className="text-sm text-gray-600">
-                  Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Trước
-                  </button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1)
-                    .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
-                    .map((page, idx, arr) => (
-                      <React.Fragment key={page}>
-                        {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
-                        <button
-                          onClick={() => setCurrentPage(page)}
-                          className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
-                        >
-                          {page}
-                        </button>
-                      </React.Fragment>
-                    ))}
-                  <button
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Sau
-                  </button>
-                </div>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4 px-2">
+              <span className="text-sm text-gray-600">
+                Hiển thị {(safePage - 1) * itemsPerPage + 1}–{Math.min(safePage * itemsPerPage, totalItems)} / {totalItems} mục
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(Math.max(1, safePage - 1))}
+                  disabled={safePage === 1}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Trước
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(page => page === 1 || page === totalPages || Math.abs(page - safePage) <= 2)
+                  .map((page, idx, arr) => (
+                    <React.Fragment key={page}>
+                      {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                      <button
+                        onClick={() => setCurrentPage(page)}
+                        className={`px-3 py-1.5 text-sm rounded-md ${page === safePage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
+                      >
+                        {page}
+                      </button>
+                    </React.Fragment>
+                  ))}
+                <button
+                  onClick={() => setCurrentPage(Math.min(totalPages, safePage + 1))}
+                  disabled={safePage === totalPages}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Sau
+                </button>
               </div>
-            ) : null;
-          })()}
+            </div>
+          )}
         </div>
       )}
 
@@ -1221,7 +1290,7 @@ const FinishedProductManagement: React.FC<FinishedProductManagementProps> = ({ p
 
       {/* Aggregated Product View Modal */}
       <Modal isOpen={isAggregatedViewModalOpen && !!selectedAggregatedProduct} onClose={() => setIsAggregatedViewModalOpen(false)} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             {selectedAggregatedProduct && (<>
             <div className="px-3 py-2 sm:px-6 sm:py-4 border-b border-gray-200 bg-gradient-to-r from-green-50 to-green-100 shrink-0">
               <div className="flex items-center justify-between">

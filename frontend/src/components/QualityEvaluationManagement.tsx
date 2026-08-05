@@ -23,7 +23,6 @@ const QualityEvaluationManagement: React.FC<QualityEvaluationManagementProps> = 
   const [isEditing, setIsEditing] = useState(false);
   const [selectedEvaluation, setSelectedEvaluation] = useState<QualityEvaluation | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [_totalPages, setTotalPages] = useState(1);
   const itemsPerPage = 10;
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maChien: '', tenHangHoa: '' });
 
@@ -63,10 +62,6 @@ const QualityEvaluationManagement: React.FC<QualityEvaluationManagementProps> = 
     setCurrentPage(1);
   }, [selectedMachineSystemId, productionDay]);
 
-  useEffect(() => {
-    loadEvaluations();
-  }, [currentPage]);
-
   const loadEvaluations = async () => {
     try {
       setLoading(true);
@@ -77,9 +72,10 @@ const QualityEvaluationManagement: React.FC<QualityEvaluationManagementProps> = 
         const range = productionDayRange(productionDay);
         dateRange = { thoiGianChienFrom: range.from, thoiGianChienTo: range.to };
       }
-      const result = await qualityEvaluationService.getAllQualityEvaluations(currentPage, 1000, selectedMachineSystemId || undefined, dateRange);
+      // Fetch a single large page: filtering AND pagination are both client-side
+      // (filteredEvaluations is computed locally), so server paging cannot be mixed in.
+      const result = await qualityEvaluationService.getAllQualityEvaluations(1, 1000, selectedMachineSystemId || undefined, dateRange);
       setEvaluations(result.data);
-      setTotalPages(result.pagination.totalPages);
     } catch (err: any) {
       setError(err.message || 'Lỗi tải dữ liệu');
       console.error(err);
@@ -267,6 +263,21 @@ const QualityEvaluationManagement: React.FC<QualityEvaluationManagementProps> = 
     return matchSearch && matchMaChien && matchTenHangHoa;
   });
 
+  // Pagination is derived from the filtered list, so it must survive the list
+  // shrinking underneath us (row deleted, background reload returning fewer rows).
+  // `safePage` clamps at render time so the very first frame is already correct —
+  // without it, slice() on a stale high page returns [] and the table goes blank.
+  const totalItems = filteredEvaluations.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const safePage = totalPages > 0 ? Math.min(currentPage, totalPages) : 1;
+
+  // Reconcile the state itself so the page buttons highlight the page actually shown.
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-6">
@@ -371,7 +382,7 @@ const QualityEvaluationManagement: React.FC<QualityEvaluationManagementProps> = 
                   </td>
                 </tr>
               ) : (
-                filteredEvaluations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((evaluation, index) => (
+                filteredEvaluations.slice((safePage - 1) * itemsPerPage, safePage * itemsPerPage).map((evaluation, index) => (
                   <tr
                     key={evaluation.id}
                     onClick={() => handleView(evaluation)}
@@ -380,7 +391,7 @@ const QualityEvaluationManagement: React.FC<QualityEvaluationManagementProps> = 
                     }`}
                   >
                     <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 border-r border-gray-200 text-center">
-                      {(currentPage - 1) * itemsPerPage + index + 1}
+                      {(safePage - 1) * itemsPerPage + index + 1}
                     </td>
                     <td className="px-3 py-2 sm:px-6 sm:py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
                       {evaluation.maChien}
@@ -435,46 +446,42 @@ const QualityEvaluationManagement: React.FC<QualityEvaluationManagementProps> = 
         </div>
       </div>
 
-      {(() => {
-        const totalItems = filteredEvaluations.length;
-        const totalPages = Math.ceil(totalItems / itemsPerPage);
-        return totalPages > 1 ? (
-          <div className="flex items-center justify-between mt-4 px-2">
-            <span className="text-sm text-gray-600">
-              Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Trước
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1)
-                .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
-                .map((page, idx, arr) => (
-                  <React.Fragment key={page}>
-                    {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
-                    <button
-                      onClick={() => setCurrentPage(page)}
-                      className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
-                    >
-                      {page}
-                    </button>
-                  </React.Fragment>
-                ))}
-              <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Sau
-              </button>
-            </div>
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4 px-2">
+          <span className="text-sm text-gray-600">
+            Hiển thị {(safePage - 1) * itemsPerPage + 1}–{Math.min(safePage * itemsPerPage, totalItems)} / {totalItems} mục
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(Math.max(1, safePage - 1))}
+              disabled={safePage === 1}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Trước
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(page => page === 1 || page === totalPages || Math.abs(page - safePage) <= 2)
+              .map((page, idx, arr) => (
+                <React.Fragment key={page}>
+                  {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                  <button
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-3 py-1.5 text-sm rounded-md ${page === safePage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
+                  >
+                    {page}
+                  </button>
+                </React.Fragment>
+              ))}
+            <button
+              onClick={() => setCurrentPage(Math.min(totalPages, safePage + 1))}
+              disabled={safePage === totalPages}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Sau
+            </button>
           </div>
-        ) : null;
-      })()}
+        </div>
+      )}
 
       {/* Modal */}
       <QualityEvaluationModal
