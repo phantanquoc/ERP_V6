@@ -86,22 +86,18 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
   const paginatedOperations = filteredOperations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   useEffect(() => {
-    loadOperations();
-  }, [productionDay]);
-
-  useEffect(() => {
     if (lockedMachineSystemId) {
       setSelectedMachineSystemId(lockedMachineSystemId);
       setCurrentPage(1);
     }
   }, [lockedMachineSystemId]);
 
+  // Single load effect: covers mount, machine switch (including "Tổng các máy" = '')
+  // and production day change. Kept as one effect so no combination fires two requests.
   useEffect(() => {
-    if (selectedMachineSystemId) {
-      loadOperations();
-      setCurrentPage(1);
-    }
-  }, [selectedMachineSystemId]);
+    loadOperations();
+    setCurrentPage(1);
+  }, [selectedMachineSystemId, productionDay]);
 
   const loadOperations = async () => {
     try {
@@ -539,7 +535,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
 
       {/* Create/Edit Modal */}
       <Modal isOpen={isModalOpen} onClose={handleCloseModal} showBackdrop>
-        <div className="bg-white rounded-lg shadow-lg max-w-5xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-lg max-w-5xl w-full mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center p-6 border-b shrink-0">
               <h2 className="text-xl font-bold">
                 {isEditing ? 'Chỉnh sửa thông số' : 'Thêm thông số mới'}
@@ -860,7 +856,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
 
       {/* View Detail Modal */}
       <Modal isOpen={isViewModalOpen && !!selectedOperation} onClose={() => setIsViewModalOpen(false)} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center p-6 border-b shrink-0">
               <h2 className="text-xl font-bold">Chi tiết thông số vận hành</h2>
               <button
