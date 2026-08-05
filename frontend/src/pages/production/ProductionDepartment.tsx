@@ -88,7 +88,7 @@ const ProductionDepartment = () => {
     { id: 'processList', name: 'Danh sách quy trình', icon: <FileText className="w-4 h-4" /> },
     { id: 'productionOrders', name: 'Danh sách quy trình sản xuất', icon: <ClipboardList className="w-4 h-4" /> },
     { id: 'orderList', name: 'Danh sách đơn hàng', icon: <Package className="w-4 h-4" /> },
-    { id: 'standards', name: 'Định mức NVL', icon: <Calendar className="w-4 h-4" /> },
+    { id: 'standards', name: 'Danh sách định mức', icon: <Calendar className="w-4 h-4" /> },
     { id: 'materialEvaluation', name: 'Đánh giá nguyên liệu', icon: <ClipboardCheck className="w-4 h-4" /> },
     { id: 'systemOperation', name: 'Thông số vận hành hệ thống', icon: <TrendingUp className="w-4 h-4" /> },
     { id: 'finishedProduct', name: 'Thành phẩm đầu ra', icon: <PackageCheck className="w-4 h-4" />, count: 0 },
