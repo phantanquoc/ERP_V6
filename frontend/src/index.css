@@ -8,10 +8,46 @@
     scroll-margin-top: 80px;
     scroll-margin-bottom: 80px;
   }
+
+  /* Hide number input spinners: they steal ~17px of horizontal space in
+     dense data-entry tables and users always type values directly. */
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+  }
+
+  input[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
 }
 
 /* Marquee scrolling text for slogan bar */
 @layer components {
+  /* Modal viewport height with dvh + vh fallback.
+     Declared here (not as Tailwind arbitrary values) so the fallback order is
+     guaranteed: browsers without dvh keep the vh line, others override it.
+     100vh on iOS Safari includes the address bar, which pushes modal footers
+     (Hủy / Cập nhật) off-screen. */
+  .modal-viewport-h {
+    max-height: calc(100vh - 1rem);
+    max-height: calc(100dvh - 1rem);
+  }
+
+  @media (min-width: 640px) {
+    .modal-viewport-h {
+      max-height: calc(100vh - 2rem);
+      max-height: calc(100dvh - 2rem);
+    }
+  }
+
+  .preview-viewport-h {
+    height: 90vh;
+    height: 90dvh;
+  }
+
   .marquee-container {
     overflow: hidden;
     position: relative;

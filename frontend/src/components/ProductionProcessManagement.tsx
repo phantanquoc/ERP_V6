@@ -661,12 +661,12 @@ const ProductionProcessManagement: React.FC = () => {
 
       {/* Create/Edit Modal */}
       <Modal isOpen={isModalOpen} onClose={handleCloseModal} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-1rem)] sm:max-w-[95vw] sm:w-full flex flex-col max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-1rem)] sm:max-w-[95vw] sm:w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="border-b border-gray-200 px-4 sm:px-6 py-4 flex justify-between items-start sm:items-center gap-3 shrink-0">
               <h3 className="text-lg sm:text-xl font-bold text-gray-800">
                 {editingProcess ? 'Chỉnh sửa quy trình sản xuất' : 'Tạo quy trình sản xuất mới'}
               </h3>
-              <button onClick={handleCloseModal} className="text-gray-500 hover:text-gray-700">
+              <button onClick={handleCloseModal} aria-label="Đóng" className="-mr-2 p-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors shrink-0">
                 <X className="w-6 h-6" />
               </button>
             </div>
@@ -826,27 +826,208 @@ const ProductionProcessManagement: React.FC = () => {
                 </div>
               </div>
 
-              {/* Flowchart Table */}
+              {/* Flowchart */}
               {flowchartSections.length > 0 && (
-                <div className="overflow-x-auto">
-                  <table className="min-w-[1200px] border-collapse border border-gray-200">
+                <>
+                {/* Shared datalist — declared once so both the card and table
+                    branches can reference it without duplicate element ids. */}
+                <datalist id="nang-suat-don-vi-list">
+                  <option value="kg" />
+                  <option value="cái" />
+                  <option value="lít" />
+                </datalist>
+
+                {/* Mobile / tablet (<1024px): stacked cards. The 14-column table
+                    does not fit a portrait tablet, so the breakpoint is lg. */}
+                <div className="lg:hidden space-y-3">
+                  {flowchartSections.map((section, sectionIndex) => (
+                    <div key={sectionIndex} className="border border-gray-200 rounded-lg bg-white overflow-hidden">
+                      <div className="bg-gray-50 border-b border-gray-200 px-3 py-2">
+                        <div className="flex items-start gap-2">
+                          <span className="shrink-0 w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold flex items-center justify-center">
+                            {section.stt}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-sm text-gray-900 break-words">{section.phanDoan}</p>
+                            {section.tenPhanDoan && <p className="text-xs text-gray-600 break-words">{section.tenPhanDoan}</p>}
+                          </div>
+                        </div>
+                        {section.noiDungCongViec && (
+                          <p className="mt-2 text-xs text-gray-700 break-words">
+                            <span className="font-medium text-gray-500">Nội dung công việc: </span>
+                            {section.noiDungCongViec}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="px-3 py-3 border-b border-gray-200">
+                        <p className="text-xs font-medium text-gray-500 mb-2">Biểu mẫu</p>
+                        <div className="space-y-2">
+                          <FileUpload
+                            files={[]}
+                            onChange={(selectedFiles) => {
+                              if (selectedFiles.length > 0) handleSectionFileUpload(sectionIndex, selectedFiles);
+                            }}
+                            multiple
+                            compact
+                          />
+                          {((section as any).files || []).map((file: any, fileIdx: number) => (
+                            <div key={fileIdx} className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded">
+                              <span className="text-xs text-gray-500">{fileIdx + 1}.</span>
+                              <span className="text-xs text-gray-700 truncate flex-1">{file.fileName || getFileName(file.url)}</span>
+                              <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(file.url))} className="px-2 py-1.5 text-blue-600 hover:bg-blue-50 rounded text-xs font-medium">Xem</button>
+                              <button type="button" onClick={() => handlePrintFile(getFullFileUrl(file.url))} className="px-2 py-1.5 text-green-600 hover:bg-green-50 rounded text-xs font-medium">In</button>
+                              <button type="button" onClick={() => handleSectionFileRemove(sectionIndex, fileIdx)} aria-label="Xóa file" className="p-1.5 text-red-500 hover:bg-red-50 rounded ml-auto"><X className="w-3.5 h-3.5" /></button>
+                            </div>
+                          ))}
+                          {section.fileUrl && !((section as any).files || []).some((f: any) => f.url === section.fileUrl) && (
+                            <div className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded">
+                              <span className="text-xs text-gray-700 truncate flex-1">{getFileName(section.fileUrl)}</span>
+                              <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(section.fileUrl!))} className="px-2 py-1.5 text-blue-600 hover:bg-blue-50 rounded text-xs font-medium">Xem</button>
+                              <button type="button" onClick={() => handlePrintFile(getFullFileUrl(section.fileUrl!))} className="px-2 py-1.5 text-green-600 hover:bg-green-50 rounded text-xs font-medium">In</button>
+                              <button type="button" onClick={() => handleSectionFileRemove(sectionIndex)} aria-label="Xóa file" className="p-1.5 text-red-500 hover:bg-red-50 rounded ml-auto"><X className="w-3.5 h-3.5" /></button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {section.costs.length === 0 ? (
+                        <p className="px-3 py-4 text-center text-sm text-gray-400">Không có chi phí</p>
+                      ) : (
+                        section.costs.map((cost, costIndex) => (
+                          <div key={costIndex} className="px-3 py-3 border-b border-gray-100 last:border-b-0">
+                            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 mb-3">
+                              <span className="text-xs font-semibold text-gray-900 bg-gray-100 px-2 py-0.5 rounded">{cost.loaiChiPhi || '-'}</span>
+                              <span className="text-sm text-gray-800 break-words">{cost.tenChiPhi || '-'}</span>
+                              {cost.donVi && <span className="text-xs text-gray-500">(ĐVT: {cost.donVi})</span>}
+                            </div>
+                            <p className="text-xs text-gray-500 mb-3">
+                              Định mức thực hiện: <span className="text-gray-800 font-medium">
+                                {cost.dinhMucLaoDong !== undefined && cost.dinhMucLaoDong !== null ? cost.dinhMucLaoDong : '-'}
+                              </span>
+                              {cost.donViDinhMucLaoDong ? ` ${cost.donViDinhMucLaoDong}` : ''}
+                            </p>
+
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">Khối lượng cần thực hiện (Kg)</label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={cost.soLuongNguyenLieu || ''}
+                                  onChange={(e) => handleInputChange(sectionIndex, costIndex, 'soLuongNguyenLieu', e.target.value)}
+                                  className="w-full px-2 py-2 border border-gray-300 rounded text-base focus:outline-none focus:ring-2 focus:ring-green-500 bg-green-50"
+                                  placeholder="0"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">Số phút thực hiện</label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={cost.soPhutThucHien || ''}
+                                  onChange={(e) => handleInputChange(sectionIndex, costIndex, 'soPhutThucHien', e.target.value)}
+                                  className="w-full px-2 py-2 border border-gray-300 rounded text-base focus:outline-none focus:ring-2 focus:ring-green-500 bg-green-50"
+                                  placeholder="0"
+                                />
+                              </div>
+                              <div className="col-span-2">
+                                <label className="block text-xs font-medium text-gray-600 mb-1">Năng suất (ĐVT/phút)</label>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="number"
+                                    step="0.001"
+                                    min="0"
+                                    value={(cost as any).nangSuatTrenPhut || ''}
+                                    onChange={(e) => handleInputChange(sectionIndex, costIndex, 'nangSuatTrenPhut', e.target.value)}
+                                    className="flex-1 min-w-0 px-2 py-2 border border-gray-300 rounded text-base focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-yellow-50"
+                                    placeholder="0"
+                                  />
+                                  <input
+                                    type="text"
+                                    list="nang-suat-don-vi-list"
+                                    value={(cost as any).donViNangSuat || ''}
+                                    onChange={(e) => handleInputChange(sectionIndex, costIndex, 'donViNangSuat', e.target.value)}
+                                    className="w-20 shrink-0 px-2 py-2 border border-gray-300 rounded text-base focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-yellow-50"
+                                    placeholder="đvt"
+                                  />
+                                  <span className="text-xs text-gray-400 shrink-0">/ph</span>
+                                </div>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">Kế hoạch</label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={cost.soLuongKeHoach || ''}
+                                  onChange={(e) => handleInputChange(sectionIndex, costIndex, 'soLuongKeHoach', e.target.value)}
+                                  className="w-full px-2 py-2 border border-gray-300 rounded text-base focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+                                  placeholder="0"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">Thực tế</label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={cost.soLuongThucTe || ''}
+                                  onChange={(e) => handleInputChange(sectionIndex, costIndex, 'soLuongThucTe', e.target.value)}
+                                  className="w-full px-2 py-2 border border-gray-300 rounded text-base focus:outline-none focus:ring-2 focus:ring-green-500 bg-green-50"
+                                  placeholder="0"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop (>=1024px): fixed-layout table. Columns are pinned by
+                    colgroup so a narrow laptop scrolls horizontally instead of
+                    squeezing the numeric inputs down to a single character. */}
+                <div className="hidden lg:block overflow-x-auto">
+                  <table className="min-w-[1590px] table-fixed border-collapse border border-gray-200">
+                    <colgroup>
+                      <col style={{ width: '50px' }} />
+                      <col style={{ width: '130px' }} />
+                      <col style={{ width: '180px' }} />
+                      <col style={{ width: '150px' }} />
+                      <col style={{ width: '110px' }} />
+                      <col style={{ width: '130px' }} />
+                      <col style={{ width: '70px' }} />
+                      <col style={{ width: '90px' }} />
+                      <col style={{ width: '80px' }} />
+                      <col style={{ width: '110px' }} />
+                      <col style={{ width: '100px' }} />
+                      <col style={{ width: '190px' }} />
+                      <col style={{ width: '100px' }} />
+                      <col style={{ width: '100px' }} />
+                    </colgroup>
                     <thead>
                       <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">STT</th>
-                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">PHÂN ĐOẠN</th>
-                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">NỘI DUNG CÔNG VIỆC</th>
-                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 w-40">BIỂU MẪU</th>
-                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">LOẠI CHI PHÍ</th>
-                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">TÊN CHI PHÍ</th>
-                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">ĐVT</th>
-                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">ĐỊNH MỨC THỰC HIỆN</th>
-                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900">ĐƠN VỊ</th>
-                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 bg-green-100">KHỐI LƯỢNG CẦN THỰC HIỆN (Kg)</th>
-                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 bg-green-100">SỐ PHÚT THỰC HIỆN</th>
-                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 bg-yellow-50">NĂNG SUẤT (ĐVT/phút)</th>
-                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 bg-green-100" colSpan={2}>SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 whitespace-nowrap">STT</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 break-words">PHÂN ĐOẠN</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 break-words">NỘI DUNG CÔNG VIỆC</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 break-words">BIỂU MẪU</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 break-words">LOẠI CHI PHÍ</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 break-words">TÊN CHI PHÍ</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 whitespace-nowrap">ĐVT</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 break-words">ĐỊNH MỨC THỰC HIỆN</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 break-words">ĐƠN VỊ</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 bg-green-100 break-words">KHỐI LƯỢNG CẦN THỰC HIỆN (Kg)</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 bg-green-100 break-words">SỐ PHÚT THỰC HIỆN</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 bg-yellow-50 break-words">NĂNG SUẤT (ĐVT/phút)</th>
+                        <th className="border border-gray-200 px-3 py-3 text-center text-sm font-semibold text-gray-900 bg-green-100 break-words" colSpan={2}>SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ</th>
                       </tr>
                       <tr className="bg-gray-50">
+                        {/* 11 spacer cells (STT … SỐ PHÚT THỰC HIỆN), then the 3 labelled columns = 14 */}
+                        <th className="border border-gray-200 px-3 py-2"></th>
                         <th className="border border-gray-200 px-3 py-2"></th>
                         <th className="border border-gray-200 px-3 py-2"></th>
                         <th className="border border-gray-200 px-3 py-2"></th>
@@ -872,11 +1053,11 @@ const ProductionProcessManagement: React.FC = () => {
                                   <td className="border border-gray-200 px-3 py-2 text-center font-medium" rowSpan={section.costs.length}>
                                     {section.stt}
                                   </td>
-                                  <td className="border border-gray-200 px-3 py-2" rowSpan={section.costs.length}>
+                                  <td className="border border-gray-200 px-3 py-2 break-words" rowSpan={section.costs.length}>
                                     <div className="font-semibold">{section.phanDoan}</div>
                                     {section.tenPhanDoan && <div className="text-sm text-gray-600">{section.tenPhanDoan}</div>}
                                   </td>
-                                  <td className="border border-gray-200 px-3 py-2 text-sm" rowSpan={section.costs.length}>
+                                  <td className="border border-gray-200 px-3 py-2 text-sm break-words" rowSpan={section.costs.length}>
                                     {section.noiDungCongViec || '-'}
                                   </td>
                                   <td className="border border-gray-200 px-3 py-2 align-top" rowSpan={section.costs.length}>
@@ -890,33 +1071,33 @@ const ProductionProcessManagement: React.FC = () => {
                                         compact
                                       />
                                       {((section as any).files || []).map((file: any, fileIdx: number) => (
-                                        <div key={fileIdx} className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded">
+                                        <div key={fileIdx} className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded">
                                           <span className="text-xs text-gray-500">{fileIdx + 1}.</span>
                                           <span className="text-xs text-gray-700 truncate flex-1">{file.fileName || getFileName(file.url)}</span>
-                                          <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(file.url))} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Xem</button>
-                                          <button type="button" onClick={() => handlePrintFile(getFullFileUrl(file.url))} className="text-green-600 hover:text-green-800 text-xs font-medium">In</button>
-                                          <button type="button" onClick={() => handleSectionFileRemove(sectionIndex, fileIdx)} className="text-red-500 hover:text-red-700 ml-auto"><X className="w-3.5 h-3.5" /></button>
+                                          <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(file.url))} className="px-1.5 py-1 text-blue-600 hover:bg-blue-50 rounded text-xs font-medium">Xem</button>
+                                          <button type="button" onClick={() => handlePrintFile(getFullFileUrl(file.url))} className="px-1.5 py-1 text-green-600 hover:bg-green-50 rounded text-xs font-medium">In</button>
+                                          <button type="button" onClick={() => handleSectionFileRemove(sectionIndex, fileIdx)} aria-label="Xóa file" className="p-1 text-red-500 hover:bg-red-50 rounded ml-auto"><X className="w-3.5 h-3.5" /></button>
                                         </div>
                                       ))}
                                       {section.fileUrl && !((section as any).files || []).some((f: any) => f.url === section.fileUrl) && (
-                                        <div className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded">
+                                        <div className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded">
                                           <span className="text-xs text-gray-700 truncate flex-1">{getFileName(section.fileUrl)}</span>
-                                          <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(section.fileUrl!))} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Xem</button>
-                                          <button type="button" onClick={() => handlePrintFile(getFullFileUrl(section.fileUrl!))} className="text-green-600 hover:text-green-800 text-xs font-medium">In</button>
-                                          <button type="button" onClick={() => handleSectionFileRemove(sectionIndex)} className="text-red-500 hover:text-red-700 ml-auto"><X className="w-3.5 h-3.5" /></button>
+                                          <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(section.fileUrl!))} className="px-1.5 py-1 text-blue-600 hover:bg-blue-50 rounded text-xs font-medium">Xem</button>
+                                          <button type="button" onClick={() => handlePrintFile(getFullFileUrl(section.fileUrl!))} className="px-1.5 py-1 text-green-600 hover:bg-green-50 rounded text-xs font-medium">In</button>
+                                          <button type="button" onClick={() => handleSectionFileRemove(sectionIndex)} aria-label="Xóa file" className="p-1 text-red-500 hover:bg-red-50 rounded ml-auto"><X className="w-3.5 h-3.5" /></button>
                                         </div>
                                       )}
                                     </div>
                                   </td>
                                 </>
                               )}
-                              <td className="border border-gray-200 px-3 py-2 text-center bg-gray-100">{cost.loaiChiPhi}</td>
-                              <td className="border border-gray-200 px-3 py-2 bg-gray-100">{cost.tenChiPhi || '-'}</td>
-                              <td className="border border-gray-200 px-3 py-2 text-center bg-gray-100">{cost.donVi || '-'}</td>
-                              <td className="border border-gray-200 px-3 py-2 text-center bg-gray-100">
+                              <td className="border border-gray-200 px-3 py-2 text-center bg-gray-100 break-words">{cost.loaiChiPhi}</td>
+                              <td className="border border-gray-200 px-3 py-2 bg-gray-100 break-words">{cost.tenChiPhi || '-'}</td>
+                              <td className="border border-gray-200 px-3 py-2 text-center bg-gray-100 break-words">{cost.donVi || '-'}</td>
+                              <td className="border border-gray-200 px-3 py-2 text-center bg-gray-100 break-words">
                                 {cost.dinhMucLaoDong !== undefined && cost.dinhMucLaoDong !== null ? cost.dinhMucLaoDong : '-'}
                               </td>
-                              <td className="border border-gray-200 px-3 py-2 text-center bg-gray-100">
+                              <td className="border border-gray-200 px-3 py-2 text-center bg-gray-100 break-words">
                                 {cost.donViDinhMucLaoDong || '-'}
                               </td>
                               {/* Editable fields */}
@@ -927,7 +1108,7 @@ const ProductionProcessManagement: React.FC = () => {
                                   min="0"
                                   value={cost.soLuongNguyenLieu || ''}
                                   onChange={(e) => handleInputChange(sectionIndex, costIndex, 'soLuongNguyenLieu', e.target.value)}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
+                                  className="w-full min-w-[4.5rem] px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
                                   placeholder="0"
                                 />
                               </td>
@@ -938,7 +1119,7 @@ const ProductionProcessManagement: React.FC = () => {
                                   min="0"
                                   value={cost.soPhutThucHien || ''}
                                   onChange={(e) => handleInputChange(sectionIndex, costIndex, 'soPhutThucHien', e.target.value)}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
+                                  className="w-full min-w-[4.5rem] px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
                                   placeholder="0"
                                 />
                               </td>
@@ -951,7 +1132,7 @@ const ProductionProcessManagement: React.FC = () => {
                                     min="0"
                                     value={(cost as any).nangSuatTrenPhut || ''}
                                     onChange={(e) => handleInputChange(sectionIndex, costIndex, 'nangSuatTrenPhut', e.target.value)}
-                                    className="w-16 px-1 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500 text-center text-xs"
+                                    className="w-full min-w-[4.5rem] px-1 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500 text-center text-base"
                                     placeholder="0"
                                   />
                                   <input
@@ -959,15 +1140,10 @@ const ProductionProcessManagement: React.FC = () => {
                                     list="nang-suat-don-vi-list"
                                     value={(cost as any).donViNangSuat || ''}
                                     onChange={(e) => handleInputChange(sectionIndex, costIndex, 'donViNangSuat', e.target.value)}
-                                    className="w-12 px-1 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500 text-xs"
+                                    className="w-14 shrink-0 px-1 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-yellow-500 text-base"
                                     placeholder="đvt"
                                   />
-                                  <datalist id="nang-suat-don-vi-list">
-                                    <option value="kg" />
-                                    <option value="cái" />
-                                    <option value="lít" />
-                                  </datalist>
-                                  <span className="text-xs text-gray-400">/ph</span>
+                                  <span className="text-xs text-gray-400 shrink-0">/ph</span>
                                 </div>
                               </td>
                               <td className="border border-gray-200 px-3 py-2 text-center bg-blue-50">
@@ -977,7 +1153,7 @@ const ProductionProcessManagement: React.FC = () => {
                                   min="0"
                                   value={cost.soLuongKeHoach || ''}
                                   onChange={(e) => handleInputChange(sectionIndex, costIndex, 'soLuongKeHoach', e.target.value)}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+                                  className="w-full min-w-[4.5rem] px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
                                   placeholder="0"
                                 />
                               </td>
@@ -988,7 +1164,7 @@ const ProductionProcessManagement: React.FC = () => {
                                   min="0"
                                   value={cost.soLuongThucTe || ''}
                                   onChange={(e) => handleInputChange(sectionIndex, costIndex, 'soLuongThucTe', e.target.value)}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
+                                  className="w-full min-w-[4.5rem] px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
                                   placeholder="0"
                                 />
                               </td>
@@ -997,8 +1173,8 @@ const ProductionProcessManagement: React.FC = () => {
                         ) : (
                           <tr key={sectionIndex}>
                             <td className="border border-gray-200 px-3 py-2 text-center">{section.stt}</td>
-                            <td className="border border-gray-200 px-3 py-2">{section.phanDoan}</td>
-                            <td className="border border-gray-200 px-3 py-2">{section.noiDungCongViec || '-'}</td>
+                            <td className="border border-gray-200 px-3 py-2 break-words">{section.phanDoan}</td>
+                            <td className="border border-gray-200 px-3 py-2 break-words">{section.noiDungCongViec || '-'}</td>
                             <td className="border border-gray-200 px-3 py-2 align-top">
                               <div className="space-y-2">
                                 <FileUpload
@@ -1009,31 +1185,32 @@ const ProductionProcessManagement: React.FC = () => {
                                   compact
                                 />
                                 {((section as any).files || []).map((file: any, fileIdx: number) => (
-                                  <div key={fileIdx} className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded">
+                                  <div key={fileIdx} className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded">
                                     <span className="text-xs text-gray-500">{fileIdx + 1}.</span>
                                     <span className="text-xs text-gray-700 truncate flex-1">{file.fileName || getFileName(file.url)}</span>
-                                    <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(file.url))} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Xem</button>
-                                    <button type="button" onClick={() => handlePrintFile(getFullFileUrl(file.url))} className="text-green-600 hover:text-green-800 text-xs font-medium">In</button>
-                                    <button type="button" onClick={() => handleSectionFileRemove(sectionIndex, fileIdx)} className="text-red-500 hover:text-red-700 ml-auto"><X className="w-3.5 h-3.5" /></button>
+                                    <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(file.url))} className="px-1.5 py-1 text-blue-600 hover:bg-blue-50 rounded text-xs font-medium">Xem</button>
+                                    <button type="button" onClick={() => handlePrintFile(getFullFileUrl(file.url))} className="px-1.5 py-1 text-green-600 hover:bg-green-50 rounded text-xs font-medium">In</button>
+                                    <button type="button" onClick={() => handleSectionFileRemove(sectionIndex, fileIdx)} aria-label="Xóa file" className="p-1 text-red-500 hover:bg-red-50 rounded ml-auto"><X className="w-3.5 h-3.5" /></button>
                                   </div>
                                 ))}
                                 {section.fileUrl && !((section as any).files || []).some((f: any) => f.url === section.fileUrl) && (
-                                  <div className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded">
+                                  <div className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded">
                                     <span className="text-xs text-gray-700 truncate flex-1">{getFileName(section.fileUrl)}</span>
-                                    <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(section.fileUrl!))} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Xem</button>
-                                    <button type="button" onClick={() => handlePrintFile(getFullFileUrl(section.fileUrl!))} className="text-green-600 hover:text-green-800 text-xs font-medium">In</button>
-                                    <button type="button" onClick={() => handleSectionFileRemove(sectionIndex)} className="text-red-500 hover:text-red-700 ml-auto"><X className="w-3.5 h-3.5" /></button>
+                                    <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(section.fileUrl!))} className="px-1.5 py-1 text-blue-600 hover:bg-blue-50 rounded text-xs font-medium">Xem</button>
+                                    <button type="button" onClick={() => handlePrintFile(getFullFileUrl(section.fileUrl!))} className="px-1.5 py-1 text-green-600 hover:bg-green-50 rounded text-xs font-medium">In</button>
+                                    <button type="button" onClick={() => handleSectionFileRemove(sectionIndex)} aria-label="Xóa file" className="p-1 text-red-500 hover:bg-red-50 rounded ml-auto"><X className="w-3.5 h-3.5" /></button>
                                   </div>
                                 )}
                               </div>
                             </td>
-                            <td className="border border-gray-200 px-3 py-2 text-center text-gray-400" colSpan={9}>Không có chi phí</td>
+                            <td className="border border-gray-200 px-3 py-2 text-center text-gray-400" colSpan={10}>Không có chi phí</td>
                           </tr>
                         )
                       )}
                     </tbody>
                   </table>
                 </div>
+                </>
               )}
             </div>
 
@@ -1057,7 +1234,7 @@ const ProductionProcessManagement: React.FC = () => {
 
       {/* View Modal */}
       <Modal isOpen={isViewModalOpen && !!viewingProcess} onClose={handleCloseViewModal} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-1rem)] sm:max-w-[95vw] sm:w-full flex flex-col max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-1rem)] sm:max-w-[95vw] sm:w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="border-b border-gray-200 px-4 sm:px-6 py-4 flex justify-between items-start sm:items-center gap-3 shrink-0">
               <div>
                 <h3 className="text-lg sm:text-xl font-bold text-gray-800">Chi tiết quy trình sản xuất</h3>
@@ -1066,7 +1243,7 @@ const ProductionProcessManagement: React.FC = () => {
                   Tên: <span className="font-semibold">{viewingProcess?.tenQuyTrinh}</span>
                 </p>
               </div>
-              <button onClick={handleCloseViewModal} className="text-gray-500 hover:text-gray-700">
+              <button onClick={handleCloseViewModal} aria-label="Đóng" className="-mr-2 p-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors shrink-0">
                 <X className="w-6 h-6" />
               </button>
             </div>
@@ -1215,15 +1392,15 @@ const ProductionProcessManagement: React.FC = () => {
                                         {(section as any).files.map((file: any, fileIdx: number) => (
                                           <div key={fileIdx} className="flex items-center gap-1">
                                             <span className="text-xs text-gray-600">{fileIdx + 1}.</span>
-                                            <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(file.url))} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Xem</button>
-                                            <button type="button" onClick={() => handlePrintFile(getFullFileUrl(file.url))} className="text-green-600 hover:text-green-800 text-xs font-medium">In</button>
+                                            <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(file.url))} className="px-2 py-1.5 text-blue-600 hover:bg-blue-50 rounded text-xs font-medium">Xem</button>
+                                            <button type="button" onClick={() => handlePrintFile(getFullFileUrl(file.url))} className="px-2 py-1.5 text-green-600 hover:bg-green-50 rounded text-xs font-medium">In</button>
                                           </div>
                                         ))}
                                       </div>
                                     ) : section.fileUrl ? (
                                       <div className="flex items-center justify-center gap-2">
-                                        <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(section.fileUrl!))} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Xem</button>
-                                        <button type="button" onClick={() => handlePrintFile(getFullFileUrl(section.fileUrl!))} className="text-green-600 hover:text-green-800 text-xs font-medium">In</button>
+                                        <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(section.fileUrl!))} className="px-2 py-1.5 text-blue-600 hover:bg-blue-50 rounded text-xs font-medium">Xem</button>
+                                        <button type="button" onClick={() => handlePrintFile(getFullFileUrl(section.fileUrl!))} className="px-2 py-1.5 text-green-600 hover:bg-green-50 rounded text-xs font-medium">In</button>
                                       </div>
                                     ) : (
                                       <span className="text-gray-400 text-xs">-</span>
@@ -1249,15 +1426,15 @@ const ProductionProcessManagement: React.FC = () => {
                                   {(section as any).files.map((file: any, fileIdx: number) => (
                                     <div key={fileIdx} className="flex items-center gap-1">
                                       <span className="text-xs text-gray-600">{fileIdx + 1}.</span>
-                                      <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(file.url))} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Xem</button>
-                                      <button type="button" onClick={() => handlePrintFile(getFullFileUrl(file.url))} className="text-green-600 hover:text-green-800 text-xs font-medium">In</button>
+                                      <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(file.url))} className="px-2 py-1.5 text-blue-600 hover:bg-blue-50 rounded text-xs font-medium">Xem</button>
+                                      <button type="button" onClick={() => handlePrintFile(getFullFileUrl(file.url))} className="px-2 py-1.5 text-green-600 hover:bg-green-50 rounded text-xs font-medium">In</button>
                                     </div>
                                   ))}
                                 </div>
                               ) : section.fileUrl ? (
                                 <div className="flex items-center justify-center gap-2">
-                                  <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(section.fileUrl!))} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Xem</button>
-                                  <button type="button" onClick={() => handlePrintFile(getFullFileUrl(section.fileUrl!))} className="text-green-600 hover:text-green-800 text-xs font-medium">In</button>
+                                  <button type="button" onClick={() => setPreviewFileUrl(getFullFileUrl(section.fileUrl!))} className="px-2 py-1.5 text-blue-600 hover:bg-blue-50 rounded text-xs font-medium">Xem</button>
+                                  <button type="button" onClick={() => handlePrintFile(getFullFileUrl(section.fileUrl!))} className="px-2 py-1.5 text-green-600 hover:bg-green-50 rounded text-xs font-medium">In</button>
                                 </div>
                               ) : (
                                 <span className="text-gray-400 text-xs">-</span>
@@ -1306,7 +1483,7 @@ const ProductionProcessManagement: React.FC = () => {
 
         {/* File Preview Modal */}
         <Modal isOpen={!!previewFileUrl} onClose={() => setPreviewFileUrl(null)} showBackdrop closeOnBackdrop={true}>
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-1rem)] max-w-5xl preview-viewport-h flex flex-col" onClick={(e) => e.stopPropagation()}>
             {previewFileUrl && (
               <>
                 <div className="flex items-center justify-between p-4 border-b border-gray-200">
@@ -1323,7 +1500,8 @@ const ProductionProcessManagement: React.FC = () => {
                     </button>
                     <button
                       onClick={() => setPreviewFileUrl(null)}
-                      className="text-gray-400 hover:text-gray-600"
+                      aria-label="Đóng"
+                      className="p-2.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
                     >
                       <X className="w-6 h-6" />
                     </button>
