@@ -1386,21 +1386,37 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                     const regularCostColumns = visibleCostColumns.filter(column => column.group !== 'laborQuantity');
                     const laborQuantityColumns = visibleCostColumns.filter(column => column.group === 'laborQuantity');
                     const baseColumnCount = 4;
+                    // Fixed-layout widths: 4 base columns + one 150px slot per
+                    // visible cost column. minWidth must equal their sum so a
+                    // narrow viewport scrolls instead of collapsing columns.
+                    const baseColumnWidths = [60, 140, 220, 120];
+                    const costColumnWidth = 150;
+                    const viewTableMinWidth =
+                      baseColumnWidths.reduce((sum, width) => sum + width, 0) +
+                      visibleCostColumns.length * costColumnWidth;
 
                     return (
                   <div className="overflow-x-auto">
-                    <table className="w-full border-collapse border border-gray-400">
+                    <table className="table-fixed border-collapse border border-gray-400" style={{ minWidth: `${viewTableMinWidth}px` }}>
+                      <colgroup>
+                        {baseColumnWidths.map((width, index) => (
+                          <col key={`base-${index}`} style={{ width: `${width}px` }} />
+                        ))}
+                        {visibleCostColumns.map(column => (
+                          <col key={column.key} style={{ width: `${costColumnWidth}px` }} />
+                        ))}
+                      </colgroup>
                       <thead>
                         <tr className="bg-blue-200 border-b-2 border-gray-400">
-                          <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-12">STT</th>
-                          <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-32">PHÂN ĐOẠN</th>
-                          <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400">NỘI DUNG CÔNG VIỆC</th>
-                          <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-28">BIỂU MẪU</th>
+                          <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 whitespace-nowrap">STT</th>
+                          <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 break-words">PHÂN ĐOẠN</th>
+                          <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 break-words">NỘI DUNG CÔNG VIỆC</th>
+                          <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 break-words">BIỂU MẪU</th>
                           {regularCostColumns.map(column => (
-                            <th key={column.key} className="border border-gray-400 px-3 py-3 text-center text-sm font-bold">{column.label}</th>
+                            <th key={column.key} className="border border-gray-400 px-3 py-3 text-center text-sm font-bold break-words">{column.label}</th>
                           ))}
                           {laborQuantityColumns.length > 0 && (
-                            <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold" colSpan={laborQuantityColumns.length}>
+                            <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold break-words" colSpan={laborQuantityColumns.length}>
                               SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ CẦN DÙNG
                             </th>
                           )}
@@ -1440,7 +1456,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                                 )}
                                 {/* NỘI DUNG CÔNG VIỆC - chỉ hiển thị ở row đầu tiên */}
                                 {costIndex === 0 && (
-                                  <td className="border border-gray-400 px-3 py-2 align-top whitespace-pre-wrap" rowSpan={costsCount}>
+                                  <td className="border border-gray-400 px-3 py-2 align-top whitespace-pre-wrap break-words" rowSpan={costsCount}>
                                     {section.noiDungCongViec || '-'}
                                   </td>
                                 )}
@@ -1492,7 +1508,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                                   </td>
                                 )}
                                 {visibleCostColumns.map(column => (
-                                  <td key={column.key} className={`border border-gray-400 px-3 py-2 ${column.className || ''}`}>
+                                  <td key={column.key} className={`border border-gray-400 px-3 py-2 break-words ${column.className || ''}`}>
                                     {formatCostCellValue(cost[column.key])}
                                   </td>
                                 ))}
@@ -1509,7 +1525,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                                   <div className="text-sm">{section.tenPhanDoan}</div>
                                 )}
                               </td>
-                              <td className="border border-gray-400 px-3 py-2 whitespace-pre-wrap">
+                              <td className="border border-gray-400 px-3 py-2 whitespace-pre-wrap break-words">
                                 {section.noiDungCongViec || '-'}
                               </td>
                               <td className="border border-gray-400 px-3 py-2 text-center">
@@ -1643,24 +1659,48 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                 </p>
               </div>
 
+              {/* Fixed-layout table: column widths are pinned by colgroup so a
+                  narrow laptop scrolls horizontally instead of squeezing the
+                  numeric inputs down to a single character. The min-width below
+                  must stay equal to the sum of the colgroup widths for the
+                  active mode (production = 13 cols / 1610px, else 9 cols / 1150px). */}
               <div className="overflow-x-auto">
-                <table className="w-full border-collapse border border-gray-400">
+                <table className={`${mode === 'production' ? 'min-w-[1610px]' : 'min-w-[1150px]'} table-fixed border-collapse border border-gray-400`}>
+                  <colgroup>
+                    <col style={{ width: '60px' }} />
+                    <col style={{ width: '140px' }} />
+                    <col style={{ width: '220px' }} />
+                    <col style={{ width: '120px' }} />
+                    <col style={{ width: '130px' }} />
+                    <col style={{ width: '170px' }} />
+                    <col style={{ width: '80px' }} />
+                    <col style={{ width: '120px' }} />
+                    <col style={{ width: '110px' }} />
+                    {mode === 'production' && (
+                      <>
+                        <col style={{ width: '120px' }} />
+                        <col style={{ width: '120px' }} />
+                        <col style={{ width: '110px' }} />
+                        <col style={{ width: '110px' }} />
+                      </>
+                    )}
+                  </colgroup>
                   <thead>
                     <tr className="bg-blue-200 border-b-2 border-gray-400">
-                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-12">STT</th>
-                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-32">PHÂN ĐOẠN</th>
-                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400">NỘI DUNG CÔNG VIỆC</th>
-                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-28">BIỂU MẪU</th>
-                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-32">LOẠI CHI PHÍ</th>
-                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-40">TÊN CHI PHÍ</th>
-                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 w-20">ĐVT</th>
-                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 bg-green-100 w-32">ĐỊNH MỨC THỰC HIỆN</th>
-                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 bg-green-100 w-24">ĐƠN VỊ</th>
+                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 whitespace-nowrap">STT</th>
+                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 break-words">PHÂN ĐOẠN</th>
+                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 break-words">NỘI DUNG CÔNG VIỆC</th>
+                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 break-words">BIỂU MẪU</th>
+                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 break-words">LOẠI CHI PHÍ</th>
+                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 break-words">TÊN CHI PHÍ</th>
+                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 whitespace-nowrap">ĐVT</th>
+                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 bg-green-100 break-words">ĐỊNH MỨC THỰC HIỆN</th>
+                      <th className="px-4 py-3 text-center text-sm font-bold text-gray-800 border-r border-gray-400 bg-green-100 break-words">ĐƠN VỊ</th>
                       {mode === 'production' && (
                         <>
-                          <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold bg-green-100">KHỐI LƯỢNG CẦN THỰC HIỆN (Kg)</th>
-                          <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold bg-green-100">SỐ PHÚT THỰC HIỆN</th>
-                          <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold bg-green-100" colSpan={2}>SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ</th>
+                          <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold bg-green-100 break-words">KHỐI LƯỢNG CẦN THỰC HIỆN (Kg)</th>
+                          <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold bg-green-100 break-words">SỐ PHÚT THỰC HIỆN</th>
+                          <th className="border border-gray-400 px-3 py-3 text-center text-sm font-bold bg-green-100 break-words" colSpan={2}>SỐ LƯỢNG NHÂN CÔNG/VẬT TƯ</th>
                         </>
                       )}
                     </tr>
@@ -1702,7 +1742,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                               </td>
                             )}
                             {costIndex === 0 && (
-                              <td className="border border-gray-400 px-3 py-2 align-top whitespace-pre-wrap bg-gray-100" rowSpan={costsCount}>
+                              <td className="border border-gray-400 px-3 py-2 align-top whitespace-pre-wrap break-words bg-gray-100" rowSpan={costsCount}>
                                 {section.noiDungCongViec || '-'}
                               </td>
                             )}
@@ -1752,13 +1792,13 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                                 )}
                               </td>
                             )}
-                            <td className="border border-gray-400 px-3 py-2 text-center bg-gray-100">
+                            <td className="border border-gray-400 px-3 py-2 text-center bg-gray-100 break-words">
                               {cost.loaiChiPhi || '-'}
                             </td>
-                            <td className="border border-gray-400 px-3 py-2 bg-gray-100">
+                            <td className="border border-gray-400 px-3 py-2 bg-gray-100 break-words">
                               {cost.tenChiPhi || '-'}
                             </td>
-                            <td className="border border-gray-400 px-3 py-2 text-center bg-gray-100">
+                            <td className="border border-gray-400 px-3 py-2 text-center bg-gray-100 break-words">
                               {cost.donVi || '-'}
                             </td>
                             <td className={`border border-gray-400 px-3 py-2 text-center ${mode === 'production' ? 'bg-gray-100' : 'bg-green-50'}`}>
@@ -1775,7 +1815,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                                   min="0"
                                   value={cost.dinhMucLaoDong !== undefined && cost.dinhMucLaoDong !== null ? cost.dinhMucLaoDong : ''}
                                   onChange={(e) => handleStandardChange(sectionIndex, costIndex, e.target.value)}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
+                                  className="w-full min-w-[4.5rem] px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
                                   placeholder="Nhập định mức"
                                 />
                               )}
@@ -1806,7 +1846,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                                     min="0"
                                     value={cost.soLuongNguyenLieu !== undefined && cost.soLuongNguyenLieu !== null ? cost.soLuongNguyenLieu : ''}
                                     onChange={(e) => handleProductionDataChange(sectionIndex, costIndex, 'soLuongNguyenLieu', e.target.value)}
-                                    className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
+                                    className="w-full min-w-[4.5rem] px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
                                     placeholder="0"
                                   />
                                 </td>
@@ -1818,7 +1858,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                                     min="0"
                                     value={cost.soPhutThucHien !== undefined && cost.soPhutThucHien !== null ? cost.soPhutThucHien : ''}
                                     onChange={(e) => handleProductionDataChange(sectionIndex, costIndex, 'soPhutThucHien', e.target.value)}
-                                    className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
+                                    className="w-full min-w-[4.5rem] px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
                                     placeholder="0"
                                   />
                                 </td>
@@ -1830,7 +1870,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                                     min="0"
                                     value={cost.soLuongKeHoach !== undefined && cost.soLuongKeHoach !== null ? cost.soLuongKeHoach : ''}
                                     onChange={(e) => handleProductionDataChange(sectionIndex, costIndex, 'soLuongKeHoach', e.target.value)}
-                                    className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
+                                    className="w-full min-w-[4.5rem] px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
                                     placeholder="0"
                                   />
                                 </td>
@@ -1842,7 +1882,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                                     min="0"
                                     value={cost.soLuongThucTe !== undefined && cost.soLuongThucTe !== null ? cost.soLuongThucTe : ''}
                                     onChange={(e) => handleProductionDataChange(sectionIndex, costIndex, 'soLuongThucTe', e.target.value)}
-                                    className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
+                                    className="w-full min-w-[4.5rem] px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-center"
                                     placeholder="0"
                                   />
                                 </td>
@@ -1860,7 +1900,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                               <div className="text-sm">{section.tenPhanDoan}</div>
                             )}
                           </td>
-                          <td className="border border-gray-400 px-3 py-2 whitespace-pre-wrap bg-gray-100">
+                          <td className="border border-gray-400 px-3 py-2 whitespace-pre-wrap break-words bg-gray-100">
                             {section.noiDungCongViec || '-'}
                           </td>
                           <td className="border border-gray-400 px-3 py-2 text-center bg-gray-100">
