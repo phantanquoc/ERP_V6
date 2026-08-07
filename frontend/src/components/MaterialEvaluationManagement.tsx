@@ -810,7 +810,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
 
       {/* Create/Edit Modal */}
       <Modal isOpen={isModalOpen} onClose={handleCloseModal} showBackdrop>
-        <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="flex justify-between items-center px-3 py-2 sm:px-6 sm:py-4 border-b shrink-0">
               <h2 className="text-xl font-bold">
                 {isEditing ? 'Chỉnh sửa đánh giá' : 'Thêm đánh giá mới'}
@@ -1379,7 +1379,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
 
       {/* View Detail Modal */}
       <Modal isOpen={isViewModalOpen && !!selectedEvaluation} onClose={() => setIsViewModalOpen(false)} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="flex justify-between items-center px-3 py-2 sm:px-6 sm:py-4 border-b shrink-0">
               <h2 className="text-xl font-bold">Chi tiết đánh giá nguyên liệu</h2>
               <button
@@ -1502,7 +1502,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
 
       {/* Settings Modal */}
       <Modal isOpen={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)} showBackdrop>
-        <div className="bg-white rounded-lg shadow-lg max-w-3xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-lg max-w-3xl w-full mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="flex justify-between items-center px-3 py-2 sm:px-6 sm:py-4 border-b shrink-0">
               <h2 className="text-xl font-bold">Cài đặt tiêu chí đánh giá nguyên liệu</h2>
               <button

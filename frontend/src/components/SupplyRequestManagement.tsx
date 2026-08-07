@@ -473,7 +473,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
         showBackdrop
         closeOnBackdrop={modalMode === 'view'}
       >
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl md:max-w-5xl lg:max-w-6xl flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl md:max-w-5xl lg:max-w-6xl flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="p-4 md:p-6 overflow-y-auto flex-1">
             {selectedRequest && (<>
             <div className="flex items-center justify-between mb-4">
@@ -826,7 +826,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
 
       {/* Popup kiểm tra tồn kho */}
       <Modal isOpen={inventoryCheckResult.show} onClose={() => setInventoryCheckResult(prev => ({ ...prev, show: false }))} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-lg shadow-xl w-[700px] max-w-[90vw] flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl w-[700px] max-w-[90vw] flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between p-6 border-b shrink-0">
             <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
               <Package className="w-5 h-5 text-teal-600" />

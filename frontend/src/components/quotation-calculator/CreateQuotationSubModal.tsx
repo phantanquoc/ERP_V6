@@ -24,7 +24,7 @@ const CreateQuotationSubModal: React.FC<CreateQuotationSubModalProps> = ({
   return (
     <Modal isOpen={isOpen} onClose={onClose} showBackdrop>
       <div
-        className="bg-white rounded-lg shadow-xl max-w-md w-full flex flex-col max-h-[calc(100vh-2rem)]"
+        className="bg-white rounded-lg shadow-xl max-w-md w-full flex flex-col modal-viewport-h"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">

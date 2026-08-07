@@ -664,7 +664,7 @@ const MachineSystemList = () => {
       )}
 
       <Modal isOpen={!!systemModal} onClose={() => setSystemModal(null)} showBackdrop>
-        <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex modal-viewport-h w-full max-w-3xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
           <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
             <h3 className="text-base font-semibold text-gray-900">
               {systemModal?.mode === 'view' ? 'Chi tiết hệ thống' : systemModal?.record ? 'Sửa hệ thống' : 'Thêm hệ thống'}
@@ -852,7 +852,7 @@ const MachineSystemList = () => {
       {cloneDialog && (
         <Modal isOpen onClose={() => { setCloneDialog(null); setCloneError(''); }} showBackdrop>
           <div
-            className="flex max-h-[calc(100vh-2rem)] w-full max-w-md flex-col rounded-lg bg-white shadow-xl"
+            className="flex modal-viewport-h w-full max-w-md flex-col rounded-lg bg-white shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">

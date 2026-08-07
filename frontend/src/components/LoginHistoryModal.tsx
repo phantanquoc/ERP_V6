@@ -55,7 +55,7 @@ const LoginHistoryModal: React.FC<LoginHistoryModalProps> = ({ isOpen, onClose }
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} closeOnBackdrop={true}>
-      <div className="relative bg-white rounded-2xl shadow-xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+      <div className="relative bg-white rounded-2xl shadow-xl max-w-4xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 rounded-t-2xl shrink-0">
           <div className="flex items-center justify-between">

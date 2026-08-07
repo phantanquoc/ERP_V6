@@ -890,7 +890,7 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
 
       {/* Record create/edit/view modal */}
       <Modal isOpen={!!recordModal} onClose={() => setRecordModal(null)} showBackdrop closeOnBackdrop>
-        <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex modal-viewport-h w-full max-w-3xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
           <div className="flex items-center justify-between border-b px-4 py-3">
             <h3 className="text-base font-semibold text-gray-900">{recordModal?.mode === 'view' ? 'Chi tiết bản ghi lỗi' : recordModal?.record ? 'Sửa bản ghi lỗi' : 'Thêm bản ghi lỗi'}</h3>
             <button title="Đóng" onClick={() => setRecordModal(null)} className="rounded p-1.5 text-gray-500 hover:bg-gray-100"><X className="h-4 w-4" /></button>
@@ -1128,7 +1128,7 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
 
       {/* Template create/edit/view modal */}
       <Modal isOpen={!!templateModal} onClose={() => setTemplateModal(null)} showBackdrop closeOnBackdrop>
-        <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex modal-viewport-h w-full max-w-3xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
           <div className="flex items-center justify-between border-b px-4 py-3">
             <h3 className="text-base font-semibold text-gray-900">{templateModal?.mode === 'view' ? 'Chi tiết mẫu lỗi' : templateModal?.template ? 'Sửa mẫu lỗi' : 'Thêm mẫu lỗi'}</h3>
             <button title="Đóng" onClick={() => setTemplateModal(null)} className="rounded p-1.5 text-gray-500 hover:bg-gray-100"><X className="h-4 w-4" /></button>

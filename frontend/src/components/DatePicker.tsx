@@ -17,6 +17,7 @@ interface DatePickerProps {
 
 const DROPDOWN_WIDTH = 256; // w-64 = 16rem = 256px
 const DROPDOWN_HEIGHT = 300; // approximate calendar height
+const VIEWPORT_MARGIN = 8;
 
 const DatePicker: React.FC<DatePickerProps> = ({
   value,
@@ -60,8 +61,12 @@ const DatePicker: React.FC<DatePickerProps> = ({
       ? rect.top - DROPDOWN_HEIGHT - 4
       : rect.bottom + 4;
 
-    // Clamp left so dropdown doesn't overflow right edge
-    const left = Math.min(rect.left, window.innerWidth - DROPDOWN_WIDTH - 8);
+    // Clamp both edges: the right-edge clamp alone goes negative on viewports
+    // narrower than DROPDOWN_WIDTH + margin.
+    const left = Math.max(
+      VIEWPORT_MARGIN,
+      Math.min(rect.left, window.innerWidth - DROPDOWN_WIDTH - VIEWPORT_MARGIN)
+    );
 
     setDropdownPos({ top, left });
   };

@@ -1141,7 +1141,7 @@ const AttendanceManagement: React.FC = () => {
         </div>
       )}
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} showBackdrop>
-        <div className={`bg-white rounded-lg shadow-xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)] ${editingId && editEntries.length > 0 ? 'max-w-2xl' : 'max-w-md'}`} onClick={(e) => e.stopPropagation()}>
+        <div className={`bg-white rounded-lg shadow-xl w-full mx-4 flex flex-col modal-viewport-h ${editingId && editEntries.length > 0 ? 'max-w-2xl' : 'max-w-md'}`} onClick={(e) => e.stopPropagation()}>
           <div className="bg-blue-600 px-3 py-3 sm:px-6 sm:py-4 flex justify-between items-center shrink-0">
             <h3 className="text-xl font-bold text-white">
               {editingId ? 'Chỉnh sửa điểm danh' : 'Thêm điểm danh'}
@@ -1626,7 +1626,7 @@ const AttendanceManagement: React.FC = () => {
         const totalWorkingDays = counts.PRESENT + counts.LATE + counts.OVERTIME;
         return (
           <Modal isOpen onClose={() => setCalendarModal(null)} showBackdrop closeOnBackdrop>
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
               <div className="bg-blue-600 px-3 py-3 sm:px-6 sm:py-4 flex justify-between items-center shrink-0">
                 <h3 className="text-lg font-bold text-white">
                   Tổng hợp &mdash; {emp.name} &mdash; {monthLabel}
@@ -1752,7 +1752,7 @@ const AttendanceManagement: React.FC = () => {
         });
         return (
           <Modal isOpen onClose={() => setCalendarModal(null)} showBackdrop closeOnBackdrop>
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
               <div className="bg-blue-600 px-3 py-3 sm:px-6 sm:py-4 flex justify-between items-center shrink-0">
                 <h3 className="text-lg font-bold text-white">
                   {formatDateObj(day)} &mdash; Danh sách điểm danh

@@ -45,7 +45,7 @@ export const ModalForm: React.FC<ModalFormProps> = ({
       className={`
         bg-white rounded-xl shadow-2xl w-full ${maxWidthMap[maxWidth]}
         flex flex-col
-        max-h-[calc(100vh-2rem)]
+        modal-viewport-h
       `}
       onClick={(e) => e.stopPropagation()}
     >

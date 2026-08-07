@@ -834,7 +834,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
 
       {/* Create/Edit Modal - TÍCH HỢP LƯU ĐỒ */}
       <Modal isOpen={isModalOpen} onClose={handleCloseModal} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
               <h3 className="text-lg font-semibold text-gray-900">
                 {editingProcess ? 'Cập nhật quy trình' : 'Tạo quy trình mới'}
@@ -1302,7 +1302,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
 
       {/* View Modal */}
       <Modal isOpen={isViewModalOpen && !!viewingProcess} onClose={handleCloseViewModal} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
               <h3 className="text-lg font-semibold text-gray-900">
                 Chi tiết quy trình - {viewingProcess?.maQuyTrinh}
@@ -1637,7 +1637,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
       {/* Standard Modal - Tạo định mức */}
       {isStandardModalOpen && standardProcess && standardProcess.flowchart && (
       <Modal isOpen onClose={handleCloseStandardModal} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center shrink-0">
               <h2 className="text-xl font-bold text-gray-800">
                 {mode === 'production' ? 'Nhập dữ liệu sản xuất' : 'Tạo định mức lao động'} - {standardProcess?.tenQuyTrinh}
@@ -2026,7 +2026,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
 
       {/* Update-history timeline modal (who / when / what changed) */}
       <Modal isOpen={isHistoryOpen} onClose={handleCloseHistory} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 shrink-0">
             <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 min-w-0">
               <History className="w-5 h-5 text-indigo-600 shrink-0" />

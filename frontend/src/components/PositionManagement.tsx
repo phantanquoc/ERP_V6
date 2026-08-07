@@ -539,7 +539,7 @@ const PositionManagement = ({ initialPositionId }: PositionManagementProps) => {
 
       {/* Form Modal */}
       <Modal isOpen={isFormModalOpen} onClose={closeModals} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 overflow-y-auto flex-1">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold text-gray-800">
@@ -622,7 +622,7 @@ const PositionManagement = ({ initialPositionId }: PositionManagementProps) => {
 
       {/* Detail Modal */}
       <Modal isOpen={isDetailModalOpen && !!selectedPosition} onClose={closeModals} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 overflow-y-auto flex-1">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold text-gray-800">Chi tiết vị trí</h3>

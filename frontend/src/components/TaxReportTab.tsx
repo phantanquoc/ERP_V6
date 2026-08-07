@@ -257,7 +257,7 @@ const TaxReportTab: React.FC<TaxReportTabProps> = ({ month, year }) => {
 
       {/* Edit Modal */}
       <Modal isOpen={showEditModal && !!selectedReport} onClose={() => setShowEditModal(false)} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 overflow-y-auto flex-1">
               {selectedReport && (<>
               <h2 className="text-2xl font-bold text-gray-800 mb-6">Chỉnh sửa báo cáo thuế</h2>

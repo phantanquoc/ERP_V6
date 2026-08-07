@@ -406,7 +406,7 @@ const PayrollManagement: React.FC = () => {
 
       {/* Detail Modal */}
       <Modal isOpen={showDetailModal && !!editingPayroll} onClose={() => setShowDetailModal(false)} showBackdrop>
-        <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="bg-gray-100 px-3 py-3 sm:px-6 sm:py-4 flex justify-between items-center border-b shrink-0">
               <h3 className="text-xl font-bold">Chi tiết Bảng Tính Lương</h3>
               <button
@@ -731,7 +731,7 @@ const PayrollManagement: React.FC = () => {
 
       {/* Settings Modal */}
       <Modal isOpen={showSettingsModal} onClose={() => setShowSettingsModal(false)} showBackdrop>
-        <div className="bg-white rounded-lg shadow-lg w-full max-w-md mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-lg w-full max-w-md mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             <div className="bg-gray-100 px-3 py-3 sm:px-6 sm:py-4 flex justify-between items-center border-b rounded-t-lg shrink-0">
               <h3 className="text-lg font-bold">Cài đặt Bảng Lương</h3>
               <button

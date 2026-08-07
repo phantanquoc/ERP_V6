@@ -133,7 +133,7 @@ const AdminResetPasswordModal: React.FC<Props> = ({ userId, employeeName, metada
 
   return (
     <Modal isOpen={true} onClose={onClose} showBackdrop>
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
           <div className="flex items-center gap-3">

@@ -284,7 +284,7 @@ const SparePartList = () => {
 
       {/* Modal */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} showBackdrop>
-        <div className="bg-white rounded-xl shadow-xl w-full max-w-lg flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-lg flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between p-5 border-b shrink-0">
             <h3 className="font-semibold text-gray-800">
               {isViewMode ? 'Chi tiết linh kiện' : editingPart ? 'Chỉnh sửa linh kiện' : 'Thêm linh kiện mới'}

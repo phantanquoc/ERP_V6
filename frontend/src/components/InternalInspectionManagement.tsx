@@ -365,7 +365,7 @@ const InternalInspectionManagement = () => {
 
       {/* Modal */}
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} showBackdrop>
-        <div className="bg-white rounded-lg max-w-2xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg max-w-2xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 overflow-y-auto flex-1">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold">
@@ -552,7 +552,7 @@ const InternalInspectionManagement = () => {
 
       {/* Detail Modal */}
       <Modal isOpen={showDetailModal} onClose={() => setShowDetailModal(false)} showBackdrop>
-        <div className="bg-white rounded-lg max-w-2xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg max-w-2xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="p-6 overflow-y-auto flex-1">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold">Chi tiết kiểm tra nội bộ</h2>

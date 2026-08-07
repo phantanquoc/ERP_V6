@@ -155,7 +155,7 @@ const FinishedProductWarehouseReceiptModal: React.FC<FinishedProductWarehouseRec
   return (
     <Modal isOpen={isOpen} onClose={onClose} showBackdrop closeOnBackdrop={false}>
       <div
-        className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 flex flex-col max-h-[calc(100vh-2rem)]"
+        className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 flex flex-col modal-viewport-h"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

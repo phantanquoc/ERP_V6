@@ -46,7 +46,7 @@ const EmployeePayrollModal: React.FC<EmployeePayrollModalProps> = ({ isOpen, onC
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} showBackdrop closeOnBackdrop={true}>
-      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">

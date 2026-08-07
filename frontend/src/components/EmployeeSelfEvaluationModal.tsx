@@ -380,7 +380,7 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} showBackdrop>
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
         {/* Header — shrink-0, outside scroll */}
         <div className="px-4 pt-4 pb-3 sm:px-6 sm:pt-6 sm:pb-4 border-b border-gray-200 shrink-0">
           <div className="flex justify-between items-center">
@@ -960,34 +960,34 @@ const EmployeeSelfEvaluationModal: React.FC<EmployeeSelfEvaluationModalProps> = 
                                       <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded shrink-0">{detail.weight}%</span>
                                     </div>
                                     <div className="grid grid-cols-3 gap-2 text-xs">
-                                      <div>
-                                        <span className="text-gray-500">Tự ĐG:</span>
-                                        <span className="ml-1 font-medium">{detail.selfScore ?? '-'}</span>
+                                      <div className="min-w-0">
+                                        <span className="block text-gray-500">Tự ĐG:</span>
+                                        <span className="block font-medium">{detail.selfScore ?? '-'}</span>
                                       </div>
-                                      <div>
-                                        <span className="text-gray-500">CT1:</span>
+                                      <div className="min-w-0">
+                                        <span className="block text-gray-500">CT1:</span>
                                         {canEditSup1 ? (
                                           <input
                                             type="number" min="0" max="100"
                                             value={subordinateEditingScores[detailId]?.supervisorScore1 ?? detail.supervisorScore1 ?? ''}
                                             onChange={(e) => detail.detailId && handleSubordinateScoreChange(detail.detailId, 'supervisorScore1', parseNumberInput(e.target.value))}
-                                            className="w-12 ml-1 px-1 py-0.5 border border-gray-300 rounded text-xs text-center"
+                                            className="w-full mt-0.5 px-1 py-0.5 border border-gray-300 rounded text-xs text-center"
                                           />
                                         ) : (
-                                          <span className="ml-1 font-medium">{detail.supervisorScore1 ?? '-'}</span>
+                                          <span className="block font-medium">{detail.supervisorScore1 ?? '-'}</span>
                                         )}
                                       </div>
-                                      <div>
-                                        <span className="text-gray-500">CT2:</span>
+                                      <div className="min-w-0">
+                                        <span className="block text-gray-500">CT2:</span>
                                         {canEditSup2 ? (
                                           <input
                                             type="number" min="0" max="100"
                                             value={subordinateEditingScores[detailId]?.supervisorScore2 ?? detail.supervisorScore2 ?? ''}
                                             onChange={(e) => detail.detailId && handleSubordinateScoreChange(detail.detailId, 'supervisorScore2', parseNumberInput(e.target.value))}
-                                            className="w-12 ml-1 px-1 py-0.5 border border-gray-300 rounded text-xs text-center"
+                                            className="w-full mt-0.5 px-1 py-0.5 border border-gray-300 rounded text-xs text-center"
                                           />
                                         ) : (
-                                          <span className="ml-1 font-medium">{detail.supervisorScore2 ?? '-'}</span>
+                                          <span className="block font-medium">{detail.supervisorScore2 ?? '-'}</span>
                                         )}
                                       </div>
                                     </div>

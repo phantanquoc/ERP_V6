@@ -126,7 +126,7 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen, onClo
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
-      <div className="relative bg-white rounded-2xl shadow-xl max-w-md w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+      <div className="relative bg-white rounded-2xl shadow-xl max-w-md w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="bg-gradient-to-r from-yellow-600 to-orange-600 px-6 py-4 rounded-t-2xl shrink-0">
           <div className="flex items-center justify-between">

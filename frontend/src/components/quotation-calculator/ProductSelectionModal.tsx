@@ -45,7 +45,7 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
       showBackdrop
     >
       <div
-        className="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col max-h-[calc(100vh-2rem)]"
+        className="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col modal-viewport-h"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="bg-gradient-to-r from-green-600 to-green-700 px-6 py-4 flex justify-between items-center shrink-0">

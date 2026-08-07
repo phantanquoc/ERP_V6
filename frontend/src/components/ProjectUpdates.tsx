@@ -172,7 +172,7 @@ const ProjectUpdates = ({ projectId, phases, canWrite }: ProjectUpdatesProps) =>
       {!!modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div
-            className="flex max-h-[calc(100vh-2rem)] w-full max-w-xl flex-col rounded-lg bg-white shadow-xl"
+            className="flex modal-viewport-h w-full max-w-xl flex-col rounded-lg bg-white shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b px-4 py-3">

@@ -431,7 +431,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
 
       {/* Detail Modal */}
       <Modal isOpen={showDetailModal && !!selectedReceipt} onClose={() => setShowDetailModal(false)} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-[600px] flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-[600px] flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between border-b px-6 py-4 shrink-0">
               <h2 className="text-xl font-bold text-gray-900">Chi tiết phiếu nhập kho</h2>
               <button
@@ -564,7 +564,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
 
       {/* Create/Edit Receipt Modal */}
       <Modal isOpen={showModal} onClose={() => { setShowModal(false); setEditingId(null); }} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-[500px] flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-[500px] flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="border-b px-6 py-4 shrink-0">
             <h2 className="text-xl font-bold">{editingId ? 'Cập nhật phiếu nhập kho' : 'Phiếu nhập kho'}</h2>
           </div>
