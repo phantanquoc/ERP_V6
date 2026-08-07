@@ -28,11 +28,11 @@ cd ai-service && python3 -m pytest tests/test_registry.py -x -q  # Chỉ registr
 **Stop conditions:** Không hoàn thành task nếu `tsc --noEmit` có lỗi ở backend hoặc frontend. Không bỏ qua test thất bại.
 
 > **Ghi chú frontend type check:** `tsconfig.json` gốc dùng project references (files: []) nên `tsc --noEmit` không có `-p` sẽ quét 0 file — phải chỉ rõ `-p tsconfig.app.json`.
-> Repo hiện tại có ~610 lỗi type tồn đọng (chủ yếu TS2339/TS6133/TS2322) — là nợ kỹ thuật có sẵn, chưa xử lý.
+> Repo hiện **sạch type: 0 lỗi** (mốc ~610 lỗi tồn đọng ghi ở đây trước kia đã lỗi thời — đo lại ngày 2026-08-07).
 > **Tiêu chí PASS:**
-> - **KHÔNG được có lỗi `TS2304` (Cannot find name)** — loại lỗi này gây crash runtime/trắng màn hình.
-> - **Tổng số lỗi không tăng** so với mốc 610 (kiểm tra bằng `| grep -c "error TS"`).
-> - Nếu task mới thêm lỗi type → sửa trước khi hoàn thành.
+> - **Tổng số lỗi phải là 0** (kiểm tra bằng `| grep -c "error TS"`).
+> - Riêng `TS2304` (Cannot find name) gây crash runtime/trắng màn hình — tuyệt đối không được có.
+> - Nếu task mới thêm lỗi type → sửa trước khi hoàn thành, không được hạ mốc.
 
 ---
 
