@@ -8,6 +8,8 @@ import { ChevronLeft, ChevronRight, ChevronDown, Search, Download, X } from 'luc
 import attendanceService from '../services/attendanceService';
 import HoverTooltip from './HoverTooltip';
 import { COLUMN_TOOLTIPS, OVERTIME_COLUMN_TOOLTIPS, ColumnTooltip } from './timesheetColumnTooltips';
+import useIsNarrowScreen from '../hooks/useIsNarrowScreen';
+import CollapsibleSection from './shared/CollapsibleSection';
 
 /** Renders header text wrapped in a hover tooltip when a tooltip entry exists. */
 const HeaderLabel: React.FC<{ tip?: ColumnTooltip; children: React.ReactNode }> = ({ tip, children }) => {
@@ -176,6 +178,7 @@ const MonthlyTimesheetGrid: React.FC = () => {
   const [departmentId, setDepartmentId] = useState('');
   const [subTab, setSubTab] = useState<SubTab>('attendance');
   const [editingCell, setEditingCell] = useState<CellEditorState | null>(null);
+  const isNarrow = useIsNarrowScreen();
 
   const { data: timesheetData, isLoading } = useMonthlyTimesheet(month, year, {
     search: search || undefined,
@@ -260,33 +263,33 @@ const MonthlyTimesheetGrid: React.FC = () => {
 
   return (
     <div className="p-4 space-y-4">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <button onClick={prevMonth} className="p-1.5 rounded hover:bg-gray-100"><ChevronLeft size={20} /></button>
+      {/* Header — layout driven by isNarrow so it matches the grid's own breakpoint */}
+      <div className={isNarrow ? 'flex flex-col gap-3' : 'flex flex-row flex-wrap items-center justify-between gap-3'}>
+        <div className={`flex items-center gap-2 ${isNarrow ? 'justify-center' : 'justify-start'}`}>
+          <button onClick={prevMonth} className={`p-1.5 rounded hover:bg-gray-100 flex items-center justify-center ${isNarrow ? 'min-h-[44px] min-w-[44px]' : ''}`}><ChevronLeft size={20} /></button>
           <span className="text-lg font-semibold min-w-[140px] text-center">{monthLabel}</span>
-          <button onClick={nextMonth} className="p-1.5 rounded hover:bg-gray-100"><ChevronRight size={20} /></button>
+          <button onClick={nextMonth} className={`p-1.5 rounded hover:bg-gray-100 flex items-center justify-center ${isNarrow ? 'min-h-[44px] min-w-[44px]' : ''}`}><ChevronRight size={20} /></button>
         </div>
-        <div className="flex items-center gap-2">
+        <div className={isNarrow ? 'flex flex-col gap-2' : 'flex flex-row items-center gap-2'}>
           <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 text-gray-400" size={16} />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input
               type="text"
               placeholder="Tìm nhân viên..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="pl-8 pr-3 py-2 border border-gray-300 rounded-md text-sm w-48"
+              className={`pl-8 pr-3 py-2 border border-gray-300 rounded-md text-sm ${isNarrow ? 'w-full min-h-[44px]' : 'w-48'}`}
             />
           </div>
           <select
             value={departmentId}
             onChange={e => setDepartmentId(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+            className={`px-3 py-2 border border-gray-300 rounded-md text-sm ${isNarrow ? 'w-full min-h-[44px]' : 'w-auto'}`}
           >
             <option value="">Tất cả bộ phận</option>
             {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
-          <button onClick={handleExport} className="flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm">
+          <button onClick={handleExport} className={`flex items-center justify-center gap-1.5 px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm ${isNarrow ? 'w-full min-h-[44px]' : 'w-auto'}`}>
             <Download size={16} /> Xuất Excel
           </button>
         </div>
@@ -311,6 +314,22 @@ const MonthlyTimesheetGrid: React.FC = () => {
       {/* Grid */}
       {isLoading ? (
         <div className="text-center py-10 text-gray-500">Đang tải...</div>
+      ) : isNarrow ? (
+        <TimesheetMobileList
+          rows={timesheetData?.rows ?? []}
+          dayHeaders={dayHeaders}
+          summaries={summaries}
+          overrides={overrides}
+          settings={settings}
+          month={month}
+          year={year}
+          subTab={subTab}
+          getCellColor={getCellColor}
+          formatHours={formatHours}
+          formatMoney={formatMoney}
+          onCellClick={handleCellClick}
+          onOverrideSave={handleOverrideSave}
+        />
       ) : subTab === 'attendance' ? (
         <AttendanceTable
           rows={timesheetData?.rows ?? []}
@@ -466,6 +485,242 @@ const CellEditorModal: React.FC<CellEditorModalProps> = ({ editingCell, activeCo
     </div>
   </div>
 );
+
+/* ---------- Mobile list (narrow screens) ---------- */
+
+type OverrideSaver = (data: { employeeId: string; month: number; year: number; fieldKey: string; value: string }) => void;
+
+interface MobileOverrideFieldProps {
+  label: string;
+  employeeId: string;
+  fieldKey: string;
+  computedValue: string;
+  overrideValue: string | undefined;
+  month: number;
+  year: number;
+  onSave: OverrideSaver;
+  type?: SummaryCellType;
+}
+
+/** Label-above-input override editor. Mirrors EditableSummaryCell's save semantics
+ *  (empty or equal-to-computed clears the override) without the <td> wrapper. */
+const MobileOverrideField: React.FC<MobileOverrideFieldProps> = ({
+  label, employeeId, fieldKey, computedValue, overrideValue, month, year, onSave, type = 'text',
+}) => {
+  const displayValue = overrideValue !== undefined ? overrideValue : computedValue;
+  const isOverridden = overrideValue !== undefined;
+  const editValue = type === 'money' ? normalizeNumericString(displayValue) : displayValue;
+
+  const [localValue, setLocalValue] = useState(editValue);
+  const isFocusedRef = useRef(false);
+
+  // Saving refetches the timesheet, which pushes a new editValue down. Adopting it
+  // mid-typing would discard the keystrokes not yet committed, so only sync when
+  // the field is not focused.
+  useEffect(() => {
+    if (!isFocusedRef.current) setLocalValue(editValue);
+  }, [editValue]);
+
+  if (type === 'checkbox') {
+    const isChecked = overrideValue !== undefined ? overrideValue === 'x' : computedValue === '✓' || computedValue === 'x';
+    return (
+      <label className="flex items-center justify-between gap-3 min-h-[44px] px-2 rounded border border-gray-200">
+        <span className="text-xs text-gray-600">{label}</span>
+        <input
+          type="checkbox"
+          checked={isChecked}
+          onChange={() => onSave({ employeeId, month, year, fieldKey, value: isChecked ? '' : 'x' })}
+          className="w-5 h-5 accent-blue-600"
+        />
+      </label>
+    );
+  }
+
+  const inputType = type === 'number' || type === 'money' ? 'number' : type === 'date' ? 'date' : 'text';
+
+  const handleBlur = (raw: string) => {
+    isFocusedRef.current = false;
+    const trimmed = raw.trim();
+    const computedNorm = type === 'money' ? normalizeNumericString(computedValue) : computedValue;
+    const displayNorm = type === 'money' ? normalizeNumericString(displayValue) : displayValue;
+    if (trimmed === displayNorm) return;
+    if (trimmed === '' && !isOverridden && computedValue === '') return;
+    if (trimmed === computedNorm && isOverridden) {
+      onSave({ employeeId, month, year, fieldKey, value: '' });
+    } else if (trimmed !== computedNorm || isOverridden) {
+      onSave({ employeeId, month, year, fieldKey, value: trimmed });
+    }
+  };
+
+  return (
+    <label className="block">
+      <span className="block text-xs text-gray-500 mb-1">{label}</span>
+      <input
+        type={inputType}
+        value={localValue}
+        onChange={e => setLocalValue(e.target.value)}
+        onFocus={() => { isFocusedRef.current = true; }}
+        onBlur={e => handleBlur(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+        step={type === 'number' || type === 'money' ? 'any' : undefined}
+        className={`w-full min-h-[44px] px-2 border rounded text-sm ${isOverridden ? 'border-amber-300 bg-amber-50/60 font-medium' : 'border-gray-300'}`}
+      />
+    </label>
+  );
+};
+
+interface TimesheetMobileListProps {
+  rows: TimesheetRow[];
+  dayHeaders: { day: number; weekday: string; isSunday: boolean }[];
+  summaries: Record<string, TimesheetSummary>;
+  overrides: Record<string, Record<string, string>>;
+  settings: TimesheetSettings;
+  month: number;
+  year: number;
+  subTab: SubTab;
+  getCellColor: (code?: string) => string;
+  formatHours: (v: number) => number | string;
+  formatMoney: (v: number) => string;
+  onCellClick: (empId: string, date: string, code: string, note: string) => void;
+  onOverrideSave: OverrideSaver;
+}
+
+const WEEKDAY_HEADS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+
+const TimesheetMobileList: React.FC<TimesheetMobileListProps> = ({
+  rows, dayHeaders, summaries, overrides, settings, month, year, subTab,
+  getCellColor, formatHours, formatMoney, onCellClick, onOverrideSave,
+}) => {
+  // Calendar-aligned grid: pad the first week so column N always means weekday N.
+  const leadingBlanks = dayHeaders.length ? WEEKDAY_HEADS.indexOf(dayHeaders[0].weekday) : 0;
+
+  if (rows.length === 0) {
+    return <div className="text-center py-10 text-gray-500 text-sm">Không có nhân viên nào</div>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {rows.map(row => {
+        const s = summaries[row.employeeId];
+        const empOvr = overrides[row.employeeId] as Record<string, string> | undefined;
+        const mealAllowanceMoney = (s?.mealAllowanceDays ?? 0) * (settings.mealAllowancePerDay ?? 0);
+        const overtimeMealMoney = (s?.overtimeMealDays ?? 0) * (settings.overtimeMealAllowance ?? 25000);
+        const hourlyRate = Math.round((row.baseSalary || 0) / ((settings.standardWorkDays || 26) * 8));
+
+        return (
+          <div key={row.employeeId} className="rounded-lg border border-gray-200 bg-white">
+            <div className="px-3 py-2 border-b border-gray-100">
+              <div className="font-semibold text-sm text-gray-900">{row.fullName}</div>
+              <div className="text-xs text-gray-500">
+                {row.employeeCode}
+                {row.positionName ? ` · ${row.positionName}` : ''}
+                {row.departmentName ? ` · ${row.departmentName}` : ''}
+              </div>
+            </div>
+
+            <div className="px-3 py-2">
+              <div className="grid grid-cols-7 gap-0.5 text-[10px] text-gray-400 mb-0.5">
+                {WEEKDAY_HEADS.map(w => <div key={w} className="text-center">{w}</div>)}
+              </div>
+              <div className="grid grid-cols-7 gap-0.5">
+                {Array.from({ length: leadingBlanks }, (_, i) => <div key={`blank-${i}`} className="min-h-[44px]" />)}
+                {dayHeaders.map(h => {
+                  const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(h.day).padStart(2, '0')}`;
+                  const cell = row.cells.find(c => c.date === dateStr);
+                  if (subTab === 'overtime') {
+                    const ot = cell?.overtimeHours ?? 0;
+                    return (
+                      <div
+                        key={h.day}
+                        className={`min-h-[44px] rounded border flex flex-col items-center justify-center leading-tight ${h.isSunday ? 'border-red-200 bg-red-50/50' : 'border-gray-200'} ${ot > 0 ? 'text-orange-700 font-medium' : 'text-gray-300'}`}
+                      >
+                        <span className="text-[10px] text-gray-400">{h.day}</span>
+                        <span className="text-xs">{ot > 0 ? ot : ''}</span>
+                      </div>
+                    );
+                  }
+                  return (
+                    <button
+                      key={h.day}
+                      type="button"
+                      onClick={() => onCellClick(row.employeeId, dateStr, cell?.code || '', cell?.note || '')}
+                      title={cell?.note || undefined}
+                      className={`relative min-h-[44px] rounded border flex flex-col items-center justify-center leading-tight active:bg-blue-50 ${h.isSunday ? 'border-red-200' : 'border-gray-200'} ${getCellColor(cell?.code)}`}
+                    >
+                      <span className="text-[10px] text-gray-400">{h.day}</span>
+                      <span className="text-xs">{cell?.code || ''}</span>
+                      {cell?.note && <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 bg-blue-500 rounded-full" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="px-3 pb-3 space-y-2">
+              {subTab === 'attendance' ? (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <MobileOverrideField label="Giờ lương" employeeId={row.employeeId} fieldKey="payableHours" computedValue={String(formatHours(s?.payableHours ?? 0))} overrideValue={empOvr?.payableHours} month={month} year={year} onSave={onOverrideSave} type="number" />
+                    <MobileOverrideField label="Làm CT" employeeId={row.employeeId} fieldKey="officialWorkDays" computedValue={String(formatHours(s?.officialWorkDays ?? 0))} overrideValue={empOvr?.officialWorkDays} month={month} year={year} onSave={onOverrideSave} type="number" />
+                    <MobileOverrideField label="Nghỉ tính lương" employeeId={row.employeeId} fieldKey="leaveHoursPayable" computedValue={String(formatHours(s?.leaveHoursPayable ?? 0))} overrideValue={empOvr?.leaveHoursPayable} month={month} year={year} onSave={onOverrideSave} type="number" />
+                    <MobileOverrideField label="Nghỉ lễ/CĐ" employeeId={row.employeeId} fieldKey="leaveHoursHolidayRegime" computedValue={String(formatHours(s?.leaveHoursHolidayRegime ?? 0))} overrideValue={empOvr?.leaveHoursHolidayRegime} month={month} year={year} onSave={onOverrideSave} type="number" />
+                    <MobileOverrideField label="Nghỉ không lương" employeeId={row.employeeId} fieldKey="leaveHoursUnpaid" computedValue={String(formatHours(s?.leaveHoursUnpaid ?? 0))} overrideValue={empOvr?.leaveHoursUnpaid} month={month} year={year} onSave={onOverrideSave} type="number" />
+                    <MobileOverrideField label="Trễ/Sớm" employeeId={row.employeeId} fieldKey="lateEarlyHours" computedValue={String(formatHours(s?.lateEarlyHours ?? 0))} overrideValue={empOvr?.lateEarlyHours} month={month} year={year} onSave={onOverrideSave} type="number" />
+                  </div>
+                  <MobileOverrideField label="Chuyên cần" employeeId={row.employeeId} fieldKey="diligence" computedValue={s?.diligence ? '✓' : ''} overrideValue={empOvr?.diligence} month={month} year={year} onSave={onOverrideSave} type="checkbox" />
+                  <CollapsibleSection title="Chỉ tiêu khác">
+                    <div className="grid grid-cols-2 gap-2">
+                      <MobileOverrideField label="Thử việc" employeeId={row.employeeId} fieldKey="probationDays" computedValue={String(formatHours(s?.probationDays ?? 0))} overrideValue={empOvr?.probationDays} month={month} year={year} onSave={onOverrideSave} type="number" />
+                      <MobileOverrideField label="Ký nhận" employeeId={row.employeeId} fieldKey="signature" computedValue="" overrideValue={empOvr?.signature} month={month} year={year} onSave={onOverrideSave} type="text" />
+                      <MobileOverrideField label="Cơm NC" employeeId={row.employeeId} fieldKey="mealAllowanceMoney" computedValue={mealAllowanceMoney ? formatMoney(mealAllowanceMoney) : ''} overrideValue={empOvr?.mealAllowanceMoney} month={month} year={year} onSave={onOverrideSave} type="money" />
+                      <MobileOverrideField label="NT 150%" employeeId={row.employeeId} fieldKey="otWeekday" computedValue={String(formatHours(s?.otWeekday ?? 0))} overrideValue={empOvr?.otWeekday} month={month} year={year} onSave={onOverrideSave} type="number" />
+                      <MobileOverrideField label="NT 210%" employeeId={row.employeeId} fieldKey="otWeekdayExtra" computedValue={String(formatHours(s?.otWeekdayExtra ?? 0))} overrideValue={empOvr?.otWeekdayExtra} month={month} year={year} onSave={onOverrideSave} type="number" />
+                      <MobileOverrideField label="CN 200%" employeeId={row.employeeId} fieldKey="otSunday" computedValue={String(formatHours(s?.otSunday ?? 0))} overrideValue={empOvr?.otSunday} month={month} year={year} onSave={onOverrideSave} type="number" />
+                      <MobileOverrideField label="CN 270%" employeeId={row.employeeId} fieldKey="otSundayExtra" computedValue={String(formatHours(s?.otSundayExtra ?? 0))} overrideValue={empOvr?.otSundayExtra} month={month} year={year} onSave={onOverrideSave} type="number" />
+                      <MobileOverrideField label="Lễ 300%" employeeId={row.employeeId} fieldKey="otHoliday" computedValue={String(formatHours(s?.otHoliday ?? 0))} overrideValue={empOvr?.otHoliday} month={month} year={year} onSave={onOverrideSave} type="number" />
+                      <MobileOverrideField label="Số KM" employeeId={row.employeeId} fieldKey="kmDistance" computedValue={String(row.kmDistance || '')} overrideValue={empOvr?.kmDistance} month={month} year={year} onSave={onOverrideSave} type="number" />
+                      <MobileOverrideField label="Xăng xe" employeeId={row.employeeId} fieldKey="fuelAmount" computedValue={s?.fuelAmount ? formatMoney(s.fuelAmount) : ''} overrideValue={empOvr?.fuelAmount} month={month} year={year} onSave={onOverrideSave} type="money" />
+                      <MobileOverrideField label="Cơm TC" employeeId={row.employeeId} fieldKey="overtimeMealMoney" computedValue={overtimeMealMoney ? formatMoney(overtimeMealMoney) : ''} overrideValue={empOvr?.overtimeMealMoney} month={month} year={year} onSave={onOverrideSave} type="money" />
+                      <MobileOverrideField label="Phép TT" employeeId={row.employeeId} fieldKey="leaveBalanceCarryOver" computedValue={String(row.leaveBalanceCarryOver ?? '')} overrideValue={empOvr?.leaveBalanceCarryOver} month={month} year={year} onSave={onOverrideSave} type="number" />
+                      <MobileOverrideField label="Phép HT" employeeId={row.employeeId} fieldKey="leaveCurrentBalance" computedValue={s?.leaveCurrentBalance != null ? String(s.leaveCurrentBalance) : ''} overrideValue={empOvr?.leaveCurrentBalance} month={month} year={year} onSave={onOverrideSave} type="number" />
+                      <MobileOverrideField label="Tính cơm" employeeId={row.employeeId} fieldKey="mealCount" computedValue={s?.mealCount != null ? String(s.mealCount) : ''} overrideValue={empOvr?.mealCount} month={month} year={year} onSave={onOverrideSave} type="number" />
+                      <MobileOverrideField label="Giờ CC KL" employeeId={row.employeeId} fieldKey="unpaidDeductHours" computedValue="" overrideValue={empOvr?.unpaidDeductHours} month={month} year={year} onSave={onOverrideSave} type="number" />
+                      <MobileOverrideField label="Truy thu ứng phép" employeeId={row.employeeId} fieldKey="leaveAdvanceRecovery" computedValue="" overrideValue={empOvr?.leaveAdvanceRecovery} month={month} year={year} onSave={onOverrideSave} type="money" />
+                      <MobileOverrideField label="Phép bù" employeeId={row.employeeId} fieldKey="leaveCompensatory" computedValue={s?.leaveCompensatory != null ? String(s.leaveCompensatory) : ''} overrideValue={empOvr?.leaveCompensatory} month={month} year={year} onSave={onOverrideSave} type="number" />
+                      <MobileOverrideField label="Cơm CN" employeeId={row.employeeId} fieldKey="sundayMeal" computedValue={s?.sundayMeal != null ? String(s.sundayMeal) : ''} overrideValue={empOvr?.sundayMeal} month={month} year={year} onSave={onOverrideSave} type="number" />
+                      <MobileOverrideField label="Ngày nghỉ việc" employeeId={row.employeeId} fieldKey="resignDate" computedValue="" overrideValue={empOvr?.resignDate} month={month} year={year} onSave={onOverrideSave} type="date" />
+                      <MobileOverrideField label="Ghi chú" employeeId={row.employeeId} fieldKey="note" computedValue="" overrideValue={empOvr?.note} month={month} year={year} onSave={onOverrideSave} type="text" />
+                    </div>
+                  </CollapsibleSection>
+                </>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <MobileOverrideField label={`TC ngày thường (${settings.otRateWeekday * 100}%)`} employeeId={row.employeeId} fieldKey="otWeekday" computedValue={String(formatHours(s?.otWeekday ?? 0))} overrideValue={empOvr?.otWeekday} month={month} year={year} onSave={onOverrideSave} type="number" />
+                    <MobileOverrideField label={`TC Chủ nhật (${settings.otRateSunday * 100}%)`} employeeId={row.employeeId} fieldKey="otSunday" computedValue={String(formatHours(s?.otSunday ?? 0))} overrideValue={empOvr?.otSunday} month={month} year={year} onSave={onOverrideSave} type="number" />
+                    <MobileOverrideField label={`TC ngày Lễ (${settings.otRateHoliday * 100}%)`} employeeId={row.employeeId} fieldKey="otHoliday" computedValue={String(formatHours(s?.otHoliday ?? 0))} overrideValue={empOvr?.otHoliday} month={month} year={year} onSave={onOverrideSave} type="number" />
+                    <MobileOverrideField label={`Ngoài giờ ngày thường (${settings.otRateWeekdayExtra * 100}%)`} employeeId={row.employeeId} fieldKey="otWeekdayExtra" computedValue={String(formatHours(s?.otWeekdayExtra ?? 0))} overrideValue={empOvr?.otWeekdayExtra} month={month} year={year} onSave={onOverrideSave} type="number" />
+                    <MobileOverrideField label={`Ngoài giờ ngày nghỉ (${settings.otRateSundayExtra * 100}%)`} employeeId={row.employeeId} fieldKey="otSundayExtra" computedValue={String(formatHours(s?.otSundayExtra ?? 0))} overrideValue={empOvr?.otSundayExtra} month={month} year={year} onSave={onOverrideSave} type="number" />
+                    <MobileOverrideField label="Ngày công tăng ca" employeeId={row.employeeId} fieldKey="otDaysCount" computedValue="" overrideValue={empOvr?.otDaysCount} month={month} year={year} onSave={onOverrideSave} type="number" />
+                  </div>
+                  <CollapsibleSection title="Chỉ tiêu khác">
+                    <div className="grid grid-cols-2 gap-2">
+                      <MobileOverrideField label="TC tháng trước" employeeId={row.employeeId} fieldKey="otCarryOver" computedValue="" overrideValue={empOvr?.otCarryOver} month={month} year={year} onSave={onOverrideSave} type="text" />
+                      <MobileOverrideField label="Lương tính tăng ca" employeeId={row.employeeId} fieldKey="otSalary" computedValue={s?.otSalary ? formatMoney(s.otSalary) : ''} overrideValue={empOvr?.otSalary} month={month} year={year} onSave={onOverrideSave} type="money" />
+                      <MobileOverrideField label="Mức lương theo giờ" employeeId={row.employeeId} fieldKey="hourlyRate" computedValue={hourlyRate ? formatMoney(hourlyRate) : ''} overrideValue={empOvr?.hourlyRate} month={month} year={year} onSave={onOverrideSave} type="money" />
+                      <MobileOverrideField label="Tổng thu nhập ngoài giờ" employeeId={row.employeeId} fieldKey="otTotalIncome" computedValue={s?.otTotalIncome ? formatMoney(s.otTotalIncome) : ''} overrideValue={empOvr?.otTotalIncome} month={month} year={year} onSave={onOverrideSave} type="money" />
+                      <MobileOverrideField label="Tổng tiền cơm TC" employeeId={row.employeeId} fieldKey="overtimeMealMoney" computedValue={overtimeMealMoney ? formatMoney(overtimeMealMoney) : ''} overrideValue={empOvr?.overtimeMealMoney} month={month} year={year} onSave={onOverrideSave} type="money" />
+                    </div>
+                  </CollapsibleSection>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 /* ---------- Attendance Table (Cham cong) ---------- */
 interface AttendanceTableProps {

@@ -13,6 +13,7 @@ import TableFilter, { FilterField } from './TableFilter';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types/auth';
 import Modal from './Modal';
+import useIsNarrowScreen from '../hooks/useIsNarrowScreen';
 
 interface AttendanceRecord {
   stt: number;
@@ -103,6 +104,7 @@ const AttendanceManagement: React.FC = () => {
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [selectedPosition, setSelectedPosition] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('calendar');
+  const isNarrow = useIsNarrowScreen();
   const filterFields: FilterField[] = [
     {
       key: 'status',
@@ -442,6 +444,23 @@ const AttendanceManagement: React.FC = () => {
     const dateKey = formatDateInAppTz(record.attendanceDate);
     const todayKey = todayInAppTz();
     return dateKey < todayKey;
+  };
+
+  /** Visual encoding for a calendar day cell — shared by the desktop table and the narrow-screen list. */
+  const calendarCellVisual = (record?: AttendanceRecord | null) => {
+    const fmt = (h?: number | null) => (!h || h <= 0 ? '0' : h.toFixed(1));
+    if (!record) return { display: '', cellClass: '' };
+    const effectiveStatus = record.regularStatus ?? record.status;
+    const regularHoursValue = record.regularHours ?? record.workHours;
+    const overtimeHoursValue = record.overtimeHours ?? record.workHours;
+    switch (effectiveStatus) {
+      case 'PRESENT': return { display: fmt(regularHoursValue), cellClass: 'bg-green-100 text-green-700' };
+      case 'LATE': return { display: fmt(regularHoursValue), cellClass: 'bg-amber-100 text-amber-700' };
+      case 'ABSENT': return { display: 'V', cellClass: 'bg-red-100 text-red-700' };
+      case 'ON_LEAVE': return { display: 'N', cellClass: 'bg-blue-100 text-blue-700' };
+      case 'OVERTIME': return { display: fmt(overtimeHoursValue), cellClass: 'bg-purple-100 text-purple-700' };
+      default: return { display: '', cellClass: '' };
+    }
   };
 
   const formatDateWithWeekday = (dateStr: string) => {
@@ -965,13 +984,93 @@ const AttendanceManagement: React.FC = () => {
           ) : (
             <>
               {/* Legend */}
-              <div className="px-4 py-3 border-b border-gray-200 flex flex-wrap gap-3 text-xs">
+              <div className="px-4 py-3 border-b border-gray-200 flex flex-wrap gap-x-3 gap-y-2 text-xs">
                 <span className="inline-flex items-center gap-1"><span className="w-6 h-5 rounded flex items-center justify-center bg-green-100 text-green-700 font-medium text-[10px]">8.0</span> Đúng giờ (số giờ)</span>
                 <span className="inline-flex items-center gap-1"><span className="w-6 h-5 rounded flex items-center justify-center bg-amber-100 text-amber-700 font-medium text-[10px]">7.5</span> Muộn (số giờ)</span>
                 <span className="inline-flex items-center gap-1"><span className="w-5 h-5 rounded flex items-center justify-center bg-red-100 text-red-700 font-medium">V</span> Vắng</span>
                 <span className="inline-flex items-center gap-1"><span className="w-5 h-5 rounded flex items-center justify-center bg-blue-100 text-blue-700 font-medium">N</span> Nghỉ phép</span>
                 <span className="inline-flex items-center gap-1"><span className="w-6 h-5 rounded flex items-center justify-center bg-purple-100 text-purple-700 font-medium text-[10px]">3.0</span> Tăng ca (số giờ)</span>
               </div>
+              {isNarrow ? (
+                <div className="p-3 space-y-3 max-h-[70vh] overflow-y-auto">
+                  {calendarData.employees.map((emp) => {
+                    let presentDays = 0;
+                    let totalOvertimeHours = 0;
+                    const totalDays = calendarData.days.length;
+                    const dayCells = calendarData.days.map((day) => {
+                      const dateKey = toLocalDateKey(day);
+                      const record = calendarData.records.get(`${emp.code}_${dateKey}`) as AttendanceRecord | undefined;
+                      if (record?.overtimeHours) totalOvertimeHours += record.overtimeHours;
+                      const { display, cellClass } = calendarCellVisual(record);
+                      const effectiveStatus = record ? (record.regularStatus ?? record.status) : null;
+                      if (effectiveStatus === 'PRESENT' || effectiveStatus === 'LATE' || effectiveStatus === 'OVERTIME') presentDays++;
+                      return { day, dateKey, record, display, cellClass };
+                    });
+                    // Calendar-aligned grid: pad the first week so a column always means the same weekday.
+                    const leadingBlanks = calendarData.days.length ? calendarData.days[0].getUTCDay() : 0;
+                    return (
+                      <div key={emp.code} className="rounded-lg border border-gray-200">
+                        <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-gray-100">
+                          <button
+                            type="button"
+                            onClick={() => setCalendarModal({ type: 'row', employee: emp })}
+                            className="text-left text-sm font-semibold text-gray-900 hover:text-blue-600 hover:underline min-h-[44px]"
+                          >
+                            {emp.name}
+                          </button>
+                          <div className="text-right text-xs shrink-0">
+                            <div className="font-medium text-gray-900">{presentDays}/{totalDays} công</div>
+                            <div className="font-medium text-purple-700">
+                              OT {totalOvertimeHours > 0 ? Math.round(totalOvertimeHours * 100) / 100 : '—'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="px-3 py-2">
+                          <div className="grid grid-cols-7 gap-0.5 text-[10px] text-gray-400 mb-0.5">
+                            {['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'].map(w => <div key={w} className="text-center">{w}</div>)}
+                          </div>
+                          <div className="grid grid-cols-7 gap-0.5">
+                            {Array.from({ length: leadingBlanks }, (_, i) => <div key={`blank-${i}`} className="min-h-[44px]" />)}
+                            {dayCells.map(({ day, record, display, cellClass }) => {
+                              const isSunday = day.getUTCDay() === 0;
+                              return (
+                                <button
+                                  key={day.toISOString()}
+                                  type="button"
+                                  onClick={() => {
+                                    if (record) {
+                                      setCalendarModal({ type: 'cell', employee: emp, day, record });
+                                    } else {
+                                      setEditingId(null);
+                                      setEditEntries([]);
+                                      setSelectedEmployeeName(emp.name);
+                                      setEmployeeSearch(emp.name);
+                                      setIsEmployeeDropdownOpen(false);
+                                      setFormData({
+                                        employeeCode: emp.code,
+                                        attendanceDate: toLocalDateKey(day),
+                                        checkInTime: '',
+                                        checkOutTime: '',
+                                        status: 'PRESENT',
+                                        notes: '',
+                                      });
+                                      setShowModal(true);
+                                    }
+                                  }}
+                                  className={`min-h-[44px] rounded border flex flex-col items-center justify-center leading-tight active:bg-blue-50 ${isSunday ? 'border-red-200' : 'border-gray-200'} ${cellClass}`}
+                                >
+                                  <span className="text-[10px] text-gray-400">{day.getUTCDate()}</span>
+                                  <span className="text-xs font-medium">{display}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
               <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
                 <table className="w-full min-w-[1180px] border-collapse text-xs">
                   <thead>
@@ -1136,6 +1235,7 @@ const AttendanceManagement: React.FC = () => {
                   </tbody>
                 </table>
               </div>
+              )}
             </>
           )}
         </div>
