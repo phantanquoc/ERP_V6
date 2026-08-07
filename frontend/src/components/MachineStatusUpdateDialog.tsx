@@ -78,7 +78,7 @@ const MachineStatusUpdateDialog = ({
   return (
     <Modal isOpen={isOpen} onClose={onClose} showBackdrop>
       <div
-        className="flex max-h-[calc(100vh-2rem)] w-full max-w-md flex-col rounded-lg bg-white shadow-xl"
+        className="flex modal-viewport-h w-full max-w-md flex-col rounded-lg bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">

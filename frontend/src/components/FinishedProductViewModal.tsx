@@ -83,7 +83,7 @@ const FinishedProductViewModal: React.FC<FinishedProductViewModalProps> = ({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} showBackdrop closeOnBackdrop={true}>
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between shrink-0">
           <h3 className="text-xl font-semibold text-gray-900">Chi tiết thành phẩm</h3>

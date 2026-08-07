@@ -122,7 +122,7 @@ const LeaveRequestApprovalModal = ({ isOpen, onClose, leaveRequestId, notificati
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} showBackdrop>
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="border-b px-6 py-4 flex justify-between items-center shrink-0">
           <h2 className="text-xl font-bold text-gray-800">Chi tiết đơn nghỉ phép</h2>

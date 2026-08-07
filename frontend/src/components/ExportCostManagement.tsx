@@ -450,7 +450,7 @@ const ExportCostManagement: React.FC = () => {
 
       {/* Modal */}
       <Modal isOpen={showModal} onClose={handleCloseModal} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200 shrink-0">
             <h3 className="text-xl font-bold text-gray-800">
               {editingCost ? `Chỉnh sửa ${label}` : `Tạo ${label}`}

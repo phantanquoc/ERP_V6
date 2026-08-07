@@ -409,7 +409,7 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ month, year }) => {
 
       {/* Add Modal */}
       <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             <div className="border-b px-6 py-4 flex items-center justify-between shrink-0">
               <h2 className="text-xl font-semibold text-gray-800">Thêm công nợ mới</h2>
               <button
@@ -670,7 +670,7 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ month, year }) => {
 
       {/* Edit Modal */}
       <Modal isOpen={isEditModalOpen && !!selectedDebt} onClose={() => { setIsEditModalOpen(false); setSelectedDebt(null); }} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             <div className="border-b px-6 py-4 flex items-center justify-between shrink-0">
               <h2 className="text-xl font-semibold text-gray-800">Chỉnh sửa công nợ</h2>
               <button
@@ -921,7 +921,7 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ month, year }) => {
 
       {/* View Modal */}
       <Modal isOpen={isViewModalOpen && !!selectedDebt} onClose={() => { setIsViewModalOpen(false); setSelectedDebt(null); }} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             <div className="border-b px-6 py-4 flex items-center justify-between shrink-0">
               <h2 className="text-xl font-semibold text-gray-800">Chi tiết công nợ</h2>
               <button

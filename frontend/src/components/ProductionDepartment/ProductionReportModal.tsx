@@ -203,7 +203,7 @@ const ProductionReportModal: React.FC<ProductionReportModalProps> = ({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} showBackdrop>
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center shrink-0">
           <h3 className="text-xl font-semibold text-gray-900">

@@ -336,7 +336,7 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
 
   const detailModal = viewPlan ? (
     <Modal isOpen={true} onClose={() => setViewPlan(null)} closeOnBackdrop={true}>
-      <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
         <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4 shrink-0">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-bold text-white flex items-center gap-2">
@@ -482,7 +482,7 @@ const WorkPlanListModal: React.FC<WorkPlanListModalProps> = ({ isOpen, onClose, 
   return (
     <>
       <Modal isOpen={isOpen} onClose={onClose} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
               <Calendar className="w-6 h-6 text-white" />

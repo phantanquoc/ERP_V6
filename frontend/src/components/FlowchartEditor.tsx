@@ -159,7 +159,7 @@ const FlowchartEditor: React.FC<FlowchartEditorProps> = ({ processId, processNam
 
   return (
     <Modal isOpen={true} onClose={onClose} showBackdrop>
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
           <div>

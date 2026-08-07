@@ -606,7 +606,7 @@ const PositionLevelManagement = ({ initialPositionId }: { initialPositionId?: st
 
       {/* Form Modal */}
       <Modal isOpen={isFormModalOpen} onClose={closeModals} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="p-6 overflow-y-auto flex-1">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-gray-800">{isEditMode ? 'Chỉnh sửa bậc lương' : 'Thêm bậc lương mới'}</h3>
@@ -696,7 +696,7 @@ const PositionLevelManagement = ({ initialPositionId }: { initialPositionId?: st
 
       {/* Copy-from Modal */}
       <Modal isOpen={isCopyModalOpen} onClose={closeModals} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="p-6 overflow-y-auto flex-1">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-gray-800">Sao chép bậc lương từ vị trí khác</h3>
@@ -737,7 +737,7 @@ const PositionLevelManagement = ({ initialPositionId }: { initialPositionId?: st
 
       {/* Preset Modal */}
       <Modal isOpen={isPresetModalOpen} onClose={closeModals} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="p-6 overflow-y-auto flex-1">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-gray-800">Áp dụng preset bậc lương</h3>

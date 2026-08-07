@@ -185,7 +185,7 @@ const AcceptanceHandoverForm = ({ repairRequest, onClose, onSuccess }: Acceptanc
 
   return (
     <Modal isOpen onClose={onClose} showBackdrop>
-      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-5xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
+      <div className="flex modal-viewport-h w-full max-w-5xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-center justify-between border-b px-4 py-3">
           <div>
             <h2 className="text-base font-semibold text-gray-900">Nghiệm thu bàn giao</h2>

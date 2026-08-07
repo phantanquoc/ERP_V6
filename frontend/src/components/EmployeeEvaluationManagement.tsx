@@ -627,7 +627,7 @@ const EmployeeEvaluationManagement = () => {
 
       {/* Detail Modal — unchanged */}
       <Modal isOpen={isDetailModalOpen && !!selectedEvaluation} onClose={closeDetailModal} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="p-6 overflow-y-auto flex-1">
             <div className="flex justify-between items-center mb-4">
               <div>

@@ -324,7 +324,7 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
         </div>
       )}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center shrink-0">
               <h3 className="text-lg font-semibold text-gray-900">
                 {selectedFeedback ? 'Cập nhật phản hồi' : 'Thêm phản hồi mới'}
@@ -522,7 +522,7 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
 
       {/* View Modal */}
       <Modal isOpen={isViewModalOpen && !!selectedFeedback} onClose={() => setIsViewModalOpen(false)} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center shrink-0">
               <h3 className="text-lg font-semibold text-gray-900">Chi tiết phản hồi</h3>
               <button onClick={() => setIsViewModalOpen(false)} className="text-gray-400 hover:text-gray-600">

@@ -20,7 +20,7 @@ const InventoryCheckPopup: React.FC<InventoryCheckPopupProps> = ({
       closeOnBackdrop={true}
     >
       <div
-        className="bg-white rounded-lg shadow-xl w-[700px] max-w-[90vw] flex flex-col max-h-[calc(100vh-2rem)]"
+        className="bg-white rounded-lg shadow-xl w-[700px] max-w-[90vw] flex flex-col modal-viewport-h"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">

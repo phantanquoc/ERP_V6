@@ -347,7 +347,7 @@ const LeaveRequestManagement = () => {
 
       {/* Detail Modal */}
       <Modal isOpen={isDetailModalOpen && !!selectedRequest} onClose={() => { setIsDetailModalOpen(false); setSelectedRequest(null); }} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4 flex justify-between items-center shrink-0">
               <h3 className="text-xl font-bold text-white">Chi tiết đơn nghỉ phép</h3>
               <button
@@ -453,7 +453,7 @@ const LeaveRequestManagement = () => {
 
       {/* Reject Modal */}
       <Modal isOpen={isRejectModalOpen && !!selectedRequest} onClose={() => { setIsRejectModalOpen(false); setRejectionReason(''); setSelectedRequest(null); }} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             <div className="bg-gradient-to-r from-red-500 to-red-600 px-6 py-4 flex justify-between items-center shrink-0">
               <h3 className="text-xl font-bold text-white">Từ chối đơn nghỉ phép</h3>
               <button

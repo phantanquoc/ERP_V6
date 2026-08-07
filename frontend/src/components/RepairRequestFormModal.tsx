@@ -300,7 +300,7 @@ const RepairRequestFormModal = ({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} showBackdrop>
-      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-5xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
+      <div className="flex modal-viewport-h w-full max-w-5xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-center justify-between border-b px-4 py-3">
           <h3 className="text-base font-semibold text-gray-900">{isView ? 'Chi tiết yêu cầu' : record ? 'Sửa yêu cầu' : 'Thêm yêu cầu'}</h3>
           <button title="Đóng" onClick={onClose} className="rounded p-1.5 text-gray-500 hover:bg-gray-100"><X className="h-4 w-4" /></button>

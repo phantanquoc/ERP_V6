@@ -278,7 +278,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} showBackdrop>
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-[900px] flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-[900px] flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
         {/* Purpose suggestions shared by both single and batch mode */}
         <datalist id="muc-dich-presets">
           {MUC_DICH_PRESETS.map((p) => (

@@ -199,7 +199,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} showBackdrop>
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-[900px] flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-[900px] flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
           <h2 className="text-xl font-bold text-gray-900">Tạo phiếu xuất kho</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">

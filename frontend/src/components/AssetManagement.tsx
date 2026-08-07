@@ -330,7 +330,7 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
 
       {/* View Product Modal */}
       <Modal isOpen={viewModalOpen && !!selectedProduct} onClose={() => setViewModalOpen(false)} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-lg max-w-2xl w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg max-w-2xl w-full mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 overflow-y-auto flex-1">
             {selectedProduct && (<>
             <div className="flex justify-between items-center mb-4">
@@ -415,7 +415,7 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
 
       {/* Edit Product Modal */}
       <Modal isOpen={editModalOpen && !!selectedProduct} onClose={() => setEditModalOpen(false)} showBackdrop>
-        <div className="bg-white rounded-lg max-w-md w-full mx-4 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg max-w-md w-full mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 overflow-y-auto flex-1">
             {selectedProduct && (<>
             <div className="flex justify-between items-center mb-4">

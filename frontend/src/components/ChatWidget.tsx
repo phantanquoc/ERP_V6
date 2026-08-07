@@ -1063,6 +1063,10 @@ const ChatWidget: React.FC = () => {
         @keyframes thinkPulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
         @keyframes toolSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .chat-panel { animation: fadeSlideUp 0.2s ease-out; }
+        /* Compact panel sits at bottom-24 (6rem); cap its height so the header and
+           close button stay on screen on short viewports. dvh line overrides vh
+           where supported — iOS Safari's 100vh includes the address bar. */
+        .chat-panel-compact { max-height: calc(100vh - 7.5rem); max-height: calc(100dvh - 7.5rem); }
         .chat-fab { animation: popIn 0.15s ease-out; }
         .msg-bubble { animation: fadeSlideUp 0.12s ease-out; }
         .sidebar-slide { animation: slideIn 0.2s ease-out; }
@@ -1088,7 +1092,7 @@ const ChatWidget: React.FC = () => {
       {open && (
         <div
           className={`chat-panel fixed z-50 flex flex-col overflow-hidden transition-all duration-300 ease-in-out ${
-            expanded ? 'inset-4 rounded-xl' : 'bottom-24 right-6 rounded-2xl'
+            expanded ? 'inset-4 rounded-xl' : 'chat-panel-compact bottom-24 right-6 rounded-2xl'
           }`}
           style={{
             ...(expanded ? {} : { width: '420px', maxWidth: 'calc(100vw - 2rem)', height: '600px' }),

@@ -463,7 +463,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
 
       {/* View Modal */}
       <Modal isOpen={showViewModal && !!selectedOrder} onClose={() => setShowViewModal(false)} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             {selectedOrder && (<>
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-blue-100 shrink-0">
@@ -769,7 +769,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
 
       {/* Edit Modal */}
       <Modal isOpen={showEditModal && !!selectedOrder} onClose={() => setShowEditModal(false)} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             {selectedOrder && (<>
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-yellow-50 to-yellow-100 shrink-0">

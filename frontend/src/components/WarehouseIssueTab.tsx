@@ -383,7 +383,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
 
       {/* Detail Modal */}
       <Modal isOpen={showDetailModal && !!selectedIssue} onClose={() => setShowDetailModal(false)} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-lg flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-lg flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
             <h2 className="text-xl font-bold text-gray-900">Chi tiết phiếu xuất kho</h2>
             <button
@@ -516,7 +516,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
 
       {/* Create/Edit Issue Modal */}
       <Modal isOpen={showModal} onClose={() => { setShowModal(false); setEditingId(null); }} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-md flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-md flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="px-6 py-4 border-b border-gray-200 shrink-0">
             <h2 className="text-xl font-bold">{editingId ? 'Cập nhật phiếu xuất kho' : 'Phiếu xuất kho'}</h2>
           </div>

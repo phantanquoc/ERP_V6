@@ -616,7 +616,7 @@ const ProjectList = () => {
       </section>
 
       <Modal isOpen={!!selectedProjectId} onClose={() => setSelectedProjectId('')} showBackdrop>
-        <div className="flex max-h-[calc(100vh-2rem)] w-[calc(100vw-3rem)] max-w-[1600px] flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex modal-viewport-h w-[calc(100vw-3rem)] max-w-[1600px] flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
           <div className="flex items-center justify-between border-b px-4 py-3">
             <div>
               <p className="font-mono text-xs text-blue-600">{selectedProject?.maDuAn}</p>
@@ -816,7 +816,7 @@ const ProjectList = () => {
       </Modal>
 
       <Modal isOpen={!!projectModal} onClose={() => setProjectModal(null)} showBackdrop>
-        <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex modal-viewport-h w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
           <ModalHeader title={projectModal?.project ? 'Sửa dự án' : 'Tạo dự án'} onClose={() => setProjectModal(null)} />
           <form onSubmit={saveProject} className="flex-1 space-y-3 overflow-y-auto p-4 text-sm">
             {error && <ErrorBox message={error} />}
@@ -852,7 +852,7 @@ const ProjectList = () => {
       </Modal>
 
       <Modal isOpen={!!phaseModal} onClose={() => setPhaseModal(null)} showBackdrop>
-        <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex modal-viewport-h w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
           <ModalHeader title={phaseModal?.phase ? 'Sửa giai đoạn' : 'Thêm giai đoạn'} onClose={() => setPhaseModal(null)} />
           <form onSubmit={savePhase} className="flex-1 space-y-3 overflow-y-auto p-4 text-sm">
             {error && <ErrorBox message={error} />}
@@ -872,7 +872,7 @@ const ProjectList = () => {
       </Modal>
 
       <Modal isOpen={!!phatSinhModal} onClose={() => setPhatSinhModal(null)} showBackdrop>
-        <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex modal-viewport-h w-full max-w-lg flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
           <ModalHeader title="Thêm công việc phát sinh" onClose={() => setPhatSinhModal(null)} />
           <form onSubmit={savePhatSinh} className="flex-1 space-y-3 overflow-y-auto p-4 text-sm">
             {error && <ErrorBox message={error} />}
@@ -889,7 +889,7 @@ const ProjectList = () => {
       </Modal>
 
       <Modal isOpen={!!taskModal} onClose={() => setTaskModal(null)} showBackdrop>
-        <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex modal-viewport-h w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
           <ModalHeader title={taskModal?.task ? 'Sửa công việc' : 'Thêm công việc'} onClose={() => setTaskModal(null)} />
           <form onSubmit={saveTask} className="flex-1 space-y-4 overflow-y-auto p-4 text-sm">
             {error && <ErrorBox message={error} />}
@@ -952,7 +952,7 @@ const ProjectList = () => {
       )}
 
       <Modal isOpen={!!taskGroupModal} onClose={() => setTaskGroupModal(null)} showBackdrop>
-        <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-md flex-col rounded-lg bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex modal-viewport-h w-full max-w-md flex-col rounded-lg bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
           <ModalHeader title={taskGroupModal?.group ? 'Sửa mục công việc' : 'Thêm mục công việc'} onClose={() => setTaskGroupModal(null)} />
           <form onSubmit={saveTaskGroup} className="flex-1 space-y-3 overflow-y-auto p-4 text-sm">
             {error && <ErrorBox message={error} />}

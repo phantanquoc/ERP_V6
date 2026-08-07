@@ -553,7 +553,7 @@ const InvoiceManagement: React.FC<InvoiceManagementProps> = ({ month, year }) =>
 
       {/* Add Modal */}
       <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="border-b px-6 py-4 flex items-center justify-between shrink-0">
               <h2 className="text-xl font-semibold text-gray-800">Thêm hóa đơn mới</h2>
               <button onClick={() => setIsAddModalOpen(false)} className="text-gray-400 hover:text-gray-600">
@@ -714,7 +714,7 @@ const InvoiceManagement: React.FC<InvoiceManagementProps> = ({ month, year }) =>
 
       {/* Edit Modal */}
       <Modal isOpen={isEditModalOpen && !!selectedInvoice} onClose={() => setIsEditModalOpen(false)} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="border-b px-6 py-4 flex items-center justify-between shrink-0">
               <h2 className="text-xl font-semibold text-gray-800">Chỉnh sửa hóa đơn</h2>
               <button onClick={() => setIsEditModalOpen(false)} className="text-gray-400 hover:text-gray-600">
@@ -871,7 +871,7 @@ const InvoiceManagement: React.FC<InvoiceManagementProps> = ({ month, year }) =>
 
       {/* View Modal */}
       <Modal isOpen={isViewModalOpen && !!selectedInvoice} onClose={() => setIsViewModalOpen(false)} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="border-b px-6 py-4 flex items-center justify-between shrink-0">
               <h2 className="text-xl font-semibold text-gray-800">Chi tiết hóa đơn</h2>
               <button onClick={() => setIsViewModalOpen(false)} className="text-gray-400 hover:text-gray-600">

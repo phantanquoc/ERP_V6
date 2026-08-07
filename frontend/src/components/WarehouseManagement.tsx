@@ -661,7 +661,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
 
       {/* Create Warehouse Modal */}
       <Modal isOpen={showWarehouseModal} onClose={() => { setShowWarehouseModal(false); }} showBackdrop>
-          <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-[28rem] flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-[28rem] flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
               <h2 className="text-xl font-bold">Tạo kho mới</h2>
             </div>
@@ -727,7 +727,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
 
       {/* Edit Warehouse Modal */}
       <Modal isOpen={showEditWarehouseModal} onClose={() => setShowEditWarehouseModal(false)} showBackdrop>
-          <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-[28rem] flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-[28rem] flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
               <h2 className="text-xl font-bold">Sửa kho</h2>
             </div>
@@ -793,7 +793,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
 
       {/* Create Lot Modal */}
       <Modal isOpen={showLotModal} onClose={() => { setShowLotModal(false); setNewLotName(''); }} showBackdrop>
-          <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-96 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-96 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
               <h2 className="text-xl font-bold">Tạo lô mới</h2>
             </div>
@@ -833,7 +833,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
 
       {/* Add Product to Lot Modal */}
       <Modal isOpen={showProductModal} onClose={() => { setShowProductModal(false); resetProductForm(); }} showBackdrop>
-          <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-96 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-96 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
               <h2 className="text-xl font-bold">Thêm sản phẩm vào lô</h2>
             </div>
@@ -920,7 +920,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
 
       {/* Edit Lot Product Modal */}
       <Modal isOpen={showEditLotProductModal} onClose={() => { setShowEditLotProductModal(false); setEditingLotProduct(null); }} showBackdrop>
-          <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-96 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-96 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
               <h2 className="text-xl font-bold">Sửa kiện</h2>
               {editingLotProduct && (
@@ -970,7 +970,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
 
       {/* Move Product Modal */}
       <Modal isOpen={showMoveModal && !!movingProduct} onClose={() => { setShowMoveModal(false); setMovingProduct(null); setTargetWarehouseId(''); setTargetLotId(''); }} showBackdrop>
-          <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-96 flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-96 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
               <h2 className="text-xl font-bold">Di chuyển sản phẩm</h2>
             </div>
@@ -1054,7 +1054,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
 
       {/* Receipt History Modal — click số tồn để xem lịch sử nhập kho */}
       <Modal isOpen={!!historyLotProduct} onClose={() => setHistoryLotProduct(null)} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-[56rem] flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-[56rem] flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
             <div>
               <h2 className="text-lg font-bold text-gray-900">Lịch sử nhập kho</h2>

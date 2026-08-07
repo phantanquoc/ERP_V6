@@ -706,7 +706,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
 
       {/* Create/Edit Modal */}
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200 shrink-0">
             <h2 className="text-xl font-bold">
               {editingRequest ? 'Chỉnh sửa yêu cầu báo giá' : 'Thêm yêu cầu báo giá mới'}
@@ -1055,7 +1055,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
 
       {/* Detail Modal */}
       <Modal isOpen={showDetailModal && !!selectedRequest} onClose={() => setShowDetailModal(false)} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col max-h-[calc(100vh-2rem)]" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200 shrink-0">
             <h2 className="text-xl font-bold">Chi tiết yêu cầu báo giá</h2>
             <button onClick={() => setShowDetailModal(false)} className="text-gray-500 hover:text-gray-700">
