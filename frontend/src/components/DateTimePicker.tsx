@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { Calendar, Clock, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import useDropdownPosition from '../hooks/useDropdownPosition';
 
 interface DateTimePickerProps {
   value: string; // YYYY-MM-DDTHH:mm format (datetime-local format)
@@ -15,10 +16,9 @@ interface DateTimePickerProps {
 }
 
 const DROPDOWN_WIDTH = 320; // matches the calendar grid + time selectors
-const DROPDOWN_HEIGHT = 460; // taller than DatePicker: adds the hour/minute section
-const MIN_DROPDOWN_HEIGHT = 200;
-const DROPDOWN_GAP = 4;
-const VIEWPORT_MARGIN = 8;
+// First-paint guess only; replaced by measurement. Taller than DatePicker: adds
+// the hour/minute section.
+const ESTIMATED_DROPDOWN_HEIGHT = 460;
 
 const DateTimePicker: React.FC<DateTimePickerProps> = ({
   value,
@@ -36,10 +36,14 @@ const DateTimePicker: React.FC<DateTimePickerProps> = ({
   const [timeValue, setTimeValue] = useState('');
   const [viewMonth, setViewMonth] = useState(new Date().getMonth());
   const [viewYear, setViewYear] = useState(new Date().getFullYear());
-  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, maxHeight: DROPDOWN_HEIGHT });
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const { position: dropdownPos, dropdownRef, contentRef } = useDropdownPosition({
+    isOpen,
+    anchorRef: inputRef,
+    width: DROPDOWN_WIDTH,
+    estimatedHeight: ESTIMATED_DROPDOWN_HEIGHT,
+  });
 
   useEffect(() => {
     if (value) {
@@ -59,52 +63,6 @@ const DateTimePicker: React.FC<DateTimePickerProps> = ({
     }
   }, [value]);
 
-  // Calculate dropdown position and available height relative to viewport (for position: fixed)
-  const calcPosition = () => {
-    if (!inputRef.current) return;
-    const rect = inputRef.current.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom - DROPDOWN_GAP - VIEWPORT_MARGIN;
-    const spaceAbove = rect.top - DROPDOWN_GAP - VIEWPORT_MARGIN;
-    // Prefer below. Flip up when below cannot fit; when neither side fits, take
-    // the roomier side so the scrollable body stays as tall as possible.
-    const showAbove =
-      spaceBelow < DROPDOWN_HEIGHT && (spaceAbove >= DROPDOWN_HEIGHT || spaceAbove > spaceBelow);
-
-    // Floor keeps the dropdown usable (scrollable) instead of collapsing to a
-    // sliver on very short viewports; overflowing the margin is the lesser evil.
-    const maxHeight = Math.max(
-      MIN_DROPDOWN_HEIGHT,
-      Math.min(DROPDOWN_HEIGHT, showAbove ? spaceAbove : spaceBelow)
-    );
-
-    const top = showAbove
-      ? Math.max(VIEWPORT_MARGIN, rect.top - maxHeight - DROPDOWN_GAP)
-      : rect.bottom + DROPDOWN_GAP;
-
-    // Clamp both edges: the right-edge clamp alone goes negative on viewports
-    // narrower than DROPDOWN_WIDTH + margin.
-    const left = Math.max(
-      VIEWPORT_MARGIN,
-      Math.min(rect.left, window.innerWidth - DROPDOWN_WIDTH - VIEWPORT_MARGIN)
-    );
-
-    setDropdownPos({ top, left, maxHeight });
-  };
-
-  // Recalculate on scroll/resize while open
-  useEffect(() => {
-    if (!isOpen) return;
-    calcPosition();
-
-    const handleUpdate = () => calcPosition();
-    window.addEventListener('scroll', handleUpdate, true);
-    window.addEventListener('resize', handleUpdate);
-    return () => {
-      window.removeEventListener('scroll', handleUpdate, true);
-      window.removeEventListener('resize', handleUpdate);
-    };
-  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Close on outside click (handles both input wrapper and portal dropdown)
   useEffect(() => {
     if (!isOpen) return;
@@ -119,7 +77,7 @@ const DateTimePicker: React.FC<DateTimePickerProps> = ({
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen]);
+  }, [isOpen, dropdownRef]);
 
   const formatDisplayDateTime = (datetime: string) => {
     if (!datetime) return '';
@@ -326,7 +284,8 @@ const DateTimePicker: React.FC<DateTimePickerProps> = ({
           }}
           className="bg-white border border-gray-300 rounded-lg shadow-lg p-4"
         >
-          <div className="space-y-3">
+          {/* Inner wrapper is the measured element — never carries the maxHeight. */}
+          <div ref={contentRef} className="space-y-3">
             {/* Calendar */}
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-2 flex items-center gap-1">
