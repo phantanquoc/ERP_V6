@@ -773,7 +773,7 @@ const UserManagement: React.FC = () => {
             {/* Body — scrollable */}
             <div className="overflow-y-auto flex-1 px-6 py-5">
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Họ *</label>
                     <input
@@ -943,7 +943,7 @@ const UserManagement: React.FC = () => {
                 {isEditMode && (
                   <div className="col-span-2 border-t border-gray-200 pt-4 mt-2">
                     <h4 className="text-sm font-semibold text-gray-700 mb-3">Cấp trên đánh giá</h4>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm text-gray-600 mb-1">Cấp trên 1</label>
                         <select

@@ -1363,7 +1363,7 @@ const AttendanceManagement: React.FC = () => {
                             </select>
                           )}
                         </div>
-                        <div className="grid grid-cols-2 gap-3 mb-2">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
                           <div>
                             <label className="block text-xs text-gray-500 mb-1">Giờ vào</label>
                             <input
@@ -1391,7 +1391,7 @@ const AttendanceManagement: React.FC = () => {
                             />
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           <div>
                             <label className="block text-xs text-gray-500 mb-1">Trạng thái</label>
                             <select
@@ -1460,7 +1460,7 @@ const AttendanceManagement: React.FC = () => {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Giờ vào</label>
                       <input

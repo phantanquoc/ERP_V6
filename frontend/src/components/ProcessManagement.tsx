@@ -854,7 +854,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                   <p className="text-sm font-medium text-blue-800 mb-2">
                     📋 Thông tin nhân viên (tự động từ tài khoản đang đăng nhập)
                   </p>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         MSNV <span className="text-red-500">*</span>
@@ -1043,9 +1043,9 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                       {/* Section Content */}
                       <div className="p-4 space-y-4">
                         {/* Tên phân đoạn */}
-                        <div className="grid grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                           <div className="col-span-1 font-medium text-gray-700">Tên phân đoạn</div>
-                          <div className="col-span-3">
+                          <div className="md:col-span-3">
                             <textarea
                               value={section.tenPhanDoan || ''}
                               onChange={(e) => handleSectionChange(sectionIndex, 'tenPhanDoan', e.target.value)}
@@ -1057,9 +1057,9 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                         </div>
 
                         {/* Nội dung công việc */}
-                        <div className="grid grid-cols-4 gap-4 mb-4">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                           <div className="col-span-1 font-medium text-gray-700">Nội dung công việc</div>
-                          <div className="col-span-3">
+                          <div className="md:col-span-3">
                             <textarea
                               value={section.noiDungCongViec || ''}
                               onChange={(e) => handleSectionChange(sectionIndex, 'noiDungCongViec', e.target.value)}
@@ -1071,9 +1071,9 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
                         </div>
 
                         {/* Biểu mẫu (multi-file) */}
-                        <div className="grid grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                           <div className="col-span-1 font-medium text-gray-700">Biểu mẫu</div>
-                          <div className="col-span-3 space-y-2">
+                          <div className="md:col-span-3 space-y-2">
                             <FileUpload
                               files={[]}
                               onChange={(selectedFiles) => {

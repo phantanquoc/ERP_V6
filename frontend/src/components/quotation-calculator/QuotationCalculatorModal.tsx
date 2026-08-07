@@ -651,7 +651,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                         ))}
                       </select>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">Khối lượng</label>
                         <input type="number" value={currentAdditionalTab.formData.soLuong || ''} onChange={(e) => updateAdditionalTabFormData(currentAdditionalTab.id, 'soLuong', parseNumberInputStr(e.target.value))} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-white focus:ring-2 focus:ring-blue-500" placeholder="Nhập" />
@@ -1216,7 +1216,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                     <label className="block text-xs font-medium text-gray-500 mb-1">Tên sản phẩm</label>
                     <input type="text" value={currentItem?.tenSanPham || ''} disabled className="w-full px-3 py-2 text-sm border border-orange-200 rounded-md bg-orange-50 font-semibold text-gray-900" />
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1">Khối lượng</label>
                       <input type="number" value={currentItem?.soLuong || ''} disabled className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-gray-50 text-gray-700" />
