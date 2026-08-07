@@ -16,6 +16,8 @@ interface DateTimePickerProps {
 
 const DROPDOWN_WIDTH = 320; // matches the calendar grid + time selectors
 const DROPDOWN_HEIGHT = 460; // taller than DatePicker: adds the hour/minute section
+const MIN_DROPDOWN_HEIGHT = 200;
+const DROPDOWN_GAP = 4;
 const VIEWPORT_MARGIN = 8;
 
 const DateTimePicker: React.FC<DateTimePickerProps> = ({
@@ -34,7 +36,7 @@ const DateTimePicker: React.FC<DateTimePickerProps> = ({
   const [timeValue, setTimeValue] = useState('');
   const [viewMonth, setViewMonth] = useState(new Date().getMonth());
   const [viewYear, setViewYear] = useState(new Date().getFullYear());
-  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, maxHeight: DROPDOWN_HEIGHT });
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -57,16 +59,27 @@ const DateTimePicker: React.FC<DateTimePickerProps> = ({
     }
   }, [value]);
 
-  // Calculate dropdown position relative to viewport (for position: fixed)
+  // Calculate dropdown position and available height relative to viewport (for position: fixed)
   const calcPosition = () => {
     if (!inputRef.current) return;
     const rect = inputRef.current.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const showAbove = spaceBelow < DROPDOWN_HEIGHT && rect.top > DROPDOWN_HEIGHT;
+    const spaceBelow = window.innerHeight - rect.bottom - DROPDOWN_GAP - VIEWPORT_MARGIN;
+    const spaceAbove = rect.top - DROPDOWN_GAP - VIEWPORT_MARGIN;
+    // Prefer below. Flip up when below cannot fit; when neither side fits, take
+    // the roomier side so the scrollable body stays as tall as possible.
+    const showAbove =
+      spaceBelow < DROPDOWN_HEIGHT && (spaceAbove >= DROPDOWN_HEIGHT || spaceAbove > spaceBelow);
+
+    // Floor keeps the dropdown usable (scrollable) instead of collapsing to a
+    // sliver on very short viewports; overflowing the margin is the lesser evil.
+    const maxHeight = Math.max(
+      MIN_DROPDOWN_HEIGHT,
+      Math.min(DROPDOWN_HEIGHT, showAbove ? spaceAbove : spaceBelow)
+    );
 
     const top = showAbove
-      ? rect.top - DROPDOWN_HEIGHT - 4
-      : rect.bottom + 4;
+      ? Math.max(VIEWPORT_MARGIN, rect.top - maxHeight - DROPDOWN_GAP)
+      : rect.bottom + DROPDOWN_GAP;
 
     // Clamp both edges: the right-edge clamp alone goes negative on viewports
     // narrower than DROPDOWN_WIDTH + margin.
@@ -75,7 +88,7 @@ const DateTimePicker: React.FC<DateTimePickerProps> = ({
       Math.min(rect.left, window.innerWidth - DROPDOWN_WIDTH - VIEWPORT_MARGIN)
     );
 
-    setDropdownPos({ top, left });
+    setDropdownPos({ top, left, maxHeight });
   };
 
   // Recalculate on scroll/resize while open
@@ -307,6 +320,8 @@ const DateTimePicker: React.FC<DateTimePickerProps> = ({
             top: dropdownPos.top,
             left: dropdownPos.left,
             width: DROPDOWN_WIDTH,
+            maxHeight: dropdownPos.maxHeight,
+            overflowY: 'auto',
             zIndex: 9999,
           }}
           className="bg-white border border-gray-300 rounded-lg shadow-lg p-4"

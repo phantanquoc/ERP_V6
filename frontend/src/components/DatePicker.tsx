@@ -17,6 +17,8 @@ interface DatePickerProps {
 
 const DROPDOWN_WIDTH = 256; // w-64 = 16rem = 256px
 const DROPDOWN_HEIGHT = 300; // approximate calendar height
+const MIN_DROPDOWN_HEIGHT = 200;
+const DROPDOWN_GAP = 4;
 const VIEWPORT_MARGIN = 8;
 
 const DatePicker: React.FC<DatePickerProps> = ({
@@ -35,7 +37,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
   const [selectedDate, setSelectedDate] = useState<Date>(value ? new Date(value) : new Date());
   const [viewMonth, setViewMonth] = useState(selectedDate.getMonth());
   const [viewYear, setViewYear] = useState(selectedDate.getFullYear());
-  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, maxHeight: DROPDOWN_HEIGHT });
 
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -50,16 +52,27 @@ const DatePicker: React.FC<DatePickerProps> = ({
     }
   }, [value]);
 
-  // Calculate dropdown position relative to viewport (for position: fixed)
+  // Calculate dropdown position and available height relative to viewport (for position: fixed)
   const calcPosition = () => {
     if (!inputRef.current) return;
     const rect = inputRef.current.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const showAbove = spaceBelow < DROPDOWN_HEIGHT && rect.top > DROPDOWN_HEIGHT;
+    const spaceBelow = window.innerHeight - rect.bottom - DROPDOWN_GAP - VIEWPORT_MARGIN;
+    const spaceAbove = rect.top - DROPDOWN_GAP - VIEWPORT_MARGIN;
+    // Prefer below. Flip up when below cannot fit; when neither side fits, take
+    // the roomier side so the scrollable body stays as tall as possible.
+    const showAbove =
+      spaceBelow < DROPDOWN_HEIGHT && (spaceAbove >= DROPDOWN_HEIGHT || spaceAbove > spaceBelow);
+
+    // Floor keeps the dropdown usable (scrollable) instead of collapsing to a
+    // sliver on very short viewports; overflowing the margin is the lesser evil.
+    const maxHeight = Math.max(
+      MIN_DROPDOWN_HEIGHT,
+      Math.min(DROPDOWN_HEIGHT, showAbove ? spaceAbove : spaceBelow)
+    );
 
     const top = showAbove
-      ? rect.top - DROPDOWN_HEIGHT - 4
-      : rect.bottom + 4;
+      ? Math.max(VIEWPORT_MARGIN, rect.top - maxHeight - DROPDOWN_GAP)
+      : rect.bottom + DROPDOWN_GAP;
 
     // Clamp both edges: the right-edge clamp alone goes negative on viewports
     // narrower than DROPDOWN_WIDTH + margin.
@@ -68,7 +81,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
       Math.min(rect.left, window.innerWidth - DROPDOWN_WIDTH - VIEWPORT_MARGIN)
     );
 
-    setDropdownPos({ top, left });
+    setDropdownPos({ top, left, maxHeight });
   };
 
   // Recalculate on scroll/resize while open
@@ -194,6 +207,8 @@ const DatePicker: React.FC<DatePickerProps> = ({
             top: dropdownPos.top,
             left: dropdownPos.left,
             width: DROPDOWN_WIDTH,
+            maxHeight: dropdownPos.maxHeight,
+            overflowY: 'auto',
             zIndex: 9999,
           }}
           className="bg-white rounded-lg shadow-xl border border-gray-200 p-2"
