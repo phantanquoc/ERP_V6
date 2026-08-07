@@ -1300,7 +1300,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Đánh giá trước ngâm
                   </label>
-                  <div className="grid grid-cols-2 gap-1 p-3 border border-gray-300 rounded-md bg-white">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1 p-3 border border-gray-300 rounded-md bg-white">
                     {criteria.map(c => {
                       const selected = (formData.danhGiaTruocNgam || '').split(',').map(s => s.trim()).includes(String(c.code));
                       return (
@@ -1322,7 +1322,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Đánh giá sau ngâm
                   </label>
-                  <div className="grid grid-cols-2 gap-1 p-3 border border-gray-300 rounded-md bg-white">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1 p-3 border border-gray-300 rounded-md bg-white">
                     {criteria.map(c => {
                       const selected = (formData.danhGiaSauNgam || '').split(',').map(s => s.trim()).includes(String(c.code));
                       return (

@@ -174,7 +174,7 @@ const CreatePurchaseRequestModal: React.FC<CreatePurchaseRequestModalProps> = ({
 
         <form onSubmit={handleSubmit} className="space-y-4 p-6 overflow-y-auto flex-1">
           {/* Row 1: Ngày yêu cầu & Mã yêu cầu */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Ngày yêu cầu</label>
               <input type="date" value={ngayYeuCau} disabled

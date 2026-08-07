@@ -220,7 +220,7 @@ const QualityPersonnel = () => {
             </div>
 
             {/* Month/Year Filter */}
-            <div className="grid grid-cols-2 gap-2 mb-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
               <div>
                 <label className="block text-xs font-medium mb-1 text-gray-700">Tháng</label>
                 <select

@@ -766,7 +766,7 @@ const PayrollManagement: React.FC = () => {
               </div>
               <hr className="my-2" />
               <p className="text-sm font-semibold text-gray-700">Hệ số tăng ca (chấm công)</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium mb-1">Ngày thường</label>
                   <input type="number" step="0.1" value={settingsForm.otRateWeekday} onChange={e => setSettingsForm({ ...settingsForm, otRateWeekday: parseFloat(e.target.value) || 0 })} className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm" />
@@ -790,7 +790,7 @@ const PayrollManagement: React.FC = () => {
               </div>
               <hr className="my-2" />
               <p className="text-sm font-semibold text-gray-700">Phụ cấp</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium mb-1">Cơm/ngày (₫)</label>
                   <input type="number" value={settingsForm.mealAllowancePerDay} onChange={e => setSettingsForm({ ...settingsForm, mealAllowancePerDay: parseNumberInput(e.target.value) })} className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm" />
