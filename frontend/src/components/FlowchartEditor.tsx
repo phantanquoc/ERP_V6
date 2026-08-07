@@ -207,9 +207,9 @@ const FlowchartEditor: React.FC<FlowchartEditorProps> = ({ processId, processNam
               {/* Section Content */}
               <div className="p-4 space-y-4">
                 {/* Tiếp nhận nguyên liệu */}
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="col-span-1 font-medium text-gray-700">Tiếp nhận nguyên liệu</div>
-                  <div className="col-span-3">
+                  <div className="md:col-span-3">
                     <textarea
                       value={String(section.tiepNhanNguyenLieu || '')}
                       onChange={(e) => handleSectionChange(sectionIndex, 'tiepNhanNguyenLieu', e.target.value as any)}
@@ -221,9 +221,9 @@ const FlowchartEditor: React.FC<FlowchartEditorProps> = ({ processId, processNam
                 </div>
 
                 {/* Nội dung công việc */}
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="col-span-1 font-medium text-gray-700">Nội dung công việc</div>
-                  <div className="col-span-3">
+                  <div className="md:col-span-3">
                     <textarea
                       value={section.noiDungCongViec || ''}
                       onChange={(e) => handleSectionChange(sectionIndex, 'noiDungCongViec', e.target.value)}
@@ -235,9 +235,9 @@ const FlowchartEditor: React.FC<FlowchartEditorProps> = ({ processId, processNam
                 </div>
 
                 {/* Loại chi phí */}
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="col-span-1 font-medium text-gray-700">Loại chi phí</div>
-                  <div className="col-span-3">
+                  <div className="md:col-span-3">
                     <select
                       value={section.loaiChiPhi || ''}
                       onChange={(e) => handleSectionChange(sectionIndex, 'loaiChiPhi', e.target.value)}
