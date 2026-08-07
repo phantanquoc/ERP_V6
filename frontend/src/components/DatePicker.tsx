@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import useDropdownPosition from '../hooks/useDropdownPosition';
 
 interface DatePickerProps {
   value: string; // YYYY-MM-DD format
@@ -16,10 +17,7 @@ interface DatePickerProps {
 }
 
 const DROPDOWN_WIDTH = 256; // w-64 = 16rem = 256px
-const DROPDOWN_HEIGHT = 300; // approximate calendar height
-const MIN_DROPDOWN_HEIGHT = 200;
-const DROPDOWN_GAP = 4;
-const VIEWPORT_MARGIN = 8;
+const ESTIMATED_DROPDOWN_HEIGHT = 300; // first-paint guess only; replaced by measurement
 
 const DatePicker: React.FC<DatePickerProps> = ({
   value,
@@ -37,10 +35,14 @@ const DatePicker: React.FC<DatePickerProps> = ({
   const [selectedDate, setSelectedDate] = useState<Date>(value ? new Date(value) : new Date());
   const [viewMonth, setViewMonth] = useState(selectedDate.getMonth());
   const [viewYear, setViewYear] = useState(selectedDate.getFullYear());
-  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, maxHeight: DROPDOWN_HEIGHT });
 
   const inputRef = useRef<HTMLInputElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const { position: dropdownPos, dropdownRef, contentRef } = useDropdownPosition({
+    isOpen,
+    anchorRef: inputRef,
+    width: DROPDOWN_WIDTH,
+    estimatedHeight: ESTIMATED_DROPDOWN_HEIGHT,
+  });
 
   // Sync internal state when value prop changes
   useEffect(() => {
@@ -51,52 +53,6 @@ const DatePicker: React.FC<DatePickerProps> = ({
       setViewYear(date.getFullYear());
     }
   }, [value]);
-
-  // Calculate dropdown position and available height relative to viewport (for position: fixed)
-  const calcPosition = () => {
-    if (!inputRef.current) return;
-    const rect = inputRef.current.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom - DROPDOWN_GAP - VIEWPORT_MARGIN;
-    const spaceAbove = rect.top - DROPDOWN_GAP - VIEWPORT_MARGIN;
-    // Prefer below. Flip up when below cannot fit; when neither side fits, take
-    // the roomier side so the scrollable body stays as tall as possible.
-    const showAbove =
-      spaceBelow < DROPDOWN_HEIGHT && (spaceAbove >= DROPDOWN_HEIGHT || spaceAbove > spaceBelow);
-
-    // Floor keeps the dropdown usable (scrollable) instead of collapsing to a
-    // sliver on very short viewports; overflowing the margin is the lesser evil.
-    const maxHeight = Math.max(
-      MIN_DROPDOWN_HEIGHT,
-      Math.min(DROPDOWN_HEIGHT, showAbove ? spaceAbove : spaceBelow)
-    );
-
-    const top = showAbove
-      ? Math.max(VIEWPORT_MARGIN, rect.top - maxHeight - DROPDOWN_GAP)
-      : rect.bottom + DROPDOWN_GAP;
-
-    // Clamp both edges: the right-edge clamp alone goes negative on viewports
-    // narrower than DROPDOWN_WIDTH + margin.
-    const left = Math.max(
-      VIEWPORT_MARGIN,
-      Math.min(rect.left, window.innerWidth - DROPDOWN_WIDTH - VIEWPORT_MARGIN)
-    );
-
-    setDropdownPos({ top, left, maxHeight });
-  };
-
-  // Recalculate on scroll/resize while open
-  useEffect(() => {
-    if (!isOpen) return;
-    calcPosition();
-
-    const handleUpdate = () => calcPosition();
-    window.addEventListener('scroll', handleUpdate, true);
-    window.addEventListener('resize', handleUpdate);
-    return () => {
-      window.removeEventListener('scroll', handleUpdate, true);
-      window.removeEventListener('resize', handleUpdate);
-    };
-  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close on outside click (handles both input wrapper and portal dropdown)
   useEffect(() => {
@@ -111,7 +67,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen]);
+  }, [isOpen, dropdownRef]);
 
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const firstDayOfMonth = new Date(viewYear, viewMonth, 1).getDay();
@@ -213,6 +169,8 @@ const DatePicker: React.FC<DatePickerProps> = ({
           }}
           className="bg-white rounded-lg shadow-xl border border-gray-200 p-2"
         >
+          {/* Unstyled wrapper: the measured element. Never carries the maxHeight. */}
+          <div ref={contentRef}>
           {/* Month/Year Selector */}
           <div className="flex items-center justify-between mb-2">
             <button
@@ -291,6 +249,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
             >
               Xong
             </button>
+          </div>
           </div>
         </div>,
         document.body
