@@ -327,7 +327,7 @@ const SparePartList = () => {
                   <input required type="text" value={formData.tenLinhKien} onChange={e => setFormData(f => ({ ...f, tenLinhKien: e.target.value }))}
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nhập tên linh kiện" />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Loại <span className="text-red-500">*</span></label>
                     <select required value={formData.loai} onChange={e => setFormData(f => ({ ...f, loai: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
@@ -344,7 +344,7 @@ const SparePartList = () => {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Số lượng tồn</label>
                     <input type="number" min="0" value={formData.soLuongTon} onChange={e => setFormData(f => ({ ...f, soLuongTon: e.target.value }))}
@@ -361,7 +361,7 @@ const SparePartList = () => {
                   <input type="text" value={formData.nhaCungCap} onChange={e => setFormData(f => ({ ...f, nhaCungCap: e.target.value }))}
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none" />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
                     <select value={formData.trangThai} onChange={e => setFormData(f => ({ ...f, trangThai: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">

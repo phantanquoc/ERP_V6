@@ -666,7 +666,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
               <h2 className="text-xl font-bold">Tạo kho mới</h2>
             </div>
             <div className="p-6 overflow-y-auto flex-1 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Mã kho</label>
                   <input type="text" value={newWarehouseForm.maKho} onChange={(e) => setNewWarehouseForm(f => ({ ...f, maKho: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Tự động" />
@@ -676,7 +676,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
                   <input type="text" value={newWarehouseForm.tenKho} onChange={(e) => setNewWarehouseForm(f => ({ ...f, tenKho: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Nhập tên kho" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Loại kho</label>
                   <input type="text" value={newWarehouseForm.loaiKho} onChange={(e) => setNewWarehouseForm(f => ({ ...f, loaiKho: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Loại kho" />
@@ -693,7 +693,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
                 <label className="block text-sm font-medium text-gray-700 mb-1">Vị trí</label>
                 <input type="text" value={newWarehouseForm.diaChi} onChange={(e) => setNewWarehouseForm(f => ({ ...f, diaChi: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Vị trí kho" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Diện tích (m²)</label>
                   <input type="number" value={newWarehouseForm.dienTich} onChange={(e) => setNewWarehouseForm(f => ({ ...f, dienTich: parseNumberInputStr(e.target.value) }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" placeholder="0" min="0" step="0.01" />
@@ -703,7 +703,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
                   <input type="number" value={newWarehouseForm.sucChua} onChange={(e) => setNewWarehouseForm(f => ({ ...f, sucChua: parseNumberInputStr(e.target.value) }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" placeholder="0" min="0" step="1" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Người quản lý</label>
                   <input type="text" value={newWarehouseForm.nguoiQuanLy} onChange={(e) => setNewWarehouseForm(f => ({ ...f, nguoiQuanLy: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Tên người quản lý" />
@@ -732,7 +732,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
               <h2 className="text-xl font-bold">Sửa kho</h2>
             </div>
             <div className="p-6 overflow-y-auto flex-1 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Mã kho</label>
                   <input type="text" value={editWarehouseForm.maKho} onChange={(e) => setEditWarehouseForm(f => ({ ...f, maKho: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" />
@@ -742,7 +742,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
                   <input type="text" value={editWarehouseForm.tenKho} onChange={(e) => setEditWarehouseForm(f => ({ ...f, tenKho: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Loại kho</label>
                   <input type="text" value={editWarehouseForm.loaiKho} onChange={(e) => setEditWarehouseForm(f => ({ ...f, loaiKho: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" />
@@ -759,7 +759,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
                 <label className="block text-sm font-medium text-gray-700 mb-1">Vị trí</label>
                 <input type="text" value={editWarehouseForm.diaChi} onChange={(e) => setEditWarehouseForm(f => ({ ...f, diaChi: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Diện tích (m²)</label>
                   <input type="number" value={editWarehouseForm.dienTich} onChange={(e) => setEditWarehouseForm(f => ({ ...f, dienTich: parseNumberInputStr(e.target.value) }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" min="0" step="0.01" />
@@ -769,7 +769,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
                   <input type="number" value={editWarehouseForm.sucChua} onChange={(e) => setEditWarehouseForm(f => ({ ...f, sucChua: parseNumberInputStr(e.target.value) }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" min="0" step="1" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Người quản lý</label>
                   <input type="text" value={editWarehouseForm.nguoiQuanLy} onChange={(e) => setEditWarehouseForm(f => ({ ...f, nguoiQuanLy: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" />

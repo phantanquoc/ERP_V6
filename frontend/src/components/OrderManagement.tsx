@@ -792,7 +792,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
               <form onSubmit={handleUpdate}>
                 <div className="space-y-6">
                   {/* Giá trị đơn hàng */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Giá trị đơn hàng (USD)
@@ -824,7 +824,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
                   {/* Thanh toán đợt 1 */}
                   <div className="border-t pt-4">
                     <h5 className="text-sm font-semibold text-gray-700 mb-3">Thanh toán đợt 1</h5>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Xuất khẩu (USD)
@@ -868,7 +868,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
                   {/* Thanh toán đợt 2 */}
                   <div className="border-t pt-4">
                     <h5 className="text-sm font-semibold text-gray-700 mb-3">Thanh toán đợt 2</h5>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Xuất khẩu (USD)
@@ -912,7 +912,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
                   {/* Thông tin sản xuất */}
                   <div className="border-t pt-4">
                     <h5 className="text-sm font-semibold text-gray-700 mb-3">Thông tin sản xuất</h5>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Ngày bắt đầu sản xuất (KH)
@@ -963,7 +963,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
                   {/* Trạng thái */}
                   <div className="border-t pt-4">
                     <h5 className="text-sm font-semibold text-gray-700 mb-3">Trạng thái</h5>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Trạng thái sản xuất
