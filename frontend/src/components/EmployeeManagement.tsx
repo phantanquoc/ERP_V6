@@ -724,7 +724,7 @@ const EmployeeManagement: React.FC = () => {
               {/* Thông tin công việc */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Thông tin công việc</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Trình độ học vấn</label>
                     <select
@@ -752,7 +752,7 @@ const EmployeeManagement: React.FC = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  <div className="col-span-2">
+                  <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Kỹ năng đặc biệt</label>
                     <input
                       type="text"
@@ -853,7 +853,7 @@ const EmployeeManagement: React.FC = () => {
               {/* Thông tin khác */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Thông tin khác</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Số tài khoản ngân hàng</label>
                     <input
@@ -874,7 +874,7 @@ const EmployeeManagement: React.FC = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  <div className="col-span-2">
+                  <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
                     <textarea
                       name="notes"
