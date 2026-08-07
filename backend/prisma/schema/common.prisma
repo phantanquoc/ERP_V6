@@ -585,12 +585,18 @@ model Attendance {
   /// scores the past by today's rules.
   shift          Int?
   notes          String?
+  /// Provenance: the OvertimePlan whose approval/edit materialized this row.
+  /// Null for kiosk overtime check-ins and legacy rows. SetNull on plan delete —
+  /// deleting a plan must never erase the historical attendance (payroll data).
+  overtimePlanId String?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   employee       Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  overtimePlan   OvertimePlan?    @relation(fields: [overtimePlanId], references: [id], onDelete: SetNull)
 
   @@index([employeeId, attendanceDate, isOvertime])
   @@index([attendanceDate, shift])
+  @@index([overtimePlanId])
   @@map("attendances")
   @@schema("common")
 }
@@ -1096,6 +1102,7 @@ model OvertimePlan {
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
   items       OvertimePlanItem[]
+  attendances Attendance[]
 
   @@map("overtime_plans")
   @@schema("common")
