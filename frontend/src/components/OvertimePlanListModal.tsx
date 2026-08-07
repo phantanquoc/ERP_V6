@@ -23,6 +23,15 @@ interface OvertimePlanListModalProps {
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * A plan may only be edited while pending or approved. Terminal statuses
+ * (TU_CHOI, HOAN_THANH, HUY) are closed — the backend rejects such edits
+ * because they would silently rewrite payroll for a closed period.
+ */
+function isEditableStatus(trangThai: OvertimePlanStatus): boolean {
+  return trangThai === OvertimePlanStatus.CHO_DUYET || trangThai === OvertimePlanStatus.DA_DUYET;
+}
+
 /** Format "DD/MM" from an ISO date string or Date-like value */
 function fmtDMY(dateStr: string): string {
   const d = new Date(dateStr);
@@ -365,7 +374,7 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
               className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
               Đóng
             </button>
-            {isAdmin && viewPlan && (
+            {isAdmin && viewPlan && isEditableStatus(viewPlan.trangThai) && (
               <button
                 onClick={() => { setViewPlan(null); setEditPlan(viewPlan); setShowCreateModal(true); }}
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"

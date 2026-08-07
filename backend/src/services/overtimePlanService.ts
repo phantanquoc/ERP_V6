@@ -1,6 +1,6 @@
 import prisma from '@config/database';
 import logger from '@config/logger';
-import { AttendanceStatus } from '@prisma/client';
+import { AttendanceStatus, Prisma } from '@prisma/client';
 import {
   CreateOvertimePlanRequest,
   UpdateOvertimePlanRequest,
@@ -13,6 +13,43 @@ import {
 } from '@types';
 import { ApiError, NotFoundError, ValidationError } from '@utils/errors';
 import notificationService from './notificationService';
+
+// Vietnam timezone offset (UTC+7). Backend container runs UTC, so we
+// construct UTC dates that represent the requested Vietnam local time
+// by subtracting 7h. setHours() would be timezone-dependent and wrong.
+const VN_OFFSET_HOURS = 7;
+
+const parseHHMM = (timeStr: string): number => {
+  const [h, m] = timeStr.split(':').map(Number);
+  return h * 60 + m;
+};
+
+const buildVNTime = (baseDate: Date, minutesSinceMidnight: number, dayOffset = 0): Date => {
+  const year = baseDate.getUTCFullYear();
+  const month = baseDate.getUTCMonth();
+  const day = baseDate.getUTCDate() + dayOffset;
+  const hours = Math.floor(minutesSinceMidnight / 60);
+  const minutes = minutesSinceMidnight % 60;
+  return new Date(Date.UTC(year, month, day, hours - VN_OFFSET_HOURS, minutes, 0, 0));
+};
+
+/** Statuses in which a plan may no longer be edited by anyone, including ADMIN. */
+const NON_EDITABLE_STATUSES = ['TU_CHOI', 'HOAN_THANH', 'HUY'] as const;
+
+const STATUS_LABELS: Record<string, string> = {
+  TU_CHOI: 'đã bị từ chối',
+  HOAN_THANH: 'đã hoàn thành',
+  HUY: 'đã bị hủy',
+};
+
+/** Minimal item shape the attendance materialization needs. */
+interface MaterializableItem {
+  ngayTangCa: Date;
+  gioBatDau: string;
+  gioKetThuc: string;
+  workShiftId: string | null;
+  nguoiThamGiaIds: string[];
+}
 
 class OvertimePlanService {
   // ─── User mapping helpers ─────────────────────────────────────────────────
@@ -131,13 +168,139 @@ class OvertimePlanService {
     return { nguoiThamGiaUserIds, workShiftName, ngayTangCaDate };
   }
 
-  // ─── Fetch plan with items ────────────────────────────────────────────────
+  // ─── Item identity ────────────────────────────────────────────────────────
+
+  /**
+   * Value identity of a plan item. Items are deleted and recreated on every
+   * update, so "same item" must be reconstructed from its date and hours.
+   * ngayTangCa is a DateTime — normalize it rather than comparing objects.
+   */
+  private itemIdentityKey(ngayTangCa: Date, gioBatDau: string, gioKetThuc: string): string {
+    return `${new Date(ngayTangCa).getTime()}|${gioBatDau}|${gioKetThuc}`;
+  }
+
+  // ─── Fetch plan with items ────────────────────────────────────────────────────────
 
   private findPlanWithItems(id: string) {
     return prisma.overtimePlan.findUnique({
       where: { id },
       include: { items: { orderBy: { ngayTangCa: 'asc' } } },
     });
+  }
+
+  // ─── Attendance materialization ───────────────────────────────────────────
+
+  /**
+   * Create the overtime Attendance rows for a plan's items, one per
+   * (item × participant). Shared by the approval path and the update path so
+   * both derive checkInTime, checkOutTime and workHours identically.
+   *
+   * @param skipIfExists when true, a *pre-existing* row matching
+   *   (employeeId, attendanceDate, isOvertime: true) is left alone — keeps
+   *   re-approval idempotent. Note the `isOvertime` part of the key: a regular
+   *   (non-overtime) row on the same date does *not* block the write.
+   *   The update path disables this because it deletes the plan's rows first.
+   *
+   * Independently of `skipIfExists`, at most one row is written per
+   * (employeeId, attendanceDate) *within a single run*. When a participant
+   * appears on several items sharing a date, the first item in
+   * `ngayTangCa asc, gioBatDau asc, gioKetThuc asc` order wins. The secondary
+   * and tertiary keys matter: the approval path receives items ordered by
+   * Postgres `ORDER BY ngayTangCa ASC` (no defined order among ties) while the
+   * update path receives them in form-payload order, so sorting on the date
+   * alone would let the two paths pick *different* items for the same day.
+   * This keeps the update path at the same
+   * one-row-per-day shape the approval path has always produced — without it,
+   * an edit would multiply rows and inflate payroll hours (payrollService sums
+   * workHours across rows).
+   */
+  private async materializeAttendance(
+    tx: Prisma.TransactionClient,
+    plan: { id: string; noiDung: string },
+    items: MaterializableItem[],
+    options: { skipIfExists: boolean }
+  ): Promise<void> {
+    // Pre-fetch all referenced workShifts once — checkInTime anchors on
+    // shift.endTime (clocked-out time of the regular shift) so overtime
+    // never overlaps the regular shift even if the user typed an
+    // overlapping gioBatDau by accident.
+    const workShiftIds = Array.from(
+      new Set(items.map(i => i.workShiftId).filter(Boolean))
+    ) as string[];
+    const workShifts = workShiftIds.length > 0
+      ? await tx.workShift.findMany({ where: { id: { in: workShiftIds } } })
+      : [];
+    const workShiftMap = new Map(workShifts.map(s => [s.id, s]));
+
+    // Iterate in (ngayTangCa, gioBatDau, gioKetThuc) asc order so the
+    // "first item wins" tiebreak below is identical on both paths. The
+    // approval path gets items ordered only by ngayTangCa (Postgres leaves
+    // ties unordered) and the update path gets them in payload order, so the
+    // time keys are what make the choice deterministic across both. Times are
+    // "HH:mm" strings — lexicographic compare is chronological.
+    const orderedItems = [...items].sort((a, b) => {
+      const byDate = a.ngayTangCa.getTime() - b.ngayTangCa.getTime();
+      if (byDate !== 0) return byDate;
+      const byStart = a.gioBatDau.localeCompare(b.gioBatDau);
+      if (byStart !== 0) return byStart;
+      return a.gioKetThuc.localeCompare(b.gioKetThuc);
+    });
+
+    // (employeeId, attendanceDate) pairs already written during this run.
+    const writtenKeys = new Set<string>();
+
+    for (const item of orderedItems) {
+      // Overtime duration in minutes — handles overnight ranges (e.g., 22:00→02:00)
+      const startMin = parseHHMM(item.gioBatDau);
+      const endMin = parseHHMM(item.gioKetThuc);
+      let durationMin = endMin - startMin;
+      if (durationMin <= 0) durationMin += 24 * 60;
+
+      // checkInTime: prefer end of the assigned shift (then add OT duration);
+      // fall back to the raw gioBatDau if no shift is set or the shift is missing.
+      let checkInTime: Date;
+      const shift = item.workShiftId ? workShiftMap.get(item.workShiftId) : undefined;
+      if (shift) {
+        const shiftStartMin = parseHHMM(shift.startTime);
+        const shiftEndMin = parseHHMM(shift.endTime);
+        const shiftCrossesMidnight = shiftEndMin <= shiftStartMin;
+        checkInTime = buildVNTime(item.ngayTangCa, shiftEndMin, shiftCrossesMidnight ? 1 : 0);
+      } else {
+        checkInTime = buildVNTime(item.ngayTangCa, startMin);
+      }
+      const checkOutTime = new Date(checkInTime.getTime() + durationMin * 60 * 1000);
+      const workHours = Math.round((durationMin / 60) * 100) / 100;
+
+      for (const uid of item.nguoiThamGiaIds) {
+        const employee = await tx.employee.findFirst({ where: { userId: uid } });
+        if (!employee) continue;
+
+        // One row per (employee, date) per run — see the doc comment above.
+        const runKey = `${employee.id}|${item.ngayTangCa.getTime()}`;
+        if (writtenKeys.has(runKey)) continue;
+
+        if (options.skipIfExists) {
+          const existing = await tx.attendance.findFirst({
+            where: { employeeId: employee.id, attendanceDate: item.ngayTangCa, isOvertime: true },
+          });
+          if (existing) continue; // idempotency: skip-if-exists
+        }
+        await tx.attendance.create({
+          data: {
+            employeeId: employee.id,
+            attendanceDate: item.ngayTangCa,
+            checkInTime,
+            checkOutTime,
+            workHours,
+            status: AttendanceStatus.OVERTIME,
+            isOvertime: true,
+            notes: `Tăng ca theo kế hoạch: ${plan.noiDung}`,
+            overtimePlanId: plan.id,
+          },
+        });
+        writtenKeys.add(runKey);
+      }
+    }
   }
 
   // ─── Public API ───────────────────────────────────────────────────────────
@@ -244,6 +407,15 @@ class OvertimePlanService {
     const plan = await this.findPlanWithItems(id);
     if (!plan) throw new NotFoundError('Không tìm thấy kế hoạch tăng ca');
 
+    // Terminal statuses are closed to everyone, ADMIN included: editing them
+    // would silently rewrite payroll figures for an already-closed period.
+    if ((NON_EDITABLE_STATUSES as readonly string[]).includes(plan.trangThai)) {
+      throw new ApiError(
+        403,
+        `Không thể chỉnh sửa kế hoạch ${STATUS_LABELS[plan.trangThai]}`
+      );
+    }
+
     if (!isAdmin) {
       if (plan.nguoiTaoId !== userId) throw new ApiError(403, 'Chỉ người tạo hoặc admin mới có quyền cập nhật');
       if (plan.trangThai !== 'CHO_DUYET') throw new ApiError(403, 'Chỉ có thể chỉnh sửa kế hoạch khi chưa được duyệt');
@@ -261,13 +433,44 @@ class OvertimePlanService {
       if (data.items && data.items.length > 0) {
         const resolvedItems = await Promise.all(data.items.map(item => this.resolveItemData(item)));
 
+        // Snapshot participant-supplied state before the items are dropped, keyed
+        // by value identity (ngayTangCa + gioBatDau + gioKetThuc) — items are
+        // recreated on every update, so identity cannot rely on row IDs.
+        const priorStateByKey = new Map<
+          string,
+          { trangThaiTiepNhan: Record<string, string>; gioThucTe: Record<string, any> }
+        >();
+        for (const prior of plan.items) {
+          priorStateByKey.set(
+            this.itemIdentityKey(prior.ngayTangCa, prior.gioBatDau, prior.gioKetThuc),
+            {
+              trangThaiTiepNhan: (prior.trangThaiTiepNhan as Record<string, string>) || {},
+              gioThucTe: (prior.gioThucTe as Record<string, any>) || {},
+            }
+          );
+        }
+
         // Delete-then-recreate for child items
         await tx.overtimePlanItem.deleteMany({ where: { overtimePlanId: id } });
         await tx.overtimePlanItem.createMany({
           data: data.items.map((item, idx) => {
             const resolved = resolvedItems[idx];
+            const prior = priorStateByKey.get(
+              this.itemIdentityKey(resolved.ngayTangCaDate, item.gioBatDau, item.gioKetThuc)
+            );
+
+            // Unchanged item: carry acceptance and actual time over, but only for
+            // participants still on the item — a removed participant leaves no
+            // orphan entry, and a newly added one defaults to CHUA_TIEP_NHAN.
             const trangThaiTiepNhan: Record<string, string> = {};
-            resolved.nguoiThamGiaUserIds.forEach(uid => { trangThaiTiepNhan[uid] = 'CHUA_TIEP_NHAN'; });
+            const gioThucTe: Record<string, any> = {};
+            resolved.nguoiThamGiaUserIds.forEach(uid => {
+              trangThaiTiepNhan[uid] = prior?.trangThaiTiepNhan[uid] ?? 'CHUA_TIEP_NHAN';
+              if (prior && prior.gioThucTe[uid] !== undefined) {
+                gioThucTe[uid] = prior.gioThucTe[uid];
+              }
+            });
+
             return {
               overtimePlanId: id,
               ngayTangCa: resolved.ngayTangCaDate,
@@ -278,9 +481,31 @@ class OvertimePlanService {
               nguoiThamGiaIds: resolved.nguoiThamGiaUserIds,
               ghiChuItem: item.ghiChuItem || null,
               trangThaiTiepNhan,
+              gioThucTe,
             };
           }),
         });
+
+        // Attendance sync — only for plans already materialized. A CHO_DUYET plan
+        // has no attendance yet, so it is left entirely alone. Deletion is scoped
+        // by overtimePlanId, so kiosk rows (null link) and other plans' rows are
+        // out of scope by construction. Same transaction as the plan/item writes:
+        // a regeneration failure rolls the whole edit back.
+        if (plan.trangThai === 'DA_DUYET') {
+          await tx.attendance.deleteMany({ where: { overtimePlanId: id } });
+          await this.materializeAttendance(
+            tx,
+            { id, noiDung: parentUpdateData.noiDung ?? plan.noiDung },
+            data.items.map((item, idx) => ({
+              ngayTangCa: resolvedItems[idx].ngayTangCaDate,
+              gioBatDau: item.gioBatDau,
+              gioKetThuc: item.gioKetThuc,
+              workShiftId: item.workShiftId || null,
+              nguoiThamGiaIds: resolvedItems[idx].nguoiThamGiaUserIds,
+            })),
+            { skipIfExists: false }
+          );
+        }
       }
 
       return tx.overtimePlan.findUnique({
@@ -355,84 +580,13 @@ class OvertimePlanService {
 
     const newStatus = data.trangThai === 'DA_DUYET' ? 'DA_DUYET' : 'TU_CHOI';
 
-    // Vietnam timezone offset (UTC+7). Backend container runs UTC, so we
-    // construct UTC dates that represent the requested Vietnam local time
-    // by subtracting 7h. setHours() would be timezone-dependent and wrong.
-    const VN_OFFSET_HOURS = 7;
-    const parseHHMM = (timeStr: string): number => {
-      const [h, m] = timeStr.split(':').map(Number);
-      return h * 60 + m;
-    };
-    const buildVNTime = (baseDate: Date, minutesSinceMidnight: number, dayOffset = 0): Date => {
-      const year = baseDate.getUTCFullYear();
-      const month = baseDate.getUTCMonth();
-      const day = baseDate.getUTCDate() + dayOffset;
-      const hours = Math.floor(minutesSinceMidnight / 60);
-      const minutes = minutesSinceMidnight % 60;
-      return new Date(Date.UTC(year, month, day, hours - VN_OFFSET_HOURS, minutes, 0, 0));
-    };
-
-    // Pre-fetch all referenced workShifts once — checkInTime anchors on
-    // shift.endTime (clocked-out time of the regular shift) so overtime
-    // never overlaps the regular shift even if the user typed an
-    // overlapping gioBatDau by accident.
-    const workShiftIds = Array.from(
-      new Set(plan.items.map((i: any) => i.workShiftId).filter(Boolean))
-    ) as string[];
-    const workShifts = workShiftIds.length > 0
-      ? await prisma.workShift.findMany({ where: { id: { in: workShiftIds } } })
-      : [];
-    const workShiftMap = new Map(workShifts.map(s => [s.id, s]));
-
     // Atomic: status update + attendance fan-out in one transaction.
     // If attendance creation fails, the plan status is NOT committed.
     await prisma.$transaction(async (tx) => {
       await tx.overtimePlan.update({ where: { id: planId }, data: { trangThai: newStatus as any } });
 
       if (newStatus === 'DA_DUYET') {
-        for (const item of plan.items) {
-          // Overtime duration in minutes — handles overnight ranges (e.g., 22:00→02:00)
-          const startMin = parseHHMM(item.gioBatDau);
-          const endMin = parseHHMM(item.gioKetThuc);
-          let durationMin = endMin - startMin;
-          if (durationMin <= 0) durationMin += 24 * 60;
-
-          // checkInTime: prefer end of the assigned shift (then add OT duration);
-          // fall back to the raw gioBatDau if no shift is set or the shift is missing.
-          let checkInTime: Date;
-          const shift = item.workShiftId ? workShiftMap.get(item.workShiftId) : undefined;
-          if (shift) {
-            const shiftStartMin = parseHHMM(shift.startTime);
-            const shiftEndMin = parseHHMM(shift.endTime);
-            const shiftCrossesMidnight = shiftEndMin <= shiftStartMin;
-            checkInTime = buildVNTime(item.ngayTangCa, shiftEndMin, shiftCrossesMidnight ? 1 : 0);
-          } else {
-            checkInTime = buildVNTime(item.ngayTangCa, startMin);
-          }
-          const checkOutTime = new Date(checkInTime.getTime() + durationMin * 60 * 1000);
-          const workHours = Math.round((durationMin / 60) * 100) / 100;
-
-          for (const uid of item.nguoiThamGiaIds) {
-            const employee = await tx.employee.findFirst({ where: { userId: uid } });
-            if (!employee) continue;
-            const existing = await tx.attendance.findFirst({
-              where: { employeeId: employee.id, attendanceDate: item.ngayTangCa, isOvertime: true },
-            });
-            if (existing) continue; // idempotency: skip-if-exists
-            await tx.attendance.create({
-              data: {
-                employeeId: employee.id,
-                attendanceDate: item.ngayTangCa,
-                checkInTime,
-                checkOutTime,
-                workHours,
-                status: AttendanceStatus.OVERTIME,
-                isOvertime: true,
-                notes: `Tăng ca theo kế hoạch: ${plan.noiDung}`,
-              },
-            });
-          }
-        }
+        await this.materializeAttendance(tx, plan, plan.items, { skipIfExists: true });
       }
     });
 
