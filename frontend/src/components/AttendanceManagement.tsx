@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Edit2, Trash2, Download, Settings, Table, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Edit2, Trash2, Download, Settings, Table, Calendar, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
 import attendanceService from '@services/attendanceService';
 import { useEmployees, useAttendanceByDateRange, attendanceKeys } from '../hooks';
 import { useDepartments } from '../hooks/useDepartments';
@@ -43,6 +43,15 @@ interface AttendanceRecord {
   overtimeCheckOutTimes?: string[];
   hasOvertime?: boolean;
   overtimeNotes?: string | null;
+  // Derived from the clock at read time, never stored. Both figures are present
+  // regardless of which one payroll pays, so managers can compare them.
+  plannedOvertimeHours?: number | null;
+  actualOvertimeHours?: number | null;
+  overtimeFlag?: {
+    code: string;
+    kind: 'REFUSAL' | 'ADVISORY';
+    message: string;
+  } | null;
 }
 
 // Each individual attendance entry in the edit modal
@@ -911,16 +920,48 @@ const AttendanceManagement: React.FC = () => {
                               {formatTimes(record.overtimeCheckOutTimes ?? [])}
                             </td>
                             <td className="px-3 py-2 sm:px-6 text-xs text-gray-700 italic border-r border-gray-200">
-                              {(record.overtimeHours ?? 0).toFixed(2)}
+                              {/* Planned and actual side by side so the two can be
+                                  compared before the payable source is switched. */}
+                              <div className="flex flex-col gap-0.5 not-italic">
+                                <span className="text-gray-700">
+                                  KH: {(record.plannedOvertimeHours ?? record.overtimeHours ?? 0).toFixed(2)}
+                                </span>
+                                <span className={record.overtimeFlag?.kind === 'REFUSAL' ? 'text-amber-700 font-medium' : 'text-gray-900 font-medium'}>
+                                  TT: {record.actualOvertimeHours != null ? record.actualOvertimeHours.toFixed(2) : '—'}
+                                </span>
+                              </div>
                             </td>
                             <td className="px-3 py-2 sm:px-6 text-center border-r border-gray-200">
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-purple-50 text-purple-700 border border-purple-200">
-                                <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
-                                Tăng ca
-                              </span>
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                                  Tăng ca
+                                </span>
+                                {/* Icon + text, so the flag does not rely on colour alone. */}
+                                {record.overtimeFlag && (
+                                  <span
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full bg-amber-50 text-amber-800 border border-amber-200 cursor-help"
+                                    title={record.overtimeFlag.message}
+                                  >
+                                    <AlertTriangle className="w-3 h-3" aria-hidden="true" />
+                                    Cần xem lại
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="px-3 py-2 sm:px-6 text-xs text-gray-500 italic border-r border-gray-200">
-                              {record.overtimeNotes || '-'}
+                              {/* The reason is spelled out, not left to a tooltip, so it
+                                  is reachable without a pointer. */}
+                              {record.overtimeFlag ? (
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="not-italic text-amber-800">
+                                    {record.overtimeFlag.message}
+                                  </span>
+                                  {record.overtimeNotes && <span>{record.overtimeNotes}</span>}
+                                </div>
+                              ) : (
+                                record.overtimeNotes || '-'
+                              )}
                             </td>
                             <td className="px-3 py-2 sm:px-6"></td>
                           </tr>
