@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
-import { Eye, Save, X, Download, Settings, Send } from 'lucide-react';
+import { Eye, Save, X, Download, Settings, Send, AlertTriangle } from 'lucide-react';
 import payrollService, { PayrollItem, PayrollDetail } from '@services/payrollService';
 import { usePayrollByMonthYear, usePayrollSettings, useUpdatePayrollSettings, payrollKeys } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
@@ -31,7 +31,7 @@ const PayrollManagement: React.FC = () => {
   const [editingPayroll, setEditingPayroll] = useState<PayrollDetail | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsForm, setSettingsForm] = useState({
-    standardWorkDays: 26, overtimeRate: 0,
+    standardWorkDays: 26, overtimeRate: 0, useActualOvertimeHours: false,
     mealAllowancePerDay: 30000, overtimeMealAllowance: 25000, sundayMealAllowance: 40000,
     fuelPricePerKm: 3000, otRateWeekday: 1.5, otRateWeekdayExtra: 2.1,
     otRateSunday: 2, otRateSundayExtra: 2.7, otRateHoliday: 3,
@@ -45,6 +45,10 @@ const PayrollManagement: React.FC = () => {
 
   const standardWorkDays = payrollSettings?.standardWorkDays ?? 26;
   const overtimeRate = payrollSettings?.overtimeRate ?? 0;
+  // Which overtime figure payroll actually pays. Both are shown regardless, so
+  // this states which of the two columns is the payable one.
+  const useActualOvertime = payrollSettings?.useActualOvertimeHours ?? false;
+  const overtimeSource: 'ACTUAL' | 'PLANNED' = useActualOvertime ? 'ACTUAL' : 'PLANNED';
 
   const handleViewDetail = async (payroll: PayrollItem) => {
     try {
@@ -172,6 +176,7 @@ const PayrollManagement: React.FC = () => {
               setSettingsForm({
                 standardWorkDays: payrollSettings?.standardWorkDays ?? 26,
                 overtimeRate: payrollSettings?.overtimeRate ?? 0,
+                useActualOvertimeHours: payrollSettings?.useActualOvertimeHours ?? false,
                 mealAllowancePerDay: payrollSettings?.mealAllowancePerDay ?? 30000,
                 overtimeMealAllowance: payrollSettings?.overtimeMealAllowance ?? 25000,
                 sundayMealAllowance: payrollSettings?.sundayMealAllowance ?? 40000,
@@ -281,6 +286,20 @@ const PayrollManagement: React.FC = () => {
                 <th className="px-3 py-3 sm:px-6 sm:py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Lương cơ bản</th>
                 <th className="px-3 py-3 sm:px-6 sm:py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Lương KPI</th>
                 <th className="px-3 py-3 sm:px-6 sm:py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Phụ cấp khác</th>
+                {/* Both overtime figures side by side, so the derived figure can be
+                    compared against the plan before the payable source is switched. */}
+                <th className="px-3 py-3 sm:px-6 sm:py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">
+                  Giờ TC kế hoạch
+                  {overtimeSource === 'PLANNED' && (
+                    <span className="block text-xs font-normal text-blue-700">Đang tính lương</span>
+                  )}
+                </th>
+                <th className="px-3 py-3 sm:px-6 sm:py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">
+                  Giờ TC thực tế
+                  {overtimeSource === 'ACTUAL' && (
+                    <span className="block text-xs font-normal text-blue-700">Đang tính lương</span>
+                  )}
+                </th>
                 <th className="px-3 py-3 sm:px-6 sm:py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Tổng khấu trừ</th>
                 <th className="px-3 py-3 sm:px-6 sm:py-4 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">Thực lĩnh</th>
                 <th className="px-3 py-3 sm:px-6 sm:py-4 text-center text-sm font-semibold text-gray-900">Hành động</th>
@@ -312,6 +331,28 @@ const PayrollManagement: React.FC = () => {
                   </td>
                   <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 text-right border-r border-gray-200">
                     {(payroll.positionAllowance + payroll.otherAllowances).toLocaleString('vi-VN')} ₫
+                  </td>
+                  <td className={`px-3 py-3 sm:px-6 sm:py-4 text-sm text-right border-r border-gray-200 ${
+                    overtimeSource === 'PLANNED' ? 'font-semibold text-gray-900' : 'text-gray-600'
+                  }`}>
+                    {(payroll.plannedOvertimeHours ?? payroll.overtimeHours ?? 0).toFixed(2)}
+                  </td>
+                  <td className={`px-3 py-3 sm:px-6 sm:py-4 text-sm text-right border-r border-gray-200 ${
+                    overtimeSource === 'ACTUAL' ? 'font-semibold text-gray-900' : 'text-gray-600'
+                  }`}>
+                    {(payroll.actualOvertimeHours ?? 0).toFixed(2)}
+                    {/* Icon + text, so a flag never depends on colour alone. */}
+                    {payroll.overtimeFlags && payroll.overtimeFlags.length > 0 && (
+                      <span
+                        className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200 rounded cursor-help"
+                        title={payroll.overtimeFlags
+                          .map(f => `${f.date}: ${f.message ?? ''}`)
+                          .join('\n')}
+                      >
+                        <AlertTriangle className="w-3 h-3" aria-hidden="true" />
+                        {payroll.overtimeFlags.length}
+                      </span>
+                    )}
                   </td>
                   <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-900 text-right border-r border-gray-200">
                     {payroll.totalDeductions.toLocaleString('vi-VN')} ₫
@@ -351,6 +392,20 @@ const PayrollManagement: React.FC = () => {
                 </td>
                 <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-800 text-right border-r border-gray-200">
                   {filteredPayrolls.reduce((sum, p) => sum + p.positionAllowance + p.otherAllowances, 0).toLocaleString('vi-VN')} ₫
+                </td>
+                {/* Overtime totals, aligned with the two columns added to the header. */}
+                <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-800 text-right border-r border-gray-200">
+                  {(Math.round(
+                    filteredPayrolls.reduce(
+                      (sum, p) => sum + (p.plannedOvertimeHours ?? p.overtimeHours ?? 0),
+                      0
+                    ) * 100
+                  ) / 100).toFixed(2)}
+                </td>
+                <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-800 text-right border-r border-gray-200">
+                  {(Math.round(
+                    filteredPayrolls.reduce((sum, p) => sum + (p.actualOvertimeHours ?? 0), 0) * 100
+                  ) / 100).toFixed(2)}
                 </td>
                 <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-800 text-right border-r border-gray-200">
                   {filteredPayrolls.reduce((sum, p) => sum + p.totalDeductions, 0).toLocaleString('vi-VN')} ₫
@@ -762,7 +817,21 @@ const PayrollManagement: React.FC = () => {
                   min={0}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
                 />
-                <p className="text-xs text-gray-500 mt-1">Tiền OT = Giá OT x Số giờ OT</p>
+                <p className="text-xs text-gray-500 mt-1">Tiền OT = Giá OT x Số giờ OT. Để 0 để dùng lương cơ bản của từng nhân viên.</p>
+              </div>
+              <div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settingsForm.useActualOvertimeHours ?? false}
+                    onChange={e => setSettingsForm({ ...settingsForm, useActualOvertimeHours: e.target.checked })}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm font-medium">Dùng giờ thực tế từ chấm công cho tính lương OT</span>
+                </label>
+                <p className="text-xs text-gray-500 mt-1 ml-6">
+                  Bật: tính từ giờ vào/ra thực tế. Tắt: dùng giờ kế hoạch từ đăng ký tăng ca.
+                </p>
               </div>
               <hr className="my-2" />
               <p className="text-sm font-semibold text-gray-700">Hệ số tăng ca (chấm công)</p>
