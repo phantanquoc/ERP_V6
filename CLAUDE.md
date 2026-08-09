@@ -58,7 +58,7 @@ Khi cần hiểu codebase, tìm code, hoặc trả lời câu hỏi về structu
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **ERP_V6** (30440 symbols, 47105 relationships, 226 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **ERP_V6** (30730 symbols, 47561 relationships, 228 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
