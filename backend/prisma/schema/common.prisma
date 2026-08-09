@@ -594,7 +594,7 @@ model Attendance {
   employee       Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   overtimePlan   OvertimePlan?    @relation(fields: [overtimePlanId], references: [id], onDelete: SetNull)
 
-  @@index([employeeId, attendanceDate, isOvertime])
+  @@unique([employeeId, attendanceDate, isOvertime])
   @@index([attendanceDate, shift])
   @@index([overtimePlanId])
   @@map("attendances")
