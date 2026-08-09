@@ -1145,6 +1145,13 @@ enum OvertimePlanStatus {
 model PayrollSettings {
   id                    String   @id @default(cuid())
   standardWorkDays      Int      @default(26)
+  /// Giờ chuẩn một ngày công. Cùng với standardWorkDays tạo mẫu số để suy lương
+  /// giờ từ lương tháng: hourlyRate = baseSalary / standardWorkDays / standardHoursPerDay.
+  standardHoursPerDay   Float    @default(8)
+  /// DEPRECATED — tiền OT phẳng (₫/giờ) dùng chung cho mọi nhân viên. Không thể
+  /// đúng khi lương mỗi người một khác; giữ lại để không phá dữ liệu cũ. Tiền OT
+  /// giờ suy từ lương từng người nhân hệ số otRate* bên dưới. Chỉ dùng làm fallback
+  /// khi nhân viên chưa có baseSalary.
   overtimeRate          Float    @default(0)
   mealAllowancePerDay   Float    @default(0)
   overtimeMealAllowance Float    @default(25000)
