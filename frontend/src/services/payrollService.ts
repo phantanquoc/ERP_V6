@@ -2,6 +2,27 @@ import apiClient from './apiClient';
 import { downloadFile } from '../utils/downloadFile';
 import { API_BASE_URL } from '../config/api';
 
+/**
+ * Which overtime figure payroll is currently paying from. Driven by the
+ * `useActualOvertimeHours` payroll setting; the parallel display shows both
+ * figures regardless, so this is what disambiguates them.
+ */
+export type OvertimeHoursSource = 'PLANNED' | 'ACTUAL';
+
+/**
+ * A participant-day the backend could not derive cleanly, or derived with a
+ * caveat. REFUSAL pays zero when actual hours are in use; ADVISORY keeps the
+ * planned figure payable but wants a human to look.
+ */
+export interface OvertimeFlagInfo {
+  date: string;
+  code: string | null;
+  kind: 'REFUSAL' | 'ADVISORY' | null;
+  message: string | null;
+  plannedHours: number;
+  actualHours: number | null;
+}
+
 export interface PayrollItem {
   stt: number;
   employeeId: string;
@@ -25,7 +46,13 @@ export interface PayrollItem {
   netSalary: number;
   workDays: number;
   leaveDays: number;
+  /** The payable figure — planned or actual per `overtimeHoursSource`. */
   overtimeHours: number;
+  /** Always present, so both figures can be compared before pay changes. */
+  plannedOvertimeHours?: number;
+  actualOvertimeHours?: number;
+  overtimeHoursSource?: OvertimeHoursSource;
+  overtimeFlags?: OvertimeFlagInfo[];
   payrollId: string | null;
   evaluationPending?: boolean;
 }
@@ -53,8 +80,13 @@ export interface PayrollDetail {
   netSalary: number;
   workDays: number;
   leaveDays: number;
+  /** The payable figure — planned or actual per `overtimeHoursSource`. */
   overtimeHours: number;
   overtimePay: number;
+  plannedOvertimeHours?: number;
+  actualOvertimeHours?: number;
+  overtimeHoursSource?: OvertimeHoursSource;
+  overtimeFlags?: OvertimeFlagInfo[];
 }
 
 export interface PayrollSettings {
@@ -70,6 +102,11 @@ export interface PayrollSettings {
   otRateSunday: number;
   otRateSundayExtra: number;
   otRateHoliday: number;
+  /**
+   * Selects which overtime figure payroll pays. False (default) = planned hours,
+   * i.e. the behaviour that predates actual-hours derivation.
+   */
+  useActualOvertimeHours?: boolean;
 }
 
 class PayrollService {
