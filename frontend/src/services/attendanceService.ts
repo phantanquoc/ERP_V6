@@ -27,6 +27,26 @@ export interface AttendanceRecord {
   hasOvertime?: boolean;
   notes: string | null;
   overtimeNotes?: string | null;
+  /**
+   * Overtime hours as planned — the figure stored on the overtime row. Equal to
+   * `overtimeHours`; named explicitly so the grid can show it beside the derived
+   * figure without the two being confused.
+   */
+  plannedOvertimeHours?: number;
+  /**
+   * Overtime hours derived from the clock pair at read time. Null when the
+   * system refused to compute (see `overtimeFlag`).
+   */
+  actualOvertimeHours?: number | null;
+  /** Unrounded derivation, for audit. */
+  rawOvertimeHours?: number | null;
+  /** Set when the participant-day needs a human look. */
+  overtimeFlag?: {
+    code: string;
+    /** REFUSAL pays zero; ADVISORY keeps the planned figure payable. */
+    kind: 'REFUSAL' | 'ADVISORY';
+    message: string;
+  } | null;
 }
 
 export interface IndividualAttendanceRecord {
