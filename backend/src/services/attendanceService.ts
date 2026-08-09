@@ -5,6 +5,10 @@ import ExcelJS from 'exceljs';
 import workShiftService from './workShiftService';
 import { getTodayInAppTz } from '@utils/dateUtils';
 import { parseProductionShift } from '@utils/productionDay';
+import {
+  resolveActualOvertimeForPeriod,
+  employeeDayKey,
+} from '@services/overtimeActualHoursService';
 
 const MAX_SHIFT_HOURS = 20;
 
@@ -69,6 +73,7 @@ export class AttendanceService {
           ids: [attendance.id],
           regularIds: !attendance.isOvertime ? [attendance.id] : [],
           overtimeIds: attendance.isOvertime ? [attendance.id] : [],
+          employeeId: attendance.employeeId,
           employeeCode: attendance.employee.employeeCode,
           employeeName: `${attendance.employee.user.lastName} ${attendance.employee.user.firstName}`.trim(),
           positionId: attendance.employee.positionId ?? null,
@@ -111,6 +116,10 @@ export class AttendanceService {
       }
     }
 
+    // Actual overtime hours, derived from the clock at read time (never stored).
+    // Keyed by (employeeId, date) so each group can pick up its own figure.
+    const overtimeTotals = await resolveActualOvertimeForPeriod(startDate, endDate);
+
     // Convert Map values to array, sort times, join notes, assign stt
     const result = Array.from(groupMap.values()).map((group, index) => {
       const regularCheckInTimes = group.regularCheckInTimes.sort((a: Date, b: Date) => a.getTime() - b.getTime());
@@ -122,6 +131,10 @@ export class AttendanceService {
 
       // Backwards-compat fields: status = regular status (or 'OVERTIME' if only overtime), workHours = regular hours only
       const status = group.regularStatus ?? 'OVERTIME';
+
+      const derived = overtimeTotals.byEmployeeDay.get(
+        employeeDayKey(group.employeeId, group.attendanceDate.toISOString().split('T')[0])
+      );
 
       return {
         stt: index + 1,
@@ -152,6 +165,17 @@ export class AttendanceService {
         overtimeCheckInTimes,
         overtimeCheckOutTimes,
         overtimeNotes,
+        // Derived at read time from the clock pair — never stored. Present
+        // regardless of the payroll setting so managers can compare the two.
+        plannedOvertimeHours: derived?.plannedHours ?? null,
+        actualOvertimeHours: derived?.actualHours ?? null,
+        overtimeFlag: derived?.flag
+          ? {
+              code: derived.flag.code,
+              kind: derived.flag.kind,
+              message: derived.flag.message,
+            }
+          : null,
       };
     });
 

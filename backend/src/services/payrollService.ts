@@ -1,10 +1,11 @@
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
-import { computeKpiDeduction } from '@utils/payroll';
+import { computeKpiDeduction, computeOvertimePay } from '@utils/payroll';
 import ExcelJS from 'exceljs';
 import { NotificationEvent } from '@types';
 import notificationService from './notificationService';
 import { computeWeightedScoreForField } from '@services/employeeEvaluationService';
+import { resolveActualOvertimeForPeriod } from '@services/overtimeActualHoursService';
 
 export class PayrollService {
   async getPayrollByMonthYear(month: number, year: number, userDepartmentId?: string, userSubDepartmentId?: string): Promise<any[]> {
@@ -67,7 +68,22 @@ export class PayrollService {
 
     // Fetch overtime rate from settings
     const settings = await prisma.payrollSettings.findFirst();
-    const globalOvertimeRate = settings?.overtimeRate ?? 0;
+    // Mẫu số suy lương giờ (mặc định 26 ngày × 8 giờ) và hệ số OT ngày thường.
+    // Tiền OT tính từ lương của từng nhân viên, không dùng một mức phẳng chung.
+    const settingStandardWorkDays = settings?.standardWorkDays ?? 26;
+    const settingHoursPerDay = settings?.standardHoursPerDay ?? 8;
+    const settingOtMultiplier = settings?.otRateWeekday ?? 1.5;
+    const flatOvertimeRateFallback = settings?.overtimeRate ?? 0;
+    const useActualOvertime = settings?.useActualOvertimeHours ?? false;
+
+    // Derive actual overtime for the period. Computed regardless of the setting
+    // so both figures can be displayed side by side; only the payable choice
+    // below depends on the setting.
+    const overtimeTotals = await resolveActualOvertimeForPeriod(
+      startDate,
+      endDate,
+      employees.map(e => e.id)
+    );
 
     // Query evaluations for this period to compute kpiDeduction server-side
     const periodStr = `${year}-${String(month).padStart(2, '0')}`;
@@ -100,7 +116,7 @@ export class PayrollService {
       const defaultKpiSalary =
         employee.positionLevel?.kpiSalary ?? employee.position?.levels?.[0]?.kpiSalary ?? 0;
 
-      const baseSalary = payroll?.baseSalary ?? employee.baseSalary;
+      const baseSalary = (payroll?.baseSalary && payroll.baseSalary > 0) ? payroll.baseSalary : employee.baseSalary;
       const kpiBonus = payroll?.kpiBonus ?? defaultKpiSalary;
       const positionAllowance = payroll?.positionAllowance ?? 0;
       const otherAllowances = payroll?.otherAllowances ?? 0;
@@ -139,10 +155,24 @@ export class PayrollService {
           kpiDeduction +
           leaveDeduction;
 
-      const employeeOvertimeHours = employee.attendances
+      // Planned hours: the stored overtime rows, exactly as before this change.
+      const plannedOvertimeHours = employee.attendances
           .filter(a => a.status === 'OVERTIME')
           .reduce((sum, a) => sum + (Number(a.workHours) || 0), 0);
-      const employeeOvertimePay = Math.round(employeeOvertimeHours * globalOvertimeRate);
+      // Actual hours: derived from the clock. Flagged participant-days already
+      // contribute zero via payableActualHours.
+      const actualOvertimeHours = overtimeTotals.actualByEmployee.get(employee.id) ?? 0;
+      const employeeOvertimeHours = useActualOvertime
+        ? actualOvertimeHours
+        : plannedOvertimeHours;
+      const employeeOvertimePay = computeOvertimePay(
+        employeeOvertimeHours,
+        baseSalary,
+        settingOtMultiplier,
+        settingStandardWorkDays,
+        settingHoursPerDay,
+        flatOvertimeRateFallback
+      );
       const netSalary = totalIncome - totalDeductions + employeeOvertimePay;
 
       const fullName = employee.user
@@ -173,6 +203,20 @@ export class PayrollService {
         workDays: attendanceWorkDays,
         leaveDays,
         overtimeHours: employeeOvertimeHours,
+        // Both figures travel regardless of the setting, so managers can compare
+        // before any pay moves. `overtimeHoursSource` names the payable one so
+        // the parallel display cannot be misread.
+        plannedOvertimeHours: Math.round(plannedOvertimeHours * 100) / 100,
+        actualOvertimeHours,
+        overtimeHoursSource: useActualOvertime ? 'ACTUAL' : 'PLANNED',
+        overtimeFlags: (overtimeTotals.flagsByEmployee.get(employee.id) ?? []).map(e => ({
+          date: e.dateKey,
+          code: e.flag?.code ?? null,
+          kind: e.flag?.kind ?? null,
+          message: e.flag?.message ?? null,
+          plannedHours: e.plannedHours,
+          actualHours: e.actualHours,
+        })),
         payrollId: payroll?.id || null,
         evaluationPending,
       };
@@ -216,13 +260,37 @@ export class PayrollService {
     const leaveDays = attendances.filter(
       a => a.status === 'ABSENT' || a.status === 'ON_LEAVE'
     ).length;
-    const overtimeHours = attendances
+    // Planned hours: the stored overtime rows, exactly as before this change.
+    const plannedOvertimeHours = attendances
       .filter(a => a.status === 'OVERTIME')
       .reduce((sum, a) => sum + (Number(a.workHours) || 0), 0);
 
     const detailSettings = await prisma.payrollSettings.findFirst();
-    const detailOvertimeRate = detailSettings?.overtimeRate ?? 0;
-    const overtimePay = Math.round(overtimeHours * detailOvertimeRate);
+    const detailStandardWorkDays = detailSettings?.standardWorkDays ?? 26;
+    const detailHoursPerDay = detailSettings?.standardHoursPerDay ?? 8;
+    const detailOtMultiplier = detailSettings?.otRateWeekday ?? 1.5;
+    const detailFlatFallback = detailSettings?.overtimeRate ?? 0;
+    const detailUseActual = detailSettings?.useActualOvertimeHours ?? false;
+
+    // Actual hours: derived from the clock at read time. Flagged participant-days
+    // contribute zero via payableActualHours.
+    const detailOvertimeTotals = await resolveActualOvertimeForPeriod(
+      startDate,
+      endDate,
+      [payroll.employeeId]
+    );
+    const actualOvertimeHours =
+      detailOvertimeTotals.actualByEmployee.get(payroll.employeeId) ?? 0;
+
+    const overtimeHours = detailUseActual ? actualOvertimeHours : plannedOvertimeHours;
+    const overtimePay = computeOvertimePay(
+      overtimeHours,
+      payroll.baseSalary,
+      detailOtMultiplier,
+      detailStandardWorkDays,
+      detailHoursPerDay,
+      detailFlatFallback
+    );
 
     return {
       id: payroll.id,
@@ -249,6 +317,17 @@ export class PayrollService {
       leaveDays,
       overtimeHours,
       overtimePay,
+      plannedOvertimeHours: Math.round(plannedOvertimeHours * 100) / 100,
+      actualOvertimeHours,
+      overtimeHoursSource: detailUseActual ? 'ACTUAL' : 'PLANNED',
+      overtimeFlags: (detailOvertimeTotals.flagsByEmployee.get(payroll.employeeId) ?? []).map(e => ({
+        date: e.dateKey,
+        code: e.flag?.code ?? null,
+        kind: e.flag?.kind ?? null,
+        message: e.flag?.message ?? null,
+        plannedHours: e.plannedHours,
+        actualHours: e.actualHours,
+      })),
     };
   }
 
@@ -326,9 +405,15 @@ export class PayrollService {
 
     // Calculate net salary (include overtime pay)
     const settings = await prisma.payrollSettings.findFirst();
-    const overtimeRate = settings?.overtimeRate ?? 0;
     const overtimeHours = data.overtimeHours ?? 0;
-    const overtimePay = Math.round(overtimeHours * overtimeRate);
+    const overtimePay = computeOvertimePay(
+      overtimeHours,
+      baseSalary,
+      settings?.otRateWeekday ?? 1.5,
+      settings?.standardWorkDays ?? 26,
+      settings?.standardHoursPerDay ?? 8,
+      settings?.overtimeRate ?? 0
+    );
     const netSalary = totalIncome - totalDeductions + overtimePay;
 
     const payroll = await prisma.payroll.upsert({
@@ -386,6 +471,9 @@ export class PayrollService {
   async updatePayroll(payrollId: string, data: any): Promise<any> {
     const payroll = await prisma.payroll.findUnique({
       where: { id: payrollId },
+      include: {
+        employee: true,
+      },
     });
 
     if (!payroll) {
@@ -400,8 +488,10 @@ export class PayrollService {
       throw new ValidationError('Leave days must be non-negative');
     }
 
-    // Calculate totals
-    const baseSalary = data.baseSalary !== undefined ? data.baseSalary : payroll.baseSalary;
+    // Calculate totals - fallback to employee.baseSalary if payroll.baseSalary is 0
+    const baseSalary = data.baseSalary !== undefined
+      ? data.baseSalary
+      : (payroll.baseSalary > 0 ? payroll.baseSalary : payroll.employee.baseSalary);
     const kpiBonus = data.kpiBonus !== undefined ? data.kpiBonus : payroll.kpiBonus;
     const positionAllowance =
       data.positionAllowance !== undefined ? data.positionAllowance : payroll.positionAllowance;
@@ -456,10 +546,16 @@ export class PayrollService {
 
     // Include overtime pay in net salary
     const settings = await prisma.payrollSettings.findFirst();
-    const currentOvertimeRate = settings?.overtimeRate ?? 0;
     const currentOvertimeHours =
       data.overtimeHours !== undefined ? data.overtimeHours : payroll.overtimeHours;
-    const currentOvertimePay = Math.round(currentOvertimeHours * currentOvertimeRate);
+    const currentOvertimePay = computeOvertimePay(
+      currentOvertimeHours,
+      baseSalary,
+      settings?.otRateWeekday ?? 1.5,
+      settings?.standardWorkDays ?? 26,
+      settings?.standardHoursPerDay ?? 8,
+      settings?.overtimeRate ?? 0
+    );
     const netSalary = totalIncome - totalDeductions + currentOvertimePay;
 
     const updated = await prisma.payroll.update({
@@ -639,7 +735,9 @@ export class PayrollService {
 
   async updatePayrollSettings(data: {
     standardWorkDays?: number;
+    standardHoursPerDay?: number;
     overtimeRate?: number;
+    useActualOvertimeHours?: boolean;
     mealAllowancePerDay?: number;
     overtimeMealAllowance?: number;
     sundayMealAllowance?: number;
@@ -656,7 +754,9 @@ export class PayrollService {
       settings = await prisma.payrollSettings.create({
         data: {
           standardWorkDays: data.standardWorkDays ?? 26,
+          standardHoursPerDay: data.standardHoursPerDay ?? 8,
           overtimeRate: data.overtimeRate ?? 0,
+          useActualOvertimeHours: data.useActualOvertimeHours ?? false,
           mealAllowancePerDay: data.mealAllowancePerDay ?? 0,
           overtimeMealAllowance: data.overtimeMealAllowance ?? 25000,
           sundayMealAllowance: data.sundayMealAllowance ?? 0,
@@ -672,7 +772,9 @@ export class PayrollService {
       // Update chỉ những fields được truyền vào
       const updateData: any = {};
       if (data.standardWorkDays !== undefined) updateData.standardWorkDays = data.standardWorkDays;
+      if (data.standardHoursPerDay !== undefined) updateData.standardHoursPerDay = data.standardHoursPerDay;
       if (data.overtimeRate !== undefined) updateData.overtimeRate = data.overtimeRate;
+      if (data.useActualOvertimeHours !== undefined) updateData.useActualOvertimeHours = data.useActualOvertimeHours;
       if (data.mealAllowancePerDay !== undefined) updateData.mealAllowancePerDay = data.mealAllowancePerDay;
       if (data.overtimeMealAllowance !== undefined) updateData.overtimeMealAllowance = data.overtimeMealAllowance;
       if (data.sundayMealAllowance !== undefined) updateData.sundayMealAllowance = data.sundayMealAllowance;
@@ -749,13 +851,46 @@ export class PayrollService {
     const leaveDays = attendances.filter(
       (a) => a.status === 'ABSENT' || a.status === 'ON_LEAVE'
     ).length;
-    const overtimeHours = attendances
+    // Planned hours: the stored overtime rows, exactly as before this change.
+    const plannedOvertimeHours = attendances
       .filter((a) => a.status === 'OVERTIME')
       .reduce((sum, a) => sum + (Number(a.workHours) || 0), 0);
 
     const payrollSettings = await prisma.payrollSettings.findFirst();
-    const overtimeRate = payrollSettings?.overtimeRate ?? 0;
-    const overtimePay = Math.round(overtimeHours * overtimeRate);
+    const myStandardWorkDays = payrollSettings?.standardWorkDays ?? 26;
+    const myHoursPerDay = payrollSettings?.standardHoursPerDay ?? 8;
+    const myOtMultiplier = payrollSettings?.otRateWeekday ?? 1.5;
+    const myFlatFallback = payrollSettings?.overtimeRate ?? 0;
+    const myUseActual = payrollSettings?.useActualOvertimeHours ?? false;
+
+    // Actual hours: derived from the clock at read time. Flagged participant-days
+    // contribute zero via payableActualHours.
+    const myOvertimeTotals = await resolveActualOvertimeForPeriod(
+      startDate,
+      endDate,
+      [employee.id]
+    );
+    const actualOvertimeHours = myOvertimeTotals.actualByEmployee.get(employee.id) ?? 0;
+
+    const overtimeHours = myUseActual ? actualOvertimeHours : plannedOvertimeHours;
+    const overtimePay = computeOvertimePay(
+      overtimeHours,
+      employee.baseSalary,
+      myOtMultiplier,
+      myStandardWorkDays,
+      myHoursPerDay,
+      myFlatFallback
+    );
+    const myOvertimeFlags = (myOvertimeTotals.flagsByEmployee.get(employee.id) ?? []).map(
+      (e) => ({
+        date: e.dateKey,
+        code: e.flag?.code ?? null,
+        kind: e.flag?.kind ?? null,
+        message: e.flag?.message ?? null,
+        plannedHours: e.plannedHours,
+        actualHours: e.actualHours,
+      })
+    );
 
     // Determine evaluationPending flag
     const myPeriodStr = `${year}-${String(month).padStart(2, '0')}`;
@@ -804,6 +939,11 @@ export class PayrollService {
       leaveDays,
       overtimeHours,
       overtimePay,
+      // Both figures travel together so the payable one cannot be misread.
+      plannedOvertimeHours: Math.round(plannedOvertimeHours * 100) / 100,
+      actualOvertimeHours,
+      overtimeHoursSource: myUseActual ? 'ACTUAL' : 'PLANNED',
+      overtimeFlags: myOvertimeFlags,
       evaluationPending,
     };
   }

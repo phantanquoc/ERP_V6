@@ -21,6 +21,12 @@ jest.mock('@config/database', () => ({
     attendance: {
       findMany: jest.fn(),
     },
+    // Payroll now derives actual overtime hours at read time via
+    // overtimeActualHoursService, which reads plan items. Default: no items,
+    // so these tests exercise the planned-hours path unchanged.
+    overtimePlanItem: {
+      findMany: jest.fn(),
+    },
   },
 }));
 
@@ -50,6 +56,10 @@ const service = new PayrollService();
 const mockedPrisma = prisma as jest.Mocked<typeof prisma>;
 beforeEach(() => {
   jest.clearAllMocks();
+  // Payroll now derives actual overtime hours from overtime plan items at read
+  // time (overtimeActualHoursService). These suites exercise kpiDeduction, so
+  // the derivation is given no items and contributes nothing.
+  (mockedPrisma.overtimePlanItem.findMany as jest.Mock).mockResolvedValue([]);
 });
 
 // ─── computeWeightedScoreForField ─────────────────────────────────────────────
