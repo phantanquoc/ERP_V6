@@ -24,16 +24,23 @@ export async function assertDepartment(
     return;
   }
 
-  if (!user.departmentId) {
+  // Collect all department IDs (primary + secondary)
+  const deptIds = [
+    user.departmentId,
+    ...(user.secondaryDepartments?.map(s => s.departmentId) ?? []),
+  ].filter(Boolean) as string[];
+
+  if (deptIds.length === 0) {
     throw new AuthorizationError('Không có quyền truy cập: người dùng chưa được gán bộ phận');
   }
 
-  const department = await prisma.department.findUnique({
-    where: { id: user.departmentId },
+  const departments = await prisma.department.findMany({
+    where: { id: { in: deptIds } },
     select: { code: true },
   });
 
-  if (!department || !allowedCodes.includes(department.code)) {
+  const hasAccess = departments.some(d => allowedCodes.includes(d.code));
+  if (!hasAccess) {
     throw new AuthorizationError('Không có quyền truy cập: bộ phận không được phép thao tác');
   }
 }

@@ -312,12 +312,12 @@ export class DailyWorkReportService {
    * Count reports with status SUBMITTED (sent but not reviewed).
    * When departmentId is provided, only counts reports from employees in that department.
    */
-  async getSubmittedCount(departmentId?: string): Promise<number> {
+  async getSubmittedCount(departmentIds?: string[]): Promise<number> {
     return prisma.dailyWorkReport.count({
       where: {
         status: 'SUBMITTED',
-        ...(departmentId
-          ? { employee: { user: { departmentId } } }
+        ...(departmentIds?.length
+          ? { employee: { user: { departmentId: { in: departmentIds } } } }
           : {}),
       },
     });

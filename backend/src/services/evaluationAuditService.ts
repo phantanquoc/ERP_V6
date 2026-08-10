@@ -115,14 +115,14 @@ export async function getAuditLog(
   evaluationId: string,
   _userId: string,
   userRole: string,
-  userDepartmentId?: string | null
+  userDepartmentIds?: string[] | null
 ): Promise<any[]> {
   if (userRole !== UserRole.ADMIN && userRole !== UserRole.DEPARTMENT_HEAD) {
     throw new AuthorizationError('Không có quyền xem nhật ký kiểm toán đánh giá');
   }
 
   // DEPARTMENT_HEAD scope enforcement
-  if (userRole === UserRole.DEPARTMENT_HEAD && userDepartmentId) {
+  if (userRole === UserRole.DEPARTMENT_HEAD && userDepartmentIds?.length) {
     const evaluation = await prisma.evaluation.findUnique({
       where: { id: evaluationId },
       include: {
@@ -139,7 +139,7 @@ export async function getAuditLog(
     }
 
     const employeeDeptId = evaluation.employee?.subDepartment?.departmentId;
-    if (employeeDeptId !== userDepartmentId) {
+    if (!employeeDeptId || !userDepartmentIds.includes(employeeDeptId)) {
       throw new AuthorizationError('Không có quyền xem nhật ký kiểm toán của nhân viên ngoài phòng ban');
     }
   }

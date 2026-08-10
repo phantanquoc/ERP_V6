@@ -21,7 +21,7 @@ export class EmployeeEvaluationController {
       const evaluations = await employeeEvaluationService.getEmployeeEvaluations(
         Number(month),
         Number(year),
-        req.userDepartmentId || undefined,
+        req.userDepartmentIds,
         req.userSubDepartmentId || undefined
       );
 
@@ -418,9 +418,9 @@ export class EmployeeEvaluationController {
       const evaluationId = req.params.id as string;
       const userId = req.user?.id ?? '';
       const userRole = req.user?.role ?? '';
-      const userDepartmentId = req.userDepartmentId;
+      const userDepartmentIds = req.userDepartmentIds;
 
-      const data = await getAuditLog(prisma, evaluationId, userId, userRole, userDepartmentId);
+      const data = await getAuditLog(prisma, evaluationId, userId, userRole, userDepartmentIds);
 
       res.json({ success: true, data });
     } catch (error) {

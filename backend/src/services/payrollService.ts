@@ -8,7 +8,7 @@ import { computeWeightedScoreForField } from '@services/employeeEvaluationServic
 import { resolveActualOvertimeForPeriod } from '@services/overtimeActualHoursService';
 
 export class PayrollService {
-  async getPayrollByMonthYear(month: number, year: number, userDepartmentId?: string, userSubDepartmentId?: string): Promise<any[]> {
+  async getPayrollByMonthYear(month: number, year: number, userDepartmentIds?: string[], userSubDepartmentId?: string): Promise<any[]> {
     // Date range for the month
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59, 999);
@@ -22,12 +22,12 @@ export class PayrollService {
     if (userSubDepartmentId) {
       // TEAM_LEAD/EMPLOYEE: only show subdepartment
       conditions.push({ user: { subDepartmentId: userSubDepartmentId } });
-    } else if (userDepartmentId) {
+    } else if (userDepartmentIds?.length) {
       // DEPARTMENT_HEAD: show department (including subdepartments)
       conditions.push({
         OR: [
-          { user: { departmentId: userDepartmentId } },
-          { subDepartment: { departmentId: userDepartmentId } },
+          { user: { departmentId: { in: userDepartmentIds } } },
+          { subDepartment: { departmentId: { in: userDepartmentIds } } },
         ],
       });
     }

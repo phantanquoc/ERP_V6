@@ -15,27 +15,26 @@ class PurchaseRequestController {
 
       const isAdmin = req.user?.role === 'ADMIN';
 
-      // Check if user is in purchasing department (primary or secondary) — they see all PRs
-      let isPurchasing = false;
-      if (!isAdmin) {
-        const deptIds = [
-          req.user?.departmentId,
-          ...(req.user?.secondaryDepartments?.map(s => s.departmentId) ?? []),
-        ].filter(Boolean);
+      // Build all department IDs (primary + secondary)
+      const allDeptIds = [
+        req.user?.departmentId,
+        ...(req.user?.secondaryDepartments?.map(s => s.departmentId) ?? []),
+      ].filter(Boolean) as string[];
 
-        if (deptIds.length > 0) {
-          const depts = await prisma.department.findMany({
-            where: { id: { in: deptIds as string[] } },
-            select: { code: true },
-          });
-          isPurchasing = depts.some(d => d.code === 'DEPT_PURCHASING');
-        }
+      // Check if user is in purchasing department — they see all PRs
+      let isPurchasing = false;
+      if (!isAdmin && allDeptIds.length > 0) {
+        const depts = await prisma.department.findMany({
+          where: { id: { in: allDeptIds } },
+          select: { code: true },
+        });
+        isPurchasing = depts.some(d => d.code === 'DEPT_PURCHASING');
       }
 
-      // If purchasing or admin, no dept filter; otherwise filter by primary dept
-      const departmentId = (isAdmin || isPurchasing) ? undefined : (req.user?.departmentId ?? undefined);
+      // If purchasing or admin, no dept filter; otherwise filter by all user's depts
+      const departmentIds = (isAdmin || isPurchasing) ? undefined : (allDeptIds.length > 0 ? allDeptIds : undefined);
 
-      const result = await purchaseRequestService.getAllPurchaseRequests(page, limit, search, departmentId, month, year);
+      const result = await purchaseRequestService.getAllPurchaseRequests(page, limit, search, departmentIds, month, year);
 
       return res.json({
         success: true,

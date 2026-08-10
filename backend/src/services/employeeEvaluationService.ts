@@ -114,7 +114,7 @@ export class EmployeeEvaluationService {
   async getEmployeeEvaluations(
     month: number,
     year: number,
-    userDepartmentId?: string,
+    userDepartmentIds?: string[],
     userSubDepartmentId?: string,
     callerId?: string,
     callerRole?: string
@@ -123,11 +123,11 @@ export class EmployeeEvaluationService {
 
     if (userSubDepartmentId) {
       conditions.push({ user: { subDepartmentId: userSubDepartmentId } });
-    } else if (userDepartmentId) {
+    } else if (userDepartmentIds?.length) {
       conditions.push({
         OR: [
-          { user: { departmentId: userDepartmentId } },
-          { subDepartment: { departmentId: userDepartmentId } },
+          { user: { departmentId: { in: userDepartmentIds } } },
+          { subDepartment: { departmentId: { in: userDepartmentIds } } },
         ],
       });
     }
@@ -1289,11 +1289,21 @@ export class EmployeeEvaluationService {
     ) {
       throw new AuthorizationError('Không có quyền xem heatmap hiệu chỉnh');
     }
-    // DEPARTMENT_HEAD is scoped to their own department
-    const callerDeptId =
-      currentUser?.role === UserRole.DEPARTMENT_HEAD
-        ? currentUser.employees?.subDepartment?.departmentId ?? null
-        : null;
+    // DEPARTMENT_HEAD is scoped to their own department(s)
+    const callerDeptIds: string[] = [];
+    if (currentUser?.role === UserRole.DEPARTMENT_HEAD) {
+      // Include primary department from employee's subDepartment
+      const primaryDeptId = currentUser.employees?.subDepartment?.departmentId;
+      if (primaryDeptId) callerDeptIds.push(primaryDeptId);
+      // Include secondary departments
+      const secondaryDepts = await prisma.userSecondaryDepartment.findMany({
+        where: { userId },
+        select: { departmentId: true },
+      });
+      for (const sd of secondaryDepts) {
+        if (!callerDeptIds.includes(sd.departmentId)) callerDeptIds.push(sd.departmentId);
+      }
+    }
 
     const monthStr = String(month).padStart(2, '0');
     const targetPeriod = `${year}-${monthStr}`;
@@ -1451,19 +1461,19 @@ export class EmployeeEvaluationService {
       }
     }
 
-    // Filter to caller's department if DEPARTMENT_HEAD
+    // Filter to caller's department(s) if DEPARTMENT_HEAD
     let filteredSupervisors = supervisors;
     let filteredBenchmarks = departmentBenchmarks;
     let filteredAlerts = inflationAlerts;
-    if (callerDeptId) {
+    if (callerDeptIds.length > 0) {
       const supIdsInDept = new Set<string>();
       for (const [sup2Id, evs] of bySup2.entries()) {
-        if (evs.some(ev => (ev.employee as any).subDepartment?.departmentId === callerDeptId)) {
+        if (evs.some(ev => callerDeptIds.includes((ev.employee as any).subDepartment?.departmentId))) {
           supIdsInDept.add(sup2Id);
         }
       }
       filteredSupervisors = supervisors.filter(s => supIdsInDept.has(s.supervisorId));
-      filteredBenchmarks = departmentBenchmarks.filter(b => b.departmentId === callerDeptId);
+      filteredBenchmarks = departmentBenchmarks.filter(b => callerDeptIds.includes(b.departmentId));
       filteredAlerts = inflationAlerts.filter(a => supIdsInDept.has(a.supervisorId));
     }
 

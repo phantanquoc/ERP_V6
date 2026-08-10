@@ -184,7 +184,7 @@ describe('getAuditLog', () => {
       },
     };
 
-    const result = await getAuditLog(fakePrisma, 'ev1', 'dh-user', 'DEPARTMENT_HEAD', 'dept1');
+    const result = await getAuditLog(fakePrisma, 'ev1', 'dh-user', 'DEPARTMENT_HEAD', ['dept1']);
     expect(result).toEqual(fakeLogs);
   });
 
@@ -206,7 +206,7 @@ describe('getAuditLog', () => {
     };
 
     await expect(
-      getAuditLog(fakePrisma, 'ev1', 'dh-user', 'DEPARTMENT_HEAD', 'dept1')
+      getAuditLog(fakePrisma, 'ev1', 'dh-user', 'DEPARTMENT_HEAD', ['dept1'])
     ).rejects.toBeInstanceOf(AuthorizationError);
   });
 });

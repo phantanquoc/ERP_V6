@@ -32,6 +32,11 @@ export const checkAccess = (options: AccessControlOptions = {}) => {
       if (checkDepartment || checkSubDepartment) {
         if (req.user.departmentId !== undefined) {
           req.userDepartmentId = req.user.departmentId;
+          // Build array of all department IDs (primary + secondary)
+          req.userDepartmentIds = [
+            req.user.departmentId,
+            ...(req.user.secondaryDepartments?.map(s => s.departmentId) ?? []),
+          ].filter(Boolean) as string[];
           if (req.user.subDepartmentId !== undefined) {
             req.userSubDepartmentId = req.user.subDepartmentId;
           } else {
@@ -60,6 +65,11 @@ export const checkAccess = (options: AccessControlOptions = {}) => {
           }
           req.userDepartmentId = currentUser.departmentId;
           req.userSubDepartmentId = currentUserEmployee.subDepartmentId;
+          // Build array of all department IDs (primary + secondary)
+          req.userDepartmentIds = [
+            currentUser.departmentId,
+            ...(req.user.secondaryDepartments?.map(s => s.departmentId) ?? []),
+          ].filter(Boolean) as string[];
         }
       }
 
