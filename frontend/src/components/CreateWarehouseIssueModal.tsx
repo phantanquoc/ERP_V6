@@ -169,7 +169,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
 
         await warehouseIssueService.createWarehouseIssue({
           maPhieuXuat,
-          employeeId: user?.id || '',
+          employeeId: user?.employeeId || '',
           maNhanVien: user?.employeeCode || '',
           tenNhanVien: `${user?.lastName} ${user?.firstName}`,
           warehouseId: row.warehouseId,
