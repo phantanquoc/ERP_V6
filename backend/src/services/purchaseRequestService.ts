@@ -45,12 +45,12 @@ class PurchaseRequestService {
     return nextYearlyCode(last?.maYeuCau ?? null, 'YC-MH', year);
   }
 
-  async getAllPurchaseRequests(page: number = 1, limit: number = 10, search?: string, departmentId?: string, month?: number, year?: number) {
+  async getAllPurchaseRequests(page: number = 1, limit: number = 10, search?: string, departmentIds?: string[], month?: number, year?: number) {
     const { skip } = getPaginationParams(page, limit);
 
-    // Non-admin: show PR from own department + PR created by admin (departmentId is null)
-    const deptFilter = departmentId
-      ? { employee: { user: { OR: [{ departmentId }, { departmentId: null }] } } }
+    // Non-admin: show PR from own departments + PR created by admin (departmentId is null)
+    const deptFilter = departmentIds?.length
+      ? { employee: { user: { OR: [{ departmentId: { in: departmentIds } }, { departmentId: null }] } } }
       : {};
 
     // Date range filter by month/year on ngayYeuCau

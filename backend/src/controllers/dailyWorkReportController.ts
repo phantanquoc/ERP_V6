@@ -265,8 +265,8 @@ export class DailyWorkReportController {
   async getSubmittedCount(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const isAdmin = req.user?.role === 'ADMIN';
-      const departmentId = isAdmin ? undefined : (req.user?.departmentId ?? undefined);
-      const count = await dailyWorkReportService.getSubmittedCount(departmentId);
+      const departmentIds = isAdmin ? undefined : req.userDepartmentIds;
+      const count = await dailyWorkReportService.getSubmittedCount(departmentIds);
       res.json({ success: true, data: { count } });
     } catch (error) {
       next(error);

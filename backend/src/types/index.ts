@@ -124,6 +124,7 @@ import { Request } from 'express';
 export interface AuthenticatedRequest extends Request {
   user?: JwtPayload;
   userDepartmentId?: string | null;
+  userDepartmentIds?: string[];   // primary + secondary department IDs
   userSubDepartmentId?: string | null;
   isKioskDevice?: boolean;
   kioskOperatorId?: string;
