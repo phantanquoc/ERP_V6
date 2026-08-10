@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import purchaseRequestService from '@services/purchaseRequestService';
 import { getFileUrl } from '@middlewares/upload';
 import type { AuthenticatedRequest } from '@types';
+import prisma from '@config/database';
 
 class PurchaseRequestController {
   async getAllPurchaseRequests(req: AuthenticatedRequest, res: Response, next: NextFunction) {
@@ -13,7 +14,26 @@ class PurchaseRequestController {
       const year = req.query.year ? parseInt(req.query.year as string) : undefined;
 
       const isAdmin = req.user?.role === 'ADMIN';
-      const departmentId = isAdmin ? undefined : (req.user?.departmentId ?? undefined);
+
+      // Check if user is in purchasing department (primary or secondary) — they see all PRs
+      let isPurchasing = false;
+      if (!isAdmin) {
+        const deptIds = [
+          req.user?.departmentId,
+          ...(req.user?.secondaryDepartments?.map(s => s.departmentId) ?? []),
+        ].filter(Boolean);
+
+        if (deptIds.length > 0) {
+          const depts = await prisma.department.findMany({
+            where: { id: { in: deptIds as string[] } },
+            select: { code: true },
+          });
+          isPurchasing = depts.some(d => d.code === 'DEPT_PURCHASING');
+        }
+      }
+
+      // If purchasing or admin, no dept filter; otherwise filter by primary dept
+      const departmentId = (isAdmin || isPurchasing) ? undefined : (req.user?.departmentId ?? undefined);
 
       const result = await purchaseRequestService.getAllPurchaseRequests(page, limit, search, departmentId, month, year);
 
