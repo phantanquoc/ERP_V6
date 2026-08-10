@@ -48,8 +48,9 @@ class PurchaseRequestService {
   async getAllPurchaseRequests(page: number = 1, limit: number = 10, search?: string, departmentId?: string, month?: number, year?: number) {
     const { skip } = getPaginationParams(page, limit);
 
+    // Non-admin: show PR from own department + PR created by admin (departmentId is null)
     const deptFilter = departmentId
-      ? { employee: { user: { departmentId } } }
+      ? { employee: { user: { OR: [{ departmentId }, { departmentId: null }] } } }
       : {};
 
     // Date range filter by month/year on ngayYeuCau
