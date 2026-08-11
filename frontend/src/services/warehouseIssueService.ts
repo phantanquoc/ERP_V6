@@ -1,5 +1,22 @@
 import apiClient from './apiClient';
 
+export interface WarehouseIssueLine {
+  id?: string;
+  stt?: number;
+  lotProductId: string;
+  tenSanPham: string;
+  donViTinh?: string;
+  warehouseId: string;
+  tenKho?: string;
+  lotId: string;
+  tenLo?: string;
+  soLuongYeuCau?: number;
+  soLuongThucTe: number;
+  soLuongTruoc?: number;
+  soLuongSau?: number;
+  ghiChu?: string;
+}
+
 export interface WarehouseIssue {
   id: string;
   maPhieuXuat: string;
@@ -7,37 +24,40 @@ export interface WarehouseIssue {
   employeeId: string;
   maNhanVien: string;
   tenNhanVien: string;
-  warehouseId: string;
-  tenKho: string;
-  lotId: string;
-  tenLo: string;
-  lotProductId: string;
-  tenSanPham: string;
-  soLuongTruoc: number; // Số lượng tồn kho trước khi xuất
-  soLuongXuat: number;
-  soLuongSau: number;   // Số lượng tồn kho sau khi xuất
-  donViTinh: string;
   ghiChu?: string;
+  tongSoLuongThucTe?: number;
+  soDongHang?: number;
   isLocked?: boolean;
+  supplyRequestId?: string | null;
+  items?: WarehouseIssueLine[];
+  // Deprecated header-level fields (kept for backward compat)
+  warehouseId?: string;
+  tenKho?: string;
+  lotId?: string;
+  tenLo?: string;
+  lotProductId?: string;
+  tenSanPham?: string;
+  soLuongXuat?: number;
+  donViTinh?: string;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CreateWarehouseIssueData {
-  maPhieuXuat: string;
+  maPhieuXuat?: string;
   employeeId: string;
-  maNhanVien: string;
-  tenNhanVien: string;
-  warehouseId: string;
-  tenKho: string;
-  lotId: string;
-  tenLo: string;
-  lotProductId: string;
-  tenSanPham: string;
-  soLuongXuat: number;
-  donViTinh: string;
+  maNhanVien?: string;
+  tenNhanVien?: string;
+  ngayXuat?: string;
   ghiChu?: string;
   supplyRequestId?: string;
+  items: WarehouseIssueLine[];
+}
+
+export interface UpdateWarehouseIssueData {
+  ngayXuat?: string;
+  ghiChu?: string;
+  items: WarehouseIssueLine[];
 }
 
 const warehouseIssueService = {
@@ -53,7 +73,11 @@ const warehouseIssueService = {
     return apiClient.get('/warehouse-issues');
   },
 
-  updateWarehouseIssue: async (id: string, data: Partial<CreateWarehouseIssueData>) => {
+  getWarehouseIssueById: async (id: string) => {
+    return apiClient.get(`/warehouse-issues/${id}`);
+  },
+
+  updateWarehouseIssue: async (id: string, data: UpdateWarehouseIssueData) => {
     return apiClient.put(`/warehouse-issues/${id}`, data);
   },
 
@@ -63,4 +87,3 @@ const warehouseIssueService = {
 };
 
 export default warehouseIssueService;
-
