@@ -156,20 +156,22 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
         ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0
       `}>
         {/* Header */}
-        <div className={`p-3 border-b border-gray-200 flex items-center ${collapsed ? 'justify-between' : 'relative justify-center'}`}>
-          {!collapsed ? (
-            <span className="bg-white rounded-lg px-3 py-1.5 shadow-sm inline-flex items-center">
-              <img src="/abf-logo.png" alt="An Binh Foods" className="h-8 object-contain" />
-            </span>
-          ) : (
-            <span className="bg-white rounded-md px-1.5 py-1 shadow-sm inline-flex items-center mx-auto">
-              <img src="/abf-logo.png" alt="ABF" className="w-7 h-auto object-contain" />
-            </span>
-          )}
+        {/* Collapsed rail is 64px wide (w-16) — 40px of usable space after p-3.
+            The logo and the toggle cannot sit side by side in that width without
+            both being squeezed flat, so the collapsed header stacks them. */}
+        <div className={`p-3 border-b border-gray-200 flex items-center ${collapsed ? 'flex-col gap-2' : 'relative justify-center'}`}>
+          <span className={`bg-white shadow-sm inline-flex items-center shrink-0 ${collapsed ? 'rounded-md p-1' : 'rounded-lg px-3 py-1.5'}`}>
+            <img
+              src="/abf-logo.png"
+              alt="An Binh Foods"
+              className={`w-auto object-contain shrink-0 ${collapsed ? 'h-6' : 'h-8'}`}
+            />
+          </span>
           <button
             onClick={onToggle}
-            className={`p-1.5 rounded-lg hover:bg-gray-100 transition-colors ${collapsed ? '' : 'absolute right-3'}`}
+            className={`p-1.5 rounded-lg hover:bg-gray-100 transition-colors shrink-0 ${collapsed ? '' : 'absolute right-3'}`}
             title={collapsed ? 'Mở menu' : 'Thu gọn menu'}
+            aria-label={collapsed ? 'Mở menu' : 'Thu gọn menu'}
           >
             {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
           </button>
