@@ -149,14 +149,27 @@ export function computeSummary(
     }
 
     // Overtime classification by day type
+    // Note: TimesheetCell does not have an 'otType' field to distinguish "normal hours OT"
+    // (1.5x/2x) vs "after hours OT" (2.1x/2.7x). As a convention, we split:
+    //   - First 2 hours of OT → normal band (otWeekday 1.5x / otSunday 2x)
+    //   - Beyond 2 hours → extra band (otWeekdayExtra 2.1x / otSundayExtra 2.7x)
+    // TODO: If HR requires precise tracking, add an 'otType' field to TimesheetCell.
     if (cell.overtimeHours > 0) {
       if (cell.overtimeHours > 2.5) overtimeMealDays++;
+
+      const normalBandCap = 2; // First 2 hours
+      const normalHours = Math.min(cell.overtimeHours, normalBandCap);
+      const extraHours = Math.max(0, cell.overtimeHours - normalBandCap);
+
       if (isHoliday) {
+        // Holiday OT always uses the 3x rate (no "extra" band for holidays)
         otHoliday += cell.overtimeHours;
       } else if (isSunday) {
-        otSunday += cell.overtimeHours;
+        otSunday += normalHours;        // 2x rate
+        otSundayExtra += extraHours;    // 2.7x rate
       } else {
-        otWeekday += cell.overtimeHours;
+        otWeekday += normalHours;       // 1.5x rate
+        otWeekdayExtra += extraHours;   // 2.1x rate
       }
     }
 
@@ -586,8 +599,24 @@ class TimesheetService {
   }
 
   async upsertCell(data: { employeeId: string; date: string; code: string; note?: string; workHours?: number; overtimeHours?: number }) {
-    if (!data.employeeId || !data.date || !data.code) {
-      throw new ValidationError('Thiếu thông tin bắt buộc (employeeId, date, code)');
+    if (!data.employeeId || !data.date) {
+      throw new ValidationError('Thiếu thông tin bắt buộc (employeeId, date)');
+    }
+
+    const parsedDate = new Date(data.date);
+    if (isNaN(parsedDate.getTime())) {
+      throw new ValidationError('Ngày không hợp lệ');
+    }
+
+    // If code is empty, delete the cell (allow clearing an attendance mark)
+    if (!data.code) {
+      await prisma.timesheetCell.deleteMany({
+        where: {
+          employeeId: data.employeeId,
+          date: parsedDate,
+        },
+      });
+      return null;
     }
 
     // Validate code against active AttendanceCode
@@ -598,9 +627,19 @@ class TimesheetService {
       throw new ValidationError(`Mã chấm công "${data.code}" không hợp lệ hoặc đã bị vô hiệu hóa`);
     }
 
-    const parsedDate = new Date(data.date);
-    if (isNaN(parsedDate.getTime())) {
-      throw new ValidationError('Ngày không hợp lệ');
+    // Build update payload dynamically — only update fields provided in data.
+    // This prevents accidentally zeroing out workHours/overtimeHours when the
+    // frontend only sends { code, note } (e.g., when editing attendance code
+    // via the day-cell modal, which has no OT input).
+    const updatePayload: any = {
+      code: data.code,
+      note: data.note || null,
+    };
+    if (data.workHours !== undefined) {
+      updatePayload.workHours = data.workHours;
+    }
+    if (data.overtimeHours !== undefined) {
+      updatePayload.overtimeHours = data.overtimeHours;
     }
 
     return prisma.timesheetCell.upsert({
@@ -618,12 +657,7 @@ class TimesheetService {
         workHours: data.workHours ?? 0,
         overtimeHours: data.overtimeHours ?? 0,
       },
-      update: {
-        code: data.code,
-        note: data.note || null,
-        workHours: data.workHours ?? 0,
-        overtimeHours: data.overtimeHours ?? 0,
-      },
+      update: updatePayload,
     });
   }
 }

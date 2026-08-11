@@ -269,6 +269,35 @@ class AttendanceService {
     const url = `${API_BASE_URL}/attendances/export/excel/calendar?${params.toString()}`;
     await downloadFile(url, `bang-cham-cong-${filters.year || ''}-${filters.month || ''}-${Date.now()}.xlsx`);
   }
+
+  async importFromExcelCalendar(file: File, month: number, year: number): Promise<{
+    imported: number;
+    skipped: number;
+    errors: Array<{ row: number; employee: string; message: string }>;
+  }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('month', month.toString());
+    formData.append('year', year.toString());
+
+    const response = await apiClient.post<{
+      success: boolean;
+      message: string;
+      data: {
+        imported: number;
+        skipped: number;
+        errors: Array<{ row: number; employee: string; message: string }>;
+      };
+    }>(`${API_BASE_URL}/attendances/import/excel/calendar`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+
+    if (!response.data) {
+      throw new Error('Không nhận được phản hồi từ server');
+    }
+
+    return response.data.data;
+  }
 }
 
 export default new AttendanceService();

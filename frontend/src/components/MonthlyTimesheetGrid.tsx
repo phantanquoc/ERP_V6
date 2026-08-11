@@ -4,12 +4,13 @@ import { useMonthlyTimesheet, useUpsertTimesheetCell, useUpsertTimesheetOverride
 import { useAttendanceCodes } from '../hooks/useAttendanceCodes';
 import { useDepartments } from '../hooks/useDepartments';
 import { TimesheetRow, TimesheetSummary, TimesheetSettings } from '../services/timesheetService';
-import { ChevronLeft, ChevronRight, ChevronDown, Search, Download, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, Search, Download, Upload, X } from 'lucide-react';
 import attendanceService from '../services/attendanceService';
 import HoverTooltip from './HoverTooltip';
 import { COLUMN_TOOLTIPS, OVERTIME_COLUMN_TOOLTIPS, ColumnTooltip } from './timesheetColumnTooltips';
 import useIsNarrowScreen from '../hooks/useIsNarrowScreen';
 import CollapsibleSection from './shared/CollapsibleSection';
+import { useQueryClient } from '@tanstack/react-query';
 
 /** Renders header text wrapped in a hover tooltip when a tooltip entry exists. */
 const HeaderLabel: React.FC<{ tip?: ColumnTooltip; children: React.ReactNode }> = ({ tip, children }) => {
@@ -178,7 +179,13 @@ const MonthlyTimesheetGrid: React.FC = () => {
   const [departmentId, setDepartmentId] = useState('');
   const [subTab, setSubTab] = useState<SubTab>('attendance');
   const [editingCell, setEditingCell] = useState<CellEditorState | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [focusedCell, setFocusedCell] = useState<{ empIndex: number; dayIndex: number } | null>(null);
+  const [selectedRange, setSelectedRange] = useState<{ start: { empIndex: number; dayIndex: number }; end: { empIndex: number; dayIndex: number } } | null>(null);
   const isNarrow = useIsNarrowScreen();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
 
   const { data: timesheetData, isLoading } = useMonthlyTimesheet(month, year, {
     search: search || undefined,
@@ -218,10 +225,11 @@ const MonthlyTimesheetGrid: React.FC = () => {
   const handleCellSave = useCallback(async () => {
     if (!editingCell) return;
     const { empId, date, code, note } = editingCell;
-    if (!code) { setEditingCell(null); return; }
+
     setEditingCell(null);
     try {
-      await upsertCell.mutateAsync({ employeeId: empId, date, code, note: note || undefined });
+      // Allow empty code to delete the cell (backend will handle it)
+      await upsertCell.mutateAsync({ employeeId: empId, date, code: code || '', note: note || undefined });
     } catch (err) {
       console.error('Error upserting cell:', err);
     }
@@ -232,6 +240,52 @@ const MonthlyTimesheetGrid: React.FC = () => {
       await attendanceService.exportToExcelCalendar({ month, year, search: search || undefined, departmentId: departmentId || undefined });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Không thể xuất file Excel');
+    }
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+      toast.error('Vui lòng chọn file Excel (.xlsx hoặc .xls)');
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const result = await attendanceService.importFromExcelCalendar(file, month, year);
+
+      // Show result
+      if (result.errors.length > 0) {
+        toast.error(
+          <div>
+            <div className="font-semibold">Import thành công {result.imported} ô, bỏ qua {result.skipped} ô</div>
+            <div className="text-xs mt-1 max-h-32 overflow-y-auto">
+              {result.errors.slice(0, 5).map((err, i) => (
+                <div key={i}>Dòng {err.row} ({err.employee}): {err.message}</div>
+              ))}
+              {result.errors.length > 5 && <div>...và {result.errors.length - 5} lỗi khác</div>}
+            </div>
+          </div>,
+          { duration: 8000 }
+        );
+      } else {
+        toast.success(`Import thành công ${result.imported} ô chấm công`);
+      }
+
+      // Invalidate query to refresh data
+      queryClient.invalidateQueries({ queryKey: ['monthlyTimesheet', month, year] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Không thể import file Excel');
+    } finally {
+      setIsImporting(false);
+      // Reset input so same file can be selected again
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -261,6 +315,141 @@ const MonthlyTimesheetGrid: React.FC = () => {
     upsertOverride.mutate(data);
   }, [upsertOverride]);
 
+  // Keyboard navigation
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!focusedCell || editingCell || !timesheetData?.rows) return;
+
+    const rows = timesheetData.rows;
+    const { empIndex, dayIndex } = focusedCell;
+
+    switch (e.key) {
+      case 'ArrowUp':
+        e.preventDefault();
+        if (empIndex > 0) setFocusedCell({ empIndex: empIndex - 1, dayIndex });
+        break;
+      case 'ArrowDown':
+        e.preventDefault();
+        if (empIndex < rows.length - 1) setFocusedCell({ empIndex: empIndex + 1, dayIndex });
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        if (dayIndex > 0) setFocusedCell({ empIndex, dayIndex: dayIndex - 1 });
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        if (dayIndex < daysInMonth - 1) setFocusedCell({ empIndex, dayIndex: dayIndex + 1 });
+        break;
+      case 'Enter':
+        e.preventDefault();
+        // Open edit modal for focused cell
+        const emp = rows[empIndex];
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(dayIndex + 1).padStart(2, '0')}`;
+        const cell = emp.cells.find(c => c.date === dateStr);
+        handleCellClick(emp.employeeId, dateStr, cell?.code || '', cell?.note || '');
+        break;
+      case 'd':
+        // Ctrl+D or Cmd+D: Fill-down
+        if ((e.ctrlKey || e.metaKey) && selectedRange) {
+          e.preventDefault();
+          handleFillDown();
+        }
+        break;
+    }
+  }, [focusedCell, editingCell, timesheetData, daysInMonth, month, year, selectedRange]);
+
+  // Paste from clipboard
+  const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
+    if (!focusedCell || editingCell || !timesheetData?.rows) return;
+
+    e.preventDefault();
+    const text = e.clipboardData.getData('text');
+    if (!text) return;
+
+    // Parse TSV (Tab-separated values) — Excel/Sheets copy format
+    const lines = text.split('\n').filter(l => l.trim());
+    const grid = lines.map(line => line.split('\t'));
+
+    const rows = timesheetData.rows;
+    const { empIndex, dayIndex } = focusedCell;
+
+    const cellsToUpdate: Array<{ employeeId: string; date: string; code: string; note?: string }> = [];
+
+    for (let r = 0; r < grid.length; r++) {
+      const targetEmpIndex = empIndex + r;
+      if (targetEmpIndex >= rows.length) break;
+
+      const emp = rows[targetEmpIndex];
+
+      for (let c = 0; c < grid[r].length; c++) {
+        const targetDayIndex = dayIndex + c;
+        if (targetDayIndex >= daysInMonth) break;
+
+        const code = grid[r][c].trim();
+        if (!code) continue;
+
+        // Validate code
+        if (!activeCodes.some(ac => ac.code === code)) {
+          toast.error(`Mã "${code}" không hợp lệ tại hàng ${targetEmpIndex + 1}, cột ${targetDayIndex + 1}`);
+          return;
+        }
+
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(targetDayIndex + 1).padStart(2, '0')}`;
+        cellsToUpdate.push({ employeeId: emp.employeeId, date: dateStr, code });
+      }
+    }
+
+    // Batch upsert
+    if (cellsToUpdate.length === 0) return;
+
+    try {
+      await Promise.all(cellsToUpdate.map(c => upsertCell.mutateAsync(c)));
+      toast.success(`Đã paste ${cellsToUpdate.length} ô`);
+    } catch (err) {
+      toast.error('Lỗi khi paste dữ liệu');
+    }
+  }, [focusedCell, editingCell, timesheetData, daysInMonth, month, year, activeCodes, upsertCell]);
+
+  // Fill-down: fill selected range with focused cell's value
+  const handleFillDown = useCallback(async () => {
+    if (!focusedCell || !selectedRange || !timesheetData?.rows) return;
+
+    const rows = timesheetData.rows;
+    const { start, end } = selectedRange;
+
+    // Get source cell value
+    const sourceEmp = rows[focusedCell.empIndex];
+    const sourceDateStr = `${year}-${String(month).padStart(2, '0')}-${String(focusedCell.dayIndex + 1).padStart(2, '0')}`;
+    const sourceCell = sourceEmp.cells.find(c => c.date === sourceDateStr);
+    const sourceCode = sourceCell?.code;
+
+    if (!sourceCode) {
+      toast.error('Ô nguồn không có giá trị');
+      return;
+    }
+
+    const cellsToUpdate: Array<{ employeeId: string; date: string; code: string }> = [];
+
+    for (let ei = Math.min(start.empIndex, end.empIndex); ei <= Math.max(start.empIndex, end.empIndex); ei++) {
+      for (let di = Math.min(start.dayIndex, end.dayIndex); di <= Math.max(start.dayIndex, end.dayIndex); di++) {
+        // Skip source cell
+        if (ei === focusedCell.empIndex && di === focusedCell.dayIndex) continue;
+
+        const emp = rows[ei];
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(di + 1).padStart(2, '0')}`;
+        cellsToUpdate.push({ employeeId: emp.employeeId, date: dateStr, code: sourceCode });
+      }
+    }
+
+    if (cellsToUpdate.length === 0) return;
+
+    try {
+      await Promise.all(cellsToUpdate.map(c => upsertCell.mutateAsync(c)));
+      toast.success(`Đã fill ${cellsToUpdate.length} ô`);
+    } catch (err) {
+      toast.error('Lỗi khi fill dữ liệu');
+    }
+  }, [focusedCell, selectedRange, timesheetData, month, year, upsertCell]);
+
   return (
     <div className="p-4 space-y-4">
       {/* Header — layout driven by isNarrow so it matches the grid's own breakpoint */}
@@ -289,9 +478,45 @@ const MonthlyTimesheetGrid: React.FC = () => {
             <option value="">Tất cả bộ phận</option>
             {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
+          <button
+            onClick={handleImportClick}
+            disabled={isImporting}
+            className={`flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm ${isNarrow ? 'w-full min-h-[44px]' : 'w-auto'}`}
+          >
+            <Upload size={16} /> {isImporting ? 'Đang import...' : 'Import Excel'}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            onChange={handleFileChange}
+            className="hidden"
+          />
           <button onClick={handleExport} className={`flex items-center justify-center gap-1.5 px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm ${isNarrow ? 'w-full min-h-[44px]' : 'w-auto'}`}>
             <Download size={16} /> Xuất Excel
           </button>
+          <div className="relative group">
+            <button className="p-2 rounded-md hover:bg-gray-100 text-gray-600" title="Phím tắt">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </button>
+            <div className="absolute right-0 top-full mt-2 w-80 bg-white border rounded-lg shadow-lg p-3 text-xs hidden group-hover:block z-50">
+              <div className="font-semibold mb-2">Phím tắt:</div>
+              <ul className="space-y-1 text-gray-700">
+                <li><kbd className="px-1 py-0.5 bg-gray-100 border rounded">↑ ↓ ← →</kbd> Di chuyển giữa các ô</li>
+                <li><kbd className="px-1 py-0.5 bg-gray-100 border rounded">Enter</kbd> Mở modal chỉnh sửa ô đang chọn</li>
+                <li><kbd className="px-1 py-0.5 bg-gray-100 border rounded">Shift + Click</kbd> Chọn vùng (range selection)</li>
+                <li><kbd className="px-1 py-0.5 bg-gray-100 border rounded">Ctrl/Cmd + D</kbd> Fill-down (điền giá trị ô nguồn vào vùng đã chọn)</li>
+                <li><kbd className="px-1 py-0.5 bg-gray-100 border rounded">Ctrl/Cmd + V</kbd> Paste từ clipboard (Excel/Sheets format)</li>
+              </ul>
+              <div className="mt-2 pt-2 border-t text-gray-500">
+                Tip: Click vào grid để focus trước khi dùng phím tắt
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -349,6 +574,13 @@ const MonthlyTimesheetGrid: React.FC = () => {
           onOverrideSave={handleOverrideSave}
           editingState={editingCell}
           setEditingCell={setEditingCell}
+          gridRef={gridRef}
+          handleKeyDown={handleKeyDown}
+          handlePaste={handlePaste}
+          focusedCell={focusedCell}
+          selectedRange={selectedRange}
+          setFocusedCell={setFocusedCell}
+          setSelectedRange={setSelectedRange}
         />
       ) : (
         <OvertimeTable
@@ -741,10 +973,18 @@ interface AttendanceTableProps {
   onOverrideSave: (data: { employeeId: string; month: number; year: number; fieldKey: string; value: string }) => void;
   editingState: CellEditorState | null;
   setEditingCell: (s: CellEditorState | null) => void;
+  gridRef: React.RefObject<HTMLDivElement>;
+  handleKeyDown: (e: React.KeyboardEvent) => void;
+  handlePaste: (e: React.ClipboardEvent) => void;
+  focusedCell: { empIndex: number; dayIndex: number } | null;
+  selectedRange: { start: { empIndex: number; dayIndex: number }; end: { empIndex: number; dayIndex: number } } | null;
+  setFocusedCell: (cell: { empIndex: number; dayIndex: number } | null) => void;
+  setSelectedRange: (range: { start: { empIndex: number; dayIndex: number }; end: { empIndex: number; dayIndex: number } } | null) => void;
 }
 
 const AttendanceTable: React.FC<AttendanceTableProps> = ({
   rows, dayHeaders, summaries, overrides, settings, month, year, getCellColor, formatHours, formatMoney, onCellClick, onOverrideSave,
+  gridRef, handleKeyDown, handlePaste, focusedCell, selectedRange, setFocusedCell, setSelectedRange,
 }) => {
   // Fixed widths for sticky identity columns — header AND body must use the same
   // width/left so the frozen columns line up exactly when scrolling horizontally.
@@ -758,7 +998,13 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
   const bodyThCell = 'border px-1 py-0.5 sticky bg-white z-10 overflow-hidden text-ellipsis whitespace-nowrap';
 
   return (
-    <div className="overflow-auto border rounded-lg max-h-[calc(100vh-260px)]">
+    <div
+      ref={gridRef}
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      onPaste={handlePaste}
+      className="overflow-auto border rounded-lg max-h-[calc(100vh-260px)] focus:outline-none focus:ring-2 focus:ring-blue-500"
+    >
       <table className="text-xs border-collapse min-w-max">
         <thead className="sticky top-0 z-20 bg-gray-50">
           {/* Group header row */}
@@ -826,14 +1072,38 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
                 <td className={bodyThCell} style={idStyle(3)} title={row.positionName}>{row.positionName}</td>
                 <td className={bodyThCell} style={idStyle(4)} title={row.departmentName}>{row.departmentName}</td>
                 <td className={`${bodyThCell} text-center`} style={idStyle(5)}>{hireFormatted}</td>
-                {dayHeaders.map(h => {
+                {dayHeaders.map((h, dayIdx) => {
                   const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(h.day).padStart(2, '0')}`;
                   const cell = row.cells.find(c => c.date === dateStr);
+                  const isFocused = focusedCell?.empIndex === idx && focusedCell?.dayIndex === dayIdx;
+                  const isInSelection = selectedRange &&
+                    idx >= Math.min(selectedRange.start.empIndex, selectedRange.end.empIndex) &&
+                    idx <= Math.max(selectedRange.start.empIndex, selectedRange.end.empIndex) &&
+                    dayIdx >= Math.min(selectedRange.start.dayIndex, selectedRange.end.dayIndex) &&
+                    dayIdx <= Math.max(selectedRange.start.dayIndex, selectedRange.end.dayIndex);
+
                   return (
                     <td
                       key={h.day}
-                      className={`border px-0.5 py-0.5 text-center cursor-pointer relative ${h.isSunday ? 'bg-red-50/50' : ''} ${getCellColor(cell?.code)}`}
-                      onClick={() => onCellClick(row.employeeId, dateStr, cell?.code || '', cell?.note || '')}
+                      className={`border px-0.5 py-0.5 text-center cursor-pointer relative ${h.isSunday ? 'bg-red-50/50' : ''} ${getCellColor(cell?.code)} ${isFocused ? 'ring-2 ring-blue-600 ring-inset' : ''} ${isInSelection ? 'bg-blue-100/50' : ''}`}
+                      onClick={() => {
+                        setFocusedCell({ empIndex: idx, dayIndex: dayIdx });
+                        onCellClick(row.employeeId, dateStr, cell?.code || '', cell?.note || '');
+                      }}
+                      onMouseDown={(e) => {
+                        if (e.shiftKey && focusedCell) {
+                          // Shift+click: extend selection
+                          e.preventDefault();
+                          setSelectedRange({
+                            start: focusedCell,
+                            end: { empIndex: idx, dayIndex: dayIdx },
+                          });
+                        } else {
+                          // Regular click: set focus
+                          setFocusedCell({ empIndex: idx, dayIndex: dayIdx });
+                          setSelectedRange(null);
+                        }
+                      }}
                       title={cell?.note || undefined}
                     >
                       <span>{cell?.code || ''}</span>
