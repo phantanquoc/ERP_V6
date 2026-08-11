@@ -600,6 +600,14 @@ class TimesheetService {
       return null;
     }
 
+    // Empty code → delete the cell
+    if (!data.code || data.code.trim() === '') {
+      await prisma.timesheetCell.deleteMany({
+        where: { employeeId: data.employeeId, date: parsedDate },
+      });
+      return null;
+    }
+
     // Validate code against active AttendanceCode
     const validCode = await prisma.attendanceCode.findFirst({
       where: { code: data.code, isActive: true },
