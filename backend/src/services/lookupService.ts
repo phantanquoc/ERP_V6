@@ -122,8 +122,17 @@ export const LOOKUP_COLUMN_MAP: Record<LookupGroup, LookupColumnRef[]> = {
     { model: 'purchaseRequest', column: 'donViTinh', table: 'business.purchase_requests' },
     { model: 'purchaseRequestItem', column: 'donViTinh', table: 'business.purchase_request_items' },
     { model: 'lotProduct', column: 'donViTinh', table: 'business.lot_products' },
-    { model: 'warehouseReceipt', column: 'donViTinh', table: 'business.warehouse_receipts' },
-    { model: 'warehouseIssue', column: 'donViTinh', table: 'business.warehouse_issues' },
+    // Slip units live on the LINE tables now that warehouse slips are header+lines.
+    // The header columns still exist but are `@deprecated` mirrors of the first line:
+    // targeting them would rename a mirror while leaving every real line stale, and
+    // lines 2..N of a multi-line slip would never be renamed at all — zero rows
+    // updated, no error raised. Covered by a dedicated test.
+    {
+      model: 'warehouseReceiptItem',
+      column: 'donViTinh',
+      table: 'business.warehouse_receipt_items',
+    },
+    { model: 'warehouseIssueItem', column: 'donViTinh', table: 'business.warehouse_issue_items' },
     { model: 'orderItem', column: 'donVi', table: 'business.order_items' },
     { model: 'sparePart', column: 'donVi', table: 'business.spare_parts' },
     { model: 'projectCost', column: 'donVi', table: 'business.project_costs' },

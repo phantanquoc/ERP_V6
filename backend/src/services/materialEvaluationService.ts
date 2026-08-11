@@ -1,8 +1,9 @@
 import { Prisma } from '@prisma/client';
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
-import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import systemOperationService from '@services/systemOperationService';
+import warehouseIssueService from '@services/warehouseIssueService';
+import { computeHeaderTotals } from '@utils/warehouseSlipLines';
 import { getProductionDay, productionDayRange, parseLocalDateTimeAsAppTz } from '@utils/productionDay';
 import { isScheduledCode } from '@utils/dailyFryBatchSchedule';
 
@@ -126,14 +127,12 @@ export class MaterialEvaluationService {
     return evaluation;
   }
 
-  private async generateWarehouseIssueCode(): Promise<string> {
-    const year = new Date().getFullYear();
-    const last = await prisma.warehouseIssue.findFirst({
-      where: { maPhieuXuat: yearlyCodeWhere('PX', year) },
-      orderBy: { maPhieuXuat: 'desc' },
-      select: { maPhieuXuat: true },
-    });
-    return nextYearlyCode(last?.maPhieuXuat ?? null, 'PX', year);
+  /**
+   * Task 6.3 — the slip service owns `PX` code generation. Duplicating the query
+   * here let the two implementations drift; a single owner cannot.
+   */
+  private generateWarehouseIssueCode(): Promise<string> {
+    return warehouseIssueService.generateCode();
   }
 
   async createMaterialEvaluation(data: any, userId?: string) {
@@ -268,24 +267,53 @@ export class MaterialEvaluationService {
       const yyyy = ngayXuat.getFullYear();
       const ghiChu = `[TỰ ĐỘNG] Xuất nguyên liệu cho mẻ chiên ${data.maChien} ngày ${dd}/${mm}/${yyyy}`;
 
-      // 4. Create WarehouseIssue
+      // 4. Create the WarehouseIssue header plus EXACTLY ONE line (task 6.1).
+      //
+      // Quantity and both stock snapshots live on the line; the header carries only
+      // the derived totals. The deprecated header columns are still mirrored so a
+      // not-yet-migrated reader sees a coherent single-commodity view instead of
+      // `null` — the same mirroring `warehouseIssueService` performs.
+      //
+      // One evaluation still maps to one slip: `MaterialEvaluation.warehouseIssueId`
+      // stays a unique header reference. Multiple raw-material packages per
+      // evaluation is a separate change (17.3), not something this line shape
+      // silently enables here.
+      const line = {
+        stt: 1,
+        lotProductId: lotProduct.id,
+        tenSanPham: lotProduct.internationalProduct.tenSanPham,
+        donViTinh: lotProduct.donViTinh,
+        warehouseId: lotProduct.lot.warehouseId,
+        tenKho: lotProduct.lot.warehouse?.tenKho ?? '',
+        lotId: lotProduct.lotId,
+        tenLo: lotProduct.lot.tenLo,
+        soLuongYeuCau: khoiLuong,
+        soLuongThucTe: khoiLuong,
+        soLuongTruoc,
+        soLuongSau,
+        ghiChu,
+      };
+
       const warehouseIssue = await tx.warehouseIssue.create({
         data: {
           maPhieuXuat,
           employeeId: data.employeeId ?? lotProduct.internationalProductId, // fallback
           maNhanVien: data.maNhanVien ?? '',
           tenNhanVien: data.tenNhanVien ?? data.nguoiThucHien ?? '',
-          warehouseId: lotProduct.lot.warehouseId,
-          tenKho: lotProduct.lot.warehouse?.tenKho ?? '',
-          lotId: lotProduct.lotId,
-          tenLo: lotProduct.lot.tenLo,
-          lotProductId: lotProduct.id,
-          tenSanPham: lotProduct.internationalProduct.tenSanPham,
+          ghiChu,
+          ...computeHeaderTotals([line]),
+          // Deprecated single-commodity mirror of the one line.
+          warehouseId: line.warehouseId,
+          tenKho: line.tenKho,
+          lotId: line.lotId,
+          tenLo: line.tenLo,
+          lotProductId: line.lotProductId,
+          tenSanPham: line.tenSanPham,
+          donViTinh: line.donViTinh,
           soLuongTruoc,
           soLuongXuat: khoiLuong,
           soLuongSau,
-          donViTinh: lotProduct.donViTinh,
-          ghiChu,
+          items: { create: [line] },
         },
       });
 
@@ -456,6 +484,7 @@ export class MaterialEvaluationService {
       if (existing.warehouseIssueId) {
         const warehouseIssue = await tx.warehouseIssue.findUnique({
           where: { id: existing.warehouseIssueId },
+          include: { items: true },
         });
 
         if (warehouseIssue) {
@@ -466,14 +495,38 @@ export class MaterialEvaluationService {
             });
 
             if (lotProduct) {
+              // Task 6.2 — the quantity is read from the issue's LINES, summed over
+              // every line that drew from this package. The header's `soLuongXuat` is
+              // a deprecated nullable mirror: reading it yields `null`/`undefined` for
+              // a multi-line slip, and `lotProduct.soLuong + undefined` is `NaN`, which
+              // Postgres accepts into a Float column without complaint. Silently
+              // skipping the refund instead (the Batch A null-guard) is equally wrong —
+              // it loses stock. So: sum the lines, then assert the result is finite.
+              const refund = (warehouseIssue.items ?? [])
+                .filter((line) => line.lotProductId === existing.lotProductId)
+                .reduce((sum, line) => sum + Number(line.soLuongThucTe), 0);
+
+              if (!Number.isFinite(refund)) {
+                throw new ValidationError(
+                  `Không xác định được số lượng hoàn kho từ phiếu xuất ${warehouseIssue.maPhieuXuat}`
+                );
+              }
+
+              const soLuong = lotProduct.soLuong + refund;
+              if (!Number.isFinite(soLuong)) {
+                throw new ValidationError(
+                  `Số lượng tồn kho sau hoàn không hợp lệ cho kiện hàng ${existing.lotProductId}`
+                );
+              }
+
               await tx.lotProduct.update({
                 where: { id: existing.lotProductId },
-                data: { soLuong: lotProduct.soLuong + warehouseIssue.soLuongXuat },
+                data: { soLuong },
               });
             }
           }
 
-          // Delete the WarehouseIssue
+          // Delete the WarehouseIssue — its lines go by cascade.
           await tx.warehouseIssue.delete({ where: { id: existing.warehouseIssueId } });
         }
       }

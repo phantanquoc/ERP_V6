@@ -359,6 +359,24 @@ describe('LOOKUP_COLUMN_MAP', () => {
     expect(ref?.column).toBe('donViTinh');
     expect(ref?.dbColumn).toBe('donVi');
   });
+
+  it('5.1 targets the warehouse slip LINE tables, never the deprecated header columns', () => {
+    const models = LOOKUP_COLUMN_MAP.DON_VI_TINH.map((r) => r.model);
+    const tables = LOOKUP_COLUMN_MAP.DON_VI_TINH.map((r) => r.table);
+
+    expect(models).toContain('warehouseReceiptItem');
+    expect(models).toContain('warehouseIssueItem');
+    expect(tables).toContain('business.warehouse_receipt_items');
+    expect(tables).toContain('business.warehouse_issue_items');
+
+    // The headers keep the column as a `@deprecated` mirror of the first line. A
+    // mapping left pointing there renames the mirror and no real line — zero rows
+    // for lines 2..N, and no error to reveal it.
+    expect(models).not.toContain('warehouseReceipt');
+    expect(models).not.toContain('warehouseIssue');
+    expect(tables).not.toContain('business.warehouse_receipts');
+    expect(tables).not.toContain('business.warehouse_issues');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -687,6 +705,46 @@ describe('cascadeRename', () => {
     const tables = log.affectedTables as Array<{ table: string; column: string }>;
     expect(tables).toEqual(
       expect.arrayContaining([{ table: 'business.tax_reports', column: 'donVi', count: 1 }])
+    );
+  });
+
+  it('5.2 reaches both warehouse slip LINE tables and reports a nonzero count', async () => {
+    const lk = seedLookup({ label: 'Kg' });
+
+    // Two lines of one receipt and two of one issue — the multi-line case the header
+    // mirror cannot represent. A stale mapping on the headers renames neither.
+    seedRows('warehouseReceiptItem', [
+      { donViTinh: 'Kg' },
+      { donViTinh: 'Kg' },
+      { donViTinh: 'Thùng' },
+    ]);
+    seedRows('warehouseIssueItem', [{ donViTinh: 'Kg' }, { donViTinh: 'Kg' }]);
+
+    await service.cascadeRename(lk.id, 'Kg', 'kg', 'DON_VI_TINH');
+
+    expect(store.tables.warehouseReceiptItem.map((r) => r.donViTinh)).toEqual([
+      'kg',
+      'kg',
+      'Thùng',
+    ]);
+    expect(store.tables.warehouseIssueItem.map((r) => r.donViTinh)).toEqual(['kg', 'kg']);
+
+    // The cascade must actually have issued the updates, not merely left the rows alone.
+    expect(store.updateManyCalls.find((c) => c.model === 'warehouseReceiptItem')).toBeDefined();
+    expect(store.updateManyCalls.find((c) => c.model === 'warehouseIssueItem')).toBeDefined();
+
+    // And the audit trail must report a NONZERO count for each line table. A no-op
+    // mapping would report count 0 here while still "succeeding".
+    const tables = store.changeLogs[0].affectedTables as Array<{
+      table: string;
+      column: string;
+      count: number;
+    }>;
+    expect(tables).toEqual(
+      expect.arrayContaining([
+        { table: 'business.warehouse_receipt_items', column: 'donViTinh', count: 2 },
+        { table: 'business.warehouse_issue_items', column: 'donViTinh', count: 2 },
+      ])
     );
   });
 
