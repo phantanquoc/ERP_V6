@@ -1214,6 +1214,143 @@ export class AttendanceService {
     return buffer as any;
   }
 
+  /**
+   * Import timesheet data from Excel calendar file.
+   * Parses MSNV (column E) and day codes (columns J-AN, rows 9+),
+   * validates codes, and batch upserts to TimesheetCell.
+   */
+  async importFromExcelCalendar(fileBuffer: Buffer, options: { month: number; year: number }): Promise<{
+    imported: number;
+    skipped: number;
+    errors: Array<{ row: number; employee: string; message: string }>;
+  }> {
+    const { month, year } = options;
+    if (!month || !year || month < 1 || month > 12) {
+      throw new ValidationError('Tháng và năm không hợp lệ');
+    }
+
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const days: string[] = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      days.push(`${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+    }
+
+    // Load workbook
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(fileBuffer as any); // ExcelJS types mismatch with Node Buffer
+    const ws = workbook.getWorksheet('CHẤM CÔNG');
+    if (!ws) {
+      throw new ValidationError('Không tìm thấy sheet "CHẤM CÔNG" trong file Excel');
+    }
+
+    // Fetch valid codes
+    const validCodes = await prisma.attendanceCode.findMany({ where: { isActive: true } });
+    const codeSet = new Set(validCodes.map(c => c.code));
+
+    // Fetch all employees for MSNV lookup
+    const allEmployees = await prisma.employee.findMany({
+      where: { status: 'ACTIVE' },
+      select: { id: true, employeeCode: true },
+    });
+    const empByCode = new Map(allEmployees.map(e => [e.employeeCode, e.id]));
+
+    const COL_E = 5; // MSNV
+    const COL_J = 10; // First day column
+    const DATA_START_ROW = 9;
+
+    const cellsToUpsert: Array<{ employeeId: string; date: string; code: string; note: string | null }> = [];
+    const errors: Array<{ row: number; employee: string; message: string }> = [];
+    let skipped = 0;
+
+    // Parse rows
+    let rowIdx = DATA_START_ROW;
+    while (rowIdx <= ws.rowCount) {
+      const row = ws.getRow(rowIdx);
+      const msnv = row.getCell(COL_E).value;
+      if (!msnv || typeof msnv !== 'string') {
+        rowIdx++;
+        continue; // Skip empty or invalid MSNV
+      }
+
+      const employeeId = empByCode.get(msnv.trim());
+      if (!employeeId) {
+        errors.push({ row: rowIdx, employee: msnv, message: 'MSNV không tồn tại trong hệ thống' });
+        rowIdx++;
+        skipped++;
+        continue;
+      }
+
+      // Parse day columns J..AN (31 slots, only read up to daysInMonth)
+      for (let di = 0; di < daysInMonth; di++) {
+        const cellValue = row.getCell(COL_J + di).value;
+        if (!cellValue) continue; // Empty cell = no attendance mark
+
+        let code = String(cellValue).trim();
+        if (!code) continue;
+
+        // Normalize case (codes are case-insensitive in Excel but DB is case-sensitive)
+        // Excel uses uppercase/lowercase variants; normalize to DB convention
+        const codeUpper = code.toUpperCase();
+        const codeMatch = [...codeSet].find(c => c.toUpperCase() === codeUpper);
+        if (codeMatch) {
+          code = codeMatch; // Use exact DB code
+        } else if (!codeSet.has(code)) {
+          errors.push({
+            row: rowIdx,
+            employee: msnv,
+            message: `Mã "${code}" ngày ${di + 1} không hợp lệ`,
+          });
+          skipped++;
+          continue;
+        }
+
+        const dateStr = days[di];
+        const cellNote = row.getCell(COL_J + di).note;
+        const note = typeof cellNote === 'object' && cellNote && 'texts' in cellNote && cellNote.texts
+          ? cellNote.texts.map((t: any) => t.text).join('')
+          : null;
+        cellsToUpsert.push({ employeeId, date: dateStr, code, note });
+      }
+
+      rowIdx++;
+    }
+
+    // Batch upsert (chunk to avoid exceeding DB limits)
+    const CHUNK_SIZE = 500;
+    let imported = 0;
+    for (let i = 0; i < cellsToUpsert.length; i += CHUNK_SIZE) {
+      const chunk = cellsToUpsert.slice(i, i + CHUNK_SIZE);
+      await prisma.$transaction(
+        chunk.map(cell =>
+          prisma.timesheetCell.upsert({
+            where: {
+              employeeId_date: {
+                employeeId: cell.employeeId,
+                date: new Date(cell.date),
+              },
+            },
+            create: {
+              employeeId: cell.employeeId,
+              date: new Date(cell.date),
+              code: cell.code,
+              note: cell.note,
+              workHours: 0,
+              overtimeHours: 0,
+            },
+            update: {
+              code: cell.code,
+              note: cell.note,
+              // Preserve workHours/overtimeHours on import (only update code/note)
+            },
+          })
+        )
+      );
+      imported += chunk.length;
+    }
+
+    return { imported, skipped, errors };
+  }
+
 }
 
 export default new AttendanceService();

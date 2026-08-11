@@ -233,6 +233,35 @@ export class AttendanceController {
       next(error);
     }
   }
+
+  async importFromExcelCalendar(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { month, year } = req.body;
+      const monthNum = parseInt(month);
+      const yearNum = parseInt(year);
+
+      if (!monthNum || !yearNum || monthNum < 1 || monthNum > 12) {
+        throw new ValidationError('Tháng và năm không hợp lệ');
+      }
+
+      if (!req.file) {
+        throw new ValidationError('Không tìm thấy file Excel');
+      }
+
+      const result = await attendanceService.importFromExcelCalendar(req.file.buffer, {
+        month: monthNum,
+        year: yearNum,
+      });
+
+      res.json({
+        success: true,
+        message: `Import thành công ${result.imported} ô chấm công`,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default new AttendanceController();

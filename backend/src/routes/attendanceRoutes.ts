@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import attendanceController from '@controllers/attendanceController';
 import { authenticate } from '@middlewares/auth';
+import multer from 'multer';
 
 const router = Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
 /**
  * @swagger
@@ -73,6 +75,41 @@ router.get('/date-range', authenticate, (req, res, next) => attendanceController
  *         description: Không có quyền truy cập
  */
 router.get('/export/excel/calendar', authenticate, (req, res, next) => attendanceController.exportToExcelCalendar(req, res, next));
+
+/**
+ * @swagger
+ * /api/attendances/import/excel/calendar:
+ *   post:
+ *     tags: [Attendances]
+ *     summary: Import Excel chấm công dạng lịch (matrix employee × ngày)
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: File Excel chấm công (sheet "CHẤM CÔNG")
+ *               month:
+ *                 type: integer
+ *                 description: Tháng (1-12)
+ *               year:
+ *                 type: integer
+ *                 description: Năm
+ *     responses:
+ *       200:
+ *         description: Import thành công
+ *       400:
+ *         description: Dữ liệu không hợp lệ
+ *       401:
+ *         description: Không có quyền truy cập
+ */
+router.post('/import/excel/calendar', authenticate, upload.single('file'), (req, res, next) => attendanceController.importFromExcelCalendar(req, res, next));
 
 /**
  * @swagger

@@ -115,30 +115,53 @@ describe('computeSummary — half-day leave = 4h not 8h', () => {
 
 describe('computeSummary — OT bands by day type', () => {
   // 2026-06-01 is Monday (UTC), 2026-06-07 is Sunday (UTC)
-  it('weekday OT → otWeekday', () => {
-    // 2026-06-01 = Monday
-    const cells = [makeCell({ date: '2026-06-01', code: 'x', workHours: 8, overtimeHours: 3 })];
+  // Logic: first 2h → normal band, beyond 2h → extra band (2.1x/2.7x)
+
+  it('weekday OT ≤ 2h → all into otWeekday (1.5x)', () => {
+    const cells = [makeCell({ date: '2026-06-01', code: 'x', workHours: 8, overtimeHours: 1.5 })];
     const result = computeSummary(cells, [], defaultSettings);
-    expect(result.otWeekday).toBe(3);
+    expect(result.otWeekday).toBe(1.5);
+    expect(result.otWeekdayExtra).toBe(0);
     expect(result.otSunday).toBe(0);
     expect(result.otHoliday).toBe(0);
   });
 
-  it('Sunday OT → otSunday', () => {
+  it('weekday OT > 2h → split into otWeekday (2h @ 1.5x) + otWeekdayExtra (1h @ 2.1x)', () => {
+    // 2026-06-01 = Monday, 3h OT → 2h normal + 1h extra
+    const cells = [makeCell({ date: '2026-06-01', code: 'x', workHours: 8, overtimeHours: 3 })];
+    const result = computeSummary(cells, [], defaultSettings);
+    expect(result.otWeekday).toBe(2);
+    expect(result.otWeekdayExtra).toBe(1);
+    expect(result.otSunday).toBe(0);
+    expect(result.otHoliday).toBe(0);
+  });
+
+  it('Sunday OT ≤ 2h → all into otSunday (2x)', () => {
     // 2026-06-07 = Sunday
     const cells = [makeCell({ date: '2026-06-07', code: 'x', workHours: 8, overtimeHours: 2 })];
     const result = computeSummary(cells, [], defaultSettings);
     expect(result.otSunday).toBe(2);
+    expect(result.otSundayExtra).toBe(0);
     expect(result.otWeekday).toBe(0);
   });
 
-  it('holiday OT → otHoliday', () => {
+  it('Sunday OT > 2h → split into otSunday (2h @ 2x) + otSundayExtra (1.5h @ 2.7x)', () => {
+    // 2026-06-07 = Sunday, 3.5h OT → 2h normal + 1.5h extra
+    const cells = [makeCell({ date: '2026-06-07', code: 'x', workHours: 8, overtimeHours: 3.5 })];
+    const result = computeSummary(cells, [], defaultSettings);
+    expect(result.otSunday).toBe(2);
+    expect(result.otSundayExtra).toBe(1.5);
+    expect(result.otWeekday).toBe(0);
+  });
+
+  it('holiday OT → all into otHoliday (3x, no extra band)', () => {
     // 2026-06-02 is Tuesday, pass it as a holiday
     const holidayDate = new Date('2026-06-02T00:00:00Z');
     const cells = [makeCell({ date: '2026-06-02', code: 'x', workHours: 8, overtimeHours: 4 })];
     const result = computeSummary(cells, [holidayDate], defaultSettings);
     expect(result.otHoliday).toBe(4);
     expect(result.otWeekday).toBe(0);
+    expect(result.otWeekdayExtra).toBe(0);
   });
 });
 
