@@ -11,7 +11,7 @@ export const COLUMN_TOOLTIPS: Record<string, ColumnTooltip> = {
   // --- Main summary table ---
   payableHours: {
     title: 'Thời gian tính lương (giờ)',
-    description: 'Giờ lương theo kế hoạch = làm chính thức + nghỉ có lương + nghỉ lễ/chế độ + nghỉ không lương + thử việc. KHÔNG bị trừ giờ trễ/sớm, không gồm tăng ca. Ví dụ 26 công đủ = 208h. Tự tính; click để ghi đè.',
+    description: 'Giờ lương CỐ ĐỊNH theo kế hoạch tháng (ví dụ: 26 công × 8h = 208h). Đây là mốc tính lương cơ bản, KHÔNG phụ thuộc vào số ngày thực tế đã làm. KHÔNG bị trừ giờ trễ/sớm, không gồm tăng ca. Tự tính; click để ghi đè.',
   },
   officialWorkDays: {
     title: 'Tổng thời gian làm chính thức (giờ)',
@@ -135,14 +135,6 @@ export const OVERTIME_COLUMN_TOOLTIPS: Record<string, ColumnTooltip> = {
   otHoliday: {
     title: 'Số giờ tăng ca Lễ',
     description: 'Giờ tăng ca ngày Lễ, hệ số 300%.',
-  },
-  otWeekdayExtra: {
-    title: 'Tăng ca ngoài giờ ngày thường',
-    description: 'Giờ tăng ca ngày thường phần vượt thêm, hệ số 210%.',
-  },
-  otSundayExtra: {
-    title: 'Tăng ca ngoài giờ ngày nghỉ',
-    description: 'Giờ tăng ca ngày nghỉ phần vượt thêm, hệ số 270%.',
   },
   otSalary: {
     title: 'Lương tính tăng ca',
