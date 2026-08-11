@@ -1158,9 +1158,7 @@ model PayrollSettings {
   sundayMealAllowance   Float    @default(0)
   fuelPricePerKm        Float    @default(0)
   otRateWeekday         Float    @default(1.5)
-  otRateWeekdayExtra    Float    @default(2.1)
   otRateSunday          Float    @default(2)
-  otRateSundayExtra     Float    @default(2.7)
   otRateHoliday         Float    @default(3)
   /// Selects which overtime figure payroll consumes. False (default) = planned
   /// hours, i.e. exactly the pre-change behaviour, so deploying moves no payslip.

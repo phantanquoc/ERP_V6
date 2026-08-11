@@ -4,9 +4,7 @@ describe('Real Excel data validation', () => {
   const settings = {
     standardWorkDays: 26,
     otRateWeekday: 1.5,
-    otRateWeekdayExtra: 2.1,
     otRateSunday: 2,
-    otRateSundayExtra: 2.7,
     otRateHoliday: 3,
   };
 
