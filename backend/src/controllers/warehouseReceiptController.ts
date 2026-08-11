@@ -16,26 +16,29 @@ export const generateReceiptCode = async (_req: Request, res: Response, next: Ne
 
 export const createWarehouseReceipt = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { maPhieuNhap, employeeId, maNhanVien, tenNhanVien, warehouseId, tenKho, lotId, tenLo, lotProductId, tenSanPham, soLuongNhap, donViTinh, ghiChu, mucDich, supplyRequestId, loaiSanPham } = req.body;
+    const { maPhieuNhap, employeeId, maNhanVien, tenNhanVien, ngayNhap, mucDich, ghiChu, supplyRequestId, items } = req.body;
 
-    if (!maPhieuNhap || !employeeId || !warehouseId || !lotId || !tenSanPham || soLuongNhap === undefined || soLuongNhap === null) {
-      res.status(400).json({ success: false, message: 'Thiếu thông tin bắt buộc' });
+    if (!employeeId) {
+      res.status(400).json({ success: false, message: 'Thiếu mã nhân viên' });
+      return;
+    }
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      res.status(400).json({ success: false, message: 'Phiếu nhập kho phải có ít nhất một mặt hàng' });
       return;
     }
 
     const receipt = await warehouseReceiptService.create({
-      maPhieuNhap, employeeId, maNhanVien, tenNhanVien,
-      warehouseId, tenKho, lotId, tenLo, lotProductId,
-      tenSanPham, soLuongNhap, donViTinh, ghiChu, mucDich, supplyRequestId, loaiSanPham,
+      maPhieuNhap, employeeId, maNhanVien, tenNhanVien, ngayNhap, mucDich, ghiChu, supplyRequestId, items,
     });
 
     res.status(201).json({ success: true, data: receipt, message: 'Tạo phiếu nhập kho thành công' });
 
     try {
+      const totalQty = items.reduce((sum: number, line: any) => sum + Number(line.soLuongThucTe || 0), 0);
       await notificationService.notify(NotificationEvent.WAREHOUSE_RECEIPT_CREATED, {
         actorUserId: (req as any).user?.id,
         entityId: receipt.id,
-        metadata: { maPhieuNhap, soLuongNhap: parseFloat(soLuongNhap.toString()), donViTinh, tenSanPham },
+        metadata: { maPhieuNhap: receipt.maPhieuNhap, soLuongNhap: totalQty, donViTinh: items[0]?.donViTinh, tenSanPham: `${items.length} mặt hàng` },
       });
     } catch {}
 
@@ -71,41 +74,12 @@ export const getWarehouseReceiptById = async (req: Request, res: Response, next:
   }
 };
 
-export const batchCreateWarehouseReceipts = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const { items, supplyRequestId } = req.body;
-
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      res.status(400).json({ success: false, message: 'Vui lòng thêm ít nhất một sản phẩm' });
-      return;
-    }
-
-    const results = await warehouseReceiptService.batchCreate(items, supplyRequestId);
-
-    res.status(201).json({
-      success: true,
-      data: results,
-      message: `Đã tạo ${results.length} phiếu nhập kho thành công`,
-    });
-
-    if (supplyRequestId) {
-      supplyRequestService.onWarehouseDocumentCreated(supplyRequestId).catch((err) => {
-        console.error('Error in onWarehouseDocumentCreated:', err);
-      });
-    }
-  } catch (error) {
-    next(error);
-  }
-};
-
 export const updateWarehouseReceipt = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { id } = req.params;
-    const { warehouseId, tenKho, lotId, tenLo, lotProductId, tenSanPham, soLuongNhap, donViTinh, ghiChu, mucDich } = req.body;
+    const { ngayNhap, mucDich, ghiChu, items } = req.body;
 
-    const receipt = await warehouseReceiptService.update(id, {
-      warehouseId, tenKho, lotId, tenLo, lotProductId, tenSanPham, soLuongNhap, donViTinh, ghiChu, mucDich,
-    });
+    const receipt = await warehouseReceiptService.update(id, { ngayNhap, mucDich, ghiChu, items });
 
     res.status(200).json({ success: true, message: 'Cập nhật phiếu nhập kho thành công', data: receipt });
   } catch (error: any) {

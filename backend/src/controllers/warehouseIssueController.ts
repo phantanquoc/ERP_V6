@@ -16,20 +16,29 @@ export const generateIssueCode = async (_req: Request, res: Response, next: Next
 
 export const createWarehouseIssue = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { maPhieuXuat, employeeId, maNhanVien, tenNhanVien, warehouseId, tenKho, lotId, tenLo, lotProductId, tenSanPham, soLuongXuat, donViTinh, ghiChu, supplyRequestId } = req.body;
+    const { maPhieuXuat, employeeId, maNhanVien, tenNhanVien, ngayXuat, ghiChu, supplyRequestId, items } = req.body;
+
+    if (!employeeId) {
+      res.status(400).json({ success: false, message: 'Thiếu mã nhân viên' });
+      return;
+    }
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      res.status(400).json({ success: false, message: 'Phiếu xuất kho phải có ít nhất một mặt hàng' });
+      return;
+    }
 
     const warehouseIssue = await warehouseIssueService.create({
-      maPhieuXuat, employeeId, maNhanVien, tenNhanVien, warehouseId, tenKho,
-      lotId, tenLo, lotProductId, tenSanPham, soLuongXuat, donViTinh, ghiChu, supplyRequestId,
+      maPhieuXuat, employeeId, maNhanVien, tenNhanVien, ngayXuat, ghiChu, supplyRequestId, items,
     });
 
     res.status(201).json({ success: true, message: 'Tạo phiếu xuất kho thành công', data: warehouseIssue });
 
     try {
+      const totalQty = items.reduce((sum: number, line: any) => sum + Number(line.soLuongThucTe || 0), 0);
       await notificationService.notify(NotificationEvent.WAREHOUSE_ISSUE_CREATED, {
         actorUserId: (req as any).user?.id,
         entityId: warehouseIssue.id,
-        metadata: { maPhieuXuat, soLuongXuat, donViTinh, tenSanPham },
+        metadata: { maPhieuXuat: warehouseIssue.maPhieuXuat, soLuongXuat: totalQty, donViTinh: items[0]?.donViTinh, tenSanPham: `${items.length} mặt hàng` },
       });
     } catch {}
 
@@ -38,8 +47,12 @@ export const createWarehouseIssue = async (req: Request, res: Response, next: Ne
         .catch(err => console.error('Error in onWarehouseDocumentCreated:', err));
     }
   } catch (error: any) {
-    if (error.status === 404 || error.status === 400) {
-      res.status(error.status).json({ success: false, message: error.message });
+    if (error instanceof ValidationError) {
+      res.status(400).json({ success: false, message: error.message });
+      return;
+    }
+    if (error instanceof NotFoundError) {
+      res.status(404).json({ success: false, message: error.message });
       return;
     }
     next(error);
@@ -71,11 +84,9 @@ export const getWarehouseIssueById = async (req: Request, res: Response, next: N
 export const updateWarehouseIssue = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { id } = req.params;
-    const { warehouseId, tenKho, lotId, tenLo, lotProductId, tenSanPham, soLuongXuat, donViTinh, ghiChu } = req.body;
+    const { ngayXuat, ghiChu, items } = req.body;
 
-    const issue = await warehouseIssueService.update(id, {
-      warehouseId, tenKho, lotId, tenLo, lotProductId, tenSanPham, soLuongXuat, donViTinh, ghiChu,
-    });
+    const issue = await warehouseIssueService.update(id, { ngayXuat, ghiChu, items });
 
     res.status(200).json({ success: true, message: 'Cập nhật phiếu xuất kho thành công', data: issue });
   } catch (error: any) {

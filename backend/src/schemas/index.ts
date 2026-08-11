@@ -381,3 +381,88 @@ export type UpdateIdpItemInput = z.infer<typeof updateIdpItemSchema>;
 export type InvitePeersInput = z.infer<typeof invitePeersSchema>;
 export type SubmitPeerFeedbackInput = z.infer<typeof submitPeerFeedbackSchema>;
 
+// ==================== WAREHOUSE SLIP SCHEMAS ====================
+
+const warehouseLineBase = {
+  lotProductId: z.string().min(1, 'Thiếu kiện hàng').optional().nullable(),
+  tenSanPham: z.string().min(1, 'Tên sản phẩm là bắt buộc'),
+  donViTinh: optionalString,
+  warehouseId: z.string().min(1, 'Thiếu kho hàng'),
+  tenKho: optionalString,
+  lotId: z.string().min(1, 'Thiếu lô hàng'),
+  tenLo: optionalString,
+  soLuongThucTe: z.union([z.number(), z.string()]).transform(Number).pipe(z.number().positive('Số lượng phải lớn hơn 0')),
+  soLuongYeuCau: z.union([z.number(), z.string()]).transform(Number).optional().nullable(),
+  ghiChu: optionalString,
+  loaiSanPham: optionalString,
+};
+
+export const createReceiptSchema = z.object({
+  maPhieuNhap: optionalString,
+  employeeId: z.string().min(1, 'Thiếu mã nhân viên'),
+  maNhanVien: optionalString,
+  tenNhanVien: optionalString,
+  ngayNhap: optionalString,
+  mucDich: optionalString,
+  ghiChu: optionalString,
+  supplyRequestId: optionalString,
+  items: z.array(z.object(warehouseLineBase)).min(1, 'Phiếu phải có ít nhất một dòng'),
+});
+
+export const updateReceiptSchema = z.object({
+  ngayNhap: optionalString,
+  mucDich: optionalString,
+  ghiChu: optionalString,
+  items: z.array(z.object(warehouseLineBase)).min(1, 'Phiếu phải có ít nhất một dòng'),
+});
+
+const issueLineBase = {
+  lotProductId: z.string().min(1, 'Thiếu kiện hàng'),
+  tenSanPham: z.string().min(1, 'Tên sản phẩm là bắt buộc'),
+  donViTinh: optionalString,
+  warehouseId: z.string().min(1, 'Thiếu kho hàng'),
+  tenKho: optionalString,
+  lotId: z.string().min(1, 'Thiếu lô hàng'),
+  tenLo: optionalString,
+  soLuongThucTe: z.union([z.number(), z.string()]).transform(Number).pipe(z.number().positive('Số lượng phải lớn hơn 0')),
+  soLuongYeuCau: z.union([z.number(), z.string()]).transform(Number).optional().nullable(),
+  ghiChu: optionalString,
+};
+
+export const createIssueSchema = z.object({
+  maPhieuXuat: optionalString,
+  employeeId: z.string().min(1, 'Thiếu mã nhân viên'),
+  maNhanVien: optionalString,
+  tenNhanVien: optionalString,
+  ngayXuat: optionalString,
+  ghiChu: optionalString,
+  supplyRequestId: optionalString,
+  items: z.array(z.object(issueLineBase)).min(1, 'Phiếu phải có ít nhất một dòng'),
+});
+
+export const updateIssueSchema = z.object({
+  ngayXuat: optionalString,
+  ghiChu: optionalString,
+  items: z.array(z.object(issueLineBase)).min(1, 'Phiếu phải có ít nhất một dòng'),
+});
+
+export const batchFulfillSchema = z.object({
+  lines: z.array(z.object({
+    itemId: z.string().min(1, 'Thiếu mã dòng'),
+    fulfilledQty: z.union([z.number(), z.string()]).transform(Number).pipe(z.number().min(0)),
+    reason: optionalString,
+    decidedByEmployeeId: z.string().min(1, 'Thiếu mã người quyết định'),
+    routeShortageToPurchase: z.boolean().optional(),
+    lotProductId: optionalString,
+    warehouseId: optionalString,
+    lotId: optionalString,
+    autoCreateProduct: z.boolean().optional(),
+  })).min(1, 'Danh sách cấp phát không được để trống'),
+});
+
+export type CreateReceiptInput = z.infer<typeof createReceiptSchema>;
+export type UpdateReceiptInput = z.infer<typeof updateReceiptSchema>;
+export type CreateIssueInput = z.infer<typeof createIssueSchema>;
+export type UpdateIssueInput = z.infer<typeof updateIssueSchema>;
+export type BatchFulfillInput = z.infer<typeof batchFulfillSchema>;
+
