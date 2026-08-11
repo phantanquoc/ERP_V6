@@ -305,8 +305,8 @@ const MonthlyTimesheetGrid: React.FC = () => {
   const formatHours = (v: number) => v ? Number(v.toFixed(1)) : '';
 
   const settings: TimesheetSettings = timesheetData?.settings ?? {
-    standardWorkDays: 26, otRateWeekday: 1.5, otRateWeekdayExtra: 2.1,
-    otRateSunday: 2, otRateSundayExtra: 2.7, otRateHoliday: 3,
+    standardWorkDays: 26, otRateWeekday: 1.5,
+    otRateSunday: 2, otRateHoliday: 3,
   };
   const summaries = timesheetData?.summaries ?? {};
   const overrides = timesheetData?.overrides ?? {};
@@ -906,9 +906,7 @@ const TimesheetMobileList: React.FC<TimesheetMobileListProps> = ({
                       <MobileOverrideField label="Ký nhận" employeeId={row.employeeId} fieldKey="signature" computedValue="" overrideValue={empOvr?.signature} month={month} year={year} onSave={onOverrideSave} type="text" />
                       <MobileOverrideField label="Cơm NC" employeeId={row.employeeId} fieldKey="mealAllowanceMoney" computedValue={mealAllowanceMoney ? formatMoney(mealAllowanceMoney) : ''} overrideValue={empOvr?.mealAllowanceMoney} month={month} year={year} onSave={onOverrideSave} type="money" />
                       <MobileOverrideField label="NT 150%" employeeId={row.employeeId} fieldKey="otWeekday" computedValue={String(formatHours(s?.otWeekday ?? 0))} overrideValue={empOvr?.otWeekday} month={month} year={year} onSave={onOverrideSave} type="number" />
-                      <MobileOverrideField label="NT 210%" employeeId={row.employeeId} fieldKey="otWeekdayExtra" computedValue={String(formatHours(s?.otWeekdayExtra ?? 0))} overrideValue={empOvr?.otWeekdayExtra} month={month} year={year} onSave={onOverrideSave} type="number" />
                       <MobileOverrideField label="CN 200%" employeeId={row.employeeId} fieldKey="otSunday" computedValue={String(formatHours(s?.otSunday ?? 0))} overrideValue={empOvr?.otSunday} month={month} year={year} onSave={onOverrideSave} type="number" />
-                      <MobileOverrideField label="CN 270%" employeeId={row.employeeId} fieldKey="otSundayExtra" computedValue={String(formatHours(s?.otSundayExtra ?? 0))} overrideValue={empOvr?.otSundayExtra} month={month} year={year} onSave={onOverrideSave} type="number" />
                       <MobileOverrideField label="Lễ 300%" employeeId={row.employeeId} fieldKey="otHoliday" computedValue={String(formatHours(s?.otHoliday ?? 0))} overrideValue={empOvr?.otHoliday} month={month} year={year} onSave={onOverrideSave} type="number" />
                       <MobileOverrideField label="Số KM" employeeId={row.employeeId} fieldKey="kmDistance" computedValue={String(row.kmDistance || '')} overrideValue={empOvr?.kmDistance} month={month} year={year} onSave={onOverrideSave} type="number" />
                       <MobileOverrideField label="Xăng xe" employeeId={row.employeeId} fieldKey="fuelAmount" computedValue={s?.fuelAmount ? formatMoney(s.fuelAmount) : ''} overrideValue={empOvr?.fuelAmount} month={month} year={year} onSave={onOverrideSave} type="money" />
@@ -931,8 +929,6 @@ const TimesheetMobileList: React.FC<TimesheetMobileListProps> = ({
                     <MobileOverrideField label={`TC ngày thường (${settings.otRateWeekday * 100}%)`} employeeId={row.employeeId} fieldKey="otWeekday" computedValue={String(formatHours(s?.otWeekday ?? 0))} overrideValue={empOvr?.otWeekday} month={month} year={year} onSave={onOverrideSave} type="number" />
                     <MobileOverrideField label={`TC Chủ nhật (${settings.otRateSunday * 100}%)`} employeeId={row.employeeId} fieldKey="otSunday" computedValue={String(formatHours(s?.otSunday ?? 0))} overrideValue={empOvr?.otSunday} month={month} year={year} onSave={onOverrideSave} type="number" />
                     <MobileOverrideField label={`TC ngày Lễ (${settings.otRateHoliday * 100}%)`} employeeId={row.employeeId} fieldKey="otHoliday" computedValue={String(formatHours(s?.otHoliday ?? 0))} overrideValue={empOvr?.otHoliday} month={month} year={year} onSave={onOverrideSave} type="number" />
-                    <MobileOverrideField label={`Ngoài giờ ngày thường (${settings.otRateWeekdayExtra * 100}%)`} employeeId={row.employeeId} fieldKey="otWeekdayExtra" computedValue={String(formatHours(s?.otWeekdayExtra ?? 0))} overrideValue={empOvr?.otWeekdayExtra} month={month} year={year} onSave={onOverrideSave} type="number" />
-                    <MobileOverrideField label={`Ngoài giờ ngày nghỉ (${settings.otRateSundayExtra * 100}%)`} employeeId={row.employeeId} fieldKey="otSundayExtra" computedValue={String(formatHours(s?.otSundayExtra ?? 0))} overrideValue={empOvr?.otSundayExtra} month={month} year={year} onSave={onOverrideSave} type="number" />
                     <MobileOverrideField label="Ngày công tăng ca" employeeId={row.employeeId} fieldKey="otDaysCount" computedValue="" overrideValue={empOvr?.otDaysCount} month={month} year={year} onSave={onOverrideSave} type="number" />
                   </div>
                   <CollapsibleSection title="Chỉ tiêu khác">
@@ -1051,9 +1047,7 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
             <th className="border px-1 py-1 min-w-[44px] text-center bg-yellow-50"><HeaderLabel tip={COLUMN_TOOLTIPS.leaveHoursHolidayRegime}>Lễ/CĐ</HeaderLabel></th>
             <th className="border px-1 py-1 min-w-[44px] text-center bg-yellow-50"><HeaderLabel tip={COLUMN_TOOLTIPS.leaveHoursUnpaid}>Không lương</HeaderLabel></th>
             <th className="border px-1 py-1 min-w-[44px] text-center bg-orange-50"><HeaderLabel tip={COLUMN_TOOLTIPS.otWeekday}>NT 150%</HeaderLabel></th>
-            <th className="border px-1 py-1 min-w-[44px] text-center bg-orange-50"><HeaderLabel tip={COLUMN_TOOLTIPS.otWeekdayExtra}>NT 210%</HeaderLabel></th>
             <th className="border px-1 py-1 min-w-[44px] text-center bg-orange-50"><HeaderLabel tip={COLUMN_TOOLTIPS.otSunday}>CN 200%</HeaderLabel></th>
-            <th className="border px-1 py-1 min-w-[44px] text-center bg-orange-50"><HeaderLabel tip={COLUMN_TOOLTIPS.otSundayExtra}>CN 270%</HeaderLabel></th>
             <th className="border px-1 py-1 min-w-[44px] text-center bg-orange-50"><HeaderLabel tip={COLUMN_TOOLTIPS.otHoliday}>Lễ 300%</HeaderLabel></th>
           </tr>
         </thead>
@@ -1122,9 +1116,7 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
                 <EditableSummaryCell employeeId={row.employeeId} fieldKey="signature" computedValue="" overrideValue={empOvr?.signature} month={month} year={year} onSave={onOverrideSave} type="text" />
                 <EditableSummaryCell employeeId={row.employeeId} fieldKey="mealAllowanceMoney" computedValue={mealAllowanceMoney ? formatMoney(mealAllowanceMoney) : ''} overrideValue={empOvr?.mealAllowanceMoney} month={month} year={year} onSave={onOverrideSave} type="money" />
                 <EditableSummaryCell employeeId={row.employeeId} fieldKey="otWeekday" computedValue={String(formatHours(s?.otWeekday ?? 0))} overrideValue={empOvr?.otWeekday} month={month} year={year} onSave={onOverrideSave} type="number" className="bg-orange-50/50" />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otWeekdayExtra" computedValue={String(formatHours(s?.otWeekdayExtra ?? 0))} overrideValue={empOvr?.otWeekdayExtra} month={month} year={year} onSave={onOverrideSave} type="number" className="bg-orange-50/50" />
                 <EditableSummaryCell employeeId={row.employeeId} fieldKey="otSunday" computedValue={String(formatHours(s?.otSunday ?? 0))} overrideValue={empOvr?.otSunday} month={month} year={year} onSave={onOverrideSave} type="number" className="bg-orange-50/50" />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otSundayExtra" computedValue={String(formatHours(s?.otSundayExtra ?? 0))} overrideValue={empOvr?.otSundayExtra} month={month} year={year} onSave={onOverrideSave} type="number" className="bg-orange-50/50" />
                 <EditableSummaryCell employeeId={row.employeeId} fieldKey="otHoliday" computedValue={String(formatHours(s?.otHoliday ?? 0))} overrideValue={empOvr?.otHoliday} month={month} year={year} onSave={onOverrideSave} type="number" className="bg-orange-50/50" />
                 <EditableSummaryCell employeeId={row.employeeId} fieldKey="kmDistance" computedValue={String(row.kmDistance || '')} overrideValue={empOvr?.kmDistance} month={month} year={year} onSave={onOverrideSave} type="number" />
                 <EditableSummaryCell employeeId={row.employeeId} fieldKey="fuelAmount" computedValue={s?.fuelAmount ? formatMoney(s.fuelAmount) : ''} overrideValue={empOvr?.fuelAmount} month={month} year={year} onSave={onOverrideSave} type="money" />
@@ -1181,14 +1173,12 @@ const OvertimeTable: React.FC<OvertimeTableProps> = ({
     acc.otWeekday += val('otWeekday', s?.otWeekday ?? 0);
     acc.otSunday += val('otSunday', s?.otSunday ?? 0);
     acc.otHoliday += val('otHoliday', s?.otHoliday ?? 0);
-    acc.otWeekdayExtra += val('otWeekdayExtra', s?.otWeekdayExtra ?? 0);
-    acc.otSundayExtra += val('otSundayExtra', s?.otSundayExtra ?? 0);
     acc.otSalary += val('otSalary', s?.otSalary ?? 0);
     acc.otTotalIncome += val('otTotalIncome', s?.otTotalIncome ?? 0);
     acc.otDaysCount += val('otDaysCount', 0);
     acc.overtimeMealMoney += val('overtimeMealMoney', (s?.overtimeMealDays ?? 0) * (settings.overtimeMealAllowance ?? 25000));
     return acc;
-  }, { otWeekday: 0, otSunday: 0, otHoliday: 0, otWeekdayExtra: 0, otSundayExtra: 0, otSalary: 0, otTotalIncome: 0, otDaysCount: 0, overtimeMealMoney: 0 });
+  }, { otWeekday: 0, otSunday: 0, otHoliday: 0, otSalary: 0, otTotalIncome: 0, otDaysCount: 0, overtimeMealMoney: 0 });
 
   return (
     <div className="overflow-auto border rounded-lg max-h-[calc(100vh-260px)]">
@@ -1210,8 +1200,6 @@ const OvertimeTable: React.FC<OvertimeTableProps> = ({
             <th className="border px-1 py-1 min-w-[70px] text-center align-bottom"><HeaderLabel tip={OVERTIME_COLUMN_TOOLTIPS.otWeekday}>Số giờ tăng ca ngày thường</HeaderLabel></th>
             <th className="border px-1 py-1 min-w-[60px] text-center align-bottom"><HeaderLabel tip={OVERTIME_COLUMN_TOOLTIPS.otSunday}>Số giờ tăng ca CN</HeaderLabel></th>
             <th className="border px-1 py-1 min-w-[60px] text-center align-bottom"><HeaderLabel tip={OVERTIME_COLUMN_TOOLTIPS.otHoliday}>Số giờ tăng ca Lễ</HeaderLabel></th>
-            <th className="border px-1 py-1 min-w-[70px] text-center align-bottom"><HeaderLabel tip={OVERTIME_COLUMN_TOOLTIPS.otWeekdayExtra}>Tăng ca ngoài giờ ngày thường</HeaderLabel></th>
-            <th className="border px-1 py-1 min-w-[70px] text-center align-bottom"><HeaderLabel tip={OVERTIME_COLUMN_TOOLTIPS.otSundayExtra}>Tăng ca ngoài giờ ngày nghỉ</HeaderLabel></th>
             <th className="border px-1 py-1 min-w-[80px] text-center align-bottom"><HeaderLabel tip={OVERTIME_COLUMN_TOOLTIPS.otSalary}>Lương tính tăng ca</HeaderLabel></th>
             <th className="border px-1 py-1 min-w-[80px] text-center align-bottom"><HeaderLabel tip={OVERTIME_COLUMN_TOOLTIPS.hourlyRate}>Mức lương theo giờ</HeaderLabel></th>
             <th className="border px-1 py-1 min-w-[85px] text-center align-bottom"><HeaderLabel tip={OVERTIME_COLUMN_TOOLTIPS.otTotalIncome}>Tổng Thu nhập ngoài giờ</HeaderLabel></th>
@@ -1230,8 +1218,6 @@ const OvertimeTable: React.FC<OvertimeTableProps> = ({
             <th className="border px-1 py-0.5 text-center bg-gray-50">{settings.otRateWeekday * 100}%</th>
             <th className="border px-1 py-0.5 text-center bg-gray-50">{settings.otRateSunday * 100}%</th>
             <th className="border px-1 py-0.5 text-center bg-gray-50">{settings.otRateHoliday * 100}%</th>
-            <th className="border px-1 py-0.5 text-center bg-gray-50">{settings.otRateWeekdayExtra * 100}%</th>
-            <th className="border px-1 py-0.5 text-center bg-gray-50">{settings.otRateSundayExtra * 100}%</th>
             <th className="border px-1 py-0.5 bg-gray-50"></th>
             <th className="border px-1 py-0.5 bg-gray-50"></th>
             <th className="border px-1 py-0.5 bg-gray-50"></th>
@@ -1269,8 +1255,6 @@ const OvertimeTable: React.FC<OvertimeTableProps> = ({
                 <EditableSummaryCell employeeId={row.employeeId} fieldKey="otWeekday" computedValue={String(formatHours(s?.otWeekday ?? 0))} overrideValue={empOvr?.otWeekday} month={month} year={year} onSave={onOverrideSave} type="number" />
                 <EditableSummaryCell employeeId={row.employeeId} fieldKey="otSunday" computedValue={String(formatHours(s?.otSunday ?? 0))} overrideValue={empOvr?.otSunday} month={month} year={year} onSave={onOverrideSave} type="number" />
                 <EditableSummaryCell employeeId={row.employeeId} fieldKey="otHoliday" computedValue={String(formatHours(s?.otHoliday ?? 0))} overrideValue={empOvr?.otHoliday} month={month} year={year} onSave={onOverrideSave} type="number" />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otWeekdayExtra" computedValue={String(formatHours(s?.otWeekdayExtra ?? 0))} overrideValue={empOvr?.otWeekdayExtra} month={month} year={year} onSave={onOverrideSave} type="number" />
-                <EditableSummaryCell employeeId={row.employeeId} fieldKey="otSundayExtra" computedValue={String(formatHours(s?.otSundayExtra ?? 0))} overrideValue={empOvr?.otSundayExtra} month={month} year={year} onSave={onOverrideSave} type="number" />
                 <EditableSummaryCell employeeId={row.employeeId} fieldKey="otSalary" computedValue={s?.otSalary ? formatMoney(s.otSalary) : ''} overrideValue={empOvr?.otSalary} month={month} year={year} onSave={onOverrideSave} type="money" />
                 <EditableSummaryCell employeeId={row.employeeId} fieldKey="hourlyRate" computedValue={hourlyRate ? formatMoney(hourlyRate) : ''} overrideValue={empOvr?.hourlyRate} month={month} year={year} onSave={onOverrideSave} type="money" />
                 <EditableSummaryCell employeeId={row.employeeId} fieldKey="otTotalIncome" computedValue={s?.otTotalIncome ? formatMoney(s.otTotalIncome) : ''} overrideValue={empOvr?.otTotalIncome} month={month} year={year} onSave={onOverrideSave} type="money" />
@@ -1291,8 +1275,6 @@ const OvertimeTable: React.FC<OvertimeTableProps> = ({
             <td className="border px-1 py-1 text-center">{formatHours(totals.otWeekday) || 0}</td>
             <td className="border px-1 py-1 text-center">{formatHours(totals.otSunday) || 0}</td>
             <td className="border px-1 py-1 text-center">{formatHours(totals.otHoliday) || 0}</td>
-            <td className="border px-1 py-1 text-center">{formatHours(totals.otWeekdayExtra) || 0}</td>
-            <td className="border px-1 py-1 text-center">{formatHours(totals.otSundayExtra) || 0}</td>
             <td className="border px-1 py-1 text-center">{formatMoney(totals.otSalary)}</td>
             <td className="border px-1 py-1 bg-gray-100"></td>
             <td className="border px-1 py-1 text-center">{formatMoney(totals.otTotalIncome)}</td>

@@ -33,9 +33,7 @@ export interface TimesheetSummary {
   lateEarlyHours: number;
   diligence: boolean;
   otWeekday: number;
-  otWeekdayExtra: number;
   otSunday: number;
-  otSundayExtra: number;
   otHoliday: number;
   mealAllowanceDays: number;
   fuelAmount: number;
@@ -59,9 +57,7 @@ export interface TimesheetHoliday {
 export interface TimesheetSettings {
   standardWorkDays: number;
   otRateWeekday: number;
-  otRateWeekdayExtra: number;
   otRateSunday: number;
-  otRateSundayExtra: number;
   otRateHoliday: number;
   mealAllowancePerDay?: number;
   overtimeMealAllowance?: number;
