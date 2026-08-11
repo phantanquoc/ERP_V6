@@ -17,6 +17,7 @@ import { useLotsByProduct, lotsByProductKeys } from '../hooks/useLotsByProduct';
 import { useKienByProductAndLot } from '../hooks/useKienByProductAndLot';
 import { lotProductKeys } from '../services/lotProductService';
 import { materialEvaluationKeys } from '../hooks/useProductionEntities';
+import { warehouseIssueKeys } from '../hooks/useWarehouseIssues';
 import { useDailyFrySchedule } from '../hooks/useDailyFrySchedule';
 import { productionDayRange, getCurrentProductionDay } from '../utils/productionDay';
 import toast from 'react-hot-toast';
@@ -510,7 +511,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
         // Invalidate related caches so stock counts refresh elsewhere
         queryClient.invalidateQueries({ queryKey: materialEvaluationKeys.all });
         queryClient.invalidateQueries({ queryKey: lotProductKeys.lists() });
-        queryClient.invalidateQueries({ queryKey: ['warehouseIssues'] });
+        queryClient.invalidateQueries({ queryKey: warehouseIssueKeys.lists() });
         if (productId) {
           queryClient.invalidateQueries({ queryKey: lotsByProductKeys.list(productId) });
         }
@@ -551,7 +552,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
       // Invalidate warehouse-related caches so refunded stock reflects immediately
       queryClient.invalidateQueries({ queryKey: materialEvaluationKeys.all });
       queryClient.invalidateQueries({ queryKey: lotProductKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: ['warehouseIssues'] });
+      queryClient.invalidateQueries({ queryKey: warehouseIssueKeys.lists() });
       await loadEvaluations();
       toast.success('Đã xóa mã chiên và hoàn tác dữ liệu liên quan');
     } catch (err: any) {
