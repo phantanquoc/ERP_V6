@@ -41,6 +41,7 @@ import materialEvaluationService, { MaterialEvaluation } from '../../services/ma
 import materialEvaluationCriteriaService from '../../services/materialEvaluationCriteriaService';
 import { materialEvaluationKeys } from '../../hooks/useProductionEntities';
 import { lotProductKeys } from '../../services/lotProductService';
+import { warehouseIssueKeys } from '../../hooks/useWarehouseIssues';
 import OperatorSelectionScreen from '../../components/production/OperatorSelectionScreen';
 import ShiftSelectionScreen from '../../components/production/ShiftSelectionScreen';
 import EvaluationDetailReadOnly from '../../components/production/EvaluationDetailReadOnly';
@@ -816,7 +817,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: lotsByProductKeys.lists() });
       queryClient.invalidateQueries({ queryKey: kienByProductAndLotKeys.lists() });
       queryClient.invalidateQueries({ queryKey: lotProductKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: ['warehouseIssues'] });
+      queryClient.invalidateQueries({ queryKey: warehouseIssueKeys.lists() });
 
       toast.success('Đã lưu đánh giá nguyên liệu');
       if (draftKey) localStorage.removeItem(draftKey);
