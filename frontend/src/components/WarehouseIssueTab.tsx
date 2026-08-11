@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, FileText, Eye, Pencil, Trash2 } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Plus, FileText, Eye, Pencil, Trash2, Printer } from 'lucide-react';
 import TableFilter, { FilterField } from './TableFilter';
 import Modal from './Modal';
+import WarehouseSlipPrintView from './WarehouseSlipPrintView';
+import { formatActualTotalByUnit } from '../utils/warehouseSlipTotals';
+import CreateWarehouseIssueModal from './CreateWarehouseIssueModal';
+import EditWarehouseIssueModal from './EditWarehouseIssueModal';
 import { useQueryClient } from '@tanstack/react-query';
 import warehouseIssueService, { WarehouseIssue } from '../services/warehouseIssueService';
-import warehouseService, { Warehouse, Lot, LotProduct } from '../services/warehouseService';
-import { useAuth } from '../contexts/AuthContext';
-import { parseNumberInput } from '../utils/numberInput';
+import { getUniqueSlipField, getWarehouseSlipLines, normalizeWarehouseListResponse } from '../utils/warehouseSlipLines';
 import { warehouseKeys } from '../hooks';
 
 interface WarehouseIssueTabProps {
@@ -14,18 +16,22 @@ interface WarehouseIssueTabProps {
   year?: number;
 }
 
+/** Case-insensitive substring test that tolerates undefined haystacks. */
+function contains(haystack: string | undefined | null, needle: string): boolean {
+  return (haystack || '').toLowerCase().includes(needle);
+}
+
 const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) => {
-  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [issues, setIssues] = useState<WarehouseIssue[]>([]);
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [lots, setLots] = useState<Lot[]>([]);
-  const [lotProducts, setLotProducts] = useState<LotProduct[]>([]);
-  const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedIssue, setSelectedIssue] = useState<WarehouseIssue | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [showPrintView, setShowPrintView] = useState(false);
+  const [printIssue, setPrintIssue] = useState<WarehouseIssue | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingIssue, setEditingIssue] = useState<WarehouseIssue | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maPhieuXuat: '', tenNhanVien: '', tenKho: '', tenSanPham: '' });
@@ -41,105 +47,24 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
     setShowDetailModal(true);
   };
 
-  const [formData, setFormData] = useState({
-    maPhieuXuat: '',
-    warehouseId: '',
-    lotId: '',
-    lotProductId: '',
-    soLuongXuat: 0,
-    ghiChu: '',
-  });
+  const fetchIssues = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const response = await warehouseIssueService.getAllWarehouseIssues() as any;
+      setIssues(normalizeWarehouseListResponse<WarehouseIssue>(response?.data));
+    } catch (error: any) {
+      console.error('Error fetching issues:', error);
+      setLoadError(error.response?.data?.message || 'Không thể tải danh sách phiếu xuất kho');
+      // Preserve existing data so a transient refresh failure does not blank the table.
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchIssues();
-    fetchWarehouses();
-  }, []);
-
-  const fetchIssues = async () => {
-    try {
-      const response = await warehouseIssueService.getAllWarehouseIssues() as any;
-      console.log('Issues response:', response);
-      // Kiểm tra nếu response.data là object có property data
-      if (response.data && Array.isArray(response.data.data)) {
-        setIssues(response.data.data);
-      } else if (Array.isArray(response.data)) {
-        setIssues(response.data);
-      } else {
-        console.error('Unexpected issues response format:', response.data);
-        setIssues([]);
-      }
-    } catch (error: any) {
-      console.error('Error fetching issues:', error);
-      setIssues([]);
-    }
-  };
-
-  const fetchWarehouses = async () => {
-    try {
-      const response = await warehouseService.getAllWarehouses() as any;
-      console.log('Warehouses response:', response);
-      // Kiểm tra nếu response.data là object có property data
-      if (response.data && Array.isArray(response.data.data)) {
-        setWarehouses(response.data.data);
-      } else if (Array.isArray(response.data)) {
-        setWarehouses(response.data);
-      } else {
-        console.error('Unexpected warehouses response format:', response.data);
-        setWarehouses([]);
-      }
-    } catch (error: any) {
-      console.error('Error fetching warehouses:', error);
-      setWarehouses([]);
-    }
-  };
-
-  const handleWarehouseChange = (warehouseId: string) => {
-    setFormData({ ...formData, warehouseId, lotId: '', lotProductId: '' });
-    const warehouse = warehouses.find(w => w.id === warehouseId);
-    setLots(warehouse?.lots || []);
-    setLotProducts([]);
-  };
-
-  const handleLotChange = (lotId: string) => {
-    setFormData({ ...formData, lotId, lotProductId: '' });
-    const lot = lots.find(l => l.id === lotId);
-    setLotProducts(lot?.lotProducts || []);
-  };
-
-  const handleOpenModal = async () => {
-    try {
-      const response = await warehouseIssueService.generateIssueCode();
-      setEditingId(null);
-      setFormData({
-        maPhieuXuat: (response.data as { maPhieuXuat: string }).maPhieuXuat,
-        warehouseId: '',
-        lotId: '',
-        lotProductId: '',
-        soLuongXuat: 0,
-        ghiChu: '',
-      });
-      setShowModal(true);
-    } catch (error: any) {
-      alert('Lỗi khi tạo mã phiếu xuất');
-    }
-  };
-
-  const handleEdit = (issue: WarehouseIssue) => {
-    setEditingId(issue.id);
-    setFormData({
-      maPhieuXuat: issue.maPhieuXuat,
-      warehouseId: issue.warehouseId,
-      lotId: issue.lotId,
-      lotProductId: issue.lotProductId,
-      soLuongXuat: issue.soLuongXuat,
-      ghiChu: issue.ghiChu || '',
-    });
-    const warehouse = warehouses.find(w => w.id === issue.warehouseId);
-    setLots(warehouse?.lots || []);
-    const lot = warehouse?.lots?.find(l => l.id === issue.lotId);
-    setLotProducts(lot?.lotProducts || []);
-    setShowModal(true);
-  };
+  }, [fetchIssues]);
 
   const handleDelete = async (issue: WarehouseIssue) => {
     if (!confirm('Bạn có chắc chắn muốn xóa phiếu xuất kho này?')) return;
@@ -147,68 +72,11 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
       await warehouseIssueService.deleteWarehouseIssue(issue.id);
       alert('Xóa phiếu xuất kho thành công!');
       fetchIssues();
-      fetchWarehouses();
       queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: warehouseKeys.lotProducts() });
+      queryClient.invalidateQueries({ queryKey: warehouseKeys.receiptHistories() });
     } catch (error: any) {
       alert(error.response?.data?.message || 'Lỗi khi xóa phiếu xuất kho');
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!formData.warehouseId || !formData.lotId || !formData.lotProductId) {
-      alert('Vui lòng điền đầy đủ thông tin');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const warehouse = warehouses.find(w => w.id === formData.warehouseId);
-      const lot = lots.find(l => l.id === formData.lotId);
-      const lotProduct = lotProducts.find(lp => lp.id === formData.lotProductId);
-
-      if (editingId) {
-        await warehouseIssueService.updateWarehouseIssue(editingId, {
-          warehouseId: formData.warehouseId,
-          tenKho: warehouse?.tenKho || '',
-          lotId: formData.lotId,
-          tenLo: lot?.tenLo || '',
-          lotProductId: formData.lotProductId,
-          tenSanPham: lotProduct?.internationalProduct?.tenSanPham || '',
-          soLuongXuat: formData.soLuongXuat,
-          donViTinh: lotProduct?.donViTinh || '',
-          ghiChu: formData.ghiChu,
-        });
-        alert('Cập nhật phiếu xuất kho thành công!');
-      } else {
-        await warehouseIssueService.createWarehouseIssue({
-          maPhieuXuat: formData.maPhieuXuat,
-          employeeId: user?.id || '',
-          maNhanVien: user?.employeeCode || '',
-          tenNhanVien: `${user?.lastName} ${user?.firstName}`,
-          warehouseId: formData.warehouseId,
-          tenKho: warehouse?.tenKho || '',
-          lotId: formData.lotId,
-          tenLo: lot?.tenLo || '',
-          lotProductId: formData.lotProductId,
-          tenSanPham: lotProduct?.internationalProduct?.tenSanPham || '',
-          soLuongXuat: formData.soLuongXuat,
-          donViTinh: lotProduct?.donViTinh || '',
-          ghiChu: formData.ghiChu,
-        });
-        alert('Tạo phiếu xuất kho thành công!');
-      }
-
-      setShowModal(false);
-      setEditingId(null);
-      fetchIssues();
-      fetchWarehouses();
-      queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
-    } catch (error: any) {
-      alert(error.response?.data?.message || 'Lỗi khi xử lý phiếu xuất kho');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -219,31 +87,47 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
       if (month && (date.getMonth() + 1) !== month) return false;
       if (year && date.getFullYear() !== year) return false;
     }
+    const lines = getWarehouseSlipLines(issue);
+    // value — the deprecated header mirror only holds line 1, so filtering on
+    // it alone makes every other line unfindable.
+    const lineMatch = (needle: string) =>
+      lines.some((l) =>
+        contains(l.tenSanPham, needle) || contains(l.tenKho, needle) || contains(l.tenLo, needle)
+      );
     const search = (filterValues._search || '').toLowerCase().trim();
     if (search) {
       const matchSearch =
-        (issue.maPhieuXuat || '').toLowerCase().includes(search) ||
-        (issue.tenNhanVien || '').toLowerCase().includes(search) ||
-        (issue.tenKho || '').toLowerCase().includes(search) ||
-        (issue.tenLo || '').toLowerCase().includes(search) ||
-        (issue.tenSanPham || '').toLowerCase().includes(search);
+        contains(issue.maPhieuXuat, search) ||
+        contains(issue.tenNhanVien, search) ||
+        lineMatch(search);
       if (!matchSearch) return false;
     }
-    if (filterValues.maPhieuXuat && !(issue.maPhieuXuat || '').toLowerCase().includes(filterValues.maPhieuXuat.toLowerCase())) return false;
-    if (filterValues.tenNhanVien && !(issue.tenNhanVien || '').toLowerCase().includes(filterValues.tenNhanVien.toLowerCase())) return false;
-    if (filterValues.tenKho && !(issue.tenKho || '').toLowerCase().includes(filterValues.tenKho.toLowerCase())) return false;
-    if (filterValues.tenSanPham && !(issue.tenSanPham || '').toLowerCase().includes(filterValues.tenSanPham.toLowerCase())) return false;
+    if (filterValues.maPhieuXuat && !contains(issue.maPhieuXuat, filterValues.maPhieuXuat.toLowerCase())) return false;
+    if (filterValues.tenNhanVien && !contains(issue.tenNhanVien, filterValues.tenNhanVien.toLowerCase())) return false;
+    if (filterValues.tenKho && !lines.some((l) => contains(l.tenKho, filterValues.tenKho.toLowerCase()))) return false;
+    if (filterValues.tenSanPham && !lines.some((l) => contains(l.tenSanPham, filterValues.tenSanPham.toLowerCase()))) return false;
     return true;
   });
   const totalPages = Math.ceil(filteredIssues.length / itemsPerPage);
   const paginatedIssues = filteredIssues.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [month, year, filterValues]);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(Math.max(1, page), Math.max(1, totalPages)));
+  }, [totalPages]);
+
+  const selectedIssueLines = selectedIssue ? getWarehouseSlipLines(selectedIssue) : [];
 
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
         <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Phiếu xuất kho</h2>
         <button
-          onClick={handleOpenModal}
+          aria-label="Tạo phiếu xuất kho"
+          onClick={() => setShowCreateModal(true)}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 w-full sm:w-auto"
         >
           <Plus className="h-5 w-5" />
@@ -254,24 +138,37 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
       <TableFilter
         filters={issueFilterFields}
         values={filterValues}
-        onChange={(vals) => { setFilterValues(vals); }}
+        onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
         searchPlaceholder="Tìm kiếm phiếu xuất..."
       />
 
-      {/* Issues Table */}
+      {loadError && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+          <span>{loadError}</span>
+          <button type="button" onClick={fetchIssues} disabled={loading} className="rounded-md border border-red-300 px-3 py-1.5 font-medium hover:bg-red-100 disabled:opacity-50">
+            {loading ? 'Đang tải...' : 'Thử lại'}
+          </button>
+        </div>
+      )}
+      {loading && issues.length === 0 && <p className="mb-4 text-sm text-gray-500">Đang tải danh sách phiếu xuất kho...</p>}
+
+      {/* Issues Table — one table row per commodity line; slip-level columns
+          are merged vertically with rowSpan, and zebra striping follows the
+          slip so all of its lines share one background. Quantities are NEVER
+          summed across lines: each line shows its own amount and unit. */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
         <table className="w-full min-w-[900px] border-collapse">
           <thead>
             <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã phiếu</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày xuất</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Nhân viên</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Kho</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Lô</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Sản phẩm</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Số lượng xuất</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Thao tác</th>
+              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã phiếu</th>
+              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày xuất</th>
+              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Nhân viên</th>
+              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Kho</th>
+              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Lô</th>
+              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Sản phẩm</th>
+              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Số lượng xuất</th>
+              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Thao tác</th>
             </tr>
           </thead>
           <tbody>
@@ -282,60 +179,96 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                 </td>
               </tr>
             ) : (
-              paginatedIssues.map((issue, index) => (
-                <tr key={issue.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50 transition-colors border-b border-gray-200`}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 border-r border-gray-200">
-                    {issue.maPhieuXuat}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">
-                    {new Date(issue.ngayXuat).toLocaleDateString('vi-VN')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">
-                    {issue.tenNhanVien}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">
-                    {issue.tenKho}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">
-                    {issue.tenLo}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">
-                    {issue.tenSanPham}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">
-                    {issue.soLuongXuat} {issue.donViTinh}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleViewDetail(issue)}
-                        className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                        title="Xem chi tiết"
-                      >
-                        <Eye className="w-5 h-5" />
-                      </button>
-                      {!issue.isLocked && (
-                        <>
-                          <button
-                            onClick={() => handleEdit(issue)}
-                            className="p-1.5 text-amber-600 hover:bg-amber-100 rounded-md transition-colors"
-                            title="Chỉnh sửa"
-                          >
-                            <Pencil className="w-5 h-5" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(issue)}
-                            className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
-                            title="Xóa"
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))
+              paginatedIssues.map((issue, issueIndex) => {
+                const lines = getWarehouseSlipLines(issue);
+                const slipBg = issueIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+                const slipBorder = issueIndex < paginatedIssues.length - 1 ? 'border-b-2 border-gray-300' : '';
+                return (
+                  <React.Fragment key={issue.id}>
+                    {lines.map((line, lineIndex) => (
+                      <tr key={line.id ?? lineIndex} className={`${slipBg} hover:bg-blue-50 transition-colors`}>
+                        {lineIndex === 0 && (
+                          <td rowSpan={lines.length} className={`px-6 py-4 whitespace-nowrap align-top text-sm font-medium text-gray-900 border-r border-gray-200 ${slipBorder}`}>
+                            {issue.maPhieuXuat}
+                            {issue.isLocked && (
+                              <span className="ml-2 inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700" title={issue.supplyRequestId ? 'Phiếu liên kết yêu cầu cấp vật tư' : 'Phiếu đã khóa, không thể chỉnh sửa hoặc xóa'}>
+                                {issue.supplyRequestId ? 'Đã khóa — yêu cầu cấp vật tư' : 'Đã khóa — chỉ xem/in'}
+                              </span>
+                            )}
+                            {lines.length > 1 && (
+                              <span className="ml-1 text-xs font-normal text-gray-400">({lines.length} dòng)</span>
+                            )}
+                          </td>
+                        )}
+                        {lineIndex === 0 && (
+                          <td rowSpan={lines.length} className={`px-6 py-4 whitespace-nowrap align-top text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
+                            {new Date(issue.ngayXuat).toLocaleDateString('vi-VN')}
+                          </td>
+                        )}
+                        {lineIndex === 0 && (
+                          <td rowSpan={lines.length} className={`px-6 py-4 whitespace-nowrap align-top text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
+                            {issue.tenNhanVien}
+                          </td>
+                        )}
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
+                          {line.tenKho || '-'}
+                        </td>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
+                          {line.tenLo || '-'}
+                        </td>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
+                          {line.tenSanPham || '-'}
+                        </td>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
+                          {line.soLuongThucTe} {line.donViTinh || ''}
+                        </td>
+                        {lineIndex === 0 && (
+                          <td rowSpan={lines.length} className={`px-6 py-4 whitespace-nowrap align-top text-sm text-gray-500 ${slipBorder}`}>
+                            <div className="flex items-center gap-1">
+              <button
+                aria-label="Xem chi tiết phiếu xuất"
+                onClick={() => handleViewDetail(issue)}
+                                className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                                title="Xem chi tiết"
+                              >
+                                <Eye className="w-5 h-5" />
+                              </button>
+                              <button
+                                aria-label="In phiếu xuất"
+                                onClick={() => { setPrintIssue(issue); setShowPrintView(true); }}
+                                className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
+                                title="In phiếu"
+                              >
+                                <Printer className="w-5 h-5" />
+                              </button>
+                              {!issue.isLocked && (
+                                <>
+                                  <button
+                                    aria-label="Chỉnh sửa phiếu xuất"
+                                    onClick={() => setEditingIssue(issue)}
+                                    className="p-1.5 text-amber-600 hover:bg-amber-100 rounded-md transition-colors"
+                                    title="Chỉnh sửa"
+                                  >
+                                    <Pencil className="w-5 h-5" />
+                                  </button>
+                                  <button
+                                    aria-label="Xóa phiếu xuất"
+                                    onClick={() => handleDelete(issue)}
+                                    className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                                    title="Xóa"
+                                  >
+                                    <Trash2 className="w-5 h-5" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </React.Fragment>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -345,7 +278,8 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
       {totalPages > 1 && (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
           <span className="text-sm text-gray-600">
-            Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, filteredIssues.length)} / {filteredIssues.length} mục
+            Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, filteredIssues.length)} / {filteredIssues.length} phiếu
+            <span className="ml-2 text-xs text-gray-400">({paginatedIssues.reduce((count, issue) => count + getWarehouseSlipLines(issue).length, 0)} dòng)</span>
           </span>
           <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
             <button
@@ -383,10 +317,11 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
 
       {/* Detail Modal */}
       <Modal isOpen={showDetailModal && !!selectedIssue} onClose={() => setShowDetailModal(false)} showBackdrop closeOnBackdrop={true}>
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-lg flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-1rem)] sm:max-w-[1100px] flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
             <h2 className="text-xl font-bold text-gray-900">Chi tiết phiếu xuất kho</h2>
             <button
+              aria-label="Đóng chi tiết phiếu xuất"
               onClick={() => setShowDetailModal(false)}
               className="text-gray-400 hover:text-gray-600"
             >
@@ -402,6 +337,11 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
               <div className="flex items-center gap-2 text-red-800 font-semibold text-lg">
                 <FileText className="h-5 w-5" />
                 {selectedIssue.maPhieuXuat}
+                {selectedIssue.isLocked && (
+                  <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700" title={selectedIssue.supplyRequestId ? 'Phiếu liên kết yêu cầu cấp vật tư' : 'Phiếu đã khóa bởi quy trình kho'}>
+                    Đã khóa — chỉ xem/in
+                  </span>
+                )}
               </div>
             </div>
 
@@ -429,65 +369,63 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="text-xs text-gray-500 uppercase font-medium">Kho</label>
-                  <p className="text-sm font-semibold text-gray-900 mt-1">{selectedIssue.tenKho}</p>
+                  <p className="text-sm font-semibold text-gray-900 mt-1">{getUniqueSlipField(selectedIssueLines, 'tenKho')}</p>
                 </div>
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="text-xs text-gray-500 uppercase font-medium">Lô hàng</label>
-                  <p className="text-sm font-semibold text-gray-900 mt-1">{selectedIssue.tenLo}</p>
+                  <p className="text-sm font-semibold text-gray-900 mt-1">{getUniqueSlipField(selectedIssueLines, 'tenLo')}</p>
                 </div>
               </div>
 
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <label className="text-xs text-gray-500 uppercase font-medium">Sản phẩm</label>
-                <p className="text-sm font-semibold text-gray-900 mt-1">{selectedIssue.tenSanPham}</p>
-              </div>
-
-              {/* Lịch sử biến động số lượng */}
-              <div className="bg-orange-50 border border-orange-200 p-4 rounded-lg">
-                <div className="flex items-center gap-2 mb-3">
-                  <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                  <span className="text-sm font-semibold text-orange-800">Lịch sử biến động số lượng</span>
+              {selectedIssueLines.length > 0 ? (
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <label className="text-xs text-gray-500 uppercase font-medium mb-2 block">
+                    Chi tiết hàng hóa ({selectedIssueLines.length} dòng)
+                  </label>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm border-collapse">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">STT</th>
+                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Sản phẩm</th>
+                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Kho</th>
+                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Lô</th>
+                          <th scope="col" className="px-2 py-1.5 text-right text-xs font-medium text-gray-600 border">SL xuất</th>
+                          <th scope="col" className="px-2 py-1.5 text-right text-xs font-medium text-gray-600 border">Tồn trước</th>
+                          <th scope="col" className="px-2 py-1.5 text-right text-xs font-medium text-gray-600 border">Tồn sau</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedIssueLines.map((item, idx) => (
+                          <tr key={item.id || idx} className="hover:bg-gray-100">
+                            <td className="px-2 py-1.5 border text-center">{item.stt || idx + 1}</td>
+                            <td className="px-2 py-1.5 border">{item.tenSanPham || '-'}</td>
+                            <td className="px-2 py-1.5 border">{item.tenKho || '-'}</td>
+                            <td className="px-2 py-1.5 border">{item.tenLo || '-'}</td>
+                            <td className="px-2 py-1.5 border text-right font-semibold text-red-600">{item.soLuongThucTe} {item.donViTinh || ''}</td>
+                            <td className="px-2 py-1.5 border text-right">{item.soLuongTruoc ?? '-'}</td>
+                            <td className="px-2 py-1.5 border text-right">{item.soLuongSau ?? '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-gray-100 font-semibold">
+                          <td colSpan={4} className="px-2 py-1.5 border text-right">Tổng cộng:</td>
+                          <td className="px-2 py-1.5 border text-right text-red-700">
+                            {formatActualTotalByUnit(selectedIssueLines)}
+                          </td>
+                          <td colSpan={2} className="px-2 py-1.5 border"></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
                 </div>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  {/* Số lượng trước */}
-                  <div className="text-center flex-1">
-                    <p className="text-xs text-gray-500 uppercase mb-1">Trước khi xuất</p>
-                    <p className="text-xl font-bold text-gray-700">
-                      {selectedIssue.soLuongTruoc || 0} <span className="text-sm">{selectedIssue.donViTinh}</span>
-                    </p>
-                  </div>
-
-                  {/* Mũi tên + Số lượng xuất */}
-                  <div className="flex flex-col items-center px-4">
-                    <div className="flex items-center gap-2 bg-red-100 px-3 py-1 rounded-full">
-                      <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 20V4m0 0l-4 4m4-4l4 4" />
-                      </svg>
-                      <span className="text-red-700 font-bold">-{selectedIssue.soLuongXuat}</span>
-                    </div>
-                    <svg className="w-6 h-6 text-red-500 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                    </svg>
-                  </div>
-
-                  {/* Số lượng sau */}
-                  <div className="text-center flex-1">
-                    <p className="text-xs text-gray-500 uppercase mb-1">Sau khi xuất</p>
-                    <p className="text-xl font-bold text-red-600">
-                      {selectedIssue.soLuongSau || 0} <span className="text-sm">{selectedIssue.donViTinh}</span>
-                    </p>
-                  </div>
+              ) : (
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <label className="text-xs text-gray-500 uppercase font-medium">Sản phẩm</label>
+                  <p className="text-sm font-semibold text-gray-900 mt-1">{selectedIssue.tenSanPham ?? 'N/A'}</p>
                 </div>
-              </div>
-
-              <div className="bg-red-50 border border-red-200 p-4 rounded-lg">
-                <label className="text-xs text-red-600 uppercase font-medium">Số lượng xuất</label>
-                <p className="text-2xl font-bold text-red-700 mt-1">
-                  {selectedIssue.soLuongXuat} <span className="text-lg">{selectedIssue.donViTinh}</span>
-                </p>
-              </div>
+              )}
 
               {selectedIssue.ghiChu && (
                 <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg">
@@ -505,6 +443,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
 
           <div className="flex justify-end px-6 py-4 border-t border-gray-200 shrink-0">
             <button
+              aria-label="Đóng chi tiết phiếu xuất"
               onClick={() => setShowDetailModal(false)}
               className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
             >
@@ -514,195 +453,39 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
         </div>
       </Modal>
 
-      {/* Create/Edit Issue Modal */}
-      <Modal isOpen={showModal} onClose={() => { setShowModal(false); setEditingId(null); }} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-md flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
-          <div className="px-6 py-4 border-b border-gray-200 shrink-0">
-            <h2 className="text-xl font-bold">{editingId ? 'Cập nhật phiếu xuất kho' : 'Phiếu xuất kho'}</h2>
-          </div>
-          <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 p-6 space-y-4">
-              {/* Tên nhân viên */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tên nhân viên
-                </label>
-                <input
-                  type="text"
-                  value={`${user?.lastName} ${user?.firstName}`}
-                  disabled
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
-                />
-              </div>
+      {showPrintView && printIssue && (
+        <WarehouseSlipPrintView
+          type="issue"
+          maPhieu={printIssue.maPhieuXuat}
+          ngay={new Date(printIssue.ngayXuat).toLocaleDateString('vi-VN')}
+          tenNhanVien={printIssue.tenNhanVien}
+          maNhanVien={printIssue.maNhanVien}
+          ghiChu={printIssue.ghiChu}
+          items={getWarehouseSlipLines(printIssue)}
+          onClose={() => { setShowPrintView(false); setPrintIssue(null); }}
+        />
+      )}
 
-              {/* Mã nhân viên */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Mã nhân viên
-                </label>
-                <input
-                  type="text"
-                  value={user?.employeeCode || ''}
-                  disabled
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
-                />
-              </div>
+      <CreateWarehouseIssueModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={() => {
+          fetchIssues();
+          queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
+        }}
+      />
 
-              {/* Chọn kho */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Chọn kho <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.warehouseId}
-                  onChange={(e) => handleWarehouseChange(e.target.value)}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500"
-                >
-                  <option value="">-- Chọn kho --</option>
-                  {Array.isArray(warehouses) && warehouses.map((warehouse) => (
-                    <option key={warehouse.id} value={warehouse.id}>
-                      {warehouse.tenKho}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Chọn số lô */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Chọn số lô <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.lotId}
-                  onChange={(e) => handleLotChange(e.target.value)}
-                  required
-                  disabled={!formData.warehouseId}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 disabled:bg-gray-100"
-                >
-                  <option value="">-- Chọn lô --</option>
-                  {Array.isArray(lots) && lots.map((lot) => (
-                    <option key={lot.id} value={lot.id}>
-                      {lot.tenLo}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Chọn hàng hóa nhập kho */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Chọn hàng hóa nhập kho <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.lotProductId}
-                  onChange={(e) => setFormData({ ...formData, lotProductId: e.target.value })}
-                  required
-                  disabled={!formData.lotId}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 disabled:bg-gray-100"
-                >
-                  <option value="">-- Chọn sản phẩm --</option>
-                  {Array.isArray(lotProducts) && lotProducts.map((lotProduct) => (
-                    <option key={lotProduct.id} value={lotProduct.id}>
-                      {lotProduct.internationalProduct?.tenSanPham} (Tồn: {lotProduct.soLuong} {lotProduct.donViTinh})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Số lượng xuất kho */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Số lượng xuất kho <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  value={formData.soLuongXuat}
-                  onChange={(e) => setFormData({ ...formData, soLuongXuat: parseNumberInput(e.target.value) })}
-                  required
-                  min="0"
-                  step="0.01"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500"
-                  placeholder="Nhập số lượng"
-                />
-                {/* Chú thích lịch sử thay đổi số lượng */}
-                {formData.lotProductId && (
-                  <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <div className="flex items-center gap-2 text-sm text-red-800">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span className="font-medium">Thông tin thay đổi số lượng:</span>
-                    </div>
-                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                      <div className="flex justify-between items-center bg-white px-2 py-1 rounded">
-                        <span className="text-gray-600">Số lượng hiện tại:</span>
-                        <span className="font-semibold text-gray-900">
-                          {lotProducts.find(lp => lp.id === formData.lotProductId)?.soLuong || 0} {lotProducts.find(lp => lp.id === formData.lotProductId)?.donViTinh || ''}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center bg-white px-2 py-1 rounded">
-                        <span className="text-gray-600">Sau khi xuất:</span>
-                        <span className={`font-semibold ${((lotProducts.find(lp => lp.id === formData.lotProductId)?.soLuong || 0) - (formData.soLuongXuat || 0)) < 0 ? 'text-red-600' : 'text-orange-600'}`}>
-                          {((lotProducts.find(lp => lp.id === formData.lotProductId)?.soLuong || 0) - (formData.soLuongXuat || 0)).toFixed(2)} {lotProducts.find(lp => lp.id === formData.lotProductId)?.donViTinh || ''}
-                        </span>
-                      </div>
-                    </div>
-                    {formData.soLuongXuat > 0 && (
-                      <div className="mt-2 text-xs text-red-600 flex items-center gap-1">
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 13l-5 5m0 0l-5-5m5 5V6" />
-                        </svg>
-                        Giảm đi: -{formData.soLuongXuat} {lotProducts.find(lp => lp.id === formData.lotProductId)?.donViTinh || ''}
-                      </div>
-                    )}
-                    {((lotProducts.find(lp => lp.id === formData.lotProductId)?.soLuong || 0) - (formData.soLuongXuat || 0)) < 0 && (
-                      <div className="mt-2 text-xs text-red-700 font-semibold flex items-center gap-1 bg-red-100 px-2 py-1 rounded">
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                        </svg>
-                        Cảnh báo: Số lượng xuất vượt quá tồn kho!
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Ghi chú */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Ghi chú
-                </label>
-                <textarea
-                  value={formData.ghiChu}
-                  onChange={(e) => setFormData({ ...formData, ghiChu: e.target.value })}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500"
-                  placeholder="Nhập ghi chú (nếu có)"
-                />
-              </div>
-
-              <div className="flex flex-col sm:flex-row sm:justify-end gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => { setShowModal(false); setEditingId(null); }}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
-                >
-                  {loading ? 'Đang xử lý...' : editingId ? 'Cập nhật' : 'Tạo phiếu xuất'}
-                </button>
-              </div>
-          </form>
-        </div>
-      </Modal>
+      <EditWarehouseIssueModal
+        isOpen={!!editingIssue}
+        issue={editingIssue}
+        onClose={() => setEditingIssue(null)}
+        onSuccess={() => {
+          fetchIssues();
+          queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
+        }}
+      />
     </div>
   );
 };
 
 export default WarehouseIssueTab;
-
