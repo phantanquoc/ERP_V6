@@ -456,14 +456,14 @@ async function fetchProductionReports(userId: string, dateWhere: any): Promise<H
 async function fetchWarehouseReceipts(employeeId: string, dateWhere: any): Promise<HistoryItem[]> {
   const rows = await prisma.warehouseReceipt.findMany({
     where: { employeeId, ...(dateWhere ? { createdAt: dateWhere } : {}) },
-    select: { id: true, maPhieuNhap: true, tenSanPham: true, createdAt: true },
+    select: { id: true, maPhieuNhap: true, soDongHang: true, tongSoLuongThucTe: true, createdAt: true },
     orderBy: { createdAt: 'desc' },
   });
   return rows.map((r) => ({
     entityType: 'warehouse-receipt',
     entityId: r.id,
     group: 'Phiếu' as HistoryGroup,
-    title: `Phiếu nhập kho: ${r.tenSanPham}`,
+    title: `Phiếu nhập kho: ${r.soDongHang ?? 1} dòng, ${r.tongSoLuongThucTe ?? 0} Kg`,
     code: r.maPhieuNhap,
     createdAt: r.createdAt,
     role: 'creator' as const,
@@ -474,14 +474,14 @@ async function fetchWarehouseReceipts(employeeId: string, dateWhere: any): Promi
 async function fetchWarehouseIssues(employeeId: string, dateWhere: any): Promise<HistoryItem[]> {
   const rows = await prisma.warehouseIssue.findMany({
     where: { employeeId, ...(dateWhere ? { createdAt: dateWhere } : {}) },
-    select: { id: true, maPhieuXuat: true, tenSanPham: true, createdAt: true },
+    select: { id: true, maPhieuXuat: true, soDongHang: true, tongSoLuongThucTe: true, createdAt: true },
     orderBy: { createdAt: 'desc' },
   });
   return rows.map((r) => ({
     entityType: 'warehouse-issue',
     entityId: r.id,
     group: 'Phiếu' as HistoryGroup,
-    title: `Phiếu xuất kho: ${r.tenSanPham}`,
+    title: `Phiếu xuất kho: ${r.soDongHang ?? 1} dòng, ${r.tongSoLuongThucTe ?? 0} Kg`,
     code: r.maPhieuXuat,
     createdAt: r.createdAt,
     role: 'creator' as const,
