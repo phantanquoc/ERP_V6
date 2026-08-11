@@ -4,9 +4,7 @@ import { computeSummary, TimesheetCellData } from '@services/timesheetService';
 const defaultSettings = {
   standardWorkDays: 26,
   otRateWeekday: 1.5,
-  otRateWeekdayExtra: 2.1,
   otRateSunday: 2,
-  otRateSundayExtra: 2.7,
   otRateHoliday: 3,
 };
 
@@ -24,12 +22,13 @@ function makeCell(overrides: Partial<TimesheetCellData> & { date: string; code: 
 
 describe('computeSummary — payable hours & official days', () => {
   // "officialWorkDays" holds official work time in HOURS (work days × 8), matching
-  // the Excel "Tổng thời gian làm chính thức" column. "payableHours" = official + paid leave.
-  it('code "x" (1 full day) → officialWorkDays 8h, payableHours 8h, mealAllowanceDays 1', () => {
+  // the Excel "Tổng thời gian làm chính thức" column. "payableHours" = FIXED planned hours
+  // of the month (standardWorkDays × 8), e.g., 26 workdays × 8h = 208h.
+  it('code "x" (1 full day) → officialWorkDays 8h, payableHours 208h (fixed), mealAllowanceDays 1', () => {
     const cells = [makeCell({ date: '2026-06-01', code: 'x', workHours: 8 })];
     const result = computeSummary(cells, [], defaultSettings);
     expect(result.officialWorkDays).toBe(8);
-    expect(result.payableHours).toBe(8);
+    expect(result.payableHours).toBe(208); // standardWorkDays × 8 = 26 × 8
     expect(result.mealAllowanceDays).toBe(1);
   });
 
@@ -47,19 +46,19 @@ describe('computeSummary — payable hours & official days', () => {
     expect(result.mealAllowanceDays).toBe(0);
   });
 
-  it('"Giờ lương" = SUM of all buckets (official + paid + holiday + unpaid + probation), per Excel AO', () => {
+  it('"Giờ lương" = FIXED planned hours (standardWorkDays × 8), independent of actual work', () => {
     const cells = [
       makeCell({ date: '2026-06-01', code: 'x', workHours: 8 }),   // +8h official
       makeCell({ date: '2026-06-02', code: 'P', workHours: 0 }),   // +8h paid leave
       makeCell({ date: '2026-06-03', code: 'L', workHours: 0 }),   // +8h holiday/regime
-      makeCell({ date: '2026-06-04', code: 'KL', workHours: 0 }),  // +8h unpaid → INCLUDED
+      makeCell({ date: '2026-06-04', code: 'KL', workHours: 0 }),  // +8h unpaid
     ];
     const result = computeSummary(cells, [], defaultSettings);
     expect(result.officialWorkDays).toBe(8);
     expect(result.leaveHoursPayable).toBe(8);
     expect(result.leaveHoursHolidayRegime).toBe(8);
     expect(result.leaveHoursUnpaid).toBe(8);
-    expect(result.payableHours).toBe(32); // 8 + 8 + 8 + 8, all buckets summed
+    expect(result.payableHours).toBe(208); // standardWorkDays × 8 = 26 × 8, NOT summed buckets
   });
 
   it('code "ON" counts as 8h official work (business exception, not 0 like raw Excel)', () => {
@@ -113,55 +112,54 @@ describe('computeSummary — half-day leave = 4h not 8h', () => {
 
 // ─── OT bands by day type ──────────────────────────────────────────────────────
 
-describe('computeSummary — OT bands by day type', () => {
+describe('computeSummary — OT bands by day type (3 bands, no hour split)', () => {
   // 2026-06-01 is Monday (UTC), 2026-06-07 is Sunday (UTC)
-  // Logic: first 2h → normal band, beyond 2h → extra band (2.1x/2.7x)
+  // Excel CHAM-CONG.xlsx uses 3 bands based ONLY on day type:
+  //   - AO: OT weekday → 150% (otWeekday)
+  //   - AP: OT Sunday → 200% (otSunday)
+  //   - AQ: OT holiday → 300% (otHoliday)
+  // NO split by hours (no "first 2h vs beyond 2h" logic).
 
-  it('weekday OT ≤ 2h → all into otWeekday (1.5x)', () => {
+  it('weekday OT → all into otWeekday (150%)', () => {
     const cells = [makeCell({ date: '2026-06-01', code: 'x', workHours: 8, overtimeHours: 1.5 })];
     const result = computeSummary(cells, [], defaultSettings);
     expect(result.otWeekday).toBe(1.5);
-    expect(result.otWeekdayExtra).toBe(0);
     expect(result.otSunday).toBe(0);
     expect(result.otHoliday).toBe(0);
   });
 
-  it('weekday OT > 2h → split into otWeekday (2h @ 1.5x) + otWeekdayExtra (1h @ 2.1x)', () => {
-    // 2026-06-01 = Monday, 3h OT → 2h normal + 1h extra
+  it('weekday OT (3h) → all into otWeekday, no split', () => {
+    // 2026-06-01 = Monday, 3h OT → all 3h @ 150%
     const cells = [makeCell({ date: '2026-06-01', code: 'x', workHours: 8, overtimeHours: 3 })];
     const result = computeSummary(cells, [], defaultSettings);
-    expect(result.otWeekday).toBe(2);
-    expect(result.otWeekdayExtra).toBe(1);
+    expect(result.otWeekday).toBe(3);
     expect(result.otSunday).toBe(0);
     expect(result.otHoliday).toBe(0);
   });
 
-  it('Sunday OT ≤ 2h → all into otSunday (2x)', () => {
+  it('Sunday OT → all into otSunday (200%)', () => {
     // 2026-06-07 = Sunday
     const cells = [makeCell({ date: '2026-06-07', code: 'x', workHours: 8, overtimeHours: 2 })];
     const result = computeSummary(cells, [], defaultSettings);
     expect(result.otSunday).toBe(2);
-    expect(result.otSundayExtra).toBe(0);
     expect(result.otWeekday).toBe(0);
   });
 
-  it('Sunday OT > 2h → split into otSunday (2h @ 2x) + otSundayExtra (1.5h @ 2.7x)', () => {
-    // 2026-06-07 = Sunday, 3.5h OT → 2h normal + 1.5h extra
+  it('Sunday OT (3.5h) → all into otSunday, no split', () => {
+    // 2026-06-07 = Sunday, 3.5h OT → all 3.5h @ 200%
     const cells = [makeCell({ date: '2026-06-07', code: 'x', workHours: 8, overtimeHours: 3.5 })];
     const result = computeSummary(cells, [], defaultSettings);
-    expect(result.otSunday).toBe(2);
-    expect(result.otSundayExtra).toBe(1.5);
+    expect(result.otSunday).toBe(3.5);
     expect(result.otWeekday).toBe(0);
   });
 
-  it('holiday OT → all into otHoliday (3x, no extra band)', () => {
+  it('holiday OT → all into otHoliday (300%)', () => {
     // 2026-06-02 is Tuesday, pass it as a holiday
     const holidayDate = new Date('2026-06-02T00:00:00Z');
     const cells = [makeCell({ date: '2026-06-02', code: 'x', workHours: 8, overtimeHours: 4 })];
     const result = computeSummary(cells, [holidayDate], defaultSettings);
     expect(result.otHoliday).toBe(4);
     expect(result.otWeekday).toBe(0);
-    expect(result.otWeekdayExtra).toBe(0);
   });
 });
 
