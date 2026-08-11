@@ -91,3 +91,216 @@
     }
   }
 }
+
+/* ─── Warehouse slip print styles ──────────────────────────────────────── */
+
+.print-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: white;
+  overflow-y: auto;
+}
+
+.print-controls {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.btn-print {
+  padding: 8px 16px;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.btn-close-print {
+  padding: 8px 16px;
+  background: #6b7280;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.print-page {
+  max-width: 210mm;
+  margin: 0 auto;
+  padding: 15mm;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 13px;
+  color: #000;
+}
+
+.print-header {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.print-title {
+  font-size: 18px;
+  font-weight: bold;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.print-meta {
+  text-align: left;
+  margin: 0 auto;
+  display: inline-block;
+}
+
+.print-meta-row {
+  margin-bottom: 4px;
+}
+
+.print-label {
+  font-weight: bold;
+  display: inline-block;
+  min-width: 100px;
+}
+
+.print-value {
+  display: inline;
+}
+
+.print-table-container {
+  margin: 16px 0;
+}
+
+.print-empty-message {
+  margin: 16px 0;
+  padding: 12px;
+  border: 1px dashed #9ca3af;
+  color: #4b5563;
+}
+
+.print-warehouse-label {
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 6px;
+  padding: 4px 8px;
+  background: #f3f4f6;
+  border-left: 3px solid #2563eb;
+}
+
+.print-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.print-table th,
+.print-table td {
+  border: 1px solid #000;
+  padding: 4px 6px;
+}
+
+.print-table th {
+  background: #e5e7eb;
+  font-weight: bold;
+  text-align: center;
+}
+
+.print-table .text-center { text-align: center; }
+.print-table .text-right { text-align: right; }
+.print-table .font-bold { font-weight: bold; }
+
+.print-total-row td {
+  border-top: 2px solid #000;
+}
+
+.print-footer {
+  margin-top: 32px;
+}
+
+.print-signature-row {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 40px;
+}
+
+.print-signature {
+  text-align: center;
+  min-width: 140px;
+}
+
+.print-signature-label {
+  font-weight: bold;
+  font-size: 13px;
+}
+
+.print-signature-note {
+  font-size: 11px;
+  font-style: italic;
+  margin-top: 40px;
+}
+
+@media (max-width: 639px) {
+  .print-page {
+    padding: 12px;
+  }
+
+  .print-table {
+    font-size: 11px;
+  }
+
+  .print-table th,
+  .print-table td {
+    padding: 4px;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .print-signature-row {
+    gap: 12px;
+  }
+
+  .print-signature {
+    min-width: 0;
+    flex: 1;
+  }
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  .no-print { display: none !important; }
+  .print-overlay {
+    position: static;
+    background: white;
+  }
+  .print-controls { display: none !important; }
+  .print-page {
+    padding: 0;
+    max-width: none;
+  }
+  .print-table-container,
+  .print-footer,
+  .print-signature-row {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .print-table thead {
+    display: table-header-group;
+  }
+  .print-table th,
+  .print-table td {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .print-warehouse-label {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+}
