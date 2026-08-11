@@ -723,9 +723,7 @@ export class PayrollService {
           sundayMealAllowance: 0,
           fuelPricePerKm: 0,
           otRateWeekday: 1.5,
-          otRateWeekdayExtra: 2.1,
           otRateSunday: 2,
-          otRateSundayExtra: 2.7,
           otRateHoliday: 3,
         },
       });
@@ -743,9 +741,7 @@ export class PayrollService {
     sundayMealAllowance?: number;
     fuelPricePerKm?: number;
     otRateWeekday?: number;
-    otRateWeekdayExtra?: number;
     otRateSunday?: number;
-    otRateSundayExtra?: number;
     otRateHoliday?: number;
   }): Promise<any> {
     let settings = await prisma.payrollSettings.findFirst();
@@ -762,9 +758,7 @@ export class PayrollService {
           sundayMealAllowance: data.sundayMealAllowance ?? 0,
           fuelPricePerKm: data.fuelPricePerKm ?? 0,
           otRateWeekday: data.otRateWeekday ?? 1.5,
-          otRateWeekdayExtra: data.otRateWeekdayExtra ?? 2.1,
           otRateSunday: data.otRateSunday ?? 2,
-          otRateSundayExtra: data.otRateSundayExtra ?? 2.7,
           otRateHoliday: data.otRateHoliday ?? 3,
         },
       });
@@ -780,9 +774,7 @@ export class PayrollService {
       if (data.sundayMealAllowance !== undefined) updateData.sundayMealAllowance = data.sundayMealAllowance;
       if (data.fuelPricePerKm !== undefined) updateData.fuelPricePerKm = data.fuelPricePerKm;
       if (data.otRateWeekday !== undefined) updateData.otRateWeekday = data.otRateWeekday;
-      if (data.otRateWeekdayExtra !== undefined) updateData.otRateWeekdayExtra = data.otRateWeekdayExtra;
       if (data.otRateSunday !== undefined) updateData.otRateSunday = data.otRateSunday;
-      if (data.otRateSundayExtra !== undefined) updateData.otRateSundayExtra = data.otRateSundayExtra;
       if (data.otRateHoliday !== undefined) updateData.otRateHoliday = data.otRateHoliday;
 
       settings = await prisma.payrollSettings.update({
