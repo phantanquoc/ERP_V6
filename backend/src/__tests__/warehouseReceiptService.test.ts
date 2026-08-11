@@ -1,20 +1,38 @@
 /**
- * Tests for warehouseReceiptService update/delete:
- * - Correct stock reversal on same and different lotProduct
- * - Snapshot recompute
- * - Negative-stock guard rollback
- * - Lock rejection for supplyRequestId
+ * Tests for warehouseReceiptService in its header-plus-lines shape:
+ * - One code per slip regardless of line count
+ * - Sequential snapshots chaining across two lines on one package
+ * - Update as a line diff: removed, added, and repointed lines
+ * - Every negative-stock guard runs before the first write
+ * - Lock rejection for supplyRequestId, evaluated on the header
  */
 
 const mockTx = {
   warehouseReceipt: {
     findUnique: jest.fn(),
+    create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
   },
-  lotProduct: {
-    findUnique: jest.fn(),
+  warehouseReceiptItem: {
+    create: jest.fn(),
     update: jest.fn(),
+    deleteMany: jest.fn(),
+  },
+  lotProduct: {
+    findMany: jest.fn(),
+    findFirst: jest.fn(),
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+  },
+  internationalProduct: {
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    create: jest.fn(),
+  },
+  lot: {
+    findUnique: jest.fn(),
   },
 };
 
@@ -23,10 +41,15 @@ jest.mock('@config/database', () => ({
   default: {
     warehouseReceipt: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+    },
+    warehouseReceiptItem: {
       findMany: jest.fn(),
     },
     lotProduct: {
       findUnique: jest.fn(),
+      findMany: jest.fn(),
       update: jest.fn(),
     },
     $transaction: jest.fn((fn: any) => fn(mockTx)),
@@ -57,118 +80,488 @@ jest.mock('../utils/codeGenerator', () => ({
 }));
 
 import prisma from '@config/database';
-// Error classes are used via the mocked module inside the service under test
+import { nextYearlyCode } from '../utils/codeGenerator';
 
 // Must import AFTER mocks
 import warehouseReceiptService from '@services/warehouseReceiptService';
 
 const prismaMock = prisma as jest.Mocked<typeof prisma>;
 
+/** Shape `tx.lotProduct.findMany` returns for the balance load. */
+function balanceRows(rows: Array<{ id: string; soLuong: number; tenSanPham?: string }>) {
+  return rows.map((row) => ({
+    id: row.id,
+    soLuong: row.soLuong,
+    donViTinh: 'Kg',
+    internationalProduct: { tenSanPham: row.tenSanPham ?? 'SP1' },
+  }));
+}
+
+function line(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    lotProductId: 'lp1',
+    tenSanPham: 'SP1',
+    donViTinh: 'Kg',
+    warehouseId: 'w1',
+    tenKho: 'Kho A',
+    lotId: 'l1',
+    tenLo: 'Lo 1',
+    soLuongThucTe: 10,
+    ...overrides,
+  } as any;
+}
+
+/** Stored line as `include: { items }` returns it. */
+function storedLine(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 'it1',
+    receiptId: 'r1',
+    stt: 1,
+    lotProductId: 'lp1',
+    tenSanPham: 'SP1',
+    donViTinh: 'Kg',
+    warehouseId: 'w1',
+    tenKho: 'Kho A',
+    lotId: 'l1',
+    tenLo: 'Lo 1',
+    soLuongYeuCau: 10,
+    soLuongThucTe: 10,
+    soLuongTruoc: 0,
+    soLuongSau: 10,
+    ghiChu: null,
+    ...overrides,
+  } as any;
+}
+
+describe('warehouseReceiptService.create', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (prismaMock.warehouseReceipt.findFirst as jest.Mock).mockResolvedValue(null);
+    mockTx.warehouseReceipt.create.mockImplementation(({ data }: any) =>
+      Promise.resolve({ id: 'r1', ...data, items: [] })
+    );
+  });
+
+  it('generates exactly one code for a multi-line slip', async () => {
+    mockTx.lotProduct.findMany.mockResolvedValue(
+      balanceRows([{ id: 'lp1', soLuong: 100 }, { id: 'lp2', soLuong: 5 }])
+    );
+
+    await warehouseReceiptService.create({
+      employeeId: 'e1',
+      items: [
+        line({ soLuongThucTe: 30 }),
+        line({ lotProductId: 'lp2', soLuongThucTe: 20 }),
+        line({ soLuongThucTe: 50 }),
+      ],
+    });
+
+    expect(nextYearlyCode).toHaveBeenCalledTimes(1);
+    expect(mockTx.warehouseReceipt.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('chains snapshots across two lines sharing one package', async () => {
+    mockTx.lotProduct.findMany.mockResolvedValue(balanceRows([{ id: 'lp1', soLuong: 100 }]));
+
+    await warehouseReceiptService.create({
+      employeeId: 'e1',
+      items: [line({ soLuongThucTe: 30 }), line({ soLuongThucTe: 20 })],
+    });
+
+    const created = mockTx.warehouseReceipt.create.mock.calls[0][0].data;
+    const lines = created.items.create;
+
+    expect(lines[0]).toMatchObject({ stt: 1, soLuongTruoc: 100, soLuongSau: 130 });
+    // Line 2 opens where line 1 closed, not at the pre-transaction balance.
+    expect(lines[1]).toMatchObject({ stt: 2, soLuongTruoc: 130, soLuongSau: 150 });
+    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp1' }, data: { soLuong: 150 } });
+  });
+
+  it('records header totals from its lines', async () => {
+    mockTx.lotProduct.findMany.mockResolvedValue(
+      balanceRows([{ id: 'lp1', soLuong: 0 }, { id: 'lp2', soLuong: 0 }])
+    );
+
+    await warehouseReceiptService.create({
+      employeeId: 'e1',
+      items: [
+        line({ soLuongThucTe: 30 }),
+        line({ soLuongThucTe: 20 }),
+        line({ lotProductId: 'lp2', soLuongThucTe: 50 }),
+      ],
+    });
+
+    const created = mockTx.warehouseReceipt.create.mock.calls[0][0].data;
+    expect(created.tongSoLuongThucTe).toBe(100);
+    expect(created.soDongHang).toBe(3);
+  });
+
+  it('defaults soLuongYeuCau to the actual quantity', async () => {
+    mockTx.lotProduct.findMany.mockResolvedValue(balanceRows([{ id: 'lp1', soLuong: 0 }]));
+
+    await warehouseReceiptService.create({
+      employeeId: 'e1',
+      items: [line({ soLuongThucTe: 42 })],
+    });
+
+    const lines = mockTx.warehouseReceipt.create.mock.calls[0][0].data.items.create;
+    expect(lines[0].soLuongYeuCau).toBe(42);
+  });
+
+  it('rejects an empty line array and writes nothing', async () => {
+    await expect(
+      warehouseReceiptService.create({ employeeId: 'e1', items: [] })
+    ).rejects.toThrow('phải có ít nhất một mặt hàng');
+
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    expect(nextYearlyCode).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-positive actual quantity before any write', async () => {
+    await expect(
+      warehouseReceiptService.create({ employeeId: 'e1', items: [line({ soLuongThucTe: 0 })] })
+    ).rejects.toThrow('phải lớn hơn 0');
+
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('resolves a line without lotProductId inside the slip transaction', async () => {
+    mockTx.internationalProduct.findFirst.mockResolvedValue({ id: 'ip1', donViTinh: 'Kg' });
+    mockTx.lotProduct.findFirst.mockResolvedValue({ id: 'lpNew', soLuong: 7 });
+    mockTx.lotProduct.findMany.mockResolvedValue(balanceRows([{ id: 'lpNew', soLuong: 7 }]));
+
+    await warehouseReceiptService.create({
+      employeeId: 'e1',
+      items: [line({ lotProductId: undefined, soLuongThucTe: 3 })],
+    });
+
+    // Resolution used the transaction client, not the global prisma client.
+    expect(mockTx.internationalProduct.findFirst).toHaveBeenCalled();
+    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lpNew' }, data: { soLuong: 10 } });
+  });
+});
+
 describe('warehouseReceiptService.update', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockTx.warehouseReceipt.update.mockImplementation(({ data }: any) =>
+      Promise.resolve({ id: 'r1', supplyRequestId: null, ...data, items: [] })
+    );
   });
 
-  it('should reverse original and apply new stock on same lotProduct', async () => {
-    const existingReceipt = {
-      id: 'r1', lotProductId: 'lp1', soLuongNhap: 10,
-      supplyRequestId: null, warehouseId: 'w1', lotId: 'l1',
-      tenKho: 'Kho A', tenLo: 'Lo 1', tenSanPham: 'SP1', donViTinh: 'Kg',
-    };
-    (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue(existingReceipt);
-
-    // Inside transaction
-    mockTx.lotProduct.findUnique.mockResolvedValueOnce({ id: 'lp1', soLuong: 50, donViTinh: 'Kg' }); // original
-    mockTx.lotProduct.update.mockResolvedValueOnce({}); // reverse
-    mockTx.lotProduct.findUnique.mockResolvedValueOnce({ id: 'lp1', soLuong: 40, donViTinh: 'Kg' }); // target (same)
-    mockTx.lotProduct.update.mockResolvedValueOnce({}); // apply
-    mockTx.warehouseReceipt.update.mockResolvedValue({ id: 'r1', soLuongNhap: 15 });
+  it('reverses the stored line and applies the incoming one on the same package', async () => {
+    (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
+      id: 'r1', supplyRequestId: null, items: [storedLine({ soLuongThucTe: 10 })],
+    });
+    mockTx.lotProduct.findMany.mockResolvedValue(balanceRows([{ id: 'lp1', soLuong: 50 }]));
 
     const result = await warehouseReceiptService.update('r1', {
-      warehouseId: 'w1', tenKho: 'Kho A', lotId: 'l1', tenLo: 'Lo 1',
-      lotProductId: 'lp1', tenSanPham: 'SP1', soLuongNhap: 15, donViTinh: 'Kg',
+      items: [line({ id: 'it1', soLuongThucTe: 15 })],
     });
 
-    expect(result.soLuongNhap).toBe(15);
-    // First update: reverse (50 - 10 = 40)
-    expect(mockTx.lotProduct.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'lp1' }, data: { soLuong: 40 } })
-    );
-    // Second update: apply (40 + 15 = 55)
-    expect(mockTx.lotProduct.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'lp1' }, data: { soLuong: 55 } })
-    );
-  });
-
-  it('should throw ValidationError if reversal would make stock negative', async () => {
-    const existingReceipt = {
-      id: 'r1', lotProductId: 'lp1', soLuongNhap: 50,
-      supplyRequestId: null,
-    };
-    (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue(existingReceipt);
-
-    mockTx.lotProduct.findUnique.mockResolvedValueOnce({ id: 'lp1', soLuong: 30, donViTinh: 'Kg' });
-
-    await expect(
-      warehouseReceiptService.update('r1', {
-        warehouseId: 'w1', lotId: 'l1', lotProductId: 'lp1',
-        tenSanPham: 'SP1', soLuongNhap: 10, donViTinh: 'Kg', tenKho: '', tenLo: '',
+    expect(result.tongSoLuongThucTe).toBe(15);
+    // Reversal 50 - 10 = 40 is the line's opening balance; it closes at 55.
+    expect(mockTx.warehouseReceiptItem.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'it1' },
+        data: expect.objectContaining({ soLuongTruoc: 40, soLuongSau: 55, soLuongThucTe: 15 }),
       })
-    ).rejects.toThrow('Số lượng tồn kho không đủ');
+    );
+    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp1' }, data: { soLuong: 55 } });
   });
 
-  it('should throw ConflictError if receipt is supply-request-linked', async () => {
+  it('removes a dropped line and settles its package at the reversed balance', async () => {
     (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
-      id: 'r1', lotProductId: 'lp1', soLuongNhap: 10, supplyRequestId: 'sr1',
+      id: 'r1',
+      supplyRequestId: null,
+      items: [
+        storedLine({ id: 'it1', soLuongThucTe: 10 }),
+        storedLine({ id: 'it2', stt: 2, lotProductId: 'lp2', soLuongThucTe: 25 }),
+      ],
+    });
+    mockTx.lotProduct.findMany.mockResolvedValue(
+      balanceRows([{ id: 'lp1', soLuong: 50 }, { id: 'lp2', soLuong: 60 }])
+    );
+
+    await warehouseReceiptService.update('r1', {
+      items: [line({ id: 'it1', soLuongThucTe: 10 })],
+    });
+
+    expect(mockTx.warehouseReceiptItem.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['it2'] } } });
+    // lp1 keeps its line: 50 - 10 + 10 = 50. lp2 only reverses: 60 - 25 = 35.
+    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp1' }, data: { soLuong: 50 } });
+    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp2' }, data: { soLuong: 35 } });
+  });
+
+  it('creates an added line and leaves the existing one intact', async () => {
+    (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
+      id: 'r1', supplyRequestId: null, items: [storedLine({ soLuongThucTe: 10 })],
+    });
+    mockTx.lotProduct.findMany.mockResolvedValue(
+      balanceRows([{ id: 'lp1', soLuong: 50 }, { id: 'lp2', soLuong: 5 }])
+    );
+
+    await warehouseReceiptService.update('r1', {
+      items: [line({ id: 'it1', soLuongThucTe: 10 }), line({ lotProductId: 'lp2', soLuongThucTe: 7 })],
+    });
+
+    expect(mockTx.warehouseReceiptItem.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ receiptId: 'r1', stt: 2, lotProductId: 'lp2', soLuongTruoc: 5, soLuongSau: 12 }),
+      })
+    );
+    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp1' }, data: { soLuong: 50 } });
+    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp2' }, data: { soLuong: 12 } });
+  });
+
+  it('repoints a line to another package, reversing the original', async () => {
+    (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
+      id: 'r1', supplyRequestId: null, items: [storedLine({ soLuongThucTe: 10 })],
+    });
+    mockTx.lotProduct.findMany.mockResolvedValue(
+      balanceRows([{ id: 'lp1', soLuong: 50 }, { id: 'lp2', soLuong: 20 }])
+    );
+
+    await warehouseReceiptService.update('r1', {
+      items: [line({ id: 'it1', lotProductId: 'lp2', soLuongThucTe: 10 })],
+    });
+
+    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp1' }, data: { soLuong: 40 } });
+    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp2' }, data: { soLuong: 30 } });
+    expect(mockTx.warehouseReceiptItem.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'it1' },
+        data: expect.objectContaining({ lotProductId: 'lp2', soLuongTruoc: 20, soLuongSau: 30 }),
+      })
+    );
+  });
+
+  it('writes nothing when reversing a line would drive stock negative', async () => {
+    (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
+      id: 'r1', supplyRequestId: null, items: [storedLine({ soLuongThucTe: 50 })],
+    });
+    mockTx.lotProduct.findMany.mockResolvedValue(balanceRows([{ id: 'lp1', soLuong: 30 }]));
+
+    await expect(
+      warehouseReceiptService.update('r1', { items: [line({ id: 'it1', soLuongThucTe: 10 })] })
+    ).rejects.toThrow('không đủ');
+
+    expect(mockTx.lotProduct.update).not.toHaveBeenCalled();
+    expect(mockTx.warehouseReceiptItem.update).not.toHaveBeenCalled();
+    expect(mockTx.warehouseReceiptItem.deleteMany).not.toHaveBeenCalled();
+    expect(mockTx.warehouseReceipt.update).not.toHaveBeenCalled();
+  });
+
+  it('throws ConflictError if the receipt is supply-request-linked', async () => {
+    (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
+      id: 'r1', supplyRequestId: 'sr1', items: [storedLine()],
     });
 
     await expect(
-      warehouseReceiptService.update('r1', {
-        warehouseId: 'w1', lotId: 'l1', lotProductId: 'lp1',
-        tenSanPham: 'SP1', soLuongNhap: 10, donViTinh: 'Kg', tenKho: '', tenLo: '',
-      })
+      warehouseReceiptService.update('r1', { items: [line({ id: 'it1' })] })
     ).rejects.toThrow('Không thể sửa/xóa phiếu gắn với yêu cầu cung cấp');
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('throws NotFoundError for an unknown receipt', async () => {
+    (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue(null);
+
+    await expect(
+      warehouseReceiptService.update('rX', { items: [line({ id: 'it1' })] })
+    ).rejects.toThrow('Không tìm thấy phiếu nhập kho');
   });
 });
 
 describe('warehouseReceiptService.delete', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockTx.warehouseReceipt.delete.mockResolvedValue({});
   });
 
-  it('should subtract soLuongNhap from lotProduct and delete', async () => {
+  it('reverses every line against its own package and deletes the slip', async () => {
     (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
-      id: 'r1', lotProductId: 'lp1', soLuongNhap: 20, supplyRequestId: null,
+      id: 'r1',
+      supplyRequestId: null,
+      items: [
+        storedLine({ id: 'it1', soLuongThucTe: 20 }),
+        storedLine({ id: 'it2', lotProductId: 'lp2', soLuongThucTe: 5 }),
+      ],
     });
-
-    mockTx.lotProduct.findUnique.mockResolvedValueOnce({ id: 'lp1', soLuong: 50, donViTinh: 'Kg' });
-    mockTx.lotProduct.update.mockResolvedValueOnce({});
-    mockTx.warehouseReceipt.delete.mockResolvedValueOnce({});
+    mockTx.lotProduct.findMany.mockResolvedValue(
+      balanceRows([{ id: 'lp1', soLuong: 50 }, { id: 'lp2', soLuong: 8 }])
+    );
 
     const result = await warehouseReceiptService.delete('r1');
 
     expect(result).toEqual({ id: 'r1' });
-    expect(mockTx.lotProduct.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'lp1' }, data: { soLuong: 30 } })
-    );
+    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp1' }, data: { soLuong: 30 } });
+    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp2' }, data: { soLuong: 3 } });
     expect(mockTx.warehouseReceipt.delete).toHaveBeenCalledWith({ where: { id: 'r1' } });
   });
 
-  it('should throw ValidationError if stock would go negative', async () => {
+  it('reverses two lines sharing one package by their aggregate', async () => {
     (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
-      id: 'r1', lotProductId: 'lp1', soLuongNhap: 50, supplyRequestId: null,
+      id: 'r1',
+      supplyRequestId: null,
+      items: [
+        storedLine({ id: 'it1', soLuongThucTe: 30 }),
+        storedLine({ id: 'it2', soLuongThucTe: 20 }),
+      ],
     });
+    mockTx.lotProduct.findMany.mockResolvedValue(balanceRows([{ id: 'lp1', soLuong: 150 }]));
 
-    mockTx.lotProduct.findUnique.mockResolvedValueOnce({ id: 'lp1', soLuong: 30, donViTinh: 'Kg' });
+    await warehouseReceiptService.delete('r1');
 
-    await expect(warehouseReceiptService.delete('r1')).rejects.toThrow('Số lượng tồn kho không đủ');
+    expect(mockTx.lotProduct.update).toHaveBeenCalledTimes(1);
+    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp1' }, data: { soLuong: 100 } });
   });
 
-  it('should throw ConflictError if receipt is locked', async () => {
+  it('writes nothing when the aggregate reversal would go negative', async () => {
     (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
-      id: 'r1', lotProductId: 'lp1', soLuongNhap: 10, supplyRequestId: 'sr1',
+      id: 'r1',
+      supplyRequestId: null,
+      items: [
+        storedLine({ id: 'it1', soLuongThucTe: 30 }),
+        storedLine({ id: 'it2', soLuongThucTe: 20 }),
+      ],
+    });
+    // 40 covers each line alone but not the aggregate of 50.
+    mockTx.lotProduct.findMany.mockResolvedValue(balanceRows([{ id: 'lp1', soLuong: 40 }]));
+
+    await expect(warehouseReceiptService.delete('r1')).rejects.toThrow('không đủ');
+
+    expect(mockTx.lotProduct.update).not.toHaveBeenCalled();
+    expect(mockTx.warehouseReceipt.delete).not.toHaveBeenCalled();
+  });
+
+  it('throws ConflictError if the receipt is locked', async () => {
+    (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
+      id: 'r1', supplyRequestId: 'sr1', items: [storedLine()],
     });
 
     await expect(warehouseReceiptService.delete('r1')).rejects.toThrow('Không thể sửa/xóa phiếu gắn với yêu cầu cung cấp');
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe('warehouseReceiptService.getByLotProduct', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('returns one row per line, carrying header code and date', async () => {
+    (prismaMock.lotProduct.findUnique as jest.Mock).mockResolvedValue({ id: 'lp1' });
+    const header = {
+      id: 'r1', maPhieuNhap: 'PN2026-001', ngayNhap: new Date('2026-08-01'),
+      maNhanVien: 'NV1', tenNhanVien: 'A', mucDich: 'Nhập từ thu mua',
+    };
+    (prismaMock.warehouseReceiptItem.findMany as jest.Mock).mockResolvedValue([
+      { id: 'it1', soLuongThucTe: 30, soLuongTruoc: 100, soLuongSau: 130, donViTinh: 'Kg', ghiChu: null, receipt: header },
+      { id: 'it2', soLuongThucTe: 20, soLuongTruoc: 130, soLuongSau: 150, donViTinh: 'Kg', ghiChu: null, receipt: header },
+    ]);
+
+    const rows = await warehouseReceiptService.getByLotProduct('lp1');
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ maPhieuNhap: 'PN2026-001', soLuongNhap: 30, soLuongTruoc: 100, soLuongSau: 130 });
+    expect(rows[1]).toMatchObject({ maPhieuNhap: 'PN2026-001', soLuongNhap: 20, soLuongTruoc: 130 });
+    expect((prismaMock.warehouseReceiptItem.findMany as jest.Mock).mock.calls[0][0].orderBy).toEqual([
+      { receipt: { ngayNhap: 'asc' } },
+      { stt: 'asc' },
+    ]);
+  });
+
+  it('throws NotFoundError for an unknown package', async () => {
+    (prismaMock.lotProduct.findUnique as jest.Mock).mockResolvedValue(null);
+    await expect(warehouseReceiptService.getByLotProduct('lpX')).rejects.toThrow('Không tìm thấy sản phẩm trong lô');
+  });
+});
+
+describe('warehouseReceiptService.getAll', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('includes lines on the list so the table can render one row per commodity', async () => {
+    (prismaMock.warehouseReceipt.findMany as jest.Mock).mockResolvedValue([
+      {
+        id: 'r1',
+        supplyRequestId: null,
+        tongSoLuongThucTe: 15,
+        soDongHang: 2,
+        items: [storedLine(), storedLine({ id: 'it2', stt: 2, lotProductId: 'lp2', soLuongThucTe: 5 })],
+      },
+    ]);
+
+    const list = await warehouseReceiptService.getAll();
+
+    // The list response must carry lines: the header mirror only holds line 1,
+    // so a list without lines silently hides every other commodity.
+    expect(list[0].items).toHaveLength(2);
+    expect(list[0].isLocked).toBe(false);
+    const findManyArgs = (prismaMock.warehouseReceipt.findMany as jest.Mock).mock.calls[0][0];
+    expect(findManyArgs.include.items).toEqual({ orderBy: { stt: 'asc' } });
+  });
+});
+
+describe('warehouseReceiptService.getById', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('includes lines and the computed lock flag', async () => {
+    (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
+      id: 'r1', supplyRequestId: 'sr1', tongSoLuongThucTe: 50, soDongHang: 2, items: [storedLine()],
+    });
+
+    const receipt = await warehouseReceiptService.getById('r1');
+
+    expect(receipt.isLocked).toBe(true);
+    expect(receipt.items).toHaveLength(1);
+  });
+});
+
+describe('warehouseReceiptService.batchCreate', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (prismaMock.warehouseReceipt.findFirst as jest.Mock).mockResolvedValue(null);
+    mockTx.warehouseReceipt.create.mockImplementation(({ data }: any) =>
+      Promise.resolve({ id: 'r1', ...data, items: [] })
+    );
+  });
+
+  it('folds flat rows sharing one code into a single multi-line slip', async () => {
+    mockTx.lotProduct.findMany.mockResolvedValue(
+      balanceRows([{ id: 'lp1', soLuong: 0 }, { id: 'lp2', soLuong: 0 }])
+    );
+
+    const results = await warehouseReceiptService.batchCreate([
+      { maPhieuNhap: 'PN2026-001', employeeId: 'e1', warehouseId: 'w1', lotId: 'l1', lotProductId: 'lp1', tenSanPham: 'SP1', soLuongNhap: 10 },
+      { maPhieuNhap: 'PN2026-001', employeeId: 'e1', warehouseId: 'w1', lotId: 'l1', lotProductId: 'lp2', tenSanPham: 'SP2', soLuongNhap: 20 },
+    ]);
+
+    expect(results).toHaveLength(1);
+    expect(mockTx.warehouseReceipt.create).toHaveBeenCalledTimes(1);
+    expect(mockTx.warehouseReceipt.create.mock.calls[0][0].data.soDongHang).toBe(2);
+  });
+
+  it('creates one slip per distinct code', async () => {
+    mockTx.lotProduct.findMany.mockResolvedValue(balanceRows([{ id: 'lp1', soLuong: 0 }]));
+
+    const results = await warehouseReceiptService.batchCreate([
+      { maPhieuNhap: 'PN2026-001', employeeId: 'e1', warehouseId: 'w1', lotId: 'l1', lotProductId: 'lp1', tenSanPham: 'SP1', soLuongNhap: 10 },
+      { maPhieuNhap: 'PN2026-002', employeeId: 'e1', warehouseId: 'w1', lotId: 'l1', lotProductId: 'lp1', tenSanPham: 'SP1', soLuongNhap: 20 },
+    ]);
+
+    expect(results).toHaveLength(2);
+  });
+
+  it('skips rows missing required fields', async () => {
+    const results = await warehouseReceiptService.batchCreate([
+      { employeeId: 'e1', warehouseId: '', lotId: '', tenSanPham: '', soLuongNhap: 0 } as any,
+    ]);
+
+    expect(results).toEqual([]);
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 });

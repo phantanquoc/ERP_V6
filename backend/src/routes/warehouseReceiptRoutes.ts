@@ -2,7 +2,6 @@ import express from 'express';
 import {
   generateReceiptCode,
   createWarehouseReceipt,
-  batchCreateWarehouseReceipts,
   getAllWarehouseReceipts,
   getWarehouseReceiptById,
   updateWarehouseReceipt,
@@ -17,7 +16,6 @@ router.use(authenticate);
 
 router.get('/generate-code', generateReceiptCode);
 
-router.post('/batch', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD), batchCreateWarehouseReceipts);
 router.post('/', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD), createWarehouseReceipt);
 
 router.get('/', getAllWarehouseReceipts);
@@ -27,4 +25,3 @@ router.put('/:id', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.
 router.delete('/:id', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD), deleteWarehouseReceipt);
 
 export default router;
-
