@@ -51,9 +51,7 @@ export interface TimesheetSummary {
   lateEarlyHours: number;
   diligence: boolean;
   otWeekday: number;
-  otWeekdayExtra: number;
   otSunday: number;
-  otSundayExtra: number;
   otHoliday: number;
   mealAllowanceDays: number;
   fuelAmount: number;
@@ -68,12 +66,12 @@ export interface TimesheetSummary {
 }
 
 /**
- * Compute summary and 5-band OT from cells + settings + holidays
+ * Compute summary and 3-band OT from cells + settings + holidays
  */
 export function computeSummary(
   cells: TimesheetCellData[],
   holidays: Date[],
-  _settings: { standardWorkDays: number; otRateWeekday: number; otRateWeekdayExtra: number; otRateSunday: number; otRateSundayExtra: number; otRateHoliday: number },
+  _settings: { standardWorkDays: number; otRateWeekday: number; otRateSunday: number; otRateHoliday: number },
 ): TimesheetSummary {
   const holidaySet = new Set(holidays.map(d => d.toISOString().split('T')[0]));
 
@@ -90,9 +88,7 @@ export function computeSummary(
   let mealAllowanceDays = 0;
   let overtimeMealDays = 0;
   let otWeekday = 0;
-  let otWeekdayExtra = 0;
   let otSunday = 0;
-  let otSundayExtra = 0;
   let otHoliday = 0;
 
   // Codes that count as official work time (per Excel AP formula, plus ON exception)
@@ -148,28 +144,21 @@ export function computeSummary(
       probationDays += code === 'TV/2' ? 0.5 : 1;
     }
 
-    // Overtime classification by day type
-    // Note: TimesheetCell does not have an 'otType' field to distinguish "normal hours OT"
-    // (1.5x/2x) vs "after hours OT" (2.1x/2.7x). As a convention, we split:
-    //   - First 2 hours of OT → normal band (otWeekday 1.5x / otSunday 2x)
-    //   - Beyond 2 hours → extra band (otWeekdayExtra 2.1x / otSundayExtra 2.7x)
-    // TODO: If HR requires precise tracking, add an 'otType' field to TimesheetCell.
+    // Overtime classification by day type (matches Excel sheet TĂNG CA)
+    // Excel uses 3 bands based ONLY on day type (weekday/Sunday/holiday):
+    //   - AO: OT weekday → 150% (otWeekday)
+    //   - AP: OT Sunday → 200% (otSunday)
+    //   - AQ: OT holiday → 300% (otHoliday)
+    // Excel does NOT split by hours (no "first 2h vs beyond 2h" logic).
     if (cell.overtimeHours > 0) {
       if (cell.overtimeHours > 2.5) overtimeMealDays++;
 
-      const normalBandCap = 2; // First 2 hours
-      const normalHours = Math.min(cell.overtimeHours, normalBandCap);
-      const extraHours = Math.max(0, cell.overtimeHours - normalBandCap);
-
       if (isHoliday) {
-        // Holiday OT always uses the 3x rate (no "extra" band for holidays)
-        otHoliday += cell.overtimeHours;
+        otHoliday += cell.overtimeHours;  // 300% rate
       } else if (isSunday) {
-        otSunday += normalHours;        // 2x rate
-        otSundayExtra += extraHours;    // 2.7x rate
+        otSunday += cell.overtimeHours;   // 200% rate
       } else {
-        otWeekday += normalHours;       // 1.5x rate
-        otWeekdayExtra += extraHours;   // 2.1x rate
+        otWeekday += cell.overtimeHours;  // 150% rate
       }
     }
 
@@ -202,11 +191,9 @@ export function computeSummary(
 
   // "Làm CT" (Tổng thời gian làm chính thức) — Excel AP: planned work hours MINUS late/early.
   const officialWorkHours = officialHours - lateEarlyHours;
-  // "Giờ lương" (Thời gian tính lương) — Excel AO = SUM(AP:AU). Because AU (late/early) is
-  // subtracted in AP and added back in AO, it cancels out: payable = PLANNED work (before
-  // late/early) + all leave buckets + probation. Late/early does NOT reduce payable hours.
-  const payableHours = officialHours + leaveHoursPayable + leaveHoursHolidayRegime
-    + leaveHoursUnpaid + probationDays * 8;
+  // "Giờ lương" (Thời gian tính lương) — Excel AO: FIXED planned hours of the month
+  // (e.g., 26 workdays × 8h = 208h). This is the salary baseline, NOT accumulated actual hours.
+  const payableHours = _settings.standardWorkDays * 8;
 
   return {
     payableHours,
@@ -218,9 +205,7 @@ export function computeSummary(
     lateEarlyHours,
     diligence,
     otWeekday,
-    otWeekdayExtra,
     otSunday,
-    otSundayExtra,
     otHoliday,
     mealAllowanceDays,
     fuelAmount: 0, // computed per-employee externally
@@ -470,9 +455,7 @@ class TimesheetService {
     const effectiveSettings = settings || {
       standardWorkDays: 26,
       otRateWeekday: 1.5,
-      otRateWeekdayExtra: 2.1,
       otRateSunday: 2,
-      otRateSundayExtra: 2.7,
       otRateHoliday: 3,
     };
 
@@ -507,9 +490,7 @@ class TimesheetService {
       const hourlyRate = Math.round((row.baseSalary || 0) / (stdDays * 8));
       const otTotalIncomeRaw = hourlyRate * (
         summary.otWeekday * effectiveSettings.otRateWeekday +
-        summary.otWeekdayExtra * effectiveSettings.otRateWeekdayExtra +
         summary.otSunday * effectiveSettings.otRateSunday +
-        summary.otSundayExtra * effectiveSettings.otRateSundayExtra +
         summary.otHoliday * effectiveSettings.otRateHoliday
       );
       summary.otTotalIncome = Math.round(otTotalIncomeRaw);
