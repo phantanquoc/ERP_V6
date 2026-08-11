@@ -198,6 +198,17 @@ router.patch(
 );
 
 /**
+ * Batch fulfillment — decide multiple supply request lines at once.
+ * Body: { lines: [{ itemId, fulfilledQty, ... }] }
+ * Same role restrictions as single-line fulfillment.
+ */
+router.post(
+  '/batch-fulfill',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  supplyRequestController.batchFulfill
+);
+
+/**
  * Decision history for a supply request (all decisions across its items).
  */
 router.get(

@@ -135,6 +135,26 @@ class SupplyRequestController {
     }
   }
 
+  async batchFulfill(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { lines } = req.body;
+
+      if (!lines || !Array.isArray(lines) || lines.length === 0) {
+        return res.status(400).json({ success: false, message: 'Danh sách cấp phát không được để trống' });
+      }
+
+      const result = await supplyRequestService.batchFulfill(lines);
+
+      return res.json({
+        success: true,
+        data: result,
+        message: `Đã cấp phát ${result.decisionsCount} dòng thành công`,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
   async getDecisionHistory(req: Request, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;

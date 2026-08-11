@@ -354,6 +354,7 @@ class SupplyRequestService {
     });
 
     // Auto-create warehouse issue when qty > 0 and warehouse/lot are provided
+    // Task 8.3: use nested items shape for header+lines
     if (req.fulfilledQty > 0 && req.warehouseId && req.lotId) {
       try {
         const warehouseIssueService = (await import('./warehouseIssueService')).default;
@@ -372,8 +373,6 @@ class SupplyRequestService {
         }
 
         if (resolvedLotProductId) {
-          const issueCode = await warehouseIssueService.generateCode();
-
           // Fetch employee, warehouse, lot info for complete issue record
           const [employee, warehouse, lot] = await Promise.all([
             prisma.employee.findUnique({ where: { id: req.decidedByEmployeeId }, select: { employeeCode: true, user: { select: { firstName: true, lastName: true } } } }),
@@ -382,20 +381,22 @@ class SupplyRequestService {
           ]);
 
           await warehouseIssueService.create({
-            maPhieuXuat: issueCode,
             employeeId: req.decidedByEmployeeId,
             maNhanVien: employee?.employeeCode ?? '',
             tenNhanVien: employee?.user ? `${employee.user.lastName} ${employee.user.firstName}` : '',
-            warehouseId: req.warehouseId,
-            tenKho: warehouse?.tenKho ?? '',
-            lotId: req.lotId,
-            tenLo: lot?.tenLo ?? '',
-            lotProductId: resolvedLotProductId,
-            tenSanPham: item.tenGoi,
-            soLuongXuat: req.fulfilledQty,
-            donViTinh: item.donViTinh,
             ghiChu: `Xuất kho tự động từ cấp phát YC ${item.supplyRequest.maYeuCau}`,
             supplyRequestId: item.supplyRequestId,
+            items: [{
+              lotProductId: resolvedLotProductId,
+              tenSanPham: item.tenGoi,
+              donViTinh: item.donViTinh,
+              warehouseId: req.warehouseId,
+              tenKho: warehouse?.tenKho ?? '',
+              lotId: req.lotId,
+              tenLo: lot?.tenLo ?? '',
+              soLuongThucTe: req.fulfilledQty,
+              ghiChu: `Xuất kho tự động từ cấp phát YC ${item.supplyRequest.maYeuCau}`,
+            }],
           });
         }
       } catch (issueErr) {
@@ -435,6 +436,313 @@ class SupplyRequestService {
       where: { id: itemId },
       include: { decisions: { orderBy: { decidedAt: 'desc' } } },
     });
+  }
+
+  /**
+   * Task 8.1-8.4 — Batch fulfillment: decide multiple supply-request lines at once.
+   *
+   * All lines with fulfilledQty > 0 share one warehouse issue slip (one PX code).
+   * Stock is validated per-package across the entire batch before any write.
+   * A shortfall on any package aborts the whole batch — no decisions recorded,
+   * no issue slip created.
+   */
+  async batchFulfill(
+    lines: Array<{
+      itemId: string;
+      fulfilledQty: number;
+      reason?: string;
+      decidedByEmployeeId: string;
+      routeShortageToPurchase?: boolean;
+      lotProductId?: string;
+      warehouseId?: string;
+      lotId?: string;
+      autoCreateProduct?: boolean;
+    }>,
+  ) {
+    if (!lines || lines.length === 0) {
+      throw new ValidationError('Danh sách cấp phát không được để trống');
+    }
+
+    // 1. Load all items and validate basic constraints
+    const itemIds = lines.map((l) => l.itemId);
+    const items = await prisma.supplyRequestItem.findMany({
+      where: { id: { in: itemIds } },
+      include: { supplyRequest: true },
+    });
+    const itemMap = new Map(items.map((i) => [i.id, i]));
+
+    for (const line of lines) {
+      const item = itemMap.get(line.itemId);
+      if (!item) {
+        throw new NotFoundError(`Không tìm thấy dòng yêu cầu cung cấp: ${line.itemId}`);
+      }
+      if (line.fulfilledQty < 0) {
+        throw new ValidationError('Số lượng cấp không thể âm.');
+      }
+      const alreadyFulfilled = item.fulfilledQty ?? 0;
+      const remaining = Math.max(0, item.soLuong - alreadyFulfilled);
+      if (line.fulfilledQty > remaining) {
+        throw new ValidationError(
+          `Số lượng cấp (${line.fulfilledQty}) vượt phần còn lại (${remaining}) cho "${item.tenGoi}".`
+        );
+      }
+    }
+
+    // 2. Resolve lot products for lines with fulfilledQty > 0 and warehouse info
+    const warehouseIssueService = (await import('./warehouseIssueService')).default;
+    const warehouseReceiptService = (await import('./warehouseReceiptService')).default;
+
+    const issueLineInputs: Array<{
+      lotProductId: string;
+      tenSanPham: string;
+      donViTinh: string;
+      warehouseId: string;
+      tenKho: string;
+      lotId: string;
+      tenLo: string;
+      soLuongThucTe: number;
+      ghiChu: string;
+      supplyRequestId: string;
+    }> = [];
+
+    for (const line of lines) {
+      if (line.fulfilledQty <= 0 || !line.warehouseId || !line.lotId) continue;
+      const item = itemMap.get(line.itemId)!;
+
+      let resolvedLotProductId = line.lotProductId;
+      if (!resolvedLotProductId && line.autoCreateProduct) {
+        const created = await warehouseReceiptService.resolveOrCreateLotProduct(
+          line.lotId,
+          item.tenGoi,
+          item.donViTinh,
+          item.phanLoai,
+        );
+        resolvedLotProductId = created.id;
+      }
+      if (!resolvedLotProductId) continue;
+
+      const warehouse = await prisma.warehouses.findUnique({
+        where: { id: line.warehouseId },
+        select: { tenKho: true },
+      });
+      const lot = await prisma.lot.findUnique({
+        where: { id: line.lotId },
+        select: { tenLo: true },
+      });
+
+      issueLineInputs.push({
+        lotProductId: resolvedLotProductId,
+        tenSanPham: item.tenGoi,
+        donViTinh: item.donViTinh,
+        warehouseId: line.warehouseId,
+        tenKho: warehouse?.tenKho ?? '',
+        lotId: line.lotId,
+        tenLo: lot?.tenLo ?? '',
+        soLuongThucTe: line.fulfilledQty,
+        ghiChu: `Xuất kho từ cấp phát hàng loạt YC ${item.supplyRequest.maYeuCau}`,
+        supplyRequestId: item.supplyRequestId,
+      });
+    }
+
+    // 3. Task 8.2 — Aggregate stock validation BEFORE any write.
+    // Group by lotProductId and check each package's aggregate against balance.
+    if (issueLineInputs.length > 0) {
+      const aggregateByPackage = new Map<string, number>();
+      for (const line of issueLineInputs) {
+        aggregateByPackage.set(
+          line.lotProductId,
+          (aggregateByPackage.get(line.lotProductId) ?? 0) + line.soLuongThucTe,
+        );
+      }
+
+      const lotProductIds = [...aggregateByPackage.keys()];
+      const lotProducts = await prisma.lotProduct.findMany({
+        where: { id: { in: lotProductIds } },
+        select: { id: true, soLuong: true },
+      });
+
+      for (const lp of lotProducts) {
+        const required = aggregateByPackage.get(lp.id) ?? 0;
+        if (required > lp.soLuong) {
+          const firstLine = issueLineInputs.find((l) => l.lotProductId === lp.id);
+          throw new ValidationError(
+            `Tồn kho không đủ cho kiện hàng "${firstLine?.tenSanPham ?? lp.id}". Cần: ${required}, Tồn: ${lp.soLuong}`
+          );
+        }
+      }
+    }
+
+    // 4. Record decisions and update fulfillment status
+    const purchaseRequestService = (await import('./purchaseRequestService')).default;
+    const decisionRecords: Array<{
+      itemId: string;
+      decision: string;
+      fulfilledQty: number;
+      shortageQty: number;
+      shortagePRId: string | null;
+    }> = [];
+
+    for (const line of lines) {
+      const item = itemMap.get(line.itemId)!;
+      const alreadyFulfilled = item.fulfilledQty ?? 0;
+      const newFulfilled = alreadyFulfilled + line.fulfilledQty;
+      const shortage = Math.max(0, item.soLuong - newFulfilled);
+
+      let decision: string;
+      if (newFulfilled === 0) {
+        decision = 'Không cấp';
+      } else if (shortage === 0) {
+        decision = 'Cấp đủ';
+      } else {
+        decision = 'Cấp một phần';
+      }
+
+      let shortagePRId: string | null = null;
+      if (shortage > 0 && line.routeShortageToPurchase !== false) {
+        try {
+          const createdPR = await purchaseRequestService.createPurchaseRequest({
+            employeeId: line.decidedByEmployeeId,
+            maNhanVien: '',
+            tenNhanVien: 'Kho (Tự động)',
+            mucDichYeuCau: `Bổ sung tồn kho từ yêu cầu ${item.supplyRequest.maYeuCau}`,
+            mucDoUuTien: item.supplyRequest.mucDoUuTien,
+            ghiChu: line.reason ?? undefined,
+            supplyRequestId: item.supplyRequestId,
+            sourceType: 'SHORTAGE',
+            isQuickPurchase: false,
+            items: [{
+              phanLoai: item.phanLoai,
+              tenHangHoa: item.tenGoi,
+              soLuong: shortage,
+              donViTinh: item.donViTinh,
+            }],
+          });
+          shortagePRId = (createdPR as { id?: string })?.id ?? null;
+        } catch (prError) {
+          console.error('Error creating shortage purchase request:', prError);
+        }
+      }
+
+      decisionRecords.push({
+        itemId: line.itemId,
+        decision: shortagePRId ? 'Chuyển thu mua' : decision,
+        fulfilledQty: line.fulfilledQty,
+        shortageQty: shortage,
+        shortagePRId,
+      });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      for (const line of lines) {
+        const item = itemMap.get(line.itemId)!;
+        const alreadyFulfilled = item.fulfilledQty ?? 0;
+        const newFulfilled = alreadyFulfilled + line.fulfilledQty;
+        const shortage = Math.max(0, item.soLuong - newFulfilled);
+
+        let fulfillmentStatus: string;
+        if (newFulfilled === 0) fulfillmentStatus = 'Không cấp';
+        else if (shortage === 0) fulfillmentStatus = 'Đã cấp đủ';
+        else fulfillmentStatus = 'Đã cấp một phần';
+
+        await tx.supplyRequestItem.update({
+          where: { id: line.itemId },
+          data: { fulfilledQty: newFulfilled, fulfillmentStatus },
+        });
+      }
+
+      for (const rec of decisionRecords) {
+        const matchingLine = lines.find((l) => l.itemId === rec.itemId);
+        await tx.supplyRequestDecision.create({
+          data: {
+            supplyRequestItemId: rec.itemId,
+            decision: rec.decision,
+            fulfilledQty: rec.fulfilledQty,
+            shortageQty: rec.shortageQty,
+            reason: matchingLine?.reason,
+            decidedByEmployeeId: matchingLine?.decidedByEmployeeId ?? '',
+            triggeredPurchaseRequestId: rec.shortagePRId,
+          },
+        });
+      }
+    });
+
+    // 5. Create one multi-line issue slip for all lines with fulfilledQty > 0
+    if (issueLineInputs.length > 0) {
+      try {
+        const firstLine = issueLineInputs[0];
+        const supplyRequestId = firstLine.supplyRequestId;
+        const employeeId = lines.find((l) => {
+          const item = itemMap.get(l.itemId);
+          return item?.supplyRequestId === supplyRequestId;
+        })?.decidedByEmployeeId ?? lines[0].decidedByEmployeeId;
+
+        const employee = await prisma.employee.findUnique({
+          where: { id: employeeId },
+          select: { employeeCode: true, user: { select: { firstName: true, lastName: true } } },
+        });
+
+        // All lines belong to the same supply request (batch is per-SR)
+        const sr = itemMap.get(lines[0].itemId)?.supplyRequest;
+
+        await warehouseIssueService.create({
+          employeeId,
+          maNhanVien: employee?.employeeCode ?? '',
+          tenNhanVien: employee?.user ? `${employee.user.lastName} ${employee.user.firstName}` : '',
+          ghiChu: `Xuất kho từ cấp phát hàng loạt YC ${sr?.maYeuCau ?? ''}`,
+          supplyRequestId,
+          items: issueLineInputs.map((l) => ({
+            lotProductId: l.lotProductId,
+            tenSanPham: l.tenSanPham,
+            donViTinh: l.donViTinh,
+            warehouseId: l.warehouseId,
+            tenKho: l.tenKho,
+            lotId: l.lotId,
+            tenLo: l.tenLo,
+            soLuongThucTe: l.soLuongThucTe,
+            ghiChu: l.ghiChu,
+          })),
+        });
+      } catch (issueErr) {
+        console.error('Batch warehouse issue creation failed:', issueErr);
+      }
+    }
+
+    // 6. Task 8.4 — Recompute parent SR status
+    const supplyRequestId = itemMap.get(lines[0].itemId)?.supplyRequestId;
+    if (supplyRequestId) {
+      const siblings = await prisma.supplyRequestItem.findMany({
+        where: { supplyRequestId },
+        select: { soLuong: true, fulfilledQty: true, fulfillmentStatus: true },
+      });
+      const allDone = siblings.every((s) => (s.fulfilledQty ?? 0) >= s.soLuong);
+      const anyFulfilled = siblings.some((s) => (s.fulfilledQty ?? 0) > 0);
+
+      try {
+        if (allDone) {
+          await this.onWarehouseDocumentCreated(supplyRequestId);
+        } else if (anyFulfilled) {
+          const sr = await prisma.supplyRequest.findUnique({
+            where: { id: supplyRequestId },
+            select: { employeeId: true, maYeuCau: true },
+          });
+          if (sr) {
+            await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_PARTIAL_FULFILLED, {
+              targetEmployeeIds: [sr.employeeId],
+              entityId: supplyRequestId,
+              metadata: {
+                maYeuCau: sr.maYeuCau,
+                tenGoi: `${lines.length} mặt hàng`,
+                supplyRequestId,
+              },
+            });
+          }
+        }
+      } catch (notifError) {
+        console.error('Error in batchFulfill notification:', notifError);
+      }
+    }
+
+    return { success: true, decisionsCount: decisionRecords.length };
   }
 
   /**

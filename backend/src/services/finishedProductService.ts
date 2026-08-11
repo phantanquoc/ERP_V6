@@ -1,7 +1,6 @@
 import prisma from '@config/database';
 import { NotFoundError, ValidationError, ConflictError } from '@utils/errors';
 import warehouseReceiptService from '@services/warehouseReceiptService';
-import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import { suggestAvailableProductCodeFor } from '@utils/productCode';
 import { getProductionDay, productionDayRange, parseLocalDateTimeAsAppTz } from '@utils/productionDay';
 import ExcelJS from 'exceljs';
@@ -512,61 +511,66 @@ export class FinishedProductService {
       }
     }
 
-    const year = new Date().getFullYear();
-
-    // Build receipt inputs — generate codes sequentially to ensure uniqueness
-    const receiptInputs: Array<{
-      maPhieuNhap: string;
-      employeeId: string;
-      maNhanVien: string;
-      tenNhanVien: string;
-      warehouseId: string;
-      tenKho: string;
-      lotId: string;
-      tenLo: string;
-      tenSanPham: string;
-      soLuongNhap: number;
-      donViTinh: string;
-      ghiChu: string;
-    }> = [];
+    // Build receipt items — one header with multiple lines (task 7.4)
+    const items: Array<{ lotProductId: string; tenSanPham: string; donViTinh: string; warehouseId: string; tenKho: string; lotId: string; tenLo: string; soLuongThucTe: number; ghiChu: string; loaiSanPham: string }> = [];
 
     for (const row of rows) {
-      const last = await prisma.warehouseReceipt.findFirst({
-        where: { maPhieuNhap: yearlyCodeWhere('PN', year) },
-        orderBy: { maPhieuNhap: 'desc' },
-        select: { maPhieuNhap: true },
+      // Resolve product and lot product
+      let product = await prisma.internationalProduct.findFirst({
+        where: { tenSanPham: { equals: row.tenSanPham, mode: 'insensitive' } },
       });
-      // Also account for codes already generated in this loop
-      const lastInLoop = receiptInputs.length > 0 ? receiptInputs[receiptInputs.length - 1].maPhieuNhap : null;
-      const lastCode = lastInLoop && (!last?.maPhieuNhap || lastInLoop > last.maPhieuNhap)
-        ? lastInLoop
-        : (last?.maPhieuNhap ?? null);
+      if (!product) {
+        const maSanPham = await suggestAvailableProductCodeFor(prisma, {
+          tenSanPham: row.tenSanPham,
+          loaiSanPham: 'Thành phẩm sấy',
+        });
+        product = await prisma.internationalProduct.create({
+          data: { maSanPham, tenSanPham: row.tenSanPham, donViTinh: row.donViTinh || 'Kg', loaiSanPham: 'Thành phẩm sấy' },
+        });
+      }
 
-      receiptInputs.push({
-        maPhieuNhap: nextYearlyCode(lastCode, 'PN', year),
-        employeeId: userId,
-        maNhanVien,
-        tenNhanVien,
+      let lpRecord = await prisma.lotProduct.findFirst({
+        where: { lotId, internationalProductId: product.id },
+      });
+      if (!lpRecord) {
+        lpRecord = await prisma.lotProduct.create({
+          data: { lotId, internationalProductId: product.id, soLuong: 0, donViTinh: row.donViTinh || 'Kg' },
+        });
+        const autoMaKien = `${lot.tenLo}-${lpRecord.id.slice(-4)}`;
+        lpRecord = await prisma.lotProduct.update({
+          where: { id: lpRecord.id },
+          data: { maKien: autoMaKien },
+        });
+      }
+
+      items.push({
+        lotProductId: lpRecord.id,
+        tenSanPham: row.tenSanPham,
+        donViTinh: row.donViTinh || 'Kg',
         warehouseId,
         tenKho: warehouse.tenKho,
         lotId,
         tenLo: lot.tenLo,
-        tenSanPham: row.tenSanPham,
-        soLuongNhap: row.soLuongNhap,
-        donViTinh: row.donViTinh || 'Kg',
-        ghiChu: `Nhập kho thành phẩm từ mẻ sản xuất`,
+        soLuongThucTe: row.soLuongNhap,
+        ghiChu: 'Nhập kho thành phẩm từ mẻ sản xuất',
+        loaiSanPham: 'Thành phẩm sấy',
       });
     }
 
-    const receipts = await warehouseReceiptService.batchCreate(receiptInputs);
-
-    // Mark the finished product as received (atomically after successful receipt creation)
     await prisma.finishedProduct.update({
       where: { id: finishedProductId },
       data: { daNhapKho: true },
     });
 
-    return receipts;
+    const receipt = await warehouseReceiptService.create({
+      employeeId: userId,
+      maNhanVien,
+      tenNhanVien,
+      ghiChu: 'Nhập kho thành phẩm từ mẻ sản xuất',
+      items,
+    });
+
+    return [receipt];
   }
 
   /**
@@ -646,37 +650,32 @@ export class FinishedProductService {
       throw new ConflictError(`Các mẻ chiên sau đã được nhập kho, không thể nhập kho lại: ${maChienSet}`);
     }
 
-    const year = new Date().getFullYear();
-
-    // Build receipt inputs for all maChien inside the transaction
-    await prisma.$transaction(async (tx) => {
-      // Get the last receipt code once before the loop
-      const lastExisting = await tx.warehouseReceipt.findFirst({
-        where: { maPhieuNhap: yearlyCodeWhere('PN', year) },
-        orderBy: { maPhieuNhap: 'desc' },
-        select: { maPhieuNhap: true },
-      });
-      let lastCode: string | null = lastExisting?.maPhieuNhap ?? null;
-
-      // Cache base product loaiSanPham by tenHangHoa (populated inside the loop below)
-      const loaiSanPhamCache = new Map<string, string | null>();
-
-      // Build receipt rows per maChien and accumulate
-      const receiptInputs: Array<{
-        maPhieuNhap: string;
-        employeeId: string;
-        maNhanVien: string;
-        tenNhanVien: string;
+    // Task 7.1-7.3: Inside the transaction, resolve products and lot products,
+    // then mark FP as received. Receipt headers are created after commit via
+    // warehouseReceiptService.create(), which handles code generation, snapshot
+    // chaining, and stock updates in its own atomic transaction.
+    const receiptInputs: Array<{
+      maChien: string;
+      employeeId: string;
+      maNhanVien: string;
+      tenNhanVien: string;
+      items: Array<{
+        lotProductId: string;
+        tenSanPham: string;
+        donViTinh: string;
         warehouseId: string;
         tenKho: string;
         lotId: string;
         tenLo: string;
-        tenSanPham: string;
-        tenHangHoaBase: string;
-        soLuongNhap: number;
-        donViTinh: string;
+        soLuongThucTe: number;
         ghiChu: string;
-      }> = [];
+        loaiSanPham: string;
+      }>;
+    }> = [];
+
+    await prisma.$transaction(async (tx) => {
+      // Cache base product loaiSanPham by tenHangHoa
+      const loaiSanPhamCache = new Map<string, string | null>();
 
       for (const maChien of maChienList) {
         const fps = allFPs.filter((fp) => fp.maChien === maChien);
@@ -687,10 +686,8 @@ export class FinishedProductService {
           sums[field] = fps.reduce((acc, fp) => acc + ((fp as any)[field] as number || 0), 0);
         }
 
-        // Use first FP's tenHangHoa for the SKU prefix
         const tenHangHoa = fps[0].tenHangHoa;
 
-        // Populate loaiSanPham cache for this base product (once per tenHangHoa)
         if (!loaiSanPhamCache.has(tenHangHoa)) {
           const baseProduct = await tx.internationalProduct.findFirst({
             where: { tenSanPham: { equals: tenHangHoa, mode: 'insensitive' } },
@@ -699,99 +696,77 @@ export class FinishedProductService {
           loaiSanPhamCache.set(tenHangHoa, baseProduct?.loaiSanPham ?? null);
         }
 
-        // Build rows, skip grades with sum = 0
+        const items: Array<{
+          lotProductId: string;
+          tenSanPham: string;
+          donViTinh: string;
+          warehouseId: string;
+          tenKho: string;
+          lotId: string;
+          tenLo: string;
+          soLuongThucTe: number;
+          ghiChu: string;
+          loaiSanPham: string;
+        }> = [];
+
         for (const field of GRADE_FIELDS) {
           const weight = sums[field];
           if (!weight || weight <= 0) continue;
 
-          lastCode = nextYearlyCode(lastCode, 'PN', year);
-          receiptInputs.push({
-            maPhieuNhap: lastCode,
-            employeeId: userId,
-            maNhanVien,
-            tenNhanVien,
+          const tenSanPham = `${tenHangHoa} - ${GRADE_LABELS[field]}`;
+
+          let product = await tx.internationalProduct.findFirst({
+            where: { tenSanPham: { equals: tenSanPham, mode: 'insensitive' } },
+          });
+          if (!product) {
+            const cachedLoai = loaiSanPhamCache.get(tenHangHoa);
+            const loaiSanPham = cachedLoai ? cachedLoai : 'Thành phẩm sấy';
+            const maSanPham = await suggestAvailableProductCodeFor(tx, {
+              tenSanPham,
+              loaiSanPham,
+            });
+            product = await tx.internationalProduct.create({
+              data: { maSanPham, tenSanPham, donViTinh: 'Kg', loaiSanPham },
+            });
+          }
+
+          let lpRecord = await tx.lotProduct.findFirst({
+            where: { lotId, internationalProductId: product.id },
+          });
+          if (!lpRecord) {
+            lpRecord = await tx.lotProduct.create({
+              data: { lotId, internationalProductId: product.id, soLuong: 0, donViTinh: 'Kg' },
+            });
+            const autoMaKien = `${lot.tenLo}-${lpRecord.id.slice(-4)}`;
+            lpRecord = await tx.lotProduct.update({
+              where: { id: lpRecord.id },
+              data: { maKien: autoMaKien },
+            });
+          }
+
+          items.push({
+            lotProductId: lpRecord.id,
+            tenSanPham,
+            donViTinh: 'Kg',
             warehouseId,
             tenKho: warehouse.tenKho,
             lotId,
             tenLo: lot.tenLo,
-            tenSanPham: `${tenHangHoa} - ${GRADE_LABELS[field]}`,
-            tenHangHoaBase: tenHangHoa,
-            soLuongNhap: weight,
-            donViTinh: 'Kg',
+            soLuongThucTe: weight,
             ghiChu: `Nhập kho thành phẩm từ mẻ chiên ${maChien} (tổng các máy)`,
-          });
-        }
-      }
-
-      // Create all receipts (each resolves/creates LotProduct and updates soLuong)
-      for (const input of receiptInputs) {
-        const soLuongNhapFloat = parseFloat(input.soLuongNhap.toString());
-        // Resolve lot product (create if needed)
-        let lotProduct = await tx.internationalProduct.findFirst({
-          where: { tenSanPham: { equals: input.tenSanPham, mode: 'insensitive' } },
-        });
-        if (!lotProduct) {
-          const cachedLoai = loaiSanPhamCache.get(input.tenHangHoaBase);
-          const loaiSanPham = cachedLoai ? cachedLoai : 'Thành phẩm sấy';
-          // Codes follow LOAI-STT-TENVIETTAT. The previous implementation matched
-          // `startsWith: 'SP'`, which also caught real codes like SPK-MSV2, and
-          // parseInt('K-MSV2') produced NaN -> a literal 'SPNaN' code.
-          const maSanPham = await suggestAvailableProductCodeFor(tx, {
-            tenSanPham: input.tenSanPham,
-            loaiSanPham,
-          });
-          lotProduct = await tx.internationalProduct.create({
-            data: { maSanPham, tenSanPham: input.tenSanPham, donViTinh: 'Kg', loaiSanPham },
+            loaiSanPham: loaiSanPhamCache.get(tenHangHoa) ?? 'Thành phẩm sấy',
           });
         }
 
-        let lpRecord = await tx.lotProduct.findFirst({
-          where: { lotId: input.lotId, internationalProductId: lotProduct.id },
-        });
-        if (!lpRecord) {
-          lpRecord = await tx.lotProduct.create({
-            data: {
-              lotId: input.lotId,
-              internationalProductId: lotProduct.id,
-              soLuong: 0,
-              donViTinh: 'Kg',
-            },
-          });
-          // Auto-generate maKien from tenLo + last 4 chars of id
-          const autoMaKien = `${input.tenLo}-${lpRecord.id.slice(-4)}`;
-          lpRecord = await tx.lotProduct.update({
-            where: { id: lpRecord.id },
-            data: { maKien: autoMaKien },
+        if (items.length > 0) {
+          receiptInputs.push({
+            maChien,
+            employeeId: userId,
+            maNhanVien,
+            tenNhanVien,
+            items,
           });
         }
-
-        const soLuongTruoc = lpRecord.soLuong;
-        const soLuongSau = soLuongTruoc + soLuongNhapFloat;
-
-        await tx.warehouseReceipt.create({
-          data: {
-            maPhieuNhap: input.maPhieuNhap,
-            employeeId: input.employeeId,
-            maNhanVien: input.maNhanVien,
-            tenNhanVien: input.tenNhanVien,
-            warehouseId: input.warehouseId,
-            tenKho: input.tenKho,
-            lotId: input.lotId,
-            tenLo: input.tenLo,
-            lotProductId: lpRecord.id,
-            tenSanPham: input.tenSanPham,
-            soLuongTruoc,
-            soLuongNhap: soLuongNhapFloat,
-            soLuongSau,
-            donViTinh: input.donViTinh,
-            ghiChu: input.ghiChu,
-          },
-        });
-
-        await tx.lotProduct.update({
-          where: { id: lpRecord.id },
-          data: { soLuong: soLuongSau },
-        });
       }
 
       // Mark all FinishedProduct rows of selected maChien as received (day-scoped)
@@ -800,6 +775,19 @@ export class FinishedProductService {
         data: { daNhapKho: true },
       });
     });
+
+    // Create one receipt header per maChien AFTER the transaction commits.
+    // warehouseReceiptService.create() handles code generation, sequential
+    // snapshot chaining (D5), and stock updates in its own atomic transaction.
+    for (const input of receiptInputs) {
+      await warehouseReceiptService.create({
+        employeeId: input.employeeId,
+        maNhanVien: input.maNhanVien,
+        tenNhanVien: input.tenNhanVien,
+        ghiChu: `Nhập kho thành phẩm từ mẻ chiên ${input.maChien} (tổng các máy)`,
+        items: input.items,
+      });
+    }
 
     return { success: true };
   }

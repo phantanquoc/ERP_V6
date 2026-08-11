@@ -47,6 +47,7 @@ jest.mock('@services/warehouseReceiptService', () => ({
   __esModule: true,
   default: {
     batchCreate: jest.fn(),
+    create: jest.fn().mockResolvedValue({ id: 'receipt-1', maPhieuNhap: 'PN2026-001', items: [] }),
   },
 }));
 
@@ -62,6 +63,7 @@ jest.mock('@utils/codeGenerator', () => ({
 
 import prisma from '@config/database';
 import { FinishedProductService } from '@services/finishedProductService';
+import warehouseReceiptService from '@services/warehouseReceiptService';
 import { ValidationError, NotFoundError, ConflictError } from '@utils/errors';
 
 const service = new FinishedProductService();
@@ -304,8 +306,10 @@ describe('confirmBulkFinishedProductWarehouseReceipt — happy path', () => {
       USER_ID,
     );
 
-    // warehouseReceipt.create should have been called exactly twice (A + B)
-    expect(mockTx.warehouseReceipt.create).toHaveBeenCalledTimes(2);
+    // warehouseReceiptService.create called once with 2 line items (A + B)
+    expect(warehouseReceiptService.create).toHaveBeenCalledTimes(1);
+    const callArg = (warehouseReceiptService.create as jest.Mock).mock.calls[0][0];
+    expect(callArg.items).toHaveLength(2);
   });
 
   it('sums grades across multiple machines for the same maChien', async () => {
@@ -323,14 +327,16 @@ describe('confirmBulkFinishedProductWarehouseReceipt — happy path', () => {
       USER_ID,
     );
 
-    // One receipt row for grade A with soLuongNhap = 50
-    expect(mockTx.warehouseReceipt.create).toHaveBeenCalledTimes(1);
-    expect(mockTx.warehouseReceipt.create).toHaveBeenCalledWith(
+    // One receipt created for grade A with soLuongThucTe = 50
+    expect(warehouseReceiptService.create).toHaveBeenCalledTimes(1);
+    expect(warehouseReceiptService.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({
-          soLuongNhap: 50,
-          tenSanPham: expect.stringContaining('Loại A'),
-        }),
+        items: expect.arrayContaining([
+          expect.objectContaining({
+            soLuongThucTe: 50,
+            tenSanPham: expect.stringContaining('Loại A'),
+          }),
+        ]),
       }),
     );
   });
@@ -354,7 +360,7 @@ describe('confirmBulkFinishedProductWarehouseReceipt — zero-grade skip', () =>
     );
 
     // No receipt rows created — all grades were 0
-    expect(mockTx.warehouseReceipt.create).not.toHaveBeenCalled();
+    expect(warehouseReceiptService.create).not.toHaveBeenCalled();
 
     // But daNhapKho should still be set to true
     expect(mockTx.finishedProduct.updateMany).toHaveBeenCalledWith(
@@ -379,13 +385,15 @@ describe('confirmBulkFinishedProductWarehouseReceipt — zero-grade skip', () =>
     );
 
     // Exactly one receipt created (Phế phẩm)
-    expect(mockTx.warehouseReceipt.create).toHaveBeenCalledTimes(1);
-    expect(mockTx.warehouseReceipt.create).toHaveBeenCalledWith(
+    expect(warehouseReceiptService.create).toHaveBeenCalledTimes(1);
+    expect(warehouseReceiptService.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({
-          tenSanPham: expect.stringContaining('Phế phẩm'),
-          soLuongNhap: 15,
-        }),
+        items: expect.arrayContaining([
+          expect.objectContaining({
+            tenSanPham: expect.stringContaining('Phế phẩm'),
+            soLuongThucTe: 15,
+          }),
+        ]),
       }),
     );
   });
