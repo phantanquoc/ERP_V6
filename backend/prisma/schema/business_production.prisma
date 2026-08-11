@@ -47,20 +47,20 @@ model SupplyRequest {
 }
 
 model SupplyRequestItem {
-  id                 String                    @id @default(cuid())
-  supplyRequestId    String
-  phanLoai           String
-  tenGoi             String
-  soLuong            Float
-  donViTinh          String
+  id                String                  @id @default(cuid())
+  supplyRequestId   String
+  phanLoai          String
+  tenGoi            String
+  soLuong           Float
+  donViTinh         String
   // Fulfillment tracking — how much has actually been delivered to requester (from warehouse issues)
-  fulfilledQty       Float                     @default(0)
+  fulfilledQty      Float                   @default(0)
   // Per-item status: "Chờ xử lý" | "Đủ tồn kho" | "Thiếu tồn kho" | "Đã cấp một phần" | "Đã cấp đủ" | "Đã hủy"
-  fulfillmentStatus  String                    @default("Chờ xử lý")
-  createdAt          DateTime                  @default(now())
-  updatedAt          DateTime                  @updatedAt
-  supplyRequest      SupplyRequest             @relation(fields: [supplyRequestId], references: [id], onDelete: Cascade)
-  decisions          SupplyRequestDecision[]
+  fulfillmentStatus String                  @default("Chờ xử lý")
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  supplyRequest     SupplyRequest           @relation(fields: [supplyRequestId], references: [id], onDelete: Cascade)
+  decisions         SupplyRequestDecision[]
 
   @@map("supply_request_items")
   @@schema("business")
@@ -68,21 +68,21 @@ model SupplyRequestItem {
 
 // Audit trail — every warehouse decision on an internal supply request item
 model SupplyRequestDecision {
-  id                    String            @id @default(cuid())
-  supplyRequestItemId   String
+  id                         String            @id @default(cuid())
+  supplyRequestItemId        String
   // "Cấp đủ" | "Cấp một phần" | "Không cấp" | "Chuyển thu mua"
-  decision              String
-  fulfilledQty          Float             @default(0)
-  shortageQty           Float             @default(0)
-  reason                String?
+  decision                   String
+  fulfilledQty               Float             @default(0)
+  shortageQty                Float             @default(0)
+  reason                     String?
   // Employee (warehouse staff) who made the decision
-  decidedByEmployeeId   String
-  decidedAt             DateTime          @default(now())
+  decidedByEmployeeId        String
+  decidedAt                  DateTime          @default(now())
   // Optional link to auto-created purchase request when decision routes shortage to procurement
   triggeredPurchaseRequestId String?
-  createdAt             DateTime          @default(now())
-  updatedAt             DateTime          @updatedAt
-  supplyRequestItem     SupplyRequestItem @relation(fields: [supplyRequestItemId], references: [id], onDelete: Cascade)
+  createdAt                  DateTime          @default(now())
+  updatedAt                  DateTime          @updatedAt
+  supplyRequestItem          SupplyRequestItem @relation(fields: [supplyRequestItemId], references: [id], onDelete: Cascade)
 
   @@index([supplyRequestItemId])
   @@index([decidedByEmployeeId])
@@ -179,20 +179,20 @@ model Supplier {
 }
 
 model warehouses {
-  id              String            @id
-  maKho           String            @unique
-  tenKho          String
-  loaiKho         String?
-  diaChi          String?
-  dienTich        Float?
-  sucChua         Float?
-  nguoiQuanLy     String?
-  soDienThoai     String?
-  trangThai       String            @default("active")
-  ghiChu          String?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime
-  lots            Lot[]
+  id          String   @id
+  maKho       String   @unique
+  tenKho      String
+  loaiKho     String?
+  diaChi      String?
+  dienTich    Float?
+  sucChua     Float?
+  nguoiQuanLy String?
+  soDienThoai String?
+  trangThai   String   @default("active")
+  ghiChu      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  lots        Lot[]
 
   @@schema("business")
 }
@@ -211,20 +211,20 @@ model Lot {
 }
 
 model LotProduct {
-  id                     String               @id @default(cuid())
+  id                     String                 @id @default(cuid())
   lotId                  String
   internationalProductId String
   soLuong                Float
   donViTinh              String
   maKien                 String?
-  createdAt              DateTime             @default(now())
-  updatedAt              DateTime             @updatedAt
-  giaThanh               Float?               @default(100000)
-  internationalProduct   InternationalProduct @relation(fields: [internationalProductId], references: [id], onDelete: Cascade)
-  lot                    Lot                  @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  giaThanh               Float?                 @default(100000)
+  internationalProduct   InternationalProduct   @relation(fields: [internationalProductId], references: [id], onDelete: Cascade)
+  lot                    Lot                    @relation(fields: [lotId], references: [id], onDelete: Cascade)
   materialEvaluations    MaterialEvaluation[]
-  warehouseReceipts      WarehouseReceipt[]
-  warehouseIssues        WarehouseIssue[]
+  warehouseReceipts      WarehouseReceiptItem[]
+  warehouseIssues        WarehouseIssueItem[]
 
   @@unique([lotId, maKien])
   @@map("lot_products")
@@ -232,65 +232,149 @@ model LotProduct {
 }
 
 model WarehouseReceipt {
-  id              String         @id @default(cuid())
-  maPhieuNhap     String         @unique
-  ngayNhap        DateTime       @default(now())
-  employeeId      String
-  maNhanVien      String
-  tenNhanVien     String
-  warehouseId     String
-  tenKho          String
-  lotId           String
-  tenLo           String
-  lotProductId    String
-  tenSanPham      String
-  soLuongTruoc    Float          @default(0) // Số lượng tồn kho trước khi nhập
-  soLuongNhap     Float
-  soLuongSau      Float          @default(0) // Số lượng tồn kho sau khi nhập
-  donViTinh       String
-  mucDich         String?        // Mục đích nhập kho (VD: "Nhập từ thu mua", "Nhập thành phẩm")
-  ghiChu          String?
-  supplyRequestId String?
-  supplyRequest   SupplyRequest? @relation(fields: [supplyRequestId], references: [id])
-  lotProduct      LotProduct     @relation(fields: [lotProductId], references: [id], onDelete: Restrict)
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  id                String                 @id @default(cuid())
+  maPhieuNhap       String                 @unique
+  ngayNhap          DateTime               @default(now())
+  employeeId        String
+  maNhanVien        String
+  tenNhanVien       String
+  // @deprecated — item-level column, kept for backward compatibility; use items relation instead
+  warehouseId       String?
+  // @deprecated — item-level column, kept for backward compatibility; use items relation instead
+  tenKho            String?
+  // @deprecated — item-level column, kept for backward compatibility; use items relation instead
+  lotId             String?
+  // @deprecated — item-level column, kept for backward compatibility; use items relation instead
+  tenLo             String?
+  // @deprecated — item-level column, kept for backward compatibility; use items relation instead
+  lotProductId      String?
+  // @deprecated — item-level column, kept for backward compatibility; use items relation instead
+  tenSanPham        String?
+  // @deprecated — item-level column, kept for backward compatibility; use items relation instead
+  soLuongTruoc      Float?                 @default(0) // Số lượng tồn kho trước khi nhập
+  // @deprecated — item-level column, kept for backward compatibility; use items relation instead
+  soLuongNhap       Float?
+  // @deprecated — item-level column, kept for backward compatibility; use items relation instead
+  soLuongSau        Float?                 @default(0) // Số lượng tồn kho sau khi nhập
+  // @deprecated — item-level column, kept for backward compatibility; use items relation instead
+  donViTinh         String?
+  mucDich           String? // Mục đích nhập kho (VD: "Nhập từ thu mua", "Nhập thành phẩm")
+  ghiChu            String?
+  supplyRequestId   String?
+  supplyRequest     SupplyRequest?         @relation(fields: [supplyRequestId], references: [id])
+  // Derived totals across items — recomputed inside the same transaction as any item mutation
+  tongSoLuongThucTe Float                  @default(0)
+  soDongHang        Int                    @default(0)
+  items             WarehouseReceiptItem[]
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
 
   @@map("warehouse_receipts")
   @@schema("business")
 }
 
+model WarehouseReceiptItem {
+  id            String           @id @default(cuid())
+  receiptId     String
+  stt           Int
+  lotProductId  String
+  tenSanPham    String
+  donViTinh     String
+  warehouseId   String
+  tenKho        String
+  lotId         String
+  tenLo         String
+  soLuongYeuCau Float
+  soLuongThucTe Float
+  soLuongTruoc  Float
+  soLuongSau    Float
+  donGia        Float?
+  thanhTien     Float?
+  ghiChu        String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  receipt       WarehouseReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  lotProduct    LotProduct       @relation(fields: [lotProductId], references: [id], onDelete: Restrict)
+
+  @@index([receiptId])
+  @@index([lotProductId])
+  @@map("warehouse_receipt_items")
+  @@schema("business")
+}
+
 model WarehouseIssue {
-  id              String              @id @default(cuid())
-  maPhieuXuat     String              @unique
-  ngayXuat        DateTime            @default(now())
-  employeeId      String
-  maNhanVien      String
-  tenNhanVien     String
-  warehouseId     String
-  tenKho          String
-  lotId           String
-  tenLo           String
-  lotProductId    String
-  tenSanPham      String
-  soLuongTruoc    Float               @default(0) // Số lượng tồn kho trước khi xuất
-  soLuongXuat     Float
-  soLuongSau      Float               @default(0) // Số lượng tồn kho sau khi xuất
-  donViTinh       String
-  ghiChu          String?
-  supplyRequestId String?
-  supplyRequest   SupplyRequest?      @relation(fields: [supplyRequestId], references: [id])
-  lotProduct      LotProduct          @relation(fields: [lotProductId], references: [id], onDelete: Restrict)
+  id                 String               @id @default(cuid())
+  maPhieuXuat        String               @unique
+  ngayXuat           DateTime             @default(now())
+  employeeId         String
+  maNhanVien         String
+  tenNhanVien        String
+  // @deprecated — item-level column, kept for backward compatibility; use items relation instead
+  warehouseId        String?
+  // @deprecated — item-level column, kept for backward compatibility; use items relation instead
+  tenKho             String?
+  // @deprecated — item-level column, kept for backward compatibility; use items relation instead
+  lotId              String?
+  // @deprecated — item-level column, kept for backward compatibility; use items relation instead
+  tenLo              String?
+  // @deprecated — item-level column, kept for backward compatibility; use items relation instead
+  lotProductId       String?
+  // @deprecated — item-level column, kept for backward compatibility; use items relation instead
+  tenSanPham         String?
+  // @deprecated — item-level column, kept for backward compatibility; use items relation instead
+  soLuongTruoc       Float?               @default(0) // Số lượng tồn kho trước khi xuất
+  // @deprecated — item-level column, kept for backward compatibility; use items relation instead
+  soLuongXuat        Float?
+  // @deprecated — item-level column, kept for backward compatibility; use items relation instead
+  soLuongSau         Float?               @default(0) // Số lượng tồn kho sau khi xuất
+  // @deprecated — item-level column, kept for backward compatibility; use items relation instead
+  donViTinh          String?
+  ghiChu             String?
+  supplyRequestId    String?
+  supplyRequest      SupplyRequest?       @relation(fields: [supplyRequestId], references: [id])
   materialEvaluation MaterialEvaluation?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  // Derived totals across items — recomputed inside the same transaction as any item mutation
+  tongSoLuongThucTe  Float                @default(0)
+  soDongHang         Int                  @default(0)
+  items              WarehouseIssueItem[]
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
 
   @@map("warehouse_issues")
   @@schema("business")
 }
 
+model WarehouseIssueItem {
+  id            String         @id @default(cuid())
+  issueId       String
+  stt           Int
+  lotProductId  String
+  tenSanPham    String
+  donViTinh     String
+  warehouseId   String
+  tenKho        String
+  lotId         String
+  tenLo         String
+  soLuongYeuCau Float
+  soLuongThucTe Float
+  soLuongTruoc  Float
+  soLuongSau    Float
+  donGia        Float?
+  thanhTien     Float?
+  ghiChu        String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  issue         WarehouseIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  lotProduct    LotProduct     @relation(fields: [lotProductId], references: [id], onDelete: Restrict)
+
+  @@index([issueId])
+  @@index([lotProductId])
+  @@map("warehouse_issue_items")
+  @@schema("business")
+}
+
 model MaterialEvaluation {
-  id                   String   @id @default(cuid())
+  id                   String    @id @default(cuid())
   maChien              String
   thoiGianChien        DateTime
   ngaySanXuat          DateTime? @db.Date // Production day (06:30 boundary); nullable for pre-backfill rows
@@ -311,14 +395,14 @@ model MaterialEvaluation {
   nguoiThucHien        String
 
   // Warehouse integration (nullable, SetNull on warehouse delete)
-  lotProductId         String?
-  lotProduct           LotProduct?     @relation(fields: [lotProductId], references: [id], onDelete: SetNull)
-  warehouseIssueId     String?         @unique
-  warehouseIssue       WarehouseIssue? @relation(fields: [warehouseIssueId], references: [id], onDelete: SetNull)
+  lotProductId     String?
+  lotProduct       LotProduct?     @relation(fields: [lotProductId], references: [id], onDelete: SetNull)
+  warehouseIssueId String?         @unique
+  warehouseIssue   WarehouseIssue? @relation(fields: [warehouseIssueId], references: [id], onDelete: SetNull)
 
-  createdById          String? // soft ref to auth.User.id — no FK constraint
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdById String? // soft ref to auth.User.id — no FK constraint
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   systemOperations   SystemOperation[]
   finishedProducts   FinishedProduct[]
@@ -345,12 +429,12 @@ model MaterialEvaluationCriteria {
 }
 
 model SystemOperation {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   maChien         String
   machineSystemId String?
   thoiGianChien   DateTime
   ngaySanXuat     DateTime? @db.Date // Production day (06:30 boundary)
-  khoiLuongDauVao Float?   @default(0)
+  khoiLuongDauVao Float?    @default(0)
 
   // Giai đoạn 1
   giaiDoan1ThoiGian Int   @default(0)
@@ -392,7 +476,7 @@ model SystemOperation {
 }
 
 model FinishedProduct {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   maChien       String
   thoiGianChien DateTime
   ngaySanXuat   DateTime? @db.Date // Production day (06:30 boundary)
@@ -456,8 +540,8 @@ model FinishedProduct {
   nguoiThucHien String
 
   createdById        String? // soft ref to auth.User.id — no FK constraint
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  createdAt          DateTime                      @default(now())
+  updatedAt          DateTime                      @updatedAt
   qualityEvaluations QualityEvaluation[]
   entryHistory       FinishedProductEntryHistory[]
 
@@ -471,18 +555,18 @@ model FinishedProduct {
 }
 
 model FinishedProductEntryHistory {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   finishedProductId String
   maChien           String
   ngaySanXuat       DateTime? @db.Date
   machineSystemId   String?
-  grade             String   // e.g. "aKhoiLuong", "bKhoiLuong", etc.
-  khoiLuong         Float    // the weight value entered for this grade
-  employeeId        String?  // soft ref to common.Employee.id — no FK constraint
-  employeeName      String?  // denormalized name for display
-  enteredAt         DateTime @default(now())
+  grade             String // e.g. "aKhoiLuong", "bKhoiLuong", etc.
+  khoiLuong         Float // the weight value entered for this grade
+  employeeId        String? // soft ref to common.Employee.id — no FK constraint
+  employeeName      String? // denormalized name for display
+  enteredAt         DateTime  @default(now())
 
-  finishedProduct   FinishedProduct @relation(fields: [finishedProductId], references: [id], onDelete: Cascade)
+  finishedProduct FinishedProduct @relation(fields: [finishedProductId], references: [id], onDelete: Cascade)
 
   @@index([finishedProductId])
   @@index([maChien, ngaySanXuat, machineSystemId])
@@ -492,12 +576,12 @@ model FinishedProductEntryHistory {
 }
 
 model QualityEvaluation {
-  id            String @id @default(uuid())
+  id            String    @id @default(uuid())
   maChien       String
   thoiGianChien String
   ngaySanXuat   DateTime? @db.Date // Production day (06:30 boundary)
   tenHangHoa    String
-  mauSac        String @default("")
+  mauSac        String    @default("")
 
   // Relation to MachineSystem
   machineSystemId String?
@@ -537,8 +621,8 @@ model QualityEvaluation {
   nguoiThucHien String
 
   createdById String? // soft ref to auth.User.id — no FK constraint
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@unique([maChien, ngaySanXuat, machineSystemId])
   @@index([machineSystemId])
@@ -566,8 +650,8 @@ model ProductionReport {
   nguoiThucHien                 String  @default("") // Người thực hiện
 
   createdById String? // soft ref to auth.User.id — no FK constraint
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([createdById])
   @@map("production_reports")
