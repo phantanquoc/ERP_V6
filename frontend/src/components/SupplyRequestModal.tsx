@@ -132,7 +132,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
     for (let i = 0; i < items.length; i++) {
       const row = items[i];
       if (!row.tenGoi || !row.tenGoi.trim()) {
-        return `Dòng ${i + 1}: Vui lòng chọn hoặc nhập tên sản phẩm`;
+        return `Dòng ${i + 1}: Vui lòng chọn hoặc nhập tên hàng hóa`;
       }
       if (!row.soLuong || row.soLuong <= 0) {
         return `Dòng ${i + 1}: Số lượng phải lớn hơn 0`;
@@ -143,7 +143,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
     const productNames = items.map(r => r.tenGoi.trim().toLowerCase());
     const duplicates = productNames.filter((name, idx) => productNames.indexOf(name) !== idx);
     if (duplicates.length > 0) {
-      return `Sản phẩm "${items.find(r => r.tenGoi.trim().toLowerCase() === duplicates[0])?.tenGoi}" bị trùng lặp`;
+      return `Hàng hóa "${items.find(r => r.tenGoi.trim().toLowerCase() === duplicates[0])?.tenGoi}" bị trùng lặp`;
     }
 
     if (!mucDichYeuCau.trim()) {
@@ -223,7 +223,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
         <div>
           <div className="flex items-center justify-between mb-2">
             <label className="block text-sm font-medium text-gray-700">
-              Danh sách sản phẩm <span className="text-red-500">*</span>
+              Danh sách hàng hóa <span className="text-red-500">*</span>
             </label>
             <button
               type="button"
@@ -231,7 +231,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
             >
               <Plus className="h-4 w-4" />
-              Thêm sản phẩm
+              Thêm hàng hóa
             </button>
           </div>
 
@@ -239,7 +239,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
             <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
               <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
               <p className="text-sm text-amber-800">
-                Một số sản phẩm có số lượng yêu cầu <strong>lớn hơn tồn kho hiện tại</strong>. Vui lòng kiểm tra lại.
+                Một số hàng hóa có số lượng yêu cầu <strong>lớn hơn tồn kho hiện tại</strong>. Vui lòng kiểm tra lại.
               </p>
             </div>
           )}
@@ -263,7 +263,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
                       {/* Product combobox */}
                       <div>
                         <label className="block text-xs font-medium text-gray-600 mb-1">
-                          Sản phẩm <span className="text-red-500">*</span>
+                          Hàng hóa <span className="text-red-500">*</span>
                         </label>
                         <ProductCombobox
                           products={products}
@@ -271,8 +271,14 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
                           onChange={(productId, product) => handleProductSelect(index, productId, product)}
                           onCreateNew={(name) => handleCreateNew(index, name)}
                           allowCreate
-                          placeholder="Tìm theo mã, tên hoặc loại sản phẩm..."
+                          placeholder="Tìm theo mã, tên hoặc loại hàng hóa, hoặc nhập tên mới..."
                         />
+                        {!row.internationalProductId && row.tenGoi && (
+                          <p className="mt-1.5 text-xs text-blue-600 flex items-center gap-1">
+                            <span className="inline-block w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
+                            Hàng hóa chưa có trong danh sách — sẽ được tạo khi submit
+                          </p>
+                        )}
                         {row.stockInfo && (
                           <div className={`mt-1.5 flex items-center gap-1.5 text-xs ${
                             hasStockWarning ? 'text-amber-700' : 'text-green-700'
@@ -326,7 +332,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
                       onClick={() => removeRow(index)}
                       disabled={items.length === 1}
                       className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors disabled:text-gray-300 disabled:cursor-not-allowed disabled:hover:bg-transparent mt-1"
-                      title="Xóa sản phẩm"
+                      title="Xóa hàng hóa"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
