@@ -36,7 +36,8 @@ class SupplyRequestController {
 
   async createSupplyRequest(req: Request, res: Response, next: NextFunction) {
     try {
-      const supplyRequest = await supplyRequestService.createSupplyRequest(req.body);
+      const user = (req as any).user;
+      const supplyRequest = await supplyRequestService.createSupplyRequest(req.body, user?.role);
 
       return res.status(201).json({
         success: true,

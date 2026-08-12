@@ -136,10 +136,11 @@ class SupplyRequestService {
     return supplyRequest;
   }
 
-  async createSupplyRequest(data: CreateSupplyRequestRequest) {
+  async createSupplyRequest(data: CreateSupplyRequestRequest, userRole?: string) {
     // Validate employeeId exists
     const employee = await prisma.employee.findUnique({
       where: { id: data.employeeId },
+      include: { user: true },
     });
     if (!employee) {
       throw new ValidationError('Không tìm thấy thông tin nhân viên. Vui lòng đăng nhập lại.');
@@ -147,6 +148,28 @@ class SupplyRequestService {
 
     if (!data.items || data.items.length === 0) {
       throw new ValidationError('Phải có ít nhất một sản phẩm trong yêu cầu cung cấp.');
+    }
+
+    // Check if any items are new products (not in InternationalProduct DB)
+    const role = userRole || employee.user?.role;
+    if (role === 'EMPLOYEE') {
+      // For each item, check if tenGoi matches any existing product
+      for (const item of data.items) {
+        const existingProduct = await prisma.internationalProduct.findFirst({
+          where: {
+            OR: [
+              { tenSanPham: { equals: item.tenGoi, mode: 'insensitive' } },
+              { maSanPham: { equals: item.tenGoi, mode: 'insensitive' } },
+            ],
+          },
+        });
+
+        if (!existingProduct) {
+          throw new ValidationError(
+            `Nhân viên không có quyền tạo hàng hóa mới "${item.tenGoi}". Vui lòng chọn từ danh sách có sẵn hoặc liên hệ quản lý để thêm hàng hóa mới.`
+          );
+        }
+      }
     }
 
     // Use transaction to prevent race condition on code generation
