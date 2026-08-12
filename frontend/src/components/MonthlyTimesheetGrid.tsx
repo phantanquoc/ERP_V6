@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { useMonthlyTimesheet, useUpsertTimesheetCell, useUpsertTimesheetOverride } from '../hooks/useMonthlyTimesheet';
 import { useAttendanceCodes } from '../hooks/useAttendanceCodes';
 import { useDepartments } from '../hooks/useDepartments';
-import { TimesheetRow, TimesheetSummary, TimesheetSettings } from '../services/timesheetService';
+import { TimesheetRow, TimesheetSummary, TimesheetSettings, TimesheetCell } from '../services/timesheetService';
 import { ChevronLeft, ChevronRight, ChevronDown, Search, Download, Upload, X } from 'lucide-react';
 import attendanceService from '../services/attendanceService';
 import HoverTooltip from './HoverTooltip';
@@ -11,6 +11,18 @@ import { COLUMN_TOOLTIPS, OVERTIME_COLUMN_TOOLTIPS, ColumnTooltip } from './time
 import useIsNarrowScreen from '../hooks/useIsNarrowScreen';
 import CollapsibleSection from './shared/CollapsibleSection';
 import { useQueryClient } from '@tanstack/react-query';
+
+/** Format cell tooltip with note + audit info */
+const formatCellTooltip = (cell: TimesheetCell | undefined): string | undefined => {
+  if (!cell) return undefined;
+  const parts: string[] = [];
+  if (cell.note) parts.push(`Ghi chú: ${cell.note}`);
+  if (cell.updatedByName) {
+    const updatedAt = cell.updatedAt ? new Date(cell.updatedAt).toLocaleString('vi-VN') : '';
+    parts.push(`Cập nhật bởi: ${cell.updatedByName}${updatedAt ? ` (${updatedAt})` : ''}`);
+  }
+  return parts.length > 0 ? parts.join('\n') : undefined;
+};
 
 /** Renders header text wrapped in a hover tooltip when a tooltip entry exists. */
 const HeaderLabel: React.FC<{ tip?: ColumnTooltip; children: React.ReactNode }> = ({ tip, children }) => {
@@ -876,7 +888,7 @@ const TimesheetMobileList: React.FC<TimesheetMobileListProps> = ({
                       key={h.day}
                       type="button"
                       onClick={() => onCellClick(row.employeeId, dateStr, cell?.code || '', cell?.note || '')}
-                      title={cell?.note || undefined}
+                      title={formatCellTooltip(cell)}
                       className={`relative min-h-[44px] rounded border flex flex-col items-center justify-center leading-tight active:bg-blue-50 ${h.isSunday ? 'border-red-200' : 'border-gray-200'} ${getCellColor(cell?.code)}`}
                     >
                       <span className="text-[10px] text-gray-400">{h.day}</span>
@@ -1098,7 +1110,7 @@ const AttendanceTable: React.FC<AttendanceTableProps> = ({
                           setSelectedRange(null);
                         }
                       }}
-                      title={cell?.note || undefined}
+                      title={formatCellTooltip(cell)}
                     >
                       <span>{cell?.code || ''}</span>
                       {cell?.note && <span className="absolute top-0 right-0 w-1.5 h-1.5 bg-blue-500 rounded-full" />}
