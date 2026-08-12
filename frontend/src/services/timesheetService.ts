@@ -8,6 +8,9 @@ export interface TimesheetCell {
   workHours: number;
   overtimeHours: number;
   isSeeded?: boolean;
+  updatedBy?: string | null;
+  updatedByName?: string | null;
+  updatedAt?: string | null;
 }
 
 export interface TimesheetRow {

@@ -1495,6 +1495,8 @@ model TimesheetCell {
   note          String?
   workHours     Float    @default(0)
   overtimeHours Float    @default(0)
+  updatedBy     String?
+  updatedByName String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -1506,15 +1508,17 @@ model TimesheetCell {
 }
 
 model MonthlyTimesheetOverride {
-  id         String   @id @default(cuid())
-  employeeId String
-  month      Int
-  year       Int
-  fieldKey   String
-  value      String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  id            String   @id @default(cuid())
+  employeeId    String
+  month         Int
+  year          Int
+  fieldKey      String
+  value         String
+  updatedBy     String?
+  updatedByName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, month, year, fieldKey])
   @@index([employeeId, month, year])

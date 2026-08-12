@@ -116,6 +116,7 @@ export class AuthService {
       id: user.id,
       email: user.email,
       role: user.role,
+      name: `${user.firstName} ${user.lastName}`.trim(),
       departmentId: user.departmentId,
       subDepartmentId: user.subDepartmentId,
       secondaryDepartments: [],
@@ -314,6 +315,7 @@ export class AuthService {
       id: user.id,
       email: user.email,
       role: user.role,
+      name: `${user.firstName} ${user.lastName}`.trim(),
       departmentId: user.departmentId,
       subDepartmentId: user.subDepartmentId,
       secondaryDepartments: secondaryDepartments.map(s => ({
@@ -489,6 +491,7 @@ export class AuthService {
       id: user.id,
       email: user.email,
       role: user.role,
+      name: `${user.firstName} ${user.lastName}`.trim(),
       departmentId: user.departmentId,
       subDepartmentId: user.subDepartmentId,
       secondaryDepartments: secondaryDepts.map(s => ({

@@ -8,6 +8,7 @@ export interface JwtPayload {
   id: string;
   email: string;
   role: string;
+  name?: string;
   departmentId?: string | null;
   subDepartmentId?: string | null;
   secondaryDepartments?: SecondaryDepartmentEntry[];

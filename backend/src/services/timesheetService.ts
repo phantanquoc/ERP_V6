@@ -26,6 +26,9 @@ export interface TimesheetCellData {
   workHours: number;
   overtimeHours: number;
   isSeeded?: boolean; // indicates if this is derived from attendance (not persisted)
+  updatedBy?: string | null;
+  updatedByName?: string | null;
+  updatedAt?: string | null;
 }
 
 export interface TimesheetRow {
@@ -373,6 +376,9 @@ class TimesheetService {
             workHours: persisted.workHours,
             overtimeHours: persisted.overtimeHours,
             isSeeded: false,
+            updatedBy: persisted.updatedBy,
+            updatedByName: persisted.updatedByName,
+            updatedAt: persisted.updatedAt.toISOString(),
           });
           continue;
         }
@@ -533,7 +539,7 @@ class TimesheetService {
     return result;
   }
 
-  async upsertOverride(data: { employeeId: string; month: number; year: number; fieldKey: string; value: string }) {
+  async upsertOverride(data: { employeeId: string; month: number; year: number; fieldKey: string; value: string; updatedBy?: string; updatedByName?: string }) {
     if (!data.employeeId || !data.fieldKey) {
       throw new ValidationError('Thiếu thông tin bắt buộc (employeeId, fieldKey)');
     }
@@ -572,14 +578,18 @@ class TimesheetService {
         year: data.year,
         fieldKey: data.fieldKey,
         value: data.value,
+        updatedBy: data.updatedBy,
+        updatedByName: data.updatedByName,
       },
       update: {
         value: data.value,
+        updatedBy: data.updatedBy,
+        updatedByName: data.updatedByName,
       },
     });
   }
 
-  async upsertCell(data: { employeeId: string; date: string; code: string; note?: string; workHours?: number; overtimeHours?: number }) {
+  async upsertCell(data: { employeeId: string; date: string; code: string; note?: string; workHours?: number; overtimeHours?: number; updatedBy?: string; updatedByName?: string }) {
     if (!data.employeeId || !data.date) {
       throw new ValidationError('Thiếu thông tin bắt buộc (employeeId, date)');
     }
@@ -630,6 +640,12 @@ class TimesheetService {
     if (data.overtimeHours !== undefined) {
       updatePayload.overtimeHours = data.overtimeHours;
     }
+    if (data.updatedBy !== undefined) {
+      updatePayload.updatedBy = data.updatedBy;
+    }
+    if (data.updatedByName !== undefined) {
+      updatePayload.updatedByName = data.updatedByName;
+    }
 
     return prisma.timesheetCell.upsert({
       where: {
@@ -645,6 +661,8 @@ class TimesheetService {
         note: data.note || null,
         workHours: data.workHours ?? 0,
         overtimeHours: data.overtimeHours ?? 0,
+        updatedBy: data.updatedBy,
+        updatedByName: data.updatedByName,
       },
       update: updatePayload,
     });
