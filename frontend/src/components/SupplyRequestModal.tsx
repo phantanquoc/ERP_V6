@@ -43,6 +43,9 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
   const [ghiChu, setGhiChu] = useState('');
   const [stockCache, setStockCache] = useState<Map<string, { totalQuantity: number; unit: string }>>(new Map());
 
+  // EMPLOYEE không được tạo hàng hóa mới
+  const canCreateNewProduct = user?.role !== 'EMPLOYEE';
+
   useEffect(() => {
     if (isOpen) {
       fetchProducts();
@@ -269,14 +272,24 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
                           products={products}
                           value={row.internationalProductId}
                           onChange={(productId, product) => handleProductSelect(index, productId, product)}
-                          onCreateNew={(name) => handleCreateNew(index, name)}
-                          allowCreate
-                          placeholder="Tìm theo mã, tên hoặc loại hàng hóa, hoặc nhập tên mới..."
+                          onCreateNew={canCreateNewProduct ? (name) => handleCreateNew(index, name) : undefined}
+                          allowCreate={canCreateNewProduct}
+                          placeholder={
+                            canCreateNewProduct
+                              ? "Tìm theo mã, tên hoặc loại hàng hóa, hoặc nhập tên mới..."
+                              : "Tìm theo mã, tên hoặc loại hàng hóa..."
+                          }
                         />
-                        {!row.internationalProductId && row.tenGoi && (
+                        {canCreateNewProduct && !row.internationalProductId && row.tenGoi && (
                           <p className="mt-1.5 text-xs text-blue-600 flex items-center gap-1">
                             <span className="inline-block w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
                             Hàng hóa chưa có trong danh sách — sẽ được tạo khi submit
+                          </p>
+                        )}
+                        {!canCreateNewProduct && (
+                          <p className="mt-1.5 text-xs text-gray-500 flex items-center gap-1">
+                            <span className="inline-block w-1.5 h-1.5 bg-gray-400 rounded-full"></span>
+                            Chỉ chọn từ danh sách có sẵn. Cần hàng hóa mới? Liên hệ quản lý.
                           </p>
                         )}
                         {row.stockInfo && (
