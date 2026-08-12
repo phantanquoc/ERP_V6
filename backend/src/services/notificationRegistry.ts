@@ -266,10 +266,16 @@ const entries: NotificationEventDef[] = [
   {
     event: NotificationEvent.SUPPLY_REQUEST_CREATED,
     notificationType: NotificationType.SUPPLY_REQUEST,
-    buildMessage: (ctx) => ({
-      title: 'Yêu cầu cung cấp mới',
-      message: `${ctx.metadata?.employeeName ?? ''} đã tạo yêu cầu cung cấp ${ctx.metadata?.maYeuCau ?? ''}`,
-    }),
+    buildMessage: (ctx) => {
+      const newCount = Number(ctx.metadata?.newProductCount ?? 0);
+      const base = `${ctx.metadata?.employeeName ?? ''} đã tạo yêu cầu cung cấp ${ctx.metadata?.maYeuCau ?? ''}`;
+      return {
+        title: 'Yêu cầu cung cấp mới',
+        message: newCount > 0
+          ? `${base}. Có ${newCount} hàng hóa chưa có trong kho: ${ctx.metadata?.newProductNames ?? ''}`
+          : base,
+      };
+    },
     resolveRecipients: async (ctx) => {
       const warehouse = await getEmployeeIdsBySubDeptCode('SUBDEPT_PRODUCTION_WAREHOUSE');
       const admins = await getAdminEmployeeIds(ctx.actorUserId);

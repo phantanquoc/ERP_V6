@@ -8,6 +8,7 @@ export interface SupplyRequestItem {
   tenGoi: string;
   soLuong: number;
   donViTinh: string;
+  isNewProduct?: boolean;
   fulfilledQty?: number;
   fulfillmentStatus?: string;
   createdAt: string;

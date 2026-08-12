@@ -11,6 +11,7 @@ interface SupplyRequestItemInput {
   tenGoi: string;
   soLuong: number;
   donViTinh: string;
+  isNewProduct?: boolean;
 }
 
 interface CreateSupplyRequestRequest {
@@ -136,11 +137,10 @@ class SupplyRequestService {
     return supplyRequest;
   }
 
-  async createSupplyRequest(data: CreateSupplyRequestRequest, userRole?: string) {
+  async createSupplyRequest(data: CreateSupplyRequestRequest) {
     // Validate employeeId exists
     const employee = await prisma.employee.findUnique({
       where: { id: data.employeeId },
-      include: { user: true },
     });
     if (!employee) {
       throw new ValidationError('Không tìm thấy thông tin nhân viên. Vui lòng đăng nhập lại.');
@@ -150,11 +150,9 @@ class SupplyRequestService {
       throw new ValidationError('Phải có ít nhất một sản phẩm trong yêu cầu cung cấp.');
     }
 
-    // Check if any items are new products (not in InternationalProduct DB)
-    const role = userRole || employee.user?.role;
-    if (role === 'EMPLOYEE') {
-      // For each item, check if tenGoi matches any existing product
-      for (const item of data.items) {
+    // Check each item: if it doesn't exist in InternationalProduct, mark as new product
+    const itemsWithFlag = await Promise.all(
+      data.items.map(async (item) => {
         const existingProduct = await prisma.internationalProduct.findFirst({
           where: {
             OR: [
@@ -163,14 +161,13 @@ class SupplyRequestService {
             ],
           },
         });
-
-        if (!existingProduct) {
-          throw new ValidationError(
-            `Nhân viên không có quyền tạo hàng hóa mới "${item.tenGoi}". Vui lòng chọn từ danh sách có sẵn hoặc liên hệ quản lý để thêm hàng hóa mới.`
-          );
-        }
-      }
-    }
+        return {
+          ...item,
+          isNewProduct: !existingProduct, // flag nếu chưa có trong DB
+        };
+      })
+    );
+    data.items = itemsWithFlag;
 
     // Use transaction to prevent race condition on code generation
     const supplyRequest = await prisma.$transaction(async (tx) => {
@@ -206,6 +203,7 @@ class SupplyRequestService {
           tenGoi: item.tenGoi,
           soLuong: item.soLuong,
           donViTinh: item.donViTinh,
+          isNewProduct: item.isNewProduct ?? false,
         })),
       });
 
@@ -237,9 +235,18 @@ class SupplyRequestService {
 
       if (warehouseEmployees.length > 0) {
         const itemNames = data.items.map((i) => i.tenGoi).join(', ');
+        const newProductNames = data.items.filter((i) => i.isNewProduct).map((i) => i.tenGoi);
         await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_CREATED, {
           entityId: supplyRequest?.id,
-          metadata: { employeeName: data.tenNhanVien, department: data.boPhan, itemNames, maYeuCau: supplyRequest?.maYeuCau, supplyRequestId: supplyRequest?.id },
+          metadata: {
+            employeeName: data.tenNhanVien,
+            department: data.boPhan,
+            itemNames,
+            maYeuCau: supplyRequest?.maYeuCau,
+            supplyRequestId: supplyRequest?.id,
+            newProductCount: newProductNames.length,
+            newProductNames: newProductNames.join(', '),
+          },
         });
       }
     } catch (error) {
