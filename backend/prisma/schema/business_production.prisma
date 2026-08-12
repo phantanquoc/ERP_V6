@@ -53,6 +53,8 @@ model SupplyRequestItem {
   tenGoi            String
   soLuong           Float
   donViTinh         String
+  // Flag: hàng hóa này chưa có trong InternationalProduct (người yêu cầu nhập tên tự do)
+  isNewProduct      Boolean                 @default(false)
   // Fulfillment tracking — how much has actually been delivered to requester (from warehouse issues)
   fulfilledQty      Float                   @default(0)
   // Per-item status: "Chờ xử lý" | "Đủ tồn kho" | "Thiếu tồn kho" | "Đã cấp một phần" | "Đã cấp đủ" | "Đã hủy"

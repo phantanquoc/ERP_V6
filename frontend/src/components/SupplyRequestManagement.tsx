@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, Package, ShoppingCart, Download, X, ClipboardCheck, PackagePlus, Plus, PackageCheck } from 'lucide-react';
+import { Trash2, Package, ShoppingCart, Download, X, ClipboardCheck, PackagePlus, Plus, PackageCheck, AlertTriangle } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import supplyRequestService, { SupplyRequest } from '../services/supplyRequestService';
 import { useAuth } from '../contexts/AuthContext';
@@ -530,7 +530,15 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                                 <tr key={item.id} className="hover:bg-gray-50">
                                   <td className="px-3 py-2 text-gray-500">{idx + 1}</td>
                                   <td className="px-3 py-2">{item.phanLoai}</td>
-                                  <td className="px-3 py-2 font-medium">{item.tenGoi}</td>
+                                  <td className="px-3 py-2 font-medium">
+                                    <span>{item.tenGoi}</span>
+                                    {item.isNewProduct && (
+                                      <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200 align-middle">
+                                        <AlertTriangle className="h-3 w-3" />
+                                        Chưa có trong kho
+                                      </span>
+                                    )}
+                                  </td>
                                   <td className="px-3 py-2 text-right">{item.soLuong.toLocaleString('vi-VN')}</td>
                                   <td className="px-3 py-2 text-right text-blue-700 font-medium">
                                     {fulfilledQty.toLocaleString('vi-VN')}
