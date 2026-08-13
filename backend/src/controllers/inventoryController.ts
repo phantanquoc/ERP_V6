@@ -11,6 +11,7 @@ export class InventoryController {
         loaiSanPham: req.query.loaiSanPham as string | undefined,
         warehouseId: req.query.warehouseId as string | undefined,
         donViTinh: req.query.donViTinh as string | undefined,
+        hasStock: req.query.hasStock === 'true',
         page: req.query.page ? parseInt(req.query.page as string, 10) : undefined,
         limit: req.query.limit ? parseInt(req.query.limit as string, 10) : undefined,
       };

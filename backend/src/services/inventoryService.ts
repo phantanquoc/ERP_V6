@@ -6,6 +6,7 @@ export interface InventoryFilters {
   loaiSanPham?: string;
   warehouseId?: string;
   donViTinh?: string;
+  hasStock?: boolean;         // only return products with stock > 0
   page?: number;
   limit?: number;
 }
@@ -51,6 +52,9 @@ export class InventoryService {
     }
     if (params.donViTinh) {
       where.donViTinh = { contains: params.donViTinh, mode: 'insensitive' as const };
+    }
+    if (params.hasStock) {
+      where.lotProducts = { some: { soLuong: { gt: 0 } } };
     }
 
     const [products, total] = await Promise.all([
