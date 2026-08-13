@@ -31,8 +31,8 @@ const InternationalProductManagement: React.FC = () => {
   const debouncedMaSanPham = useDebounce(filterValues.maSanPham || '', 300);
   const debouncedTenSanPham = useDebounce(filterValues.tenSanPham || '', 300);
   const donViTinhFilter = filterValues.donViTinh || '';
-  // Newest-first by default, matching the previous fixed ordering.
-  const [sortBy, setSortBy] = useState<ProductSortField>('createdAt');
+  // Default: highest STT first (newest product code on top).
+  const [sortBy, setSortBy] = useState<ProductSortField>('maSanPham');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
