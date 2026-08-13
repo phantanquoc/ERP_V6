@@ -64,9 +64,13 @@ const ProductCombobox: React.FC<ProductComboboxProps> = ({
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
-        // If user typed but didn't select, revert to last confirmed value
+        const trimmed = inputText.trim();
         if (selectedProduct) {
+          // Revert to confirmed product display text
           setInputText(displayText(selectedProduct));
+        } else if (allowCreate && trimmed.length > 0 && onCreateNew) {
+          // User typed a free-text name — treat as "create new" instead of discarding
+          onCreateNew(trimmed);
         } else {
           setInputText('');
         }
@@ -74,7 +78,7 @@ const ProductCombobox: React.FC<ProductComboboxProps> = ({
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [selectedProduct]);
+  }, [selectedProduct, allowCreate, inputText, onCreateNew]);
 
   // Map productId → kiện in the lot, for the stock annotation and ordering
   const stockByProductId = React.useMemo(() => {
