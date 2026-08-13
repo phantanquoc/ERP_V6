@@ -12,6 +12,7 @@ import { parseNumberInput } from '../utils/numberInput';
 import warehouseService from '../services/warehouseService';
 import TableFilter, { FilterField } from './TableFilter';
 import Modal from './Modal';
+import ConfirmDialog from './common/ConfirmDialog';
 import UnitSelect from './common/UnitSelect';
 
 interface SupplyRequestManagementProps {
@@ -110,6 +111,16 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
     allResults?: { productName: string; items: { tenKho: string; tenLo: string; soLuong: number; giaThanh: number; donViTinh: string }[] }[];
   }>({ show: false, loading: false, productName: '', items: [] });
 
+  // Confirm dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+
+  const isCancelled = (status: string) => status === 'Đã hủy';
+
   // Edit form state
   const [editItems, setEditItems] = useState<EditItemRow[]>([emptyEditRow()]);
   const [editMucDich, setEditMucDich] = useState('');
@@ -167,38 +178,44 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
     setShowModal(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa yêu cầu này?')) {
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await supplyRequestService.deleteSupplyRequest(id);
-      alert('Xóa yêu cầu cung cấp thành công!');
-      fetchRequests();
-    } catch (error: any) {
-      alert(error.response?.data?.message || 'Lỗi khi xóa yêu cầu cung cấp');
-    } finally {
-      setLoading(false);
-    }
+  const handleDelete = (id: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Xác nhận xóa',
+      message: 'Bạn có chắc chắn muốn xóa yêu cầu này?',
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        setLoading(true);
+        try {
+          await supplyRequestService.deleteSupplyRequest(id);
+          fetchRequests();
+        } catch (error: any) {
+          alert(error.response?.data?.message || 'Lỗi khi xóa yêu cầu cung cấp');
+        } finally {
+          setLoading(false);
+        }
+      },
+    });
   };
 
-  const handleCancel = async (id: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn hủy yêu cầu cung cấp này?')) {
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await supplyRequestService.cancelSupplyRequest(id);
-      alert('Đã hủy yêu cầu cung cấp thành công!');
-      fetchRequests();
-    } catch (error: any) {
-      alert(error.response?.data?.message || 'Lỗi khi hủy yêu cầu cung cấp');
-    } finally {
-      setLoading(false);
-    }
+  const handleCancel = (id: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Xác nhận hủy',
+      message: 'Bạn có chắc chắn muốn hủy yêu cầu cung cấp này?',
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        setLoading(true);
+        try {
+          await supplyRequestService.cancelSupplyRequest(id);
+          fetchRequests();
+        } catch (error: any) {
+          alert(error.response?.data?.message || 'Lỗi khi hủy yêu cầu cung cấp');
+        } finally {
+          setLoading(false);
+        }
+      },
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -404,7 +421,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                     </td>
                     <td className="px-6 py-4 text-sm">
                       <div className="flex items-center gap-1">
-                        {canDelete && (
+                        {!isCancelled(request.trangThai) && canDelete && (
                           <button
                             onClick={(e) => { e.stopPropagation(); handleDelete(request.id); }}
                             className="p-1.5 rounded-md text-red-600 hover:bg-red-100 hover:text-red-800 transition-colors"
@@ -414,7 +431,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                           </button>
                         )}
 
-                        {canCancel && (request.trangThai === 'Chưa cung cấp' || request.trangThai === 'Đang xử lý') && (
+                        {!isCancelled(request.trangThai) && canCancel && (request.trangThai === 'Chưa cung cấp' || request.trangThai === 'Đang xử lý') && (
                           <button
                             onClick={(e) => { e.stopPropagation(); handleCancel(request.id); }}
                             className="p-1.5 rounded-md text-orange-600 hover:bg-orange-100 hover:text-orange-800 transition-colors"
@@ -424,7 +441,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                           </button>
                         )}
 
-                        {request.purchaseRequests?.some(pr => pr.trangThai === 'Đã duyệt' || pr.trangThai === 'Hoàn thành') && (() => {
+                        {!isCancelled(request.trangThai) && request.purchaseRequests?.some(pr => pr.trangThai === 'Đã duyệt' || pr.trangThai === 'Hoàn thành') && (() => {
                           const daNhapKho = request.warehouseReceipts && request.warehouseReceipts.length > 0;
                           return (
                             <button
@@ -617,7 +634,8 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                     )}
                   </div>
 
-                  {/* Action buttons */}
+                  {/* Action buttons — hidden when cancelled */}
+                  {!isCancelled(selectedRequest.trangThai) && (
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 pt-2 border-t border-gray-100">
                     <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                       {selectedRequest.items && selectedRequest.items.length > 0 && (
@@ -691,6 +709,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                       </button>
                     </div>
                   </div>
+                  )}
                 </div>
               ) : (
                 /* Edit mode */
@@ -957,6 +976,14 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
           </div>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };
