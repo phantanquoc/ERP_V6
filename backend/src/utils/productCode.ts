@@ -3,7 +3,7 @@
  *
  * Format: {CATEGORY_ABBR}-{SEQ:3}-{NAME_ABBR}   e.g. NLT-001-MTLB
  *   - CATEGORY_ABBR: first letter of each word in the category name (Nguyên liệu trái -> NLT)
- *   - SEQ:           3 digits, counted PER CATEGORY (each category has its own 001)
+ *   - SEQ:           3 digits, GLOBALLY UNIQUE across all categories (each product gets a permanent number)
  *   - NAME_ABBR:     first letter of each word in the product name, capped at 6 chars
  *
  * Diacritics are stripped (Đ -> D, Ư -> U) so codes stay in [A-Z0-9]: they end up in
@@ -121,16 +121,29 @@ export function categoryAbbr(categoryName: string): string {
 }
 
 /**
- * Highest sequence already used within a category, based on existing codes that share
- * its prefix. Sequences are never reused after a delete, so this reads the max rather
- * than counting rows.
+ * Highest sequence already used across ALL codes, regardless of prefix.
+ * Sequences are globally unique — each product gets a permanent number that stays
+ * with it regardless of category changes.
+ *
+ * @deprecated Use {@link maxSequenceGlobal} instead. This function kept for backward
+ * compatibility but ignores the prefix parameter.
  */
-export function maxSequenceForPrefix(prefix: string, existingCodes: string[]): number {
-  const head = `${prefix}-`;
+export function maxSequenceForPrefix(_prefix: string, existingCodes: string[]): number {
+  return maxSequenceGlobal(existingCodes);
+}
+
+/**
+ * Highest sequence already used across ALL codes (any prefix).
+ * Parses the second segment (STT) from codes matching the LOAI-STT-TEN format.
+ */
+export function maxSequenceGlobal(existingCodes: string[]): number {
   let max = 0;
   for (const code of existingCodes) {
-    if (!code || !code.startsWith(head)) continue;
-    const seq = parseInt(code.slice(head.length).split('-')[0], 10);
+    if (!code) continue;
+    const parts = code.split('-');
+    // Must have exactly 3 segments: PREFIX-SEQ-NAME
+    if (parts.length !== 3) continue;
+    const seq = parseInt(parts[1], 10);
     if (!isNaN(seq) && seq > max) max = seq;
   }
   return max;
@@ -151,7 +164,7 @@ export function suggestProductCode(params: {
   const prefix = categoryAbbr(loaiSanPham || '');
   if (!prefix) return '';
 
-  const seq = maxSequenceForPrefix(prefix, existingCodes) + 1;
+  const seq = maxSequenceGlobal(existingCodes) + 1;
   const nameAbbr = abbreviateVietnamese(tenSanPham, NAME_ABBR_MAX);
 
   // A product with no usable name still gets a valid, unique-able code; the name part
@@ -172,11 +185,10 @@ interface ProductCodeReader {
 }
 
 /**
- * Suggest a code by reading the codes already present for that category.
+ * Suggest a code by reading ALL existing codes to find the global max sequence.
  *
- * Only codes sharing the category prefix are fetched, so this stays cheap as the
- * catalogue grows. Callers must still handle the unique-constraint race: two concurrent
- * creates can compute the same sequence.
+ * All codes are fetched so that the sequence is globally unique — each product gets a
+ * permanent number that does not collide regardless of category.
  */
 export async function suggestProductCodeFor(
   db: ProductCodeReader,
@@ -185,24 +197,22 @@ export async function suggestProductCodeFor(
   const prefix = categoryAbbr(params.loaiSanPham || '');
   if (!prefix) return '';
 
-  const siblings = (await db.internationalProduct.findMany({
-    where: { maSanPham: { startsWith: `${prefix}-` } },
+  const allProducts = (await db.internationalProduct.findMany({
     select: { maSanPham: true },
   })) ?? [];
 
   return suggestProductCode({
     tenSanPham: params.tenSanPham,
     loaiSanPham: params.loaiSanPham,
-    existingCodes: siblings.map((s) => s.maSanPham),
+    existingCodes: allProducts.map((s) => s.maSanPham),
   });
 }
 
 /**
  * Suggest a code and, if it is taken, walk the sequence forward until it is free.
  *
- * Needed because the caller may hand-pick a category whose sequence numbering has gaps,
- * and because `suggestProductCode` derives the sequence from a snapshot that a concurrent
- * insert can invalidate.
+ * Reads ALL existing codes so the sequence is globally unique across all categories.
+ * Needed because a concurrent insert can invalidate the snapshot.
  */
 export async function suggestAvailableProductCodeFor(
   db: ProductCodeReader,
@@ -211,14 +221,13 @@ export async function suggestAvailableProductCodeFor(
   const prefix = categoryAbbr(params.loaiSanPham || '');
   if (!prefix) return '';
 
-  const siblings = (await db.internationalProduct.findMany({
-    where: { maSanPham: { startsWith: `${prefix}-` } },
+  const allProducts = (await db.internationalProduct.findMany({
     select: { maSanPham: true },
   })) ?? [];
-  const taken = new Set(siblings.map((s) => s.maSanPham));
+  const taken = new Set(allProducts.map((s) => s.maSanPham));
 
   const nameAbbr = abbreviateVietnamese(params.tenSanPham, NAME_ABBR_MAX) || 'X';
-  let seq = maxSequenceForPrefix(prefix, [...taken]) + 1;
+  let seq = maxSequenceGlobal([...taken]) + 1;
 
   // Bounded so a pathological data state cannot spin forever; 999 is the 3-digit ceiling.
   for (let i = 0; i < 1000; i++) {

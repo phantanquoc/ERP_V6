@@ -59,17 +59,19 @@ beforeEach(() => {
 });
 
 describe('generateProductCode', () => {
-  it('derives the prefix from the category and starts at 001', async () => {
+  it('derives the prefix from the category and starts at 001 when no products exist', async () => {
     db.internationalProduct.findMany.mockResolvedValue([]);
     const code = await service.generateProductCode('Mít trái lá bàng', 'Nguyên liệu trái');
     expect(code).toBe('NLT-001-MTLB');
   });
 
-  it('continues the sequence within that category only', async () => {
+  it('continues the sequence globally across all categories', async () => {
     db.internationalProduct.findMany.mockResolvedValue([
       { maSanPham: 'NLT-001-TMLB' },
-      { maSanPham: 'NLT-004-TMSS' },
+      { maSanPham: 'BB-004-TC' },
+      { maSanPham: 'NLT-003-TMSS' },
     ]);
+    // Global max is 4 (from BB-004), so next is 005
     const code = await service.generateProductCode('Trái chanh dây', 'Nguyên liệu trái');
     expect(code).toBe('NLT-005-TCD');
   });
