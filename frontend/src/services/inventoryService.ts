@@ -5,6 +5,7 @@ export interface InventoryFilters {
   loaiSanPham?: string;
   warehouseId?: string;
   donViTinh?: string;
+  hasStock?: boolean;
   page?: number;
   limit?: number;
 }
@@ -42,6 +43,7 @@ const inventoryService = {
     if (params.loaiSanPham) query.append('loaiSanPham', params.loaiSanPham);
     if (params.warehouseId) query.append('warehouseId', params.warehouseId);
     if (params.donViTinh) query.append('donViTinh', params.donViTinh);
+    if (params.hasStock) query.append('hasStock', 'true');
     if (params.page) query.append('page', String(params.page));
     if (params.limit) query.append('limit', String(params.limit));
 
