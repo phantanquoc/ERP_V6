@@ -3,6 +3,7 @@ import {
   abbreviateVietnamese,
   categoryAbbr,
   maxSequenceForPrefix,
+  maxSequenceGlobal,
   suggestProductCode,
   rewriteCodePrefix,
   PRODUCT_CODE_PATTERN,
@@ -112,31 +113,52 @@ describe('categoryAbbr — the 8 standard categories', () => {
   });
 });
 
-describe('maxSequenceForPrefix', () => {
-  it('reads the highest sequence for the prefix', () => {
-    const codes = ['NLT-001-A', 'NLT-007-B', 'NLT-003-C'];
+describe('maxSequenceGlobal', () => {
+  it('reads the highest sequence across ALL codes regardless of prefix', () => {
+    const codes = ['NLT-001-A', 'BB-007-B', 'TPS-003-C'];
+    expect(maxSequenceGlobal(codes)).toBe(7);
+  });
+
+  it('returns 0 when nothing matches', () => {
+    expect(maxSequenceGlobal([])).toBe(0);
+    expect(maxSequenceGlobal(['NLT-TMITL'])).toBe(0);
+  });
+
+  it('skips codes whose sequence segment is not numeric', () => {
+    expect(maxSequenceGlobal(['NLT-TMITL', 'BB-002-X'])).toBe(2);
+  });
+
+  it('finds max across mixed prefixes', () => {
+    const codes = ['NLT-005-A', 'BB-012-B', 'CCDC-003-C', 'TPS-099-D'];
+    expect(maxSequenceGlobal(codes)).toBe(99);
+  });
+});
+
+describe('maxSequenceForPrefix (backward compat)', () => {
+  it('delegates to maxSequenceGlobal — returns max across ALL codes', () => {
+    const codes = ['NLT-001-A', 'BB-007-B', 'TPS-003-C'];
+    // With global sequence, prefix is ignored — max is 7 regardless
     expect(maxSequenceForPrefix('NLT', codes)).toBe(7);
   });
 
   it('ignores other prefixes, including ones sharing a leading substring', () => {
+    // maxSequenceForPrefix now returns global max (ignores prefix)
     const codes = ['NLT-009-A', 'NLTT-050-B', 'NL-020-C'];
-    expect(maxSequenceForPrefix('NL', codes)).toBe(20);
-    expect(maxSequenceForPrefix('NLT', codes)).toBe(9);
+    expect(maxSequenceForPrefix('NL', codes)).toBe(50);
+    expect(maxSequenceForPrefix('NLT', codes)).toBe(50);
   });
 
   it('returns 0 when nothing matches', () => {
-    expect(maxSequenceForPrefix('TPS', ['NLT-001-A'])).toBe(0);
     expect(maxSequenceForPrefix('TPS', [])).toBe(0);
   });
 
   it('skips codes whose sequence segment is not numeric', () => {
-    // Legacy two-segment codes such as NLT-TMITL must not poison the counter.
     expect(maxSequenceForPrefix('NLT', ['NLT-TMITL', 'NLT-002-X'])).toBe(2);
   });
 });
 
 describe('suggestProductCode', () => {
-  it('builds category-sequence-name and counts per category', () => {
+  it('builds category-sequence-name and counts globally', () => {
     expect(
       suggestProductCode({
         tenSanPham: 'Mít trái lá bàng',
@@ -146,11 +168,21 @@ describe('suggestProductCode', () => {
     ).toBe('NLT-003-MTLB');
   });
 
-  it('starts each category at 001 independently', () => {
+  it('continues from global max across all categories', () => {
+    // NLT-012 exists, so next global seq is 13 — even for a different category
     const existing = ['NLT-012-X'];
     expect(
       suggestProductCode({ tenSanPham: 'Bao tay vải', loaiSanPham: 'Bao bì', existingCodes: existing })
-    ).toBe('BB-001-BTV');
+    ).toBe('BB-013-BTV');
+  });
+
+  it('assigns globally unique sequences across categories', () => {
+    const existing = ['NLT-001-A', 'BB-005-B', 'TPS-010-C'];
+    const code1 = suggestProductCode({ tenSanPham: 'Sản phẩm mới', loaiSanPham: 'Phụ liệu', existingCodes: existing });
+    const code2 = suggestProductCode({ tenSanPham: 'Hàng khác', loaiSanPham: 'Nhiên liệu', existingCodes: [...existing, code1] });
+    // Both get globally unique sequences: 11 and 12
+    expect(code1).toBe('PL-011-SPM');
+    expect(code2).toBe('NL-012-HK');
   });
 
   it('matches the documented example', () => {
