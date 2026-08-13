@@ -15,7 +15,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { categoryAbbr, abbreviateVietnamese, maxSequenceGlobal, UNCLASSIFIED_CATEGORY } from '../src/utils/productCode';
+import { categoryAbbr, abbreviateVietnamese, UNCLASSIFIED_CATEGORY } from '../src/utils/productCode';
 
 const prisma = new PrismaClient();
 const APPLY = process.argv.includes('--apply');
