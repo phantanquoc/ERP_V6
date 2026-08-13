@@ -19,8 +19,43 @@ import warehouseReceiptService from '../../services/warehouseReceiptService';
 import warehouseIssueService from '../../services/warehouseIssueService';
 import supplyRequestService from '../../services/supplyRequestService';
 
-type TabType = 'inbound' | 'outbound' | 'supplyRequest' | 'warehouseManagement' | 'products' | 'inventory';
-const VALID_TABS: TabType[] = ['inbound', 'outbound', 'supplyRequest', 'warehouseManagement', 'products', 'inventory'];
+type TabType = 'inbound' | 'outbound' | 'supplyRequest' | 'warehouseManagement' | 'products';
+const VALID_TABS: TabType[] = ['inbound', 'outbound', 'supplyRequest', 'warehouseManagement', 'products'];
+
+type WarehouseSubTab = 'management' | 'inventory';
+
+const WarehouseManagementWithSubTabs: React.FC<{ initialWarehouseId?: string }> = ({ initialWarehouseId }) => {
+  const [subTab, setSubTab] = useState<WarehouseSubTab>('management');
+
+  return (
+    <div>
+      <div className="flex gap-1 mb-4 border-b border-gray-200">
+        <button
+          onClick={() => setSubTab('management')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            subTab === 'management'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Quản lý kho
+        </button>
+        <button
+          onClick={() => setSubTab('inventory')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            subTab === 'inventory'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Tồn kho
+        </button>
+      </div>
+      {subTab === 'management' && <WarehouseManagement initialWarehouseId={initialWarehouseId} />}
+      {subTab === 'inventory' && <InventoryOverview />}
+    </div>
+  );
+};
 
 const ProductionWarehouse = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -265,7 +300,6 @@ const ProductionWarehouse = () => {
   const tabs = [
     { id: 'warehouseManagement', name: 'Quản lý kho', icon: <Package className="w-4 h-4" /> },
     { id: 'products', name: 'Danh sách hàng hóa', icon: <Package className="w-4 h-4" /> },
-    { id: 'inventory', name: 'Tồn kho', icon: <ClipboardList className="w-4 h-4" /> },
     { id: 'inbound', name: 'Nhập kho', icon: <ArrowDown className="w-4 h-4" /> },
     { id: 'outbound', name: 'Xuất kho', icon: <ArrowUp className="w-4 h-4" /> },
     {
@@ -526,9 +560,10 @@ const ProductionWarehouse = () => {
       </div>
 
       {/* Content */}
-      {activeTab === 'warehouseManagement' && <WarehouseManagement initialWarehouseId={initialWarehouseId} />}
+      {activeTab === 'warehouseManagement' && (
+        <WarehouseManagementWithSubTabs initialWarehouseId={initialWarehouseId} />
+      )}
       {activeTab === 'products' && <InternationalProductManagement />}
-      {activeTab === 'inventory' && <InventoryOverview />}
       {activeTab === 'inbound' && <WarehouseReceiptTab month={filterMonth} year={filterYear} />}
       {activeTab === 'outbound' && <WarehouseIssueTab month={filterMonth} year={filterYear} />}
       {activeTab === 'supplyRequest' && <SupplyRequestManagement />}
