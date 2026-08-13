@@ -321,6 +321,15 @@ const entries: NotificationEventDef[] = [
     resolveRecipients: resolveDirectRecipients,
   },
   {
+    event: NotificationEvent.SUPPLY_REQUEST_CANCELLED,
+    notificationType: NotificationType.SUPPLY_REQUEST_CANCELLED,
+    buildMessage: (ctx) => ({
+      title: 'Yêu cầu cung cấp đã bị hủy',
+      message: `Yêu cầu cung cấp ${ctx.metadata?.maYeuCau ?? ''} đã bị hủy.`,
+    }),
+    resolveRecipients: resolveDirectRecipients,
+  },
+  {
     event: NotificationEvent.LOW_STOCK_ALERT,
     notificationType: NotificationType.LOW_STOCK_ALERT,
     buildMessage: (ctx) => ({

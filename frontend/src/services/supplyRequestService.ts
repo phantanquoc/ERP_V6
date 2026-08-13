@@ -123,6 +123,11 @@ class SupplyRequestService {
     return response;
   }
 
+  async cancelSupplyRequest(id: string) {
+    const response = await apiClient.post(`/supply-requests/${id}/cancel`);
+    return response;
+  }
+
   async markMuaNhanhAsPurchased(id: string, soTien?: number) {
     const response = await apiClient.patch(`/supply-requests/${id}/mark-purchased`, { soTien });
     return response;

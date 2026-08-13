@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, Package, ShoppingCart, Download, X, ClipboardCheck, PackagePlus, Plus, PackageCheck, AlertTriangle } from 'lucide-react';
+import { Trash2, Package, ShoppingCart, Download, X, ClipboardCheck, PackagePlus, Plus, PackageCheck, AlertTriangle, XCircle } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import supplyRequestService, { SupplyRequest } from '../services/supplyRequestService';
 import { useAuth } from '../contexts/AuthContext';
@@ -42,6 +42,8 @@ const getStatusColor = (status: string) => {
       return 'text-blue-700 bg-blue-100';
     case 'Đang xử lý':
       return 'text-yellow-700 bg-yellow-100';
+    case 'Đã hủy':
+      return 'text-red-700 bg-red-100';
     case 'Chưa cung cấp':
     default:
       return 'text-gray-700 bg-gray-100';
@@ -67,6 +69,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   const [searchParams] = useSearchParams();
   const canEdit = user?.role === 'admin' || user?.role === 'department_head' || user?.role === 'team_lead';
   const canDelete = user?.role === 'admin';
+  const canCancel = user?.role === 'admin' || user?.role === 'department_head' || user?.role === 'team_lead';
   const [requests, setRequests] = useState<SupplyRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm] = useState('');
@@ -81,6 +84,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
       { value: 'Đã duyệt mua', label: 'Đã duyệt mua' },
       { value: 'Đã mua hàng', label: 'Đã mua hàng — chờ nhập kho' },
       { value: 'Đã cung cấp', label: 'Đã cung cấp' },
+      { value: 'Đã hủy', label: 'Đã hủy' },
     ]},
     { key: 'mucDoUuTien', label: 'Mức độ ưu tiên', type: 'select', options: [
       { value: 'Cao', label: 'Cao' },
@@ -175,6 +179,23 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
       fetchRequests();
     } catch (error: any) {
       alert(error.response?.data?.message || 'Lỗi khi xóa yêu cầu cung cấp');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancel = async (id: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn hủy yêu cầu cung cấp này?')) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await supplyRequestService.cancelSupplyRequest(id);
+      alert('Đã hủy yêu cầu cung cấp thành công!');
+      fetchRequests();
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Lỗi khi hủy yêu cầu cung cấp');
     } finally {
       setLoading(false);
     }
@@ -390,6 +411,16 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                             title="Xóa"
                           >
                             <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+
+                        {canCancel && (request.trangThai === 'Chưa cung cấp' || request.trangThai === 'Đang xử lý') && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleCancel(request.id); }}
+                            className="p-1.5 rounded-md text-orange-600 hover:bg-orange-100 hover:text-orange-800 transition-colors"
+                            title="Hủy yêu cầu"
+                          >
+                            <XCircle className="h-4 w-4" />
                           </button>
                         )}
 
@@ -633,6 +664,19 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                       >
                         Đóng
                       </button>
+                      {canCancel && (selectedRequest.trangThai === 'Chưa cung cấp' || selectedRequest.trangThai === 'Đang xử lý') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowModal(false);
+                            handleCancel(selectedRequest.id);
+                          }}
+                          className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 flex items-center gap-1.5"
+                        >
+                          <XCircle className="h-4 w-4" />
+                          Hủy yêu cầu
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => {
