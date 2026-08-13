@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import inventoryService, { type InventoryFilters, type InventoryOverviewResponse } from '../services/inventoryService';
+import inventoryService, { type InventoryFilters } from '../services/inventoryService';
 
 export const inventoryKeys = {
   all: ['inventory'] as const,
@@ -9,9 +9,10 @@ export const inventoryKeys = {
 export function useInventoryOverview(params: InventoryFilters) {
   return useQuery({
     queryKey: inventoryKeys.overview(params),
-    queryFn: async (): Promise<InventoryOverviewResponse> => {
+    queryFn: async () => {
       const response = await inventoryService.getInventoryOverview(params);
-      return response.data as InventoryOverviewResponse;
+      // response.data = { data: InventoryItem[], pagination: {...} }
+      return response.data!;
     },
     placeholderData: (prev) => prev,
   });

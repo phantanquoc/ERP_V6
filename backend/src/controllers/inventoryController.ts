@@ -19,12 +19,14 @@ export class InventoryController {
 
       const response: ApiResponse<any> = {
         success: true,
-        data: result.data,
-        pagination: {
-          page: result.page,
-          limit: result.limit,
-          total: result.total,
-          totalPages: result.totalPages,
+        data: {
+          data: result.data,
+          pagination: {
+            page: result.page,
+            limit: result.limit,
+            total: result.total,
+            totalPages: result.totalPages,
+          },
         },
       };
 
