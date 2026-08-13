@@ -13,13 +13,14 @@ import WarehouseManagement from '../../components/WarehouseManagement';
 import WarehouseReceiptTab from '../../components/WarehouseReceiptTab';
 import WarehouseIssueTab from '../../components/WarehouseIssueTab';
 import InternationalProductManagement from '../../components/InternationalProductManagement';
+import InventoryOverview from '../../components/InventoryOverview';
 import warehouseService, { Warehouse as WarehouseType } from '../../services/warehouseService';
 import warehouseReceiptService from '../../services/warehouseReceiptService';
 import warehouseIssueService from '../../services/warehouseIssueService';
 import supplyRequestService from '../../services/supplyRequestService';
 
-type TabType = 'inbound' | 'outbound' | 'supplyRequest' | 'warehouseManagement' | 'products';
-const VALID_TABS: TabType[] = ['inbound', 'outbound', 'supplyRequest', 'warehouseManagement', 'products'];
+type TabType = 'inbound' | 'outbound' | 'supplyRequest' | 'warehouseManagement' | 'products' | 'inventory';
+const VALID_TABS: TabType[] = ['inbound', 'outbound', 'supplyRequest', 'warehouseManagement', 'products', 'inventory'];
 
 const ProductionWarehouse = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -264,6 +265,7 @@ const ProductionWarehouse = () => {
   const tabs = [
     { id: 'warehouseManagement', name: 'Quản lý kho', icon: <Package className="w-4 h-4" /> },
     { id: 'products', name: 'Danh sách hàng hóa', icon: <Package className="w-4 h-4" /> },
+    { id: 'inventory', name: 'Tồn kho', icon: <ClipboardList className="w-4 h-4" /> },
     { id: 'inbound', name: 'Nhập kho', icon: <ArrowDown className="w-4 h-4" /> },
     { id: 'outbound', name: 'Xuất kho', icon: <ArrowUp className="w-4 h-4" /> },
     {
@@ -526,6 +528,7 @@ const ProductionWarehouse = () => {
       {/* Content */}
       {activeTab === 'warehouseManagement' && <WarehouseManagement initialWarehouseId={initialWarehouseId} />}
       {activeTab === 'products' && <InternationalProductManagement />}
+      {activeTab === 'inventory' && <InventoryOverview />}
       {activeTab === 'inbound' && <WarehouseReceiptTab month={filterMonth} year={filterYear} />}
       {activeTab === 'outbound' && <WarehouseIssueTab month={filterMonth} year={filterYear} />}
       {activeTab === 'supplyRequest' && <SupplyRequestManagement />}

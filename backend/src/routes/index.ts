@@ -80,6 +80,7 @@ const ROUTE_MAP: Record<string, string> = {
   dataEntryPagePosition: '/api/data-entry-page-positions',
   attendedOperators: '/api/kiosk',
   lookup: '/api/lookups',
+  inventory: '/api/inventory',
 };
 
 export const registerRoutes = (app: Express): void => {

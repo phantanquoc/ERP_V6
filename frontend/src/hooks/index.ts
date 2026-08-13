@@ -32,3 +32,4 @@ export * from './useMaintenancePlans';
 export * from './useMaintenanceRecords';
 export * from './useFinishedProducts';
 export * from './useProductionEntities';
+export * from './useInventory';
