@@ -191,10 +191,8 @@ async function main() {
     return seqA - seqB || a.maSanPham.localeCompare(b.maSanPham, 'vi');
   });
 
-  // Build a single global sequence counter from ALL existing codes.
-  // Every product gets a globally unique sequence number.
-  const allExistingCodes = products.map((p) => p.maSanPham);
-  let globalSeq = maxSequenceGlobal(allExistingCodes);
+  // Start from 0 so the first product gets STT 001 (not continuing from old sequences).
+  let globalSeq = 0;
 
   const nextCode = (loai: string, ten: string): string => {
     const prefix = categoryAbbr(loai);
