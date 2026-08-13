@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ChevronDown, ChevronRight, Package, Download, AlertTriangle } from 'lucide-react';
+import { ChevronDown, ChevronRight, Package, Download, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import TableFilter, { FilterField } from './TableFilter';
 import { useInventoryOverview } from '../hooks/useInventory';
 import { useWarehouses } from '../hooks/useWarehouses';
@@ -7,16 +7,22 @@ import type { InventoryFilters } from '../services/inventoryService';
 import internationalProductService from '../services/internationalProductService';
 
 const LOW_STOCK_THRESHOLD = 10;
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+
+type SortField = 'maSanPham' | 'tenSanPham' | 'loaiSanPham' | 'tongTonKho';
 
 const InventoryOverview: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 20;
+  const [pageSize, setPageSize] = useState(20);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [sortField, setSortField] = useState<SortField>('maSanPham');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [filterValues, setFilterValues] = useState<Record<string, string>>({
     _search: '',
     loaiSanPham: '',
     warehouseId: '',
     donViTinh: '',
+    stockStatus: '',
   });
 
   const { data: warehousesData } = useWarehouses();
@@ -39,9 +45,12 @@ const InventoryOverview: React.FC = () => {
     warehouseId: filterValues.warehouseId || undefined,
     donViTinh: filterValues.donViTinh || undefined,
     hasStock: true,
+    stockStatus: (filterValues.stockStatus as 'all' | 'low' | 'normal') || undefined,
+    sortBy: sortField,
+    sortOrder,
     page: currentPage,
-    limit: itemsPerPage,
-  }), [filterValues, currentPage]);
+    limit: pageSize,
+  }), [filterValues, currentPage, pageSize, sortField, sortOrder]);
 
   const { data, isLoading, error } = useInventoryOverview(apiParams);
 
@@ -56,9 +65,31 @@ const InventoryOverview: React.FC = () => {
     });
   };
 
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-gray-400 inline ml-1" />;
+    return sortOrder === 'asc'
+      ? <ArrowUp className="w-3 h-3 text-blue-600 inline ml-1" />
+      : <ArrowDown className="w-3 h-3 text-blue-600 inline ml-1" />;
+  };
+
   const filterFields: FilterField[] = [
     { key: 'loaiSanPham', label: 'Loại hàng', type: 'select', options: categories.map((c) => ({ value: c, label: c })) },
     { key: 'warehouseId', label: 'Kho', type: 'select', options: warehouses.map((w: any) => ({ value: w.id, label: w.tenKho })) },
+    { key: 'stockStatus', label: 'Tồn kho', type: 'select', options: [
+      { value: '', label: 'Tất cả' },
+      { value: 'low', label: `Sắp hết (≤${LOW_STOCK_THRESHOLD})` },
+      { value: 'normal', label: 'Còn hàng' },
+    ]},
     { key: 'donViTinh', label: 'Đơn vị tính', type: 'text', placeholder: 'Lọc ĐVT...' },
   ];
 
@@ -80,21 +111,14 @@ const InventoryOverview: React.FC = () => {
     return '';
   };
 
-  // Summary stats
-  const totalProducts = pagination?.total ?? items.length;
-  const totalStock = items.reduce((sum, item) => sum + item.tongTonKho, 0);
+  const totalProducts = pagination?.total ?? 0;
   const lowStockCount = items.filter((item) => item.tongTonKho > 0 && item.tongTonKho <= LOW_STOCK_THRESHOLD).length;
 
   const handleExport = () => {
-    const headers = ['Mã hàng', 'Tên hàng', 'Loại', 'ĐVT', 'Tổng tồn kho'];
+    const headers = ['Mã hàng', 'Tên hàng', 'Loại', 'ĐVT', 'Tồn kho'];
     const rows = items.map((item) => [
-      item.maSanPham,
-      item.tenSanPham,
-      item.loaiSanPham || '',
-      item.donViTinh || '',
-      String(item.tongTonKho),
+      item.maSanPham, item.tenSanPham, item.loaiSanPham || '', item.donViTinh || '', String(item.tongTonKho),
     ]);
-    // Expand warehouse details
     const detailRows: string[][] = [];
     for (const item of items) {
       if (item.chiTietTheoKho.length > 1) {
@@ -132,19 +156,15 @@ const InventoryOverview: React.FC = () => {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-2 gap-3 mb-4">
         <div className="bg-white rounded-lg border border-gray-200 px-4 py-3">
           <div className="text-xs text-gray-500">Sản phẩm có tồn</div>
           <div className="text-xl font-bold text-gray-900">{totalProducts}</div>
         </div>
-        <div className="bg-white rounded-lg border border-gray-200 px-4 py-3">
-          <div className="text-xs text-gray-500">Tổng tồn kho</div>
-          <div className="text-xl font-bold text-gray-900">{formatNumber(totalStock)}</div>
-        </div>
         <div className={`rounded-lg border px-4 py-3 ${lowStockCount > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'}`}>
           <div className="text-xs text-gray-500 flex items-center gap-1">
             {lowStockCount > 0 && <AlertTriangle className="w-3 h-3 text-red-500" />}
-            Tồn thấp (≤{LOW_STOCK_THRESHOLD})
+            Sắp hết hàng (≤{LOW_STOCK_THRESHOLD})
           </div>
           <div className={`text-xl font-bold ${lowStockCount > 0 ? 'text-red-600' : 'text-gray-900'}`}>{lowStockCount}</div>
         </div>
@@ -182,11 +202,19 @@ const InventoryOverview: React.FC = () => {
               <thead>
                 <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
                   <th scope="col" className="px-3 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200 w-8"></th>
-                  <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã hàng</th>
-                  <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên hàng</th>
-                  <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Loại</th>
+                  <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200 cursor-pointer select-none" onClick={() => handleSort('maSanPham')}>
+                    Mã hàng <SortIcon field="maSanPham" />
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200 cursor-pointer select-none" onClick={() => handleSort('tenSanPham')}>
+                    Tên hàng <SortIcon field="tenSanPham" />
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200 cursor-pointer select-none" onClick={() => handleSort('loaiSanPham')}>
+                    Loại <SortIcon field="loaiSanPham" />
+                  </th>
                   <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">ĐVT</th>
-                  <th scope="col" className="px-4 py-3 text-right text-sm font-semibold text-gray-900">Tồn kho</th>
+                  <th scope="col" className="px-4 py-3 text-right text-sm font-semibold text-gray-900 cursor-pointer select-none" onClick={() => handleSort('tongTonKho')}>
+                    Tồn kho <SortIcon field="tongTonKho" />
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -267,43 +295,57 @@ const InventoryOverview: React.FC = () => {
       )}
 
       {/* Pagination */}
-      {pagination && pagination.totalPages > 1 && (
+      {pagination && (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
-          <span className="text-sm text-gray-600">
-            Hiển thị {(pagination.page - 1) * pagination.limit + 1}–
-            {Math.min(pagination.page * pagination.limit, pagination.total)} / {pagination.total} sản phẩm
-          </span>
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={pagination.page === 1}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-600">
+              {totalProducts > 0
+                ? `Hiển thị ${(pagination.page - 1) * pagination.limit + 1}–${Math.min(pagination.page * pagination.limit, pagination.total)} / ${pagination.total} sản phẩm`
+                : 'Không có sản phẩm'}
+            </span>
+            <select
+              value={pageSize}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+              className="text-sm border border-gray-300 rounded-md px-2 py-1 bg-white"
             >
-              Trước
-            </button>
-            {Array.from({ length: pagination.totalPages }, (_, i) => i + 1)
-              .filter((page) => page === 1 || page === pagination.totalPages || Math.abs(page - pagination.page) <= 2)
-              .map((page, idx, arr) => (
-                <React.Fragment key={page}>
-                  {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
-                  <button
-                    onClick={() => setCurrentPage(page)}
-                    className={`px-3 py-1.5 text-sm rounded-md ${
-                      page === pagination.page ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                </React.Fragment>
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>{size}/trang</option>
               ))}
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(pagination.totalPages, p + 1))}
-              disabled={pagination.page === pagination.totalPages}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Sau
-            </button>
+            </select>
           </div>
+          {pagination.totalPages > 1 && (
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={pagination.page === 1}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Trước
+              </button>
+              {Array.from({ length: pagination.totalPages }, (_, i) => i + 1)
+                .filter((page) => page === 1 || page === pagination.totalPages || Math.abs(page - pagination.page) <= 2)
+                .map((page, idx, arr) => (
+                  <React.Fragment key={page}>
+                    {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                    <button
+                      onClick={() => setCurrentPage(page)}
+                      className={`px-3 py-1.5 text-sm rounded-md ${
+                        page === pagination.page ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  </React.Fragment>
+                ))}
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(pagination.totalPages, p + 1))}
+                disabled={pagination.page === pagination.totalPages}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Sau
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
