@@ -182,6 +182,38 @@ router.delete(
   supplyRequestController.deleteSupplyRequest
 );
 
+/**
+ * @swagger
+ * /api/supply-requests/{id}/cancel:
+ *   post:
+ *     summary: Hủy yêu cầu cung cấp
+ *     description: "Hủy một yêu cầu cung cấp theo ID (chỉ ADMIN, DEPARTMENT_HEAD, TEAM_LEAD)"
+ *     tags: [Supply Requests]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của yêu cầu cung cấp
+ *     responses:
+ *       200:
+ *         description: Hủy yêu cầu cung cấp thành công
+ *       401:
+ *         description: Không có quyền truy cập
+ *       403:
+ *         description: Không đủ quyền hạn
+ *       404:
+ *         description: Không tìm thấy yêu cầu cung cấp
+ */
+router.post(
+  '/:id/cancel',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  supplyRequestController.cancelSupplyRequest
+);
+
 router.patch(
   '/:id/mark-purchased',
   supplyRequestController.markMuaNhanhAsPurchased

@@ -77,6 +77,20 @@ class SupplyRequestController {
     }
   }
 
+  async cancelSupplyRequest(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const result = await supplyRequestService.cancelSupplyRequest(id);
+      return res.json({
+        success: true,
+        message: 'Đã hủy yêu cầu cung cấp',
+        data: result,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
   async exportToExcel(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const filters: any = {};

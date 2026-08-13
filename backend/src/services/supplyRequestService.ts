@@ -858,6 +858,48 @@ class SupplyRequestService {
     });
   }
 
+  async cancelSupplyRequest(id: string): Promise<any> {
+    const request = await this.getSupplyRequestById(id);
+
+    // Only allow cancellation from initial states
+    const cancellable = ['Chưa cung cấp', 'Đang xử lý'];
+    if (!cancellable.includes(request.trangThai)) {
+      throw new ValidationError(`Không thể hủy yêu cầu ở trạng thái "${request.trangThai}"`);
+    }
+
+    // Update status to "Đã hủy" and cancel unfulfilled items
+    const updated = await prisma.supplyRequest.update({
+      where: { id },
+      data: {
+        trangThai: 'Đã hủy',
+        items: {
+          updateMany: {
+            where: { fulfillmentStatus: { notIn: ['Đã cấp đủ', 'Đã cấp một phần'] } },
+            data: { fulfillmentStatus: 'Đã hủy' },
+          },
+        },
+      },
+      include: { items: true },
+    });
+
+    // Notify the requester (non-blocking)
+    try {
+      await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_CANCELLED, {
+        targetEmployeeIds: [request.employeeId],
+        entityId: id,
+        metadata: {
+          maYeuCau: request.maYeuCau,
+          supplyRequestId: id,
+        },
+      });
+    } catch (e) {
+      // Notifications must not fail the main operation
+      console.error('Error sending cancel notification:', e);
+    }
+
+    return updated;
+  }
+
   /**
    * Mark a "Mua nhanh" supply request as purchased.
    * Advances status directly to "Đã mua hàng", optionally recording soTien.
