@@ -24,9 +24,17 @@ interface ActiveSlot {
   dbSlotId: string | null;
 }
 
-const WarehouseMap: React.FC<{ warehouseId: string | null; onWarehouseChange?: (id: string) => void }> = ({
+interface WarehouseMapProps {
+  warehouseId: string | null;
+  onWarehouseChange?: (id: string) => void;
+  /** Khi true: ẩn side panel + dropdown chọn kho (dùng trong unified view) */
+  hideSidePanel?: boolean;
+}
+
+const WarehouseMap: React.FC<WarehouseMapProps> = ({
   warehouseId,
   onWarehouseChange,
+  hideSidePanel = false,
 }) => {
   const { data: warehousesData } = useWarehouses();
   const updateLotProduct = useUpdateLotProduct();
@@ -125,15 +133,19 @@ const WarehouseMap: React.FC<{ warehouseId: string | null; onWarehouseChange?: (
     }
   };
 
+  const containerClass = hideSidePanel
+    ? 'flex flex-col'
+    : 'flex flex-col xl:flex-row gap-4';
+
   return (
-    <div className="flex flex-col xl:flex-row gap-4">
+    <div className={containerClass}>
       {/* Map */}
       <div className="flex-1 bg-white rounded-lg shadow p-4">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
             <MapPin className="w-4 h-4 text-blue-600" />
             Sơ đồ
-            {onWarehouseChange ? (
+            {!hideSidePanel && onWarehouseChange ? (
               <select
                 value={warehouse?.id ?? ''}
                 onChange={(e) => onWarehouseChange(e.target.value)}
@@ -259,55 +271,57 @@ const WarehouseMap: React.FC<{ warehouseId: string | null; onWarehouseChange?: (
         </svg>
       </div>
 
-      {/* Side panel */}
-      <div className="w-full xl:w-80 shrink-0 space-y-4">
-        <div className="bg-white rounded-lg shadow p-4">
-          <h4 className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-1.5">
-            <Package className="w-4 h-4 text-blue-600" />
-            Hàng hóa trong kho
-          </h4>
-          {goods.length === 0 ? (
-            <p className="text-xs text-gray-400">Kho chưa có hàng hóa</p>
-          ) : (
-            <ul className="divide-y divide-gray-100 max-h-72 overflow-y-auto">
-              {goods.map((g) => (
-                <li key={`${g.tenSanPham}|${g.donViTinh}`} className="py-1.5 flex items-baseline justify-between gap-2 text-xs">
-                  <span className="text-gray-700">{g.tenSanPham}</span>
-                  <span className="text-gray-900 font-medium whitespace-nowrap">
-                    {formatNumber(g.soLuong)} {g.donViTinh}
-                    <span className="text-gray-400 font-normal"> · {g.kien} kiện</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-4">
-          <h4 className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-1.5">
-            <PackageOpen className="w-4 h-4 text-amber-600" />
-            Chưa xếp vị trí ({unplaced.length})
-          </h4>
-          {unplaced.length === 0 ? (
-            <p className="text-xs text-gray-400">Mọi hàng hóa đều đã có vị trí trên sơ đồ</p>
-          ) : (
-            <>
-              <ul className="divide-y divide-gray-100 max-h-56 overflow-y-auto">
-                {unplaced.map((r) => (
-                  <li key={r.id} className="py-1.5 flex items-baseline justify-between gap-2 text-xs">
-                    <span className="text-gray-700 truncate">
-                      {r.internationalProduct?.tenSanPham ?? '?'}
-                      <span className="text-gray-400"> · {r.maKien ?? r.id.slice(-4)}</span>
+      {/* Side panel — ẩn khi hideSidePanel (đã được render bởi parent trong unified view) */}
+      {!hideSidePanel && (
+        <div className="w-full xl:w-80 shrink-0 space-y-4">
+          <div className="bg-white rounded-lg shadow p-4">
+            <h4 className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-1.5">
+              <Package className="w-4 h-4 text-blue-600" />
+              Hàng hóa trong kho
+            </h4>
+            {goods.length === 0 ? (
+              <p className="text-xs text-gray-400">Kho chưa có hàng hóa</p>
+            ) : (
+              <ul className="divide-y divide-gray-100 max-h-72 overflow-y-auto">
+                {goods.map((g) => (
+                  <li key={`${g.tenSanPham}|${g.donViTinh}`} className="py-1.5 flex items-baseline justify-between gap-2 text-xs">
+                    <span className="text-gray-700">{g.tenSanPham}</span>
+                    <span className="text-gray-900 font-medium whitespace-nowrap">
+                      {formatNumber(g.soLuong)} {g.donViTinh}
+                      <span className="text-gray-400 font-normal"> · {g.kien} kiện</span>
                     </span>
-                    <span className="text-gray-900 font-medium whitespace-nowrap">{formatNumber(r.soLuong)} {r.donViTinh}</span>
                   </li>
                 ))}
               </ul>
-              <p className="mt-2 text-[11px] text-gray-400">Chọn một ô trên sơ đồ để đặt hàng vào vị trí.</p>
-            </>
-          )}
+            )}
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-4">
+            <h4 className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-1.5">
+              <PackageOpen className="w-4 h-4 text-amber-600" />
+              Chưa xếp vị trí ({unplaced.length})
+            </h4>
+            {unplaced.length === 0 ? (
+              <p className="text-xs text-gray-400">Mọi hàng hóa đều đã có vị trí trên sơ đồ</p>
+            ) : (
+              <>
+                <ul className="divide-y divide-gray-100 max-h-56 overflow-y-auto">
+                  {unplaced.map((r) => (
+                    <li key={r.id} className="py-1.5 flex items-baseline justify-between gap-2 text-xs">
+                      <span className="text-gray-700 truncate">
+                        {r.internationalProduct?.tenSanPham ?? '?'}
+                        <span className="text-gray-400"> · {r.maKien ?? r.id.slice(-4)}</span>
+                      </span>
+                      <span className="text-gray-900 font-medium whitespace-nowrap">{formatNumber(r.soLuong)} {r.donViTinh}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-[11px] text-gray-400">Chọn một ô trên sơ đồ để đặt hàng vào vị trí.</p>
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Slot modal */}
       <Modal isOpen={!!activeSlot} onClose={() => setActiveSlot(null)} ariaLabel="Chi tiết vị trí">
