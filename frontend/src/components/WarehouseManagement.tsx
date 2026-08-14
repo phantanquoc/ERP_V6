@@ -439,71 +439,68 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
       {/* Warehouse Content */}
       {selectedWarehouse && (
         <div className="bg-white rounded-lg shadow">
-          {/* Warehouse Header */}
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 px-4 sm:px-6 py-4 border-b border-gray-200">
-            <div className="flex items-start gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg mt-0.5">
-                <WarehouseIcon className="w-5 h-5 text-blue-600" />
+          {/* Warehouse Header — compact for narrow sidebar */}
+          <div className="px-3 py-3 border-b border-gray-200 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="p-1.5 bg-blue-100 rounded-md shrink-0">
+                  <WarehouseIcon className="w-4 h-4 text-blue-600" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-sm font-semibold text-gray-900 truncate">{selectedWarehouse.tenKho}</h2>
+                  <span className="text-[11px] text-gray-400 font-mono">{selectedWarehouse.maKho}</span>
+                </div>
               </div>
-              <div className="space-y-1">
-                <h2 className="text-base font-semibold text-gray-900">{selectedWarehouse.tenKho}</h2>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-                  <span className="font-mono">{selectedWarehouse.maKho}</span>
-                  {selectedWarehouse.diaChi && <span>📍 {selectedWarehouse.diaChi}</span>}
-                  {selectedWarehouse.loaiKho && <span>Loại: {selectedWarehouse.loaiKho}</span>}
-                  {selectedWarehouse.nguoiQuanLy && <span>QL: {selectedWarehouse.nguoiQuanLy}</span>}
-                </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-                  <span>{selectedWarehouse.lots?.length || 0} lô</span>
-                  <span>
-                    {(() => {
-                      const allLotProducts = selectedWarehouse.lots?.flatMap(l => l.lotProducts || []) || [];
-                      const inStock = allLotProducts.filter(lp => lp.soLuong > 0).length;
-                      const total = allLotProducts.length;
-                      return `${inStock} còn hàng / ${total} tổng kiện`;
-                    })()}
-                  </span>
-                  {selectedWarehouse.trangThai && (
-                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                      selectedWarehouse.trangThai === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {selectedWarehouse.trangThai === 'active' ? 'Đang hoạt động' : selectedWarehouse.trangThai}
-                    </span>
-                  )}
-                </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={() => setShowLotModal(true)}
+                  className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                  title="Thêm lô"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => openEditWarehouseModal(selectedWarehouse)}
+                  className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
+                  title="Sửa kho"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => handleDeleteWarehouse(selectedWarehouse.id)}
+                  className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                  title="Xóa kho"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             </div>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-              <button
-                onClick={() => setShowLotModal(true)}
-                className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Thêm lô
-              </button>
-              <button
-                onClick={() => openEditWarehouseModal(selectedWarehouse)}
-                className="px-3 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors"
-              >
-                <Pencil className="w-4 h-4" />
-                Sửa kho
-              </button>
-              <button
-                onClick={() => handleDeleteWarehouse(selectedWarehouse.id)}
-                className="px-3 py-2 bg-white text-red-600 border border-red-200 rounded-lg hover:bg-red-50 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-                Xóa kho
-              </button>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-500 pl-8">
+              <span>{selectedWarehouse.lots?.length || 0} lô</span>
+              <span>
+                {(() => {
+                  const allLotProducts = selectedWarehouse.lots?.flatMap(l => l.lotProducts || []) || [];
+                  const inStock = allLotProducts.filter(lp => lp.soLuong > 0).length;
+                  const total = allLotProducts.length;
+                  return `${inStock}/${total} kiện còn hàng`;
+                })()}
+              </span>
+              {selectedWarehouse.trangThai && (
+                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                  selectedWarehouse.trangThai === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {selectedWarehouse.trangThai === 'active' ? 'Hoạt động' : selectedWarehouse.trangThai}
+                </span>
+              )}
             </div>
           </div>
 
           {/* Lots */}
-          <div className="p-4 sm:p-6">
+          <div className="p-3">
           {loading ? (
             <p className="text-center text-gray-500 py-8">Đang tải...</p>
           ) : selectedWarehouse?.lots && selectedWarehouse.lots.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {(() => {
                 const allLots = selectedWarehouse.lots;
                 const lotsTotalPages = Math.ceil(allLots.length / itemsPerPage);
@@ -511,119 +508,92 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
                 return (
                   <>
                     {paginatedLots.map((lot, lotIndex) => (
-                <div key={lot.id} className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                  {/* Lot Header */}
-                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-700">
+                <div key={lot.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                  {/* Lot Header — compact */}
+                  <div className="flex items-center justify-between gap-2 px-3 py-2 bg-gray-50 border-b border-gray-200">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-5 h-5 rounded bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-700 shrink-0">
                         {(currentPage - 1) * itemsPerPage + lotIndex + 1}
                       </div>
-                      <div>
-                        <h3 className="text-sm font-semibold text-gray-800">{lot.tenLo}</h3>
-                        <p className="text-xs text-gray-400">{lot.lotProducts?.length || 0} kiện</p>
+                      <div className="min-w-0">
+                        <span className="text-xs font-semibold text-gray-800 truncate block">{lot.tenLo}</span>
+                        <span className="text-[10px] text-gray-400">{lot.lotProducts?.length || 0} kiện</span>
                       </div>
                     </div>
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => {
                           setSelectedLotId(lot.id);
                           setShowProductModal(true);
                         }}
-                        className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
+                        className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors"
+                        title="Thêm sản phẩm"
                       >
                         <PackagePlus className="w-3.5 h-3.5" />
-                        Thêm sản phẩm
                       </button>
                       <button
                         onClick={() => handleDeleteLot(lot.id)}
-                        className="px-3 py-1.5 bg-white text-red-500 border border-red-200 rounded-lg hover:bg-red-50 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors"
+                        className="p-1 text-red-500 hover:bg-red-50 rounded transition-colors"
+                        title="Xóa lô"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
-                        Xóa lô
                       </button>
                     </div>
                   </div>
 
-                  {/* Products in Lot */}
+                  {/* Products in Lot — dense list instead of wide table */}
                   {lot?.lotProducts && lot.lotProducts.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[700px] table-fixed">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="w-[18%] px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                              Mã kiện
-                            </th>
-                            <th className="w-[14%] px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                              Mã hàng hóa
-                            </th>
-                            <th className="w-[30%] px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                              Tên hàng hóa
-                            </th>
-                            <th className="w-[20%] px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                              Số lượng
-                            </th>
-                            <th className="w-[18%] px-3 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                              Hành động
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 bg-white">
-                          {lot.lotProducts.map((product, idx) => (
-                            <tr key={product.id} className={`hover:bg-blue-50/40 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
-                              <td className="px-3 py-3 text-sm text-gray-700 font-mono">
+                    <ul className="divide-y divide-gray-100">
+                      {lot.lotProducts.map((product) => (
+                        <li key={product.id} className="px-3 py-2 hover:bg-blue-50/40 transition-colors">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-medium text-gray-900 truncate flex items-center gap-1.5">
+                                <Package className="w-3 h-3 text-gray-400 shrink-0" />
+                                {product.internationalProduct?.tenSanPham || '?'}
+                              </p>
+                              <p className="text-[10px] text-gray-400 font-mono mt-0.5 truncate">
                                 {product.maKien ?? `${lot.tenLo}-${product.id.slice(-4)}`}
-                              </td>
-                              <td className="px-3 py-3 text-sm text-gray-600 font-mono">
-                                {product.internationalProduct?.maSanPham || ''}
-                              </td>
-                              <td className="px-3 py-3 text-sm text-gray-900 flex items-center gap-2">
-                                <Package className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                                {product.internationalProduct?.tenSanPham || ''}
-                              </td>
-                              <td className="px-3 py-3 text-sm font-medium text-gray-900">
-                                <button
-                                  onClick={() => setHistoryLotProduct(product)}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md text-xs font-semibold hover:bg-blue-100 transition-colors cursor-pointer"
-                                  title="Xem lịch sử nhập kho"
-                                >
-                                  {product.soLuong} {product.donViTinh}
-                                  <History className="w-3 h-3 opacity-50" />
-                                </button>
-                              </td>
-                              <td className="px-3 py-3 text-sm">
-                                <div className="flex justify-center gap-2">
-                                  <button
-                                    onClick={() => openEditLotProductModal(product)}
-                                    className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                                    title="Sửa kiện"
-                                  >
-                                    <Pencil className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => openMoveModal(product)}
-                                    className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
-                                    title="Di chuyển sang lô khác"
-                                  >
-                                    <MoveRight className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleRemoveProduct(product.id)}
-                                    className="p-1.5 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
-                                    title="Xóa sản phẩm"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                                {product.internationalProduct?.maSanPham ? ` · ${product.internationalProduct.maSanPham}` : ''}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                onClick={() => setHistoryLotProduct(product)}
+                                className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-semibold hover:bg-blue-100 transition-colors whitespace-nowrap"
+                                title="Xem lịch sử nhập kho"
+                              >
+                                {product.soLuong} {product.donViTinh}
+                              </button>
+                              <button
+                                onClick={() => openEditLotProductModal(product)}
+                                className="p-1 text-gray-500 hover:bg-gray-100 rounded transition-colors"
+                                title="Sửa kiện"
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={() => openMoveModal(product)}
+                                className="p-1 text-blue-600 hover:bg-blue-100 rounded transition-colors"
+                                title="Di chuyển sang lô khác"
+                              >
+                                <MoveRight className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={() => handleRemoveProduct(product.id)}
+                                className="p-1 text-red-500 hover:bg-red-100 rounded transition-colors"
+                                title="Xóa sản phẩm"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
                   ) : (
-                    <div className="px-4 py-8 text-center bg-white">
-                      <Package className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                      <p className="text-sm text-gray-400">Chưa có sản phẩm trong lô này</p>
+                    <div className="px-3 py-4 text-center">
+                      <p className="text-xs text-gray-400">Chưa có sản phẩm</p>
                     </div>
                   )}
                 </div>
