@@ -165,6 +165,50 @@ const WarehouseMap: React.FC<{ warehouseId: string | null; onWarehouseChange?: (
         </div>
 
         <svg viewBox={`0 0 ${layout.viewW} ${layout.viewH + 4}`} className="w-full" role="img" aria-label={`Sơ đồ ${warehouse.tenKho}`}>
+          {/* Walls (building outline) */}
+          {layout.walls.map((wl, i) => (
+            <line
+              key={`wall-${i}`}
+              x1={wl.x1}
+              y1={wl.y1}
+              x2={wl.x2}
+              y2={wl.y2}
+              stroke="#111827"
+              strokeWidth={0.35}
+              strokeLinecap="square"
+            />
+          ))}
+
+          {/* Door symbols / hatch clusters */}
+          {layout.hatches.map((h, i) => (
+            <rect
+              key={`hatch-${i}`}
+              x={h.x}
+              y={h.y}
+              width={Math.max(h.w, 0.4)}
+              height={Math.max(h.h, 0.4)}
+              fill="#9ca3af"
+              opacity={0.5}
+            />
+          ))}
+
+          {/* Area notes with leader lines (e.g. "Khu vực để dầu chiên") */}
+          {layout.notes.map((n, i) => (
+            <g key={`note-${i}`}>
+              <line
+                x1={n.x + 2.5}
+                y1={n.y}
+                x2={n.tx}
+                y2={n.ty}
+                stroke="#374151"
+                strokeWidth={0.12}
+              />
+              <text x={n.x} y={n.y - 0.5} fontSize={1.6} className="fill-gray-700 font-medium">
+                {n.text}
+              </text>
+            </g>
+          ))}
+
           {layout.fans.map((f, i) => (
             <g key={`fan-${i}`}>
               <rect x={f.x} y={f.y} width={f.w} height={f.h} rx={0.4} className="fill-gray-200 stroke-gray-400" strokeWidth={0.2} />
