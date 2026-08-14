@@ -39,45 +39,50 @@ const dedupeWalls = (walls: LayoutWall[]): LayoutWall[] => {
   return out;
 };
 
-// Hatches extracted from CAD are not all rectangles. A door symbol is encoded as a
-// degenerate rect: w≈0 → vertical door line, h≈0 → horizontal door line. Only when
-// both dims > 0 is it a real rectangular hatch. Render each kind with the right CAD symbol.
+// Hatches extracted from CAD are door symbols encoded as degenerate rects:
+// w≈0 → vertical door line, h≈0 → horizontal door line. Render as small CAD-style
+// door marks (short line + tiny arc), matching the source PDF visual style.
 const renderHatch = (h: LayoutHatch, i: number): React.ReactNode => {
   const THIN = 0.5;
-  const stroke = '#111827';
-  const sw = 0.28;
+  const MAX_ARC_R = 1.8; // cap arc radius so doors don't create huge quarter-circles
+  const doorColor = '#dc2626'; // red like CAD door symbols
+  const tickColor = '#ea580c'; // orange for tick marks
   if (h.w < THIN && h.h < THIN) return null; // point/bug — skip
   if (h.w < THIN) {
-    // Vertical door line: line + 1/4 arc swinging open to the right (h = door height)
-    const r = h.h;
+    // Vertical door: short line + small arc
+    const r = Math.min(h.h, MAX_ARC_R);
     return (
       <g key={`hatch-${i}`}>
-        <line x1={h.x} y1={h.y} x2={h.x} y2={h.y + h.h} stroke={stroke} strokeWidth={sw} strokeLinecap="round" />
+        <line x1={h.x} y1={h.y} x2={h.x} y2={h.y + h.h} stroke={doorColor} strokeWidth={0.22} strokeLinecap="round" />
         <path
           d={`M ${h.x} ${h.y + h.h} A ${r} ${r} 0 0 1 ${h.x + r} ${h.y + h.h}`}
           fill="none"
-          stroke={stroke}
-          strokeWidth={0.18}
+          stroke={doorColor}
+          strokeWidth={0.15}
         />
+        {/* Small tick at door top */}
+        <line x1={h.x - 0.3} y1={h.y} x2={h.x + 0.3} y2={h.y} stroke={tickColor} strokeWidth={0.18} />
       </g>
     );
   }
   if (h.h < THIN) {
-    // Horizontal door line: line + 1/4 arc swinging open downward (w = door width)
-    const r = h.w;
+    // Horizontal door: short line + small arc
+    const r = Math.min(h.w, MAX_ARC_R);
     return (
       <g key={`hatch-${i}`}>
-        <line x1={h.x} y1={h.y} x2={h.x + h.w} y2={h.y} stroke={stroke} strokeWidth={sw} strokeLinecap="round" />
+        <line x1={h.x} y1={h.y} x2={h.x + h.w} y2={h.y} stroke={doorColor} strokeWidth={0.22} strokeLinecap="round" />
         <path
           d={`M ${h.x + h.w} ${h.y} A ${r} ${r} 0 0 1 ${h.x + h.w} ${h.y + r}`}
           fill="none"
-          stroke={stroke}
-          strokeWidth={0.18}
+          stroke={doorColor}
+          strokeWidth={0.15}
         />
+        {/* Small tick at door left */}
+        <line x1={h.x} y1={h.y - 0.3} x2={h.x} y2={h.y + 0.3} stroke={tickColor} strokeWidth={0.18} />
       </g>
     );
   }
-  // Real rectangular hatch
+  // Real rectangular hatch (rare) — gray fill like v2 style
   return (
     <rect
       key={`hatch-${i}`}
@@ -85,9 +90,9 @@ const renderHatch = (h: LayoutHatch, i: number): React.ReactNode => {
       y={h.y}
       width={h.w}
       height={h.h}
-      fill="none"
-      stroke={stroke}
-      strokeWidth={sw}
+      fill="#9ca3af"
+      fillOpacity={0.4}
+      stroke="none"
     />
   );
 };
@@ -251,7 +256,7 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({
         </div>
 
         <svg viewBox={`0 0 ${layout.viewW} ${layout.viewH + 4}`} className="w-full" role="img" aria-label={`Sơ đồ ${warehouse.tenKho}`}>
-          {/* Walls (building outline) — deduplicate near-identical segments */}
+          {/* Walls — yellow interior style matching CAD PDF, thin lines */}
           {dedupeWalls(layout.walls).map((wl, i) => (
             <line
               key={`wall-${i}`}
@@ -259,8 +264,8 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({
               y1={wl.y1}
               x2={wl.x2}
               y2={wl.y2}
-              stroke="#111827"
-              strokeWidth={0.3}
+              stroke="#ca8a04"
+              strokeWidth={0.25}
               strokeLinecap="square"
             />
           ))}
