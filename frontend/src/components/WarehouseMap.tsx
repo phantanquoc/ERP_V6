@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { MapPin, Package, PackageOpen } from 'lucide-react';
 import type { Warehouse, LotProduct } from '../services/warehouseService';
 import { useWarehouses, useUpdateLotProduct } from '../hooks';
-import { getLayoutByMaKho, type LayoutSlot } from '../constants/warehouseLayouts';
+import { getLayoutByMaKho, type LayoutHatch, type LayoutSlot, type LayoutWall } from '../constants/warehouseLayouts';
 import Modal from './Modal';
 
 interface PlacedRow extends LotProduct {
@@ -16,6 +16,80 @@ const zoneLabel = (zone: string) => {
   if (zone.startsWith('DAUCHIEN-')) return `Dầu chiên · ${zone.replace('DAUCHIEN-LO', 'LÔ ')}`;
   if (zone.startsWith('NHA-')) return `Nha · ${zone.replace('NHA-LO', 'LÔ ')}`;
   return zone.replace('LO', 'LÔ ');
+};
+
+const wallKey = (w: LayoutWall) => {
+  const mx = (w.x1 + w.x2) / 2;
+  const my = (w.y1 + w.y2) / 2;
+  const len = Math.hypot(w.x2 - w.x1, w.y2 - w.y1);
+  return `${mx.toFixed(1)}|${my.toFixed(1)}|${len.toFixed(1)}`;
+};
+
+// CAD files often emit the same wall segment 2-3x (overlapping polyline endpoints).
+// Drop near-identical segments so the floor plan doesn't render double-thick black lines.
+const dedupeWalls = (walls: LayoutWall[]): LayoutWall[] => {
+  const seen = new Set<string>();
+  const out: LayoutWall[] = [];
+  for (const w of walls) {
+    const k = wallKey(w);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(w);
+  }
+  return out;
+};
+
+// Hatches extracted from CAD are not all rectangles. A door symbol is encoded as a
+// degenerate rect: w≈0 → vertical door line, h≈0 → horizontal door line. Only when
+// both dims > 0 is it a real rectangular hatch. Render each kind with the right CAD symbol.
+const renderHatch = (h: LayoutHatch, i: number): React.ReactNode => {
+  const THIN = 0.5;
+  const stroke = '#111827';
+  const sw = 0.28;
+  if (h.w < THIN && h.h < THIN) return null; // point/bug — skip
+  if (h.w < THIN) {
+    // Vertical door line: line + 1/4 arc swinging open to the right (h = door height)
+    const r = h.h;
+    return (
+      <g key={`hatch-${i}`}>
+        <line x1={h.x} y1={h.y} x2={h.x} y2={h.y + h.h} stroke={stroke} strokeWidth={sw} strokeLinecap="round" />
+        <path
+          d={`M ${h.x} ${h.y + h.h} A ${r} ${r} 0 0 1 ${h.x + r} ${h.y + h.h}`}
+          fill="none"
+          stroke={stroke}
+          strokeWidth={0.18}
+        />
+      </g>
+    );
+  }
+  if (h.h < THIN) {
+    // Horizontal door line: line + 1/4 arc swinging open downward (w = door width)
+    const r = h.w;
+    return (
+      <g key={`hatch-${i}`}>
+        <line x1={h.x} y1={h.y} x2={h.x + h.w} y2={h.y} stroke={stroke} strokeWidth={sw} strokeLinecap="round" />
+        <path
+          d={`M ${h.x + h.w} ${h.y} A ${r} ${r} 0 0 1 ${h.x + h.w} ${h.y + r}`}
+          fill="none"
+          stroke={stroke}
+          strokeWidth={0.18}
+        />
+      </g>
+    );
+  }
+  // Real rectangular hatch
+  return (
+    <rect
+      key={`hatch-${i}`}
+      x={h.x}
+      y={h.y}
+      width={h.w}
+      height={h.h}
+      fill="none"
+      stroke={stroke}
+      strokeWidth={sw}
+    />
+  );
 };
 
 interface ActiveSlot {
@@ -177,8 +251,8 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({
         </div>
 
         <svg viewBox={`0 0 ${layout.viewW} ${layout.viewH + 4}`} className="w-full" role="img" aria-label={`Sơ đồ ${warehouse.tenKho}`}>
-          {/* Walls (building outline) */}
-          {layout.walls.map((wl, i) => (
+          {/* Walls (building outline) — deduplicate near-identical segments */}
+          {dedupeWalls(layout.walls).map((wl, i) => (
             <line
               key={`wall-${i}`}
               x1={wl.x1}
@@ -186,23 +260,16 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({
               x2={wl.x2}
               y2={wl.y2}
               stroke="#111827"
-              strokeWidth={0.35}
+              strokeWidth={0.3}
               strokeLinecap="square"
             />
           ))}
 
-          {/* Door symbols / hatch clusters */}
-          {layout.hatches.map((h, i) => (
-            <rect
-              key={`hatch-${i}`}
-              x={h.x}
-              y={h.y}
-              width={Math.max(h.w, 0.4)}
-              height={Math.max(h.h, 0.4)}
-              fill="#9ca3af"
-              opacity={0.5}
-            />
-          ))}
+          {/* Doors (hatches): orientation-aware CAD symbols */}
+          {layout.hatches.map((h, i) => {
+            const el = renderHatch(h, i);
+            return el;
+          })}
 
           {/* Area notes with leader lines (e.g. "Khu vực để dầu chiên") */}
           {layout.notes.map((n, i) => (
