@@ -19,10 +19,17 @@ import { useUnitOptions } from '../hooks/useLookups';
 
 interface WarehouseManagementProps {
   initialWarehouseId?: string;
+  /** Controlled mode: parent owns the selected warehouse id (used by the map sub-tab). */
+  selectedWarehouseId?: string | null;
+  onSelectedWarehouseChange?: (id: string | null) => void;
 }
 
-const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWarehouseId }) => {
-  const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null);
+const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
+  initialWarehouseId,
+  selectedWarehouseId,
+  onSelectedWarehouseChange,
+}) => {
+  const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -68,6 +75,17 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
     return sortWarehouses(warehousesData as Warehouse[]);
   }, [warehousesData]);
 
+  // Dual-mode selection: controlled (parent owns id + callback) or internal state.
+  // Every call site passes a Warehouse object or null, so the shim keeps the body unchanged.
+  const controlled = onSelectedWarehouseChange !== undefined;
+  const effectiveSelectedId = controlled ? (selectedWarehouseId ?? null) : internalSelectedId;
+  const selectedWarehouse = warehouses.find((w) => w.id === effectiveSelectedId) ?? null;
+  const setSelectedWarehouse = (w: Warehouse | null) => {
+    const id = w?.id ?? null;
+    if (controlled) onSelectedWarehouseChange!(id);
+    else setInternalSelectedId(id);
+  };
+
   // Modal states
   const [showWarehouseModal, setShowWarehouseModal] = useState(false);
   const [showEditWarehouseModal, setShowEditWarehouseModal] = useState(false);
@@ -99,16 +117,6 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({ initialWareho
   const [movingProduct, setMovingProduct] = useState<LotProduct | null>(null);
   const [targetWarehouseId, setTargetWarehouseId] = useState('');
   const [targetLotId, setTargetLotId] = useState('');
-
-  // Update selectedWarehouse when warehouses change
-  useEffect(() => {
-    if (warehouses.length > 0 && selectedWarehouse) {
-      const updatedWarehouse = warehouses.find((w: Warehouse) => w.id === selectedWarehouse.id);
-      if (updatedWarehouse) {
-        setSelectedWarehouse(updatedWarehouse);
-      }
-    }
-  }, [warehouses]);
 
   // Preselect warehouse when initialWarehouseId is provided
   useEffect(() => {

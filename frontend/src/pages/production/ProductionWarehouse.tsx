@@ -14,6 +14,9 @@ import WarehouseReceiptTab from '../../components/WarehouseReceiptTab';
 import WarehouseIssueTab from '../../components/WarehouseIssueTab';
 import InternationalProductManagement from '../../components/InternationalProductManagement';
 import InventoryOverview from '../../components/InventoryOverview';
+import WarehouseMap from '../../components/WarehouseMap';
+import { useWarehouses } from '../../hooks';
+import { hasWarehouseLayout } from '../../constants/warehouseLayouts';
 import warehouseService, { Warehouse as WarehouseType } from '../../services/warehouseService';
 import warehouseReceiptService from '../../services/warehouseReceiptService';
 import warehouseIssueService from '../../services/warehouseIssueService';
@@ -22,10 +25,20 @@ import supplyRequestService from '../../services/supplyRequestService';
 type TabType = 'inbound' | 'outbound' | 'supplyRequest' | 'warehouseManagement' | 'products';
 const VALID_TABS: TabType[] = ['inbound', 'outbound', 'supplyRequest', 'warehouseManagement', 'products'];
 
-type WarehouseSubTab = 'management' | 'inventory';
+type WarehouseSubTab = 'management' | 'inventory' | 'map';
 
 const WarehouseManagementWithSubTabs: React.FC<{ initialWarehouseId?: string }> = ({ initialWarehouseId }) => {
   const [subTab, setSubTab] = useState<WarehouseSubTab>('management');
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(initialWarehouseId ?? null);
+  const { data: warehousesData } = useWarehouses();
+
+  const selectedMaKho = (warehousesData as WarehouseType[] | undefined)?.find((w) => w.id === selectedWarehouseId)?.maKho;
+  const showMapTab = hasWarehouseLayout(selectedMaKho);
+
+  // Warehouses without a CAD layout keep the previous UI — fall back if the map tab becomes invalid
+  useEffect(() => {
+    if (subTab === 'map' && !showMapTab) setSubTab('management');
+  }, [subTab, showMapTab]);
 
   return (
     <div>
@@ -50,9 +63,28 @@ const WarehouseManagementWithSubTabs: React.FC<{ initialWarehouseId?: string }> 
         >
           Tồn kho
         </button>
+        {showMapTab && (
+          <button
+            onClick={() => setSubTab('map')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              subTab === 'map'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Bản đồ kho
+          </button>
+        )}
       </div>
-      {subTab === 'management' && <WarehouseManagement initialWarehouseId={initialWarehouseId} />}
+      {subTab === 'management' && (
+        <WarehouseManagement
+          initialWarehouseId={initialWarehouseId}
+          selectedWarehouseId={selectedWarehouseId}
+          onSelectedWarehouseChange={setSelectedWarehouseId}
+        />
+      )}
       {subTab === 'inventory' && <InventoryOverview />}
+      {subTab === 'map' && <WarehouseMap warehouseId={selectedWarehouseId} onWarehouseChange={setSelectedWarehouseId} />}
     </div>
   );
 };

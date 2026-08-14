@@ -195,7 +195,23 @@ model warehouses {
   createdAt   DateTime @default(now())
   updatedAt   DateTime
   lots        Lot[]
+  warehouseSlots WarehouseSlot[]
 
+  @@schema("business")
+}
+
+model WarehouseSlot {
+  id          String       @id // deterministic 'WS-<maKho>-<zone>-<code>' for stable migration seeding
+  warehouseId String
+  zone        String
+  code        String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  warehouse   warehouses   @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  lotProducts LotProduct[]
+
+  @@unique([warehouseId, zone, code])
+  @@map("warehouse_slots")
   @@schema("business")
 }
 
@@ -219,11 +235,13 @@ model LotProduct {
   soLuong                Float
   donViTinh              String
   maKien                 String?
+  slotId                 String?
   createdAt              DateTime               @default(now())
   updatedAt              DateTime               @updatedAt
   giaThanh               Float?                 @default(100000)
   internationalProduct   InternationalProduct   @relation(fields: [internationalProductId], references: [id], onDelete: Cascade)
   lot                    Lot                    @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  slot                   WarehouseSlot?         @relation(fields: [slotId], references: [id], onDelete: SetNull)
   materialEvaluations    MaterialEvaluation[]
   warehouseReceipts      WarehouseReceiptItem[]
   warehouseIssues        WarehouseIssueItem[]

@@ -65,8 +65,8 @@ export class LotProductController {
 
   async updateProductQuantity(req: Request, res: Response, next: NextFunction) {
     try {
-      const { maKien, soLuong, donViTinh, giaThanh } = req.body;
-      const lotProduct = await lotProductService.updateLotProduct(req.params.id, { maKien, soLuong, donViTinh, giaThanh });
+      const { maKien, soLuong, donViTinh, giaThanh, slotId } = req.body;
+      const lotProduct = await lotProductService.updateLotProduct(req.params.id, { maKien, soLuong, donViTinh, giaThanh, slotId });
       res.json({ success: true, data: lotProduct, message: 'Cập nhật kiện thành công' });
     } catch (error) {
       next(error);
