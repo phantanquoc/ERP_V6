@@ -22,12 +22,15 @@ interface WarehouseManagementProps {
   /** Controlled mode: parent owns the selected warehouse id (used by the map sub-tab). */
   selectedWarehouseId?: string | null;
   onSelectedWarehouseChange?: (id: string | null) => void;
+  /** Khi true: bỏ title + tab strip danh sách kho (parent đã render full-width ngoài). */
+  hideTabs?: boolean;
 }
 
 const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
   initialWarehouseId,
   selectedWarehouseId,
   onSelectedWarehouseChange,
+  hideTabs = false,
 }) => {
   const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -371,50 +374,67 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Quản lý kho</h2>
-      </div>
+      {!hideTabs && (
+        <>
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Quản lý kho</h2>
+          </div>
 
-      {/* Warehouse Tabs */}
-      <div className="bg-white rounded-lg shadow mb-6">
-        <div className="border-b border-gray-200">
-          <nav className="flex space-x-1 px-4 overflow-x-auto" aria-label="Warehouse Tabs">
-            {warehouses.map((warehouse) => (
-              <button
-                key={warehouse.id}
-                onClick={() => { setSelectedWarehouse(warehouse); setCurrentPage(1); }}
-                className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2 ${
-                  selectedWarehouse?.id === warehouse.id
-                    ? 'border-blue-500 text-blue-600 bg-blue-50/50'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <WarehouseIcon className="w-3.5 h-3.5" />
-                <span className="flex flex-col items-start leading-tight">
-                  <span>{warehouse.tenKho}</span>
-                  <span className="text-[10px] text-gray-400 font-normal">{warehouse.maKho}</span>
-                </span>
-                {warehouse.lots && warehouse.lots.length > 0 && (
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
-                    selectedWarehouse?.id === warehouse.id
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'bg-gray-100 text-gray-500'
-                  }`}>
-                    {warehouse.lots.length}
-                  </span>
-                )}
-              </button>
-            ))}
-            <button
-              onClick={openCreateWarehouseModal}
-              className="whitespace-nowrap py-3 px-4 border-b-2 border-transparent font-medium text-sm text-green-600 hover:text-green-700 hover:border-green-400 hover:bg-green-50/50 transition-colors flex items-center gap-1.5"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Thêm kho
-            </button>
-          </nav>
+          {/* Warehouse Tabs */}
+          <div className="bg-white rounded-lg shadow mb-6">
+            <div className="border-b border-gray-200">
+              <nav className="flex space-x-1 px-4 overflow-x-auto" aria-label="Warehouse Tabs">
+                {warehouses.map((warehouse) => (
+                  <button
+                    key={warehouse.id}
+                    onClick={() => { setSelectedWarehouse(warehouse); setCurrentPage(1); }}
+                    className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2 ${
+                      selectedWarehouse?.id === warehouse.id
+                        ? 'border-blue-500 text-blue-600 bg-blue-50/50'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    <WarehouseIcon className="w-3.5 h-3.5" />
+                    <span className="flex flex-col items-start leading-tight">
+                      <span>{warehouse.tenKho}</span>
+                      <span className="text-[10px] text-gray-400 font-normal">{warehouse.maKho}</span>
+                    </span>
+                    {warehouse.lots && warehouse.lots.length > 0 && (
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
+                        selectedWarehouse?.id === warehouse.id
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-gray-100 text-gray-500'
+                      }`}>
+                        {warehouse.lots.length}
+                      </span>
+                    )}
+                  </button>
+                ))}
+                <button
+                  onClick={openCreateWarehouseModal}
+                  className="whitespace-nowrap py-3 px-4 border-b-2 border-transparent font-medium text-sm text-green-600 hover:text-green-700 hover:border-green-400 hover:bg-green-50/50 transition-colors flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Thêm kho
+                </button>
+              </nav>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Nút Thêm kho khi ẩn tab strip (parent đã render tabs ngoài) */}
+      {hideTabs && (
+        <div className="flex justify-end mb-2">
+          <button
+            onClick={openCreateWarehouseModal}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-600 border border-green-300 rounded-lg hover:bg-green-50"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Thêm kho
+          </button>
         </div>
-      </div>
+      )}
 
       {/* Warehouse Content */}
       {selectedWarehouse && (
