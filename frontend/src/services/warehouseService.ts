@@ -1,5 +1,11 @@
 import apiClient from './apiClient';
 
+export interface WarehouseSlotSummary {
+  id: string;
+  zone: string;
+  code: string;
+}
+
 export interface Warehouse {
   id: string;
   maKho: string;
@@ -15,6 +21,7 @@ export interface Warehouse {
   createdAt: string;
   updatedAt: string;
   lots?: Lot[];
+  warehouseSlots?: WarehouseSlotSummary[];
 }
 
 export interface Lot {
@@ -34,6 +41,7 @@ export interface LotProduct {
   soLuong: number;
   donViTinh: string;
   maKien?: string;
+  slotId?: string | null;
   giaThanh?: number; // Giá thành/đơn vị (VND)
   createdAt: string;
   updatedAt: string;
@@ -45,6 +53,7 @@ export interface LotProduct {
     loaiSanPham?: string;
   };
   lot?: Lot;
+  slot?: WarehouseSlotSummary | null;
 }
 
 export interface WarehouseReceiptHistory {
@@ -66,6 +75,7 @@ export interface UpdateLotProductData {
   soLuong?: number;
   donViTinh?: string;
   giaThanh?: number;
+  slotId?: string | null;
 }
 
 export interface CreateWarehouseData {

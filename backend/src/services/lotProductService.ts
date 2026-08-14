@@ -13,6 +13,7 @@ interface UpdateLotProductInput {
   soLuong?: number;
   donViTinh?: string;
   giaThanh?: number;
+  slotId?: string | null;
 }
 
 /** @deprecated Use UpdateLotProductInput instead */
@@ -119,7 +120,8 @@ class LotProductService {
 
     const result = await prisma.lotProduct.update({
       where: { id: lotProductId },
-      data: { lotId: targetLotId },
+      // physical slot is warehouse-scoped — moving lots always unplaces the item
+      data: { lotId: targetLotId, slotId: null },
       include: lotProductInclude,
     });
 
@@ -132,9 +134,20 @@ class LotProductService {
   }
 
   async updateLotProduct(id: string, input: UpdateLotProductInput) {
-    const existing = await prisma.lotProduct.findUnique({ where: { id } });
+    const existing = await prisma.lotProduct.findUnique({ where: { id }, include: { lot: true } });
     if (!existing) {
       throw new NotFoundError('Không tìm thấy kiện');
+    }
+
+    // A physical slot belongs to exactly one warehouse — reject cross-warehouse placement
+    if (input.slotId) {
+      const slot = await prisma.warehouseSlot.findUnique({ where: { id: input.slotId } });
+      if (!slot) {
+        throw new NotFoundError('Không tìm thấy vị trí');
+      }
+      if (slot.warehouseId !== existing.lot.warehouseId) {
+        throw new ConflictError('Vị trí không thuộc kho của lô hàng');
+      }
     }
 
     try {
@@ -145,6 +158,7 @@ class LotProductService {
           soLuong: input.soLuong !== undefined ? parseFloat(input.soLuong.toString()) : undefined,
           donViTinh: input.donViTinh || undefined,
           giaThanh: input.giaThanh !== undefined ? parseFloat(input.giaThanh.toString()) : undefined,
+          slotId: input.slotId !== undefined ? (input.slotId || null) : undefined,
         },
         include: { internationalProduct: true },
       });

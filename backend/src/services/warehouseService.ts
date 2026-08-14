@@ -47,11 +47,18 @@ class WarehouseService {
                 soLuong: true,
                 donViTinh: true,
                 giaThanh: true,
+                maKien: true,
                 internationalProductId: true,
                 internationalProduct: { select: { id: true, tenSanPham: true, maSanPham: true } },
+                slotId: true,
+                slot: { select: { id: true, zone: true, code: true } },
               },
             },
           },
+        },
+        warehouseSlots: {
+          select: { id: true, zone: true, code: true },
+          orderBy: [{ zone: 'asc' }, { code: 'asc' }],
         },
       },
     });
