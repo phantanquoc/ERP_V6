@@ -336,8 +336,6 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({
               </text>
             );
           })}
-            );
-          })}
         </svg>
       </div>
 
