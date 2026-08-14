@@ -18,6 +18,23 @@ const zoneLabel = (zone: string) => {
   return zone.replace('LO', 'LÔ ');
 };
 
+// Zone color palette — pastel fills with matching darker strokes for readability.
+// Follows the v2 CAD rendering style: each zone gets a distinct hue so the eye
+// groups pallet positions by lot at a glance.
+const ZONE_PALETTE = [
+  { fill: '#dbeafe', stroke: '#2563eb' }, // blue
+  { fill: '#dcfce7', stroke: '#16a34a' }, // green
+  { fill: '#fef3c7', stroke: '#d97706' }, // amber
+  { fill: '#fae8ff', stroke: '#a21caf' }, // fuchsia
+  { fill: '#ffe4e6', stroke: '#e11d48' }, // rose
+  { fill: '#cffafe', stroke: '#0891b2' }, // cyan
+  { fill: '#e0e7ff', stroke: '#4f46e5' }, // indigo
+  { fill: '#f1f5f9', stroke: '#475569' }, // slate
+  { fill: '#fee2e2', stroke: '#dc2626' }, // red-light
+  { fill: '#ecfccb', stroke: '#65a30d' }, // lime
+  { fill: '#f3e8ff', stroke: '#9333ea' }, // purple
+];
+
 const wallKey = (w: LayoutWall) => {
   const mx = (w.x1 + w.x2) / 2;
   const my = (w.y1 + w.y2) / 2;
@@ -26,7 +43,7 @@ const wallKey = (w: LayoutWall) => {
 };
 
 // CAD files often emit the same wall segment 2-3x (overlapping polyline endpoints).
-// Drop near-identical segments so the floor plan doesn't render double-thick black lines.
+// Drop near-identical segments so the floor plan doesn't render double-thick lines.
 const dedupeWalls = (walls: LayoutWall[]): LayoutWall[] => {
   const seen = new Set<string>();
   const out: LayoutWall[] = [];
@@ -39,61 +56,38 @@ const dedupeWalls = (walls: LayoutWall[]): LayoutWall[] => {
   return out;
 };
 
-// Hatches extracted from CAD are door symbols encoded as degenerate rects:
-// w≈0 → vertical door line, h≈0 → horizontal door line. Render as small CAD-style
-// door marks (short line + tiny arc), matching the source PDF visual style.
+// Door symbols per architectural drawing standards (ISO 128 / Life of an Architect):
+// doors use MEDIUM line weight (lighter than cut walls), drawn as a leaf line + swing arc.
+// Arc radius is capped so large door openings don't produce oversized quarter-circles.
+// Color is neutral slate — red/orange read as error markers in UI, not structure.
 const renderHatch = (h: LayoutHatch, i: number): React.ReactNode => {
   const THIN = 0.5;
-  const MAX_ARC_R = 1.8; // cap arc radius so doors don't create huge quarter-circles
-  const doorColor = '#dc2626'; // red like CAD door symbols
-  const tickColor = '#ea580c'; // orange for tick marks
-  if (h.w < THIN && h.h < THIN) return null; // point/bug — skip
+  const MAX_ARC_R = 1.6;
+  const doorStroke = '#64748b'; // slate-500 — medium weight, neutral
+  const leafWidth = 0.22;       // medium line weight
+  const arcWidth = 0.13;        // light line weight for the swing arc
+  if (h.w < THIN && h.h < THIN) return null; // degenerate point — skip
   if (h.w < THIN) {
-    // Vertical door: short line + small arc
     const r = Math.min(h.h, MAX_ARC_R);
     return (
       <g key={`hatch-${i}`}>
-        <line x1={h.x} y1={h.y} x2={h.x} y2={h.y + h.h} stroke={doorColor} strokeWidth={0.22} strokeLinecap="round" />
-        <path
-          d={`M ${h.x} ${h.y + h.h} A ${r} ${r} 0 0 1 ${h.x + r} ${h.y + h.h}`}
-          fill="none"
-          stroke={doorColor}
-          strokeWidth={0.15}
-        />
-        {/* Small tick at door top */}
-        <line x1={h.x - 0.3} y1={h.y} x2={h.x + 0.3} y2={h.y} stroke={tickColor} strokeWidth={0.18} />
+        <line x1={h.x} y1={h.y} x2={h.x} y2={h.y + h.h} stroke={doorStroke} strokeWidth={leafWidth} strokeLinecap="round" />
+        <path d={`M ${h.x} ${h.y + h.h} A ${r} ${r} 0 0 1 ${h.x + r} ${h.y + h.h}`} fill="none" stroke={doorStroke} strokeWidth={arcWidth} />
       </g>
     );
   }
   if (h.h < THIN) {
-    // Horizontal door: short line + small arc
     const r = Math.min(h.w, MAX_ARC_R);
     return (
       <g key={`hatch-${i}`}>
-        <line x1={h.x} y1={h.y} x2={h.x + h.w} y2={h.y} stroke={doorColor} strokeWidth={0.22} strokeLinecap="round" />
-        <path
-          d={`M ${h.x + h.w} ${h.y} A ${r} ${r} 0 0 1 ${h.x + h.w} ${h.y + r}`}
-          fill="none"
-          stroke={doorColor}
-          strokeWidth={0.15}
-        />
-        {/* Small tick at door left */}
-        <line x1={h.x} y1={h.y - 0.3} x2={h.x} y2={h.y + 0.3} stroke={tickColor} strokeWidth={0.18} />
+        <line x1={h.x} y1={h.y} x2={h.x + h.w} y2={h.y} stroke={doorStroke} strokeWidth={leafWidth} strokeLinecap="round" />
+        <path d={`M ${h.x + h.w} ${h.y} A ${r} ${r} 0 0 1 ${h.x + h.w} ${h.y + r}`} fill="none" stroke={doorStroke} strokeWidth={arcWidth} />
       </g>
     );
   }
-  // Real rectangular hatch (rare) — gray fill like v2 style
+  // Real rectangular hatch (equipment/column) — light gray fill, no border
   return (
-    <rect
-      key={`hatch-${i}`}
-      x={h.x}
-      y={h.y}
-      width={h.w}
-      height={h.h}
-      fill="#9ca3af"
-      fillOpacity={0.4}
-      stroke="none"
-    />
+    <rect key={`hatch-${i}`} x={h.x} y={h.y} width={h.w} height={h.h} fill="#cbd5e1" fillOpacity={0.5} stroke="none" />
   );
 };
 
@@ -179,6 +173,14 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({
     return m;
   }, [layout]);
 
+  // Stable zone → palette index mapping so colors don't reshuffle on re-render.
+  const zoneIndex = useMemo(() => {
+    const zones = [...new Set((layout?.slots ?? []).map((s) => s.zone))].sort();
+    const m = new Map<string, number>();
+    zones.forEach((z, i) => m.set(z, i % ZONE_PALETTE.length));
+    return m;
+  }, [layout]);
+
   if (!warehouse || !layout) return null;
 
   const slotRows = (s: LayoutSlot) => {
@@ -241,22 +243,23 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({
           </h3>
           <div className="flex items-center gap-4 text-xs text-gray-600">
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm border border-amber-400 bg-amber-100 inline-block" />
+              <span className="w-3 h-3 rounded-sm border-2 border-slate-500 bg-amber-200 inline-block" />
               Đang chứa ({occupiedSlots.length})
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm border border-green-300 bg-green-50 inline-block" />
+              <span className="w-3 h-3 rounded-sm border border-slate-300 bg-slate-100 inline-block" />
               Trống ({layout.slots.length - occupiedSlots.length})
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm border border-gray-400 bg-gray-200 inline-block" />
+              <span className="w-3 h-3 rounded-sm border border-gray-300 bg-gray-200 inline-block" />
               Dàn quạt
             </span>
           </div>
         </div>
 
         <svg viewBox={`0 0 ${layout.viewW} ${layout.viewH + 4}`} className="w-full" role="img" aria-label={`Sơ đồ ${warehouse.tenKho}`}>
-          {/* Walls — yellow interior style matching CAD PDF, thin lines */}
+          {/* Walls — HEAVY line weight per architectural standard (cut elements).
+              Dark slate so the structure reads clearly; dedup removes doubled segments. */}
           {dedupeWalls(layout.walls).map((wl, i) => (
             <line
               key={`wall-${i}`}
@@ -264,39 +267,27 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({
               y1={wl.y1}
               x2={wl.x2}
               y2={wl.y2}
-              stroke="#ca8a04"
-              strokeWidth={0.25}
+              stroke="#334155"
+              strokeWidth={0.55}
               strokeLinecap="square"
             />
           ))}
 
-          {/* Doors (hatches): orientation-aware CAD symbols */}
-          {layout.hatches.map((h, i) => {
-            const el = renderHatch(h, i);
-            return el;
-          })}
+          {/* Doors (hatches) — MEDIUM/LIGHT weight, neutral slate swing arcs */}
+          {layout.hatches.map((h, i) => renderHatch(h, i))}
 
           {/* Area notes with leader lines (e.g. "Khu vực để dầu chiên") */}
           {layout.notes.map((n, i) => (
             <g key={`note-${i}`}>
-              <line
-                x1={n.x + 2.5}
-                y1={n.y}
-                x2={n.tx}
-                y2={n.ty}
-                stroke="#374151"
-                strokeWidth={0.12}
-              />
-              <text x={n.x} y={n.y - 0.5} fontSize={1.6} className="fill-gray-700 font-medium">
-                {n.text}
-              </text>
+              <line x1={n.x + 2.5} y1={n.y} x2={n.tx} y2={n.ty} stroke="#64748b" strokeWidth={0.1} />
+              <text x={n.x} y={n.y - 0.5} fontSize={1.5} className="fill-slate-500 font-medium">{n.text}</text>
             </g>
           ))}
 
           {layout.fans.map((f, i) => (
             <g key={`fan-${i}`}>
-              <rect x={f.x} y={f.y} width={f.w} height={f.h} rx={0.4} className="fill-gray-200 stroke-gray-400" strokeWidth={0.2} />
-              <text x={f.x + f.w / 2} y={f.y + f.h / 2 + 0.6} textAnchor="middle" fontSize={1.5} className="fill-gray-500">
+              <rect x={f.x} y={f.y} width={f.w} height={f.h} rx={0.3} fill="#e2e8f0" stroke="#94a3b8" strokeWidth={0.15} />
+              <text x={f.x + f.w / 2} y={f.y + f.h / 2 + 0.55} textAnchor="middle" fontSize={1.3} className="fill-slate-500 font-medium">
                 DÀN QUẠT
               </text>
             </g>
@@ -306,6 +297,7 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({
             const rs = slotRows(s);
             const occupied = rs.some((r) => r.soLuong > 0);
             const total = rs.reduce((a, r) => a + r.soLuong, 0);
+            const pal = ZONE_PALETTE[zoneIndex.get(s.zone) ?? 0];
             const title = `${zoneLabel(s.zone)} — ${s.code}: ${rs.length ? `${rs.length} mặt hàng, ${formatNumber(total)}` : 'trống'}`;
             return (
               <g
@@ -322,24 +314,30 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({
                   y={s.y}
                   width={s.w}
                   height={s.h}
-                  rx={0.4}
-                  strokeWidth={0.25}
-                  className={occupied
-                    ? 'fill-amber-100 stroke-amber-500 hover:fill-amber-200'
-                    : 'fill-green-50 stroke-green-300 hover:fill-green-100'}
+                  rx={0.3}
+                  fill={pal.fill}
+                  fillOpacity={occupied ? 1 : 0.4}
+                  stroke={occupied ? '#f59e0b' : pal.stroke}
+                  strokeWidth={occupied ? 0.4 : 0.18}
+                  className="hover:brightness-95 transition-[filter]"
                 />
-                <text x={s.x + s.w / 2} y={s.y + s.h / 2 + 0.6} textAnchor="middle" fontSize={1.6} className="fill-gray-700 pointer-events-none">
+                <text x={s.x + s.w / 2} y={s.y + s.h / 2 + 0.55} textAnchor="middle" fontSize={1.5} className="fill-slate-700 pointer-events-none font-medium">
                   {s.code}
                 </text>
               </g>
             );
           })}
 
-          {[...zoneAnchors.entries()].map(([zone, a]) => (
-            <text key={zone} x={a.x} y={a.y + 2.4} textAnchor="middle" fontSize={1.7} fontWeight={600} className="fill-gray-500">
-              {zoneLabel(zone)}
-            </text>
-          ))}
+          {[...zoneAnchors.entries()].map(([zone, a]) => {
+            const pal = ZONE_PALETTE[zoneIndex.get(zone) ?? 0];
+            return (
+              <text key={zone} x={a.x} y={a.y + 2.2} textAnchor="middle" fontSize={1.6} fontWeight={700} fill={pal.stroke}>
+                {zoneLabel(zone)}
+              </text>
+            );
+          })}
+            );
+          })}
         </svg>
       </div>
 
