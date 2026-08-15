@@ -183,6 +183,30 @@ export const useGenerateWarehouseCode = () => {
   });
 };
 
+// Hook to sync CAD floor-plan baseline (default lots per zone + physical slots). Admin-only.
+export const useSyncWarehouseLayouts = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      const res = await warehouseService.syncLayouts();
+      // apiClient unwraps to the JSON body; stats live at .data.data or .data
+      const body = (res as any)?.data ?? res;
+      return (body?.data ?? body) as {
+        warehousesUpserted: number;
+        lotsCreated: number;
+        lotsExisting: number;
+        slotsCreated: number;
+        slotsExisting: number;
+      };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: warehouseKeys.lotProducts() });
+    },
+  });
+};
+
 // Hook to get receipt history for a lot product (lazy — only fetches when lotProductId is set)
 export const useReceiptHistory = (lotProductId: string | null) => {
   return useQuery<WarehouseReceiptHistory[]>({

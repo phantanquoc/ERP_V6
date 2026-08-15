@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Warehouse as WarehouseIcon } from 'lucide-react';
+import { Warehouse as WarehouseIcon } from 'lucide-react';
 import type { Warehouse as WarehouseType } from '../services/warehouseService';
 import { useWarehouses } from '../hooks';
 import { hasWarehouseLayout } from '../constants/warehouseLayouts';
@@ -33,8 +33,6 @@ const WarehouseUnifiedView: React.FC<WarehouseUnifiedViewProps> = ({ initialWare
 
   const selectedMaKho = warehouses.find((w) => w.id === selectedWarehouseId)?.maKho;
   const showMap = hasWarehouseLayout(selectedMaKho);
-
-  const selectedWarehouse = sortedWarehouses.find((w) => w.id === selectedWarehouseId) ?? null;
 
   return (
     <div className="space-y-4">

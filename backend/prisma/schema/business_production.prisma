@@ -219,6 +219,11 @@ model Lot {
   id          String       @id @default(cuid())
   tenLo       String
   warehouseId String
+  // Physical zone on the CAD floor plan (e.g. 'LO3', 'DAUCHIEN-LO1'). Set for baseline
+  // lots created by the layout sync; null for user-added lots ("Thêm lô"). A partial unique
+  // index (warehouseId, zone) WHERE zone IS NOT NULL is added in the migration so each zone
+  // has at most one baseline lot while many null-zone lots can coexist.
+  zone        String?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   lotProducts LotProduct[]

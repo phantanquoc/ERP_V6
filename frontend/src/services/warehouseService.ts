@@ -28,6 +28,8 @@ export interface Lot {
   id: string;
   tenLo: string;
   warehouseId: string;
+  // Physical zone on the CAD floor plan (e.g. 'LO3'); null for user-added lots.
+  zone?: string | null;
   createdAt: string;
   updatedAt: string;
   lotProducts?: LotProduct[];
@@ -128,6 +130,14 @@ const warehouseService = {
   createWarehouse: (data: CreateWarehouseData) => apiClient.post('/warehouses', data),
   updateWarehouse: (id: string, data: UpdateWarehouseData) => apiClient.put(`/warehouses/${id}`, data),
   deleteWarehouse: (id: string) => apiClient.delete(`/warehouses/${id}`),
+  syncLayouts: () =>
+    apiClient.post<{
+      warehousesUpserted: number;
+      lotsCreated: number;
+      lotsExisting: number;
+      slotsCreated: number;
+      slotsExisting: number;
+    }>('/warehouses/sync-layouts'),
 
   // Lot APIs
   getLotsByWarehouse: (warehouseId: string) => apiClient.get(`/warehouses/${warehouseId}/lots`),

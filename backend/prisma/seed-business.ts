@@ -11,6 +11,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
+import { syncAllWarehouseLayouts } from '../src/services/warehouseLayoutSyncService';
 
 const prisma = new PrismaClient();
 
@@ -598,6 +599,10 @@ async function main(): Promise<void> {
     create: { id: 'pr-20260418', ngayThang: '18/04/2026', tongSoTuaSanXuat: 2, soMeTua: 2, tongSoMeKeHoach: 4, soMeThucTe: 2, maDinhMuc: 'DM-MIT-DEO', tongKhoiLuongNguyenLieu: 1000, tongKhoiLuongThanhPhamDinhMuc: 350, khoiLuongThanhPhamThucTe: 350, chenhLechKhoiLuong: 0, danhGiaChenhLech: 'Đạt kế hoạch 2 mẻ/ngày', nguyenNhanChenhLech: 'Không', deXuatDieuChinh: 'Tăng lên 3 mẻ/ngày nếu có thêm nhân công', nguoiThucHien: prodEmp.fullName || 'NV Sản xuất' },
   });
   console.log('  ✅ Báo cáo sản lượng 3 ngày');
+
+  // Baseline lots + physical slots for the 6 CAD-mapped warehouses (idempotent).
+  const layoutStats = await syncAllWarehouseLayouts();
+  console.log(`  ✅ Đồng bộ sơ đồ kho: ${layoutStats.lotsCreated} lô mới, ${layoutStats.slotsCreated} vị trí mới (đã có: ${layoutStats.lotsExisting} lô, ${layoutStats.slotsExisting} vị trí)`);
 
   console.log('\n✨ Seed hoàn tất!');
   console.log('─────────────────────────────────────────────────────────────');

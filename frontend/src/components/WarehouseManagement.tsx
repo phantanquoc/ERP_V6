@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { Plus, Trash2, MoveRight, Package, Warehouse as WarehouseIcon, PackagePlus, Pencil, History } from 'lucide-react';
+import { Plus, Trash2, MoveRight, Package, Warehouse as WarehouseIcon, PackagePlus, Pencil, History, RefreshCw } from 'lucide-react';
 import type { Warehouse, LotProduct } from '../services/warehouseService';
 import {
   useWarehouses,
@@ -8,6 +8,7 @@ import {
   useCreateLot, useDeleteLot,
   useAddProductToLot, useRemoveProductFromLot, useMoveProductBetweenLots,
   useGenerateWarehouseCode, useUpdateLotProduct, useReceiptHistory,
+  useSyncWarehouseLayouts,
 } from '../hooks';
 import { useProducts } from '../hooks';
 import { parseNumberInputStr } from '../utils/numberInput';
@@ -16,6 +17,8 @@ import ProductCombobox from './common/ProductCombobox';
 import UnitSelect from './common/UnitSelect';
 import { DEFAULT_DON_VI_TINH } from '../constants/units';
 import { useUnitOptions } from '../hooks/useLookups';
+import { useAuth } from '../contexts/AuthContext';
+import { isAdmin } from '../utils/permissions';
 
 interface WarehouseManagementProps {
   initialWarehouseId?: string;
@@ -44,6 +47,9 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
   const createWarehouse = useCreateWarehouse();
   const deleteWarehouse = useDeleteWarehouse();
   const updateWarehouse = useUpdateWarehouse();
+  const syncLayouts = useSyncWarehouseLayouts();
+  const { user } = useAuth();
+  const canSyncLayouts = isAdmin(user?.department);
   const createLot = useCreateLot();
   const deleteLot = useDeleteLot();
   const addProductToLot = useAddProductToLot();
@@ -423,9 +429,27 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
         </>
       )}
 
-      {/* Nút Thêm kho khi ẩn tab strip (parent đã render tabs ngoài) */}
+      {/* Nút Thêm kho + Đồng bộ sơ đồ khi ẩn tab strip (parent đã render tabs ngoài) */}
       {hideTabs && (
-        <div className="flex justify-end mb-2">
+        <div className="flex justify-end gap-2 mb-2">
+          {canSyncLayouts && (
+            <button
+              onClick={async () => {
+                try {
+                  const stats = await syncLayouts.mutateAsync();
+                  toast.success(`Đồng bộ xong: ${stats.lotsCreated} lô mới, ${stats.slotsCreated} vị trí mới`);
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : 'Lỗi khi đồng bộ sơ đồ');
+                }
+              }}
+              disabled={syncLayouts.isPending}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50 disabled:opacity-50"
+              title="Tạo đủ lô + vị trí kiện mặc định theo sơ đồ CAD (không xóa dữ liệu hiện có)"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${syncLayouts.isPending ? 'animate-spin' : ''}`} />
+              Đồng bộ sơ đồ
+            </button>
+          )}
           <button
             onClick={openCreateWarehouseModal}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-600 border border-green-300 rounded-lg hover:bg-green-50"
@@ -517,7 +541,19 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
                       </div>
                       <div className="min-w-0">
                         <span className="text-xs font-semibold text-gray-800 truncate block">{lot.tenLo}</span>
-                        <span className="text-[10px] text-gray-400">{lot.lotProducts?.length || 0} kiện</span>
+                        {(() => {
+                          const placed = (lot.lotProducts ?? []).filter((lp) => lp.soLuong > 0).length;
+                          // Baseline lots carry a zone → show filled/total positions from the floor plan.
+                          // User-added lots (no zone) fall back to the plain item count.
+                          const slotsInZone = lot.zone
+                            ? (selectedWarehouse?.warehouseSlots ?? []).filter((s) => s.zone === lot.zone).length
+                            : 0;
+                          return slotsInZone > 0 ? (
+                            <span className="text-[10px] text-gray-400">{placed}/{slotsInZone} kiện đã có hàng</span>
+                          ) : (
+                            <span className="text-[10px] text-gray-400">{lot.lotProducts?.length || 0} kiện</span>
+                          );
+                        })()}
                       </div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
