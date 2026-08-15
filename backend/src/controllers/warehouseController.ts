@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import warehouseService from '@services/warehouseService';
+import { syncAllWarehouseLayouts } from '@services/warehouseLayoutSyncService';
 
 export const getAllWarehouses = async (_req: Request, res: Response, next: NextFunction) => {
   try {
@@ -48,6 +49,23 @@ export const deleteWarehouse = async (req: Request, res: Response, next: NextFun
   try {
     await warehouseService.delete(req.params.id);
     res.json({ success: true, message: 'Xóa kho thành công' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Reconcile every CAD-mapped warehouse with its floor-plan baseline (default lots per zone
+ * + physical slots). Admin-only. Idempotent — safe to re-run; existing goods are untouched.
+ */
+export const syncLayouts = async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const stats = await syncAllWarehouseLayouts();
+    res.json({
+      success: true,
+      message: `Đồng bộ sơ đồ hoàn tất: ${stats.lotsCreated} lô mới, ${stats.slotsCreated} vị trí mới`,
+      data: stats,
+    });
   } catch (error) {
     next(error);
   }

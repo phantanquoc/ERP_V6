@@ -5,11 +5,12 @@ import {
   createWarehouse,
   updateWarehouse,
   deleteWarehouse,
+  syncLayouts,
 } from '@controllers/warehouseController';
 import lotController from '@controllers/lotController';
 
 const { getLotsByWarehouse } = lotController;
-import { authenticate } from '@middlewares/auth';
+import { authenticate, authorize } from '@middlewares/auth';
 
 const router = Router();
 
@@ -137,5 +138,19 @@ router.delete('/:id', deleteWarehouse);
  *         description: Không tìm thấy kho
  */
 router.get('/:warehouseId/lots', getLotsByWarehouse);
+
+/**
+ * @swagger
+ * /api/warehouses/sync-layouts:
+ *   post:
+ *     summary: Đồng bộ lô + vị trí kiện mặc định theo sơ đồ CAD (admin)
+ *     tags: [Warehouses]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Thống kê số lô/vị trí được tạo
+ */
+router.post('/sync-layouts', authorize('ADMIN'), syncLayouts);
 
 export default router;
