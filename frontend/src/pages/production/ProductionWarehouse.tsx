@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import SupplyRequestManagement from '../../components/SupplyRequestManagement';
 import WarehouseUnifiedView from '../../components/WarehouseUnifiedView';
+import FactoryOverview from '../../components/FactoryOverview';
 import WarehouseReceiptTab from '../../components/WarehouseReceiptTab';
 import WarehouseIssueTab from '../../components/WarehouseIssueTab';
 import InternationalProductManagement from '../../components/InternationalProductManagement';
@@ -18,18 +19,32 @@ import warehouseService, { Warehouse as WarehouseType } from '../../services/war
 import warehouseReceiptService from '../../services/warehouseReceiptService';
 import warehouseIssueService from '../../services/warehouseIssueService';
 import supplyRequestService from '../../services/supplyRequestService';
+import { useWarehouses } from '../../hooks';
 
 type TabType = 'inbound' | 'outbound' | 'supplyRequest' | 'warehouseManagement' | 'products';
 const VALID_TABS: TabType[] = ['inbound', 'outbound', 'supplyRequest', 'warehouseManagement', 'products'];
 
-type WarehouseSubTab = 'management' | 'inventory';
+type WarehouseSubTab = 'overview' | 'management' | 'inventory';
 
 const WarehouseManagementWithSubTabs: React.FC<{ initialWarehouseId?: string }> = ({ initialWarehouseId }) => {
-  const [subTab, setSubTab] = useState<WarehouseSubTab>('management');
+  const [subTab, setSubTab] = useState<WarehouseSubTab>('overview');
+  const [pickedWarehouseId, setPickedWarehouseId] = useState<string | undefined>(initialWarehouseId);
+  const { data: warehousesData } = useWarehouses();
+  const warehouses = (warehousesData as WarehouseType[] | undefined) ?? [];
 
   return (
     <div>
       <div className="flex gap-1 mb-4 border-b border-gray-200">
+        <button
+          onClick={() => setSubTab('overview')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            subTab === 'overview'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Sơ đồ tổng thể
+        </button>
         <button
           onClick={() => setSubTab('management')}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
@@ -51,7 +66,17 @@ const WarehouseManagementWithSubTabs: React.FC<{ initialWarehouseId?: string }> 
           Tồn kho
         </button>
       </div>
-      {subTab === 'management' && <WarehouseUnifiedView initialWarehouseId={initialWarehouseId} />}
+      {subTab === 'overview' && (
+        <FactoryOverview
+          warehouses={warehouses}
+          selectedWarehouseId={pickedWarehouseId ?? null}
+          onSelectWarehouse={(id) => {
+            setPickedWarehouseId(id);
+            setSubTab('management');
+          }}
+        />
+      )}
+      {subTab === 'management' && <WarehouseUnifiedView initialWarehouseId={pickedWarehouseId ?? initialWarehouseId} />}
       {subTab === 'inventory' && <InventoryOverview />}
     </div>
   );
