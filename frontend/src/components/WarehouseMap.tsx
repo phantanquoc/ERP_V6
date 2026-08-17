@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { MapPin, Package, PackageOpen } from 'lucide-react';
+import { MapPin, Package, PackageOpen, Plus, Minus, Maximize2 } from 'lucide-react';
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import type { Warehouse, LotProduct } from '../services/warehouseService';
 import { useWarehouses, useUpdateLotProduct } from '../hooks';
 import { getLayoutByMaKho, type LayoutHatch, type LayoutSlot, type LayoutWall } from '../constants/warehouseLayouts';
@@ -18,22 +19,33 @@ const zoneLabel = (zone: string) => {
   return zone.replace('LO', 'LÔ ');
 };
 
-// Zone color palette — pastel fills with matching darker strokes for readability.
-// Follows the v2 CAD rendering style: each zone gets a distinct hue so the eye
-// groups pallet positions by lot at a glance.
-const ZONE_PALETTE = [
-  { fill: '#dbeafe', stroke: '#2563eb' }, // blue
-  { fill: '#dcfce7', stroke: '#16a34a' }, // green
-  { fill: '#fef3c7', stroke: '#d97706' }, // amber
-  { fill: '#fae8ff', stroke: '#a21caf' }, // fuchsia
-  { fill: '#ffe4e6', stroke: '#e11d48' }, // rose
-  { fill: '#cffafe', stroke: '#0891b2' }, // cyan
-  { fill: '#e0e7ff', stroke: '#4f46e5' }, // indigo
-  { fill: '#f1f5f9', stroke: '#475569' }, // slate
-  { fill: '#fee2e2', stroke: '#dc2626' }, // red-light
-  { fill: '#ecfccb', stroke: '#65a30d' }, // lime
-  { fill: '#f3e8ff', stroke: '#9333ea' }, // purple
+// Zone label color — each zone gets a distinct stroke for its label text so the
+// eye groups pallet positions by lot at a glance. Slot FILLS do not use this palette;
+// they encode fill-level via FILL_LEVELS below.
+const ZONE_LABEL_STROKES = [
+  '#2563eb', '#16a34a', '#d97706', '#a21caf', '#e11d48', '#0891b2',
+  '#4f46e5', '#475569', '#dc2626', '#65a30d', '#9333ea',
 ];
+
+// Fill-level heatmap: cool (light blue, empty) → yellow (partial) → hot (red, full).
+// Sequential single-hue-warm scale per warehouse heatmap best practice (NexusRMS /
+// ChartGen): one quantity, discretized into 3 readable bins. Numeric label (s.code)
+// inside each cell supplements color for color-blind users.
+type FillLevel = 'empty' | 'partial' | 'full';
+const FILL_LEVELS: Record<FillLevel, { fill: string; stroke: string; label: string }> = {
+  empty: { fill: '#dbeafe', stroke: '#93c5fd', label: 'Trống' },
+  partial: { fill: '#fef08a', stroke: '#ca8a04', label: 'Có hàng (1)' },
+  full: { fill: '#fca5a5', stroke: '#b91c1c', label: 'Đầy (≥2)' },
+};
+
+// Classify a slot's fill level by the number of distinct products (LotProduct rows
+// with soLuong > 0) placed in it. Most cells hold 0–1 products; ≥2 reads as "full".
+const classifyFill = (rows: PlacedRow[]): FillLevel => {
+  const n = rows.filter((r) => r.soLuong > 0).length;
+  if (n === 0) return 'empty';
+  if (n === 1) return 'partial';
+  return 'full';
+};
 
 const wallKey = (w: LayoutWall) => {
   const mx = (w.x1 + w.x2) / 2;
@@ -173,13 +185,30 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({
     return m;
   }, [layout]);
 
-  // Stable zone → palette index mapping so colors don't reshuffle on re-render.
+  // Stable zone → label-color index so zone text colors don't reshuffle on re-render.
   const zoneIndex = useMemo(() => {
     const zones = [...new Set((layout?.slots ?? []).map((s) => s.zone))].sort();
     const m = new Map<string, number>();
-    zones.forEach((z, i) => m.set(z, i % ZONE_PALETTE.length));
+    zones.forEach((z, i) => m.set(z, i % ZONE_LABEL_STROKES.length));
     return m;
   }, [layout]);
+
+  // Per-slot fill classification + counts per level (for the heatmap legend).
+  // Computed null-safe before the early return so hook order stays stable.
+  const fillBySlot = useMemo(() => {
+    const m = new Map<string, FillLevel>();
+    (layout?.slots ?? []).forEach((s) => {
+      const id = dbSlotByZoneCode.get(`${s.zone}|${s.code}`);
+      const rs = id ? (bySlot.get(id) ?? []) : [];
+      m.set(`${s.zone}|${s.code}`, classifyFill(rs));
+    });
+    return m;
+  }, [layout, bySlot, dbSlotByZoneCode]);
+  const fillCounts = useMemo(() => {
+    const c: Record<FillLevel, number> = { empty: 0, partial: 0, full: 0 };
+    fillBySlot.forEach((v) => { c[v] += 1; });
+    return c;
+  }, [fillBySlot]);
 
   if (!warehouse || !layout) return null;
 
@@ -188,8 +217,6 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({
     return id ? bySlot.get(id) ?? [] : [];
   };
   const slotDbId = (s: LayoutSlot) => dbSlotByZoneCode.get(`${s.zone}|${s.code}`) ?? null;
-
-  const occupiedSlots = layout.slots.filter((s) => slotRows(s).some((r) => r.soLuong > 0));
 
   const activeRows = activeSlot?.dbSlotId ? bySlot.get(activeSlot.dbSlotId) ?? [] : [];
 
@@ -241,22 +268,43 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({
               warehouse?.tenKho
             )}
           </h3>
-          <div className="flex items-center gap-4 text-xs text-gray-600">
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm border-2 border-slate-500 bg-amber-200 inline-block" />
-              Đang chứa ({occupiedSlots.length})
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm border border-slate-300 bg-slate-100 inline-block" />
-              Trống ({layout.slots.length - occupiedSlots.length})
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm border border-gray-300 bg-gray-200 inline-block" />
-              Dàn quạt
-            </span>
+          <div className="flex items-center gap-3 text-xs text-gray-600 flex-wrap">
+            {(Object.keys(FILL_LEVELS) as FillLevel[]).map((k) => {
+              const lv = FILL_LEVELS[k];
+              return (
+                <span key={k} className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-sm border inline-block" style={{ background: lv.fill, borderColor: lv.stroke }} />
+                  {lv.label} ({fillCounts[k]})
+                </span>
+              );
+            })}
           </div>
         </div>
 
+        <TransformWrapper
+          minScale={1}
+          maxScale={8}
+          initialScale={1}
+          wheel={{ step: 0.08 }}
+          doubleClick={{ mode: 'toggle', step: 2 }}
+          limitToBounds
+          centerOnInit
+        >
+          {({ zoomIn, zoomOut, resetTransform }) => (
+            <div className="relative">
+              {/* Zoom toolbar */}
+              <div className="absolute right-2 top-2 z-10 flex flex-col gap-1 bg-white/90 rounded-lg shadow border border-gray-200 p-1">
+                <button onClick={() => zoomIn(0.3)} className="p-1.5 text-gray-600 hover:bg-gray-100 rounded" title="Phóng to" aria-label="Phóng to">
+                  <Plus className="w-4 h-4" />
+                </button>
+                <button onClick={() => zoomOut(0.3)} className="p-1.5 text-gray-600 hover:bg-gray-100 rounded" title="Thu nhỏ" aria-label="Thu nhỏ">
+                  <Minus className="w-4 h-4" />
+                </button>
+                <button onClick={() => resetTransform()} className="p-1.5 text-gray-600 hover:bg-gray-100 rounded" title="Vừa màn hình" aria-label="Đặt lại">
+                  <Maximize2 className="w-4 h-4" />
+                </button>
+              </div>
+              <TransformComponent wrapperClass="!w-full !h-[72vh] !cursor-grab active:!cursor-grabbing" contentClass="!w-full">
         <svg viewBox={`0 0 ${layout.viewW} ${layout.viewH + 4}`} className="w-full" role="img" aria-label={`Sơ đồ ${warehouse.tenKho}`}>
           {/* Walls — HEAVY line weight per architectural standard (cut elements).
               Dark slate so the structure reads clearly; dedup removes doubled segments. */}
@@ -295,9 +343,9 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({
 
           {layout.slots.map((s) => {
             const rs = slotRows(s);
-            const occupied = rs.some((r) => r.soLuong > 0);
             const total = rs.reduce((a, r) => a + r.soLuong, 0);
-            const pal = ZONE_PALETTE[zoneIndex.get(s.zone) ?? 0];
+            const lvl = fillBySlot.get(`${s.zone}|${s.code}`) ?? 'empty';
+            const fill = FILL_LEVELS[lvl];
             const title = `${zoneLabel(s.zone)} — ${s.code}: ${rs.length ? `${rs.length} mặt hàng, ${formatNumber(total)}` : 'trống'}`;
             return (
               <g
@@ -315,10 +363,9 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({
                   width={s.w}
                   height={s.h}
                   rx={0.3}
-                  fill={pal.fill}
-                  fillOpacity={occupied ? 1 : 0.4}
-                  stroke={occupied ? '#f59e0b' : pal.stroke}
-                  strokeWidth={occupied ? 0.4 : 0.18}
+                  fill={fill.fill}
+                  stroke={fill.stroke}
+                  strokeWidth={0.18}
                   className="hover:brightness-95 transition-[filter]"
                 />
                 <text x={s.x + s.w / 2} y={s.y + s.h / 2 + 0.55} textAnchor="middle" fontSize={1.5} className="fill-slate-700 pointer-events-none font-medium">
@@ -328,15 +375,16 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({
             );
           })}
 
-          {[...zoneAnchors.entries()].map(([zone, a]) => {
-            const pal = ZONE_PALETTE[zoneIndex.get(zone) ?? 0];
-            return (
-              <text key={zone} x={a.x} y={a.y + 2.2} textAnchor="middle" fontSize={1.6} fontWeight={700} fill={pal.stroke}>
-                {zoneLabel(zone)}
-              </text>
-            );
-          })}
+          {[...zoneAnchors.entries()].map(([zone, a]) => (
+            <text key={zone} x={a.x} y={a.y + 2.2} textAnchor="middle" fontSize={1.6} fontWeight={700} fill={ZONE_LABEL_STROKES[zoneIndex.get(zone) ?? 0]}>
+              {zoneLabel(zone)}
+            </text>
+          ))}
         </svg>
+              </TransformComponent>
+            </div>
+          )}
+        </TransformWrapper>
       </div>
 
       {/* Side panel — ẩn khi hideSidePanel (đã được render bởi parent trong unified view) */}
