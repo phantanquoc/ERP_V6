@@ -227,18 +227,20 @@ class LotProductService {
    * Returns distinct Lot records that have at least one LotProduct row
    * for the given InternationalProduct with soLuong > 0.
    */
-  async getLotsByProduct(internationalProductId: string) {
+  async getLotsByProduct(internationalProductId: string, donViTinh?: string) {
     if (!internationalProductId) {
       throw new ValidationError('internationalProductId là bắt buộc');
     }
 
-    // Find all lotIds that have positive Kg stock for the product
+    // Find all lotIds that have positive stock for the product (unit-aware when specified)
+    const where: any = {
+      internationalProductId,
+      soLuong: { gt: 0 },
+    };
+    if (donViTinh) where.donViTinh = donViTinh;
+
     const lotProducts = await prisma.lotProduct.findMany({
-      where: {
-        internationalProductId,
-        soLuong: { gt: 0 },
-        donViTinh: 'Kg',
-      },
+      where,
       select: { lotId: true },
       distinct: ['lotId'],
     });
@@ -260,7 +262,7 @@ class LotProductService {
    * Returns LotProduct rows inside a given lot for a given product,
    * filtered to rows with soLuong > 0.
    */
-  async getKienByProductAndLot(internationalProductId: string, lotId: string) {
+  async getKienByProductAndLot(internationalProductId: string, lotId: string, donViTinh?: string) {
     if (!internationalProductId) {
       throw new ValidationError('internationalProductId là bắt buộc');
     }
@@ -268,13 +270,15 @@ class LotProductService {
       throw new ValidationError('lotId là bắt buộc');
     }
 
+    const where: any = {
+      internationalProductId,
+      lotId,
+      soLuong: { gt: 0 },
+    };
+    if (donViTinh) where.donViTinh = donViTinh;
+
     return prisma.lotProduct.findMany({
-      where: {
-        internationalProductId,
-        lotId,
-        soLuong: { gt: 0 },
-        donViTinh: 'Kg',
-      },
+      where,
       include: {
         internationalProduct: true,
         lot: { include: { warehouse: true } },

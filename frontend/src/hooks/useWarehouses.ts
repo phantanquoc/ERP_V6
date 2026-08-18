@@ -30,6 +30,10 @@ export const useWarehouses = () => {
       const response = await warehouseService.getAllWarehouses();
       return response.data;
     },
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    retry: 1,
   });
 };
 
@@ -41,6 +45,9 @@ export const useLotProducts = () => {
       const response = await warehouseService.getAllLotProducts();
       return response.data;
     },
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 };
 

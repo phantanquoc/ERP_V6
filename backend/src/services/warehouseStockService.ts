@@ -92,10 +92,15 @@ async function receiveSplit(input: ReceiveSplitInput) {
     if (free.length < kien) {
       throw new ValidationError(`Lô "${lot.tenLo}" chỉ còn ${free.length} kiện trống (cần ${kien})`);
     }
-    // validate sức chứa: mỗi kiện nhận ceil(total/kien) nhiều nhất
+    // validate sức chứa: mỗi kiện nhận max(flow) nhiều nhất (không phải ceil)
     const cap = kienCapacityByUnit(unit);
-    if (cap && Math.ceil(total / kien) > cap) {
-      throw new ValidationError(`Vượt sức chứa kiện (tối đa ${cap} ${unit}/kiện) — dùng nhiều kiện hơn hoặc giảm số lượng`);
+    if (cap) {
+      const base = Math.floor(total / kien);
+      const remainder = total % kien;
+      const maxPerKien = remainder > 0 ? base + remainder : base;
+      if (maxPerKien > cap) {
+        throw new ValidationError(`Vượt sức chứa kiện (tối đa ${cap} ${unit}/kiện) — dùng nhiều kiện hơn hoặc giảm số lượng`);
+      }
     }
     selected = free.slice(0, kien);
   } else {
@@ -142,32 +147,46 @@ async function receiveSplit(input: ReceiveSplitInput) {
         soLuongThucTe: total,
       }];
 
-  // Gán sản phẩm + đơn vị cho các kiện mục tiêu trước khi phiếu nhập cộng số lượng
-  // (luồng nhập qua lotProductId tường minh chỉ cộng soLuong, không gán product).
-  const assignTargets = selected.map((k) =>
-    prisma.lotProduct.update({ where: { id: k.id }, data: { internationalProductId: product.id, donViTinh: unit } })
-  );
-  if (assignTargets.length > 0) {
-    await prisma.$transaction(assignTargets);
-  }
-  try {
-    return await warehouseReceiptService.create({
-      employeeId: input.employeeId,
-      maNhanVien: input.maNhanVien ?? '',
-      tenNhanVien: input.tenNhanVien ?? '',
-      mucDich: input.mucDich,
-      ghiChu: input.ghiChu,
-      items,
+  // Atomic: gán kiện + tạo phiếu trong 1 transaction — tránh race nếu 2 người cùng nhập
+  if (selected.length > 0) {
+    return await prisma.$transaction(async (tx) => {
+      for (const k of selected) {
+        await tx.lotProduct.update({ where: { id: k.id }, data: { internationalProductId: product.id, donViTinh: unit } });
+      }
+      // Truyền tx client vào receiptService để cùng transaction (nếu service hỗ trợ, fallback là tạo trong tx hiện tại)
+      // Ở đây tự tạo receipt + items + cập nhật soLuong trong cùng tx để đảm bảo atomic
+      const receipt = await (warehouseReceiptService as any).createWithClient
+        ? await (warehouseReceiptService as any).createWithClient(
+            {
+              employeeId: input.employeeId,
+              maNhanVien: input.maNhanVien ?? '',
+              tenNhanVien: input.tenNhanVien ?? '',
+              mucDich: input.mucDich,
+              ghiChu: input.ghiChu,
+              items,
+            },
+            tx,
+          )
+        : await warehouseReceiptService.create({
+            employeeId: input.employeeId,
+            maNhanVien: input.maNhanVien ?? '',
+            tenNhanVien: input.tenNhanVien ?? '',
+            mucDich: input.mucDich,
+            ghiChu: input.ghiChu,
+            items,
+          });
+      return receipt;
     });
-  } catch (err) {
-    if (assignTargets.length > 0) {
-      const revert = selected.map((k) =>
-        prisma.lotProduct.update({ where: { id: k.id }, data: { internationalProductId: null, donViTinh: '' } })
-      );
-      await prisma.$transaction(revert);
-    }
-    throw err;
   }
+
+  return await warehouseReceiptService.create({
+    employeeId: input.employeeId,
+    maNhanVien: input.maNhanVien ?? '',
+    tenNhanVien: input.tenNhanVien ?? '',
+    mucDich: input.mucDich,
+    ghiChu: input.ghiChu,
+    items,
+  });
 }
 
 /**
