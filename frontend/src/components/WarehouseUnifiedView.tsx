@@ -1,10 +1,35 @@
 import React, { useState } from 'react';
-import { Warehouse as WarehouseIcon } from 'lucide-react';
+import { Warehouse as WarehouseIcon, MapPinOff } from 'lucide-react';
 import type { Warehouse as WarehouseType } from '../services/warehouseService';
 import { useWarehouses } from '../hooks';
 import { hasWarehouseLayout } from '../constants/warehouseLayouts';
 import WarehouseManagement from './WarehouseManagement';
 import WarehouseMap from './WarehouseMap';
+
+/** Chặn mọi lỗi render trong khu vực kho — không để vỡ cả màn hình. */
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
+  state: { error: Error | null } = { error: null };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="w-full rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <b>Có lỗi khi hiển thị nội dung kho.</b> {this.state.error.message}
+          <button
+            type="button"
+            onClick={() => this.setState({ error: null })}
+            className="ml-3 px-2 py-1 border border-red-300 rounded hover:bg-red-100"
+          >
+            Thử lại
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 interface WarehouseUnifiedViewProps {
   initialWarehouseId?: string;
@@ -76,6 +101,7 @@ const WarehouseUnifiedView: React.FC<WarehouseUnifiedViewProps> = ({ initialWare
       </div>
 
       {/* Split panel: map + management */}
+      <ErrorBoundary>
       <div className="flex flex-col xl:flex-row gap-4 items-start">
         {showMap && selectedWarehouseId ? (
           <>
@@ -98,6 +124,12 @@ const WarehouseUnifiedView: React.FC<WarehouseUnifiedViewProps> = ({ initialWare
           </>
         ) : (
           <div className="w-full">
+            {selectedWarehouseId && !showMap && (
+              <div className="mb-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <MapPinOff className="h-4 w-4 shrink-0" />
+                Kho này chưa có bản đồ CAD (sơ đồ kho) — quản lý kiện qua danh sách dưới đây.
+              </div>
+            )}
             <WarehouseManagement
               initialWarehouseId={initialWarehouseId}
               selectedWarehouseId={selectedWarehouseId}
@@ -107,6 +139,7 @@ const WarehouseUnifiedView: React.FC<WarehouseUnifiedViewProps> = ({ initialWare
           </div>
         )}
       </div>
+      </ErrorBoundary>
     </div>
   );
 };
