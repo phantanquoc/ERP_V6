@@ -41,6 +41,13 @@ export interface LayoutNote {
   ty: number;
 }
 
+/** Vị trí ghi đè (thủ công) cho nhãn zone ("LÔ 1"…) — nếu có sẽ thay cho vị trí tự tính. */
+export interface LayoutZoneLabel {
+  zone: string;
+  x: number;
+  y: number;
+}
+
 export interface WarehouseLayout {
   maKho: string;
   name: string;
@@ -51,6 +58,7 @@ export interface WarehouseLayout {
   walls: LayoutWall[];
   hatches: LayoutHatch[];
   notes: LayoutNote[];
+  zoneLabels?: LayoutZoneLabel[];
 }
 
 const khotp: WarehouseLayout = {
@@ -208,6 +216,19 @@ const khotp: WarehouseLayout = {
   ],
   notes: [
   ],
+  zoneLabels: [
+    { zone: 'LO1', x: 92.6138916015625, y: 34.87 },
+    { zone: 'LO10', x: 8.75417998959557, y: 43.21272632679417 },
+    { zone: 'LO11', x: 13.36625, y: 35.06 },
+    { zone: 'LO2', x: 76.7572265625, y: 34.89 },
+    { zone: 'LO3', x: 61.053896484374995, y: 34.89 },
+    { zone: 'LO4', x: 45.0672265625, y: 34.87 },
+    { zone: 'LO5', x: 29.080937499999997, y: 34.84 },
+    { zone: 'LO6', x: 66.95192801392405, y: 43.27313753673195 },
+    { zone: 'LO7', x: 52.272078573702444, y: 43.203565116816904 },
+    { zone: 'LO8', x: 37.700173083476, y: 43.163455423541336 },
+    { zone: 'LO9', x: 23.1782842430879, y: 43.13770995680497 },
+  ],
 };
 
 const khotd1: WarehouseLayout = {
@@ -257,8 +278,8 @@ const khotd1: WarehouseLayout = {
       { code: 'K6.4', zone: 'LO6', x: 89.73, y: 40.89, w: 6.57, h: 8.07 },
   ],
   fans: [
-      { x: 24.07, y: 41.11, w: 13.13, h: 8.07 },
-      { x: 63.83, y: 41.11, w: 13.13, h: 8.07 },
+      { x: 24.765106126111093, y: 42.37839271943042, w: 13.13, h: 8.07 },
+      { x: 64.06595508861339, y: 42.40930854593458, w: 13.13, h: 8.07 },
   ],
   walls: [
       { x1: 35.56, y1: 50.09, x2: 42.67, y2: 50.09 },
@@ -299,6 +320,14 @@ const khotd1: WarehouseLayout = {
   ],
   notes: [
   ],
+  zoneLabels: [
+    { zone: 'LO1', x: 9.92727766023918, y: 10.46587733864337 },
+    { zone: 'LO2', x: 25.043538861688308, y: 10.462784451894535 },
+    { zone: 'LO3', x: 51.19784556779477, y: 10.46247581526886 },
+    { zone: 'LO4', x: 66.488755976423, y: 10.616418113062046 },
+    { zone: 'LO5', x: 81.58213894461967, y: 10.510079754533074 },
+    { zone: 'LO6', x: 93.04584217302384, y: 10.587669263429696 },
+  ],
 };
 
 const khotd2: WarehouseLayout = {
@@ -336,7 +365,7 @@ const khotd2: WarehouseLayout = {
       { code: 'K4.6', zone: 'LO4', x: 81.44, y: 4.39, w: 13.35, h: 10.44 },
   ],
   fans: [
-      { x: 47.32, y: 71.46, w: 26.71, h: 10.44 },
+      { x: 52.30921384076589, y: 71.253710468653, w: 26.71, h: 10.44 },
   ],
   walls: [
       { x1: 100.00, y1: 34.28, x2: 100.00, y2: 45.63 },
@@ -380,6 +409,12 @@ const khotd2: WarehouseLayout = {
       { x: 87.12, y: 83.62, w: 5.43, h: 0.00 },
   ],
   notes: [
+  ],
+  zoneLabels: [
+    { zone: 'LO1', x: 17.341337092827786, y: 29.067370363948424 },
+    { zone: 'LO2', x: 48.81697408815059, y: 29.017498467652555 },
+    { zone: 'LO3', x: 80.9078652691877, y: 29.385787130806445 },
+    { zone: 'LO4', x: 49.39578614992698, y: 15.61576240323777 },
   ],
 };
 
@@ -433,6 +468,10 @@ const hd1: WarehouseLayout = {
       { x: 86.52, y: 2.47, w: 8.26, h: 0.00 },
   ],
   notes: [
+  ],
+  zoneLabels: [
+    { zone: 'LO1', x: 26.150229451900074, y: 21.008984355827746 },
+    { zone: 'LO2', x: 73.73661908985139, y: 20.89761095484008 },
   ],
 };
 
@@ -493,6 +532,10 @@ const hd2: WarehouseLayout = {
       { x: 82.20, y: 0.69, w: 11.53, h: 0.00 },
   ],
   notes: [
+  ],
+  zoneLabels: [
+    { zone: 'LO1', x: 24.957255766672105, y: 32.74133158981049 },
+    { zone: 'LO2', x: 72.47673923990128, y: 32.720478635518845 },
   ],
 };
 
@@ -596,6 +639,11 @@ const khopl: WarehouseLayout = {
   notes: [
       { text: 'Khu vực để dầu chiên', x: 1.03, y: -1.19, tx: 23.91, ty: 8.43 },
       { text: 'Khu vực để Nha', x: 1.23, y: 33.63, tx: 25.39, ty: 24.75 },
+  ],
+  zoneLabels: [
+    { zone: 'DAUCHIEN-LO1', x: 93.86823324686867, y: 6.5127386526621125 },
+    { zone: 'DAUCHIEN-LO2', x: 93.84048079945285, y: 13.173156268459834 },
+    { zone: 'NHA-LO1', x: 96.13034646871456, y: 22.693873562582954 },
   ],
 };
 

@@ -12,6 +12,7 @@ import { usePageTitle } from './hooks/usePageTitle';
 
 const Login = React.lazy(() => import('./pages/Login'));
 const ForgotPassword = React.lazy(() => import('./pages/ForgotPassword'));
+const LayoutLabelTool = React.lazy(() => import('./components/LayoutLabelTool'));
 
 // Common Management
 const CommonManagement = React.lazy(() => import('./pages/CommonManagement'));
@@ -104,6 +105,9 @@ function App() {
           <Route path="/diemdanh/nhanvien" element={<FaceKioskPage />} />
           <Route path="/diemdanh/nhanvien-v2" element={<FaceKioskPageV2 />} />
           <Route path="/diemdanh/nhanvien-v3" element={<FaceKioskPageV3 />} />
+
+          {/* Dev tool — sắp xếp chữ trên bản đồ kho */}
+          <Route path="/dev/layout-tool" element={<LayoutLabelTool />} />
 
           {/* Production data entry kiosk — full-screen (tablet), public with self-guard */}
           <Route path="/production/nhap-lieu-hub" element={<DataEntryHub />} />
