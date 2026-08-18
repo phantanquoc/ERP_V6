@@ -25,6 +25,11 @@ RUN npm install
 # Copy source code
 COPY . .
 
+# Raster factory PDF to PNG for FactoryOverview (mupdf-tools, fallback to PDF if not available)
+RUN apt-get update && apt-get install -y --no-install-recommends mupdf-tools 2>/dev/null || true; \
+    node scripts/raster-factory-pdf.mjs || true; \
+    ls -lh public/factory/ || true
+
 # Build the application
 RUN npm run build
 
