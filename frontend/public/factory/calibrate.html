@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hiệu chỉnh Sơ đồ tổng thể nhà máy</title>
+<style>
+  :root {
+    --panel: #1e293b; --panel2: #0f172a; --line: #334155; --text: #e2e8f0; --muted: #94a3b8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #0b1120; color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+  }
+  header { background: var(--panel2); padding: 8px 16px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  header h1 { font-size: 15px; margin: 0; font-weight: 700; }
+  .hint { font-size: 12px; color: var(--muted); }
+  main { flex: 1; display: flex; min-height: 0; }
+  .stage { flex: 1; position: relative; overflow: auto; background: #0f1526; display: flex; align-items: flex-start; justify-content: flex-start; padding: 16px; }
+  canvas { background: #fff; box-shadow: 0 8px 30px rgba(0,0,0,.45); border-radius: 4px; cursor: crosshair; flex: none; }
+  aside {
+    width: 340px; flex: none; background: var(--panel); border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0;
+  }
+  .tabs { display: flex; border-bottom: 1px solid var(--line); }
+  .tab { flex: 1; text-align: center; padding: 8px; font-size: 13px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; }
+  .tab.active { color: #fff; border-bottom-color: #38bdf8; background: rgba(56,189,248,.08); }
+  .panel { padding: 12px; overflow-y: auto; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; align-items: center; }
+  .label { font-size: 12px; color: var(--muted); min-width: 70px; }
+  select, button, textarea { font: inherit; }
+  select { background: var(--panel2); color: var(--text); border: 1px solid var(--line); padding: 6px 8px; border-radius: 6px; }
+  button { background: var(--panel2); color: var(--text); border: 1px solid var(--line); padding: 6px 10px; border-radius: 6px; cursor: pointer; }
+  button:hover { border-color: #64748b; }
+  button.primary { background: #0284c7; border-color: #0284c7; color: #fff; }
+  button.danger { color: #fca5a5; }
+  .reqs { list-style: none; margin: 0; padding: 0; }
+  .req { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; margin-bottom: 4px; background: var(--panel2); }
+  .req.active { outline: 2px solid #38bdf8; }
+  .dot { width: 14px; height: 14px; border-radius: 3px; flex: none; }
+  .req .nm { flex: 1; font-size: 13px; }
+  .req .ct { font-size: 11px; color: var(--muted); }
+  textarea { width: 100%; height: 160px; background: #0d1526; color: #a7f3d0; border: 1px solid var(--line); border-radius: 6px; padding: 8px; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .fv { font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+  .switch { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+  .status { font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🛠️ Hiệu chỉnh vị trí &amp; hình dạng kho — Sơ đồ tổng thể</h1>
+  <span class="hint">Click lên ảnh để thêm đỉnh · kéo đỉnh/vuốt để chỉnh</span>
+</header>
+<main>
+  <div class="stage"><canvas id="cv"></canvas></div>
+  <aside>
+    <div class="tabs">
+      <div class="tab active" data-tab="edit">✏️ Vẽ</div>
+      <div class="tab" data-tab="export">📦 Xuất</div>
+    </div>
+
+    <div class="panel" id="panel-edit">
+      <div class="row">
+        <span class="label">Kho:</span>
+        <select id="sel"></select>
+      </div>
+      <div class="row">
+        <span class="label">Công cụ:</span>
+        <label class="switch"><input type="checkbox" id="addMode" checked /> Thêm đỉnh khi click chỗ trống</label>
+      </div>
+      <div class="row">
+        <button id="undo">↩ Bỏ đỉnh cuối</button>
+        <button id="clear" class="danger">🗑 Xóa kho này</button>
+        <button id="reset">↺ Về mặc định</button>
+      </div>
+      <div class="fv">Mẹo: click chỗ trống thêm đỉnh; kéo đỉnh để chỉnh; kéo vào trong thân ô để di chuyển cả ô; có thể vẽ hình nhiều cạnh bám theo tường.</div>
+      <hr style="border-color:var(--line);margin:10px 0" />
+      <div class="label" style="margin-bottom:4px">Danh sách kho (click để chọn):</div>
+      <ul class="reqs" id="reqs"></ul>
+    </div>
+
+    <div class="panel" id="panel-export" style="display:none">
+      <div class="row">
+        <button id="gen" class="primary">📋 Tạo mã OVERLAY_ROOMS</button>
+        <button id="copy">Copy</button>
+      </div>
+      <textarea id="out" spellcheck="false" placeholder="Bấm 'Tạo mã' để sinh JSON..."></textarea>
+      <div class="fv">Copy đoạn JSON này gửi cho tôi, tôi sẽ cập nhật vào <b>FactoryOverview.tsx</b>. Tọa độ đang ở dạng <b>% trang PDF</b> (khớp 1:1 với render).</div>
+    </div>
+  </aside>
+</main>
+
+<script type="module">
+import * as pdfjs from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.8.69/build/pdf.min.mjs';
+pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.8.69/build/pdf.worker.min.mjs';
+
+const PAGE_W = 842, PAGE_H = 595;
+const CANVAS_W = 1300;
+
+const COLORS = ['#0ea5e9', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899', '#14b8a6'];
+
+const WAREHOUSES = [
+  { maKho: 'KHOTP',  label: 'Kho thành phẩm sấy', points: [[140.3,148.8],[298.2,148.8],[298.2,410.4],[140.3,410.4]] },
+  { maKho: 'KHOTD1', label: 'Kho trữ đông 1',    points: [[298.2,148.8],[449.2,148.8],[449.2,286.8],[298.2,286.8]] },
+  { maKho: 'HD1',    label: 'Hầm đông 1',         points: [[449.2,148.8],[521.7,148.8],[521.7,286.8],[449.2,286.8]] },
+  { maKho: 'HD2',    label: 'Hầm đông 2',         points: [[521.7,148.8],[595.7,148.8],[595.7,286.8],[521.7,286.8]] },
+  { maKho: 'KHOTD2', label: 'Kho trữ đông 2',     points: [[595.7,148.8],[672.7,148.8],[672.7,286.8],[595.7,286.8]] },
+  { maKho: 'KHOPL',  label: 'Phòng phụ liệu',     points: [[672.7,148.8],[813.8,148.8],[813.8,410.4],[672.7,410.4]] },
+];
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let scale = CANVAS_W / PAGE_W;
+cv.width = CANVAS_W;
+cv.height = Math.round(PAGE_H * scale);
+
+let selected = 0;
+let addMode = true;
+let drag = null; // {warehouse, isVertex, idx} or {warehouse, move, offX, offY}
+let raf = 0;
+
+function toPx(p) { return [p[0] * scale, p[1] * scale]; }
+function draw() {
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  if (base) ctx.drawImage(base, 0, 0);
+  WAREHOUSES.forEach((w, k) => {
+    const pts = w.points;
+    if (pts.length < 2) { return; }
+    const c = COLORS[k % COLORS.length];
+    ctx.beginPath();
+    ctx.moveTo(...toPx(pts[0]));
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(...toPx(pts[i]));
+    ctx.closePath();
+    ctx.fillStyle = c + '40';
+    ctx.fill();
+    ctx.strokeStyle = k === selected ? '#ffffff' : c;
+    ctx.lineWidth = k === selected ? 3 : 2;
+    ctx.setLineDash([]);
+    ctx.stroke();
+    // vertices
+    pts.forEach((p) => {
+      const [x, y] = toPx(p);
+      ctx.fillStyle = k === selected ? '#fff' : c;
+      ctx.strokeStyle = '#0b1120';
+      ctx.lineWidth = 1;
+      ctx.fillRect(x - 4, y - 4, 8, 8);
+      ctx.strokeRect(x - 4, y - 4, 8, 8);
+    });
+    // label (centroid)
+    const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+    const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold ' + Math.round(scale * 12) + 'px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const t = w.label;
+    const tw = ctx.measureText(t).width + 8;
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillRect(cx * scale - tw / 2, cy * scale - 11, tw, 22);
+    ctx.fillStyle = '#0f172a';
+    ctx.fillText(t, cx * scale, cy * scale);
+  });
+}
+
+let base = null;
+(async function init() {
+  try {
+    const doc = await pdfjs.getDocument({ url: '/factory/factory-map.pdf' }).promise;
+    const page = await doc.getPage(1);
+    const vp = page.getViewport({ scale });
+    cv.width = Math.floor(vp.width); cv.height = Math.floor(vp.height);
+    const renderTask = page.render({ canvasContext: ctx, viewport: vp });
+    await renderTask.promise;
+    base = document.createElement('canvas');
+    base.width = cv.width; base.height = cv.height;
+    base.getContext('2d').drawImage(cv, 0, 0);
+    draw();
+    renderList();
+  } catch (err) {
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.fillStyle = '#b91c1c'; ctx.font = '14px sans-serif'; ctx.textBaseline = 'top';
+    ctx.fillText('Không tải được PDF: ' + err.message, 12, 12);
+  }
+})();
+
+function pointInPoly(px, py, pts) {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i], [xj, yj] = pts[j];
+    if ((yi > py) !== (yj > py) && px < (xj - xi) * (py - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+cv.addEventListener('mousedown', (e) => {
+  const r = cv.getBoundingClientRect();
+  const sx = (e.clientX - r.left), sy = (e.clientY - r.top);
+  const px = sx / scale, py = sy / scale;
+  for (let k = 0; k < WAREHOUSES.length; k++) {
+    const w = WAREHOUSES[k];
+    for (let i = 0; i < w.points.length; i++) {
+      const [x, y] = toPx(w.points[i]);
+      if (Math.hypot(sx - x, sy - y) <= 9) {
+        selected = k; renderList();
+        drag = { k, isVertex: true, i };
+        draw(); return;
+      }
+    }
+  }
+  for (let k = WAREHOUSES.length - 1; k >= 0; k--) {
+    if (pointInPoly(px, py, WAREHOUSES[k].points)) {
+      selected = k; renderList();
+      const c = WAREHOUSES[k].points.reduce((s, p) => [s[0] + p[0], s[1] + p[1]], [0, 0]);
+      drag = { k, isVertex: false, offX: px - c[0] / WAREHOUSES[k].points.length, offY: py - c[1] / WAREHOUSES[k].points.length };
+      draw(); return;
+    }
+  }
+  // empty area
+  if (addMode && WAREHOUSES[selected].points.length < 60) {
+    WAREHOUSES[selected].points.push([Math.round(px * 10) / 10, Math.round(py * 10) / 10]);
+    renderList(); draw();
+  }
+});
+
+cv.addEventListener('mousemove', (e) => {
+  if (!drag) return;
+  const r = cv.getBoundingClientRect();
+  const px = (e.clientX - r.left) / scale, py = (e.clientY - r.top) / scale;
+  const w = WAREHOUSES[drag.k];
+  if (drag.isVertex) {
+    w.points[drag.i] = [Math.round(px * 10) / 10, Math.round(py * 10) / 10];
+  } else {
+    const n = w.points.length;
+    const cx = w.points.reduce((s, p) => s + p[0], 0) / n, cy = w.points.reduce((s, p) => s + p[1], 0) / n;
+    const dx = (px - drag.offX) - cx, dy = (py - drag.offY) - cy;
+    w.points = w.points.map(p => [Math.round((p[0] + dx) * 10) / 10, Math.round((p[1] + dy) * 10) / 10]);
+    drag.offX = px - cx - dx; drag.offY = py - cy - dy;
+  }
+  requestDraw();
+});
+window.addEventListener('mouseup', () => { drag = null; });
+
+function requestDraw() { cancelAnimationFrame(raf); raf = requestAnimationFrame(draw); }
+
+function renderList() {
+  const sel = document.getElementById('sel');
+  sel.innerHTML = '';
+  const reqs = document.getElementById('reqs');
+  reqs.innerHTML = '';
+  WAREHOUSES.forEach((w, k) => {
+    const o = document.createElement('option');
+    o.value = k; o.textContent = w.label;
+    if (k === selected) o.selected = true;
+    sel.appendChild(o);
+    const li = document.createElement('li');
+    li.className = 'req' + (k === selected ? ' active' : '');
+    li.innerHTML = `<span class="dot" style="background:${COLORS[k % COLORS.length]}"></span><span class="nm">${w.maKho} · ${w.label}</span><span class="ct">${w.points.length} đỉnh</span>`;
+    li.onclick = () => { selected = k; renderList(); draw(); };
+    reqs.appendChild(li);
+  });
+}
+document.getElementById('sel').addEventListener('change', (e) => {
+  selected = +e.target.value; renderList(); draw();
+});
+document.getElementById('addMode').addEventListener('change', (e) => { addMode = e.target.checked; });
+document.getElementById('undo').addEventListener('click', () => {
+  WAREHOUSES[selected].points.pop(); renderList(); draw();
+});
+document.getElementById('clear').addEventListener('click', () => {
+  WAREHOUSES[selected].points = []; renderList(); draw();
+});
+document.getElementById('reset').addEventListener('click', () => {
+  const defs = {
+    KHOTP: [[140.3,148.8],[298.2,148.8],[298.2,410.4],[140.3,410.4]],
+    KHOTD1: [[298.2,148.8],[449.2,148.8],[449.2,286.8],[298.2,286.8]],
+    HD1: [[449.2,148.8],[521.7,148.8],[521.7,286.8],[449.2,286.8]],
+    HD2: [[521.7,148.8],[595.7,148.8],[595.7,286.8],[521.7,286.8]],
+    KHOTD2: [[595.7,148.8],[672.7,148.8],[672.7,286.8],[595.7,286.8]],
+    KHOPL: [[672.7,148.8],[813.8,148.8],[813.8,410.4],[672.7,410.4]],
+  };
+  WAREHOUSES[selected].points = JSON.parse(JSON.stringify(defs[WAREHOUSES[selected].maKho]));
+  renderList(); draw();
+});
+
+// tabs
+document.querySelectorAll('.tab').forEach((t) => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    const tab = t.dataset.tab;
+    document.getElementById('panel-edit').style.display = tab === 'edit' ? '' : 'none';
+    document.getElementById('panel-export').style.display = tab === 'export' ? '' : 'none';
+  });
+});
+
+document.getElementById('gen').addEventListener('click', () => {
+  const rooms = WAREHOUSES.map((w) => {
+    const pts = w.points;
+    const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+    const left = Math.min(...xs), right = Math.max(...xs), top = Math.min(...ys), bottom = Math.max(...ys);
+    return {
+      maKho: w.maKho,
+      label: w.label,
+      left: +(left / PAGE_W * 100).toFixed(2),
+      top: +(top / PAGE_H * 100).toFixed(2),
+      width: +((right - left) / PAGE_W * 100).toFixed(2),
+      height: +((bottom - top) / PAGE_H * 100).toFixed(2),
+      points: pts.map(p => [+(p[0] / PAGE_W * 100).toFixed(2), +(p[1] / PAGE_H * 100).toFixed(2)]),
+    };
+  });
+  document.getElementById('out').value = 'const OVERLAY_ROOMS = ' + JSON.stringify(rooms, null, 2) + ';';
+});
+document.getElementById('copy').addEventListener('click', () => {
+  const v = document.getElementById('out').value;
+  if (v) navigator.clipboard.writeText(v).then(() => { document.getElementById('copy').textContent = 'Đã copy!'; setTimeout(() => document.getElementById('copy').textContent = 'Copy', 1200); });
+});
+</script>
+</body>
+</html>

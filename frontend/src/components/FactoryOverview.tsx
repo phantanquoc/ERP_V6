@@ -1,23 +1,66 @@
-import React, { useMemo } from 'react';
-import { MapPin, Plus, Minus, Maximize2 } from 'lucide-react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { MapPin, Plus, Minus, Maximize2, Loader2, AlertTriangle } from 'lucide-react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import type { Warehouse } from '../services/warehouseService';
-import { WAREHOUSE_LAYOUTS, getLayoutByMaKho } from '../constants/warehouseLayouts';
-import { FACTORY_LAYOUT, type FactoryArea } from '../constants/factoryLayout';
+import { getLayoutByMaKho } from '../constants/warehouseLayouts';
 
-interface FactoryOverviewProps {
-  warehouses: Warehouse[];
-  selectedWarehouseId?: string | null;
-  onSelectWarehouse: (id: string) => void;
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+
+// Page size of the source PDF (pts). The rendered canvas follows this aspect.
+const PAGE_W = 842;
+const PAGE_H = 595;
+
+// ---------------------------------------------------------------------------
+// Warehouse overlay rectangles — measured against the ACTUAL rendered factory
+// walls (source: "Sơ đồ tổng thể nhà máy.pdf"). Values are % of the PDF page
+// so they align 1:1 with the rendered backdrop regardless of screen size.
+// ---------------------------------------------------------------------------
+interface OverlayRoom {
+  maKho: string;
+  label: string;
+  left: number;  // % of page width
+  top: number;   // % of page height
+  width: number; // % of page width
+  height: number; // % of page height
+  points?: [number, number][]; // polygon in page % (overrides the box when present)
 }
+
+const OVERLAY_ROOMS: OverlayRoom[] = [
+  {
+    maKho: 'KHOTP', label: 'Kho thành phẩm sấy', left: 19.47, top: 43.48, width: 18.61, height: 18.72,
+    points: [[38.08,57.09],[33.38,57.31],[33.38,62.2],[19.47,61.98],[19.47,49.8],[21.85,49.7],[24.23,46.32],[24.38,43.48],[37.92,43.6]],
+  },
+  {
+    maKho: 'KHOTD1', label: 'Kho trữ đông 1', left: 41.15, top: 28.13, width: 14.07, height: 10.45,
+    points: [[41.15,28.13],[55.15,28.13],[55.23,38.59],[41.24,38.47]],
+  },
+  {
+    maKho: 'HD1', label: 'Hầm đông 1', left: 55.27, top: 28.17, width: 5.65, height: 8.67,
+    points: [[55.27,28.17],[60.93,28.25],[60.93,36.84],[55.46,36.84]],
+  },
+  {
+    maKho: 'HD2', label: 'Hầm đông 2', left: 61, top: 26.29, width: 5.93, height: 10.55,
+    points: [[61.12,26.32],[66.92,26.29],[66.77,36.84],[61,36.84]],
+  },
+  {
+    maKho: 'KHOTD2', label: 'Kho trữ đông 2', left: 66.85, top: 26.18, width: 8.61, height: 10.77,
+    points: [[66.9,26.32],[75.46,26.18],[75.38,36.96],[66.85,36.84]],
+  },
+  {
+    maKho: 'KHOPL', label: 'Phòng phụ liệu', left: 80.67, top: 34.99, width: 4.11, height: 24.71,
+    points: [[80.67,35.03],[84.69,34.99],[84.77,59.7],[80.69,59.6]],
+  },
+];
 
 // Fill-level heatmap bins (shared convention with WarehouseMap):
 // cool (light blue, empty) → yellow (partial) → hot (red, full).
 type FillLevel = 'empty' | 'partial' | 'full';
 const FILL_LEVELS: Record<FillLevel, { fill: string; stroke: string; label: string }> = {
-  empty: { fill: '#dbeafe', stroke: '#93c5fd', label: 'Trống (<40%)' },
-  partial: { fill: '#fef08a', stroke: '#ca8a04', label: 'Có hàng (40–75%)' },
-  full: { fill: '#fca5a5', stroke: '#b91c1c', label: 'Đầy (>75%)' },
+  empty: { fill: 'rgba(59,130,246,0.18)', stroke: '#3b82f6', label: 'Trống (<40%)' },
+  partial: { fill: 'rgba(234,179,8,0.30)', stroke: '#ca8a04', label: 'Có hàng (40–75%)' },
+  full: { fill: 'rgba(239,68,68,0.38)', stroke: '#b91c1c', label: 'Đầy (>75%)' },
 };
 
 /** Classify a warehouse's fill ratio into a heatmap bin. */
@@ -27,20 +70,27 @@ const classifyRatio = (ratio: number): FillLevel => {
   return 'empty';
 };
 
-/**
- * Sơ đồ tổng thể nhà máy — block-level floor plan showing where each warehouse sits
- * in the factory. 6 CAD warehouses are clickable areas tinted by their fill ratio
- * (cool→hot heatmap) so staff can see at a glance which stores are busy. Clicking a
- * warehouse switches to its detailed pallet map.
- */
-const FactoryOverview: React.FC<FactoryOverviewProps> = ({ warehouses, selectedWarehouseId, onSelectWarehouse }) => {
+interface FactoryOverviewProps {
+  warehouses: Warehouse[];
+  selectedWarehouseId?: string | null;
+  onSelectWarehouse: (id: string) => void;
+}
+
+const FactoryOverview: React.FC<FactoryOverviewProps> = ({
+  warehouses,
+  selectedWarehouseId,
+  onSelectWarehouse,
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [pdfStatus, setPdfStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+
   // Fill ratio per warehouse = occupied slots / total CAD slots.
   const fillByKho = useMemo(() => {
     const m = new Map<string, { ratio: number; occupied: number; total: number; level: FillLevel }>();
     warehouses.forEach((w) => {
       const layout = getLayoutByMaKho(w.maKho);
       if (!layout) return;
-      // A slot is "occupied" if any of this warehouse's lotProducts reference it.
       const slotIds = new Set((w.warehouseSlots ?? []).map((s) => s.id));
       const placedSlotIds = new Set<string>();
       (w.lots ?? []).forEach((lot) => {
@@ -62,18 +112,112 @@ const FactoryOverview: React.FC<FactoryOverviewProps> = ({ warehouses, selectedW
     return c;
   }, [fillByKho]);
 
-  // Map maKho → warehouse id for click handler + status lookup.
   const khoById = useMemo(() => {
     const m = new Map<string, Warehouse>();
     warehouses.forEach((w) => m.set(w.maKho, w));
     return m;
   }, [warehouses]);
 
-  const areaLabel = (a: FactoryArea) => {
+  const areaLabel = (a: OverlayRoom) => {
     const f = a.maKho ? fillByKho.get(a.maKho) : undefined;
     if (!f) return a.label;
     return `${a.label} · ${f.occupied}/${f.total} ô (${Math.round(f.ratio * 100)}%)`;
   };
+
+  // Load the PDF once and keep the page renderer + a queued render dispatcher.
+  const taskRef = useRef<{ cancel: () => void } | null>(null);
+  const desiredScaleRef = useRef<number | null>(null);
+  const busyRef = useRef(false);
+  const pageRef = useRef<{ render: (scale: number) => void } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const doc = await pdfjsLib.getDocument({ url: '/factory/factory-map.pdf' }).promise;
+        if (cancelled) return;
+        const page = await doc.getPage(1);
+        if (cancelled) return;
+
+        const render = async (scale: number) => {
+          const canvas = canvasRef.current;
+          if (!canvas) return;
+          const vp = page.getViewport({ scale });
+          canvas.width = Math.floor(vp.width);
+          canvas.height = Math.floor(vp.height);
+          // CSS size is controlled by the outer container (w-full h-full),
+          // so overlays positioned in % of the container align with the canvas.
+          const t = page.render({ canvas, viewport: vp });
+          taskRef.current = t;
+          try {
+            await t.promise;
+          } finally {
+            taskRef.current = null;
+          }
+        };
+
+        pageRef.current = {
+          render: (scale: number) => {
+            desiredScaleRef.current = scale;
+            if (busyRef.current) return; // a render is running; it will pick up the latest scale
+            busyRef.current = true;
+            (async () => {
+              try {
+                while (desiredScaleRef.current != null) {
+                  const s = desiredScaleRef.current;
+                  desiredScaleRef.current = null;
+                  // Cancel any in-flight render before drawing again on the same canvas.
+                  try {
+                    taskRef.current?.cancel();
+                  } catch { /* ignore */ }
+                  await render(s);
+                }
+              } finally {
+                busyRef.current = false;
+              }
+            })().catch(() => { busyRef.current = false; });
+          },
+        };
+        setPdfStatus('ready');
+      } catch {
+        if (!cancelled) setPdfStatus('error');
+      }
+    })();
+    return () => {
+      cancelled = true;
+      try {
+        taskRef.current?.cancel();
+      } catch { /* ignore */ }
+    };
+  }, []);
+
+  // Re-render the page whenever the container width changes (crisp on zoom).
+  const rerender = useCallback(() => {
+    const el = containerRef.current;
+    if (!el || !pageRef.current || pdfStatus !== 'ready') return;
+    const cssWidth = el.clientWidth || 900;
+    const dpr = window.devicePixelRatio || 1;
+    // Render ~2.5x the displayed size so zooming into the vector keeps detail.
+    pageRef.current.render((cssWidth / PAGE_W) * 2.5 * dpr);
+  }, [pdfStatus]);
+
+  useLayoutEffect(() => {
+    if (pdfStatus !== 'ready') return;
+    const el = containerRef.current;
+    if (!el) return;
+    let raf = 0;
+    const schedule = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(rerender);
+    };
+    schedule();
+    const ro = new ResizeObserver(schedule);
+    ro.observe(el);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+  }, [pdfStatus, rerender]);
 
   return (
     <div className="bg-white rounded-lg shadow p-4">
@@ -94,7 +238,7 @@ const FactoryOverview: React.FC<FactoryOverviewProps> = ({ warehouses, selectedW
           })}
         </div>
       </div>
-      <p className="text-xs text-gray-500 mb-2">Bấm vào một kho để xem sơ đồ chi tiết vị trí kiện.</p>
+      <p className="text-xs text-gray-500 mb-2">Bấm vào một kho (tô màu) để xem sơ đồ chi tiết vị trí kiện.</p>
 
       <TransformWrapper minScale={1} maxScale={6} wheel={{ step: 0.08 }} doubleClick={{ mode: 'toggle', step: 2 }} limitToBounds centerOnInit>
         {({ zoomIn, zoomOut, resetTransform }) => (
@@ -105,60 +249,79 @@ const FactoryOverview: React.FC<FactoryOverviewProps> = ({ warehouses, selectedW
               <button onClick={() => resetTransform()} className="p-1.5 text-gray-600 hover:bg-gray-100 rounded" title="Vừa màn hình" aria-label="Đặt lại"><Maximize2 className="w-4 h-4" /></button>
             </div>
             <TransformComponent wrapperClass="!w-full !h-[72vh] !cursor-grab active:!cursor-grabbing" contentClass="!w-full">
-              <svg viewBox={`0 0 ${FACTORY_LAYOUT.viewW} ${FACTORY_LAYOUT.viewH + 3}`} className="w-full" role="img" aria-label="Sơ đồ tổng thể nhà máy">
-                {/* Walls — thin slate, factory structure */}
-                {FACTORY_LAYOUT.walls.map((wl, i) => (
-                  <line key={`fw-${i}`} x1={wl.x1} y1={wl.y1} x2={wl.x2} y2={wl.y2} stroke="#475569" strokeWidth={0.4} strokeLinecap="square" />
-                ))}
+              <div ref={containerRef} className="w-full relative select-none">
+                <div className="relative w-full" style={{ aspectRatio: `${PAGE_W} / ${PAGE_H}` }}>
+                  {pdfStatus === 'error' && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-slate-50 text-slate-500 text-sm gap-2">
+                      <AlertTriangle className="w-4 h-4" /> Không tải được sơ đồ tổng thể (factory-map.pdf)
+                    </div>
+                  )}
+                  {pdfStatus !== 'error' && (
+                    <canvas ref={canvasRef} className="w-full h-full block bg-white" />
+                  )}
+                  {pdfStatus === 'loading' && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white text-slate-500 text-sm gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" /> Đang tải sơ đồ…
+                    </div>
+                  )}
 
-                {/* Context rooms (non-clickable, orientation only) */}
-                {FACTORY_LAYOUT.context.map((c, i) => (
-                  <g key={`ctx-${i}`}>
-                    <rect x={c.x} y={c.y} width={c.w} height={c.h} rx={0.3} fill="#f8fafc" stroke="#cbd5e1" strokeWidth={0.12} />
-                    <text x={c.x + c.w / 2} y={c.y + c.h / 2} textAnchor="middle" fontSize={1.1} className="fill-slate-400 pointer-events-none">
-                      {c.label}
-                    </text>
-                  </g>
-                ))}
-
-                {/* Warehouse areas — clickable, tinted by fill ratio */}
-                {FACTORY_LAYOUT.areas.map((a, i) => {
-                  const w = a.maKho ? khoById.get(a.maKho) : undefined;
-                  const f = a.maKho ? fillByKho.get(a.maKho) : undefined;
-                  const lvl = f?.level ?? 'empty';
-                  const fill = FILL_LEVELS[lvl];
-                  const isSelected = w && selectedWarehouseId === w.id;
-                  const clickable = !!w;
-                  return (
-                    <g
-                      key={`area-${i}`}
-                      className={clickable ? 'cursor-pointer' : ''}
-                      onClick={() => clickable && w && onSelectWarehouse(w.id)}
-                    >
-                      <title>{areaLabel(a)}</title>
-                      <rect
-                        x={a.x}
-                        y={a.y}
-                        width={a.w}
-                        height={a.h}
-                        rx={0.4}
-                        fill={fill.fill}
-                        stroke={isSelected ? '#1d4ed8' : fill.stroke}
-                        strokeWidth={isSelected ? 0.6 : 0.25}
-                        className={clickable ? 'hover:brightness-95 transition-[filter]' : ''}
-                      />
-                      <text x={a.x + a.w / 2} y={a.y + a.h / 2} textAnchor="middle" fontSize={1.4} fontWeight={700} className="fill-slate-700 pointer-events-none">
-                        {a.label}
-                      </text>
-                      {f && (
-                        <text x={a.x + a.w / 2} y={a.y + a.h / 2 + 2.4} textAnchor="middle" fontSize={1} className="fill-slate-500 pointer-events-none">
-                          {f.occupied}/{f.total} ô
-                        </text>
-                      )}
-                    </g>
-                  );
-                })}
-              </svg>
+                  {/* Warehouse areas — SVG polygons on top of the real PDF drawing.
+                      viewBox 0..100 maps to the full page so polygon points are page-%.
+                      preserveAspectRatio="none" aligns them 1:1 with the canvas. */}
+                  <svg
+                    viewBox="0 0 100 100"
+                    preserveAspectRatio="none"
+                    className="absolute inset-0 w-full h-full"
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    {OVERLAY_ROOMS.map((a, i) => {
+                      const w = khoById.get(a.maKho);
+                      const f = fillByKho.get(a.maKho);
+                      const lvl = f?.level ?? 'empty';
+                      const fill = FILL_LEVELS[lvl];
+                      const isSelected = w && selectedWarehouseId === w.id;
+                      const clickable = !!w;
+                      const pts = a.points ?? [[a.left, a.top], [a.left + a.width, a.top], [a.left + a.width, a.top + a.height], [a.left, a.top + a.height]];
+                      const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+                      const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+                      const fs = a.width > 12 ? 1.7 : 1.2;
+                      return (
+                        <g key={`area-${i}`}>
+                          <title>{areaLabel(a)}</title>
+                          <polygon
+                            points={pts.map((p) => p.join(',')).join(' ')}
+                            fill={fill.fill}
+                            stroke={isSelected ? '#1d4ed8' : fill.stroke}
+                            strokeWidth={isSelected ? 0.9 : 0.45}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={() => clickable && w && onSelectWarehouse(w.id)}
+                            style={{
+                              pointerEvents: clickable ? 'all' : 'none',
+                              cursor: clickable ? 'pointer' : 'default',
+                              transition: 'filter .15s',
+                              filter: isSelected ? 'drop-shadow(0 0 2px rgba(29,78,216,.6))' : undefined,
+                            }}
+                            className={clickable ? 'hover:brightness-95' : ''}
+                          >
+                            <title>{areaLabel(a)}</title>
+                          </polygon>
+                          {f && (
+                            <text
+                              x={cx}
+                              y={cy}
+                              textAnchor="middle"
+                              dominantBaseline="central"
+                              style={{ pointerEvents: 'none', fontSize: fs * 0.8, fontWeight: 700, fill: '#0f172a', paintOrder: 'stroke', stroke: '#ffffff', strokeWidth: 0.35 }}
+                            >
+                              {f.occupied}/{f.total}
+                            </text>
+                          )}
+                        </g>
+                      );
+                    })}
+                  </svg>
+                </div>
+              </div>
             </TransformComponent>
           </div>
         )}
@@ -168,5 +331,3 @@ const FactoryOverview: React.FC<FactoryOverviewProps> = ({ warehouses, selectedW
 };
 
 export default FactoryOverview;
-// Re-export for external use of the slot-count source.
-export { WAREHOUSE_LAYOUTS };
