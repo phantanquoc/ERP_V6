@@ -145,10 +145,10 @@ const FactoryOverview: React.FC<FactoryOverviewProps> = ({
             <TransformComponent wrapperClass="!w-full !h-[72vh] !cursor-grab active:!cursor-grabbing" contentClass="!w-full">
               <div className="w-full relative select-none">
                 <div className="relative w-full" style={{ aspectRatio: `${PAGE_W} / ${PAGE_H}` }}>
-                  {/* PDF backdrop via native iframe — avoids pdfjs worker CORS/MIME issues */}
+                  {/* PDF backdrop via native iframe — pointer-events none so wheel/pan reaches TransformWrapper */}
                   <iframe
                     src="/factory/factory-map.pdf#toolbar=0&navpanes=0&scrollbar=0"
-                    className="w-full h-full block bg-white border-0"
+                    className="w-full h-full block bg-white border-0 pointer-events-none"
                     title="Sơ đồ tổng thể"
                     loading="lazy"
                   />
