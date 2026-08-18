@@ -6,53 +6,7 @@ import type { Warehouse } from '../services/warehouseService';
 import { getLayoutByMaKho } from '../constants/warehouseLayouts';
 import { WAREHOUSE_VIEW_CONFIG, WRAPPER_CLASSES, CONTENT_CLASSES } from '../constants/warehouseViewConfig';
 import { FILL_LEVELS, classifyRatio, type FillLevel } from '../utils/heatmap';
-
-// Page size of the source PDF (pts). The rendered iframe follows this aspect.
-const PAGE_W = 842;
-const PAGE_H = 595;
-
-// ---------------------------------------------------------------------------
-// Warehouse overlay rectangles — measured against the ACTUAL rendered factory
-// walls (source: "Sơ đồ tổng thể nhà máy.pdf"). Values are % of the PDF page
-// so they align 1:1 with the rendered backdrop regardless of screen size.
-// ---------------------------------------------------------------------------
-interface OverlayRoom {
-  maKho: string;
-  label: string;
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-  points?: [number, number][];
-}
-
-const OVERLAY_ROOMS: OverlayRoom[] = [
-  {
-    maKho: 'KHOTP', label: 'Kho thành phẩm sấy', left: 19.47, top: 43.48, width: 18.61, height: 18.72,
-    points: [[38.08,57.09],[33.38,57.31],[33.38,62.2],[19.47,61.98],[19.47,49.8],[21.85,49.7],[24.23,46.32],[24.38,43.48],[37.92,43.6]],
-  },
-  {
-    maKho: 'KHOTD1', label: 'Kho trữ đông 1', left: 41.15, top: 28.13, width: 14.07, height: 10.45,
-    points: [[41.15,28.13],[55.15,28.13],[55.23,38.59],[41.24,38.47]],
-  },
-  {
-    maKho: 'HD1', label: 'Hầm đông 1', left: 55.27, top: 28.17, width: 5.65, height: 8.67,
-    points: [[55.27,28.17],[60.93,28.25],[60.93,36.84],[55.46,36.84]],
-  },
-  {
-    maKho: 'HD2', label: 'Hầm đông 2', left: 61, top: 26.29, width: 5.93, height: 10.55,
-    points: [[61.12,26.32],[66.92,26.29],[66.77,36.84],[61,36.84]],
-  },
-  {
-    maKho: 'KHOTD2', label: 'Kho trữ đông 2', left: 66.85, top: 26.18, width: 8.61, height: 10.77,
-    points: [[66.9,26.32],[75.46,26.18],[75.38,36.96],[66.85,36.84]],
-  },
-  {
-    maKho: 'KHOPL', label: 'Phòng phụ liệu', left: 80.67, top: 34.99, width: 4.11, height: 24.71,
-    points: [[80.67,35.03],[84.69,34.99],[84.77,59.7],[80.69,59.6]],
-  },
-];
-
+import { FACTORY_LAYOUT } from '../constants/factoryLayout';
 
 interface FactoryOverviewProps {
   warehouses: Warehouse[];
@@ -97,10 +51,10 @@ const FactoryOverview: React.FC<FactoryOverviewProps> = ({
     return m;
   }, [warehouses]);
 
-  const areaLabel = (a: OverlayRoom) => {
-    const f = a.maKho ? fillByKho.get(a.maKho) : undefined;
-    if (!f) return a.label;
-    return `${a.label} · ${f.occupied}/${f.total} ô (${Math.round(f.ratio * 100)}%)`;
+  const areaLabel = (area: { maKho?: string; label: string }) => {
+    const f = area.maKho ? fillByKho.get(area.maKho) : undefined;
+    if (!f) return area.label;
+    return `${area.label} · ${f.occupied}/${f.total} ô (${Math.round(f.ratio * 100)}%)`;
   };
 
   return (
@@ -145,67 +99,83 @@ const FactoryOverview: React.FC<FactoryOverviewProps> = ({
             </div>
             <TransformComponent wrapperClass={WRAPPER_CLASSES.factory} contentClass={CONTENT_CLASSES.factory}>
               <div className="w-full relative select-none">
-                <div className="relative w-full" style={{ aspectRatio: `${PAGE_W} / ${PAGE_H}` }}>
-                  {/* PDF backdrop — object with iframe/img fallback, pointer-events none for wheel/pan */}
-                  <object
-                    data="/factory/factory-map.pdf#toolbar=0&navpanes=0&scrollbar=0"
-                    type="application/pdf"
-                    className="w-full h-full block bg-white border-0 pointer-events-none"
+                <div className="relative w-full" style={{ aspectRatio: `${FACTORY_LAYOUT.viewW} / ${FACTORY_LAYOUT.viewH}` }}>
+                  <svg
+                    viewBox={`0 0 ${FACTORY_LAYOUT.viewW} ${FACTORY_LAYOUT.viewH}`}
+                    preserveAspectRatio="xMidYMid meet"
+                    className="w-full h-full block bg-white border border-gray-200"
+                    role="img"
                     aria-label="Sơ đồ tổng thể nhà máy"
                   >
-                    <iframe
-                      src="/factory/factory-map.pdf#toolbar=0&navpanes=0&scrollbar=0"
-                      className="w-full h-full block bg-white border-0 pointer-events-none"
-                      title="Sơ đồ tổng thể"
-                      loading="lazy"
-                    />
-                  </object>
-                  <img
-                    src="/factory/factory-map.png"
-                    alt=""
-                    className="hidden w-full h-full object-contain bg-white pointer-events-none"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                  />
-                  {/* Fallback link if PDF blocked */}
-                  <a
-                    href="/factory/factory-map.pdf"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="absolute bottom-1 right-1 text-[10px] text-blue-600 bg-white/90 px-1.5 py-0.5 rounded shadow hover:underline"
-                  >
-                    Mở PDF
-                  </a>
+                    {/* Factory walls — light gray structure */}
+                    {FACTORY_LAYOUT.walls.map((w, i) => (
+                      <line
+                        key={`wall-${i}`}
+                        x1={w.x1}
+                        y1={w.y1}
+                        x2={w.x2}
+                        y2={w.y2}
+                        stroke="#94a3b8"
+                        strokeWidth={0.18}
+                        strokeLinecap="square"
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    ))}
 
-                  <svg
-                    viewBox="0 0 100 100"
-                    preserveAspectRatio="none"
-                    className="absolute inset-0 w-full h-full"
-                    style={{ pointerEvents: 'none' }}
-                  >
-                    {OVERLAY_ROOMS.map((a, i) => {
-                      const w = khoById.get(a.maKho);
-                      const f = fillByKho.get(a.maKho);
+                    {/* Context rooms — orientation labels, non-clickable */}
+                    {FACTORY_LAYOUT.context.map((area, i) => (
+                      <g key={`ctx-${i}`}>
+                        <rect
+                          x={area.x}
+                          y={area.y}
+                          width={area.w}
+                          height={area.h}
+                          fill="#f1f5f9"
+                          stroke="#cbd5e1"
+                          strokeWidth={0.12}
+                          rx={0.2}
+                          vectorEffect="non-scaling-stroke"
+                        />
+                        <text
+                          x={area.x + area.w / 2}
+                          y={area.y + area.h / 2}
+                          textAnchor="middle"
+                          dominantBaseline="central"
+                          fontSize={0.9}
+                          className="fill-slate-500 font-medium"
+                          style={{ pointerEvents: 'none' }}
+                        >
+                          {area.label}
+                        </text>
+                      </g>
+                    ))}
+
+                    {/* Clickable warehouse areas — heatmap */}
+                    {FACTORY_LAYOUT.areas.map((area, i) => {
+                      const w = area.maKho ? khoById.get(area.maKho) : undefined;
+                      const f = area.maKho ? fillByKho.get(area.maKho) : undefined;
                       const lvl = f?.level ?? 'empty';
                       const fill = FILL_LEVELS[lvl];
                       const isSelected = w && selectedWarehouseId === w.id;
                       const clickable = !!w;
-                      const pts = a.points ?? [[a.left, a.top], [a.left + a.width, a.top], [a.left + a.width, a.top + a.height], [a.left, a.top + a.height]];
-                      const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
-                      const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
-                      const fs = a.width > 12 ? 1.7 : 1.2;
+                      const cx = area.x + area.w / 2;
+                      const cy = area.y + area.h / 2;
                       return (
                         <g key={`area-${i}`}>
-                          <title>{areaLabel(a)}</title>
-                          <polygon
-                            points={pts.map((p) => p.join(',')).join(' ')}
+                          <title>{areaLabel(area)}</title>
+                          <rect
+                            x={area.x}
+                            y={area.y}
+                            width={area.w}
+                            height={area.h}
+                            rx={0.3}
                             fill={fill.fill}
                             stroke={isSelected ? '#1d4ed8' : fill.stroke}
-                            strokeWidth={isSelected ? 0.9 : 0.45}
+                            strokeWidth={isSelected ? 0.35 : 0.18}
                             vectorEffect="non-scaling-stroke"
                             role={clickable ? 'button' : undefined}
                             tabIndex={clickable ? 0 : undefined}
-                            aria-label={areaLabel(a)}
-                            onMouseDown={(e) => e.stopPropagation()}
+                            aria-label={areaLabel(area)}
                             onClick={() => clickable && w && onSelectWarehouse(w.id)}
                             onKeyDown={(e) => {
                               if (!clickable || !w) return;
@@ -215,30 +185,52 @@ const FactoryOverview: React.FC<FactoryOverviewProps> = ({
                               }
                             }}
                             style={{
-                              pointerEvents: clickable ? 'all' : 'none',
                               cursor: clickable ? 'pointer' : 'default',
                               transition: 'filter .15s',
-                              filter: isSelected ? 'drop-shadow(0 0 2px rgba(29,78,216,.6))' : undefined,
+                              filter: isSelected ? 'drop-shadow(0 0 1px rgba(29,78,216,.5))' : undefined,
                             }}
-                            className={clickable ? 'hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-blue-400' : ''}
+                            className={clickable ? 'hover:brightness-95 focus:outline-none focus:ring-1 focus:ring-blue-400' : ''}
+                          />
+                          <text
+                            x={cx}
+                            y={area.label.length > 18 ? cy - 0.6 : cy}
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                            fontSize={area.w > 12 ? 1.1 : 0.85}
+                            fontWeight={700}
+                            fill="#0f172a"
+                            style={{ pointerEvents: 'none', paintOrder: 'stroke', stroke: '#ffffff', strokeWidth: 0.25 }}
                           >
-                            <title>{areaLabel(a)}</title>
-                          </polygon>
+                            {area.label}
+                          </text>
                           {f && (
                             <text
                               x={cx}
-                              y={cy}
+                              y={area.label.length > 18 ? cy + 0.7 : cy + 1.1}
                               textAnchor="middle"
                               dominantBaseline="central"
-                              style={{ pointerEvents: 'none', fontSize: fs * 0.8, fontWeight: 700, fill: '#0f172a', paintOrder: 'stroke', stroke: '#ffffff', strokeWidth: 0.35 }}
+                              fontSize={0.75}
+                              fontWeight={600}
+                              fill="#334155"
+                              style={{ pointerEvents: 'none' }}
                             >
-                              {f.occupied}/{f.total}
+                              {f.occupied}/{f.total} ô
                             </text>
                           )}
                         </g>
                       );
                     })}
                   </svg>
+
+                  {/* Fallback link */}
+                  <a
+                    href="/factory/factory-map.pdf"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="absolute bottom-1 right-1 text-[10px] text-blue-600 bg-white/90 px-1.5 py-0.5 rounded shadow hover:underline"
+                  >
+                    Mở PDF gốc
+                  </a>
                 </div>
               </div>
             </TransformComponent>
