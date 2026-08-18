@@ -1,14 +1,11 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { MapPin, Plus, Minus, Maximize2, Loader2, AlertTriangle } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { MapPin } from 'lucide-react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
-import * as pdfjsLib from 'pdfjs-dist';
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import { Plus, Minus, Maximize2 } from 'lucide-react';
 import type { Warehouse } from '../services/warehouseService';
 import { getLayoutByMaKho } from '../constants/warehouseLayouts';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
-
-// Page size of the source PDF (pts). The rendered canvas follows this aspect.
+// Page size of the source PDF (pts). The rendered iframe follows this aspect.
 const PAGE_W = 842;
 const PAGE_H = 595;
 
@@ -20,11 +17,11 @@ const PAGE_H = 595;
 interface OverlayRoom {
   maKho: string;
   label: string;
-  left: number;  // % of page width
-  top: number;   // % of page height
-  width: number; // % of page width
-  height: number; // % of page height
-  points?: [number, number][]; // polygon in page % (overrides the box when present)
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  points?: [number, number][];
 }
 
 const OVERLAY_ROOMS: OverlayRoom[] = [
@@ -54,8 +51,6 @@ const OVERLAY_ROOMS: OverlayRoom[] = [
   },
 ];
 
-// Fill-level heatmap bins (shared convention with WarehouseMap):
-// cool (light blue, empty) → yellow (partial) → hot (red, full).
 type FillLevel = 'empty' | 'partial' | 'full';
 const FILL_LEVELS: Record<FillLevel, { fill: string; stroke: string; label: string }> = {
   empty: { fill: 'rgba(59,130,246,0.18)', stroke: '#3b82f6', label: 'Trống (<40%)' },
@@ -63,7 +58,6 @@ const FILL_LEVELS: Record<FillLevel, { fill: string; stroke: string; label: stri
   full: { fill: 'rgba(239,68,68,0.38)', stroke: '#b91c1c', label: 'Đầy (>75%)' },
 };
 
-/** Classify a warehouse's fill ratio into a heatmap bin. */
 const classifyRatio = (ratio: number): FillLevel => {
   if (ratio >= 0.75) return 'full';
   if (ratio >= 0.4) return 'partial';
@@ -81,11 +75,6 @@ const FactoryOverview: React.FC<FactoryOverviewProps> = ({
   selectedWarehouseId,
   onSelectWarehouse,
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [pdfStatus, setPdfStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-
-  // Fill ratio per warehouse = occupied slots / total CAD slots.
   const fillByKho = useMemo(() => {
     const m = new Map<string, { ratio: number; occupied: number; total: number; level: FillLevel }>();
     warehouses.forEach((w) => {
@@ -124,101 +113,6 @@ const FactoryOverview: React.FC<FactoryOverviewProps> = ({
     return `${a.label} · ${f.occupied}/${f.total} ô (${Math.round(f.ratio * 100)}%)`;
   };
 
-  // Load the PDF once and keep the page renderer + a queued render dispatcher.
-  const taskRef = useRef<{ cancel: () => void } | null>(null);
-  const desiredScaleRef = useRef<number | null>(null);
-  const busyRef = useRef(false);
-  const pageRef = useRef<{ render: (scale: number) => void } | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const doc = await pdfjsLib.getDocument({ url: '/factory/factory-map.pdf' }).promise;
-        if (cancelled) return;
-        const page = await doc.getPage(1);
-        if (cancelled) return;
-
-        const render = async (scale: number) => {
-          const canvas = canvasRef.current;
-          if (!canvas) return;
-          const vp = page.getViewport({ scale });
-          canvas.width = Math.floor(vp.width);
-          canvas.height = Math.floor(vp.height);
-          // CSS size is controlled by the outer container (w-full h-full),
-          // so overlays positioned in % of the container align with the canvas.
-          const t = page.render({ canvas, viewport: vp });
-          taskRef.current = t;
-          try {
-            await t.promise;
-          } finally {
-            taskRef.current = null;
-          }
-        };
-
-        pageRef.current = {
-          render: (scale: number) => {
-            desiredScaleRef.current = scale;
-            if (busyRef.current) return; // a render is running; it will pick up the latest scale
-            busyRef.current = true;
-            (async () => {
-              try {
-                while (desiredScaleRef.current != null) {
-                  const s = desiredScaleRef.current;
-                  desiredScaleRef.current = null;
-                  // Cancel any in-flight render before drawing again on the same canvas.
-                  try {
-                    taskRef.current?.cancel();
-                  } catch { /* ignore */ }
-                  await render(s);
-                }
-              } finally {
-                busyRef.current = false;
-              }
-            })().catch(() => { busyRef.current = false; });
-          },
-        };
-        setPdfStatus('ready');
-      } catch {
-        if (!cancelled) setPdfStatus('error');
-      }
-    })();
-    return () => {
-      cancelled = true;
-      try {
-        taskRef.current?.cancel();
-      } catch { /* ignore */ }
-    };
-  }, []);
-
-  // Re-render the page whenever the container width changes (crisp on zoom).
-  const rerender = useCallback(() => {
-    const el = containerRef.current;
-    if (!el || !pageRef.current || pdfStatus !== 'ready') return;
-    const cssWidth = el.clientWidth || 900;
-    const dpr = window.devicePixelRatio || 1;
-    // Render ~2.5x the displayed size so zooming into the vector keeps detail.
-    pageRef.current.render((cssWidth / PAGE_W) * 2.5 * dpr);
-  }, [pdfStatus]);
-
-  useLayoutEffect(() => {
-    if (pdfStatus !== 'ready') return;
-    const el = containerRef.current;
-    if (!el) return;
-    let raf = 0;
-    const schedule = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(rerender);
-    };
-    schedule();
-    const ro = new ResizeObserver(schedule);
-    ro.observe(el);
-    return () => {
-      cancelAnimationFrame(raf);
-      ro.disconnect();
-    };
-  }, [pdfStatus, rerender]);
-
   return (
     <div className="bg-white rounded-lg shadow p-4">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
@@ -249,25 +143,25 @@ const FactoryOverview: React.FC<FactoryOverviewProps> = ({
               <button onClick={() => resetTransform()} className="p-1.5 text-gray-600 hover:bg-gray-100 rounded" title="Vừa màn hình" aria-label="Đặt lại"><Maximize2 className="w-4 h-4" /></button>
             </div>
             <TransformComponent wrapperClass="!w-full !h-[72vh] !cursor-grab active:!cursor-grabbing" contentClass="!w-full">
-              <div ref={containerRef} className="w-full relative select-none">
+              <div className="w-full relative select-none">
                 <div className="relative w-full" style={{ aspectRatio: `${PAGE_W} / ${PAGE_H}` }}>
-                  {pdfStatus === 'error' && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-slate-50 text-slate-500 text-sm gap-2">
-                      <AlertTriangle className="w-4 h-4" /> Không tải được sơ đồ tổng thể (factory-map.pdf)
-                    </div>
-                  )}
-                  {pdfStatus !== 'error' && (
-                    <canvas ref={canvasRef} className="w-full h-full block bg-white" />
-                  )}
-                  {pdfStatus === 'loading' && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-white text-slate-500 text-sm gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" /> Đang tải sơ đồ…
-                    </div>
-                  )}
+                  {/* PDF backdrop via native iframe — avoids pdfjs worker CORS/MIME issues */}
+                  <iframe
+                    src="/factory/factory-map.pdf#toolbar=0&navpanes=0&scrollbar=0"
+                    className="w-full h-full block bg-white border-0"
+                    title="Sơ đồ tổng thể"
+                    loading="lazy"
+                  />
+                  {/* Fallback link if iframe is blocked */}
+                  <a
+                    href="/factory/factory-map.pdf"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="absolute bottom-1 right-1 text-[10px] text-blue-600 bg-white/90 px-1.5 py-0.5 rounded shadow hover:underline"
+                  >
+                    Mở PDF
+                  </a>
 
-                  {/* Warehouse areas — SVG polygons on top of the real PDF drawing.
-                      viewBox 0..100 maps to the full page so polygon points are page-%.
-                      preserveAspectRatio="none" aligns them 1:1 with the canvas. */}
                   <svg
                     viewBox="0 0 100 100"
                     preserveAspectRatio="none"
