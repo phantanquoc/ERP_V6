@@ -166,6 +166,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
               <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Nhân viên</th>
               <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Kho</th>
               <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Lô</th>
+              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã kiện</th>
               <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Sản phẩm</th>
               <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Số lượng xuất</th>
               <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Thao tác</th>
@@ -215,6 +216,9 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                         </td>
                         <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
                           {line.tenLo || '-'}
+                        </td>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
+                          <span className="font-mono font-medium text-blue-700">{line.maKien || '-'}</span>
                         </td>
                         <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
                           {line.tenSanPham || '-'}
@@ -390,6 +394,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                           <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Sản phẩm</th>
                           <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Kho</th>
                           <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Lô</th>
+                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Mã kiện</th>
                           <th scope="col" className="px-2 py-1.5 text-right text-xs font-medium text-gray-600 border">SL xuất</th>
                           <th scope="col" className="px-2 py-1.5 text-right text-xs font-medium text-gray-600 border">Tồn trước</th>
                           <th scope="col" className="px-2 py-1.5 text-right text-xs font-medium text-gray-600 border">Tồn sau</th>
@@ -402,6 +407,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                             <td className="px-2 py-1.5 border">{item.tenSanPham || '-'}</td>
                             <td className="px-2 py-1.5 border">{item.tenKho || '-'}</td>
                             <td className="px-2 py-1.5 border">{item.tenLo || '-'}</td>
+                            <td className="px-2 py-1.5 border"><span className="font-mono text-blue-700">{item.maKien || '-'}</span></td>
                             <td className="px-2 py-1.5 border text-right font-semibold text-red-600">{item.soLuongThucTe} {item.donViTinh || ''}</td>
                             <td className="px-2 py-1.5 border text-right">{item.soLuongTruoc ?? '-'}</td>
                             <td className="px-2 py-1.5 border text-right">{item.soLuongSau ?? '-'}</td>
@@ -410,7 +416,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                       </tbody>
                       <tfoot>
                         <tr className="bg-gray-100 font-semibold">
-                          <td colSpan={4} className="px-2 py-1.5 border text-right">Tổng cộng:</td>
+                          <td colSpan={5} className="px-2 py-1.5 border text-right">Tổng cộng:</td>
                           <td className="px-2 py-1.5 border text-right text-red-700">
                             {formatActualTotalByUnit(selectedIssueLines)}
                           </td>

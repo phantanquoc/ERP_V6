@@ -155,6 +155,30 @@ const warehouseService = {
     apiClient.put(`/lot-products/${id}`, data),
   getReceiptHistory: (lotProductId: string) =>
     apiClient.get<WarehouseReceiptHistory[]>(`/lot-products/${lotProductId}/receipt-history`),
+
+  // Warehouse stock — nhập tổng→chia đều / xuất tổng→FIFO (tự tạo phiếu nhập/xuất)
+  receiveSplit: (data: {
+    lotId: string;
+    internationalProductId: string;
+    donViTinh: string;
+    soKien: number;
+    tongSoLuong: number;
+    employeeId: string;
+    maNhanVien?: string;
+    tenNhanVien?: string;
+    mucDich?: string;
+    ghiChu?: string;
+  }) => apiClient.post('/warehouse-stock/receive', data),
+  issueFifo: (data: {
+    lotId: string;
+    internationalProductId: string;
+    tongSoLuong: number;
+    employeeId: string;
+    maNhanVien?: string;
+    tenNhanVien?: string;
+    mucDich?: string;
+    ghiChu?: string;
+  }) => apiClient.post('/warehouse-stock/issue', data),
 };
 
 export default warehouseService;

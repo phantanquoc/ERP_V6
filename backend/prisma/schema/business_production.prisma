@@ -236,7 +236,10 @@ model Lot {
 model LotProduct {
   id                     String                 @id @default(cuid())
   lotId                  String
-  internationalProductId String
+  // Nullable: a fixed "kiện" (physical pallet position) holds no product until
+  // goods are entered. Fixed kiện are pre-created by the CAD layout sync with
+  // maKien = slot code (K1.1…) and only gain an internationalProduct on receipt.
+  internationalProductId String?
   soLuong                Float
   donViTinh              String
   maKien                 String?
@@ -244,7 +247,7 @@ model LotProduct {
   createdAt              DateTime               @default(now())
   updatedAt              DateTime               @updatedAt
   giaThanh               Float?                 @default(100000)
-  internationalProduct   InternationalProduct   @relation(fields: [internationalProductId], references: [id], onDelete: Cascade)
+  internationalProduct   InternationalProduct?  @relation(fields: [internationalProductId], references: [id], onDelete: Cascade)
   lot                    Lot                    @relation(fields: [lotId], references: [id], onDelete: Cascade)
   slot                   WarehouseSlot?         @relation(fields: [slotId], references: [id], onDelete: SetNull)
   materialEvaluations    MaterialEvaluation[]
@@ -305,6 +308,8 @@ model WarehouseReceiptItem {
   lotProductId  String
   tenSanPham    String
   donViTinh     String
+  // Mã kiện (K1.1…) của dòng — denormalized từ LotProduct.maKien tại thời điểm lập phiếu
+  maKien        String?
   warehouseId   String
   tenKho        String
   lotId         String
@@ -376,6 +381,8 @@ model WarehouseIssueItem {
   lotProductId  String
   tenSanPham    String
   donViTinh     String
+  // Mã kiện (K1.1…) của dòng — denormalized từ LotProduct.maKien tại thời điểm lập phiếu
+  maKien        String?
   warehouseId   String
   tenKho        String
   lotId         String

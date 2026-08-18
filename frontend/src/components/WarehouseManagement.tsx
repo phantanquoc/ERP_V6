@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
+import { useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, MoveRight, Package, Warehouse as WarehouseIcon, PackagePlus, Pencil, History, RefreshCw } from 'lucide-react';
 import type { Warehouse, LotProduct } from '../services/warehouseService';
+import warehouseService from '../services/warehouseService';
+import { warehouseKeys } from '../hooks/useWarehouses';
 import {
   useWarehouses,
   useCreateWarehouse, useDeleteWarehouse, useUpdateWarehouse,
@@ -16,7 +19,6 @@ import Modal from './Modal';
 import ProductCombobox from './common/ProductCombobox';
 import UnitSelect from './common/UnitSelect';
 import { DEFAULT_DON_VI_TINH } from '../constants/units';
-import { useUnitOptions } from '../hooks/useLookups';
 import { useAuth } from '../contexts/AuthContext';
 import { isAdmin } from '../utils/permissions';
 
@@ -39,11 +41,9 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Unit list from the shared lookup API; drives the auto-fill guard below.
-  const { isKnownUnit } = useUnitOptions();
-
   // React Query hooks for warehouses
   const { data: warehousesData, isLoading: loading } = useWarehouses();
+  const queryClient = useQueryClient();
   const createWarehouse = useCreateWarehouse();
   const deleteWarehouse = useDeleteWarehouse();
   const updateWarehouse = useUpdateWarehouse();
@@ -123,9 +123,18 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
   const [productQuantity, setProductQuantity] = useState('');
   const [productUnit, setProductUnit] = useState(DEFAULT_DON_VI_TINH);
   const [quantityTouched, setQuantityTouched] = useState(false);
+  // Nhập "tổng → chia đều": số kiện người dùng muốn dùng cho lô baseline (có kiện cố định).
+  const [soKien, setSoKien] = useState('');
   const [movingProduct, setMovingProduct] = useState<LotProduct | null>(null);
   const [targetWarehouseId, setTargetWarehouseId] = useState('');
   const [targetLotId, setTargetLotId] = useState('');
+
+  // Selected lot + số kiện trống (fixed kiện chưa có hàng) dùng để mặc định / kiểm tra chia đều
+  const selectedLot = selectedWarehouse?.lots?.find((l) => l.id === selectedLotId) ?? null;
+  const isBaselineLot = !!selectedLot?.zone;
+  const freeKienCount = selectedLot
+    ? (selectedLot.lotProducts ?? []).filter((lp) => lp.slotId != null && !lp.internationalProduct && lp.soLuong <= 0).length
+    : 0;
 
   // Preselect warehouse when initialWarehouseId is provided
   useEffect(() => {
@@ -274,27 +283,48 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
     }
 
     try {
-      console.log('Adding product to lot:', {
-        lotId: selectedLotId,
-        internationalProductId: selectedProductId,
-        soLuong: parseFloat(productQuantity),
-        donViTinh: productUnit,
-      });
+      const total = parseFloat(productQuantity);
 
-      const response = await addProductToLot.mutateAsync({
-        lotId: selectedLotId,
-        internationalProductId: selectedProductId,
-        soLuong: parseFloat(productQuantity),
-        donViTinh: productUnit,
-      });
-
-      console.log('Product added successfully:', response.data);
-      toast.success('Thêm sản phẩm vào lô thành công');
+      if (isBaselineLot) {
+        // Lô baseline: nhập TỔNG số lượng → chia đều vào `soKien` kiện trống,
+        // backend tự tạo 1 phiếu nhập (nhiều dòng) và cập nhật từng kiện.
+        const kien = parseInt(soKien, 10) || freeKienCount || 1;
+        await warehouseService.receiveSplit({
+          lotId: selectedLotId,
+          internationalProductId: selectedProductId,
+          donViTinh: productUnit,
+          soKien: kien,
+          tongSoLuong: total,
+          employeeId: (user as any)?.employeeId || user?.id || '',
+          maNhanVien: (user as any)?.employeeCode || '',
+          tenNhanVien: `${user?.lastName ?? ''} ${user?.firstName ?? ''}`.trim(),
+          mucDich: 'Nhập chia đều kiện',
+        });
+        toast.success(`Đã nhập ${total} ${productUnit} chia đều ${kien} kiện — tạo phiếu nhập`);
+      } else {
+        const response = await addProductToLot.mutateAsync({
+          lotId: selectedLotId,
+          internationalProductId: selectedProductId,
+          soLuong: total,
+          donViTinh: productUnit,
+        });
+        console.log('Product added successfully:', response.data);
+        toast.success('Thêm sản phẩm vào lô thành công');
+      }
       setShowProductModal(false);
       resetProductForm();
+      queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: warehouseKeys.lotProducts() });
+      queryClient.invalidateQueries({ queryKey: warehouseKeys.receiptHistories() });
     } catch (error: any) {
       toast.error(error instanceof Error ? error.message : 'Lỗi khi thêm sản phẩm');
     }
+  };
+
+  const openAddProductModal = (lotId: string) => {
+    setSelectedLotId(lotId);
+    setSoKien('');
+    setShowProductModal(true);
   };
 
   const resetProductForm = () => {
@@ -303,6 +333,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
     setProductQuantity('');
     setProductUnit(DEFAULT_DON_VI_TINH);
     setQuantityTouched(false);
+    setSoKien('');
   };
 
   const handleRemoveProduct = async (productId: string) => {
@@ -558,10 +589,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <button
-                        onClick={() => {
-                          setSelectedLotId(lot.id);
-                          setShowProductModal(true);
-                        }}
+                        onClick={() => openAddProductModal(lot.id)}
                         className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors"
                         title="Thêm sản phẩm"
                       >
@@ -578,9 +606,17 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
                   </div>
 
                   {/* Products in Lot — dense list instead of wide table */}
-                  {lot?.lotProducts && lot.lotProducts.length > 0 ? (
+                  {(() => {
+                    // Baseline lots come pre-created with one fixed kiện per pallet slot
+                    // (empty rows). Show only kiện that actually carry a product so the
+                    // list stays usable instead of listing 100+ empty cells.
+                    const visible = (lot?.lotProducts ?? []).filter((p) => p.internationalProduct != null || p.soLuong > 0);
+                    if (visible.length === 0) {
+                      return <p className="px-3 py-2 text-[11px] text-gray-400 italic">Lô chưa có hàng hóa</p>;
+                    }
+                    return (
                     <ul className="divide-y divide-gray-100">
-                      {lot.lotProducts.map((product) => (
+                      {visible.map((product) => (
                         <li key={product.id} className="px-3 py-2 hover:bg-blue-50/40 transition-colors">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0 flex-1">
@@ -627,11 +663,8 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
                         </li>
                       ))}
                     </ul>
-                  ) : (
-                    <div className="px-3 py-4 text-center">
-                      <p className="text-xs text-gray-400">Chưa có sản phẩm</p>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
               ))}
                     {lotsTotalPages > 1 && (
@@ -882,14 +915,11 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
                   value={selectedProductId || null}
                   onChange={(productId, product) => {
                     setSelectedProductId(productId ?? '');
-                    // Auto-fill unit from the product when it is a known lookup value.
-                    // Backed by the API, so units like Đôi/Can/Xe now match instead of
-                    // being silently skipped (leaving a wrong unit in the form).
-                    const unit = product?.donViTinh;
-                    if (isKnownUnit(unit)) {
-                      setProductUnit(unit);
+                    // Đvt là thuộc tính của chính sản phẩm → LUÔN tự lấy từ sản phẩm
+                    // (không chặn bởi danh sách lookup để khỏi phải điền tay).
+                    if (product?.donViTinh) {
+                      setProductUnit(product.donViTinh.trim());
                     } else if (!productId) {
-                      // Reset to default only when the selection is cleared.
                       setProductUnit(DEFAULT_DON_VI_TINH);
                     }
                   }}
@@ -897,7 +927,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Số lượng <span className="text-red-500">*</span>
+                  {isBaselineLot ? 'Tổng số lượng (sẽ chia đều vào các kiện)' : 'Số lượng'} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -927,6 +957,40 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 />
               </div>
+              {isBaselineLot && (
+                <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-3 space-y-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Số kiện dùng (chia đều) <span className="text-gray-400">— còn {freeKienCount} kiện trống</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={soKien}
+                      onChange={(e) => setSoKien(parseNumberInputStr(e.target.value))}
+                      min="1"
+                      max={freeKienCount}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      placeholder={`Mặc định: ${freeKienCount}`}
+                    />
+                  </div>
+                  {(() => {
+                    const total = parseFloat(productQuantity) || 0;
+                    const k = Math.min(parseInt(soKien, 10) || freeKienCount || 1, freeKienCount || 1);
+                    if (total > 0 && k > 0) {
+                      const base = Math.floor(total / k);
+                      const rem = total % k;
+                      return (
+                        <p className="text-xs text-blue-700">
+                          Tổng {total} {productUnit} → {k} kiện × {base} {productUnit}
+                          {rem > 0 ? ` + ${rem} ${productUnit} (kiện cuối)` : ''}
+                        </p>
+                      );
+                    }
+                    return null;
+                  })()}
+                  <p className="text-[11px] text-gray-500">Sẽ tự tạo 1 phiếu nhập với {soKien || freeKienCount || '…'} dòng (1 dòng/kiện).</p>
+                </div>
+              )}
               <div className="flex justify-end gap-2 pt-4">
                 <button
                   onClick={() => { setShowProductModal(false); resetProductForm(); }}

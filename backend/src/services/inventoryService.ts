@@ -158,6 +158,7 @@ export class InventoryService {
       const warehouseBreakdown = new Map<string, Map<string, { tenKho: string; soLuong: number }>>();
       for (const lp of lotProductRows) {
         const pid = lp.internationalProductId;
+        if (!pid) continue;
         const wid = lp.lot.warehouseId;
         const tenKho = lp.lot.warehouse.tenKho;
         if (!warehouseBreakdown.has(pid)) warehouseBreakdown.set(pid, new Map());
