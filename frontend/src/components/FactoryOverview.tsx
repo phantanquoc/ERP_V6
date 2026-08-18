@@ -107,6 +107,18 @@ const FactoryOverview: React.FC<FactoryOverviewProps> = ({
                     role="img"
                     aria-label="Sơ đồ tổng thể nhà máy"
                   >
+                    {/* Raster PDF backdrop — hidden if PNG not yet generated */}
+                    <image
+                      href="/factory/factory-map.png"
+                      x="0"
+                      y="0"
+                      width={FACTORY_LAYOUT.viewW}
+                      height={FACTORY_LAYOUT.viewH}
+                      preserveAspectRatio="xMidYMid meet"
+                      opacity={0.12}
+                      style={{ pointerEvents: 'none' }}
+                      onError={(e) => { (e.target as SVGImageElement).style.display = 'none'; }}
+                    />
                     {/* Factory walls — light gray structure */}
                     {FACTORY_LAYOUT.walls.map((w, i) => (
                       <line
