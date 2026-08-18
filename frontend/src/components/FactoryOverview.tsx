@@ -4,6 +4,8 @@ import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { Plus, Minus, Maximize2 } from 'lucide-react';
 import type { Warehouse } from '../services/warehouseService';
 import { getLayoutByMaKho } from '../constants/warehouseLayouts';
+import { WAREHOUSE_VIEW_CONFIG, WRAPPER_CLASSES, CONTENT_CLASSES } from '../constants/warehouseViewConfig';
+import { FILL_LEVELS, classifyRatio, type FillLevel } from '../utils/heatmap';
 
 // Page size of the source PDF (pts). The rendered iframe follows this aspect.
 const PAGE_W = 842;
@@ -51,18 +53,6 @@ const OVERLAY_ROOMS: OverlayRoom[] = [
   },
 ];
 
-type FillLevel = 'empty' | 'partial' | 'full';
-const FILL_LEVELS: Record<FillLevel, { fill: string; stroke: string; label: string }> = {
-  empty: { fill: 'rgba(59,130,246,0.18)', stroke: '#3b82f6', label: 'Trống (<40%)' },
-  partial: { fill: 'rgba(234,179,8,0.30)', stroke: '#ca8a04', label: 'Có hàng (40–75%)' },
-  full: { fill: 'rgba(239,68,68,0.38)', stroke: '#b91c1c', label: 'Đầy (>75%)' },
-};
-
-const classifyRatio = (ratio: number): FillLevel => {
-  if (ratio >= 0.75) return 'full';
-  if (ratio >= 0.4) return 'partial';
-  return 'empty';
-};
 
 interface FactoryOverviewProps {
   warehouses: Warehouse[];
@@ -134,7 +124,18 @@ const FactoryOverview: React.FC<FactoryOverviewProps> = ({
       </div>
       <p className="text-xs text-gray-500 mb-2">Bấm vào một kho (tô màu) để xem sơ đồ chi tiết vị trí kiện.</p>
 
-      <TransformWrapper minScale={1} maxScale={6} wheel={{ step: 0.08 }} doubleClick={{ mode: 'toggle', step: 2 }} limitToBounds centerOnInit>
+      <TransformWrapper
+        minScale={WAREHOUSE_VIEW_CONFIG.factory.minScale}
+        maxScale={WAREHOUSE_VIEW_CONFIG.factory.maxScale}
+        initialScale={WAREHOUSE_VIEW_CONFIG.factory.initialScale}
+        wheel={{ step: WAREHOUSE_VIEW_CONFIG.factory.wheel.step }}
+        pinch={{ step: WAREHOUSE_VIEW_CONFIG.factory.pinch.step }}
+        doubleClick={{ mode: WAREHOUSE_VIEW_CONFIG.factory.doubleClick.mode, step: WAREHOUSE_VIEW_CONFIG.factory.doubleClick.step }}
+        panning={{ velocityDisabled: WAREHOUSE_VIEW_CONFIG.factory.panning.velocityDisabled }}
+        limitToBounds={WAREHOUSE_VIEW_CONFIG.factory.limitToBounds}
+        centerZoomedOut={WAREHOUSE_VIEW_CONFIG.factory.centerZoomedOut}
+        centerOnInit={WAREHOUSE_VIEW_CONFIG.factory.centerOnInit}
+      >
         {({ zoomIn, zoomOut, resetTransform }) => (
           <div className="relative">
             <div className="absolute right-2 top-2 z-10 flex flex-col gap-1 bg-white/90 rounded-lg shadow border border-gray-200 p-1">
@@ -142,17 +143,30 @@ const FactoryOverview: React.FC<FactoryOverviewProps> = ({
               <button onClick={() => zoomOut(0.3)} className="p-1.5 text-gray-600 hover:bg-gray-100 rounded" title="Thu nhỏ" aria-label="Thu nhỏ"><Minus className="w-4 h-4" /></button>
               <button onClick={() => resetTransform()} className="p-1.5 text-gray-600 hover:bg-gray-100 rounded" title="Vừa màn hình" aria-label="Đặt lại"><Maximize2 className="w-4 h-4" /></button>
             </div>
-            <TransformComponent wrapperClass="!w-full !h-[72vh] !cursor-grab active:!cursor-grabbing" contentClass="!w-full">
+            <TransformComponent wrapperClass={WRAPPER_CLASSES.factory} contentClass={CONTENT_CLASSES.factory}>
               <div className="w-full relative select-none">
                 <div className="relative w-full" style={{ aspectRatio: `${PAGE_W} / ${PAGE_H}` }}>
-                  {/* PDF backdrop via native iframe — pointer-events none so wheel/pan reaches TransformWrapper */}
-                  <iframe
-                    src="/factory/factory-map.pdf#toolbar=0&navpanes=0&scrollbar=0"
+                  {/* PDF backdrop — object with iframe/img fallback, pointer-events none for wheel/pan */}
+                  <object
+                    data="/factory/factory-map.pdf#toolbar=0&navpanes=0&scrollbar=0"
+                    type="application/pdf"
                     className="w-full h-full block bg-white border-0 pointer-events-none"
-                    title="Sơ đồ tổng thể"
-                    loading="lazy"
+                    aria-label="Sơ đồ tổng thể nhà máy"
+                  >
+                    <iframe
+                      src="/factory/factory-map.pdf#toolbar=0&navpanes=0&scrollbar=0"
+                      className="w-full h-full block bg-white border-0 pointer-events-none"
+                      title="Sơ đồ tổng thể"
+                      loading="lazy"
+                    />
+                  </object>
+                  <img
+                    src="/factory/factory-map.png"
+                    alt=""
+                    className="hidden w-full h-full object-contain bg-white pointer-events-none"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                   />
-                  {/* Fallback link if iframe is blocked */}
+                  {/* Fallback link if PDF blocked */}
                   <a
                     href="/factory/factory-map.pdf"
                     target="_blank"
@@ -187,15 +201,26 @@ const FactoryOverview: React.FC<FactoryOverviewProps> = ({
                             fill={fill.fill}
                             stroke={isSelected ? '#1d4ed8' : fill.stroke}
                             strokeWidth={isSelected ? 0.9 : 0.45}
+                            vectorEffect="non-scaling-stroke"
+                            role={clickable ? 'button' : undefined}
+                            tabIndex={clickable ? 0 : undefined}
+                            aria-label={areaLabel(a)}
                             onMouseDown={(e) => e.stopPropagation()}
                             onClick={() => clickable && w && onSelectWarehouse(w.id)}
+                            onKeyDown={(e) => {
+                              if (!clickable || !w) return;
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                onSelectWarehouse(w.id);
+                              }
+                            }}
                             style={{
                               pointerEvents: clickable ? 'all' : 'none',
                               cursor: clickable ? 'pointer' : 'default',
                               transition: 'filter .15s',
                               filter: isSelected ? 'drop-shadow(0 0 2px rgba(29,78,216,.6))' : undefined,
                             }}
-                            className={clickable ? 'hover:brightness-95' : ''}
+                            className={clickable ? 'hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-blue-400' : ''}
                           >
                             <title>{areaLabel(a)}</title>
                           </polygon>

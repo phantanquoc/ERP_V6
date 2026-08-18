@@ -62,7 +62,7 @@ router.get('/generate-code', generateWarehouseCode);
  *       201:
  *         description: Tạo kho thành công
  */
-router.post('/', createWarehouse);
+router.post('/', authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'), createWarehouse);
 
 /**
  * @swagger
@@ -91,7 +91,7 @@ router.post('/', createWarehouse);
  *       404:
  *         description: Không tìm thấy kho
  */
-router.put('/:id', updateWarehouse);
+router.put('/:id', authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'), updateWarehouse);
 
 /**
  * @swagger
@@ -114,7 +114,7 @@ router.put('/:id', updateWarehouse);
  *       404:
  *         description: Không tìm thấy kho
  */
-router.delete('/:id', deleteWarehouse);
+router.delete('/:id', authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'), deleteWarehouse);
 
 /**
  * @swagger

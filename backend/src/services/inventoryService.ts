@@ -59,7 +59,12 @@ export class InventoryService {
       where.donViTinh = { contains: params.donViTinh, mode: 'insensitive' as const };
     }
     if (params.hasStock) {
-      where.lotProducts = { some: { soLuong: { gt: 0 } } };
+      where.lotProducts = {
+        some: {
+          soLuong: { gt: 0 },
+          ...(params.warehouseId ? { lot: { warehouseId: params.warehouseId } } : {}),
+        },
+      };
     }
 
     // 2. Fetch ALL matching products (no pagination yet — need stock for sorting/filtering)

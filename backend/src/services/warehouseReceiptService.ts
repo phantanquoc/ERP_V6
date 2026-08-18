@@ -354,41 +354,50 @@ class WarehouseReceiptService {
     const maPhieuNhap = normalized.maPhieuNhap ?? (await this.generateCode());
 
     return prisma.$transaction(async (tx) => {
-      const resolved = await this.resolveLines(tx, items);
-      const balances = await this.loadBalances(
-        tx,
-        resolved.map((line) => line.lotProductId)
-      );
-
-      // Snapshots first: every guard inside the engine runs before the first write.
-      const { lines, closingBalances } = computeSequentialSnapshots(resolved, balances, 'IN');
-      const totals = computeHeaderTotals(lines);
-
-      const receipt = await tx.warehouseReceipt.create({
-        data: {
-          maPhieuNhap,
-          employeeId: normalized.employeeId,
-          maNhanVien: normalized.maNhanVien ?? '',
-          tenNhanVien: normalized.tenNhanVien ?? '',
-          ...(normalized.ngayNhap ? { ngayNhap: new Date(normalized.ngayNhap) } : {}),
-          mucDich: normalized.mucDich,
-          ghiChu: normalized.ghiChu,
-          ...(normalized.supplyRequestId ? { supplyRequestId: normalized.supplyRequestId } : {}),
-          ...totals,
-          ...this.mirrorFirstLine(lines[0]),
-          items: {
-            create: lines.map((line, index) => this.lineData(line, index + 1)),
-          },
-        },
-        include: { items: { orderBy: { stt: 'asc' } } },
-      });
-
-      for (const [id, soLuong] of closingBalances) {
-        await tx.lotProduct.update({ where: { id }, data: { soLuong } });
-      }
-
-      return { ...receipt, isLocked: !!receipt.supplyRequestId };
+      return this.createWithClient(normalized, items, maPhieuNhap, tx);
     });
+  }
+
+  /** Internal: create using an existing transaction client (for atomic receiveSplit). */
+  async createWithClient(
+    normalized: CreateReceiptInput & UpdateReceiptInput & { employeeId: string },
+    items: ReceiptLineInput[],
+    maPhieuNhap: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    const resolved = await this.resolveLines(tx, items);
+    const balances = await this.loadBalances(
+      tx,
+      resolved.map((line) => line.lotProductId)
+    );
+
+    const { lines, closingBalances } = computeSequentialSnapshots(resolved, balances, 'IN');
+    const totals = computeHeaderTotals(lines);
+
+    const receipt = await tx.warehouseReceipt.create({
+      data: {
+        maPhieuNhap,
+        employeeId: normalized.employeeId,
+        maNhanVien: normalized.maNhanVien ?? '',
+        tenNhanVien: normalized.tenNhanVien ?? '',
+        ...(normalized.ngayNhap ? { ngayNhap: new Date(normalized.ngayNhap) } : {}),
+        mucDich: normalized.mucDich,
+        ghiChu: normalized.ghiChu,
+        ...(normalized.supplyRequestId ? { supplyRequestId: normalized.supplyRequestId } : {}),
+        ...totals,
+        ...this.mirrorFirstLine(lines[0]),
+        items: {
+          create: lines.map((line, index) => this.lineData(line, index + 1)),
+        },
+      },
+      include: { items: { orderBy: { stt: 'asc' } } },
+    });
+
+    for (const [id, soLuong] of closingBalances) {
+      await tx.lotProduct.update({ where: { id }, data: { soLuong } });
+    }
+
+    return { ...receipt, isLocked: !!receipt.supplyRequestId };
   }
 
   /**

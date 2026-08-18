@@ -6,6 +6,7 @@ import type { Warehouse, LotProduct } from '../services/warehouseService';
 import { useWarehouses, useUpdateLotProduct } from '../hooks';
 import { getLayoutByMaKho, type LayoutHatch, type LayoutSlot, type LayoutWall } from '../constants/warehouseLayouts';
 import { kienCapacityByUnit } from '../utils/kienCapacity';
+import { WAREHOUSE_VIEW_CONFIG, WRAPPER_CLASSES, CONTENT_CLASSES } from '../constants/warehouseViewConfig';
 import Modal from './Modal';
 
 interface PlacedRow extends LotProduct {
@@ -30,13 +31,8 @@ const ZONE_LABEL_STROKES = [
 
 // Fill-level heatmap: cool (light blue, empty) → yellow (partial) → hot (red, full).
 // Với kiện cố định (1 kiện = 1 ô pallet), độ đầy được tính theo SỨC CHỨA TỐI ĐA
-// của pallet (36 Thùng / 32 Bao) — không chỉ là "có hàng hay không".
-type FillLevel = 'empty' | 'partial' | 'full';
-const FILL_LEVELS: Record<FillLevel, { fill: string; stroke: string; label: string }> = {
-  empty: { fill: '#dbeafe', stroke: '#93c5fd', label: 'Trống' },
-  partial: { fill: '#fef08a', stroke: '#ca8a04', label: 'Có hàng (<75%)' },
-  full: { fill: '#fca5a5', stroke: '#b91c1c', label: 'Đầy (≥75% sức chứa)' },
-};
+// của pallet (36 Thùng / 32 Bao) — dùng utils/heatmap chung để thống nhất với FactoryOverview.
+import { FILL_LEVELS, classifySlotRows, type FillLevel } from '../utils/heatmap';
 
 /** Tổng số lượng + đơn vị của các hàng trong một ô. */
 const slotQty = (rows: PlacedRow[]) => {
@@ -50,15 +46,7 @@ const slotCapacity = (rows: PlacedRow[]) => kienCapacityByUnit(rows.find((r) => 
 
 // Classify a slot by how full it is relative to the pallet capacity. When the unit
 // has no defined capacity, fall back to has-goods / ≥2 rows.
-const classifyFill = (rows: PlacedRow[]): FillLevel => {
-  const { total } = slotQty(rows);
-  if (total <= 0) return 'empty';
-  const cap = slotCapacity(rows);
-  if (cap && cap > 0) {
-    return total / cap >= 0.75 ? 'full' : 'partial';
-  }
-  return rows.filter((r) => r.soLuong > 0).length >= 2 ? 'full' : 'partial';
-};
+const classifyFill = (rows: PlacedRow[]): FillLevel => classifySlotRows(rows, kienCapacityByUnit);
 
 const wallKey = (w: LayoutWall) => {
   const mx = (w.x1 + w.x2) / 2;
@@ -302,13 +290,16 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({
         </div>
 
         <TransformWrapper
-          minScale={1}
-          maxScale={8}
-          initialScale={1}
-          wheel={{ step: 0.08 }}
-          doubleClick={{ mode: 'toggle', step: 2 }}
-          limitToBounds
-          centerOnInit
+          minScale={WAREHOUSE_VIEW_CONFIG.warehouseMap.minScale}
+          maxScale={WAREHOUSE_VIEW_CONFIG.warehouseMap.maxScale}
+          initialScale={WAREHOUSE_VIEW_CONFIG.warehouseMap.initialScale}
+          wheel={{ step: WAREHOUSE_VIEW_CONFIG.warehouseMap.wheel.step }}
+          pinch={{ step: WAREHOUSE_VIEW_CONFIG.warehouseMap.pinch.step }}
+          doubleClick={{ mode: WAREHOUSE_VIEW_CONFIG.warehouseMap.doubleClick.mode, step: WAREHOUSE_VIEW_CONFIG.warehouseMap.doubleClick.step }}
+          panning={{ velocityDisabled: WAREHOUSE_VIEW_CONFIG.warehouseMap.panning.velocityDisabled }}
+          limitToBounds={WAREHOUSE_VIEW_CONFIG.warehouseMap.limitToBounds}
+          centerZoomedOut={WAREHOUSE_VIEW_CONFIG.warehouseMap.centerZoomedOut}
+          centerOnInit={WAREHOUSE_VIEW_CONFIG.warehouseMap.centerOnInit}
         >
           {({ zoomIn, zoomOut, resetTransform }) => (
             <div className="relative">
@@ -325,8 +316,8 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({
                 </button>
               </div>
               <TransformComponent
-                wrapperClass="!w-full !h-[72vh] !overflow-hidden !cursor-grab active:!cursor-grabbing"
-                contentClass="!w-full !h-[72vh]"
+                wrapperClass={WRAPPER_CLASSES.warehouseMap}
+                contentClass={CONTENT_CLASSES.warehouseMap}
               >
         {/* SVG chiếm trọn khung hiển thị; bản vẽ tự co giãn giữ đúng tỷ lệ (meet)
             như cách Sơ đồ tổng thể lấp đầy vùng hiển thị. */}
@@ -385,9 +376,19 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({
               <g
                 key={`${s.zone}|${s.code}`}
                 className="cursor-pointer"
+                role="button"
+                tabIndex={0}
+                aria-label={title}
                 onClick={() => {
                   setActiveSlot({ zone: s.zone, code: s.code, dbSlotId: slotDbId(s) });
                   setAssignId('');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setActiveSlot({ zone: s.zone, code: s.code, dbSlotId: slotDbId(s) });
+                    setAssignId('');
+                  }
                 }}
               >
                 <title>{title}</title>
@@ -398,6 +399,7 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({
                   height={s.h}
                   rx={0.3}
                   fill={fill.fill}
+                  vectorEffect="non-scaling-stroke"
                   stroke={fill.stroke}
                   strokeWidth={0.18}
                   className="hover:brightness-95 transition-[filter]"
