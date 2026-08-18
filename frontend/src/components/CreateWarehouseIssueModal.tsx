@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import warehouseIssueService from '../services/warehouseIssueService';
 import warehouseService, { Warehouse, Lot, LotProduct } from '../services/warehouseService';
+import { warehouseKeys } from '../hooks/useWarehouses';
 import { useAuth } from '../contexts/AuthContext';
 import { SupplyRequest } from '../services/supplyRequestService';
 import { parseNumberInput } from '../utils/numberInput';
@@ -36,10 +38,20 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
   onSuccess,
 }) => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(false);
   const [maPhieuXuatBase, setMaPhieuXuatBase] = useState('');
   const [rows, setRows] = useState<IssueRow[]>([]);
+
+  // Chế độ "xuất tổng → trừ FIFO": chọn lô + sản phẩm + tổng số lượng, backend
+  // tự trừ dần từng kiện (theo thứ tự mã) và tạo 1 phiếu xuất nhiều dòng.
+  const [fifoMode, setFifoMode] = useState(false);
+  const [fifoLotId, setFifoLotId] = useState('');
+  const [fifoProductId, setFifoProductId] = useState('');
+  const [fifoTongSoLuong, setFifoTongSoLuong] = useState('');
+  const fifoLot = warehouses.flatMap((w) => w.lots ?? []).find((l) => l.id === fifoLotId) ?? null;
+  const fifoProducts = fifoLot ? (fifoLot.lotProducts ?? []).filter((lp) => lp.internationalProduct && lp.soLuong > 0) : [];
 
   useEffect(() => {
     if (isOpen) {
@@ -130,6 +142,38 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (fifoMode) {
+      const total = parseFloat(fifoTongSoLuong);
+      if (!fifoLotId || !fifoProductId || !(total > 0)) {
+        alert('Vui lòng chọn đủ lô, sản phẩm và nhập tổng số lượng');
+        return;
+      }
+      setLoading(true);
+      try {
+        const lot = warehouses.flatMap((w) => w.lots ?? []).find((l) => l.id === fifoLotId);
+        const lp = (lot?.lotProducts ?? []).find((p) => p.id === fifoProductId);
+        await warehouseService.issueFifo({
+          lotId: fifoLotId,
+          internationalProductId: lp?.internationalProductId ?? '',
+          tongSoLuong: total,
+          employeeId: (user as any)?.employeeId || user?.id || '',
+          maNhanVien: (user as any)?.employeeCode || '',
+          tenNhanVien: `${user?.lastName ?? ''} ${user?.firstName ?? ''}`.trim(),
+          ghiChu: 'Xuất tổng trừ FIFO theo kiện',
+        });
+        alert('Tạo phiếu xuất (trừ FIFO) thành công!');
+        onSuccess?.();
+        queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
+        queryClient.invalidateQueries({ queryKey: warehouseKeys.lotProducts() });
+        onClose();
+      } catch (error: any) {
+        alert(error.response?.data?.message || error.message || 'Lỗi khi tạo phiếu xuất kho');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
     // Validate all rows
     for (let i = 0; i < rows.length; i++) {
@@ -238,7 +282,77 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
             </div>
           </div>
 
-          {/* Items */}
+          {/* Chế độ xuất */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-700">Chế độ:</span>
+            <button
+              type="button"
+              onClick={() => setFifoMode(false)}
+              className={`px-3 py-1.5 text-sm rounded-md border ${!fifoMode ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+            >
+              Nhập từng kiện
+            </button>
+            <button
+              type="button"
+              onClick={() => setFifoMode(true)}
+              className={`px-3 py-1.5 text-sm rounded-md border ${fifoMode ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+            >
+              Nhập tổng (trừ FIFO)
+            </button>
+          </div>
+
+          {fifoMode && (
+            <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 p-4 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Lô <span className="text-red-500">*</span></label>
+                  <select
+                    value={fifoLotId}
+                    onChange={(e) => { setFifoLotId(e.target.value); setFifoProductId(''); }}
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500"
+                  >
+                    <option value="">Chọn lô</option>
+                    {warehouses.flatMap((w) => (w.lots ?? []).map((l) => ({ ...l, tenKho: w.tenKho })))
+                      .map((l) => <option key={l.id} value={l.id}>{l.tenKho} — {l.tenLo}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Sản phẩm <span className="text-red-500">*</span></label>
+                  <select
+                    value={fifoProductId}
+                    onChange={(e) => setFifoProductId(e.target.value)}
+                    disabled={!fifoLotId}
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500 disabled:bg-gray-100"
+                  >
+                    <option value="">Chọn sản phẩm</option>
+                    {fifoProducts.map((lp) => (
+                      <option key={lp.id} value={lp.id}>
+                        {lp.internationalProduct?.tenSanPham} ({lp.maKien ?? ''}) — còn {lp.soLuong} {lp.donViTinh}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Tổng số lượng xuất <span className="text-red-500">*</span></label>
+                  <input
+                    type="number"
+                    value={fifoTongSoLuong}
+                    onChange={(e) => setFifoTongSoLuong(String(parseNumberInput(e.target.value)))}
+                    min="0"
+                    step="0.01"
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">
+                Hệ thống trừ dần từng kiện theo thứ tự mã (hết kiện này mới sang kiện kế) cho đến đủ tổng số lượng,
+                rồi tự tạo 1 phiếu xuất nhiều dòng (1 dòng/kiện).
+              </p>
+            </div>
+          )}
+
+          {!fifoMode && (
+          /* Items */
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="block text-sm font-medium text-gray-700">
@@ -333,6 +447,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
               ))}
             </div>
           </div>
+          )}
 
           {/* Buttons */}
           <div className="flex justify-end gap-2 mt-6">
@@ -342,7 +457,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
             </button>
             <button type="submit" disabled={loading}
               className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
-              {loading ? 'Đang xử lý...' : `Tạo phiếu xuất kho${rows.length > 1 ? ` (${rows.length} dòng)` : ''}`}
+              {loading ? 'Đang xử lý...' : fifoMode ? 'Tạo phiếu xuất (trừ FIFO)' : `Tạo phiếu xuất kho${rows.length > 1 ? ` (${rows.length} dòng)` : ''}`}
             </button>
           </div>
         </form>

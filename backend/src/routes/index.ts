@@ -37,6 +37,7 @@ const ROUTE_MAP: Record<string, string> = {
   lotProduct: '/api/lot-products',
   warehouseReceipt: '/api/warehouse-receipts',
   warehouseIssue: '/api/warehouse-issues',
+  warehouseStock: '/api/warehouse-stock',
   debt: '/api/debts',
   machineStatusLog: '/api/machine-status-logs',
   repairRequest: '/api/repair-requests',

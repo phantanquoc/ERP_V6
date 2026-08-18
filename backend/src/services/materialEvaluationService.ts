@@ -281,7 +281,7 @@ export class MaterialEvaluationService {
       const line = {
         stt: 1,
         lotProductId: lotProduct.id,
-        tenSanPham: lotProduct.internationalProduct.tenSanPham,
+        tenSanPham: lotProduct.internationalProduct?.tenSanPham ?? '',
         donViTinh: lotProduct.donViTinh,
         warehouseId: lotProduct.lot.warehouseId,
         tenKho: lotProduct.lot.warehouse?.tenKho ?? '',
@@ -297,7 +297,7 @@ export class MaterialEvaluationService {
       const warehouseIssue = await tx.warehouseIssue.create({
         data: {
           maPhieuXuat,
-          employeeId: data.employeeId ?? lotProduct.internationalProductId, // fallback
+          employeeId: data.employeeId ?? lotProduct.internationalProductId ?? '', // fallback
           maNhanVien: data.maNhanVien ?? '',
           tenNhanVien: data.tenNhanVien ?? data.nguoiThucHien ?? '',
           ghiChu,
@@ -324,8 +324,8 @@ export class MaterialEvaluationService {
       });
 
       // 6. Build snapshot fields
-      const tenHangHoa = lotProduct.internationalProduct.tenSanPham;
-      const maSanPham = lotProduct.internationalProduct.maSanPham;
+      const tenHangHoa = lotProduct.internationalProduct?.tenSanPham ?? '';
+      const maSanPham = lotProduct.internationalProduct?.maSanPham ?? '';
       const soLoKien = lotProduct.maKien ?? `${lotProduct.lot.tenLo}-${lotProduct.id.slice(-4)}`;
 
       // 7. Create MaterialEvaluation with both FKs

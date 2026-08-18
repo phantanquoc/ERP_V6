@@ -5,6 +5,7 @@ import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import type { Warehouse, LotProduct } from '../services/warehouseService';
 import { useWarehouses, useUpdateLotProduct } from '../hooks';
 import { getLayoutByMaKho, type LayoutHatch, type LayoutSlot, type LayoutWall } from '../constants/warehouseLayouts';
+import { kienCapacityByUnit } from '../utils/kienCapacity';
 import Modal from './Modal';
 
 interface PlacedRow extends LotProduct {
@@ -28,23 +29,35 @@ const ZONE_LABEL_STROKES = [
 ];
 
 // Fill-level heatmap: cool (light blue, empty) → yellow (partial) → hot (red, full).
-// Sequential single-hue-warm scale per warehouse heatmap best practice (NexusRMS /
-// ChartGen): one quantity, discretized into 3 readable bins. Numeric label (s.code)
-// inside each cell supplements color for color-blind users.
+// Với kiện cố định (1 kiện = 1 ô pallet), độ đầy được tính theo SỨC CHỨA TỐI ĐA
+// của pallet (36 Thùng / 32 Bao) — không chỉ là "có hàng hay không".
 type FillLevel = 'empty' | 'partial' | 'full';
 const FILL_LEVELS: Record<FillLevel, { fill: string; stroke: string; label: string }> = {
   empty: { fill: '#dbeafe', stroke: '#93c5fd', label: 'Trống' },
-  partial: { fill: '#fef08a', stroke: '#ca8a04', label: 'Có hàng (1)' },
-  full: { fill: '#fca5a5', stroke: '#b91c1c', label: 'Đầy (≥2)' },
+  partial: { fill: '#fef08a', stroke: '#ca8a04', label: 'Có hàng (<75%)' },
+  full: { fill: '#fca5a5', stroke: '#b91c1c', label: 'Đầy (≥75% sức chứa)' },
 };
 
-// Classify a slot's fill level by the number of distinct products (LotProduct rows
-// with soLuong > 0) placed in it. Most cells hold 0–1 products; ≥2 reads as "full".
+/** Tổng số lượng + đơn vị của các hàng trong một ô. */
+const slotQty = (rows: PlacedRow[]) => {
+  const total = rows.reduce((a, r) => a + r.soLuong, 0);
+  const unit = rows.find((r) => r.donViTinh)?.donViTinh ?? '';
+  return { total, unit };
+};
+
+/** Sức chứa tối đa của ô (theo đơn vị của hàng trong ô). */
+const slotCapacity = (rows: PlacedRow[]) => kienCapacityByUnit(rows.find((r) => r.donViTinh)?.donViTinh);
+
+// Classify a slot by how full it is relative to the pallet capacity. When the unit
+// has no defined capacity, fall back to has-goods / ≥2 rows.
 const classifyFill = (rows: PlacedRow[]): FillLevel => {
-  const n = rows.filter((r) => r.soLuong > 0).length;
-  if (n === 0) return 'empty';
-  if (n === 1) return 'partial';
-  return 'full';
+  const { total } = slotQty(rows);
+  if (total <= 0) return 'empty';
+  const cap = slotCapacity(rows);
+  if (cap && cap > 0) {
+    return total / cap >= 0.75 ? 'full' : 'partial';
+  }
+  return rows.filter((r) => r.soLuong > 0).length >= 2 ? 'full' : 'partial';
 };
 
 const wallKey = (w: LayoutWall) => {
@@ -193,6 +206,13 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({
     return m;
   }, [layout]);
 
+  // Vị trí nhãn zone: dùng zoneLabels thủ công nếu có, ngược lại tự tính (đáy-giữa zone).
+  const zoneLabelOverride = useMemo(() => {
+    const m = new Map<string, { x: number; y: number }>();
+    (layout?.zoneLabels ?? []).forEach((z) => m.set(z.zone, { x: z.x, y: z.y }));
+    return m;
+  }, [layout]);
+
   // Per-slot fill classification + counts per level (for the heatmap legend).
   // Computed null-safe before the early return so hook order stays stable.
   const fillBySlot = useMemo(() => {
@@ -304,8 +324,19 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({
                   <Maximize2 className="w-4 h-4" />
                 </button>
               </div>
-              <TransformComponent wrapperClass="!w-full !h-[72vh] !cursor-grab active:!cursor-grabbing" contentClass="!w-full">
-        <svg viewBox={`0 0 ${layout.viewW} ${layout.viewH + 4}`} className="w-full" role="img" aria-label={`Sơ đồ ${warehouse.tenKho}`}>
+              <TransformComponent
+                wrapperClass="!w-full !h-[72vh] !overflow-hidden !cursor-grab active:!cursor-grabbing"
+                contentClass="!w-full !h-[72vh]"
+              >
+        {/* SVG chiếm trọn khung hiển thị; bản vẽ tự co giãn giữ đúng tỷ lệ (meet)
+            như cách Sơ đồ tổng thể lấp đầy vùng hiển thị. */}
+        <svg
+          viewBox={`0 0 ${layout.viewW} ${layout.viewH}`}
+          preserveAspectRatio="xMidYMid meet"
+          className="w-full h-full block bg-white"
+          role="img"
+          aria-label={`Sơ đồ ${warehouse.tenKho}`}
+        >
           {/* Walls — HEAVY line weight per architectural standard (cut elements).
               Dark slate so the structure reads clearly; dedup removes doubled segments. */}
           {dedupeWalls(layout.walls).map((wl, i) => (
@@ -343,10 +374,13 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({
 
           {layout.slots.map((s) => {
             const rs = slotRows(s);
-            const total = rs.reduce((a, r) => a + r.soLuong, 0);
+            const { total, unit } = slotQty(rs);
+            const cap = slotCapacity(rs);
             const lvl = fillBySlot.get(`${s.zone}|${s.code}`) ?? 'empty';
             const fill = FILL_LEVELS[lvl];
-            const title = `${zoneLabel(s.zone)} — ${s.code}: ${rs.length ? `${rs.length} mặt hàng, ${formatNumber(total)}` : 'trống'}`;
+            const title = total > 0
+              ? `${zoneLabel(s.zone)} — ${s.code}: ${formatNumber(total)} ${unit}${cap ? ` / ${cap} ${unit} (${Math.round((total / cap) * 100)}%)` : ''}`
+              : `${zoneLabel(s.zone)} — ${s.code}: trống`;
             return (
               <g
                 key={`${s.zone}|${s.code}`}
@@ -368,18 +402,26 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({
                   strokeWidth={0.18}
                   className="hover:brightness-95 transition-[filter]"
                 />
-                <text x={s.x + s.w / 2} y={s.y + s.h / 2 + 0.55} textAnchor="middle" fontSize={1.5} className="fill-slate-700 pointer-events-none font-medium">
+                <text x={s.x + s.w / 2} y={s.y + s.h / 2 - 0.7} textAnchor="middle" fontSize={1.5} className="fill-slate-700 pointer-events-none font-medium">
                   {s.code}
                 </text>
+                {total > 0 && (
+                  <text x={s.x + s.w / 2} y={s.y + s.h / 2 + 1.8} textAnchor="middle" fontSize={1.15} className="fill-slate-600 pointer-events-none font-medium">
+                    {formatNumber(total)}{cap ? `/${cap}` : ''}
+                  </text>
+                )}
               </g>
             );
           })}
 
-          {[...zoneAnchors.entries()].map(([zone, a]) => (
-            <text key={zone} x={a.x} y={a.y + 2.2} textAnchor="middle" fontSize={1.6} fontWeight={700} fill={ZONE_LABEL_STROKES[zoneIndex.get(zone) ?? 0]}>
-              {zoneLabel(zone)}
-            </text>
-          ))}
+          {[...zoneAnchors.entries()].map(([zone, a]) => {
+            const o = zoneLabelOverride.get(zone);
+            return (
+              <text key={zone} x={o?.x ?? a.x} y={(o?.y ?? a.y) + 2.2} textAnchor="middle" fontSize={1.6} fontWeight={700} fill={ZONE_LABEL_STROKES[zoneIndex.get(zone) ?? 0]}>
+                {zoneLabel(zone)}
+              </text>
+            );
+          })}
         </svg>
               </TransformComponent>
             </div>

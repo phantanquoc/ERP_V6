@@ -6,6 +6,12 @@ interface AddProductInput {
   internationalProductId: string;
   soLuong: number;
   donViTinh: string;
+  // Target a specific fixed kiện (baseline lots). When absent the service picks a
+  // free fixed kiện itself (baseline) or creates an ad-hoc kiện (user lots).
+  lotProductId?: string;
+  // Manual maKien for ad-hoc kiện (user lots). Ignored when lotProductId is given —
+  // fixed kiện keep their slot code (K1.1…) as maKien.
+  maKien?: string;
 }
 
 interface UpdateLotProductInput {
@@ -52,30 +58,76 @@ class LotProductService {
   }
 
   async addProduct(input: AddProductInput) {
+    const lot = await prisma.lot.findUnique({ where: { id: input.lotId } });
+    if (!lot) {
+      throw new NotFoundError('Không tìm thấy lô');
+    }
+    const product = await prisma.internationalProduct.findUnique({ where: { id: input.internationalProductId } });
+    if (!product) {
+      throw new NotFoundError('Không tìm thấy sản phẩm');
+    }
+
+    const soLuong = parseFloat(input.soLuong.toString());
+    if (!Number.isFinite(soLuong) || soLuong <= 0) {
+      throw new ValidationError('Số lượng phải lớn hơn 0');
+    }
+
+    // 1) Explicit target kiện (fixed pallet) — update it, keep its code & slot.
+    if (input.lotProductId) {
+      const existing = await prisma.lotProduct.findUnique({ where: { id: input.lotProductId } });
+      if (!existing || existing.lotId !== lot.id) {
+        throw new NotFoundError('Không tìm thấy kiện trong lô');
+      }
+      return prisma.lotProduct.update({
+        where: { id: existing.id },
+        data: {
+          internationalProductId: product.id,
+          soLuong,
+          donViTinh: input.donViTinh || existing.donViTinh,
+        },
+        include: { internationalProduct: true, lot: true },
+      });
+    }
+
+    const isBaseline = lot.zone != null;
+    // 2) Baseline lot (zone set = fixed kiện from the CAD layout): fill the first
+    //    free fixed kiện. Products may repeat across different kiện of the same lot.
+    if (isBaseline) {
+      const free = await prisma.lotProduct.findFirst({
+        where: { lotId: lot.id, internationalProductId: null, soLuong: 0, slotId: { not: null } },
+        orderBy: { maKien: 'asc' },
+      });
+      if (free) {
+        return prisma.lotProduct.update({
+          where: { id: free.id },
+          data: { internationalProductId: product.id, soLuong, donViTinh: input.donViTinh },
+          include: { internationalProduct: true, lot: true },
+        });
+      }
+      // All fixed kiện busy → keep a legacy ad-hoc kiện (no slot) as overflow.
+    }
+
+    // 3) User lot (zone null) or baseline overflow: one row per product per lot,
+    //    with a manual or auto-generated maKien.
     const existing = await prisma.lotProduct.findFirst({
-      where: { lotId: input.lotId, internationalProductId: input.internationalProductId },
+      where: { lotId: lot.id, internationalProductId: product.id },
       include: { internationalProduct: true },
     });
-
     if (existing) {
       throw Object.assign(new Error(`Sản phẩm "${existing.internationalProduct?.tenSanPham}" đã được thêm vào lô này trước đó`), { status: 400 });
     }
 
-    // Fetch lot to build default maKien
-    const lot = await prisma.lot.findUnique({ where: { id: input.lotId } });
-
-    // Create first, then update with the generated maKien (needs the new id)
     const created = await prisma.lotProduct.create({
       data: {
-        lotId: input.lotId,
-        internationalProductId: input.internationalProductId,
-        soLuong: parseFloat(input.soLuong.toString()),
+        lotId: lot.id,
+        internationalProductId: product.id,
+        soLuong,
         donViTinh: input.donViTinh,
       },
       include: { internationalProduct: true, lot: true },
     });
 
-    const maKien = `${lot?.tenLo ?? input.lotId.slice(-4)}-${created.id.slice(-4)}`;
+    const maKien = input.maKien?.trim() ? input.maKien.trim() : `${lot?.tenLo ?? lot.id.slice(-4)}-${created.id.slice(-4)}`;
     return prisma.lotProduct.update({
       where: { id: created.id },
       data: { maKien },

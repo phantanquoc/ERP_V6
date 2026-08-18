@@ -18,6 +18,8 @@ export interface SyncStats {
   lotsExisting: number;
   slotsCreated: number;
   slotsExisting: number;
+  kienCreated: number;
+  kienExisting: number;
 }
 
 const emptyStats = (): SyncStats => ({
@@ -26,6 +28,8 @@ const emptyStats = (): SyncStats => ({
   lotsExisting: 0,
   slotsCreated: 0,
   slotsExisting: 0,
+  kienCreated: 0,
+  kienExisting: 0,
 });
 
 const slotId = (maKho: string, zone: string, code: string) => `WS-${maKho}-${zone}-${code}`;
@@ -72,6 +76,38 @@ async function syncOne(maKho: string): Promise<SyncStats> {
         data: { id, warehouseId: maKho, zone: s.zone, code: s.code },
       });
       stats.slotsCreated += 1;
+    }
+
+    // 4. Fixed kiện (packages) — one per physical slot, in the zone's baseline lot.
+    //    Each kiện gets maKien = the slot code printed on the CAD plan (K1.1…) and is
+    //    pre-linked to its slot (slotId) with soLuong = 0 and no product yet. Receipts
+    //    fill these kiện instead of creating ad-hoc rows. Idempotent: skip if the lot
+    //    already has a kiện for this slot.
+    for (const z of baseline.zones) {
+      const lot = await tx.lot.findFirst({ where: { warehouseId: maKho, zone: z.zone } });
+      if (!lot) continue; // zone lot missing (shouldn't happen after step 2)
+      const zoneSlots = baseline.slots.filter((s) => s.zone === z.zone);
+      for (const s of zoneSlots) {
+        const slotDb = await tx.warehouseSlot.findUnique({ where: { id: slotId(maKho, s.zone, s.code) } });
+        if (!slotDb) continue;
+        const existing = await tx.lotProduct.findFirst({
+          where: { lotId: lot.id, slotId: slotDb.id },
+        });
+        if (existing) {
+          stats.kienExisting += 1;
+          continue;
+        }
+        await tx.lotProduct.create({
+          data: {
+            lotId: lot.id,
+            slotId: slotDb.id,
+            maKien: s.code,
+            soLuong: 0,
+            donViTinh: '',
+          },
+        });
+        stats.kienCreated += 1;
+      }
     }
   });
 

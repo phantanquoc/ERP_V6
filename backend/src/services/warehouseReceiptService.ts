@@ -85,6 +85,7 @@ type UpdateInput = UpdateReceiptInput | LegacyFlatReceiptInput;
 interface ResolvedLine extends ReceiptLineInput {
   lotProductId: string;
   soLuongYeuCau: number;
+  maKien?: string | null;
 }
 
 function isNestedInput(input: CreateInput | UpdateInput): input is CreateReceiptInput | UpdateReceiptInput {
@@ -161,6 +162,7 @@ class WarehouseReceiptService {
     for (const line of items) {
       const quantity = Number(line.soLuongThucTe);
       let lotProductId = line.lotProductId ?? undefined;
+      let maKien: string | null | undefined;
       if (!lotProductId) {
         const target = await this.resolveOrCreateLotProduct(
           line.lotId,
@@ -170,12 +172,17 @@ class WarehouseReceiptService {
           client
         );
         lotProductId = target.id;
+        maKien = target.maKien;
+      } else {
+        const target = await client.lotProduct.findUnique({ where: { id: lotProductId }, select: { maKien: true } });
+        maKien = target?.maKien ?? null;
       }
       resolved.push({
         ...line,
         lotProductId,
         soLuongThucTe: quantity,
         soLuongYeuCau: Number(line.soLuongYeuCau ?? quantity),
+        maKien: maKien ?? null,
       });
     }
     return resolved;
@@ -246,6 +253,7 @@ class WarehouseReceiptService {
     return {
       stt,
       lotProductId: line.lotProductId,
+      maKien: line.maKien ?? null,
       tenSanPham: line.tenSanPham,
       donViTinh: line.donViTinh ?? '',
       warehouseId: line.warehouseId,
@@ -602,12 +610,34 @@ class WarehouseReceiptService {
       });
     }
 
+    const lot = await db.lot.findUnique({ where: { id: lotId } });
+
+    // Baseline lot (CAD floor plan): fill the first free fixed kiện (product not yet
+    // set, soLuong 0), so receipts land in the pre-created pallet (code = slot code).
+    if (lot?.zone) {
+      const freeKiện = await db.lotProduct.findFirst({
+        where: { lotId, slotId: { not: null }, soLuong: 0, internationalProductId: null },
+        orderBy: { maKien: 'asc' },
+      });
+      if (freeKiện) {
+        const updated = await db.lotProduct.update({
+          where: { id: freeKiện.id },
+          data: {
+            internationalProductId: product.id,
+            donViTinh: donViTinh || product.donViTinh || freeKiện.donViTinh,
+          },
+        });
+        return { id: updated.id, soLuong: updated.soLuong, maKien: updated.maKien };
+      }
+      // all fixed kiện busy → fall through to create an ad-hoc (overflow) kiện.
+    }
+
     let lotProduct = await db.lotProduct.findFirst({
       where: { lotId, internationalProductId: product.id },
     });
 
     if (lotProduct) {
-      return { id: lotProduct.id, soLuong: lotProduct.soLuong };
+      return { id: lotProduct.id, soLuong: lotProduct.soLuong, maKien: lotProduct.maKien };
     }
 
     lotProduct = await db.lotProduct.create({
@@ -619,13 +649,12 @@ class WarehouseReceiptService {
       },
     });
     // Auto-generate maKien from lot tenLo + last 4 chars of id
-    const lot = await db.lot.findUnique({ where: { id: lotId } });
     const autoMaKien = `${lot?.tenLo ?? lotId.slice(-4)}-${lotProduct.id.slice(-4)}`;
     lotProduct = await db.lotProduct.update({
       where: { id: lotProduct.id },
       data: { maKien: autoMaKien },
     });
-    return { id: lotProduct.id, soLuong: 0 };
+    return { id: lotProduct.id, soLuong: 0, maKien: lotProduct.maKien };
   }
 }
 

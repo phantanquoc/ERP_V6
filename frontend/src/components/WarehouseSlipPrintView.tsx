@@ -66,6 +66,8 @@ const WarehouseSlipPrintView: React.FC<WarehouseSlipPrintViewProps> = ({
           <tr>
             <th scope="col">STT</th>
             <th scope="col">Tên sản phẩm</th>
+            <th scope="col">Lô</th>
+            <th scope="col">Mã kiện</th>
             <th scope="col">ĐVT</th>
             <th scope="col">SL yêu cầu</th>
             <th scope="col">{qtyLabel}</th>
@@ -77,6 +79,8 @@ const WarehouseSlipPrintView: React.FC<WarehouseSlipPrintViewProps> = ({
             <tr key={line.id || index}>
               <td className="text-center">{line.stt || index + 1}</td>
               <td>{line.tenSanPham}</td>
+              <td>{line.tenLo || '-'}</td>
+              <td><span className="font-mono">{line.maKien || '-'}</span></td>
               <td className="text-center">{line.donViTinh || ''}</td>
               <td className="text-right">{line.soLuongYeuCau ?? line.soLuongThucTe}</td>
               <td className="text-right">{line.soLuongThucTe}</td>
@@ -88,7 +92,7 @@ const WarehouseSlipPrintView: React.FC<WarehouseSlipPrintViewProps> = ({
               mixed-unit table prints one row per unit instead of one grand total. */}
           {totalsByUnit(lines).map(([unit, totals]) => (
             <tr key={unit || '__none__'} className="print-total-row">
-              <td colSpan={2} className="text-right font-bold">
+              <td colSpan={4} className="text-right font-bold">
                 {`Tổng cộng${unit ? ` (${unit})` : ''}:`}
               </td>
               <td className="text-center font-bold">{unit}</td>

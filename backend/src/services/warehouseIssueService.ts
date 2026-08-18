@@ -80,6 +80,7 @@ type UpdateInput = UpdateIssueInput | LegacyFlatIssueInput;
 interface ResolvedLine extends IssueLineInput {
   lotProductId: string;
   soLuongYeuCau: number;
+  maKien?: string;
 }
 
 function isNestedInput(input: CreateInput | UpdateInput): input is CreateIssueInput | UpdateIssueInput {
@@ -158,7 +159,7 @@ class WarehouseIssueService {
   private async loadBalances(
     client: PrismaClientLike,
     lotProductIds: string[]
-  ): Promise<Map<string, PackageBalance & { internationalProductId: string }>> {
+  ): Promise<Map<string, PackageBalance & { internationalProductId: string; maKien: string | null }>> {
     const ids = [...new Set(lotProductIds)];
     if (ids.length === 0) return new Map();
 
@@ -168,18 +169,20 @@ class WarehouseIssueService {
         id: true,
         soLuong: true,
         donViTinh: true,
+        maKien: true,
         internationalProductId: true,
         internationalProduct: { select: { tenSanPham: true } },
       },
     });
 
-    const balances = new Map<string, PackageBalance & { internationalProductId: string }>();
+    const balances = new Map<string, PackageBalance & { internationalProductId: string; maKien: string | null }>();
     for (const row of rows) {
       balances.set(row.id, {
         soLuong: row.soLuong,
         donViTinh: row.donViTinh,
-        tenSanPham: row.internationalProduct?.tenSanPham,
-        internationalProductId: row.internationalProductId,
+        tenSanPham: row.internationalProduct?.tenSanPham ?? '',
+        internationalProductId: row.internationalProductId ?? '',
+        maKien: row.maKien,
       });
     }
     return balances;
@@ -218,6 +221,7 @@ class WarehouseIssueService {
     return {
       stt,
       lotProductId: line.lotProductId,
+      maKien: line.maKien ?? null,
       tenSanPham: line.tenSanPham,
       donViTinh: line.donViTinh ?? '',
       warehouseId: line.warehouseId,
@@ -322,6 +326,7 @@ class WarehouseIssueService {
 
       const { lines, closingBalances } = computeSequentialSnapshots(items, balances, 'OUT');
       const totals = computeHeaderTotals(lines);
+      const withMaKien = lines.map((l) => ({ ...l, maKien: balances.get(l.lotProductId)?.maKien ?? undefined }));
 
       const issue = await tx.warehouseIssue.create({
         data: {
@@ -333,9 +338,9 @@ class WarehouseIssueService {
           ghiChu: normalized.ghiChu,
           ...(normalized.supplyRequestId ? { supplyRequestId: normalized.supplyRequestId } : {}),
           ...totals,
-          ...this.mirrorFirstLine(lines[0]),
+          ...this.mirrorFirstLine(withMaKien[0]),
           items: {
-            create: lines.map((line, index) => this.lineData(line, index + 1)),
+            create: withMaKien.map((line, index) => this.lineData(line, index + 1)),
           },
         },
         include: { items: { orderBy: { stt: 'asc' } } },
@@ -397,7 +402,7 @@ class WarehouseIssueService {
       ]);
 
       // Reversal credits stock back, so the available balance grows first.
-      const afterReversal = new Map<string, PackageBalance & { internationalProductId: string }>();
+      const afterReversal = new Map<string, PackageBalance & { internationalProductId: string; maKien: string | null }>();
       for (const [lotProductId, balance] of balances) {
         afterReversal.set(lotProductId, {
           ...balance,
@@ -410,6 +415,7 @@ class WarehouseIssueService {
 
       const { lines, closingBalances } = computeSequentialSnapshots(items, afterReversal, 'OUT');
       const totals = computeHeaderTotals(lines);
+      const withMaKien = lines.map((l) => ({ ...l, maKien: afterReversal.get(l.lotProductId)?.maKien ?? undefined }));
 
       if (diff.removed.length > 0) {
         await tx.warehouseIssueItem.deleteMany({
@@ -418,7 +424,7 @@ class WarehouseIssueService {
       }
 
       const storedIds = new Set(stored.map((line) => line.id));
-      for (const [index, line] of lines.entries()) {
+      for (const [index, line] of withMaKien.entries()) {
         const data = this.lineData(line, index + 1);
         if (line.id && storedIds.has(line.id)) {
           await tx.warehouseIssueItem.update({ where: { id: line.id }, data });
@@ -439,7 +445,7 @@ class WarehouseIssueService {
           ...(normalized.ngayXuat ? { ngayXuat: new Date(normalized.ngayXuat) } : {}),
           ghiChu: normalized.ghiChu,
           ...totals,
-          ...this.mirrorFirstLine(lines[0]),
+          ...this.mirrorFirstLine(withMaKien[0]),
         },
         include: { items: { orderBy: { stt: 'asc' } } },
       });
