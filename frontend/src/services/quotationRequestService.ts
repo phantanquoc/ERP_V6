@@ -161,6 +161,16 @@ export const quotationRequestService = {
     return response as unknown as SingleResponse;
   },
 
+  async approveQuotationRequest(id: string): Promise<SingleResponse> {
+    const response = await apiClient.post(`/quotation-requests/${id}/approve`, {});
+    return response as unknown as SingleResponse;
+  },
+
+  async rejectQuotationRequest(id: string, lyDo?: string): Promise<SingleResponse> {
+    const response = await apiClient.post(`/quotation-requests/${id}/reject`, lyDo ? { lyDo } : {});
+    return response as unknown as SingleResponse;
+  },
+
   async generateQuotationRequestCode(): Promise<GenerateCodeResponse> {
     const response = await apiClient.get('/quotation-requests/generate-code');
     return response as unknown as GenerateCodeResponse;

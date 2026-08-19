@@ -7,6 +7,7 @@ import purchaseRequestService from '../../../services/purchaseRequestService';
 import apiClient from '../../../services/apiClient';
 import TableFilter, { FilterField } from '../../TableFilter';
 import Modal from '../../Modal';
+import ConfirmDialog from '../../common/ConfirmDialog';
 
 const PurchaseRequestReviewTab: React.FC = () => {
   const { user } = useAuth();
@@ -75,7 +76,7 @@ const PurchaseRequestReviewTab: React.FC = () => {
   };
 
   const handleExportFiltered = async () => {
-    const exportRows = pageRows;
+    const exportRows = sorted;
     if (exportRows.length === 0) {
       toast.error('Không có dữ liệu để xuất');
       return;
@@ -175,7 +176,7 @@ const PurchaseRequestReviewTab: React.FC = () => {
           type="button"
           onClick={handleExportFiltered}
           className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-          title="Xuất các dòng đang hiển thị sau lọc/sắp xếp (trang hiện tại) ra CSV — nếu lỗi sẽ fallback JSON"
+          title="Xuất toàn bộ dòng đang lọc/sắp xếp (không phân trang) ra CSV — nếu lỗi sẽ fallback JSON"
         >
           Xuất Excel (đang lọc)
         </button>
@@ -387,29 +388,18 @@ const PurchaseRequestReviewTab: React.FC = () => {
         </div>
       </Modal>
 
-      <Modal isOpen={!!rejectId} onClose={() => { setRejectId(null); setRejectReason(''); }} showBackdrop>
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 space-y-4" onClick={e => e.stopPropagation()}>
-          <h3 className="text-base font-semibold">Từ chối yêu cầu</h3>
-          <p className="text-sm text-gray-600">Nhập lý do từ chối:</p>
-          <textarea
-            value={rejectReason}
-            onChange={e => setRejectReason(e.target.value)}
-            rows={3}
-            placeholder="Lý do từ chối..."
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500"
-            autoFocus
-          />
-          <div className="flex justify-end gap-2">
-            <button onClick={() => { setRejectId(null); setRejectReason(''); }} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">Hủy</button>
-            <button
-              onClick={() => { if (rejectId) doReject(rejectId, rejectReason || undefined); setRejectId(null); setRejectReason(''); }}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
-            >
-              Xác nhận từ chối
-            </button>
-          </div>
-        </div>
-      </Modal>
+      <ConfirmDialog
+        isOpen={!!rejectId}
+        onClose={() => { setRejectId(null); setRejectReason(''); }}
+        onConfirm={() => { if (rejectId) doReject(rejectId, rejectReason || undefined); setRejectId(null); setRejectReason(''); }}
+        title="Từ chối yêu cầu"
+        message="Nhập lý do từ chối:"
+        confirmText="Xác nhận từ chối"
+        cancelText="Hủy"
+        variant="danger"
+      >
+        <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} rows={3} placeholder="Lý do từ chối..." className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mt-3 focus:ring-2 focus:ring-red-500 focus:border-red-500" />
+      </ConfirmDialog>
     </div>
   );
 };

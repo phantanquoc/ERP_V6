@@ -246,5 +246,29 @@ router.post(
   quotationRequestController.markInProgress
 );
 
+// Pricing room review — approve CHO_XU_LY → DANG_BAO_GIA
+router.post(
+  '/:id/approve',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  async (req: any, res: any, next: any) => {
+    const { isPricingApprover } = await import('@utils/isPricingApprover');
+    if (await isPricingApprover(req.user)) return next();
+    return res.status(403).json({ success: false, message: 'Không có quyền duyệt YCBG' });
+  },
+  quotationRequestController.approveQuotationRequest
+);
+
+// Pricing room review — reject CHO_XU_LY → HUY
+router.post(
+  '/:id/reject',
+  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  async (req: any, res: any, next: any) => {
+    const { isPricingApprover } = await import('@utils/isPricingApprover');
+    if (await isPricingApprover(req.user)) return next();
+    return res.status(403).json({ success: false, message: 'Không có quyền từ chối YCBG' });
+  },
+  quotationRequestController.rejectQuotationRequest
+);
+
 export default router;
 

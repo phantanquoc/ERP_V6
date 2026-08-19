@@ -541,6 +541,14 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                 </div>
               )}
 
+              {(selectedIssue as any).daIn && (
+                <div className="bg-green-50 border border-green-200 p-3 rounded-lg flex flex-wrap items-center gap-4 text-sm">
+                  <span><span className="text-xs text-gray-500 uppercase font-medium">Người lập phiếu:</span> <span className="font-semibold text-gray-900 ml-1">{selectedIssue.tenNhanVien}</span></span>
+                  <span><span className="text-xs text-gray-500 uppercase font-medium">Ngày in (in lần đầu):</span> <span className="font-semibold text-gray-900 ml-1">{(selectedIssue as any).inLanDauAt ? new Date((selectedIssue as any).inLanDauAt).toLocaleString('vi-VN') : '—'}</span></span>
+                  <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Đã in</span>
+                </div>
+              )}
+
               <div className="text-xs text-gray-400 text-right">
                 Tạo lúc: {new Date(selectedIssue.createdAt).toLocaleString('vi-VN')}
               </div>
