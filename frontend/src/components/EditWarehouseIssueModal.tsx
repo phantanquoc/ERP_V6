@@ -5,6 +5,9 @@ import warehouseService, { Warehouse, Lot, LotProduct } from '../services/wareho
 import { parseNumberInput } from '../utils/numberInput';
 import Modal from './Modal';
 import LotProductCombobox from './common/LotProductCombobox';
+import EmployeeCombobox from './common/EmployeeCombobox';
+import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
+import { TINH_TRANG_OPTIONS, LY_DO_XUAT_KHO_PRESETS } from '../constants/warehouseCatalogs';
 
 interface EditWarehouseIssueModalProps {
   isOpen: boolean;
@@ -22,6 +25,9 @@ interface EditIssueRow {
   lotProductId: string;
   soLuongXuat: number;
   ghiChu: string;
+  tinhTrang: string;
+  tinhTrangCustom: string;
+  quyCach: string;
   lots: Lot[];
   lotProducts: LotProduct[];
   tenSanPham: string;
@@ -30,7 +36,7 @@ interface EditIssueRow {
 
 const emptyRow = (): EditIssueRow => ({
   warehouseId: '', lotId: '', lotProductId: '',
-  soLuongXuat: 0, ghiChu: '', lots: [], lotProducts: [],
+  soLuongXuat: 0, ghiChu: '', tinhTrang: 'Bình thường', tinhTrangCustom: '', quyCach: '', lots: [], lotProducts: [],
   tenSanPham: '', donViTinh: '',
 });
 
@@ -40,10 +46,23 @@ const EditWarehouseIssueModal: React.FC<EditWarehouseIssueModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const { data: employeesData } = useEmployeesForAssignment();
+  const employees = employeesData ?? [];
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(false);
   const [ghiChu, setGhiChu] = useState('');
+  const [nguoiDeNghi, setNguoiDeNghi] = useState('');
+  const [maNguoiDeNghi, setMaNguoiDeNghi] = useState('');
+  const [boPhan, setBoPhan] = useState('');
+  const [lyDoXuatKho, setLyDoXuatKho] = useState('');
   const [rows, setRows] = useState<EditIssueRow[]>([]);
+
+  const handleNguoiDeNghiChange = (name: string) => {
+    setNguoiDeNghi(name);
+    const emp = employees.find((e) => e.name === name);
+    if (emp) { setMaNguoiDeNghi(emp.id); setBoPhan(emp.department ?? ''); }
+    else if (!name) { setMaNguoiDeNghi(''); setBoPhan(''); }
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -54,6 +73,10 @@ const EditWarehouseIssueModal: React.FC<EditWarehouseIssueModalProps> = ({
       if (cancelled) return;
       setWarehouses(list);
       setGhiChu(issue?.ghiChu || '');
+      setNguoiDeNghi((issue as any)?.nguoiDeNghi || '');
+      setMaNguoiDeNghi((issue as any)?.maNguoiDeNghi || '');
+      setBoPhan((issue as any)?.boPhan || '');
+      setLyDoXuatKho((issue as any)?.lyDoXuatKho || '');
       setRows(buildRows(issue, list));
     };
     load();
@@ -87,6 +110,7 @@ const EditWarehouseIssueModal: React.FC<EditWarehouseIssueModalProps> = ({
         lotProductId: target.lotProductId ?? '',
         soLuongXuat: target.soLuongXuat ?? 0,
         ghiChu: target.ghiChu ?? '',
+        tinhTrang: 'Bình thường', tinhTrangCustom: '', quyCach: '',
         lots: warehouse?.lots ?? [],
         lotProducts: lot?.lotProducts ?? [],
         tenSanPham: target.tenSanPham ?? '',
@@ -97,6 +121,8 @@ const EditWarehouseIssueModal: React.FC<EditWarehouseIssueModalProps> = ({
     return lines.map((line) => {
       const warehouse = list.find((w) => w.id === line.warehouseId);
       const lot = warehouse?.lots?.find((l) => l.id === line.lotId);
+      const rawTinh = (line as any).tinhTrang ?? '';
+      const isKnown = TINH_TRANG_OPTIONS.some((o) => o.value === rawTinh);
       return {
         id: line.id,
         warehouseId: line.warehouseId ?? '',
@@ -104,6 +130,9 @@ const EditWarehouseIssueModal: React.FC<EditWarehouseIssueModalProps> = ({
         lotProductId: line.lotProductId ?? '',
         soLuongXuat: line.soLuongThucTe ?? 0,
         ghiChu: line.ghiChu ?? '',
+        tinhTrang: isKnown ? rawTinh : (rawTinh ? 'Khác' : 'Bình thường'),
+        tinhTrangCustom: isKnown ? '' : rawTinh,
+        quyCach: (line as any).quyCach ?? '',
         lots: warehouse?.lots ?? [],
         lotProducts: lot?.lotProducts ?? [],
         tenSanPham: line.tenSanPham ?? '',
@@ -169,6 +198,7 @@ const EditWarehouseIssueModal: React.FC<EditWarehouseIssueModalProps> = ({
         const warehouse = warehouses.find((w) => w.id === row.warehouseId);
         const lot = row.lots.find((l) => l.id === row.lotId);
         const lotProduct = row.lotProducts.find((lp) => lp.id === row.lotProductId);
+        const tinhTrangVal = row.tinhTrang === 'Khác' ? (row.tinhTrangCustom || 'Khác') : (row.tinhTrang || undefined);
         return {
           // Present only for stored lines — a new row has no id and lands as an insert.
           ...(row.id ? { id: row.id } : {}),
@@ -181,10 +211,12 @@ const EditWarehouseIssueModal: React.FC<EditWarehouseIssueModalProps> = ({
           soLuongThucTe: row.soLuongXuat,
           donViTinh: lotProduct?.donViTinh || row.donViTinh || '',
           ghiChu: row.ghiChu,
+          tinhTrang: tinhTrangVal,
+          quyCach: row.quyCach || undefined,
         };
       });
 
-      await warehouseIssueService.updateWarehouseIssue(issue.id, { ghiChu, items });
+      await warehouseIssueService.updateWarehouseIssue(issue.id, { ghiChu, nguoiDeNghi: nguoiDeNghi || undefined, maNguoiDeNghi: maNguoiDeNghi || undefined, boPhan: boPhan || undefined, lyDoXuatKho: lyDoXuatKho || undefined, items });
       alert('Cập nhật phiếu xuất kho thành công!');
       onSuccess?.();
       onClose();
@@ -215,11 +247,16 @@ const EditWarehouseIssueModal: React.FC<EditWarehouseIssueModalProps> = ({
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nhân viên</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nhân viên lập phiếu</label>
               <input type="text" value={issue.tenNhanVien} disabled
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100" />
             </div>
           </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Người đề nghị</label><EmployeeCombobox employees={employees} value={nguoiDeNghi} onChange={handleNguoiDeNghiChange} placeholder="Tìm nhân viên..." /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Bộ phận</label><input value={boPhan} onChange={(e) => setBoPhan(e.target.value)} placeholder="Tự điền từ người đề nghị" className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
+          </div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Lý do xuất kho</label><input type="text" list="ly-do-xuat-edit" value={lyDoXuatKho} onChange={(e) => setLyDoXuatKho(e.target.value)} placeholder="Chọn hoặc nhập tự do" className="w-full px-3 py-2 border border-gray-300 rounded-lg" /><datalist id="ly-do-xuat-edit">{LY_DO_XUAT_KHO_PRESETS.map((p) => <option key={p} value={p} />)}</datalist></div>
 
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -302,10 +339,15 @@ const EditWarehouseIssueModal: React.FC<EditWarehouseIssueModalProps> = ({
 
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Ghi chú dòng</label>
-                      <input type="text" value={row.ghiChu}
+                      <input type="text" value={row.ghiChu} placeholder="Nhập ghi chú (tự do)..."
                         onChange={(e) => updateRow(index, { ghiChu: e.target.value })}
                         className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500" />
                     </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                    <div><label className="block text-xs font-medium text-gray-600 mb-1">Tình trạng</label><select value={row.tinhTrang} onChange={(e) => updateRow(index, { tinhTrang: e.target.value })} className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"><option value="">—</option>{TINH_TRANG_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>{row.tinhTrang === 'Khác' && <input value={row.tinhTrangCustom} onChange={(e) => updateRow(index, { tinhTrangCustom: e.target.value })} placeholder="Nhập khác..." className="mt-1 w-full px-2 py-1.5 border border-gray-300 rounded text-sm" />}</div>
+                    <div><label className="block text-xs font-medium text-gray-600 mb-1">Quy cách</label><input value={row.quyCach} onChange={(e) => updateRow(index, { quyCach: e.target.value })} placeholder="VD: 25kg/bao" className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" /></div>
+                    <div className="flex items-end text-xs text-gray-400">Ghi chú dòng tự do, có placeholder.</div>
                   </div>
                 </div>
               ))}

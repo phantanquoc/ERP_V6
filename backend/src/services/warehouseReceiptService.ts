@@ -32,6 +32,12 @@ export interface ReceiptLineInput {
   ghiChu?: string;
   /** Product category used only when a new `InternationalProduct` has to be created. */
   loaiSanPham?: string;
+  soLoKeHoach?: string;
+  soLoThucTe?: string;
+  soKienKeHoach?: string[] | string;
+  soKienThucTe?: string[] | string;
+  tinhTrang?: string;
+  quyCach?: string;
 }
 
 export interface CreateReceiptInput {
@@ -44,6 +50,10 @@ export interface CreateReceiptInput {
   mucDich?: string;
   ghiChu?: string;
   supplyRequestId?: string;
+  nguoiDeNghi?: string;
+  maNguoiDeNghi?: string;
+  boPhan?: string;
+  boPhanId?: string;
   items: ReceiptLineInput[];
 }
 
@@ -51,6 +61,10 @@ export interface UpdateReceiptInput {
   ngayNhap?: Date | string;
   mucDich?: string;
   ghiChu?: string;
+  nguoiDeNghi?: string;
+  maNguoiDeNghi?: string;
+  boPhan?: string;
+  boPhanId?: string;
   items: ReceiptLineInput[];
 }
 
@@ -226,6 +240,57 @@ class WarehouseReceiptService {
     return totals;
   }
 
+  private async fillHeaderFromSupplyRequest(client: PrismaClientLike, normalized: CreateReceiptInput & UpdateReceiptInput & { employeeId: string }) {
+    if (!normalized.supplyRequestId) return;
+    if (normalized.nguoiDeNghi && normalized.boPhan) return;
+    try {
+      const sr = await (client as any).supplyRequest?.findUnique?.({ where: { id: normalized.supplyRequestId }, select: { tenNhanVien: true, boPhan: true } });
+      if (sr) {
+        if (!normalized.nguoiDeNghi && sr.tenNhanVien) (normalized as any).nguoiDeNghi = sr.tenNhanVien;
+        if (!normalized.boPhan && sr.boPhan) (normalized as any).boPhan = sr.boPhan;
+      }
+    } catch {}
+  }
+
+  private async deriveSoLoThucTeFromKien(client: PrismaClientLike, items: ReceiptLineInput[]) {
+    for (const line of items) {
+      const kienArr = line.soKienThucTe;
+      if (!line.soLoThucTe && kienArr && Array.isArray(kienArr) && kienArr.length > 0) {
+        try {
+          const kienRows = await client.lotProduct.findMany({ where: { maKien: { in: kienArr } }, select: { lot: { select: { tenLo: true } } } });
+          const lots = [...new Set(kienRows.map((r: any) => r.lot?.tenLo).filter(Boolean))];
+          if (lots.length > 0) line.soLoThucTe = lots.join(', ');
+        } catch {}
+      }
+    }
+  }
+
+  private async expandGroupedLines(client: PrismaClientLike, items: ReceiptLineInput[]): Promise<ReceiptLineInput[]> {
+    const expanded: ReceiptLineInput[] = [];
+    for (const line of items) {
+      const kienThucTe = line.soKienThucTe;
+      if (Array.isArray(kienThucTe) && kienThucTe.length > 1 && line.lotProductId) {
+        // Already per-kien? skip grouping if lotProductId matches single kien
+      }
+      if (Array.isArray(kienThucTe) && kienThucTe.length > 1) {
+        // Grouped payload: one logical row with many kien -> expand to per-kien rows
+        try {
+          const kienRows = await client.lotProduct.findMany({ where: { maKien: { in: kienThucTe } }, select: { id: true, maKien: true, lotId: true, lot: { select: { tenLo: true } }, donViTinh: true } });
+          const byMaKien = new Map(kienRows.map((r: any) => [r.maKien, r]));
+          const perKienQty = line.soLuongThucTe / kienThucTe.length;
+          for (const maKien of kienThucTe) {
+            const lp = byMaKien.get(maKien);
+            if (!lp) { expanded.push(line); break; }
+            expanded.push({ ...line, lotProductId: lp.id, lotId: lp.lotId, tenLo: lp.lot?.tenLo ?? line.tenLo, soKienThucTe: [maKien], soLuongThucTe: perKienQty });
+          }
+          continue;
+        } catch { /* fallthrough */ }
+      }
+      expanded.push(line);
+    }
+    return expanded.length > items.length ? expanded : items;
+  }
+
   /**
    * Deprecated header columns mirror the first line so a not-yet-migrated reader
    * degrades to a coherent single-commodity view instead of reading `null`.
@@ -250,6 +315,11 @@ class WarehouseReceiptService {
     line: ResolvedLine & { soLuongTruoc: number; soLuongSau: number },
     stt: number
   ) {
+    const toJson = (v: string[] | string | undefined): string | null => {
+      if (v === undefined || v === null) return null;
+      if (Array.isArray(v)) return JSON.stringify(v);
+      return v;
+    };
     return {
       stt,
       lotProductId: line.lotProductId,
@@ -265,6 +335,12 @@ class WarehouseReceiptService {
       soLuongTruoc: line.soLuongTruoc,
       soLuongSau: line.soLuongSau,
       ghiChu: line.ghiChu,
+      soLoKeHoach: (line as ReceiptLineInput).soLoKeHoach ?? null,
+      soLoThucTe: (line as ReceiptLineInput).soLoThucTe ?? null,
+      soKienKeHoach: toJson((line as ReceiptLineInput).soKienKeHoach as string[] | string | undefined),
+      soKienThucTe: toJson((line as ReceiptLineInput).soKienThucTe as string[] | string | undefined),
+      tinhTrang: (line as ReceiptLineInput).tinhTrang ?? null,
+      quyCach: (line as ReceiptLineInput).quyCach ?? null,
     };
   }
 
@@ -365,7 +441,11 @@ class WarehouseReceiptService {
     maPhieuNhap: string,
     tx: Prisma.TransactionClient,
   ) {
-    const resolved = await this.resolveLines(tx, items);
+    await this.fillHeaderFromSupplyRequest(tx, normalized);
+    await this.deriveSoLoThucTeFromKien(tx, items);
+    const expandedItems = await this.expandGroupedLines(tx, items);
+    const effective = expandedItems.length !== items.length ? expandedItems : items;
+    const resolved = await this.resolveLines(tx, effective);
     const balances = await this.loadBalances(
       tx,
       resolved.map((line) => line.lotProductId)
@@ -384,6 +464,10 @@ class WarehouseReceiptService {
         mucDich: normalized.mucDich,
         ghiChu: normalized.ghiChu,
         ...(normalized.supplyRequestId ? { supplyRequestId: normalized.supplyRequestId } : {}),
+        ...(normalized.nguoiDeNghi ? { nguoiDeNghi: normalized.nguoiDeNghi } : {}),
+        ...(normalized.maNguoiDeNghi ? { maNguoiDeNghi: normalized.maNguoiDeNghi } : {}),
+        ...(normalized.boPhan ? { boPhan: normalized.boPhan } : {}),
+        ...(normalized.boPhanId ? { boPhanId: normalized.boPhanId } : {}),
         ...totals,
         ...this.mirrorFirstLine(lines[0]),
         items: {
@@ -477,6 +561,10 @@ class WarehouseReceiptService {
           ...(normalized.ngayNhap ? { ngayNhap: new Date(normalized.ngayNhap) } : {}),
           mucDich: normalized.mucDich,
           ghiChu: normalized.ghiChu,
+          ...(normalized.nguoiDeNghi !== undefined ? { nguoiDeNghi: normalized.nguoiDeNghi } : {}),
+          ...(normalized.maNguoiDeNghi !== undefined ? { maNguoiDeNghi: normalized.maNguoiDeNghi } : {}),
+          ...(normalized.boPhan !== undefined ? { boPhan: normalized.boPhan } : {}),
+          ...(normalized.boPhanId !== undefined ? { boPhanId: normalized.boPhanId } : {}),
           ...totals,
           ...this.mirrorFirstLine(lines[0]),
         },
@@ -485,6 +573,13 @@ class WarehouseReceiptService {
 
       return { ...updated, isLocked: !!updated.supplyRequestId };
     });
+  }
+
+  async markPrinted(id: string) {
+    const existing = await prisma.warehouseReceipt.findUnique({ where: { id }, select: { id: true, daIn: true } });
+    if (!existing) throw new NotFoundError('Không tìm thấy phiếu nhập kho');
+    if (existing.daIn) return existing;
+    return prisma.warehouseReceipt.update({ where: { id }, data: { daIn: true, inLanDauAt: new Date() } });
   }
 
   /**

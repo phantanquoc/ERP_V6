@@ -294,6 +294,13 @@ model WarehouseReceipt {
   tongSoLuongThucTe Float                  @default(0)
   soDongHang        Int                    @default(0)
   items             WarehouseReceiptItem[]
+  // BM01 fields
+  nguoiDeNghi       String?
+  maNguoiDeNghi     String?
+  boPhan            String?
+  boPhanId          String?
+  daIn              Boolean                @default(false)
+  inLanDauAt        DateTime?
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
 
@@ -321,6 +328,13 @@ model WarehouseReceiptItem {
   donGia        Float?
   thanhTien     Float?
   ghiChu        String?
+  // BM01 per-line fields
+  soLoKeHoach   String?
+  soLoThucTe    String?
+  soKienKeHoach String?
+  soKienThucTe  String?
+  tinhTrang     String?
+  quyCach       String?
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
   receipt       WarehouseReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
@@ -367,6 +381,14 @@ model WarehouseIssue {
   tongSoLuongThucTe  Float                @default(0)
   soDongHang         Int                  @default(0)
   items              WarehouseIssueItem[]
+  // BM03 fields
+  nguoiDeNghi        String?
+  maNguoiDeNghi      String?
+  boPhan             String?
+  boPhanId           String?
+  lyDoXuatKho        String?
+  daIn               Boolean              @default(false)
+  inLanDauAt         DateTime?
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
 
@@ -394,6 +416,13 @@ model WarehouseIssueItem {
   donGia        Float?
   thanhTien     Float?
   ghiChu        String?
+  // BM03 per-line fields
+  soLoKeHoach   String?
+  soLoThucTe    String?
+  soKienKeHoach String?
+  soKienThucTe  String?
+  tinhTrang     String?
+  quyCach       String?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   issue         WarehouseIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)

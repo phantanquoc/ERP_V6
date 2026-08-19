@@ -1,0 +1,26 @@
+-- BM alignment: header fields (nguoiDeNghi/boPhan/lyDo/printed) + per-line KH/TT fields (soLo/soKien/tinhTrang/quyCach)
+ALTER TABLE "business"."warehouse_receipts" ADD COLUMN IF NOT EXISTS "nguoiDeNghi" TEXT;
+ALTER TABLE "business"."warehouse_receipts" ADD COLUMN IF NOT EXISTS "maNguoiDeNghi" TEXT;
+ALTER TABLE "business"."warehouse_receipts" ADD COLUMN IF NOT EXISTS "boPhan" TEXT;
+ALTER TABLE "business"."warehouse_receipts" ADD COLUMN IF NOT EXISTS "boPhanId" TEXT;
+ALTER TABLE "business"."warehouse_receipts" ADD COLUMN IF NOT EXISTS "daIn" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "business"."warehouse_receipts" ADD COLUMN IF NOT EXISTS "inLanDauAt" TIMESTAMPTZ;
+ALTER TABLE "business"."warehouse_issues" ADD COLUMN IF NOT EXISTS "nguoiDeNghi" TEXT;
+ALTER TABLE "business"."warehouse_issues" ADD COLUMN IF NOT EXISTS "maNguoiDeNghi" TEXT;
+ALTER TABLE "business"."warehouse_issues" ADD COLUMN IF NOT EXISTS "boPhan" TEXT;
+ALTER TABLE "business"."warehouse_issues" ADD COLUMN IF NOT EXISTS "boPhanId" TEXT;
+ALTER TABLE "business"."warehouse_issues" ADD COLUMN IF NOT EXISTS "lyDoXuatKho" TEXT;
+ALTER TABLE "business"."warehouse_issues" ADD COLUMN IF NOT EXISTS "daIn" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "business"."warehouse_issues" ADD COLUMN IF NOT EXISTS "inLanDauAt" TIMESTAMPTZ;
+ALTER TABLE "business"."warehouse_receipt_items" ADD COLUMN IF NOT EXISTS "soLoKeHoach" TEXT;
+ALTER TABLE "business"."warehouse_receipt_items" ADD COLUMN IF NOT EXISTS "soLoThucTe" TEXT;
+ALTER TABLE "business"."warehouse_receipt_items" ADD COLUMN IF NOT EXISTS "soKienKeHoach" TEXT;
+ALTER TABLE "business"."warehouse_receipt_items" ADD COLUMN IF NOT EXISTS "soKienThucTe" TEXT;
+ALTER TABLE "business"."warehouse_receipt_items" ADD COLUMN IF NOT EXISTS "tinhTrang" TEXT;
+ALTER TABLE "business"."warehouse_receipt_items" ADD COLUMN IF NOT EXISTS "quyCach" TEXT;
+ALTER TABLE "business"."warehouse_issue_items" ADD COLUMN IF NOT EXISTS "soLoKeHoach" TEXT;
+ALTER TABLE "business"."warehouse_issue_items" ADD COLUMN IF NOT EXISTS "soLoThucTe" TEXT;
+ALTER TABLE "business"."warehouse_issue_items" ADD COLUMN IF NOT EXISTS "soKienKeHoach" TEXT;
+ALTER TABLE "business"."warehouse_issue_items" ADD COLUMN IF NOT EXISTS "soKienThucTe" TEXT;
+ALTER TABLE "business"."warehouse_issue_items" ADD COLUMN IF NOT EXISTS "tinhTrang" TEXT;
+ALTER TABLE "business"."warehouse_issue_items" ADD COLUMN IF NOT EXISTS "quyCach" TEXT;

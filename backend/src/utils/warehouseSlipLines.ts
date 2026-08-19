@@ -285,3 +285,42 @@ export function computeHeaderTotals(lines: SlipLineQuantity[]): HeaderTotals {
     soDongHang: lines.length,
   };
 }
+
+export function quantityDeviation(plan: number, actual: number): number {
+  if (!plan || plan === 0) return actual === 0 ? 0 : 1;
+  return Math.abs(actual - plan) / Math.abs(plan);
+}
+
+export function kienSetEquals(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sa = new Set(a);
+  const sb = new Set(b);
+  if (sa.size !== sb.size) return false;
+  for (const v of sa) if (!sb.has(v)) return false;
+  return true;
+}
+
+export function isOverThreshold(plan: number, actual: number, threshold = 0.1): boolean {
+  return quantityDeviation(plan, actual) > threshold;
+}
+
+export interface ProductGroupKey {
+  tenSanPham: string;
+  donViTinh: string;
+  warehouseId: string;
+}
+
+export function productGroupKey(line: ProductGroupKey): string {
+  return `${line.tenSanPham}__${line.donViTinh}__${line.warehouseId}`;
+}
+
+export function groupLinesByProduct<T extends ProductGroupKey & { soLuongThucTe: number; soLuongYeuCau: number; maKien?: string | null }>(lines: T[]): Map<string, T[]> {
+  const m = new Map<string, T[]>();
+  for (const l of lines) {
+    const k = productGroupKey(l);
+    const arr = m.get(k);
+    if (arr) arr.push(l);
+    else m.set(k, [l]);
+  }
+  return m;
+}

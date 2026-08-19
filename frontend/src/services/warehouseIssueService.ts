@@ -16,6 +16,12 @@ export interface WarehouseIssueLine {
   soLuongTruoc?: number;
   soLuongSau?: number;
   ghiChu?: string;
+  soLoKeHoach?: string | null;
+  soLoThucTe?: string | null;
+  soKienKeHoach?: string | string[] | null;
+  soKienThucTe?: string | string[] | null;
+  tinhTrang?: string | null;
+  quyCach?: string | null;
 }
 
 export interface WarehouseIssue {
@@ -30,6 +36,13 @@ export interface WarehouseIssue {
   soDongHang?: number;
   isLocked?: boolean;
   supplyRequestId?: string | null;
+  nguoiDeNghi?: string | null;
+  maNguoiDeNghi?: string | null;
+  boPhan?: string | null;
+  boPhanId?: string | null;
+  lyDoXuatKho?: string | null;
+  daIn?: boolean;
+  inLanDauAt?: string | null;
   items?: WarehouseIssueLine[];
   // Deprecated header-level fields (kept for backward compat)
   warehouseId?: string;
@@ -52,12 +65,22 @@ export interface CreateWarehouseIssueData {
   ngayXuat?: string;
   ghiChu?: string;
   supplyRequestId?: string;
+  nguoiDeNghi?: string;
+  maNguoiDeNghi?: string;
+  boPhan?: string;
+  boPhanId?: string;
+  lyDoXuatKho?: string;
   items: WarehouseIssueLine[];
 }
 
 export interface UpdateWarehouseIssueData {
   ngayXuat?: string;
   ghiChu?: string;
+  nguoiDeNghi?: string;
+  maNguoiDeNghi?: string;
+  boPhan?: string;
+  boPhanId?: string;
+  lyDoXuatKho?: string;
   items: WarehouseIssueLine[];
 }
 
@@ -84,6 +107,27 @@ const warehouseIssueService = {
 
   deleteWarehouseIssue: async (id: string) => {
     return apiClient.delete(`/warehouse-issues/${id}`);
+  },
+
+  markPrinted: async (id: string) => {
+    return apiClient.post(`/warehouse-issues/${id}/mark-printed`, {});
+  },
+
+  exportXlsx: async (id: string) => {
+    const token = localStorage.getItem('accessToken');
+    const res = await fetch(`/api/warehouse-issues/${id}/export-xlsx`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error('Export failed');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `phieu-xuat-${id}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   },
 };
 
