@@ -261,10 +261,6 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
         const warehouse = warehouses.find((w) => w.id === row.warehouseId);
         const lot = row.lots.find((l) => l.id === row.lotId);
         const tinhTrangVal = row.tinhTrang === 'Khác' ? (row.tinhTrangCustom || 'Khác') : (row.tinhTrang || undefined);
-        const baseItem = {
-          warehouseId: row.warehouseId, tenKho: warehouse?.tenKho || '', lotId: row.lotId, tenLo: lot?.tenLo || '',
-          tenSanPham: row.tenSanPham, donViTinh: row.donViTinh, ghiChu: row.ghiChu, tinhTrang: tinhTrangVal, quyCach: row.quyCach || undefined,
-        };
         const kienIds = row.selectedKienIds?.length ? row.selectedKienIds : (row.lotProductId ? [row.lotProductId] : []);
         if (kienIds.length > 1) {
           const perKien = row.perKienQty?.length === kienIds.length ? row.perKienQty : (() => { const base=Math.floor(row.soLuongNhap/kienIds.length); const rem=row.soLuongNhap%kienIds.length; return kienIds.map((_,i)=> i===kienIds.length-1 ? base+rem : base); })();

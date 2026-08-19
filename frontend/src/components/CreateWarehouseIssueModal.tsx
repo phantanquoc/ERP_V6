@@ -155,7 +155,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
   const addRow = () => {
     setRows(prev => [...prev, {
       warehouseId: '', lotId: '', lotProductId: '',
-      soLuongXuat: 0, ghiChu: '', lots: [], lotProducts: [],
+      soLuongXuat: 0, ghiChu: '', tinhTrang: 'Bình thường', tinhTrangCustom: '', quyCach: '', lots: [], lotProducts: [],
       tenGoi: '', donViTinh: '',
     }]);
   };

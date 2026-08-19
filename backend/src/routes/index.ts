@@ -82,6 +82,7 @@ const ROUTE_MAP: Record<string, string> = {
   attendedOperators: '/api/kiosk',
   lookup: '/api/lookups',
   inventory: '/api/inventory',
+  pricingOverview: '/api/pricing/overview',
 };
 
 export const registerRoutes = (app: Express): void => {
