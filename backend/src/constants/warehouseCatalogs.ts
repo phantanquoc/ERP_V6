@@ -26,9 +26,10 @@ export const MUC_DICH_PRESETS = [
 
 export const COMPANY_HEADER = {
   name: 'CÔNG TY TNHH THỰC PHẨM QUỐC TẾ AN BÌNH',
-  address: 'KCN An Bình, ...',
-  phone: '',
-  fax: '',
+  address: 'Số 58, đường 3, thôn 4, Đức Hạnh, Đức Linh, Bình Thuận, Việt Nam',
+  phone: '0941 508 468',
+  email: 'sales@anbinhfoods.com',
+  website: 'anbinhfoods.com.vn',
 } as const;
 
 export const BM_CODES = {
