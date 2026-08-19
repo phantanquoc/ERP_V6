@@ -70,11 +70,12 @@ class OvertimePlanService {
     };
   }
 
-  // Populate a single plan with nguoiTao and per-item nguoiThamGia arrays
+  // Populate a single plan with nguoiTao (+nguoiDuyet) and per-item nguoiThamGia arrays
   private async populateWithUsers(plan: any): Promise<any> {
     try {
       const itemUserIds: string[] = (plan.items || []).flatMap((item: any) => item.nguoiThamGiaIds || []);
-      const allIds = Array.from(new Set([plan.nguoiTaoId, ...itemUserIds]));
+      const extraIds: string[] = plan.nguoiDuyetId ? [plan.nguoiDuyetId] : [];
+      const allIds = Array.from(new Set([plan.nguoiTaoId, ...itemUserIds, ...extraIds]));
       const users = await prisma.user.findMany({
         where: { id: { in: allIds } },
         select: { id: true, firstName: true, lastName: true, departmentId: true, employees: { select: { employeeCode: true } } },
@@ -83,7 +84,7 @@ class OvertimePlanService {
       return this.buildPopulated(plan, userMap);
     } catch (error) {
       logger.error('Error populating overtime plan with users:', error);
-      return { ...plan, nguoiTao: null, items: (plan.items || []).map((item: any) => ({ ...item, nguoiThamGia: [] })) };
+      return { ...plan, nguoiTao: null, nguoiDuyet: null, items: (plan.items || []).map((item: any) => ({ ...item, nguoiThamGia: [] })) };
     }
   }
 
@@ -93,7 +94,8 @@ class OvertimePlanService {
       const itemUserIds: string[] = plans.flatMap((p: any) =>
         (p.items || []).flatMap((item: any) => item.nguoiThamGiaIds || [])
       );
-      const allIds = Array.from(new Set(plans.flatMap((p: any) => [p.nguoiTaoId, ...itemUserIds])));
+      const extraIds: string[] = plans.map((p: any) => p.nguoiDuyetId).filter(Boolean);
+      const allIds = Array.from(new Set(plans.flatMap((p: any) => [p.nguoiTaoId, ...itemUserIds, ...extraIds])));
       const users = await prisma.user.findMany({
         where: { id: { in: allIds } },
         select: { id: true, firstName: true, lastName: true, departmentId: true, employees: { select: { employeeCode: true } } },
@@ -105,6 +107,7 @@ class OvertimePlanService {
       return plans.map(p => ({
         ...p,
         nguoiTao: null,
+        nguoiDuyet: null,
         items: (p.items || []).map((item: any) => ({ ...item, nguoiThamGia: [] })),
       }));
     }
@@ -112,6 +115,7 @@ class OvertimePlanService {
 
   private buildPopulated(plan: any, userMap: Map<string, any>): any {
     const nguoiTao = userMap.get(plan.nguoiTaoId);
+    const nguoiDuyet = plan.nguoiDuyetId ? userMap.get(plan.nguoiDuyetId) : null;
     const populatedItems = (plan.items || [])
       .sort((a: any, b: any) => new Date(a.ngayTangCa).getTime() - new Date(b.ngayTangCa).getTime())
       .map((item: any) => ({
@@ -124,6 +128,7 @@ class OvertimePlanService {
     return {
       ...plan,
       nguoiTao: nguoiTao ? this.mapUserDto(nguoiTao) : null,
+      nguoiDuyet: nguoiDuyet ? this.mapUserDto(nguoiDuyet) : null,
       items: populatedItems,
     };
   }
@@ -570,9 +575,22 @@ class OvertimePlanService {
     return this.populateWithUsers(plan);
   }
 
-  async approvePlan(planId: string, adminUserId: string, data: ApproveOvertimePlanRequest): Promise<any> {
-    const adminUser = await prisma.user.findUnique({ where: { id: adminUserId } });
-    if (!adminUser || adminUser.role !== 'ADMIN') throw new ApiError(403, 'Chỉ admin mới có quyền phê duyệt kế hoạch tăng ca');
+  async approvePlan(planId: string, approverUserId: string, data: ApproveOvertimePlanRequest): Promise<any> {
+    const approverUser = await prisma.user.findUnique({ where: { id: approverUserId } });
+    if (!approverUser) throw new ApiError(403, 'Không có quyền phê duyệt kế hoạch tăng ca');
+    if (approverUser.role !== 'ADMIN') {
+      const { isPricingApprover } = await import('@utils/isPricingApprover');
+      const approverPayload: any = {
+        id: approverUser.id,
+        role: approverUser.role,
+        departmentId: approverUser.departmentId,
+        subDepartmentId: approverUser.subDepartmentId,
+        secondaryDepartments: await prisma.userSecondaryDepartment.findMany({ where: { userId: approverUser.id } }).then((rows: any[]) => rows.map(r => ({ departmentId: r.departmentId, subDepartmentId: r.subDepartmentId, role: r.role }))),
+      };
+      if (!(await isPricingApprover(approverPayload))) {
+        throw new ApiError(403, 'Chỉ admin hoặc phòng giá thành mới có quyền phê duyệt kế hoạch tăng ca');
+      }
+    }
 
     const plan = await this.findPlanWithItems(planId);
     if (!plan) throw new NotFoundError('Không tìm thấy kế hoạch tăng ca');
@@ -580,10 +598,18 @@ class OvertimePlanService {
 
     const newStatus = data.trangThai === 'DA_DUYET' ? 'DA_DUYET' : 'TU_CHOI';
 
-    // Atomic: status update + attendance fan-out in one transaction.
+    // Atomic: status update + audit fields + attendance fan-out in one transaction.
     // If attendance creation fails, the plan status is NOT committed.
     await prisma.$transaction(async (tx) => {
-      await tx.overtimePlan.update({ where: { id: planId }, data: { trangThai: newStatus as any } });
+      await tx.overtimePlan.update({
+        where: { id: planId },
+        data: {
+          trangThai: newStatus as any,
+          nguoiDuyetId: approverUserId,
+          ngayDuyet: new Date(),
+          lyDoTuChoi: newStatus === 'TU_CHOI' ? (data.lyDoTuChoi ?? null) : null,
+        },
+      });
 
       if (newStatus === 'DA_DUYET') {
         await this.materializeAttendance(tx, plan, plan.items, { skipIfExists: true });
@@ -619,7 +645,7 @@ class OvertimePlanService {
 
       if (isApproved) {
         await notificationService.notify(NotificationEvent.OVERTIME_PLAN_APPROVED_DEPT, {
-          actorUserId: adminUserId,
+          actorUserId: approverUserId,
           entityId: plan.id,
           metadata: { noiDung: plan.noiDung, planId: plan.id },
         });
