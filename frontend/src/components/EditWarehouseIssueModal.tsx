@@ -253,10 +253,10 @@ const EditWarehouseIssueModal: React.FC<EditWarehouseIssueModalProps> = ({
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Người đề nghị</label><EmployeeCombobox employees={employees} value={nguoiDeNghi} onChange={handleNguoiDeNghiChange} placeholder="Tìm nhân viên..." /></div>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Bộ phận</label><input value={boPhan} onChange={(e) => setBoPhan(e.target.value)} placeholder="Tự điền từ người đề nghị" className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Người đề nghị</label><EmployeeCombobox employees={employees} value={nguoiDeNghi} onChange={handleNguoiDeNghiChange} placeholder="" /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Bộ phận</label><input value={boPhan} onChange={(e) => setBoPhan(e.target.value)} placeholder="" className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
           </div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Lý do xuất kho</label><input type="text" list="ly-do-xuat-edit" value={lyDoXuatKho} onChange={(e) => setLyDoXuatKho(e.target.value)} placeholder="Chọn hoặc nhập tự do" className="w-full px-3 py-2 border border-gray-300 rounded-lg" /><datalist id="ly-do-xuat-edit">{LY_DO_XUAT_KHO_PRESETS.map((p) => <option key={p} value={p} />)}</datalist></div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Lý do xuất kho</label><input type="text" list="ly-do-xuat-edit" value={lyDoXuatKho} onChange={(e) => setLyDoXuatKho(e.target.value)} placeholder="" className="w-full px-3 py-2 border border-gray-300 rounded-lg" /><datalist id="ly-do-xuat-edit">{LY_DO_XUAT_KHO_PRESETS.map((p) => <option key={p} value={p} />)}</datalist></div>
 
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -339,14 +339,14 @@ const EditWarehouseIssueModal: React.FC<EditWarehouseIssueModalProps> = ({
 
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Ghi chú dòng</label>
-                      <input type="text" value={row.ghiChu} placeholder="Nhập ghi chú (tự do)..."
+                      <input type="text" value={row.ghiChu} placeholder=""
                         onChange={(e) => updateRow(index, { ghiChu: e.target.value })}
                         className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500" />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
-                    <div><label className="block text-xs font-medium text-gray-600 mb-1">Tình trạng</label><select value={row.tinhTrang} onChange={(e) => updateRow(index, { tinhTrang: e.target.value })} className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"><option value="">—</option>{TINH_TRANG_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>{row.tinhTrang === 'Khác' && <input value={row.tinhTrangCustom} onChange={(e) => updateRow(index, { tinhTrangCustom: e.target.value })} placeholder="Nhập khác..." className="mt-1 w-full px-2 py-1.5 border border-gray-300 rounded text-sm" />}</div>
-                    <div><label className="block text-xs font-medium text-gray-600 mb-1">Quy cách</label><input value={row.quyCach} onChange={(e) => updateRow(index, { quyCach: e.target.value })} placeholder="VD: 25kg/bao" className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" /></div>
+                    <div><label className="block text-xs font-medium text-gray-600 mb-1">Tình trạng</label><select value={row.tinhTrang} onChange={(e) => updateRow(index, { tinhTrang: e.target.value })} className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"><option value="">—</option>{TINH_TRANG_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>{row.tinhTrang === 'Khác' && <input value={row.tinhTrangCustom} onChange={(e) => updateRow(index, { tinhTrangCustom: e.target.value })} placeholder="" className="mt-1 w-full px-2 py-1.5 border border-gray-300 rounded text-sm" />}</div>
+                    <div><label className="block text-xs font-medium text-gray-600 mb-1">Quy cách</label><input value={row.quyCach} onChange={(e) => updateRow(index, { quyCach: e.target.value })} placeholder="" className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" /></div>
                     <div />
                   </div>
                 </div>

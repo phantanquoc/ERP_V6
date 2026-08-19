@@ -10,6 +10,7 @@ import warehouseReceiptService, { WarehouseReceipt } from '../services/warehouse
 import TableFilter, { FilterField } from './TableFilter';
 import { warehouseKeys } from '../hooks';
 import { getWarehouseSlipLines, normalizeWarehouseListResponse } from '../utils/warehouseSlipLines';
+import { TINH_TRANG_OPTIONS } from '../constants/warehouseCatalogs';
 
 interface WarehouseReceiptTabProps {
   month?: number;
@@ -34,12 +35,20 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
   const [loadError, setLoadError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maPhieuNhap: '', tenNhanVien: '', tenKho: '', tenSanPham: '' });
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maPhieuNhap: '', tenNhanVien: '', nguoiDeNghi: '', boPhan: '', tenKho: '', tenSanPham: '', tinhTrang: '', daIn: '', fromNgay: '', toNgay: '' });
+  const [sortKey, setSortKey] = useState<'ngayNhap' | 'maPhieuNhap'>('ngayNhap');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const receiptFilterFields: FilterField[] = [
     { key: 'maPhieuNhap', label: 'Mã phiếu', type: 'text' },
     { key: 'tenNhanVien', label: 'Nhân viên', type: 'text' },
+    { key: 'nguoiDeNghi', label: 'Người đề nghị', type: 'text' },
+    { key: 'boPhan', label: 'Bộ phận', type: 'text' },
     { key: 'tenKho', label: 'Kho', type: 'text' },
     { key: 'tenSanPham', label: 'Sản phẩm', type: 'text' },
+    { key: 'tinhTrang', label: 'Tình trạng', type: 'select', options: [{ value: '', label: 'Tất cả' }, ...[...TINH_TRANG_OPTIONS].map((o) => ({ value: o.value, label: o.label })) ] },
+    { key: 'daIn', label: 'Đã in', type: 'select', options: [{ value: '', label: 'Tất cả' }, { value: 'true', label: 'Đã in' }, { value: 'false', label: 'Chưa in' }] },
+    { key: 'fromNgay', label: 'Từ ngày', type: 'text', placeholder: 'YYYY-MM-DD' },
+    { key: 'toNgay', label: 'Đến ngày', type: 'text', placeholder: 'YYYY-MM-DD' },
   ];
 
   const handleViewDetail = (receipt: WarehouseReceipt) => {
@@ -96,7 +105,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
       if (month && (date.getMonth() + 1) !== month) return false;
       if (year && date.getFullYear() !== year) return false;
     }
-    const lines = getWarehouseSlipLines(r);
+    const lines = getWarehouseSlipLines(r) as any[];
     // Line-level matching: a slip is found when ANY of its lines carries the
     // value — the deprecated header mirror only holds line 1, so filtering on
     // it alone makes every other line unfindable.
@@ -110,20 +119,44 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
         contains(r.maPhieuNhap, search) ||
         contains(r.tenNhanVien, search) ||
         contains(r.maNhanVien, search) ||
+        contains((r as any).nguoiDeNghi, search) ||
+        contains((r as any).boPhan, search) ||
         lineMatch(search);
       if (!matchSearch) return false;
     }
     if (filterValues.maPhieuNhap && !contains(r.maPhieuNhap, filterValues.maPhieuNhap.toLowerCase())) return false;
     if (filterValues.tenNhanVien && !contains(r.tenNhanVien, filterValues.tenNhanVien.toLowerCase())) return false;
+    if (filterValues.nguoiDeNghi && !contains((r as any).nguoiDeNghi, filterValues.nguoiDeNghi.toLowerCase())) return false;
+    if (filterValues.boPhan && !contains((r as any).boPhan, filterValues.boPhan.toLowerCase())) return false;
     if (filterValues.tenKho && !lines.some((l) => contains(l.tenKho, filterValues.tenKho.toLowerCase()))) return false;
     if (filterValues.tenSanPham && !lines.some((l) => contains(l.tenSanPham, filterValues.tenSanPham.toLowerCase()))) return false;
+    if (filterValues.tinhTrang && !lines.some((l) => contains((l as any).tinhTrang, filterValues.tinhTrang.toLowerCase()))) return false;
+    if (filterValues.daIn) {
+      const isPrinted = !!(r as any).daIn;
+      if (filterValues.daIn === 'true' && !isPrinted) return false;
+      if (filterValues.daIn === 'false' && isPrinted) return false;
+    }
+    if (filterValues.fromNgay) {
+      const from = new Date(filterValues.fromNgay); from.setHours(0,0,0,0);
+      if (new Date(r.ngayNhap) < from) return false;
+    }
+    if (filterValues.toNgay) {
+      const to = new Date(filterValues.toNgay); to.setHours(23,59,59,999);
+      if (new Date(r.ngayNhap) > to) return false;
+    }
     return true;
+  });
+
+  const sortedReceipts = [...filteredReceipts].sort((a, b) => {
+    const dir = sortDir === 'asc' ? 1 : -1;
+    if (sortKey === 'maPhieuNhap') return dir * (a.maPhieuNhap.localeCompare(b.maPhieuNhap));
+    return dir * (new Date(a.ngayNhap).getTime() - new Date(b.ngayNhap).getTime());
   });
 
   // Pagination counts SLIPS, not table rows — a two-line slip must never be
   // split across pages. Pages with multi-line slips simply show extra rows.
-  const totalPages = Math.ceil(filteredReceipts.length / itemsPerPage);
-  const paginatedReceipts = filteredReceipts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.ceil(sortedReceipts.length / itemsPerPage);
+  const paginatedReceipts = sortedReceipts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const selectedReceiptLines = selectedReceipt ? getWarehouseSlipLines(selectedReceipt) : [];
 
   useEffect(() => {
@@ -149,6 +182,21 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
         onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
         searchPlaceholder="Tìm kiếm phiếu nhập..."
       />
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <span className="text-xs text-gray-500">Sắp xếp:</span>
+        <select value={sortKey} onChange={(e) => setSortKey(e.target.value as any)} className="px-2 py-1 border border-gray-300 rounded text-xs">
+          <option value="ngayNhap">Ngày nhập</option>
+          <option value="maPhieuNhap">Mã phiếu</option>
+        </select>
+        <button type="button" onClick={() => setSortDir((d) => d === 'asc' ? 'desc' : 'asc')} className="px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50">{sortDir === 'asc' ? '↑ Tăng' : '↓ Giảm'}</button>
+        <span className="text-xs text-gray-400 ml-2">{sortedReceipts.length} phiếu {filteredReceipts.length !== receipts.length && `· lọc từ ${receipts.length}`}</span>
+        <button type="button" onClick={async () => {
+          const ids = sortedReceipts.map((r) => r.id);
+          if (ids.length === 0) { alert('Không có phiếu để xuất'); return; }
+          if (!confirm(`Xuất tổng hợp ${ids.length} phiếu đang lọc?`)) return;
+          for (const id of ids) { try { await warehouseReceiptService.exportXlsx(id); } catch {} }
+        }} className="ml-auto px-3 py-1.5 text-xs border border-blue-300 text-blue-700 rounded hover:bg-blue-50">Xuất tổng hợp (đang lọc)</button>
+      </div>
 
       {loadError && (
         <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
@@ -163,24 +211,25 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
       {/* Receipts Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
-        <table className="w-full min-w-[900px] border-collapse">
+        <table className="w-full min-w-[1050px] border-collapse">
           <thead>
             <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-          <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã phiếu</th>
-              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày nhập</th>
-              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Nhân viên</th>
-              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Kho</th>
-              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Lô</th>
-              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã kiện</th>
-              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Sản phẩm</th>
-              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Số lượng nhập</th>
-              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Thao tác</th>
+          <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã phiếu</th>
+              <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày nhập</th>
+              <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Nhân viên</th>
+              <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người đề nghị</th>
+              <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Kho</th>
+              <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Lô</th>
+              <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã kiện</th>
+              <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Sản phẩm</th>
+              <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Số lượng</th>
+              <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Thao tác</th>
             </tr>
           </thead>
           <tbody>
             {filteredReceipts.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
+                <td colSpan={10} className="px-6 py-4 text-center text-gray-500">
                   Chưa có phiếu nhập kho nào
                 </td>
               </tr>
@@ -191,10 +240,13 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                 const slipBorder = receiptIndex < paginatedReceipts.length - 1 ? 'border-b-2 border-gray-300' : '';
                 return (
                   <React.Fragment key={receipt.id}>
-                    {lines.map((line, lineIndex) => (
-                      <tr key={line.id ?? lineIndex} className={`${slipBg} hover:bg-blue-50 transition-colors`}>
+                    {lines.map((line: any, lineIndex) => {
+                      const isOver = line.soLuongYeuCau != null && line.soLuongThucTe != null && line.soLuongYeuCau !== line.soLuongThucTe && (() => { const p = Number(line.soLuongYeuCau), a = Number(line.soLuongThucTe); if (!p) return a !== 0; return Math.abs(a-p)/Math.abs(p) > 0.1; })();
+                      const rowHl = isOver ? 'bg-amber-50 hover:bg-amber-100' : `${slipBg} hover:bg-blue-50`;
+                      return (
+                      <tr key={line.id ?? lineIndex} className={`${rowHl} transition-colors`}>
                         {lineIndex === 0 && (
-                          <td rowSpan={lines.length} className={`px-6 py-4 whitespace-nowrap align-top text-sm font-medium text-gray-900 border-r border-gray-200 ${slipBorder}`}>
+                          <td rowSpan={lines.length} className={`px-4 py-3 whitespace-nowrap align-top text-sm font-medium text-gray-900 border-r border-gray-200 ${slipBorder}`}>
                             {receipt.maPhieuNhap}
                             {lines.length > 1 && (
                               <span className="ml-1 text-xs font-normal text-gray-400">({lines.length} dòng)</span>
@@ -202,32 +254,40 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                           </td>
                         )}
                         {lineIndex === 0 && (
-                          <td rowSpan={lines.length} className={`px-6 py-4 whitespace-nowrap align-top text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
+                          <td rowSpan={lines.length} className={`px-4 py-3 whitespace-nowrap align-top text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
                             {new Date(receipt.ngayNhap).toLocaleDateString('vi-VN')}
                           </td>
                         )}
                         {lineIndex === 0 && (
-                          <td rowSpan={lines.length} className={`px-6 py-4 whitespace-nowrap align-top text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
+                          <td rowSpan={lines.length} className={`px-4 py-3 whitespace-nowrap align-top text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
                             {receipt.tenNhanVien}
                           </td>
                         )}
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
+                        {lineIndex === 0 && (
+                          <td rowSpan={lines.length} className={`px-4 py-3 whitespace-nowrap align-top text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
+                            {(receipt as any).nguoiDeNghi || '—'}
+                          </td>
+                        )}
+                        <td className={`px-4 py-3 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
                           {line.tenKho || '-'}
                         </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
+                        <td className={`px-4 py-3 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
                           {line.tenLo || '-'}
                         </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
+                        <td className={`px-4 py-3 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
                           <span className="font-mono font-medium text-blue-700">{line.maKien || '-'}</span>
                         </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
+                        <td className={`px-4 py-3 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
                           {line.tenSanPham || '-'}
                         </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
-                          {line.soLuongThucTe} {line.donViTinh || ''}
+                        <td className={`px-4 py-3 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
+                          <span>{line.soLuongThucTe} {line.donViTinh || ''}</span>
+                          {isOver && (
+                            <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700" title={`KH ${line.soLuongYeuCau} → TT ${line.soLuongThucTe}`}>⚠ KH {line.soLuongYeuCau} → TT {line.soLuongThucTe}</span>
+                          )}
                         </td>
                         {lineIndex === 0 && (
-                          <td rowSpan={lines.length} className={`px-6 py-4 whitespace-nowrap align-top text-sm text-gray-500 ${slipBorder}`}>
+                          <td rowSpan={lines.length} className={`px-4 py-3 whitespace-nowrap align-top text-sm text-gray-500 ${slipBorder}`}>
                             <div className="flex items-center gap-1">
                               <button
                                 onClick={() => handleViewDetail(receipt)}
@@ -285,7 +345,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                           </td>
                         )}
                       </tr>
-                    ))}
+                    );})}
                   </React.Fragment>
                 );
               })
@@ -383,6 +443,18 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="bg-gray-50 p-3 rounded-lg">
+                  <label className="text-xs text-gray-500 uppercase font-medium">Người đề nghị</label>
+                  <p className="text-sm font-semibold text-gray-900 mt-1">{(selectedReceipt as any).nguoiDeNghi || '—'}</p>
+                  {(selectedReceipt as any).boPhan && <p className="text-xs text-gray-500">{(selectedReceipt as any).boPhan}</p>}
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <label className="text-xs text-gray-500 uppercase font-medium">Bộ phận</label>
+                  <p className="text-sm font-semibold text-gray-900 mt-1">{(selectedReceipt as any).boPhan || '—'}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="text-xs text-gray-500 uppercase font-medium">Kho</label>
                   <p className="text-sm font-semibold text-gray-900 mt-1">
                     {[...new Set(selectedReceiptLines.map((item) => item.tenKho).filter(Boolean))].join(', ') || '-'}
@@ -395,35 +467,57 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                   </p>
                 </div>
               </div>
+              <div className="grid grid-cols-1 gap-4">
+                <div className="bg-purple-50 border border-purple-200 p-3 rounded-lg">
+                  <label className="text-xs text-purple-600 uppercase font-medium">Mục đích</label>
+                  <p className="text-sm text-gray-700 mt-1">{(selectedReceipt as any).mucDich || '—'}</p>
+                </div>
+              </div>
 
                     {selectedReceiptLines.length > 0 ? (
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="text-xs text-gray-500 uppercase font-medium mb-2 block">
-                    Chi tiết hàng hóa ({selectedReceiptLines.length} dòng)
+                    Chi tiết hàng hóa ({selectedReceiptLines.length} dòng) — 14 cột BM01
                   </label>
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[760px] text-sm border-collapse">
+                    <table className="w-full min-w-[1100px] text-sm border-collapse">
                       <thead>
                         <tr className="bg-gray-100">
-                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">STT</th>
-                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Sản phẩm</th>
-                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Kho</th>
-                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Lô</th>
-                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Mã kiện</th>
-                          <th scope="col" className="px-2 py-1.5 text-right text-xs font-medium text-gray-600 border">SL nhập</th>
+                          <th scope="col" className="px-2 py-1.5 text-center text-xs font-medium text-gray-600 border">TT</th>
+                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Mã hàng</th>
+                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Loại Kho</th>
+                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Tên hàng</th>
+                          <th scope="col" className="px-2 py-1.5 text-center text-xs font-medium text-gray-600 border">Số lô KH</th>
+                          <th scope="col" className="px-2 py-1.5 text-center text-xs font-medium text-gray-600 border">Số lô TT</th>
+                          <th scope="col" className="px-2 py-1.5 text-center text-xs font-medium text-gray-600 border">Số kiện KH</th>
+                          <th scope="col" className="px-2 py-1.5 text-center text-xs font-medium text-gray-600 border">Số kiện TT</th>
+                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Tình trạng</th>
+                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Quy cách</th>
+                          <th scope="col" className="px-2 py-1.5 text-center text-xs font-medium text-gray-600 border">ĐV</th>
+                          <th scope="col" className="px-2 py-1.5 text-right text-xs font-medium text-gray-600 border">SL KH</th>
+                          <th scope="col" className="px-2 py-1.5 text-right text-xs font-medium text-gray-600 border">SL TT</th>
+                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Ghi chú</th>
                           <th scope="col" className="px-2 py-1.5 text-right text-xs font-medium text-gray-600 border">Tồn trước</th>
                           <th scope="col" className="px-2 py-1.5 text-right text-xs font-medium text-gray-600 border">Tồn sau</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {selectedReceiptLines.map((item, idx) => (
+                        {selectedReceiptLines.map((item: any, idx) => (
                           <tr key={item.id || idx} className="hover:bg-gray-100">
                             <td className="px-2 py-1.5 border text-center">{item.stt || idx + 1}</td>
-                            <td className="px-2 py-1.5 border">{item.tenSanPham || '-'}</td>
+                            <td className="px-2 py-1.5 border font-mono text-xs">{item.maKien || item.lotProductId?.slice(-6) || '-'}</td>
                             <td className="px-2 py-1.5 border">{item.tenKho || '-'}</td>
-                            <td className="px-2 py-1.5 border">{item.tenLo || '-'}</td>
-                            <td className="px-2 py-1.5 border"><span className="font-mono text-blue-700">{item.maKien || '-'}</span></td>
+                            <td className="px-2 py-1.5 border">{item.tenSanPham || '-'}</td>
+                            <td className="px-2 py-1.5 border text-center">{item.soLoKeHoach ?? '-'}</td>
+                            <td className="px-2 py-1.5 border text-center">{item.soLoThucTe ?? item.tenLo ?? '-'}</td>
+                            <td className="px-2 py-1.5 border font-mono text-xs">{(() => { try { const a = JSON.parse(item.soKienKeHoach); if (Array.isArray(a)) return a.join(', '); } catch {} return item.soKienKeHoach ?? '-'; })()}</td>
+                            <td className="px-2 py-1.5 border font-mono text-xs">{(() => { try { const a = JSON.parse(item.soKienThucTe); if (Array.isArray(a)) return a.join(', '); } catch {} return item.soKienThucTe ?? item.maKien ?? '-'; })()}</td>
+                            <td className="px-2 py-1.5 border">{item.tinhTrang ?? '-'}</td>
+                            <td className="px-2 py-1.5 border">{item.quyCach ?? '-'}</td>
+                            <td className="px-2 py-1.5 border text-center">{item.donViTinh || '-'}</td>
+                            <td className="px-2 py-1.5 border text-right">{item.soLuongYeuCau ?? item.soLuongThucTe}</td>
                             <td className="px-2 py-1.5 border text-right font-semibold text-green-600">{item.soLuongThucTe} {item.donViTinh || ''}</td>
+                            <td className="px-2 py-1.5 border">{item.ghiChu || '-'}</td>
                             <td className="px-2 py-1.5 border text-right">{item.soLuongTruoc ?? '-'}</td>
                             <td className="px-2 py-1.5 border text-right">{item.soLuongSau ?? '-'}</td>
                           </tr>
@@ -431,11 +525,11 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                       </tbody>
                       <tfoot>
                         <tr className="bg-gray-100 font-semibold">
-                          <td colSpan={5} className="px-2 py-1.5 border text-right">Tổng cộng:</td>
+                          <td colSpan={11} className="px-2 py-1.5 border text-right">Tổng cộng:</td>
                           <td className="px-2 py-1.5 border text-right text-green-700">
                             {formatActualTotalByUnit(selectedReceiptLines)}
                           </td>
-                          <td colSpan={2} className="px-2 py-1.5 border"></td>
+                          <td colSpan={3} className="px-2 py-1.5 border"></td>
                         </tr>
                       </tfoot>
                     </table>
@@ -448,16 +542,9 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                 </div>
               )}
 
-              {selectedReceipt.mucDich && (
-                <div className="bg-purple-50 border border-purple-200 p-3 rounded-lg">
-                  <label className="text-xs text-purple-600 uppercase font-medium">Mục đích</label>
-                  <p className="text-sm text-gray-700 mt-1">{selectedReceipt.mucDich}</p>
-                </div>
-              )}
-
               {selectedReceipt.ghiChu && (
                 <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg">
-                  <label className="text-xs text-yellow-600 uppercase font-medium">Ghi chú</label>
+                  <label className="text-xs text-yellow-600 uppercase font-medium">Ghi chú phiếu</label>
                   <p className="text-sm text-gray-700 mt-1">{selectedReceipt.ghiChu}</p>
                 </div>
               )}
@@ -467,7 +554,19 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
               </div>
             </div>
 
-            <div className="flex justify-end mt-6">
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => { setPrintReceipt(selectedReceipt); setShowPrintView(true); }}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              >
+                In phiếu
+              </button>
+              <button
+                onClick={async () => { try { await warehouseReceiptService.exportXlsx(selectedReceipt.id); } catch (e: any) { alert(e.message || 'Lỗi xuất Excel'); } }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Xuất Excel
+              </button>
               <button
                 onClick={() => setShowDetailModal(false)}
                 className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
