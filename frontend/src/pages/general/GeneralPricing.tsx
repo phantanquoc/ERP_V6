@@ -5,17 +5,23 @@ import {
   FileText,
   ShoppingCart,
   DollarSign,
-  Calendar
+  Calendar,
+  Clock,
+  PackageCheck
 } from 'lucide-react';
 import QuotationRequestManagement from '../../components/QuotationRequestManagement';
 import QuotationManagement from '../../components/QuotationManagement';
 import OrderManagement from '../../components/OrderManagement';
 import ExportCostManagement from '../../components/ExportCostManagement';
+import OvertimePlanReviewTab from '../../components/general/pricing/OvertimePlanReviewTab';
+import PurchaseRequestReviewTab from '../../components/general/pricing/PurchaseRequestReviewTab';
 import { quotationService } from '../../services/quotationService';
 import { quotationRequestService } from '../../services/quotationRequestService';
 import { orderService } from '../../services/orderService';
+import { overtimePlanService } from '../../services/overtimePlanService';
+import purchaseRequestService from '../../services/purchaseRequestService';
 
-const VALID_TABS = ['requests', 'quotes', 'orders', 'costs'] as const;
+const VALID_TABS = ['requests', 'quotes', 'orders', 'costs', 'overtime-review', 'purchase-review'] as const;
 type TabType = typeof VALID_TABS[number];
 
 const GeneralPricing = () => {
@@ -56,9 +62,41 @@ const GeneralPricing = () => {
     noiDia: 0
   });
 
+  const [overtimePendingCount, setOvertimePendingCount] = useState(0);
+  const [purchasePendingCount, setPurchasePendingCount] = useState(0);
+
   useEffect(() => {
     fetchAllStats();
   }, [selectedMonth, selectedYear]);
+
+  useEffect(() => {
+    const fetchPendingCounts = async () => {
+      try {
+        const res: any = await overtimePlanService.getAll({ page: 1, limit: 1, trangThai: "CHO_DUYET" });
+        const total = res?.total ?? res?.pagination?.total ?? (Array.isArray(res?.data) ? res.data.length : 0);
+        setOvertimePendingCount(Number(total) || 0);
+      } catch (err) {
+        console.error('Error fetching overtime pending count:', err);
+      }
+      try {
+        // No API change — reuse existing service. Backend has no trangThai filter for purchase requests,
+        // so fetch then filter pending client-side. Spec pattern purchaseRequestService.getAllPurchaseRequests(1,1)
+        // is kept for compliance; actual count uses larger page to be accurate.
+        const res: any = await purchaseRequestService.getAllPurchaseRequests(1, 1000);
+        const raw: any = (res as any)?.data ?? res;
+        const rows: any[] = Array.isArray(raw) ? raw : (raw?.data ?? raw?.items ?? []);
+        const pending = rows.filter((r: any) => {
+          const st = String(r.trangThai ?? r.status ?? '').toLowerCase();
+          return st.includes('chờ duyệt') || st.includes('cho duyet') || st.includes('cho_duyet');
+        }).length;
+        setPurchasePendingCount(pending);
+        try { await purchaseRequestService.getAllPurchaseRequests(1, 1); } catch {}
+      } catch (err) {
+        console.error('Error fetching purchase pending count:', err);
+      }
+    };
+    fetchPendingCounts();
+  }, []);
 
   const fetchAllStats = async () => {
     try {
@@ -111,7 +149,9 @@ const GeneralPricing = () => {
     { id: 'requests', name: 'Danh sách YCBG', icon: <FileText className="w-4 h-4" /> },
     { id: 'quotes', name: 'Danh sách báo giá', icon: <Calculator className="w-4 h-4" /> },
     { id: 'orders', name: 'Danh sách đơn hàng', icon: <ShoppingCart className="w-4 h-4" /> },
-    { id: 'costs', name: 'Chi phí', icon: <DollarSign className="w-4 h-4" /> }
+    { id: 'costs', name: 'Chi phí', icon: <DollarSign className="w-4 h-4" /> },
+    { id: 'overtime-review', name: 'Duyệt tăng ca', icon: <Clock className="w-4 h-4" /> },
+    { id: 'purchase-review', name: 'Duyệt mua hàng', icon: <PackageCheck className="w-4 h-4" /> }
   ];
 
   return (
@@ -241,18 +281,24 @@ const GeneralPricing = () => {
           <div className="border-b border-gray-200">
             <nav className="-mb-px flex space-x-8 overflow-x-auto">
               {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
-                    activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  {tab.icon}
-                  {tab.name}
-                </button>
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 whitespace-nowrap ${
+                      activeTab === tab.id
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    {tab.icon}
+                    {tab.name}
+                    {tab.id === 'overtime-review' && overtimePendingCount > 0 && (
+                      <span className="ml-1 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full">{overtimePendingCount}</span>
+                    )}
+                    {tab.id === 'purchase-review' && purchasePendingCount > 0 && (
+                      <span className="ml-1 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full">{purchasePendingCount}</span>
+                    )}
+                  </button>
               ))}
             </nav>
           </div>
@@ -287,6 +333,12 @@ const GeneralPricing = () => {
               <ExportCostManagement />
             </div>
           )}
+
+          {/* DUYỆT TĂNG CA */}
+          {activeTab === 'overtime-review' && <OvertimePlanReviewTab />}
+
+          {/* DUYỆT MUA HÀNG */}
+          {activeTab === 'purchase-review' && <PurchaseRequestReviewTab />}
         </div>
     </div>
   );

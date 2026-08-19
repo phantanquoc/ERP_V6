@@ -513,6 +513,80 @@ export class QuotationRequestService {
     return request;
   }
 
+  async approveQuotationRequest(id: string, actorId?: string, actorRole?: string): Promise<any> {
+    const existing = await this.getQuotationRequestById(id);
+    const currentStatus = existing.status as PrismaQRStatus;
+    // Only CHO_XU_LY may be approved — forward-only single step
+    advanceQuotationRequestStatus(currentStatus as any, 'DANG_BAO_GIA', { bypass: false });
+    const request = await prisma.quotationRequest.update({
+      where: { id },
+      data: { status: PrismaQRStatus.DANG_BAO_GIA },
+      include: {
+        employee: { include: { user: { select: { firstName: true, lastName: true, email: true } } } },
+        customer: true,
+        items: { include: { product: true } },
+      },
+    });
+    recordAudit({
+      entityType: 'QuotationRequest',
+      entityId: id,
+      action: 'STATUS_CHANGE',
+      actorId: actorId ?? 'system',
+      actorRole: actorRole ?? 'UNKNOWN',
+      before: { status: existing.status },
+      after: { status: 'DANG_BAO_GIA' },
+    });
+    // Notify creator (direct)
+    try {
+      const creatorEmployeeId = existing.employeeId as string | undefined;
+      if (creatorEmployeeId) {
+        await notificationService.notify(NotificationEvent.QUOTATION_REQUEST_APPROVED, {
+          targetEmployeeIds: [creatorEmployeeId],
+          entityId: id,
+          metadata: { maYeuCauBaoGia: existing.maYeuCauBaoGia, tenKhachHang: existing.tenKhachHang },
+        });
+      }
+    } catch {}
+    return request;
+  }
+
+  async rejectQuotationRequest(id: string, actorId?: string, actorRole?: string, lyDo?: string): Promise<any> {
+    const existing = await this.getQuotationRequestById(id);
+    const currentStatus = existing.status as PrismaQRStatus;
+    // CHO_XU_LY -> HUY via cancel target (allowed from non-terminal)
+    advanceQuotationRequestStatus(currentStatus as any, 'HUY', { bypass: false });
+    const request = await prisma.quotationRequest.update({
+      where: { id },
+      data: { status: PrismaQRStatus.HUY },
+      include: {
+        employee: { include: { user: { select: { firstName: true, lastName: true, email: true } } } },
+        customer: true,
+        items: { include: { product: true } },
+      },
+    });
+    recordAudit({
+      entityType: 'QuotationRequest',
+      entityId: id,
+      action: 'STATUS_CHANGE',
+      actorId: actorId ?? 'system',
+      actorRole: actorRole ?? 'UNKNOWN',
+      before: { status: existing.status },
+      after: { status: 'HUY' },
+      note: lyDo,
+    });
+    try {
+      const creatorEmployeeId = existing.employeeId as string | undefined;
+      if (creatorEmployeeId) {
+        await notificationService.notify(NotificationEvent.QUOTATION_REQUEST_REJECTED, {
+          targetEmployeeIds: [creatorEmployeeId],
+          entityId: id,
+          metadata: { maYeuCauBaoGia: existing.maYeuCauBaoGia, tenKhachHang: existing.tenKhachHang, lyDo: lyDo ?? '' },
+        });
+      }
+    } catch {}
+    return request;
+  }
+
   async deleteQuotationRequest(id: string, actorId?: string, actorRole?: string): Promise<void> {
     const existing = await this.getQuotationRequestById(id);
 

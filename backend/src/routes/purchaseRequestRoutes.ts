@@ -169,7 +169,17 @@ router.post('/', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TE
  *       404:
  *         description: Không tìm thấy yêu cầu mua hàng
  */
-router.put('/:id', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD), uploadPurchaseRequest, purchaseRequestController.updatePurchaseRequest);
+router.put('/:id', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  async (req: any, res: any, next: any) => {
+    // EMPLOYEE is only allowed if pricing approver; heads always pass above via authorize
+    if (req.user?.role === 'EMPLOYEE') {
+      const { isPricingApprover } = await import('@utils/isPricingApprover');
+      if (await isPricingApprover(req.user)) return next();
+      return res.status(403).json({ success: false, message: 'Không có quyền cập nhật yêu cầu mua hàng' });
+    }
+    return next();
+  },
+  uploadPurchaseRequest, purchaseRequestController.updatePurchaseRequest);
 
 /**
  * @swagger

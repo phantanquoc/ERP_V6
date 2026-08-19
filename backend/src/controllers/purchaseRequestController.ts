@@ -122,6 +122,8 @@ class PurchaseRequestController {
         }
       }
 
+      // Inject actor for pricing approver guard
+      (data as any).__actorUserId = (req as any).user?.id;
       const request = await purchaseRequestService.updatePurchaseRequest(id, data);
 
       return res.json({

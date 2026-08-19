@@ -58,16 +58,33 @@ class OvertimePlanService {
     id: string;
     firstName: string;
     lastName: string;
-    departmentId: string | null;
     employees: { employeeCode: string } | null;
+    departmentName?: string;
+    subDepartmentName?: string;
   }) {
     return {
       id: user.id,
       firstName: user.firstName,
       lastName: user.lastName,
       employeeCode: user.employees?.employeeCode || '',
-      department: user.departmentId || '',
+      department: user.subDepartmentName || user.departmentName || '',
     };
+  }
+
+  private async enrichUsersWithDepartmentNames(users: any[]): Promise<any[]> {
+    const deptIds = [...new Set(users.map(u => u.departmentId).filter(Boolean))] as string[];
+    const subDeptIds = [...new Set(users.map(u => u.subDepartmentId).filter(Boolean))] as string[];
+    const [depts, subDepts] = await Promise.all([
+      deptIds.length ? prisma.department.findMany({ where: { id: { in: deptIds } }, select: { id: true, name: true } }) : Promise.resolve([] as any[]),
+      subDeptIds.length ? prisma.subDepartment.findMany({ where: { id: { in: subDeptIds } }, select: { id: true, name: true } }) : Promise.resolve([] as any[]),
+    ]);
+    const deptMap = new Map(depts.map((d: any) => [d.id, d.name]));
+    const subDeptMap = new Map(subDepts.map((d: any) => [d.id, d.name]));
+    return users.map(u => ({
+      ...u,
+      departmentName: u.departmentId ? deptMap.get(u.departmentId) ?? '' : '',
+      subDepartmentName: u.subDepartmentId ? subDeptMap.get(u.subDepartmentId) ?? '' : '',
+    }));
   }
 
   // Populate a single plan with nguoiTao (+nguoiDuyet) and per-item nguoiThamGia arrays
@@ -76,10 +93,11 @@ class OvertimePlanService {
       const itemUserIds: string[] = (plan.items || []).flatMap((item: any) => item.nguoiThamGiaIds || []);
       const extraIds: string[] = plan.nguoiDuyetId ? [plan.nguoiDuyetId] : [];
       const allIds = Array.from(new Set([plan.nguoiTaoId, ...itemUserIds, ...extraIds]));
-      const users = await prisma.user.findMany({
+      const usersRaw = await prisma.user.findMany({
         where: { id: { in: allIds } },
-        select: { id: true, firstName: true, lastName: true, departmentId: true, employees: { select: { employeeCode: true } } },
+        select: { id: true, firstName: true, lastName: true, departmentId: true, subDepartmentId: true, employees: { select: { employeeCode: true } } },
       });
+      const users = await this.enrichUsersWithDepartmentNames(usersRaw);
       const userMap = new Map(users.map(u => [u.id, u]));
       return this.buildPopulated(plan, userMap);
     } catch (error) {
@@ -96,10 +114,11 @@ class OvertimePlanService {
       );
       const extraIds: string[] = plans.map((p: any) => p.nguoiDuyetId).filter(Boolean);
       const allIds = Array.from(new Set(plans.flatMap((p: any) => [p.nguoiTaoId, ...itemUserIds, ...extraIds])));
-      const users = await prisma.user.findMany({
+      const usersRaw = await prisma.user.findMany({
         where: { id: { in: allIds } },
-        select: { id: true, firstName: true, lastName: true, departmentId: true, employees: { select: { employeeCode: true } } },
+        select: { id: true, firstName: true, lastName: true, departmentId: true, subDepartmentId: true, employees: { select: { employeeCode: true } } },
       });
+      const users = await this.enrichUsersWithDepartmentNames(usersRaw);
       const userMap = new Map(users.map(u => [u.id, u]));
       return plans.map(p => this.buildPopulated(p, userMap));
     } catch (error) {

@@ -153,11 +153,34 @@ const OvertimePlanReviewTab: React.FC = () => {
     onError: (err: any) => toast.error(err?.response?.data?.message ?? err.message ?? 'Từ chối thất bại'),
   });
 
+  const handleExportFiltered = () => {
+    const exportRows = filtered;
+    if (exportRows.length === 0) { toast.error('Không có dữ liệu để xuất'); return; }
+    try {
+      const headers = ['STT', 'Ngay tao', 'Noi dung', 'Uu tien', 'Nguoi tao', 'So dong', 'Trang thai'];
+      const csvRows = exportRows.map((r: any, idx: number) => {
+        const priorityBadge = getPriorityBadge(String(r.mucDoUuTien ?? 'TRUNG_BINH'));
+        const statusBadge = getStatusBadge(String(r.trangThai ?? r.status ?? 'CHO_DUYET') as any);
+        const nguoiTao = r.nguoiTao ? `${r.nguoiTao.lastName ?? ''} ${r.nguoiTao.firstName ?? ''}`.trim() : '';
+        const ngayTao = r.ngayTao ? new Date(r.ngayTao).toLocaleDateString('vi-VN') : '';
+        return [idx + 1, ngayTao, (r.noiDung ?? '').replace(/\n/g, ' '), priorityBadge.label, nguoiTao, r.items?.length ?? 0, statusBadge.label];
+      });
+      const all = [headers, ...csvRows];
+      const csv = all.map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url;
+      a.download = `tang-ca-dang-loc-${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+      toast.success(`Đã xuất ${exportRows.length} dòng (đang lọc) ra CSV`);
+    } catch (e: any) { toast.error(e?.message ?? 'Xuất file thất bại'); }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h2 className="text-lg font-semibold">Duyệt tăng ca</h2>
-        <span className="text-sm text-gray-500">{total} kế hoạch</span>
+        <h2 className="text-lg font-semibold flex items-center gap-2">Duyệt tăng ca<span className="text-sm font-normal text-gray-500">({total})</span></h2>
+        <button type="button" onClick={handleExportFiltered} className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium bg-emerald-600 text-white rounded-md hover:bg-emerald-700 shadow-sm shrink-0" title="Xuất các dòng đang lọc (toàn bộ, không phân trang) ra CSV">Xuất Excel (đang lọc)</button>
       </div>
 
       <TableFilter
@@ -299,7 +322,6 @@ const OvertimePlanReviewTab: React.FC = () => {
                     <div className="bg-gray-50 rounded-lg p-3">
                       <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Mức độ ưu tiên</p>
                       <span className={`inline-flex mt-2 px-2 py-0.5 rounded-full text-xs font-medium ${priorityBadge.class}`}>{priorityBadge.label}</span>
-                      <p className="text-xs text-gray-400 mt-1">{row.mucDoUuTien ?? '—'}</p>
                     </div>
                     <div className="bg-gray-50 rounded-lg p-3">
                       <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Trạng thái</p>
@@ -333,7 +355,8 @@ const OvertimePlanReviewTab: React.FC = () => {
                   )}
                   <div className="bg-gray-50 rounded-lg p-3">
                     <p className="font-medium mb-2">Các ngày tăng ca ({row.items?.length ?? 0})</p>
-                    <div className="bg-white rounded-lg border overflow-hidden max-h-64 overflow-auto">
+                    <div className="bg-white rounded-lg border overflow-hidden">
+                      <div className="overflow-x-auto">
                       <table className="w-full text-xs">
                         <thead className="bg-gray-100 sticky top-0"><tr className="text-gray-600"><th className="text-left px-3 py-2 font-medium">Ngày</th><th className="text-left px-3 py-2 font-medium">Ca</th><th className="text-left px-3 py-2 font-medium">Nhân sự</th><th className="text-left px-3 py-2 font-medium">Giờ bắt đầu</th><th className="text-left px-3 py-2 font-medium">Giờ kết thúc</th><th className="text-left px-3 py-2 font-medium">Tổng giờ</th></tr></thead>
                         <tbody className="divide-y divide-gray-100">
@@ -363,6 +386,7 @@ const OvertimePlanReviewTab: React.FC = () => {
                           })}
                         </tbody>
                       </table>
+                      </div>
                     </div>
                   </div>
                   {row.files && row.files.length > 0 && (
@@ -379,7 +403,7 @@ const OvertimePlanReviewTab: React.FC = () => {
               );
             })()}
           </div>
-          <div className="flex justify-between items-center gap-2 px-6 py-4 border-t shrink-0 bg-gray-50 rounded-b-lg">
+          <div className="flex justify-end gap-2 px-6 py-4 border-t shrink-0 bg-gray-50 rounded-b-lg">
             <div className="flex gap-2">
               {(() => {
                 const row = (detailQuery.data as any) ?? allRows.find((x: any) => x.id === detailId);

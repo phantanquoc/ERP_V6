@@ -695,6 +695,24 @@ const entries: NotificationEventDef[] = [
     },
   },
   {
+    event: NotificationEvent.QUOTATION_REQUEST_APPROVED,
+    notificationType: NotificationType.PRICING,
+    buildMessage: (ctx) => ({
+      title: 'YCBG đã được duyệt',
+      message: `YCBG ${ctx.metadata?.maYeuCauBaoGia ?? ''} đã được duyệt${ctx.metadata?.tenKhachHang ? ` — ${ctx.metadata.tenKhachHang}` : ''}`,
+    }),
+    resolveRecipients: resolveDirectRecipients,
+  },
+  {
+    event: NotificationEvent.QUOTATION_REQUEST_REJECTED,
+    notificationType: NotificationType.PRICING,
+    buildMessage: (ctx) => ({
+      title: 'YCBG bị từ chối',
+      message: `YCBG ${ctx.metadata?.maYeuCauBaoGia ?? ''} đã bị từ chối${ctx.metadata?.lyDo ? ': ' + String(ctx.metadata.lyDo) : ''}`,
+    }),
+    resolveRecipients: resolveDirectRecipients,
+  },
+  {
     event: NotificationEvent.QUOTATION_WON,
     notificationType: NotificationType.PRICING,
     buildMessage: (ctx) => ({

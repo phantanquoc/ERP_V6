@@ -156,6 +156,29 @@ export class QuotationRequestController {
     }
   }
 
+  async approveQuotationRequest(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = req.params.id as string;
+      const actorRole = req.user?.role;
+      const actorId = req.user?.id;
+      const request = await quotationRequestService.approveQuotationRequest(id, actorId, actorRole);
+      const response: ApiResponse<any> = { success: true, data: request, message: 'YCBG đã được duyệt' };
+      res.json(response);
+    } catch (error) { next(error); }
+  }
+
+  async rejectQuotationRequest(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = req.params.id as string;
+      const actorRole = req.user?.role;
+      const actorId = req.user?.id;
+      const lyDo = (req.body as any)?.lyDo as string | undefined;
+      const request = await quotationRequestService.rejectQuotationRequest(id, actorId, actorRole, lyDo);
+      const response: ApiResponse<any> = { success: true, data: request, message: 'YCBG đã bị từ chối' };
+      res.json(response);
+    } catch (error) { next(error); }
+  }
+
   async deleteQuotationRequest(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = req.params.id as string;

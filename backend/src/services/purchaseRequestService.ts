@@ -1,6 +1,6 @@
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
-import { NotFoundError, ValidationError } from '@utils/errors';
+import { NotFoundError, ValidationError, AuthorizationError } from '@utils/errors';
 import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import ExcelJS from 'exceljs';
 import supplyRequestService from './supplyRequestService';
@@ -248,6 +248,22 @@ class PurchaseRequestService {
     return this.generatePurchaseRequestCode();
   }
 
+  private async assertCanApprovePurchase(actorUserId?: string): Promise<void> {
+    if (!actorUserId) throw new ValidationError('Thiếu thông tin người duyệt');
+    const user = await prisma.user.findUnique({ where: { id: actorUserId } });
+    if (!user) throw new ValidationError('Người duyệt không tồn tại');
+    if (user.role === 'ADMIN') return;
+    // Check DEPARTMENT_HEAD / TEAM_LEAD via authorize already? But pricing EMPLOYEE also allowed — check pricing approver
+    const secondary = await prisma.userSecondaryDepartment.findMany({ where: { userId: user.id } }).then((rows: any[]) => rows.map(r => ({ departmentId: r.departmentId, subDepartmentId: r.subDepartmentId, role: r.role })));
+    // Also allow any DEPARTMENT_HEAD/TEAM_LEAD (existing behavior for purchase approvals)
+    if (user.role === 'DEPARTMENT_HEAD' || user.role === 'TEAM_LEAD') return;
+    if (secondary.some((s: any) => s.role === 'DEPARTMENT_HEAD' || s.role === 'TEAM_LEAD')) return;
+    const { isPricingApprover } = await import('@utils/isPricingApprover');
+    const payload: any = { id: user.id, role: user.role, departmentId: user.departmentId, subDepartmentId: user.subDepartmentId, secondaryDepartments: secondary };
+    if (await isPricingApprover(payload)) return;
+    throw new AuthorizationError('Không có quyền duyệt yêu cầu mua hàng');
+  }
+
   async updatePurchaseRequest(id: string, data: {
     phanLoai?: string;
     tenHangHoa?: string;
@@ -274,6 +290,13 @@ class PurchaseRequestService {
       throw new NotFoundError('Không tìm thấy yêu cầu mua hàng');
     }
 
+    // Guard: approval/rejection requires pricing approver or dept head (called via controller with actorId)
+    const _actorIdForGuard = (data as any).__actorUserId as string | undefined;
+    if (data.trangThai === 'Đã duyệt' || data.trangThai === 'Từ chối') {
+      if (_actorIdForGuard) {
+        await this.assertCanApprovePurchase(_actorIdForGuard);
+      }
+    }
     // Validate approval fields
     if (data.trangThai === 'Đã duyệt') {
       const errors: string[] = [];
@@ -290,6 +313,8 @@ class PurchaseRequestService {
 
     // Parse soLuong to float if it's a string (from FormData)
     const { items, ...updateData } = data as any;
+    // Strip internal actor field before Prisma — unknown field causes P2000/P2011
+    delete (updateData as any).__actorUserId;
     if (updateData.soLuong !== undefined && updateData.soLuong !== null) {
       updateData.soLuong = parseFloat(updateData.soLuong.toString());
     }
