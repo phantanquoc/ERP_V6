@@ -10,6 +10,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import warehouseIssueService, { WarehouseIssue } from '../services/warehouseIssueService';
 import { getUniqueSlipField, getWarehouseSlipLines, normalizeWarehouseListResponse } from '../utils/warehouseSlipLines';
 import { warehouseKeys } from '../hooks';
+import { TINH_TRANG_OPTIONS } from '../constants/warehouseCatalogs';
 
 interface WarehouseIssueTabProps {
   month?: number;
@@ -34,12 +35,20 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
   const [editingIssue, setEditingIssue] = useState<WarehouseIssue | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maPhieuXuat: '', tenNhanVien: '', tenKho: '', tenSanPham: '' });
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maPhieuXuat: '', tenNhanVien: '', nguoiDeNghi: '', boPhan: '', tenKho: '', tenSanPham: '', tinhTrang: '', daIn: '', fromNgay: '', toNgay: '' });
+  const [sortKey, setSortKey] = useState<'ngayXuat' | 'maPhieuXuat'>('ngayXuat');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const issueFilterFields: FilterField[] = [
     { key: 'maPhieuXuat', label: 'Mã phiếu', type: 'text' },
     { key: 'tenNhanVien', label: 'Nhân viên', type: 'text' },
+    { key: 'nguoiDeNghi', label: 'Người đề nghị', type: 'text' },
+    { key: 'boPhan', label: 'Bộ phận', type: 'text' },
     { key: 'tenKho', label: 'Kho', type: 'text' },
     { key: 'tenSanPham', label: 'Sản phẩm', type: 'text' },
+    { key: 'tinhTrang', label: 'Tình trạng', type: 'select', options: [{ value: '', label: 'Tất cả' }, ...[...TINH_TRANG_OPTIONS].map((o) => ({ value: o.value, label: o.label })) ] },
+    { key: 'daIn', label: 'Đã in', type: 'select', options: [{ value: '', label: 'Tất cả' }, { value: 'true', label: 'Đã in' }, { value: 'false', label: 'Chưa in' }] },
+    { key: 'fromNgay', label: 'Từ ngày', type: 'text', placeholder: 'YYYY-MM-DD' },
+    { key: 'toNgay', label: 'Đến ngày', type: 'text', placeholder: 'YYYY-MM-DD' },
   ];
 
   const handleViewDetail = (issue: WarehouseIssue) => {
@@ -87,7 +96,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
       if (month && (date.getMonth() + 1) !== month) return false;
       if (year && date.getFullYear() !== year) return false;
     }
-    const lines = getWarehouseSlipLines(issue);
+    const lines = getWarehouseSlipLines(issue) as any[];
     // value — the deprecated header mirror only holds line 1, so filtering on
     // it alone makes every other line unfindable.
     const lineMatch = (needle: string) =>
@@ -99,17 +108,40 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
       const matchSearch =
         contains(issue.maPhieuXuat, search) ||
         contains(issue.tenNhanVien, search) ||
+        contains((issue as any).nguoiDeNghi, search) ||
+        contains((issue as any).boPhan, search) ||
         lineMatch(search);
       if (!matchSearch) return false;
     }
     if (filterValues.maPhieuXuat && !contains(issue.maPhieuXuat, filterValues.maPhieuXuat.toLowerCase())) return false;
     if (filterValues.tenNhanVien && !contains(issue.tenNhanVien, filterValues.tenNhanVien.toLowerCase())) return false;
+    if (filterValues.nguoiDeNghi && !contains((issue as any).nguoiDeNghi, filterValues.nguoiDeNghi.toLowerCase())) return false;
+    if (filterValues.boPhan && !contains((issue as any).boPhan, filterValues.boPhan.toLowerCase())) return false;
     if (filterValues.tenKho && !lines.some((l) => contains(l.tenKho, filterValues.tenKho.toLowerCase()))) return false;
     if (filterValues.tenSanPham && !lines.some((l) => contains(l.tenSanPham, filterValues.tenSanPham.toLowerCase()))) return false;
+    if (filterValues.tinhTrang && !lines.some((l) => contains((l as any).tinhTrang, filterValues.tinhTrang.toLowerCase()))) return false;
+    if (filterValues.daIn) {
+      const isPrinted = !!(issue as any).daIn;
+      if (filterValues.daIn === 'true' && !isPrinted) return false;
+      if (filterValues.daIn === 'false' && isPrinted) return false;
+    }
+    if (filterValues.fromNgay) {
+      const from = new Date(filterValues.fromNgay); from.setHours(0,0,0,0);
+      if (new Date(issue.ngayXuat) < from) return false;
+    }
+    if (filterValues.toNgay) {
+      const to = new Date(filterValues.toNgay); to.setHours(23,59,59,999);
+      if (new Date(issue.ngayXuat) > to) return false;
+    }
     return true;
   });
-  const totalPages = Math.ceil(filteredIssues.length / itemsPerPage);
-  const paginatedIssues = filteredIssues.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const sortedIssues = [...filteredIssues].sort((a, b) => {
+    const dir = sortDir === 'asc' ? 1 : -1;
+    if (sortKey === 'maPhieuXuat') return dir * (a.maPhieuXuat.localeCompare(b.maPhieuXuat));
+    return dir * (new Date(a.ngayXuat).getTime() - new Date(b.ngayXuat).getTime());
+  });
+  const totalPages = Math.ceil(sortedIssues.length / itemsPerPage);
+  const paginatedIssues = sortedIssues.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -141,6 +173,21 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
         onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
         searchPlaceholder="Tìm kiếm phiếu xuất..."
       />
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <span className="text-xs text-gray-500">Sắp xếp:</span>
+        <select value={sortKey} onChange={(e) => setSortKey(e.target.value as any)} className="px-2 py-1 border border-gray-300 rounded text-xs">
+          <option value="ngayXuat">Ngày xuất</option>
+          <option value="maPhieuXuat">Mã phiếu</option>
+        </select>
+        <button type="button" onClick={() => setSortDir((d) => d === 'asc' ? 'desc' : 'asc')} className="px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50">{sortDir === 'asc' ? '↑ Tăng' : '↓ Giảm'}</button>
+        <span className="text-xs text-gray-400 ml-2">{sortedIssues.length} phiếu {filteredIssues.length !== issues.length && `· lọc từ ${issues.length}`}</span>
+        <button type="button" onClick={async () => {
+          const ids = sortedIssues.map((r) => r.id);
+          if (ids.length === 0) { alert('Không có phiếu để xuất'); return; }
+          if (!confirm(`Xuất tổng hợp ${ids.length} phiếu đang lọc?`)) return;
+          for (const id of ids) { try { await warehouseIssueService.exportXlsx(id); } catch {} }
+        }} className="ml-auto px-3 py-1.5 text-xs border border-blue-300 text-blue-700 rounded hover:bg-blue-50">Xuất tổng hợp (đang lọc)</button>
+      </div>
 
       {loadError && (
         <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
@@ -158,24 +205,25 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
           summed across lines: each line shows its own amount and unit. */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
-        <table className="w-full min-w-[900px] border-collapse">
+        <table className="w-full min-w-[1050px] border-collapse">
           <thead>
             <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã phiếu</th>
-              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày xuất</th>
-              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Nhân viên</th>
-              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Kho</th>
-              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Lô</th>
-              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã kiện</th>
-              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Sản phẩm</th>
-              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Số lượng xuất</th>
-              <th scope="col" className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Thao tác</th>
+              <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã phiếu</th>
+              <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày xuất</th>
+              <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Nhân viên</th>
+              <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người đề nghị</th>
+              <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Kho</th>
+              <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Lô</th>
+              <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã kiện</th>
+              <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Sản phẩm</th>
+              <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Số lượng</th>
+              <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Thao tác</th>
             </tr>
           </thead>
           <tbody>
             {filteredIssues.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
+                <td colSpan={10} className="px-6 py-4 text-center text-gray-500">
                   Chưa có phiếu xuất kho nào
                 </td>
               </tr>
@@ -186,10 +234,13 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                 const slipBorder = issueIndex < paginatedIssues.length - 1 ? 'border-b-2 border-gray-300' : '';
                 return (
                   <React.Fragment key={issue.id}>
-                    {lines.map((line, lineIndex) => (
-                      <tr key={line.id ?? lineIndex} className={`${slipBg} hover:bg-blue-50 transition-colors`}>
+                    {lines.map((line: any, lineIndex) => {
+                      const isOver = line.soLuongYeuCau != null && line.soLuongThucTe != null && line.soLuongYeuCau !== line.soLuongThucTe && (() => { const p = Number(line.soLuongYeuCau), a = Number(line.soLuongThucTe); if (!p) return a !== 0; return Math.abs(a-p)/Math.abs(p) > 0.1; })();
+                      const rowHl = isOver ? 'bg-amber-50 hover:bg-amber-100' : `${slipBg} hover:bg-blue-50`;
+                      return (
+                      <tr key={line.id ?? lineIndex} className={`${rowHl} transition-colors`}>
                         {lineIndex === 0 && (
-                          <td rowSpan={lines.length} className={`px-6 py-4 whitespace-nowrap align-top text-sm font-medium text-gray-900 border-r border-gray-200 ${slipBorder}`}>
+                          <td rowSpan={lines.length} className={`px-4 py-3 whitespace-nowrap align-top text-sm font-medium text-gray-900 border-r border-gray-200 ${slipBorder}`}>
                             {issue.maPhieuXuat}
                             {issue.isLocked && (
                               <span className="ml-2 inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700" title={issue.supplyRequestId ? 'Phiếu liên kết yêu cầu cấp vật tư' : 'Phiếu đã khóa, không thể chỉnh sửa hoặc xóa'}>
@@ -202,32 +253,38 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                           </td>
                         )}
                         {lineIndex === 0 && (
-                          <td rowSpan={lines.length} className={`px-6 py-4 whitespace-nowrap align-top text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
+                          <td rowSpan={lines.length} className={`px-4 py-3 whitespace-nowrap align-top text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
                             {new Date(issue.ngayXuat).toLocaleDateString('vi-VN')}
                           </td>
                         )}
                         {lineIndex === 0 && (
-                          <td rowSpan={lines.length} className={`px-6 py-4 whitespace-nowrap align-top text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
+                          <td rowSpan={lines.length} className={`px-4 py-3 whitespace-nowrap align-top text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
                             {issue.tenNhanVien}
                           </td>
                         )}
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
+                        {lineIndex === 0 && (
+                          <td rowSpan={lines.length} className={`px-4 py-3 whitespace-nowrap align-top text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
+                            {(issue as any).nguoiDeNghi || '—'}
+                          </td>
+                        )}
+                        <td className={`px-4 py-3 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
                           {line.tenKho || '-'}
                         </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
+                        <td className={`px-4 py-3 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
                           {line.tenLo || '-'}
                         </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
+                        <td className={`px-4 py-3 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
                           <span className="font-mono font-medium text-blue-700">{line.maKien || '-'}</span>
                         </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
+                        <td className={`px-4 py-3 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
                           {line.tenSanPham || '-'}
                         </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
-                          {line.soLuongThucTe} {line.donViTinh || ''}
+                        <td className={`px-4 py-3 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 ${slipBorder}`}>
+                          <span>{line.soLuongThucTe} {line.donViTinh || ''}</span>
+                          {isOver && <span className="ml-2 inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700" title={`KH ${line.soLuongYeuCau} → TT ${line.soLuongThucTe}`}>⚠ KH {line.soLuongYeuCau} → TT {line.soLuongThucTe}</span>}
                         </td>
                         {lineIndex === 0 && (
-                          <td rowSpan={lines.length} className={`px-6 py-4 whitespace-nowrap align-top text-sm text-gray-500 ${slipBorder}`}>
+                          <td rowSpan={lines.length} className={`px-4 py-3 whitespace-nowrap align-top text-sm text-gray-500 ${slipBorder}`}>
                             <div className="flex items-center gap-1">
               <button
                 aria-label="Xem chi tiết phiếu xuất"
@@ -280,7 +337,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                           </td>
                         )}
                       </tr>
-                    ))}
+                    );})}
                   </React.Fragment>
                 );
               })
@@ -383,6 +440,17 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="bg-gray-50 p-3 rounded-lg">
+                  <label className="text-xs text-gray-500 uppercase font-medium">Người đề nghị</label>
+                  <p className="text-sm font-semibold text-gray-900 mt-1">{(selectedIssue as any).nguoiDeNghi || '—'}</p>
+                  {(selectedIssue as any).boPhan && <p className="text-xs text-gray-500">{(selectedIssue as any).boPhan}</p>}
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <label className="text-xs text-gray-500 uppercase font-medium">Bộ phận</label>
+                  <p className="text-sm font-semibold text-gray-900 mt-1">{(selectedIssue as any).boPhan || '—'}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="text-xs text-gray-500 uppercase font-medium">Kho</label>
                   <p className="text-sm font-semibold text-gray-900 mt-1">{getUniqueSlipField(selectedIssueLines, 'tenKho')}</p>
                 </div>
@@ -391,35 +459,57 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                   <p className="text-sm font-semibold text-gray-900 mt-1">{getUniqueSlipField(selectedIssueLines, 'tenLo')}</p>
                 </div>
               </div>
+              <div className="grid grid-cols-1 gap-4">
+                <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg">
+                  <label className="text-xs text-orange-600 uppercase font-medium">Lý do xuất</label>
+                  <p className="text-sm text-gray-700 mt-1">{(selectedIssue as any).lyDoXuatKho || '—'}</p>
+                </div>
+              </div>
 
               {selectedIssueLines.length > 0 ? (
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="text-xs text-gray-500 uppercase font-medium mb-2 block">
-                    Chi tiết hàng hóa ({selectedIssueLines.length} dòng)
+                    Chi tiết hàng hóa ({selectedIssueLines.length} dòng) — 14 cột BM03
                   </label>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm border-collapse">
+                    <table className="w-full min-w-[1100px] text-sm border-collapse">
                       <thead>
                         <tr className="bg-gray-100">
-                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">STT</th>
-                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Sản phẩm</th>
-                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Kho</th>
-                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Lô</th>
-                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Mã kiện</th>
-                          <th scope="col" className="px-2 py-1.5 text-right text-xs font-medium text-gray-600 border">SL xuất</th>
+                          <th scope="col" className="px-2 py-1.5 text-center text-xs font-medium text-gray-600 border">TT</th>
+                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Mã hàng</th>
+                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Loại Kho</th>
+                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Tên hàng</th>
+                          <th scope="col" className="px-2 py-1.5 text-center text-xs font-medium text-gray-600 border">Số lô KH</th>
+                          <th scope="col" className="px-2 py-1.5 text-center text-xs font-medium text-gray-600 border">Số lô TT</th>
+                          <th scope="col" className="px-2 py-1.5 text-center text-xs font-medium text-gray-600 border">Số kiện KH</th>
+                          <th scope="col" className="px-2 py-1.5 text-center text-xs font-medium text-gray-600 border">Số kiện TT</th>
+                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Tình trạng</th>
+                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Quy cách</th>
+                          <th scope="col" className="px-2 py-1.5 text-center text-xs font-medium text-gray-600 border">ĐV</th>
+                          <th scope="col" className="px-2 py-1.5 text-right text-xs font-medium text-gray-600 border">SL KH</th>
+                          <th scope="col" className="px-2 py-1.5 text-right text-xs font-medium text-gray-600 border">SL TT</th>
+                          <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Ghi chú</th>
                           <th scope="col" className="px-2 py-1.5 text-right text-xs font-medium text-gray-600 border">Tồn trước</th>
                           <th scope="col" className="px-2 py-1.5 text-right text-xs font-medium text-gray-600 border">Tồn sau</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {selectedIssueLines.map((item, idx) => (
+                        {selectedIssueLines.map((item: any, idx) => (
                           <tr key={item.id || idx} className="hover:bg-gray-100">
                             <td className="px-2 py-1.5 border text-center">{item.stt || idx + 1}</td>
-                            <td className="px-2 py-1.5 border">{item.tenSanPham || '-'}</td>
+                            <td className="px-2 py-1.5 border font-mono text-xs">{item.maKien || item.lotProductId?.slice(-6) || '-'}</td>
                             <td className="px-2 py-1.5 border">{item.tenKho || '-'}</td>
-                            <td className="px-2 py-1.5 border">{item.tenLo || '-'}</td>
-                            <td className="px-2 py-1.5 border"><span className="font-mono text-blue-700">{item.maKien || '-'}</span></td>
+                            <td className="px-2 py-1.5 border">{item.tenSanPham || '-'}</td>
+                            <td className="px-2 py-1.5 border text-center">{item.soLoKeHoach ?? '-'}</td>
+                            <td className="px-2 py-1.5 border text-center">{item.soLoThucTe ?? item.tenLo ?? '-'}</td>
+                            <td className="px-2 py-1.5 border font-mono text-xs">{(() => { try { const a = JSON.parse(item.soKienKeHoach); if (Array.isArray(a)) return a.join(', '); } catch {} return item.soKienKeHoach ?? '-'; })()}</td>
+                            <td className="px-2 py-1.5 border font-mono text-xs">{(() => { try { const a = JSON.parse(item.soKienThucTe); if (Array.isArray(a)) return a.join(', '); } catch {} return item.soKienThucTe ?? item.maKien ?? '-'; })()}</td>
+                            <td className="px-2 py-1.5 border">{item.tinhTrang ?? '-'}</td>
+                            <td className="px-2 py-1.5 border">{item.quyCach ?? '-'}</td>
+                            <td className="px-2 py-1.5 border text-center">{item.donViTinh || '-'}</td>
+                            <td className="px-2 py-1.5 border text-right">{item.soLuongYeuCau ?? item.soLuongThucTe}</td>
                             <td className="px-2 py-1.5 border text-right font-semibold text-red-600">{item.soLuongThucTe} {item.donViTinh || ''}</td>
+                            <td className="px-2 py-1.5 border">{item.ghiChu || '-'}</td>
                             <td className="px-2 py-1.5 border text-right">{item.soLuongTruoc ?? '-'}</td>
                             <td className="px-2 py-1.5 border text-right">{item.soLuongSau ?? '-'}</td>
                           </tr>
@@ -427,11 +517,11 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                       </tbody>
                       <tfoot>
                         <tr className="bg-gray-100 font-semibold">
-                          <td colSpan={5} className="px-2 py-1.5 border text-right">Tổng cộng:</td>
+                          <td colSpan={11} className="px-2 py-1.5 border text-right">Tổng cộng:</td>
                           <td className="px-2 py-1.5 border text-right text-red-700">
                             {formatActualTotalByUnit(selectedIssueLines)}
                           </td>
-                          <td colSpan={2} className="px-2 py-1.5 border"></td>
+                          <td colSpan={3} className="px-2 py-1.5 border"></td>
                         </tr>
                       </tfoot>
                     </table>
@@ -446,7 +536,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
 
               {selectedIssue.ghiChu && (
                 <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg">
-                  <label className="text-xs text-yellow-600 uppercase font-medium">Ghi chú</label>
+                  <label className="text-xs text-yellow-600 uppercase font-medium">Ghi chú phiếu</label>
                   <p className="text-sm text-gray-700 mt-1">{selectedIssue.ghiChu}</p>
                 </div>
               )}
@@ -458,7 +548,19 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
             </div>
           )}
 
-          <div className="flex justify-end px-6 py-4 border-t border-gray-200 shrink-0">
+          <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-200 shrink-0">
+            <button
+              onClick={() => { setPrintIssue(selectedIssue); setShowPrintView(true); }}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            >
+              In phiếu
+            </button>
+            <button
+              onClick={async () => { try { await warehouseIssueService.exportXlsx(selectedIssue!.id); } catch (e: any) { alert(e.message || 'Lỗi xuất Excel'); } }}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Xuất Excel
+            </button>
             <button
               aria-label="Đóng chi tiết phiếu xuất"
               onClick={() => setShowDetailModal(false)}

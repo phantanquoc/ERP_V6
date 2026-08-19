@@ -9,7 +9,7 @@ type WarehouseSlipLine = WarehouseReceiptLine | WarehouseIssueLine;
  * older headers retain only a mirror of their original single commodity line.
  */
 export function getWarehouseSlipLines(slip: WarehouseSlip): WarehouseSlipLine[] {
-  if (slip.items && slip.items.length > 0) return slip.items;
+  if (slip.items && slip.items.length > 0) return slip.items as WarehouseSlipLine[];
 
   const isReceipt = 'maPhieuNhap' in slip;
   return [{
@@ -21,7 +21,7 @@ export function getWarehouseSlipLines(slip: WarehouseSlip): WarehouseSlipLine[] 
     lotId: slip.lotId ?? '',
     tenLo: slip.tenLo,
     soLuongThucTe: isReceipt ? slip.soLuongNhap ?? 0 : slip.soLuongXuat ?? 0,
-  }];
+  } as unknown as WarehouseSlipLine];
 }
 
 export function getUniqueSlipField(
