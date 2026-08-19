@@ -9,6 +9,9 @@ import { SupplyRequest } from '../services/supplyRequestService';
 import { parseNumberInput } from '../utils/numberInput';
 import Modal from './Modal';
 import LotProductCombobox from './common/LotProductCombobox';
+import EmployeeCombobox from './common/EmployeeCombobox';
+import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
+import { TINH_TRANG_OPTIONS, LY_DO_XUAT_KHO_PRESETS } from '../constants/warehouseCatalogs';
 
 interface CreateWarehouseIssueModalProps {
   isOpen: boolean;
@@ -23,6 +26,9 @@ interface IssueRow {
   lotProductId: string;
   soLuongXuat: number;
   ghiChu: string;
+  tinhTrang: string;
+  tinhTrangCustom: string;
+  quyCach: string;
   // Cached display data
   lots: Lot[];
   lotProducts: LotProduct[];
@@ -38,11 +44,24 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
   onSuccess,
 }) => {
   const { user } = useAuth();
+  const { data: employeesData } = useEmployeesForAssignment();
+  const employees = employeesData ?? [];
   const queryClient = useQueryClient();
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(false);
   const [maPhieuXuatBase, setMaPhieuXuatBase] = useState('');
   const [rows, setRows] = useState<IssueRow[]>([]);
+  const [nguoiDeNghi, setNguoiDeNghi] = useState('');
+  const [maNguoiDeNghi, setMaNguoiDeNghi] = useState('');
+  const [boPhan, setBoPhan] = useState('');
+  const [lyDoXuatKho, setLyDoXuatKho] = useState('');
+
+  const handleNguoiDeNghiChange = (name: string) => {
+    setNguoiDeNghi(name);
+    const emp = employees.find((e) => e.name === name);
+    if (emp) { setMaNguoiDeNghi(emp.id); setBoPhan(emp.department ?? ''); }
+    else if (!name) { setMaNguoiDeNghi(''); setBoPhan(''); }
+  };
 
   // Chế độ "xuất tổng → trừ FIFO": chọn lô + sản phẩm + tổng số lượng, backend
   // tự trừ dần từng kiện (theo thứ tự mã) và tạo 1 phiếu xuất nhiều dòng.
@@ -58,6 +77,11 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
       fetchWarehouses();
       generateCode();
 
+      setNguoiDeNghi(supplyRequest?.tenNhanVien ?? '');
+      setBoPhan(supplyRequest?.boPhan ?? '');
+      setMaNguoiDeNghi('');
+      setLyDoXuatKho('');
+
       // Init rows from supply request items
       if (supplyRequest?.items && supplyRequest.items.length > 0) {
         setRows(supplyRequest.items.map(item => ({
@@ -66,6 +90,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
           lotProductId: '',
           soLuongXuat: item.soLuong,
           ghiChu: `Xuất kho cho ${supplyRequest.maYeuCau} - ${item.tenGoi}`,
+          tinhTrang: 'Bình thường', tinhTrangCustom: '', quyCach: '',
           lots: [],
           lotProducts: [],
           tenGoi: item.tenGoi,
@@ -74,7 +99,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
       } else {
         setRows([{
           warehouseId: '', lotId: '', lotProductId: '',
-          soLuongXuat: 0, ghiChu: '', lots: [], lotProducts: [],
+          soLuongXuat: 0, ghiChu: '', tinhTrang: 'Bình thường', tinhTrangCustom: '', quyCach: '', lots: [], lotProducts: [],
           tenGoi: '', donViTinh: '',
         }]);
       }
@@ -204,6 +229,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
         const warehouse = warehouses.find(w => w.id === row.warehouseId);
         const lot = row.lots.find(l => l.id === row.lotId);
         const lotProduct = row.lotProducts.find(lp => lp.id === row.lotProductId);
+        const tinhTrangVal = row.tinhTrang === 'Khác' ? (row.tinhTrangCustom || 'Khác') : (row.tinhTrang || undefined);
         return {
           lotProductId: row.lotProductId,
           tenSanPham: lotProduct?.internationalProduct?.tenSanPham || row.tenGoi || '',
@@ -214,6 +240,8 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
           soLuongThucTe: row.soLuongXuat,
           donViTinh: lotProduct?.donViTinh || row.donViTinh || '',
           ghiChu: row.ghiChu,
+          tinhTrang: tinhTrangVal,
+          quyCach: row.quyCach || undefined,
         };
       });
 
@@ -222,6 +250,10 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
         maNhanVien: user?.employeeCode || '',
         tenNhanVien: `${user?.lastName} ${user?.firstName}`,
         supplyRequestId: supplyRequest?.id,
+        nguoiDeNghi: nguoiDeNghi || undefined,
+        maNguoiDeNghi: maNguoiDeNghi || undefined,
+        boPhan: boPhan || undefined,
+        lyDoXuatKho: lyDoXuatKho || undefined,
         items,
       });
 
@@ -276,11 +308,16 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tên nhân viên</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Tên nhân viên lập phiếu</label>
               <input type="text" value={`${user?.lastName} ${user?.firstName}`} disabled
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100" />
             </div>
           </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Người đề nghị</label><EmployeeCombobox employees={employees} value={nguoiDeNghi} onChange={handleNguoiDeNghiChange} placeholder="Tìm nhân viên..." /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Bộ phận</label><input value={boPhan} onChange={(e) => setBoPhan(e.target.value)} placeholder="Tự điền từ người đề nghị" className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
+          </div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Lý do xuất kho</label><input type="text" list="ly-do-xuat-create" value={lyDoXuatKho} onChange={(e) => setLyDoXuatKho(e.target.value)} placeholder="Chọn hoặc nhập tự do" className="w-full px-3 py-2 border border-gray-300 rounded-lg" /><datalist id="ly-do-xuat-create">{LY_DO_XUAT_KHO_PRESETS.map((p) => <option key={p} value={p} />)}</datalist></div>
 
           {/* Chế độ xuất */}
           <div className="flex items-center gap-2">
@@ -442,6 +479,11 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
                         className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500"
                         placeholder="VD: theo đơn hàng nào? khách hàng nào? lẻ hay không?" />
                     </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                    <div><label className="block text-xs font-medium text-gray-600 mb-1">Tình trạng</label><select value={row.tinhTrang} onChange={(e) => updateRow(index, { tinhTrang: e.target.value })} className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"><option value="">—</option>{TINH_TRANG_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>{row.tinhTrang === 'Khác' && <input value={row.tinhTrangCustom} onChange={(e) => updateRow(index, { tinhTrangCustom: e.target.value })} placeholder="Nhập khác..." className="mt-1 w-full px-2 py-1.5 border border-gray-300 rounded text-sm" />}</div>
+                    <div><label className="block text-xs font-medium text-gray-600 mb-1">Quy cách</label><input value={row.quyCach} onChange={(e) => updateRow(index, { quyCach: e.target.value })} placeholder="VD: 25kg/bao" className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" /></div>
+                    <div className="flex items-end text-xs text-gray-400">Ghi chú dòng tự do, có placeholder.</div>
                   </div>
                 </div>
               ))}

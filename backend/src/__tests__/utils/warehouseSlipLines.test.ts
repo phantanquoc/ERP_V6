@@ -314,3 +314,51 @@ describe('computeHeaderTotals', () => {
     expect(computeHeaderTotals([])).toEqual({ tongSoLuongThucTe: 0, soDongHang: 0 });
   });
 });
+
+describe('BM helpers — quantityDeviation / kienSetEquals / threshold / grouping', () => {
+  it('quantityDeviation returns 0 when plan is 0 and actual is 0', async () => {
+    const { quantityDeviation } = await import('../../utils/warehouseSlipLines');
+    expect(quantityDeviation(0, 0)).toBe(0);
+  });
+
+  it('quantityDeviation returns 1 when plan is 0 but actual non-zero', async () => {
+    const { quantityDeviation } = await import('../../utils/warehouseSlipLines');
+    expect(quantityDeviation(0, 5)).toBe(1);
+  });
+
+  it('quantityDeviation computes abs(actual-plan)/plan', async () => {
+    const { quantityDeviation } = await import('../../utils/warehouseSlipLines');
+    expect(quantityDeviation(100, 80)).toBeCloseTo(0.2);
+    expect(quantityDeviation(100, 120)).toBeCloseTo(0.2);
+  });
+
+  it('kienSetEquals is order-insensitive and strict on size', async () => {
+    const { kienSetEquals } = await import('../../utils/warehouseSlipLines');
+    expect(kienSetEquals(['K1.1', 'K1.2'], ['K1.2', 'K1.1'])).toBe(true);
+    expect(kienSetEquals(['K1.1'], ['K1.1', 'K1.2'])).toBe(false);
+    expect(kienSetEquals(['K1.1'], ['K1.2'])).toBe(false);
+    expect(kienSetEquals([], [])).toBe(true);
+  });
+
+  it('isOverThreshold respects custom threshold', async () => {
+    const { isOverThreshold } = await import('../../utils/warehouseSlipLines');
+    expect(isOverThreshold(100, 115, 0.1)).toBe(true);
+    expect(isOverThreshold(100, 105, 0.1)).toBe(false);
+    expect(isOverThreshold(100, 105, 0.05)).toBe(false);
+    expect(isOverThreshold(100, 106, 0.05)).toBe(true);
+  });
+
+  it('productGroupKey joins tenSanPham__donViTinh__warehouseId', async () => {
+    const { productGroupKey, groupLinesByProduct } = await import('../../utils/warehouseSlipLines');
+    expect(productGroupKey({ tenSanPham: 'A', donViTinh: 'kg', warehouseId: 'w1' })).toBe('A__kg__w1');
+    const lines = [
+      { lotProductId: PKG_A, tenSanPham: 'A', donViTinh: 'kg', warehouseId: 'w1', soLuongThucTe: 10, soLuongYeuCau: 10 },
+      { lotProductId: PKG_B, tenSanPham: 'A', donViTinh: 'kg', warehouseId: 'w1', soLuongThucTe: 5, soLuongYeuCau: 5 },
+      { lotProductId: PKG_A, tenSanPham: 'B', donViTinh: 'kg', warehouseId: 'w1', soLuongThucTe: 7, soLuongYeuCau: 7 },
+    ] as any;
+    const m = groupLinesByProduct(lines);
+    expect(m.size).toBe(2);
+    expect(m.get('A__kg__w1')!.length).toBe(2);
+    expect(m.get('B__kg__w1')!.length).toBe(1);
+  });
+});

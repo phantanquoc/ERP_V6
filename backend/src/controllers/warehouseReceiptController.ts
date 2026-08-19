@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import warehouseReceiptService from '@services/warehouseReceiptService';
 import supplyRequestService from '@services/supplyRequestService';
 import notificationService from '@services/notificationService';
+import { exportReceiptXlsx } from '@services/warehouseSlipExportService';
 import { NotificationEvent } from '@types';
 import { ValidationError, ConflictError, NotFoundError } from '@utils/errors';
 
@@ -16,7 +17,7 @@ export const generateReceiptCode = async (_req: Request, res: Response, next: Ne
 
 export const createWarehouseReceipt = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { maPhieuNhap, employeeId, maNhanVien, tenNhanVien, ngayNhap, mucDich, ghiChu, supplyRequestId, items } = req.body;
+    const { maPhieuNhap, employeeId, maNhanVien, tenNhanVien, ngayNhap, mucDich, ghiChu, supplyRequestId, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, items } = req.body;
 
     if (!employeeId) {
       res.status(400).json({ success: false, message: 'Thiếu mã nhân viên' });
@@ -28,7 +29,7 @@ export const createWarehouseReceipt = async (req: Request, res: Response, next: 
     }
 
     const receipt = await warehouseReceiptService.create({
-      maPhieuNhap, employeeId, maNhanVien, tenNhanVien, ngayNhap, mucDich, ghiChu, supplyRequestId, items,
+      maPhieuNhap, employeeId, maNhanVien, tenNhanVien, ngayNhap, mucDich, ghiChu, supplyRequestId, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, items,
     });
 
     res.status(201).json({ success: true, data: receipt, message: 'Tạo phiếu nhập kho thành công' });
@@ -77,9 +78,9 @@ export const getWarehouseReceiptById = async (req: Request, res: Response, next:
 export const updateWarehouseReceipt = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { id } = req.params;
-    const { ngayNhap, mucDich, ghiChu, items } = req.body;
+    const { ngayNhap, mucDich, ghiChu, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, items } = req.body;
 
-    const receipt = await warehouseReceiptService.update(id, { ngayNhap, mucDich, ghiChu, items });
+    const receipt = await warehouseReceiptService.update(id, { ngayNhap, mucDich, ghiChu, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, items });
 
     res.status(200).json({ success: true, message: 'Cập nhật phiếu nhập kho thành công', data: receipt });
   } catch (error: any) {
@@ -131,6 +132,28 @@ export const deleteWarehouseReceipt = async (req: Request, res: Response, next: 
       res.status(409).json({ success: false, message: error.message });
       return;
     }
+    next(error);
+  }
+};
+
+export const markReceiptPrinted = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const result = await warehouseReceiptService.markPrinted(req.params.id);
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    if (error instanceof NotFoundError) {
+      res.status(404).json({ success: false, message: error.message });
+      return;
+    }
+    next(error);
+  }
+};
+
+export const exportReceiptXlsxHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    await exportReceiptXlsx(req.params.id, res);
+    try { await warehouseReceiptService.markPrinted(req.params.id); } catch {}
+  } catch (error) {
     next(error);
   }
 };

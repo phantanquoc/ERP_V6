@@ -16,6 +16,13 @@ export interface WarehouseReceiptLine {
   soLuongTruoc?: number;
   soLuongSau?: number;
   ghiChu?: string;
+  // BM01 per-line fields
+  soLoKeHoach?: string | null;
+  soLoThucTe?: string | null;
+  soKienKeHoach?: string | string[] | null;
+  soKienThucTe?: string | string[] | null;
+  tinhTrang?: string | null;
+  quyCach?: string | null;
 }
 
 export interface WarehouseReceipt {
@@ -31,6 +38,12 @@ export interface WarehouseReceipt {
   soDongHang?: number;
   isLocked?: boolean;
   supplyRequestId?: string | null;
+  nguoiDeNghi?: string | null;
+  maNguoiDeNghi?: string | null;
+  boPhan?: string | null;
+  boPhanId?: string | null;
+  daIn?: boolean;
+  inLanDauAt?: string | null;
   items?: WarehouseReceiptLine[];
   // Deprecated header-level fields (kept for backward compat)
   warehouseId?: string;
@@ -54,6 +67,10 @@ export interface CreateWarehouseReceiptData {
   mucDich?: string;
   ghiChu?: string;
   supplyRequestId?: string;
+  nguoiDeNghi?: string;
+  maNguoiDeNghi?: string;
+  boPhan?: string;
+  boPhanId?: string;
   items: WarehouseReceiptLine[];
 }
 
@@ -61,6 +78,10 @@ export interface UpdateWarehouseReceiptData {
   ngayNhap?: string;
   mucDich?: string;
   ghiChu?: string;
+  nguoiDeNghi?: string;
+  maNguoiDeNghi?: string;
+  boPhan?: string;
+  boPhanId?: string;
   items: WarehouseReceiptLine[];
 }
 
@@ -87,6 +108,27 @@ const warehouseReceiptService = {
 
   deleteWarehouseReceipt: async (id: string) => {
     return apiClient.delete(`/warehouse-receipts/${id}`);
+  },
+
+  markPrinted: async (id: string) => {
+    return apiClient.post(`/warehouse-receipts/${id}/mark-printed`, {});
+  },
+
+  exportXlsx: async (id: string) => {
+    const token = localStorage.getItem('accessToken');
+    const res = await fetch(`/api/warehouse-receipts/${id}/export-xlsx`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error('Export failed');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `phieu-nhap-${id}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   },
 };
 

@@ -245,6 +245,17 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                               >
                                 <Printer className="w-5 h-5" />
                               </button>
+                              <button
+                                onClick={async () => { try { await warehouseReceiptService.exportXlsx(receipt.id); } catch (e: any) { alert(e.message || 'Lỗi xuất Excel'); } }}
+                                aria-label="Xuất Excel"
+                                className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                                title="Xuất Excel (BM01)"
+                              >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg>
+                              </button>
+                              {(receipt as any).daIn && (
+                                <span className="ml-1 inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs text-green-700" title="Đã in/xuất">Đã in</span>
+                              )}
                               {!receipt.isLocked && (
                                 <>
                                   <button
@@ -486,10 +497,13 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
           ngay={new Date(printReceipt.ngayNhap).toLocaleDateString('vi-VN')}
           tenNhanVien={printReceipt.tenNhanVien}
           maNhanVien={printReceipt.maNhanVien}
-          ghiChu={printReceipt.ghiChu}
-          mucDich={printReceipt.mucDich ?? undefined}
+          ghiChu={printReceipt.ghiChu ?? undefined}
+          mucDich={(printReceipt as any).mucDich ?? undefined}
+          nguoiDeNghi={(printReceipt as any).nguoiDeNghi ?? undefined}
+          boPhan={(printReceipt as any).boPhan ?? undefined}
           items={getWarehouseSlipLines(printReceipt)}
           onClose={() => { setShowPrintView(false); setPrintReceipt(null); }}
+          onMarkPrinted={() => { warehouseReceiptService.markPrinted(printReceipt.id).catch(()=>{}); }}
         />
       )}
 

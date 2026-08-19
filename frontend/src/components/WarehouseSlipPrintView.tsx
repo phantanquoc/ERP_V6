@@ -2,6 +2,7 @@ import React from 'react';
 import type { WarehouseReceiptLine } from '../services/warehouseReceiptService';
 import type { WarehouseIssueLine } from '../services/warehouseIssueService';
 import { totalsByUnit } from '../utils/warehouseSlipTotals';
+import { COMPANY_HEADER, BM_CODES } from '../constants/warehouseCatalogs';
 
 interface WarehouseSlipPrintViewProps {
   type: 'receipt' | 'issue';
@@ -11,171 +12,145 @@ interface WarehouseSlipPrintViewProps {
   maNhanVien: string;
   ghiChu?: string;
   mucDich?: string;
+  lyDoXuatKho?: string;
+  nguoiDeNghi?: string;
+  boPhan?: string;
   items: (WarehouseReceiptLine | WarehouseIssueLine)[];
+  daIn?: boolean;
   onClose: () => void;
+  onMarkPrinted?: () => void;
 }
 
-function groupByWarehouse(items: (WarehouseReceiptLine | WarehouseIssueLine)[]) {
-  const groups = new Map<string, (WarehouseReceiptLine | WarehouseIssueLine)[]>();
-  for (const item of items) {
-    const key = item.warehouseId || 'unknown';
-    const existing = groups.get(key);
-    if (existing) existing.push(item);
-    else groups.set(key, [item]);
-  }
-  return groups;
+function parseKienDisplay(v: any): string {
+  if (!v) return '';
+  if (Array.isArray(v)) return v.join(', ');
+  try { const a = JSON.parse(String(v)); if (Array.isArray(a)) return a.join(', '); } catch {}
+  return String(v);
 }
 
 const WarehouseSlipPrintView: React.FC<WarehouseSlipPrintViewProps> = ({
-  type,
-  maPhieu,
-  ngay,
-  tenNhanVien,
-  maNhanVien,
-  ghiChu,
-  mucDich,
-  items,
-  onClose,
+  type, maPhieu, ngay, tenNhanVien, maNhanVien, ghiChu, mucDich, lyDoXuatKho, nguoiDeNghi, boPhan, items, onClose, onMarkPrinted,
 }) => {
   const isReceipt = type === 'receipt';
   const title = isReceipt ? 'PHIẾU NHẬP KHO' : 'PHIẾU XUẤT KHO';
-  const qtyLabel = isReceipt ? 'Thực nhập' : 'Thực xuất';
-  const groups = groupByWarehouse(items);
-  const showWarehouseGroups = groups.size > 1;
+  const bmCode = isReceipt ? BM_CODES.receipt : BM_CODES.issue;
 
   const handlePrint = () => {
+    try { onMarkPrinted?.(); } catch {}
     window.print();
   };
 
-  const renderTable = (lines: (WarehouseReceiptLine | WarehouseIssueLine)[], warehouseLabel?: string) => {
-    if (lines.length === 0) {
-      return (
-        <p className="print-empty-message" role="status">
-          Không có dòng hàng để in.
-        </p>
-      );
-    }
-
-    return (
-    <div className="print-table-container">
-      {warehouseLabel && (
-        <h3 className="print-warehouse-label">{warehouseLabel}</h3>
-      )}
-      <table className="print-table">
-        <thead>
-          <tr>
-            <th scope="col">STT</th>
-            <th scope="col">Tên sản phẩm</th>
-            <th scope="col">Lô</th>
-            <th scope="col">Mã kiện</th>
-            <th scope="col">ĐVT</th>
-            <th scope="col">SL yêu cầu</th>
-            <th scope="col">{qtyLabel}</th>
-            <th scope="col">Ghi chú</th>
-          </tr>
-        </thead>
-        <tbody>
-          {lines.map((line, index) => (
-            <tr key={line.id || index}>
-              <td className="text-center">{line.stt || index + 1}</td>
-              <td>{line.tenSanPham}</td>
-              <td>{line.tenLo || '-'}</td>
-              <td><span className="font-mono">{line.maKien || '-'}</span></td>
-              <td className="text-center">{line.donViTinh || ''}</td>
-              <td className="text-right">{line.soLuongYeuCau ?? line.soLuongThucTe}</td>
-              <td className="text-right">{line.soLuongThucTe}</td>
-              <td>{line.ghiChu || ''}</td>
-            </tr>
-          ))}
-          {/* Totals are per unit of measure. Summing 1 Cái with 1 Cuộn into
-              "2 Cái" is meaningless, so each unit gets its own total row and a
-              mixed-unit table prints one row per unit instead of one grand total. */}
-          {totalsByUnit(lines).map(([unit, totals]) => (
-            <tr key={unit || '__none__'} className="print-total-row">
-              <td colSpan={4} className="text-right font-bold">
-                {`Tổng cộng${unit ? ` (${unit})` : ''}:`}
-              </td>
-              <td className="text-center font-bold">{unit}</td>
-              <td className="text-right font-bold">{totals.requested}</td>
-              <td className="text-right font-bold">{totals.actual}</td>
-              <td></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-    );
-  };
+  const headerDate = ngay;
 
   return (
     <div className="print-overlay" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="print-controls no-print">
-        <button type="button" onClick={handlePrint} className="btn-print" aria-label="In phiếu">
-          In phiếu
-        </button>
-        <button type="button" onClick={onClose} className="btn-close-print" aria-label="Đóng bản xem trước">
-          Đóng
-        </button>
+      <style>{`@media print { .no-print { display: none !important; } .print-overlay { position: static !important; background: white !important; } .print-page { box-shadow: none !important; margin: 0 !important; } @page { size: A4 landscape; margin: 8mm; } }`}</style>
+      <div className="print-controls no-print" style={{ display: 'flex', gap: 8, padding: 12, justifyContent: 'flex-end' }}>
+        <button type="button" onClick={handlePrint} className="btn-print px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">In phiếu</button>
+        <button type="button" onClick={onClose} className="btn-close-print px-4 py-2 border rounded hover:bg-gray-50">Đóng</button>
       </div>
 
-      <div className="print-page">
-        <div className="print-header">
-          <div className="print-title">{title}</div>
-          <div className="print-meta">
-            <div className="print-meta-row">
-              <span className="print-label">Mã phiếu:</span>
-              <span className="print-value">{maPhieu}</span>
-            </div>
-            <div className="print-meta-row">
-              <span className="print-label">Ngày:</span>
-              <span className="print-value">{ngay}</span>
-            </div>
-            <div className="print-meta-row">
-              <span className="print-label">Nhân viên:</span>
-              <span className="print-value">{tenNhanVien} ({maNhanVien})</span>
-            </div>
-            {mucDich && (
-              <div className="print-meta-row">
-                <span className="print-label">Mục đích:</span>
-                <span className="print-value">{mucDich}</span>
-              </div>
-            )}
-            {ghiChu && (
-              <div className="print-meta-row">
-                <span className="print-label">Ghi chú:</span>
-                <span className="print-value">{ghiChu}</span>
-              </div>
-            )}
+      <div className="print-page" style={{ background: 'white', margin: '0 auto', maxWidth: 1100, padding: 16 }}>
+        {/* Company header + logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderBottom: '2px solid #1f2937', paddingBottom: 8, marginBottom: 8 }}>
+          <img src="/abf-logo.png" alt="ABF" style={{ height: 36, objectFit: 'contain' }} onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+          <div style={{ flex: 1, textAlign: 'center' }}>
+            <div style={{ fontFamily: 'Times New Roman', fontWeight: 700, fontSize: 11 }}>{COMPANY_HEADER.name}</div>
+            <div style={{ fontFamily: 'Times New Roman', fontSize: 8, color: '#4b5563' }}>{COMPANY_HEADER.address}  ĐT: {COMPANY_HEADER.phone}  Fax: {COMPANY_HEADER.fax}</div>
           </div>
         </div>
 
-        {showWarehouseGroups
-          ? Array.from(groups.entries()).map(([whId, lines]) => {
-              const whName = (lines[0] as any).tenKho || whId;
-              return (
-                <React.Fragment key={whId}>
-                  {renderTable(lines, `Kho: ${whName}`)}
-                </React.Fragment>
-              );
-            })
-          : renderTable(items)
-        }
+        <div style={{ textAlign: 'center', fontFamily: 'Times New Roman', fontWeight: 700, fontSize: 16, marginBottom: 8 }}>{title}</div>
 
-        <div className="print-footer">
-          <div className="print-signature-row">
-            <div className="print-signature">
-              <div className="print-signature-label">Người lập phiếu</div>
-              <div className="print-signature-note">(Ký, ghi rõ họ tên)</div>
-            </div>
-            <div className="print-signature">
-              <div className="print-signature-label">Thủ kho</div>
-              <div className="print-signature-note">(Ký, ghi rõ họ tên)</div>
-            </div>
-            <div className="print-signature">
-              <div className="print-signature-label">Người giao/nhận</div>
-              <div className="print-signature-note">(Ký, ghi rõ họ tên)</div>
-            </div>
+        {/* Meta rows */}
+        <div style={{ fontFamily: 'Times New Roman', fontSize: 10, marginBottom: 8, lineHeight: 1.6 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+            <span><strong>Người đề nghị:</strong> {nguoiDeNghi || tenNhanVien || '—'}</span>
+            <span><strong>Ngày:</strong> {headerDate}</span>
           </div>
+          <div><strong>Bộ phận:</strong> {boPhan || '—'}</div>
+          <div><strong>{isReceipt ? 'Mục đích' : 'Lý do xuất'}:</strong> {(isReceipt ? mucDich : lyDoXuatKho) || ghiChu || '—'}</div>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+            <span><strong>Mã phiếu:</strong> {maPhieu}</span>
+            <span><strong>Nhân viên:</strong> {tenNhanVien} ({maNhanVien})</span>
+          </div>
+          {ghiChu && (isReceipt ? mucDich : lyDoXuatKho) ? <div><strong>Ghi chú:</strong> {ghiChu}</div> : null}
+        </div>
+
+        {/* 14-col table: TT | Ma hang | Loai Kho | Ten hang | So lo KH | So lo TT | So kien KH | So kien TT | Tinh trang | Quy cach | Don vi | So luong KH | So luong TT | Ghi chu */}
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'Times New Roman', fontSize: 8 }}>
+            <thead>
+              <tr>
+                {['TT','Mã hàng hóa','Loại Kho','Tên hàng hóa','Số lô','Số lô','Số kiện','Số kiện','Tình trạng','Quy cách','Đơn vị','Số lượng','Số lượng','Ghi chú'].map((h, i) => {
+                  const isGroup = [4,6,11].includes(i);
+                  const colSpan = isGroup ? 1 : 1;
+                  return <th key={i} colSpan={colSpan} style={{ border: '1px solid #000', background: '#4472C4', color: 'white', padding: '4px 2px', textAlign: 'center', fontWeight: 700 }}>{h}</th>;
+                })}
+              </tr>
+              <tr>
+                {['','', '', '', 'Kế hoạch','Thực tế','Kế hoạch','Thực tế','','','', 'Kế hoạch','Thực tế',''].map((h, i) => (
+                  <th key={i} style={{ border: '1px solid #000', background: '#4472C4', color: 'white', padding: '2px', textAlign: 'center', fontSize: 7 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {items.length === 0 ? (
+                <tr><td colSpan={14} style={{ border: '1px solid #000', textAlign: 'center', padding: 8 }}>Không có dòng hàng</td></tr>
+              ) : items.map((line: any, idx) => {
+                const soKienKH = parseKienDisplay(line.soKienKeHoach);
+                const soKienTT = parseKienDisplay(line.soKienThucTe) || (line.maKien ?? '');
+                const soLoKH = line.soLoKeHoach ?? '';
+                const soLoTT = line.soLoThucTe ?? line.tenLo ?? '';
+                return (
+                  <tr key={line.id || idx}>
+                    <td style={{ border: '1px solid #000', textAlign: 'center', padding: 2 }}>{line.stt ?? idx+1}</td>
+                    <td style={{ border: '1px solid #000', padding: 2, fontFamily: 'monospace', fontSize: 7 }}>{line.maKien ?? (line.lotProductId?.slice(-6) ?? '')}</td>
+                    <td style={{ border: '1px solid #000', padding: 2 }}>{line.tenKho ?? ''}</td>
+                    <td style={{ border: '1px solid #000', padding: 2 }}>{line.tenSanPham}</td>
+                    <td style={{ border: '1px solid #000', padding: 2 }}>{soLoKH}</td>
+                    <td style={{ border: '1px solid #000', padding: 2 }}>{soLoTT}</td>
+                    <td style={{ border: '1px solid #000', padding: 2, fontFamily: 'monospace', fontSize: 7 }}>{soKienKH}</td>
+                    <td style={{ border: '1px solid #000', padding: 2, fontFamily: 'monospace', fontSize: 7 }}>{soKienTT}</td>
+                    <td style={{ border: '1px solid #000', padding: 2 }}>{line.tinhTrang ?? ''}</td>
+                    <td style={{ border: '1px solid #000', padding: 2 }}>{line.quyCach ?? ''}</td>
+                    <td style={{ border: '1px solid #000', padding: 2, textAlign: 'center' }}>{line.donViTinh ?? ''}</td>
+                    <td style={{ border: '1px solid #000', padding: 2, textAlign: 'right' }}>{line.soLuongYeuCau ?? line.soLuongThucTe}</td>
+                    <td style={{ border: '1px solid #000', padding: 2, textAlign: 'right' }}>{line.soLuongThucTe}</td>
+                    <td style={{ border: '1px solid #000', padding: 2 }}>{line.ghiChu ?? ''}</td>
+                  </tr>
+                );
+              })}
+              {totalsByUnit(items as any).map(([unit, totals]) => (
+                <tr key={String(unit)} style={{ fontWeight: 700, background: '#f3f4f6' }}>
+                  <td colSpan={11} style={{ border: '1px solid #000', textAlign: 'right', padding: 2 }}>Tổng cộng{unit ? ` (${unit})` : ''}:</td>
+                  <td style={{ border: '1px solid #000', textAlign: 'right', padding: 2 }}>{totals.requested}</td>
+                  <td style={{ border: '1px solid #000', textAlign: 'right', padding: 2 }}>{totals.actual}</td>
+                  <td style={{ border: '1px solid #000', padding: 2 }}></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Signatures: 2 for receipt, 3 for issue */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16, fontFamily: 'Times New Roman', fontSize: 9, textAlign: 'center' }}>
+          {isReceipt ? (
+            <>
+              <div style={{ flex: 1 }}><div style={{ fontWeight: 700 }}>Người nhập kho</div><div style={{ fontSize: 8, color: '#6b7280' }}>(Ký, ghi rõ họ tên)</div></div>
+              <div style={{ flex: 1 }}><div style={{ fontWeight: 700 }}>Quản lý kho</div><div style={{ fontSize: 8, color: '#6b7280' }}>(Ký, ghi rõ họ tên)</div></div>
+            </>
+          ) : (
+            <>
+              <div style={{ flex: 1 }}><div style={{ fontWeight: 700 }}>Người xuất kho</div><div style={{ fontSize: 8, color: '#6b7280' }}>(Ký, ghi rõ họ tên)</div></div>
+              <div style={{ flex: 1 }}><div style={{ fontWeight: 700 }}>Người nhận</div><div style={{ fontSize: 8, color: '#6b7280' }}>(Ký, ghi rõ họ tên)</div></div>
+              <div style={{ flex: 1 }}><div style={{ fontWeight: 700 }}>Quản lý kho</div><div style={{ fontSize: 8, color: '#6b7280' }}>(Ký, ghi rõ họ tên)</div></div>
+            </>
+          )}
+        </div>
+
+        <div style={{ textAlign: 'center', marginTop: 12, fontFamily: 'Times New Roman', fontSize: 7, fontStyle: 'italic', color: '#666' }}>
+          {bmCode} &nbsp; {BM_CODES.version} &nbsp; {BM_CODES.kienNote}
         </div>
       </div>
     </div>

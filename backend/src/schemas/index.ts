@@ -383,6 +383,15 @@ export type SubmitPeerFeedbackInput = z.infer<typeof submitPeerFeedbackSchema>;
 
 // ==================== WAREHOUSE SLIP SCHEMAS ====================
 
+const warehouseLineBM = {
+  soLoKeHoach: optionalString,
+  soLoThucTe: optionalString,
+  soKienKeHoach: z.union([z.array(z.string()), z.string()]).optional().nullable(),
+  soKienThucTe: z.union([z.array(z.string()), z.string()]).optional().nullable(),
+  tinhTrang: optionalString,
+  quyCach: optionalString,
+};
+
 const warehouseLineBase = {
   lotProductId: z.string().min(1, 'Thiếu kiện hàng').optional().nullable(),
   tenSanPham: z.string().min(1, 'Tên sản phẩm là bắt buộc'),
@@ -395,6 +404,7 @@ const warehouseLineBase = {
   soLuongYeuCau: z.union([z.number(), z.string()]).transform(Number).optional().nullable(),
   ghiChu: optionalString,
   loaiSanPham: optionalString,
+  ...warehouseLineBM,
 };
 
 export const createReceiptSchema = z.object({
@@ -406,6 +416,10 @@ export const createReceiptSchema = z.object({
   mucDich: optionalString,
   ghiChu: optionalString,
   supplyRequestId: optionalString,
+  nguoiDeNghi: optionalString,
+  maNguoiDeNghi: optionalString,
+  boPhan: optionalString,
+  boPhanId: optionalString,
   items: z.array(z.object(warehouseLineBase)).min(1, 'Phiếu phải có ít nhất một dòng'),
 });
 
@@ -413,6 +427,10 @@ export const updateReceiptSchema = z.object({
   ngayNhap: optionalString,
   mucDich: optionalString,
   ghiChu: optionalString,
+  nguoiDeNghi: optionalString,
+  maNguoiDeNghi: optionalString,
+  boPhan: optionalString,
+  boPhanId: optionalString,
   items: z.array(z.object(warehouseLineBase)).min(1, 'Phiếu phải có ít nhất một dòng'),
 });
 
@@ -427,6 +445,7 @@ const issueLineBase = {
   soLuongThucTe: z.union([z.number(), z.string()]).transform(Number).pipe(z.number().positive('Số lượng phải lớn hơn 0')),
   soLuongYeuCau: z.union([z.number(), z.string()]).transform(Number).optional().nullable(),
   ghiChu: optionalString,
+  ...warehouseLineBM,
 };
 
 export const createIssueSchema = z.object({
@@ -437,12 +456,22 @@ export const createIssueSchema = z.object({
   ngayXuat: optionalString,
   ghiChu: optionalString,
   supplyRequestId: optionalString,
+  nguoiDeNghi: optionalString,
+  maNguoiDeNghi: optionalString,
+  boPhan: optionalString,
+  boPhanId: optionalString,
+  lyDoXuatKho: optionalString,
   items: z.array(z.object(issueLineBase)).min(1, 'Phiếu phải có ít nhất một dòng'),
 });
 
 export const updateIssueSchema = z.object({
   ngayXuat: optionalString,
   ghiChu: optionalString,
+  nguoiDeNghi: optionalString,
+  maNguoiDeNghi: optionalString,
+  boPhan: optionalString,
+  boPhanId: optionalString,
+  lyDoXuatKho: optionalString,
   items: z.array(z.object(issueLineBase)).min(1, 'Phiếu phải có ít nhất một dòng'),
 });
 

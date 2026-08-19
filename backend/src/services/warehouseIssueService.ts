@@ -30,6 +30,12 @@ export interface IssueLineInput {
   soLuongYeuCau?: number;
   soLuongThucTe: number;
   ghiChu?: string;
+  soLoKeHoach?: string;
+  soLoThucTe?: string;
+  soKienKeHoach?: string[] | string;
+  soKienThucTe?: string[] | string;
+  tinhTrang?: string;
+  quyCach?: string;
 }
 
 export interface CreateIssueInput {
@@ -41,12 +47,22 @@ export interface CreateIssueInput {
   ngayXuat?: Date | string;
   ghiChu?: string;
   supplyRequestId?: string;
+  nguoiDeNghi?: string;
+  maNguoiDeNghi?: string;
+  boPhan?: string;
+  boPhanId?: string;
+  lyDoXuatKho?: string;
   items: IssueLineInput[];
 }
 
 export interface UpdateIssueInput {
   ngayXuat?: Date | string;
   ghiChu?: string;
+  nguoiDeNghi?: string;
+  maNguoiDeNghi?: string;
+  boPhan?: string;
+  boPhanId?: string;
+  lyDoXuatKho?: string;
   items: IssueLineInput[];
 }
 
@@ -197,6 +213,31 @@ class WarehouseIssueService {
     return totals;
   }
 
+  private async fillHeaderFromSupplyRequest(client: PrismaClientLike, normalized: CreateIssueInput & UpdateIssueInput & { employeeId: string }) {
+    if (!normalized.supplyRequestId) return;
+    if (normalized.nguoiDeNghi && normalized.boPhan) return;
+    try {
+      const sr = await (client as any).supplyRequest?.findUnique?.({ where: { id: normalized.supplyRequestId }, select: { tenNhanVien: true, boPhan: true } });
+      if (sr) {
+        if (!normalized.nguoiDeNghi && sr.tenNhanVien) (normalized as any).nguoiDeNghi = sr.tenNhanVien;
+        if (!normalized.boPhan && sr.boPhan) (normalized as any).boPhan = sr.boPhan;
+      }
+    } catch {}
+  }
+
+  private async deriveSoLoThucTeFromKien(client: PrismaClientLike, items: IssueLineInput[]) {
+    for (const line of items) {
+      const kienArr = line.soKienThucTe;
+      if (!line.soLoThucTe && kienArr && Array.isArray(kienArr) && (kienArr as string[]).length > 0) {
+        try {
+          const kienRows = await client.lotProduct.findMany({ where: { maKien: { in: kienArr as string[] } }, select: { lot: { select: { tenLo: true } } } });
+          const lots = [...new Set(kienRows.map((r: any) => r.lot?.tenLo).filter(Boolean))];
+          if (lots.length > 0) line.soLoThucTe = lots.join(', ');
+        } catch {}
+      }
+    }
+  }
+
   /**
    * Deprecated header columns mirror the first line so a not-yet-migrated reader
    * degrades to a coherent single-commodity view instead of reading `null`.
@@ -218,6 +259,11 @@ class WarehouseIssueService {
   }
 
   private lineData(line: ResolvedLine & { soLuongTruoc: number; soLuongSau: number }, stt: number) {
+    const toJson = (v: string[] | string | undefined): string | null => {
+      if (v === undefined || v === null) return null;
+      if (Array.isArray(v)) return JSON.stringify(v);
+      return v;
+    };
     return {
       stt,
       lotProductId: line.lotProductId,
@@ -233,6 +279,12 @@ class WarehouseIssueService {
       soLuongTruoc: line.soLuongTruoc,
       soLuongSau: line.soLuongSau,
       ghiChu: line.ghiChu,
+      soLoKeHoach: (line as IssueLineInput).soLoKeHoach ?? null,
+      soLoThucTe: (line as IssueLineInput).soLoThucTe ?? null,
+      soKienKeHoach: toJson((line as IssueLineInput).soKienKeHoach as string[] | string | undefined),
+      soKienThucTe: toJson((line as IssueLineInput).soKienThucTe as string[] | string | undefined),
+      tinhTrang: (line as IssueLineInput).tinhTrang ?? null,
+      quyCach: (line as IssueLineInput).quyCach ?? null,
     };
   }
 
@@ -318,6 +370,8 @@ class WarehouseIssueService {
     const maPhieuXuat = normalized.maPhieuXuat ?? (await this.generateCode());
 
     const { issue, balances, lotProductIds } = await prisma.$transaction(async (tx) => {
+      await this.fillHeaderFromSupplyRequest(tx, normalized);
+      await this.deriveSoLoThucTeFromKien(tx, items);
       const lotProductIds = items.map((line) => line.lotProductId);
       const balances = await this.loadBalances(tx, lotProductIds);
 
@@ -337,6 +391,11 @@ class WarehouseIssueService {
           ...(normalized.ngayXuat ? { ngayXuat: new Date(normalized.ngayXuat) } : {}),
           ghiChu: normalized.ghiChu,
           ...(normalized.supplyRequestId ? { supplyRequestId: normalized.supplyRequestId } : {}),
+          ...(normalized.nguoiDeNghi ? { nguoiDeNghi: normalized.nguoiDeNghi } : {}),
+          ...(normalized.maNguoiDeNghi ? { maNguoiDeNghi: normalized.maNguoiDeNghi } : {}),
+          ...(normalized.boPhan ? { boPhan: normalized.boPhan } : {}),
+          ...(normalized.boPhanId ? { boPhanId: normalized.boPhanId } : {}),
+          ...(normalized.lyDoXuatKho ? { lyDoXuatKho: normalized.lyDoXuatKho } : {}),
           ...totals,
           ...this.mirrorFirstLine(withMaKien[0]),
           items: {
@@ -444,6 +503,11 @@ class WarehouseIssueService {
         data: {
           ...(normalized.ngayXuat ? { ngayXuat: new Date(normalized.ngayXuat) } : {}),
           ghiChu: normalized.ghiChu,
+          ...(normalized.nguoiDeNghi !== undefined ? { nguoiDeNghi: normalized.nguoiDeNghi } : {}),
+          ...(normalized.maNguoiDeNghi !== undefined ? { maNguoiDeNghi: normalized.maNguoiDeNghi } : {}),
+          ...(normalized.boPhan !== undefined ? { boPhan: normalized.boPhan } : {}),
+          ...(normalized.boPhanId !== undefined ? { boPhanId: normalized.boPhanId } : {}),
+          ...(normalized.lyDoXuatKho !== undefined ? { lyDoXuatKho: normalized.lyDoXuatKho } : {}),
           ...totals,
           ...this.mirrorFirstLine(withMaKien[0]),
         },
@@ -456,6 +520,13 @@ class WarehouseIssueService {
     this.notifyReorderRules(lotProductIds, balances);
 
     return { ...updated, isLocked: !!updated.supplyRequestId };
+  }
+
+  async markPrinted(id: string) {
+    const existing = await prisma.warehouseIssue.findUnique({ where: { id }, select: { id: true, daIn: true } });
+    if (!existing) throw new NotFoundError('Không tìm thấy phiếu xuất kho');
+    if (existing.daIn) return existing;
+    return prisma.warehouseIssue.update({ where: { id }, data: { daIn: true, inLanDauAt: new Date() } });
   }
 
   /**

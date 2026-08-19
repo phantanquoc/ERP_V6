@@ -39,6 +39,7 @@
       "@config/*": ["src/config/*"],
       "@utils/*": ["src/utils/*"],
       "@cron/*": ["src/cron/*"],
+      "@constants/*": ["src/constants/*"],
       "@types": ["src/types"],
       "@schemas": ["src/schemas"],
       "@schemas/*": ["src/schemas/*"]

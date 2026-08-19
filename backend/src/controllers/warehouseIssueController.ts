@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import warehouseIssueService from '@services/warehouseIssueService';
 import supplyRequestService from '@services/supplyRequestService';
 import notificationService from '@services/notificationService';
+import { exportIssueXlsx } from '@services/warehouseSlipExportService';
 import { NotificationEvent } from '@types';
 import { ValidationError, ConflictError, NotFoundError } from '@utils/errors';
 
@@ -16,7 +17,7 @@ export const generateIssueCode = async (_req: Request, res: Response, next: Next
 
 export const createWarehouseIssue = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { maPhieuXuat, employeeId, maNhanVien, tenNhanVien, ngayXuat, ghiChu, supplyRequestId, items } = req.body;
+    const { maPhieuXuat, employeeId, maNhanVien, tenNhanVien, ngayXuat, ghiChu, supplyRequestId, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, lyDoXuatKho, items } = req.body;
 
     if (!employeeId) {
       res.status(400).json({ success: false, message: 'Thiếu mã nhân viên' });
@@ -28,7 +29,7 @@ export const createWarehouseIssue = async (req: Request, res: Response, next: Ne
     }
 
     const warehouseIssue = await warehouseIssueService.create({
-      maPhieuXuat, employeeId, maNhanVien, tenNhanVien, ngayXuat, ghiChu, supplyRequestId, items,
+      maPhieuXuat, employeeId, maNhanVien, tenNhanVien, ngayXuat, ghiChu, supplyRequestId, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, lyDoXuatKho, items,
     });
 
     res.status(201).json({ success: true, message: 'Tạo phiếu xuất kho thành công', data: warehouseIssue });
@@ -84,9 +85,9 @@ export const getWarehouseIssueById = async (req: Request, res: Response, next: N
 export const updateWarehouseIssue = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { id } = req.params;
-    const { ngayXuat, ghiChu, items } = req.body;
+    const { ngayXuat, ghiChu, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, lyDoXuatKho, items } = req.body;
 
-    const issue = await warehouseIssueService.update(id, { ngayXuat, ghiChu, items });
+    const issue = await warehouseIssueService.update(id, { ngayXuat, ghiChu, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, lyDoXuatKho, items });
 
     res.status(200).json({ success: true, message: 'Cập nhật phiếu xuất kho thành công', data: issue });
   } catch (error: any) {
@@ -124,6 +125,28 @@ export const deleteWarehouseIssue = async (req: Request, res: Response, next: Ne
       res.status(409).json({ success: false, message: error.message });
       return;
     }
+    next(error);
+  }
+};
+
+export const markIssuePrinted = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const result = await warehouseIssueService.markPrinted(req.params.id);
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    if (error instanceof NotFoundError) {
+      res.status(404).json({ success: false, message: error.message });
+      return;
+    }
+    next(error);
+  }
+};
+
+export const exportIssueXlsxHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    await exportIssueXlsx(req.params.id, res);
+    try { await warehouseIssueService.markPrinted(req.params.id); } catch {}
+  } catch (error) {
     next(error);
   }
 };
