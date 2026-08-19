@@ -7,10 +7,12 @@ import Modal from './Modal';
 import ProductCombobox from './common/ProductCombobox';
 import UnitSelect from './common/UnitSelect';
 import EmployeeCombobox from './common/EmployeeCombobox';
+import MultiKienPicker from './common/MultiKienPicker';
 import { useProducts } from '../hooks';
 import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
 import { useUnitOptions } from '../hooks/useLookups';
 import { TINH_TRANG_OPTIONS } from '../constants/warehouseCatalogs';
+import { kienCapacityByUnit } from '../utils/kienCapacity';
 
 /** Purpose presets — cover the common cases; the field stays free text for the rest. */
 const MUC_DICH_PRESETS = [
@@ -46,12 +48,14 @@ interface EditReceiptRow {
   quyCach: string;
   lots: Lot[];
   lotProducts: LotProduct[];
+  selectedKienIds: string[];
+  perKienQty: number[];
 }
 
 const emptyRow = (): EditReceiptRow => ({
   warehouseId: '', lotId: '', lotProductId: '', internationalProductId: '',
   tenSanPham: '', donViTinh: '', soLuongNhap: 0, ghiChu: '', tinhTrang: 'Bình thường', tinhTrangCustom: '', quyCach: '',
-  lots: [], lotProducts: [],
+  lots: [], lotProducts: [], selectedKienIds: [], perKienQty: [],
 });
 
 const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
@@ -138,7 +142,7 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
         soLuongNhap: target.soLuongNhap ?? 0,
         ghiChu: target.ghiChu ?? '',
         tinhTrang: 'Bình thường', tinhTrangCustom: '', quyCach: '',
-        lots, lotProducts,
+        lots, lotProducts, selectedKienIds: target.lotProductId ? [target.lotProductId] : [], perKienQty: target.lotProductId ? [target.soLuongNhap ?? 0] : [],
       }];
     }
 
@@ -161,6 +165,8 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
         tinhTrangCustom: isKnownTinh ? '' : rawTinh,
         quyCach: (line as any).quyCach ?? '',
         lots, lotProducts,
+        selectedKienIds: line.lotProductId ? [line.lotProductId] : [],
+        perKienQty: line.lotProductId ? [line.soLuongThucTe ?? 0] : [],
       };
     });
   };
@@ -179,7 +185,35 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
 
   const handleLotChange = (index: number, lotId: string) => {
     const lot = rows[index].lots.find((l) => l.id === lotId);
-    updateRow(index, { lotId, lotProductId: '', lotProducts: lot?.lotProducts || [] });
+    updateRow(index, { lotId, lotProductId: '', lotProducts: lot?.lotProducts || [], selectedKienIds: [], perKienQty: [] });
+  };
+
+  const handleKienMultiChange = (index: number, ids: string[]) => {
+    const total = rows[index]?.soLuongNhap ?? 0;
+    const n = ids.length;
+    let perKienQty: number[] = [];
+    if (n > 0 && total > 0) {
+      const base = Math.floor(total / n);
+      const rem = total % n;
+      perKienQty = ids.map((_, i) => i === n - 1 ? base + rem : base);
+    } else {
+      perKienQty = ids.map(() => 0);
+    }
+    updateRow(index, { selectedKienIds: ids, perKienQty });
+  };
+
+  const handleTotalChange = (index: number, total: number) => {
+    const ids = rows[index]?.selectedKienIds ?? [];
+    const n = ids.length;
+    let perKienQty: number[] = [];
+    if (n > 0 && total > 0) {
+      const base = Math.floor(total / n);
+      const rem = total % n;
+      perKienQty = ids.map((_, i) => i === n - 1 ? base + rem : base);
+    } else {
+      perKienQty = ids.map(() => 0);
+    }
+    updateRow(index, { soLuongNhap: total, perKienQty });
   };
 
   const addRow = () => setRows((prev) => [...prev, emptyRow()]);
@@ -199,8 +233,9 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
         alert(`Dòng ${i + 1}: Vui lòng chọn kho và lô`);
         return;
       }
-      if (!row.lotProductId && !row.tenSanPham) {
-        alert(`Dòng ${i + 1}: Vui lòng chọn hàng hóa hoặc nhập tên hàng hóa mới`);
+      const hasKien = (row.selectedKienIds?.length ?? 0) > 0 || !!row.lotProductId;
+      if (!hasKien && !row.tenSanPham) {
+        alert(`Dòng ${i + 1}: Vui lòng chọn hàng hóa/kiện hoặc nhập tên hàng hóa mới`);
         return;
       }
       if (row.soLuongNhap <= 0) {
@@ -222,26 +257,26 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
 
     setLoading(true);
     try {
-      const items = rows.map((row) => {
+      const items = rows.flatMap((row) => {
         const warehouse = warehouses.find((w) => w.id === row.warehouseId);
         const lot = row.lots.find((l) => l.id === row.lotId);
-        const lotProduct = row.lotProducts.find((lp) => lp.id === row.lotProductId);
         const tinhTrangVal = row.tinhTrang === 'Khác' ? (row.tinhTrangCustom || 'Khác') : (row.tinhTrang || undefined);
-        return {
-          // Present only for stored lines — a new row has no id and lands as an insert.
-          ...(row.id ? { id: row.id } : {}),
-          lotProductId: row.lotProductId,
-          tenSanPham: lotProduct?.internationalProduct?.tenSanPham || row.tenSanPham,
-          warehouseId: row.warehouseId,
-          tenKho: warehouse?.tenKho || '',
-          lotId: row.lotId,
-          tenLo: lot?.tenLo || '',
-          soLuongThucTe: row.soLuongNhap,
-          donViTinh: lotProduct?.donViTinh || row.donViTinh,
-          ghiChu: row.ghiChu,
-          tinhTrang: tinhTrangVal,
-          quyCach: row.quyCach || undefined,
+        const baseItem = {
+          warehouseId: row.warehouseId, tenKho: warehouse?.tenKho || '', lotId: row.lotId, tenLo: lot?.tenLo || '',
+          tenSanPham: row.tenSanPham, donViTinh: row.donViTinh, ghiChu: row.ghiChu, tinhTrang: tinhTrangVal, quyCach: row.quyCach || undefined,
         };
+        const kienIds = row.selectedKienIds?.length ? row.selectedKienIds : (row.lotProductId ? [row.lotProductId] : []);
+        if (kienIds.length > 1) {
+          const perKien = row.perKienQty?.length === kienIds.length ? row.perKienQty : (() => { const base=Math.floor(row.soLuongNhap/kienIds.length); const rem=row.soLuongNhap%kienIds.length; return kienIds.map((_,i)=> i===kienIds.length-1 ? base+rem : base); })();
+          const cap = kienCapacityByUnit(row.donViTinh);
+          if (cap) { const maxPer=Math.max(...perKien); if(maxPer>cap) throw new Error(`Vượt sức chứa kiện (tối đa ${cap} ${row.donViTinh}/kiện)`); }
+          return kienIds.map((kid, i) => {
+            const lp = row.lotProducts.find((p)=> p.id===kid);
+            return { ...(row.id && i===0 ? { id: row.id } : {}), lotProductId: kid, tenSanPham: lp?.internationalProduct?.tenSanPham || row.tenSanPham, warehouseId: row.warehouseId, tenKho: warehouse?.tenKho || '', lotId: lp?.lotId ?? row.lotId, tenLo: warehouses.find((w)=> w.id===row.warehouseId)?.lots?.find((l)=> l.id===(lp?.lotId ?? row.lotId))?.tenLo ?? lot?.tenLo ?? '', soLuongThucTe: perKien[i], donViTinh: lp?.donViTinh || row.donViTinh, ghiChu: row.ghiChu, tinhTrang: tinhTrangVal, quyCach: row.quyCach || undefined };
+          });
+        }
+        const lotProduct = row.lotProducts.find((lp) => lp.id === row.lotProductId);
+        return [{ ...(row.id ? { id: row.id } : {}), lotProductId: row.lotProductId, tenSanPham: lotProduct?.internationalProduct?.tenSanPham || row.tenSanPham, warehouseId: row.warehouseId, tenKho: warehouse?.tenKho || '', lotId: row.lotId, tenLo: lot?.tenLo || '', soLuongThucTe: row.soLuongNhap, donViTinh: lotProduct?.donViTinh || row.donViTinh, ghiChu: row.ghiChu, tinhTrang: tinhTrangVal, quyCach: row.quyCach || undefined }];
       });
 
       await warehouseReceiptService.updateWarehouseReceipt(receipt.id, {
@@ -292,8 +327,8 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Người đề nghị</label><EmployeeCombobox employees={employees} value={nguoiDeNghi} onChange={handleNguoiDeNghiChange} placeholder="Tìm nhân viên..." /></div>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Bộ phận</label><input value={boPhan} onChange={(e) => setBoPhan(e.target.value)} placeholder="Tự điền từ người đề nghị" className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Người đề nghị</label><EmployeeCombobox employees={employees} value={nguoiDeNghi} onChange={handleNguoiDeNghiChange} placeholder="" /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Bộ phận</label><input value={boPhan} onChange={(e) => setBoPhan(e.target.value)} placeholder="" className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
           </div>
 
           <div>
@@ -385,12 +420,39 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
                       </p>
                     ) : null}
                   </div>
+                  {row.lotId && (
+                    <div className="mt-3">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Chọn kiện (có thể chọn nhiều — sẽ chia đều tổng số lượng)</label>
+                      <MultiKienPicker lots={row.lots.filter((l) => l.id === row.lotId)} value={row.selectedKienIds} onChange={(ids) => handleKienMultiChange(index, ids)} />
+                      {row.selectedKienIds.length > 1 && (
+                        <div className="mt-2">
+                          <div className="text-xs text-gray-500 mb-1">Chia đều {row.soLuongNhap} {row.donViTinh || ''} vào {row.selectedKienIds.length} kiện — có thể sửa tay:</div>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {row.selectedKienIds.map((kid, ki) => {
+                              const lp = row.lotProducts.find((p) => p.id === kid);
+                              const max = kienCapacityByUnit(row.donViTinh || lp?.donViTinh || '');
+                              const per = row.perKienQty[ki] ?? 0;
+                              const over = max !== null && per > max;
+                              return (
+                                <div key={kid} className={`p-2 rounded border ${over ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-white'}`}>
+                                  <div className="text-xs font-mono text-gray-600">{lp?.maKien ?? kid.slice(-6)}</div>
+                                  <input type="number" value={per} onChange={(e) => { const next=[...row.perKienQty]; next[ki]=parseNumberInput(e.target.value); updateRow(index,{ perKienQty: next }); }} min={0} step={0.01} className="mt-1 w-full px-2 py-1 border border-gray-300 rounded text-sm" />
+                                  {over && <div className="text-xs text-red-600 mt-1">Vượt {max}</div>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {(() => { const sum=row.perKienQty.reduce((a,b)=>a+b,0); const diff=row.soLuongNhap-sum; return diff!==0 ? <div className="text-xs mt-1 text-amber-600">Tổng kiện ({sum}) lệch tổng phiếu ({row.soLuongNhap}) — chênh {diff>0?'+':''}{diff}</div> : null; })()}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Số lượng nhập <span className="text-red-500">*</span></label>
-                      <input type="number" value={row.soLuongNhap}
-                        onChange={(e) => updateRow(index, { soLuongNhap: parseNumberInput(e.target.value) })}
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Tổng số lượng <span className="text-red-500">*</span></label>
+                      <input type="number" value={row.soLuongNhap === 0 ? '' : row.soLuongNhap} placeholder=""
+                        onChange={(e) => handleTotalChange(index, parseNumberInput(e.target.value))}
                         required min="0" step="0.01"
                         className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-green-500" />
                     </div>
@@ -408,14 +470,14 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
 
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Ghi chú dòng</label>
-                      <input type="text" value={row.ghiChu} placeholder="Nhập ghi chú (tự do)..."
+                      <input type="text" value={row.ghiChu} placeholder=""
                         onChange={(e) => updateRow(index, { ghiChu: e.target.value })}
                         className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-green-500" />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
-                    <div><label className="block text-xs font-medium text-gray-600 mb-1">Tình trạng</label><select value={row.tinhTrang} onChange={(e) => updateRow(index, { tinhTrang: e.target.value })} className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"><option value="">—</option>{TINH_TRANG_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>{row.tinhTrang === 'Khác' && <input value={row.tinhTrangCustom} onChange={(e) => updateRow(index, { tinhTrangCustom: e.target.value })} placeholder="Nhập khác..." className="mt-1 w-full px-2 py-1.5 border border-gray-300 rounded text-sm" />}</div>
-                    <div><label className="block text-xs font-medium text-gray-600 mb-1">Quy cách</label><input value={row.quyCach} onChange={(e) => updateRow(index, { quyCach: e.target.value })} placeholder="VD: 25kg/bao" className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" /></div>
+                    <div><label className="block text-xs font-medium text-gray-600 mb-1">Tình trạng</label><select value={row.tinhTrang} onChange={(e) => updateRow(index, { tinhTrang: e.target.value })} className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"><option value="">—</option>{TINH_TRANG_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>{row.tinhTrang === 'Khác' && <input value={row.tinhTrangCustom} onChange={(e) => updateRow(index, { tinhTrangCustom: e.target.value })} placeholder="" className="mt-1 w-full px-2 py-1.5 border border-gray-300 rounded text-sm" />}</div>
+                    <div><label className="block text-xs font-medium text-gray-600 mb-1">Quy cách</label><input value={row.quyCach} onChange={(e) => updateRow(index, { quyCach: e.target.value })} placeholder="" className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" /></div>
                     <div />
                   </div>
                 </div>
