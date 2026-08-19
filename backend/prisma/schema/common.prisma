@@ -1099,6 +1099,9 @@ model OvertimePlan {
   files       String[]           @default([])
   mucDoUuTien TaskPriority // Reuse TaskPriority enum
   trangThai   OvertimePlanStatus @default(CHO_DUYET)
+  nguoiDuyetId String? // User ID người duyệt/từ chối
+  ngayDuyet   DateTime?
+  lyDoTuChoi  String?            @db.Text
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
   items       OvertimePlanItem[]
