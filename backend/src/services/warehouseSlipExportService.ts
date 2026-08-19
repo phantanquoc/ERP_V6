@@ -67,7 +67,7 @@ async function buildWorkbook(type: SlipType, id: string): Promise<{ wb: ExcelJS.
   ws.mergeCells('A1:N1'); ws.getCell('A1').value = COMPANY_HEADER.name;
   ws.getCell('A1').font = { name: 'Times New Roman', size: 10, bold: true };
   ws.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
-  ws.mergeCells('A2:N2'); ws.getCell('A2').value = `${COMPANY_HEADER.address}  ĐT: ${COMPANY_HEADER.phone}  Fax: ${COMPANY_HEADER.fax}`;
+  ws.mergeCells('A2:N2'); ws.getCell('A2').value = `${COMPANY_HEADER.address}  ĐT: ${COMPANY_HEADER.phone}  Email: ${COMPANY_HEADER.email}  Website: ${COMPANY_HEADER.website}`;
   ws.getCell('A2').font = { name: 'Times New Roman', size: 8 };
   ws.getCell('A2').alignment = { horizontal: 'center' };
   ws.mergeCells('A3:N3'); ws.getCell('A3').value = title;

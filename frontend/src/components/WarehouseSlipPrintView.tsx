@@ -56,7 +56,7 @@ const WarehouseSlipPrintView: React.FC<WarehouseSlipPrintViewProps> = ({
           <img src="/abf-logo.png" alt="ABF" style={{ height: 36, objectFit: 'contain' }} onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
           <div style={{ flex: 1, textAlign: 'center' }}>
             <div style={{ fontFamily: 'Times New Roman', fontWeight: 700, fontSize: 11 }}>{COMPANY_HEADER.name}</div>
-            <div style={{ fontFamily: 'Times New Roman', fontSize: 8, color: '#4b5563' }}>{COMPANY_HEADER.address}  ĐT: {COMPANY_HEADER.phone}  Fax: {COMPANY_HEADER.fax}</div>
+            <div style={{ fontFamily: 'Times New Roman', fontSize: 8, color: '#4b5563' }}>{COMPANY_HEADER.address}  ĐT: {COMPANY_HEADER.phone}  Email: {COMPANY_HEADER.email}  Website: {COMPANY_HEADER.website}</div>
           </div>
         </div>
 
