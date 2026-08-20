@@ -28,13 +28,14 @@ const BusinessManagement = () => {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [ycbgRes, baoGiaRes, donHangRes, khRes, ordersFull, quotationsFull] = await Promise.all([
+      const [ycbgRes, baoGiaRes, donHangRes, khRes, ycbgFullRes, ordersFull, quotationsFull] = await Promise.all([
         quotationRequestService.getAllQuotationRequests(1, 1) as Promise<any>,
         quotationService.getAllQuotations(1, 1) as Promise<any>,
         orderService.getAllOrders(1, 1) as Promise<any>,
         internationalCustomerService.getAllCustomers(1, 1) as Promise<any>,
-        orderService.getAllOrders(1, 10000) as Promise<any>,
-        quotationService.getAllQuotations(1, 10000) as Promise<any>,
+        quotationRequestService.getAllQuotationRequests(1, 9999) as Promise<any>,
+        orderService.getAllOrders(1, 9999) as Promise<any>,
+        quotationService.getAllQuotations(1, 9999) as Promise<any>,
       ]);
 
       const ycbgTotal = ycbgRes.pagination?.total ?? ycbgRes.data?.length ?? 0;
@@ -43,10 +44,9 @@ const BusinessManagement = () => {
       const khTotal = khRes.total ?? khRes.data?.length ?? 0;
       setKpi({ ycbg: ycbgTotal, baoGia: baoGiaTotal, donHang: donHangTotal, khachHang: khTotal });
 
-      // Status breakdowns from full lists
-      const ycbgList: any[] = ycbgRes.data ?? [];
-      // If we only got 1 item for total, fetch more for breakdown when needed
-      let ycbgFull: any[] = ycbgList;
+      // Status breakdowns from full lists (use full fetches for accurate pies)
+      const ycbgFull: any[] = ((ycbgFullRes as any).data ?? ycbgFullRes) as any[];
+      const ycbgArr = Array.isArray(ycbgFull) ? ycbgFull : [];
       let orderFull: any[] = (ordersFull.data ?? ordersFull) as any[];
       if (!Array.isArray(orderFull)) orderFull = [];
       const quotationFull: any[] = (quotationsFull.data ?? quotationsFull) as any[];
@@ -54,7 +54,7 @@ const BusinessManagement = () => {
 
       // YCBG by status
       const ycbgStatusMap: Record<string, number> = {};
-      ycbgFull.forEach((r: any) => {
+      ycbgArr.forEach((r: any) => {
         const s = r.status || r.trangThai || 'Khác';
         ycbgStatusMap[s] = (ycbgStatusMap[s] || 0) + 1;
       });

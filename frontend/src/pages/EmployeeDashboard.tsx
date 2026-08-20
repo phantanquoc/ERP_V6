@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   History,
+  AlertTriangle,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
@@ -120,7 +121,7 @@ const PersonalStatCard: React.FC<{ stat: any; onEvaluationClick?: () => void; on
         onWorkPlanClick();
       }
     }}
-    className={`bg-white rounded-lg shadow-sm border ${stat.hasNotification ? 'border-red-300 bg-red-50' : 'border-gray-200'} p-3 sm:p-6 hover:border-gray-300 hover:shadow-md transition-all duration-200 relative min-w-0 overflow-hidden ${(stat.label === "Đánh giá" || stat.label === "Nhiệm vụ" || stat.label === "Kế hoạch") ? 'cursor-pointer' : ''}`}
+    className={`bg-white rounded-lg shadow-sm border ${stat.hasNotification ? 'border-red-300 bg-red-50' : 'border-gray-200'} p-4 sm:p-5 hover:border-gray-300 hover:shadow-md transition-all duration-200 relative min-w-0 overflow-hidden ${(stat.label === "Đánh giá" || stat.label === "Nhiệm vụ" || stat.label === "Kế hoạch") ? 'cursor-pointer' : ''}`}
   >
     {stat.hasNotification && (
       <div className="absolute top-2 right-2 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
@@ -534,15 +535,29 @@ const EmployeeDashboard: React.FC = () => {
   const quickActions = getQuickActions();
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
+    <div className="max-w-7xl mx-auto py-4 sm:py-6">
         {/* Theme Header */}
         <ThemeHeader activeTheme={activeTheme} user={user} departmentName={departmentName} />
 
         {/* Company Announcement Banner */}
         <CompanyAnnouncementBanner />
 
-        {/* Personal Stats — always 3 cols, icon hidden on mobile */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-6 mb-6 sm:mb-8">
+        {/* Today hero strip — compact date + quick status, no new API */}
+        <div className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 flex items-center gap-3 mb-4 sm:mb-6">
+          <div className="flex-shrink-0 p-2 bg-blue-50 rounded-lg">
+            <Calendar className="w-4 h-4 text-blue-600" />
+          </div>
+          <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+            <span className="font-semibold text-gray-900">
+              Hôm nay: {new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </span>
+            <span className="text-gray-400 hidden sm:inline">·</span>
+            <span className="text-gray-600">{tasksCount} nhiệm vụ · {workPlansCount} kế hoạch</span>
+          </div>
+        </div>
+
+        {/* Personal Stats — 1 col on mobile, 3 cols from sm to avoid 111px squeeze */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
           {personalStats.map((stat, index) => (
             <PersonalStatCard
               key={index}
@@ -554,6 +569,24 @@ const EmployeeDashboard: React.FC = () => {
           ))}
         </div>
 
+        {/* Evaluation alerts lane */}
+        {latestEvaluationNotification && !latestEvaluationNotification.isRead && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center justify-between mb-6 sm:mb-8 gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
+              <span className="text-sm font-medium text-red-800 break-words">
+                Bạn có đánh giá tháng {latestEvaluationNotification.period ? new Date(latestEvaluationNotification.period + '-01').toLocaleDateString('vi-VN', { month: 'numeric', year: 'numeric' }) : ''} chưa hoàn thành
+              </span>
+            </div>
+            <button
+              onClick={() => setIsEvaluationModalOpen(true)}
+              className="flex-shrink-0 text-sm font-semibold text-red-600 hover:text-red-700 hover:underline whitespace-nowrap"
+            >
+              Làm ngay →
+            </button>
+          </div>
+        )}
+
         {/* Main Content — vertical stack */}
         <div className="space-y-4 sm:space-y-8">
           {/* Quick Actions Card */}
@@ -562,7 +595,7 @@ const EmployeeDashboard: React.FC = () => {
               <Activity className="w-6 h-6 text-blue-600 mr-2" />
               Thao tác nhanh
             </h2>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {quickActions.map((action, index) => (
                 <QuickActionCard
                   key={index}
