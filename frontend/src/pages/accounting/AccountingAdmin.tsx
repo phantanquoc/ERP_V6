@@ -8,6 +8,7 @@ import {
   AlertCircle,
   TrendingUp,
 } from 'lucide-react';
+import PageHeader from '../../design-system/PageHeader';
 import OrderManagement from '../../components/OrderManagement';
 import DebtManagement from '../../components/DebtManagement';
 import AssetManagement from '../../components/AssetManagement';
@@ -186,44 +187,41 @@ const AccountingAdmin = () => {
   return (
     <div>
       <div>
-        {/* Header with Month/Year filter */}
-        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center">
-              <Calculator className="w-8 h-8 text-orange-600 mr-3" />
-              Phòng KT Hành chính
-            </h1>
-            <p className="text-gray-600">Quản lý hóa đơn, tài sản, công nợ và đơn hàng</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(Number(e.target.value))}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-            >
-              {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                <option key={m} value={m}>Tháng {m}</option>
-              ))}
-            </select>
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-            >
-              {[2023, 2024, 2025, 2026].map(y => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
-          </div>
-        </div>
+        <PageHeader
+          title="Phòng KT Hành chính"
+          description="Quản lý hóa đơn, tài sản, công nợ và đơn hàng"
+          icon={<Calculator className="w-6 h-6 text-orange-500" />}
+          actions={
+            <>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+              >
+                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                  <option key={m} value={m}>Tháng {m}</option>
+                ))}
+              </select>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+              >
+                {[2023, 2024, 2025, 2026].map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </>
+          }
+        />
 
         {/* Overview Cards - 2x2 grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
           {/* Card 1: Tổng quan tài sản */}
-          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300">
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold flex items-center text-gray-800">
-                <Building className="w-5 h-5 mr-2 text-blue-600" />
+              <h3 className="text-sm font-semibold flex items-center text-gray-700">
+                <Building className="w-4 h-4 mr-2 text-blue-600" />
                 Tổng quan tài sản
               </h3>
             </div>
@@ -234,22 +232,22 @@ const AccountingAdmin = () => {
               </div>
             ) : (
               <div className="space-y-3">
-                <div onClick={() => setActiveTab('assets')} className="bg-blue-50 rounded-lg p-3 border-2 border-blue-300 cursor-pointer hover:shadow-md hover:border-blue-400 transition">
+                <div onClick={() => setActiveTab('assets')} className="bg-blue-50 rounded-lg p-3 border border-blue-200 cursor-pointer hover:shadow-sm hover:border-blue-300 transition">
                   <div className="flex justify-between items-center">
                     <span className="text-xs font-medium text-gray-700">Tổng tài sản</span>
                     <span className="text-2xl font-bold text-blue-600">{formatCurrency(assetOverview.tongTaiSan)}</span>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <div onClick={() => setActiveTab('debts')} className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer hover:shadow-md hover:border-blue-400 transition">
+                  <div onClick={() => setActiveTab('debts')} className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200 cursor-pointer hover:shadow-sm hover:border-blue-200 transition">
                     <div className="text-xl font-bold text-red-600">{formatCompact(assetOverview.tongCongNo)}</div>
                     <div className="text-xs text-gray-600 mt-0.5">Tổng công nợ</div>
                   </div>
-                  <div onClick={() => setActiveTab('debts')} className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer hover:shadow-md hover:border-blue-400 transition">
+                  <div onClick={() => setActiveTab('debts')} className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200 cursor-pointer hover:shadow-sm hover:border-blue-200 transition">
                     <div className="text-xl font-bold text-green-600">{formatCompact(assetOverview.daThanhToan)}</div>
                     <div className="text-xs text-gray-600 mt-0.5">Đã thanh toán</div>
                   </div>
-                  <div onClick={() => setActiveTab('debts')} className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer hover:shadow-md hover:border-blue-400 transition">
+                  <div onClick={() => setActiveTab('debts')} className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200 cursor-pointer hover:shadow-sm hover:border-blue-200 transition">
                     <div className="text-xl font-bold text-yellow-600">{formatCompact(assetOverview.chuaThanhToan)}</div>
                     <div className="text-xs text-gray-600 mt-0.5">Chưa thanh toán</div>
                   </div>
@@ -259,10 +257,10 @@ const AccountingAdmin = () => {
           </div>
 
           {/* Card 2: Tổng quan doanh thu */}
-          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300">
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold flex items-center text-gray-800">
-                <TrendingUp className="w-5 h-5 mr-2 text-green-600" />
+              <h3 className="text-sm font-semibold flex items-center text-gray-700">
+                <TrendingUp className="w-4 h-4 mr-2 text-green-600" />
                 Tổng quan doanh thu
               </h3>
             </div>
@@ -273,18 +271,18 @@ const AccountingAdmin = () => {
               </div>
             ) : (
               <div className="space-y-3">
-                <div onClick={() => setActiveTab('orders')} className="bg-green-50 rounded-lg p-3 border-2 border-green-300 cursor-pointer hover:shadow-md hover:border-green-400 transition">
+                <div onClick={() => setActiveTab('orders')} className="bg-green-50 rounded-lg p-3 border border-green-200 cursor-pointer hover:shadow-sm hover:border-green-300 transition">
                   <div className="flex justify-between items-center">
                     <span className="text-xs font-medium text-gray-700">Tổng doanh thu</span>
                     <span className="text-2xl font-bold text-green-600">{formatCurrency(revenueOverview.tongDoanhThu)}</span>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <div onClick={() => setActiveTab('orders')} className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer hover:shadow-md hover:border-blue-400 transition">
+                  <div onClick={() => setActiveTab('orders')} className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200 cursor-pointer hover:shadow-sm hover:border-blue-200 transition">
                     <div className="text-xl font-bold text-blue-600">{formatCompact(revenueOverview.quocTe)}</div>
                     <div className="text-xs text-gray-600 mt-0.5">Quốc tế</div>
                   </div>
-                  <div onClick={() => setActiveTab('orders')} className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer hover:shadow-md hover:border-blue-400 transition">
+                  <div onClick={() => setActiveTab('orders')} className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200 cursor-pointer hover:shadow-sm hover:border-blue-200 transition">
                     <div className="text-xl font-bold text-green-600">{formatCompact(revenueOverview.noiDia)}</div>
                     <div className="text-xs text-gray-600 mt-0.5">Nội địa</div>
                   </div>
@@ -294,10 +292,10 @@ const AccountingAdmin = () => {
           </div>
 
           {/* Card 3: Hóa đơn */}
-          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300">
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold flex items-center text-gray-800">
-                <Receipt className="w-5 h-5 mr-2 text-orange-600" />
+              <h3 className="text-sm font-semibold flex items-center text-gray-700">
+                <Receipt className="w-4 h-4 mr-2 text-orange-600" />
                 Hóa đơn
               </h3>
             </div>
@@ -308,22 +306,22 @@ const AccountingAdmin = () => {
               </div>
             ) : (
               <div className="space-y-3">
-                <div onClick={() => setActiveTab('invoices')} className="bg-orange-50 rounded-lg p-3 border-2 border-orange-300 cursor-pointer hover:shadow-md hover:border-orange-400 transition">
+                <div onClick={() => setActiveTab('invoices')} className="bg-orange-50 rounded-lg p-3 border border-orange-200 cursor-pointer hover:shadow-sm hover:border-orange-300 transition">
                   <div className="flex justify-between items-center">
                     <span className="text-xs font-medium text-gray-700">Tổng hóa đơn</span>
                     <span className="text-2xl font-bold text-orange-600">{invoiceOverview.total}</span>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
-                  <div onClick={() => setActiveTab('invoices')} className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer hover:shadow-md hover:border-blue-400 transition">
+                  <div onClick={() => setActiveTab('invoices')} className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200 cursor-pointer hover:shadow-sm hover:border-blue-200 transition">
                     <div className="text-xl font-bold text-green-600">{invoiceOverview.daThanhToan}</div>
                     <div className="text-xs text-gray-600 mt-0.5">Đã thanh toán</div>
                   </div>
-                  <div onClick={() => setActiveTab('invoices')} className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer hover:shadow-md hover:border-blue-400 transition">
+                  <div onClick={() => setActiveTab('invoices')} className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200 cursor-pointer hover:shadow-sm hover:border-blue-200 transition">
                     <div className="text-xl font-bold text-red-600">{invoiceOverview.chuaThanhToan}</div>
                     <div className="text-xs text-gray-600 mt-0.5">Chưa thanh toán</div>
                   </div>
-                  <div onClick={() => setActiveTab('invoices')} className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer hover:shadow-md hover:border-blue-400 transition">
+                  <div onClick={() => setActiveTab('invoices')} className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200 cursor-pointer hover:shadow-sm hover:border-blue-200 transition">
                     <div className="text-xl font-bold text-yellow-600">{invoiceOverview.dangXuLy}</div>
                     <div className="text-xs text-gray-600 mt-0.5">Đang xử lý</div>
                   </div>
@@ -333,10 +331,10 @@ const AccountingAdmin = () => {
           </div>
 
           {/* Card 4: Đơn hàng */}
-          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300">
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold flex items-center text-gray-800">
-                <Package className="w-5 h-5 mr-2 text-purple-600" />
+              <h3 className="text-sm font-semibold flex items-center text-gray-700">
+                <Package className="w-4 h-4 mr-2 text-purple-600" />
                 Đơn hàng
               </h3>
             </div>
@@ -347,22 +345,22 @@ const AccountingAdmin = () => {
               </div>
             ) : (
               <div className="space-y-3">
-                <div onClick={() => setActiveTab('orders')} className="bg-purple-50 rounded-lg p-3 border-2 border-purple-300 cursor-pointer hover:shadow-md hover:border-purple-400 transition">
+                <div onClick={() => setActiveTab('orders')} className="bg-purple-50 rounded-lg p-3 border border-purple-200 cursor-pointer hover:shadow-sm hover:border-purple-300 transition">
                   <div className="flex justify-between items-center">
                     <span className="text-xs font-medium text-gray-700">Tổng đơn hàng</span>
                     <span className="text-2xl font-bold text-purple-600">{orderOverview.total}</span>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
-                  <div onClick={() => setActiveTab('orders')} className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer hover:shadow-md hover:border-blue-400 transition">
+                  <div onClick={() => setActiveTab('orders')} className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200 cursor-pointer hover:shadow-sm hover:border-blue-200 transition">
                     <div className="text-xl font-bold text-blue-600">{orderOverview.dangSanXuat}</div>
                     <div className="text-xs text-gray-600 mt-0.5">Đang sản xuất</div>
                   </div>
-                  <div onClick={() => setActiveTab('orders')} className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer hover:shadow-md hover:border-blue-400 transition">
+                  <div onClick={() => setActiveTab('orders')} className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200 cursor-pointer hover:shadow-sm hover:border-blue-200 transition">
                     <div className="text-xl font-bold text-yellow-600">{orderOverview.choGiaoHang}</div>
                     <div className="text-xs text-gray-600 mt-0.5">Chờ giao hàng</div>
                   </div>
-                  <div onClick={() => setActiveTab('orders')} className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300 cursor-pointer hover:shadow-md hover:border-blue-400 transition">
+                  <div onClick={() => setActiveTab('orders')} className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200 cursor-pointer hover:shadow-sm hover:border-blue-200 transition">
                     <div className="text-xl font-bold text-green-600">{orderOverview.daGiao}</div>
                     <div className="text-xs text-gray-600 mt-0.5">Đã giao</div>
                   </div>
@@ -395,7 +393,7 @@ const AccountingAdmin = () => {
         </div>
 
         {/* Content */}
-        <div className="bg-white rounded-lg shadow-sm">
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
           {activeTab === 'invoices' && (
             <div className="p-6">
               <InvoiceManagement month={selectedMonth} year={selectedYear} />
