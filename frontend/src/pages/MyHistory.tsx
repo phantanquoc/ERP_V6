@@ -242,7 +242,7 @@ const MyHistorySummaryCard: React.FC<SummaryCardProps> = ({ total, thisWeek, pen
   ];
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4">
+    <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 mb-4">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
         {tiles.map(({ label, value }) => (
           <div key={label} className="flex items-center justify-between sm:flex-col sm:items-center sm:justify-center py-2 sm:py-0 sm:px-2">
@@ -563,7 +563,7 @@ const MyHistory: React.FC = () => {
 
       {/* Error state */}
       {isError && !isLoading && (
-        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 mb-4">
+        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 mb-4">
           Không thể tải dữ liệu. Vui lòng thử lại.
         </div>
       )}

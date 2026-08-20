@@ -370,7 +370,7 @@ const ProductionWarehouse = () => {
           <select
             value={filterMonth ?? ''}
             onChange={(e) => setFilterMonth(e.target.value ? Number(e.target.value) : undefined)}
-            className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Tất cả tháng</option>
             {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
@@ -380,7 +380,7 @@ const ProductionWarehouse = () => {
           <select
             value={filterYear ?? ''}
             onChange={(e) => setFilterYear(e.target.value ? Number(e.target.value) : undefined)}
-            className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Tất cả năm</option>
             {availableYears.map((y) => (
@@ -392,7 +392,7 @@ const ProductionWarehouse = () => {
         {/* Overview Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
           {/* Card 1: Tổng quan tồn kho */}
-          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-blue-400">
+          <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-200 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-blue-400">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <Package className="w-5 h-5 mr-2 text-blue-600" />
@@ -400,27 +400,27 @@ const ProductionWarehouse = () => {
               </h3>
             </div>
             <div className="space-y-3">
-              <div {...clickableProps('warehouseManagement')} className="bg-blue-50 rounded-lg p-3 hover:bg-blue-100 hover:shadow-md hover:scale-105 transition-all duration-200 border-2 border-blue-300 cursor-pointer">
+              <div {...clickableProps('warehouseManagement')} className="bg-blue-50 rounded-lg p-3 hover:bg-blue-100 hover:shadow-md hover:scale-105 transition-all duration-200 border border-blue-300 cursor-pointer">
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-medium text-gray-700">Số lượng kho</span>
                   <span className="text-2xl font-bold text-blue-600">{loadingOverview ? '...' : totalWarehouses}</span>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <div {...clickableProps('warehouseManagement')} className="bg-yellow-50 rounded-lg p-2 text-center hover:bg-yellow-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-yellow-300 cursor-pointer">
+                <div {...clickableProps('warehouseManagement')} className="bg-yellow-50 rounded-lg p-2 text-center hover:bg-yellow-100 hover:shadow-md hover:scale-110 transition-all duration-200 border border-yellow-300 cursor-pointer">
                   <div className="text-xl font-bold text-yellow-600">{loadingOverview ? '...' : emptyWarehouses}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Kho trống</div>
                 </div>
-                <div {...clickableProps('warehouseManagement')} className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
+                <div {...clickableProps('warehouseManagement')} className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border border-gray-200 cursor-pointer">
                   <div className="text-xl font-bold text-gray-600">{loadingOverview ? '...' : emptyLots}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Lô trống</div>
                 </div>
-                <div {...clickableProps('warehouseManagement')} className="bg-green-50 rounded-lg p-2 text-center hover:bg-green-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-green-300 cursor-pointer">
+                <div {...clickableProps('warehouseManagement')} className="bg-green-50 rounded-lg p-2 text-center hover:bg-green-100 hover:shadow-md hover:scale-110 transition-all duration-200 border border-green-300 cursor-pointer">
                   <div className="text-xl font-bold text-green-600">{loadingOverview ? '...' : inStockItemCount}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Có hàng</div>
                 </div>
               </div>
-              <div {...clickableProps('warehouseManagement')} className="bg-indigo-50 rounded-lg p-3 border-2 border-indigo-200 cursor-pointer hover:bg-indigo-100 hover:shadow-md transition-all duration-200">
+              <div {...clickableProps('warehouseManagement')} className="bg-indigo-50 rounded-lg p-3 border border-indigo-200 cursor-pointer hover:bg-indigo-100 hover:shadow-md transition-all duration-200">
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-medium text-gray-700">Tổng giá trị tồn</span>
                   <span className="text-lg font-bold text-indigo-700">{loadingOverview ? '...' : formattedInventoryValue}</span>
@@ -430,7 +430,7 @@ const ProductionWarehouse = () => {
           </div>
 
           {/* Card 2: Tổng quan nhập xuất kho */}
-          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-green-400">
+          <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-200 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-green-400">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <ArrowDown className="w-5 h-5 mr-2 text-green-600" />
@@ -439,14 +439,14 @@ const ProductionWarehouse = () => {
             </div>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-2">
-                <div {...clickableProps('inbound')} className="bg-green-50 rounded-lg p-3 hover:bg-green-100 hover:shadow-md hover:scale-105 transition-all duration-200 border-2 border-green-300 cursor-pointer">
+                <div {...clickableProps('inbound')} className="bg-green-50 rounded-lg p-3 hover:bg-green-100 hover:shadow-md hover:scale-105 transition-all duration-200 border border-green-300 cursor-pointer">
                   <div className="flex flex-col items-center">
                     <ArrowDown className="w-5 h-5 text-green-600 mb-1" />
                     <span className="text-2xl font-bold text-green-600">{loadingOverview ? '...' : totalReceipts}</span>
                     <span className="text-xs text-gray-600 mt-0.5">Phiếu nhập</span>
                   </div>
                 </div>
-                <div {...clickableProps('outbound')} className="bg-red-50 rounded-lg p-3 hover:bg-red-100 hover:shadow-md hover:scale-105 transition-all duration-200 border-2 border-red-300 cursor-pointer">
+                <div {...clickableProps('outbound')} className="bg-red-50 rounded-lg p-3 hover:bg-red-100 hover:shadow-md hover:scale-105 transition-all duration-200 border border-red-300 cursor-pointer">
                   <div className="flex flex-col items-center">
                     <ArrowUp className="w-5 h-5 text-red-600 mb-1" />
                     <span className="text-2xl font-bold text-red-600">{loadingOverview ? '...' : totalIssues}</span>
@@ -476,7 +476,7 @@ const ProductionWarehouse = () => {
           </div>
 
           {/* Card 3: Tổng quan yêu cầu cung cấp — funnel */}
-          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-purple-400">
+          <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-200 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-purple-400">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <ClipboardList className="w-5 h-5 mr-2 text-purple-600" />
@@ -484,22 +484,22 @@ const ProductionWarehouse = () => {
               </h3>
             </div>
             <div className="space-y-3">
-              <div {...clickableProps('supplyRequest')} className="bg-purple-50 rounded-lg p-3 border-2 border-purple-300 cursor-pointer hover:bg-purple-100 hover:shadow-md transition-all duration-200">
+              <div {...clickableProps('supplyRequest')} className="bg-purple-50 rounded-lg p-3 border border-purple-300 cursor-pointer hover:bg-purple-100 hover:shadow-md transition-all duration-200">
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-medium text-gray-700">Tổng yêu cầu</span>
                   <span className="text-2xl font-bold text-purple-600">{loadingOverview ? '...' : totalSupplyRequests}</span>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <div {...clickableProps('supplyRequest')} className="bg-orange-50 rounded-lg p-2 text-center border-2 border-orange-300 cursor-pointer hover:bg-orange-100 hover:shadow-md transition-all duration-200">
+                <div {...clickableProps('supplyRequest')} className="bg-orange-50 rounded-lg p-2 text-center border border-orange-300 cursor-pointer hover:bg-orange-100 hover:shadow-md transition-all duration-200">
                   <div className="text-xl font-bold text-orange-600">{loadingOverview ? '...' : supplyFunnel.pending}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Chờ xử lý</div>
                 </div>
-                <div {...clickableProps('supplyRequest')} className="bg-amber-50 rounded-lg p-2 text-center border-2 border-amber-300 cursor-pointer hover:bg-amber-100 hover:shadow-md transition-all duration-200">
+                <div {...clickableProps('supplyRequest')} className="bg-amber-50 rounded-lg p-2 text-center border border-amber-300 cursor-pointer hover:bg-amber-100 hover:shadow-md transition-all duration-200">
                   <div className="text-xl font-bold text-amber-600">{loadingOverview ? '...' : supplyFunnel.inTransit}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Đang mua</div>
                 </div>
-                <div {...clickableProps('supplyRequest')} className="bg-green-50 rounded-lg p-2 text-center border-2 border-green-300 cursor-pointer hover:bg-green-100 hover:shadow-md transition-all duration-200">
+                <div {...clickableProps('supplyRequest')} className="bg-green-50 rounded-lg p-2 text-center border border-green-300 cursor-pointer hover:bg-green-100 hover:shadow-md transition-all duration-200">
                   <div className="text-xl font-bold text-green-600">{loadingOverview ? '...' : supplyFunnel.fulfilled}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Đã cung cấp</div>
                 </div>
@@ -516,7 +516,7 @@ const ProductionWarehouse = () => {
           </div>
 
           {/* Card 4: Hàng hóa còn tồn */}
-          <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-emerald-400">
+          <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-200 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-emerald-400">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <Package className="w-5 h-5 mr-2 text-emerald-600" />
@@ -569,7 +569,7 @@ const ProductionWarehouse = () => {
               className={`shrink-0 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
                 activeTab === tab.id
                   ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200'
               }`}
             >
               {tab.icon}
@@ -596,7 +596,7 @@ const ProductionWarehouse = () => {
       {/* Detail Modal */}
       {isDetailModalOpen && selectedItem && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-lg shadow-sm max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
               <div className="p-6">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-2xl font-bold text-gray-800">Chi tiết thông tin</h2>
@@ -624,7 +624,7 @@ const ProductionWarehouse = () => {
                 <div className="flex justify-end gap-4 mt-6">
                   <button
                     onClick={closeDetailModal}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                    className="px-4 py-2 border border-gray-200 rounded-md text-gray-700 hover:bg-gray-50"
                   >
                     Đóng
                   </button>

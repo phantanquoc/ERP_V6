@@ -59,7 +59,7 @@ interface StatsCardProps {
 
 const StatsCard: React.FC<StatsCardProps> = ({ total, unread, today, isLoading }) => (
   <div
-    className="bg-white rounded-xl border border-gray-200 shadow-sm p-4"
+    className="bg-white rounded-lg border border-gray-200 shadow-sm p-4"
     aria-live="polite"
     aria-atomic="true"
   >
@@ -294,7 +294,7 @@ const MyNotifications: React.FC = () => {
             type="button"
             onClick={handleMarkAllRead}
             disabled={markAllMutation.isPending || stats.unread === 0}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <CheckCheck className="w-4 h-4" />
             Đánh dấu tất cả đã đọc

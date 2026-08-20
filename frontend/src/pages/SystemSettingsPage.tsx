@@ -140,7 +140,7 @@ const SystemSettingsPage: React.FC = () => {
       {userIsAdmin && activeTab === 'system' && (
         <>
           {/* Giao diện & Slogan */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
             <h2 className="text-base font-semibold text-gray-900 mb-5 flex items-center gap-2">
               <Palette className="w-5 h-5 text-purple-600" />
               Giao diện &amp; Slogan
@@ -154,16 +154,16 @@ const SystemSettingsPage: React.FC = () => {
                   <div
                     key={theme.id}
                     onClick={() => setSelectedTheme(theme.id)}
-                    className={`relative cursor-pointer rounded-xl border-2 transition-all duration-200 overflow-hidden ${
+                    className={`relative cursor-pointer rounded-lg border transition-all duration-200 overflow-hidden ${
                       selectedTheme === theme.id
-                        ? 'border-blue-500 shadow-lg scale-[1.02]'
-                        : 'border-gray-200 hover:border-gray-300 hover:shadow-md'
+                        ? 'border-blue-500 shadow-sm scale-[1.02]'
+                        : 'border-gray-200 hover:border-gray-200 hover:shadow-md'
                     }`}
                   >
                     <div className={`h-20 ${theme.preview} relative flex items-center justify-center`}>
-                      {theme.id === 'TET' && <span className="text-3xl">🏮</span>}
-                      {theme.id === 'APR30' && <span className="text-3xl">⭐</span>}
-                      {theme.id === 'DEFAULT' && <span className="text-3xl text-white/80">ABF</span>}
+                      {theme.id === 'TET' && <span className="text-2xl">🏮</span>}
+                      {theme.id === 'APR30' && <span className="text-2xl">⭐</span>}
+                      {theme.id === 'DEFAULT' && <span className="text-2xl text-white/80">ABF</span>}
                     </div>
                     <div className="p-4">
                       <div className="flex items-center justify-between">
@@ -193,7 +193,7 @@ const SystemSettingsPage: React.FC = () => {
               <textarea
                 value={slogan}
                 onChange={(e) => setSlogan(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
                 rows={3}
                 placeholder="Nhập slogan hệ thống..."
                 maxLength={500}
@@ -214,7 +214,7 @@ const SystemSettingsPage: React.FC = () => {
               >
                 {saving ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <div className="w-4 h-4 border border-white border-t-transparent rounded-full animate-spin" />
                     Đang lưu...
                   </>
                 ) : saved ? (
@@ -251,7 +251,7 @@ const SystemSettingsPage: React.FC = () => {
             </div>
 
             {/* Docker Management card */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h3 className="text-sm font-semibold text-gray-900 mb-1 flex items-center gap-2">
                 <Server className="w-4 h-4 text-blue-600" />
                 Quản lý Docker (Portainer)

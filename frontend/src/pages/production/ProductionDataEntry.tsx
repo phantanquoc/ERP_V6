@@ -146,7 +146,7 @@ const NumericInput: React.FC<NumericInputProps> = React.memo(({ value, onChange,
     min={0}
     max={PRODUCTION_LIMITS.sanLuong.max}
     placeholder={placeholder || '0'}
-    className={`w-full min-h-[44px] px-2 py-1 border border-gray-300 rounded-lg text-base text-center focus:outline-none focus:ring-2 focus:ring-blue-500 ${className || ''}`}
+    className={`w-full min-h-[44px] px-2 py-1 border border-gray-200 rounded-lg text-base text-center focus:outline-none focus:ring-2 focus:ring-blue-500 ${className || ''}`}
     value={value === 0 ? '' : value}
     onFocus={onTap ? (e) => { e.target.blur(); onTap(); } : undefined}
     onClick={onTap ? () => onTap() : undefined}
@@ -159,7 +159,7 @@ NumericInput.displayName = 'NumericInput';
 
 const NotActivatedScreen: React.FC = () => (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-    <div className="bg-white rounded-xl shadow-sm border p-8 max-w-md w-full text-center">
+    <div className="bg-white rounded-lg shadow-sm border p-8 max-w-md w-full text-center">
       <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
       <h2 className="text-lg font-semibold text-gray-800 mb-2">Phiên chưa được kích hoạt</h2>
       <p className="text-gray-600">Nhờ admin mở lại trang này từ hệ thống ERP.</p>
@@ -169,7 +169,7 @@ const NotActivatedScreen: React.FC = () => (
 
 const ExpiredScreen: React.FC = () => (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-    <div className="bg-white rounded-xl shadow-sm border p-8 max-w-md w-full text-center">
+    <div className="bg-white rounded-lg shadow-sm border p-8 max-w-md w-full text-center">
       <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
       <h2 className="text-lg font-semibold text-gray-800 mb-2">Phiên hết hạn</h2>
       <p className="text-gray-600">Nhờ admin mở lại trang này từ hệ thống ERP.</p>
@@ -277,10 +277,10 @@ const FullGridPreview: React.FC<FullGridPreviewProps> = ({
       <div className="max-w-full mx-auto px-3 pt-0 pb-4 space-y-4">
         {/* Sticky header: action buttons + preview info */}
         <div className="sticky top-0 z-30 bg-gray-50 pt-3 pb-2 -mx-3 px-3 border-b border-gray-200 shadow-sm">
-          <div className="bg-white border rounded-xl p-2 flex gap-3 mb-2">
+          <div className="bg-white border rounded-lg p-2 flex gap-3 mb-2">
             <button
               onClick={onEdit}
-              className="flex-1 min-h-[44px] px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+              className="flex-1 min-h-[44px] px-4 py-2 border border-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
             >
               <ArrowLeft className="w-4 h-4" />
               Sửa lại
@@ -312,7 +312,7 @@ const FullGridPreview: React.FC<FullGridPreviewProps> = ({
         {!showAll && visibleCards.length < filteredBatches.length && (
           <button
             onClick={() => setShowAll(true)}
-            className="w-full min-h-[44px] px-4 py-2 bg-gray-100 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200"
+            className="w-full min-h-[44px] px-4 py-2 bg-gray-100 border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200"
           >
             Hiện tất cả ô để điền bù ({filteredBatches.length - visibleCards.length} mã chiên ẩn)
           </button>
@@ -320,7 +320,7 @@ const FullGridPreview: React.FC<FullGridPreviewProps> = ({
         {showAll && (
           <button
             onClick={() => setShowAll(false)}
-            className="w-full min-h-[44px] px-4 py-2 bg-gray-100 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200"
+            className="w-full min-h-[44px] px-4 py-2 bg-gray-100 border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200"
           >
             Chỉ hiện ô đã nhập
           </button>
@@ -328,7 +328,7 @@ const FullGridPreview: React.FC<FullGridPreviewProps> = ({
 
         {/* Cards - one per fry batch */}
         {visibleCards.length === 0 && (
-          <div className="text-center py-8 bg-white rounded-xl border">
+          <div className="text-center py-8 bg-white rounded-lg border">
             <p className="text-gray-500">Không có dữ liệu sản lượng nào được nhập.</p>
             <p className="text-sm text-gray-400 mt-1">Quay lại bảng nhập để bắt đầu nhập liệu.</p>
           </div>
@@ -337,7 +337,7 @@ const FullGridPreview: React.FC<FullGridPreviewProps> = ({
         {visibleCards.map(({ batch, qualifyingTabs }) => {
           const displayTabs = showAll ? NON_WASTE_TABS : qualifyingTabs;
           return (
-            <div key={batch.maChien} className="bg-white rounded-xl border overflow-hidden">
+            <div key={batch.maChien} className="bg-white rounded-lg border overflow-hidden">
               {/* Card header */}
               <div className="px-3 py-2 bg-gray-50 border-b">
                 <p className="text-sm font-bold text-gray-800">{batch.maChien}</p>
@@ -407,7 +407,7 @@ const FullGridPreview: React.FC<FullGridPreviewProps> = ({
         })}
 
         {/* Waste summary (unchanged behavior) */}
-        <div className="bg-white rounded-xl border p-4">
+        <div className="bg-white rounded-lg border p-4">
           <h3 className="text-sm font-semibold text-gray-700 mb-2">Vụn - Phế phẩm</h3>
           {wasteTotal > 0 && filteredBatches.length > 0 ? (
             <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
@@ -1015,12 +1015,12 @@ const ProductionDataEntry: React.FC = () => {
             value={deviceKeyInput}
             onChange={(e) => setDeviceKeyInput(e.target.value)}
             placeholder="Dán device key..."
-            className="w-full min-h-[48px] px-4 py-3 border border-gray-300 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full min-h-[48px] px-4 py-3 border border-gray-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button
             disabled={!deviceKeyInput.trim()}
             onClick={() => { setDeviceKey(deviceKeyInput.trim()); setDeviceKeyInput(''); }}
-            className="w-full min-h-[48px] bg-blue-600 text-white rounded-xl font-medium disabled:opacity-40"
+            className="w-full min-h-[48px] bg-blue-600 text-white rounded-lg font-medium disabled:opacity-40"
           >
             Xác nhận
           </button>
@@ -1037,7 +1037,7 @@ const ProductionDataEntry: React.FC = () => {
                 value={deviceName}
                 onChange={(e) => setDeviceName(e.target.value)}
                 placeholder="VD: Tablet Kho 1"
-                className="w-full min-h-[48px] px-4 py-3 border border-gray-300 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-full min-h-[48px] px-4 py-3 border border-gray-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-green-500"
               />
               <button
                 disabled={!deviceName.trim() || registering}
@@ -1055,7 +1055,7 @@ const ProductionDataEntry: React.FC = () => {
                     setRegistering(false);
                   }
                 }}
-                className="w-full min-h-[48px] bg-green-600 text-white rounded-xl font-medium disabled:opacity-40 flex items-center justify-center gap-2"
+                className="w-full min-h-[48px] bg-green-600 text-white rounded-lg font-medium disabled:opacity-40 flex items-center justify-center gap-2"
               >
                 {registering && <Loader2 className="w-4 h-4 animate-spin" />}
                 Đăng ký & kích hoạt
@@ -1135,7 +1135,7 @@ const ProductionDataEntry: React.FC = () => {
                 type="button"
                 onClick={handleChangeOperator}
                 title="Đổi người thực hiện"
-                className="flex items-center gap-1.5 min-h-[44px] px-3 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex items-center gap-1.5 min-h-[44px] px-3 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <User className="w-4 h-4" />
                 <span className="hidden sm:inline">Đổi người</span>
@@ -1144,7 +1144,7 @@ const ProductionDataEntry: React.FC = () => {
                 type="button"
                 onClick={handleChangeShift}
                 title="Đổi ca làm việc"
-                className="flex items-center gap-1.5 min-h-[44px] px-3 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex items-center gap-1.5 min-h-[44px] px-3 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <CalendarClock className="w-4 h-4" />
                 <span className="hidden sm:inline">Đổi ca</span>
@@ -1170,14 +1170,14 @@ const ProductionDataEntry: React.FC = () => {
                 if (hasDirtyData() && !window.confirm('Có dữ liệu chưa lưu. Bạn có chắc muốn đổi ngày? Dữ liệu chưa lưu sẽ bị mất.')) return;
                 setProductionDate(e.target.value);
               }}
-              className="min-h-[44px] px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="min-h-[44px] px-3 py-2 border border-gray-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <button
               onClick={() => {
                 if (hasDirtyData() && !window.confirm('Có dữ liệu chưa lưu. Bạn có chắc muốn đổi ngày? Dữ liệu chưa lưu sẽ bị mất.')) return;
                 setProductionDate(todayStr());
               }}
-              className="min-h-[44px] px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-200"
+              className="min-h-[44px] px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-200"
             >
               Hôm nay
             </button>
@@ -1244,7 +1244,7 @@ const ProductionDataEntry: React.FC = () => {
               /* ─── Card layout (portrait / narrow) ─── */
               <div className="space-y-4">
                 {filteredBatches.map((batch) => (
-                  <div key={batch.maChien} className="bg-white border rounded-xl p-4 space-y-3">
+                  <div key={batch.maChien} className="bg-white border rounded-lg p-4 space-y-3">
                     {/* Card header */}
                     <div>
                       <p className="text-lg font-bold text-gray-800">{batch.maChien}</p>

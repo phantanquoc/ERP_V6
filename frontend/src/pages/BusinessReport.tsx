@@ -4,6 +4,7 @@ import { ShoppingCart, MessageSquare, Plane, Building2 } from 'lucide-react';
 import { orderService } from '../services/orderService';
 import internationalCustomerService from '../services/internationalCustomerService';
 import customerFeedbackService from '../services/customerFeedbackService';
+import { useNavigate } from 'react-router-dom';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444'];
 
@@ -26,6 +27,7 @@ const buildMonthlyChartData = (orders: any[]) => {
 };
 
 const BusinessReport: React.FC = () => {
+  const navigate = useNavigate();
   const [businessData, setBusinessData] = useState({
     orders: { total: 0, international: 0, domestic: 0 },
     internationalCustomers: { total: 0, new: 0, inactive: 0 },
@@ -166,7 +168,7 @@ const BusinessReport: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Phòng kinh doanh</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Phòng kinh doanh</h1>
           <p className="text-gray-600">Tổng quan và quản lý các hoạt động kinh doanh</p>
         </div>
 
@@ -175,8 +177,8 @@ const BusinessReport: React.FC = () => {
           {statCards.map((card, idx) => (
             <div
               key={idx}
-              className={`bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 cursor-pointer hover:${card.borderColor}`}
-              onClick={() => window.location.href = card.link}
+              className={`bg-white rounded-lg shadow-sm p-5 border border-gray-200 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 cursor-pointer hover:${card.borderColor}`}
+              onClick={() => navigate(card.link)}
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold flex items-center text-gray-800">
@@ -185,18 +187,18 @@ const BusinessReport: React.FC = () => {
                 </h3>
               </div>
               <div className="space-y-3">
-                <div className={`${card.bgColor} rounded-lg p-3 border-2 ${card.borderColor}`}>
+                <div className={`${card.bgColor} rounded-lg p-3 border ${card.borderColor}`}>
                   <div className="flex justify-between items-center">
                     <span className="text-xs font-medium text-gray-700">Tổng cộng</span>
                     <span className={`text-2xl font-bold ${card.textColor}`}>{card.total}</span>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300">
+                  <div className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200">
                     <div className="text-xl font-bold text-blue-600">{card.quocTe}</div>
                     <div className="text-xs text-gray-600 mt-0.5">{card.labelA || 'Quốc tế'}</div>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300">
+                  <div className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200">
                     <div className="text-xl font-bold text-green-600">{card.noiDia}</div>
                     <div className="text-xs text-gray-600 mt-0.5">{card.labelB || 'Nội địa'}</div>
                   </div>
@@ -212,7 +214,7 @@ const BusinessReport: React.FC = () => {
             { title: 'Phân bổ đơn hàng theo loại khách', data: orderPieData },
             { title: 'Phân bổ phản hồi theo loại khách', data: feedbackPieData },
           ].map((chart, idx) => (
-            <div key={idx} className="bg-white rounded-xl shadow-lg p-6 border-2 border-gray-300">
+            <div key={idx} className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
               <h3 className="text-lg font-bold text-gray-800 mb-4 text-center">{chart.title}</h3>
               <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
@@ -244,7 +246,7 @@ const BusinessReport: React.FC = () => {
             { title: 'Tổng đơn hàng quốc tế', data: internationalOrderComparisonData },
             { title: 'Tổng đơn hàng nội địa', data: domesticOrderComparisonData },
           ].map((chart, idx) => (
-            <div key={idx} className="bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg shadow-lg p-6">
+            <div key={idx} className="bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg shadow-sm p-6">
               <div className="mb-4">
                 <h3 className="text-2xl font-bold text-white mt-1">{chart.title}</h3>
                 <p className="text-sm text-gray-400">{new Date().getFullYear() - 1} vs {new Date().getFullYear()}</p>

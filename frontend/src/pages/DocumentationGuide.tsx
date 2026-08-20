@@ -145,7 +145,7 @@ const DocumentationGuide = () => {
               <button
                 key={doc.slug}
                 onClick={() => handleSelectDoc(doc.slug)}
-                className={`w-full text-left px-4 py-2.5 rounded-xl text-sm transition-all duration-200 flex items-center gap-3 ${
+                className={`w-full text-left px-4 py-2.5 rounded-lg text-sm transition-all duration-200 flex items-center gap-3 ${
                   selectedSlug === doc.slug
                     ? 'bg-blue-50 text-blue-700 font-medium shadow-sm border border-blue-100'
                     : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
@@ -170,7 +170,7 @@ const DocumentationGuide = () => {
           </svg>
         </button>
         {error && (
-          <div className="m-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-center gap-2">
+          <div className="m-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-center gap-2">
             <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -243,7 +243,7 @@ const DocumentationGuide = () => {
                   <textarea
                     value={editContent}
                     onChange={(e) => setEditContent(e.target.value)}
-                    className="w-full h-[calc(100vh-16rem)] md:h-[calc(100vh-20rem)] p-3 md:p-4 border border-gray-200 rounded-xl font-mono text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
+                    className="w-full h-[calc(100vh-16rem)] md:h-[calc(100vh-20rem)] p-3 md:p-4 border border-gray-200 rounded-lg font-mono text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
                   />
                   <div className="flex gap-3 mt-4 justify-end">
                     <button
@@ -293,10 +293,10 @@ const DocumentationGuide = () => {
                     prose-td:px-4 prose-td:py-2.5 prose-td:text-sm prose-td:text-gray-600 prose-td:border prose-td:border-gray-200
                     prose-tr:even:bg-gray-50
                     prose-code:bg-gray-100 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:text-sm prose-code:font-normal prose-code:text-gray-800
-                    prose-pre:bg-gray-900 prose-pre:rounded-xl prose-pre:p-4 prose-pre:text-sm prose-pre:leading-relaxed
+                    prose-pre:bg-gray-900 prose-pre:rounded-lg prose-pre:p-4 prose-pre:text-sm prose-pre:leading-relaxed
                     prose-pre:border prose-pre:border-gray-200
                     prose-blockquote:border-l-4 prose-blockquote:border-blue-500 prose-blockquote:bg-blue-50 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:rounded-r-lg prose-blockquote:not-italic
-                    prose-img:rounded-xl prose-img:shadow-md
+                    prose-img:rounded-lg prose-img:shadow-md
                     prose-hr:border-gray-200"
                   >
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>

@@ -57,14 +57,14 @@ const DataEntryHub: React.FC = () => {
                 }
               }}
               disabled={entry.disabled}
-              className={`${entry.color} h-full w-full text-white rounded-3xl p-8 shadow-lg transition-all duration-300 transform hover:scale-[1.02] hover:shadow-2xl flex flex-col items-center justify-center text-center ${
+              className={`${entry.color} h-full w-full text-white rounded-3xl p-8 shadow-sm transition-all duration-300 transform hover:scale-[1.02] hover:shadow-2xl flex flex-col items-center justify-center text-center ${
                 entry.disabled ? 'opacity-50' : ''
               }`}
             >
               <div className="bg-white bg-opacity-20 rounded-full p-8 mb-6">
                 <Icon size={96} strokeWidth={1.5} />
               </div>
-              <h2 className="text-3xl font-bold mb-3">{entry.title}</h2>
+              <h2 className="text-2xl font-bold mb-3">{entry.title}</h2>
               <p className="text-lg opacity-90">{entry.description}</p>
               {entry.disabled && (
                 <span className="mt-5 text-sm bg-white bg-opacity-20 px-4 py-1.5 rounded-full">

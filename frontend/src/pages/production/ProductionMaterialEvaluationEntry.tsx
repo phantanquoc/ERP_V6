@@ -112,7 +112,7 @@ function getDraftKey(operator: string, shift: number, date: string): string {
 
 const NotActivatedScreen: React.FC = () => (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-    <div className="bg-white rounded-xl shadow-sm border p-8 max-w-md w-full text-center">
+    <div className="bg-white rounded-lg shadow-sm border p-8 max-w-md w-full text-center">
       <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
       <h2 className="text-lg font-semibold text-gray-800 mb-2">Phiên chưa được kích hoạt</h2>
       <p className="text-gray-600">Nhờ admin mở lại trang này từ hệ thống ERP.</p>
@@ -122,7 +122,7 @@ const NotActivatedScreen: React.FC = () => (
 
 const ExpiredScreen: React.FC = () => (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-    <div className="bg-white rounded-xl shadow-sm border p-8 max-w-md w-full text-center">
+    <div className="bg-white rounded-lg shadow-sm border p-8 max-w-md w-full text-center">
       <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
       <h2 className="text-lg font-semibold text-gray-800 mb-2">Phiên hết hạn</h2>
       <p className="text-gray-600">Nhờ admin mở lại trang này từ hệ thống ERP.</p>
@@ -152,7 +152,7 @@ const NumericInput: React.FC<NumericInputProps> = ({ value, onChange, placeholde
     min={min}
     max={max}
     placeholder={placeholder ?? '0'}
-    className="w-full min-h-[52px] px-3 py-2 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+    className="w-full min-h-[52px] px-3 py-2 border border-gray-200 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
     value={value === 0 ? '' : value}
     onFocus={onTap ? (e) => { e.target.blur(); onTap(); } : undefined}
     onClick={onTap ? () => onTap() : undefined}
@@ -856,12 +856,12 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
             value={deviceKeyInput}
             onChange={(e) => setDeviceKeyInput(e.target.value)}
             placeholder="Dán device key..."
-            className="w-full min-h-[48px] px-4 py-3 border border-gray-300 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full min-h-[48px] px-4 py-3 border border-gray-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button
             disabled={!deviceKeyInput.trim()}
             onClick={() => { setDeviceKey(deviceKeyInput.trim()); setDeviceKeyInput(''); }}
-            className="w-full min-h-[48px] bg-blue-600 text-white rounded-xl font-medium disabled:opacity-40"
+            className="w-full min-h-[48px] bg-blue-600 text-white rounded-lg font-medium disabled:opacity-40"
           >
             Xác nhận
           </button>
@@ -878,7 +878,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
                 value={deviceName}
                 onChange={(e) => setDeviceName(e.target.value)}
                 placeholder="VD: Tablet Kho 1"
-                className="w-full min-h-[48px] px-4 py-3 border border-gray-300 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-full min-h-[48px] px-4 py-3 border border-gray-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-green-500"
               />
               <button
                 disabled={!deviceName.trim() || registering}
@@ -896,7 +896,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
                     setRegistering(false);
                   }
                 }}
-                className="w-full min-h-[48px] bg-green-600 text-white rounded-xl font-medium disabled:opacity-40 flex items-center justify-center gap-2"
+                className="w-full min-h-[48px] bg-green-600 text-white rounded-lg font-medium disabled:opacity-40 flex items-center justify-center gap-2"
               >
                 {registering && <Loader2 className="w-4 h-4 animate-spin" />}
                 Đăng ký & kích hoạt
@@ -947,7 +947,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
 
         {/* Title + context line */}
         <div className="flex-shrink-0 text-center py-1">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Chọn mã chiên</h1>
+          <h1 className="text-2xl sm:text-2xl font-bold text-gray-800">Chọn mã chiên</h1>
           <p className="text-sm sm:text-base text-gray-600 mt-1">
             {nguoiThucHien} <span className="text-gray-400">·</span> Ca {selectedShift}
             <span className="text-gray-400 mx-1">·</span>
@@ -957,7 +957,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
                 type="date"
                 value={productionDate}
                 onChange={(e) => handleProductionDayChange(e.target.value)}
-                className="min-h-[36px] px-2 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                className="min-h-[36px] px-2 py-1 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               />
             </span>
           </p>
@@ -985,7 +985,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
                     key={batch.code}
                     type="button"
                     onClick={() => handleBatchSelect(batch.code)}
-                    className={`h-full w-full rounded-3xl shadow-lg transition-all duration-300 transform hover:scale-[1.02] hover:shadow-2xl flex flex-col items-center justify-center text-center p-4 ${
+                    className={`h-full w-full rounded-3xl shadow-sm transition-all duration-300 transform hover:scale-[1.02] hover:shadow-2xl flex flex-col items-center justify-center text-center p-4 ${
                       hasRecord
                         ? 'bg-green-500 hover:bg-green-600 text-white'
                         : 'bg-blue-500 hover:bg-blue-600 text-white'
@@ -1056,7 +1056,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
               type="button"
               onClick={handleChangeOperator}
               title="Đổi người thực hiện"
-              className="flex items-center gap-1.5 min-h-[44px] px-3 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex items-center gap-1.5 min-h-[44px] px-3 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <User className="w-4 h-4" />
               <span className="hidden sm:inline">Đổi người</span>
@@ -1065,7 +1065,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
               type="button"
               onClick={handleChangeShift}
               title="Đổi ca làm việc"
-              className="flex items-center gap-1.5 min-h-[44px] px-3 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex items-center gap-1.5 min-h-[44px] px-3 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <CalendarClock className="w-4 h-4" />
               <span className="hidden sm:inline">Đổi ca</span>
@@ -1182,7 +1182,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
                 onFocus={wizardData.lotProductId ? (e) => { e.target.blur(); setActiveEditorField('khoiLuong'); } : undefined}
                 onClick={wizardData.lotProductId ? () => setActiveEditorField('khoiLuong') : undefined}
                 className={`w-full min-h-[52px] px-3 py-2 border rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                  khoiLuongExceeded ? 'border-red-500' : 'border-gray-300'
+                  khoiLuongExceeded ? 'border-red-500' : 'border-gray-200'
                 }`}
               />
               {/* Quick-select buttons */}
@@ -1196,7 +1196,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
                     className={`min-h-[44px] px-4 py-2 rounded-lg text-base font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       wizardData.khoiLuong === preset
                         ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200'
+                        : 'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200'
                     }`}
                   >
                     {preset} kg
@@ -1360,7 +1360,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Đánh giá trước ngâm
                   </label>
-                  <div className="grid grid-cols-2 gap-2 p-3 border border-gray-300 rounded-lg bg-white">
+                  <div className="grid grid-cols-2 gap-2 p-3 border border-gray-200 rounded-lg bg-white">
                     {criteria.map(c => {
                       const selected = (wizardData.danhGiaTruocNgam || '')
                         .split(',')
@@ -1375,7 +1375,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
                             type="checkbox"
                             checked={selected}
                             onChange={() => handleDanhGiaToggle('danhGiaTruocNgam', String(c.code))}
-                            className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            className="w-5 h-5 rounded border-gray-200 text-blue-600 focus:ring-blue-500"
                           />
                           <span>{c.code}. {c.description}</span>
                         </label>
@@ -1388,7 +1388,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Đánh giá sau ngâm
                   </label>
-                  <div className="grid grid-cols-2 gap-2 p-3 border border-gray-300 rounded-lg bg-white">
+                  <div className="grid grid-cols-2 gap-2 p-3 border border-gray-200 rounded-lg bg-white">
                     {criteria.map(c => {
                       const selected = (wizardData.danhGiaSauNgam || '')
                         .split(',')
@@ -1403,7 +1403,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
                             type="checkbox"
                             checked={selected}
                             onChange={() => handleDanhGiaToggle('danhGiaSauNgam', String(c.code))}
-                            className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            className="w-5 h-5 rounded border-gray-200 text-blue-600 focus:ring-blue-500"
                           />
                           <span>{c.code}. {c.description}</span>
                         </label>
@@ -1423,7 +1423,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
                 onChange={(e) => setWizardData(prev => ({ ...prev, ghiChu: e.target.value }))}
                 placeholder="Nhập ghi chú nếu có..."
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
               />
             </div>
 
@@ -1443,7 +1443,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleFilePick}
-                  className="w-full min-h-[64px] flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                  className="w-full min-h-[64px] flex items-center justify-center gap-2 px-4 py-3 border border-dashed border-gray-200 rounded-lg text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                 >
                   <Camera className="w-5 h-5" />
                   <span className="text-base font-medium">Chụp ảnh hoặc chọn ảnh</span>
@@ -1488,7 +1488,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
             <button
               type="button"
               onClick={handleBack}
-              className="min-h-[52px] px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 rounded-lg text-base font-medium flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-gray-400"
+              className="min-h-[52px] px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 rounded-lg text-base font-medium flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-gray-400"
             >
               <ArrowLeft className="w-5 h-5" />
               Quay lại
@@ -1497,7 +1497,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
             <button
               type="button"
               onClick={handleBackToBatchSelect}
-              className="min-h-[52px] px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 rounded-lg text-base font-medium flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-gray-400"
+              className="min-h-[52px] px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 rounded-lg text-base font-medium flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-gray-400"
             >
               <ArrowLeft className="w-5 h-5" />
               Chọn mã khác

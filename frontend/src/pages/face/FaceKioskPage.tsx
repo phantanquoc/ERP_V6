@@ -688,7 +688,7 @@ const FaceKioskPage: React.FC = () => {
       >
         <div className="flex flex-col items-center gap-4 opacity-30">
           <div
-            className="border-2 border-white/60 border-dashed rounded-full animate-pulse"
+            className="border border-white/60 border-dashed rounded-full animate-pulse"
             style={{ width: 'min(180px, 25vw)', height: 'min(220px, 30vh)' }}
           />
           <p className="text-white text-lg font-light tracking-widest uppercase">Nhấn để bật lại</p>
@@ -706,7 +706,7 @@ const FaceKioskPage: React.FC = () => {
         <div className="absolute inset-0 z-50 bg-black flex flex-col items-center justify-center transition-opacity duration-[2000ms]">
           <div className="flex flex-col items-center gap-6 opacity-40">
             <div
-              className="border-2 border-white/60 border-dashed rounded-full animate-pulse"
+              className="border border-white/60 border-dashed rounded-full animate-pulse"
               style={{ width: 'min(220px, 30vw)', height: 'min(280px, 38vh)' }}
             />
             <p className="text-white text-xl font-light tracking-widest uppercase">Chế độ chờ</p>
@@ -757,7 +757,7 @@ const FaceKioskPage: React.FC = () => {
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
           <div className="flex flex-col items-center">
             <div
-              className="border-2 border-white/50 border-dashed rounded-full animate-pulse"
+              className="border border-white/50 border-dashed rounded-full animate-pulse"
               style={{ width: 'min(320px, 70vw)', height: 'min(420px, 55vh)' }}
             />
             <p className="mt-4 text-white/70 text-base font-medium tracking-wide drop-shadow">
@@ -920,7 +920,7 @@ const FaceKioskPage: React.FC = () => {
       {kioskState === 'result' && result && (
         <div className={`absolute inset-0 z-30 flex flex-col items-center justify-center ${overlayBg[result.type]} bg-opacity-90 backdrop-blur-sm`}>
           {overlayIcon[result.type]}
-          <h2 className="text-3xl sm:text-5xl font-bold text-white mt-6 text-center px-4 sm:px-8 drop-shadow-lg">{result.title}</h2>
+          <h2 className="text-3xl sm:text-5xl font-bold text-white mt-6 text-center px-4 sm:px-8 drop-shadow-sm">{result.title}</h2>
           {result.employee && (
             <p className="text-3xl text-white/90 mt-4 font-semibold text-center drop-shadow">{result.employee}</p>
           )}

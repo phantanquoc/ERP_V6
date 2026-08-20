@@ -87,7 +87,7 @@ const DataEntryPositionConfig: React.FC = () => {
             <button
               key={page.key}
               onClick={() => setSelectedPageKey(page.key)}
-              className={`p-4 rounded-xl border-2 transition-all ${
+              className={`p-4 rounded-lg border transition-all ${
                 selectedPageKey === page.key
                   ? 'border-blue-500 bg-blue-50'
                   : 'border-gray-200 hover:border-blue-300'
@@ -111,7 +111,7 @@ const DataEntryPositionConfig: React.FC = () => {
       {selectedPage && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Mapped positions */}
-          <div className="bg-white rounded-xl border p-6">
+          <div className="bg-white rounded-lg border p-6">
             <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
               Vị trí đã gán
               {isLoadingMappings && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
@@ -146,7 +146,7 @@ const DataEntryPositionConfig: React.FC = () => {
           </div>
 
           {/* Unmapped positions */}
-          <div className="bg-white rounded-xl border p-6">
+          <div className="bg-white rounded-lg border p-6">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Vị trí khả dụng</h2>
             <div className="space-y-2 max-h-[500px] overflow-y-auto">
               {unmappedPositions.length === 0 && (
