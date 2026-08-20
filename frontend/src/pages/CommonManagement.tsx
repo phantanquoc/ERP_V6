@@ -11,8 +11,11 @@ import CreateWorkPlanModal from '../components/CreateWorkPlanModal';
 import OvertimePlanListModal from '../components/OvertimePlanListModal';
 import PrivateFeedbackModal from '../components/PrivateFeedbackModal';
 import {
-  FileText, Settings, Users, Briefcase, MessageSquare, AlertTriangle, Plus,
+  FileText, Settings, Users, Briefcase, MessageSquare, AlertTriangle, Plus, ClipboardList,
 } from 'lucide-react';
+import PageHeader from '../design-system/PageHeader';
+import { LoadingState } from '../design-system/States';
+import toast from 'react-hot-toast';
 import {
   generalRequestSchema,
   GeneralRequestFormData,
@@ -39,7 +42,7 @@ const CommonManagement = () => {
     defaultValues: { title: '', description: '', priority: undefined, department: user?.department || '' },
   });
 
-  if (!user) return <div>Loading...</div>;
+  if (!user) return <LoadingState message="Đang tải thông tin người dùng..." />;
 
   const isManagerOrAdmin = user?.role === 'admin' || user?.role === 'department_head';
 
@@ -81,8 +84,8 @@ const CommonManagement = () => {
 
   const handleCategorySelect = (id: string) => {
     if (id === 'ds_gop_y')          { setIsProcessListOpen(true); return; }
-    if (id === 'ds_cuoc_hop')        { alert('Chức năng đang bảo trì, vui lòng quay lại sau!'); return; }
-    if (id === 'de_nghi_dieu_chinh') { alert('Chức năng đang bảo trì, vui lòng quay lại sau!'); return; }
+    if (id === 'ds_cuoc_hop')        { toast.error('Chức năng đang bảo trì, vui lòng quay lại sau!'); return; }
+    if (id === 'de_nghi_dieu_chinh') { toast.error('Chức năng đang bảo trì, vui lòng quay lại sau!'); return; }
     if (id === 'nhiem_vu')           { setIsTaskModalOpen(true); return; }
     if (id === 'ke_hoach_tang_ca')   { setIsOvertimePlanListOpen(true); return; }
     if (id === 'ke_hoach')           { setIsWorkPlanModalOpen(true); return; }
@@ -100,33 +103,33 @@ const CommonManagement = () => {
 
   const onSubmitGeneral = generalForm.handleSubmit((data) => {
     console.log('General request data:', data);
-    alert(`Đã tạo ${getCategoryTitle(selectedCategory)} thành công!`);
+    toast.success(`Đã tạo ${getCategoryTitle(selectedCategory)} thành công!`);
     handleCloseModal();
   });
 
   const ge = generalForm;
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 sm:p-6 rounded-lg">
-        <h1 className="text-xl sm:text-2xl font-bold">Chung</h1>
-        <p className="text-blue-100 text-sm sm:text-base mt-1 sm:mt-2">
-          Tạo yêu cầu, nhiệm vụ và quản lý công việc chung — {user.lastName} {user.firstName}
-        </p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Chung"
+        description={`Tạo yêu cầu, nhiệm vụ và quản lý công việc chung — ${`${user.lastName} ${user.firstName}`.slice(0, 32)}`}
+        icon={<ClipboardList className="h-5 w-5 text-blue-500" />}
+      />
 
       {/* Category grid */}
-      <div className="space-y-6 sm:space-y-8">
+      <div className="space-y-5">
         {categories.map((cat, i) => (
-          <div key={i} className="space-y-2 sm:space-y-3">
-            <h2 className="text-lg sm:text-xl font-semibold text-gray-900">{cat.title}</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          <div key={i} className="space-y-2.5">
+            <h2 className="text-sm font-semibold text-gray-700">{cat.title}</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {cat.items.map((item) => (
                 <button
                   key={item.id}
+                  type="button"
+                  aria-label={item.title}
                   onClick={() => handleCategorySelect(item.id)}
-                  className="p-3 sm:p-4 rounded-lg border-2 border-gray-200 bg-white text-left transition-all hover:shadow-md hover:border-gray-300 hover:-translate-y-0.5 active:scale-[0.98] min-h-[72px] sm:min-h-0"
+                  className="p-3 sm:p-4 rounded-lg border border-gray-200 bg-white text-left hover:border-gray-300 hover:shadow-md transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
                 >
                   <div className="flex items-start gap-3">
                     <div className={`p-2 rounded-lg text-white shrink-0 ${item.color}`}>

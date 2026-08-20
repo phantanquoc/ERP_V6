@@ -120,7 +120,7 @@ const getQuickStats = (tasksCount: number = 0, feedbackCount: number = 0, purcha
   { label: "Báo cáo", value: "", change: `${reportUnreadCount} chưa xem`, icon: <FileText className="h-4 w-4" />, color: "text-teal-600", bgColor: "bg-teal-50", clickable: true, type: 'dailyReports' }
 ];
 
-// Component for Department Card
+// Component for Department Card — neutral shell, accent bar + icon only
 const DepartmentCard: React.FC<{
   department: any;
   onClick: () => void;
@@ -128,11 +128,15 @@ const DepartmentCard: React.FC<{
   isFullWidth?: boolean;
 }> = React.memo(({ department, onClick, onStatClick, isFullWidth = false }) => (
   <div
+    role="button"
+    tabIndex={0}
+    aria-label={department.name}
     onClick={onClick}
-    className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer border border-gray-100 hover:border-gray-200"
+    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
+    className="bg-white rounded-lg shadow-sm border border-gray-200 hover:border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
   >
     {/* Header with accent bar */}
-    <div className="p-3 rounded-t-xl relative overflow-hidden">
+    <div className="p-3 rounded-t-lg relative overflow-hidden">
       <div className={`absolute top-0 left-0 w-full h-1 ${department.color}`}></div>
       <div className="flex items-center justify-between text-gray-700 pt-1">
         <div className="flex items-center space-x-3">
@@ -140,8 +144,8 @@ const DepartmentCard: React.FC<{
             <div className="text-gray-600">{department.icon}</div>
           </div>
           <div>
-            <h3 className="text-base font-semibold text-gray-800">{department.name}</h3>
-            <p className="text-[11px] text-gray-400 font-medium">{department.stats.length} chỉ tiêu</p>
+            <h3 className="text-sm font-semibold text-gray-700">{department.name}</h3>
+            <p className="text-xs text-gray-400 font-medium">{department.stats.length} chỉ tiêu</p>
           </div>
         </div>
         <div className="text-gray-300 hover:text-gray-500 transition-colors">
@@ -156,11 +160,15 @@ const DepartmentCard: React.FC<{
         {department.stats.map((stat: any, index: number) => (
           <div
             key={index}
-            className={`text-center p-2 rounded-lg bg-gray-50 ${stat.link ? 'cursor-pointer hover:bg-blue-50 hover:shadow-sm transition-all duration-200' : ''}`}
+            role={stat.link ? 'button' : undefined}
+            tabIndex={stat.link ? 0 : undefined}
+            aria-label={stat.link ? stat.label : undefined}
             onClick={stat.link ? (e: React.MouseEvent) => {
               e.stopPropagation();
               onStatClick(stat.link);
             } : undefined}
+            onKeyDown={stat.link ? (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onStatClick(stat.link); } } : undefined}
+            className={`text-center p-2 rounded-lg bg-gray-50 border border-transparent ${stat.link ? 'cursor-pointer hover:bg-white hover:border-gray-200 hover:shadow-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1' : ''}`}
           >
             <div className="text-lg font-bold text-gray-800 tabular-nums leading-none">{stat.value}</div>
             <div className="text-xs font-medium text-gray-400 uppercase tracking-wide mt-1.5">{stat.label}</div>
@@ -172,13 +180,17 @@ const DepartmentCard: React.FC<{
 ));
 DepartmentCard.displayName = 'DepartmentCard';
 
-// Component for Quick Stat Card
+// Component for Quick Stat Card — neutral shell
 const QuickStatCard: React.FC<{
   stat: any;
   onClick?: () => void;
 }> = React.memo(({ stat, onClick }) => (
   <div
-    className={`bg-white rounded-lg shadow-sm px-2 py-2 sm:px-3 sm:py-2.5 border border-gray-100 ${stat.clickable ? 'cursor-pointer hover:shadow-md hover:border-gray-200 active:scale-95 sm:hover:scale-[1.02] transition-all duration-200' : ''} relative`}
+    role={stat.clickable ? 'button' : undefined}
+    tabIndex={stat.clickable ? 0 : undefined}
+    aria-label={stat.clickable ? stat.label : undefined}
+    onKeyDown={stat.clickable ? (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } } : undefined}
+    className={`bg-white rounded-lg shadow-sm px-2 py-2 sm:px-3 sm:py-2.5 border border-gray-200 ${stat.clickable ? 'cursor-pointer hover:border-gray-200 hover:shadow-md transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2' : ''} relative`}
     onClick={stat.clickable ? onClick : undefined}
   >
     <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
@@ -186,11 +198,11 @@ const QuickStatCard: React.FC<{
         {stat.icon}
       </div>
       <div className="min-w-0 flex-1">
-        <span className="text-[10px] sm:text-[11px] font-medium text-gray-400 uppercase tracking-wide leading-none">{stat.label}</span>
+        <span className="text-xs font-medium text-gray-400 uppercase tracking-wide leading-none tabular-nums">{stat.label}</span>
         <div className="flex items-baseline gap-1 mt-0.5">
           <span className={`text-base sm:text-xl font-bold leading-none tabular-nums ${stat.hasNotification ? 'text-red-600' : 'text-gray-900'}`}>{stat.value}</span>
         </div>
-        <p className={`text-[10px] sm:text-[11px] font-medium ${stat.color} truncate mt-0.5`}>{stat.change}</p>
+        <p className={`text-xs font-medium ${stat.color} truncate mt-0.5`}>{stat.change}</p>
       </div>
     </div>
   </div>
@@ -616,9 +628,9 @@ const Dashboard1: React.FC = () => {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center" role="status" aria-live="polite" aria-busy="true">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto" aria-hidden="true"></div>
           <p className="mt-4 text-gray-600">Đang tải...</p>
         </div>
       </div>
@@ -637,10 +649,12 @@ const Dashboard1: React.FC = () => {
     <div className={`-m-6 min-h-full ${getThemePageBackground(activeTheme)}`}>
       <div className="w-full px-4 lg:px-6 py-4">
         {/* Header Section — same theme as employee dashboard */}
-        <ThemeHeader activeTheme={activeTheme} user={user} departmentName={departmentName} />
+        <div className="mb-5">
+          <ThemeHeader activeTheme={activeTheme} user={user} departmentName={departmentName} />
+        </div>
 
         {/* Period Filter */}
-        <div className="mb-4 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="mb-4 bg-white rounded-lg shadow-sm border border-gray-200">
           {/* Main row: label + segmented control */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-3 py-2 sm:px-4 sm:py-2.5">
             {/* Left: icon + label + date range */}
@@ -649,7 +663,7 @@ const Dashboard1: React.FC = () => {
                 <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600" />
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] sm:text-xs font-medium text-gray-400 leading-none mb-0.5">Kỳ thống kê</p>
+                <p className="text-xs font-medium text-gray-400 leading-none mb-0.5">Kỳ thống kê</p>
                 <p className="text-xs sm:text-sm font-semibold text-gray-700 leading-none truncate">
                   {selectedPeriod === 'all'
                     ? 'Toàn bộ dữ liệu'
@@ -670,14 +684,14 @@ const Dashboard1: React.FC = () => {
             </div>
 
             {/* Right: segmented control */}
-            <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 -mx-1 px-1">
+            <div className="flex items-center gap-1 overflow-x-auto scrollbar-none snap-x snap-mandatory pb-1 sm:pb-0 -mx-1 px-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
               {/* Preset periods */}
-              <div className="flex items-center bg-gray-100 rounded-lg sm:rounded-xl p-0.5 sm:p-1 gap-0.5">
+              <div className="flex items-center bg-gray-100 rounded-lg sm:rounded-lg p-0.5 sm:p-1 gap-0.5 snap-start shrink-0">
                 {PRESET_PERIODS.map(p => (
                   <button
                     key={p}
                     onClick={() => setSelectedPeriod(p)}
-                    className={`px-2 sm:px-3.5 py-1 sm:py-1.5 rounded-md sm:rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap ${
+                    className={`snap-start px-2 sm:px-3.5 py-1 sm:py-1.5 rounded-md sm:rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap ${
                       selectedPeriod === p
                         ? 'bg-white text-blue-600 shadow-sm font-semibold'
                         : 'text-gray-500 hover:text-gray-700'
@@ -688,11 +702,11 @@ const Dashboard1: React.FC = () => {
                 ))}
               </div>
               {/* Divider */}
-              <div className="w-px h-5 sm:h-6 bg-gray-200 mx-0.5 sm:mx-1 shrink-0" />
+              <div className="w-px h-5 sm:h-6 bg-gray-200 mx-0.5 sm:mx-1 shrink-0 snap-start" />
               {/* Custom button */}
               <button
                 onClick={() => setSelectedPeriod('custom')}
-                className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 border whitespace-nowrap ${
+                className={`snap-start shrink-0 flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3.5 py-1 sm:py-1.5 rounded-lg sm:rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 border whitespace-nowrap ${
                   selectedPeriod === 'custom'
                     ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
                     : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600'
@@ -738,26 +752,27 @@ const Dashboard1: React.FC = () => {
           )}
         </div>
 
-        {/* Quick Stats Overview */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2 mb-4">
+        {/* Quick Stats Overview — snap carousel on mobile, grid on sm+ */}
+        <div className="flex gap-2 overflow-x-auto snap-x snap-mandatory scrollbar-none pb-1 sm:grid sm:grid-cols-3 xl:grid-cols-6 sm:overflow-visible sm:pb-0 mb-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {quickStats.map((stat, index) => (
-            <QuickStatCard
-              key={index}
-              stat={stat}
-              onClick={stat.clickable ? () => handleQuickStatClick(stat.type) : undefined}
-            />
+            <div key={index} className="snap-start shrink-0 w-[172px] sm:w-auto sm:shrink">
+              <QuickStatCard
+                stat={stat}
+                onClick={stat.clickable ? () => handleQuickStatClick(stat.type) : undefined}
+              />
+            </div>
           ))}
         </div>
 
         {/* Admin Dashboard - Full Department Overview */}
         {userIsAdmin ? (
           <div>
-            <div className="mb-3">
+            <div className="mb-4">
               <h2 className="text-xl font-bold text-gray-800">Tổng quan các phòng ban</h2>
             </div>
 
             {/* All Departments - Full Width Format */}
-            <div className="space-y-3">
+            <div className="space-y-4 sm:space-y-5">
               {Object.entries(departmentStats).map(([key, department]) => (
                 <div key={key}>
                   <DepartmentCard
@@ -813,7 +828,7 @@ const Dashboard1: React.FC = () => {
       {/* Purchase Request Modal */}
       {isPurchaseRequestModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50">
-          <div className="bg-white rounded-t-xl sm:rounded-lg shadow-xl w-full sm:max-w-6xl sm:mx-4 h-[92vh] sm:h-auto sm:max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="bg-white rounded-t-xl sm:rounded-lg shadow-sm w-full sm:max-w-6xl sm:mx-4 h-[92vh] sm:h-auto sm:max-h-[90vh] overflow-hidden flex flex-col">
             <div className="p-3 sm:p-6 border-b border-gray-200 flex justify-between items-center">
               <h2 className="text-base sm:text-2xl font-bold text-gray-800 flex items-center">
                 <ShoppingCart className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600 mr-2" />
@@ -937,7 +952,7 @@ const Dashboard1: React.FC = () => {
             <div className="p-3 sm:p-4 border-t border-gray-200 flex justify-end">
               <button
                 onClick={() => setIsPurchaseRequestModalOpen(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
+                className="px-4 py-2 border border-gray-200 rounded-md text-sm text-gray-700 hover:bg-gray-50"
               >
                 Đóng
               </button>
@@ -949,7 +964,7 @@ const Dashboard1: React.FC = () => {
       {/* Purchase Request Detail Modal */}
       {selectedPurchaseRequest && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-[60]">
-          <div className="bg-white rounded-t-xl sm:rounded-lg shadow-xl w-full sm:max-w-3xl sm:mx-4 h-[92vh] sm:h-auto sm:max-h-[85vh] overflow-hidden flex flex-col">
+          <div className="bg-white rounded-t-xl sm:rounded-lg shadow-sm w-full sm:max-w-3xl sm:mx-4 h-[92vh] sm:h-auto sm:max-h-[85vh] overflow-hidden flex flex-col">
             <div className="p-3 sm:p-6 border-b border-gray-200 flex justify-between items-center">
               <h2 className="text-base sm:text-xl font-bold text-gray-800 flex items-center">
                 <Eye className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 mr-2" />
@@ -1094,7 +1109,7 @@ const Dashboard1: React.FC = () => {
             <div className="p-3 sm:p-4 border-t border-gray-200 flex justify-end">
               <button
                 onClick={() => setSelectedPurchaseRequest(null)}
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
+                className="px-4 py-2 border border-gray-200 rounded-md text-sm text-gray-700 hover:bg-gray-50"
               >
                 Đóng
               </button>

@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react';
-import { FileText, ShoppingCart, DollarSign, TrendingUp, Plane, Building2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { FileText, ShoppingCart, DollarSign, TrendingUp, Plane, Building2, Layers } from 'lucide-react';
 import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import PageHeader from '../design-system/PageHeader';
+import ChartCard from '../design-system/ChartCard';
+import { chartPalettes } from '../design-system/tokens';
 import { quotationRequestService } from '../services/quotationRequestService';
 import { quotationService } from '../services/quotationService';
 import { orderService } from '../services/orderService';
 import generalCostService from '../services/generalCostService';
 import exportCostService from '../services/exportCostService';
 
-const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444'];
+const COLORS = chartPalettes.product.slice(0, 4);
 
 interface Stats {
   ycbg: { total: number; quocTe: number; noiDia: number };
@@ -22,6 +26,7 @@ interface MonthlyData {
 }
 
 const GeneralManagement = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<Stats>({
     ycbg: { total: 0, quocTe: 0, noiDia: 0 },
@@ -118,7 +123,6 @@ const GeneralManagement = () => {
       quocTe: stats.ycbg.quocTe,
       noiDia: stats.ycbg.noiDia,
       color: 'blue',
-      borderColor: 'border-blue-400',
       bgColor: 'bg-blue-50',
       textColor: 'text-blue-600',
       link: '/general/pricing?tab=requests',
@@ -130,7 +134,6 @@ const GeneralManagement = () => {
       quocTe: stats.bangBaoGia.quocTe,
       noiDia: stats.bangBaoGia.noiDia,
       color: 'green',
-      borderColor: 'border-green-400',
       bgColor: 'bg-green-50',
       textColor: 'text-green-600',
       link: '/general/pricing?tab=quotes',
@@ -142,7 +145,6 @@ const GeneralManagement = () => {
       quocTe: stats.donHang.quocTe,
       noiDia: stats.donHang.noiDia,
       color: 'purple',
-      borderColor: 'border-purple-400',
       bgColor: 'bg-purple-50',
       textColor: 'text-purple-600',
       link: '/general/pricing?tab=orders',
@@ -151,7 +153,6 @@ const GeneralManagement = () => {
       title: 'Chi phí chung',
       icon: <DollarSign className="w-6 h-6 text-orange-600" />,
       total: stats.chiPhiChung.total + stats.chiPhiChung.exportCost,
-      borderColor: 'border-orange-400',
       bgColor: 'bg-orange-50',
       textColor: 'text-orange-600',
       isCost: true,
@@ -162,60 +163,60 @@ const GeneralManagement = () => {
   ];
 
   return (
-    <div className="space-y-6">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Bộ phận tổng hợp</h1>
-          <p className="text-gray-600">Tổng quan và quản lý các hoạt động của bộ phận</p>
-        </div>
+    <div className="space-y-5">
+        <PageHeader
+          title="Bộ phận tổng hợp"
+          description="Tổng quan và quản lý các hoạt động của bộ phận"
+          icon={<Layers className="h-5 w-5 text-blue-500" />}
+        />
 
-        {/* Stat Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {/* Stat Cards — neutral shell: grid-cols-1 md:grid-cols-2 lg:grid-cols-4, inner grid-cols-2 ~155px on 375px */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           {statCards.map((card, idx) => (
             <div
               key={idx}
-              className={`bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 cursor-pointer hover:${card.borderColor}`}
-              onClick={() => window.location.href = card.link}
+              className="bg-white rounded-lg shadow-sm p-4 border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all duration-200 cursor-pointer min-w-0 overflow-hidden"
+              onClick={() => navigate(card.link)}
             >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold flex items-center text-gray-800">
-                  {card.icon}
-                  <span className="ml-2">{card.title}</span>
+              <div className="flex items-center justify-between mb-3 min-w-0">
+                <h3 className="text-sm font-semibold flex items-center text-gray-700 min-w-0">
+                  <span className="shrink-0">{card.icon}</span>
+                  <span className="ml-2 truncate" title={card.title}>{card.title}</span>
                 </h3>
               </div>
-              <div className="space-y-3">
-                <div className={`${card.bgColor} rounded-lg p-3 border-2 ${card.borderColor}`}>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-medium text-gray-700">Tổng cộng</span>
-                    <span className={`text-2xl font-bold ${card.textColor}`}>{card.total}</span>
+              <div className="space-y-2.5">
+                <div className={`${card.bgColor} rounded-lg p-3 border border-gray-200`}>
+                  <div className="flex justify-between items-center gap-2 min-w-0">
+                    <span className="text-xs font-medium text-gray-500 truncate">Tổng cộng</span>
+                    <span className={`text-xl font-bold ${card.textColor} shrink-0`}>{card.total}</span>
                   </div>
                 </div>
                 {'isCost' in card && card.isCost ? (
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300">
-                      <div className="text-xl font-bold text-orange-600">{card.generalCost}</div>
-                      <div className="text-xs text-gray-600 mt-0.5">Chi phí chung</div>
+                    <div className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200 min-w-0 overflow-hidden">
+                      <div className="text-lg font-bold text-orange-600 truncate">{card.generalCost}</div>
+                      <div className="text-xs text-gray-500 mt-0.5 break-words line-clamp-2 leading-tight">Chi phí chung</div>
                     </div>
-                    <div className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300">
-                      <div className="text-xl font-bold text-red-500">{card.exportCost}</div>
-                      <div className="text-xs text-gray-600 mt-0.5">Chi phí XK</div>
+                    <div className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200 min-w-0 overflow-hidden">
+                      <div className="text-lg font-bold text-red-500 truncate">{card.exportCost}</div>
+                      <div className="text-xs text-gray-500 mt-0.5 break-words line-clamp-2 leading-tight">Chi phí XK</div>
                     </div>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300">
+                    <div className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200 min-w-0 overflow-hidden">
                       <div className="flex items-center justify-center gap-1 mb-0.5">
-                        <Plane className="w-3 h-3 text-blue-500" />
+                        <Plane className="w-3 h-3 text-blue-500 shrink-0" />
                       </div>
-                      <div className="text-xl font-bold text-blue-600">{'quocTe' in card ? card.quocTe : 0}</div>
-                      <div className="text-xs text-gray-600 mt-0.5">Quốc tế</div>
+                      <div className="text-lg font-bold text-blue-600 truncate">{'quocTe' in card ? card.quocTe : 0}</div>
+                      <div className="text-xs text-gray-500 mt-0.5 break-words line-clamp-2 leading-tight">Quốc tế</div>
                     </div>
-                    <div className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300">
+                    <div className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200 min-w-0 overflow-hidden">
                       <div className="flex items-center justify-center gap-1 mb-0.5">
-                        <Building2 className="w-3 h-3 text-green-500" />
+                        <Building2 className="w-3 h-3 text-green-500 shrink-0" />
                       </div>
-                      <div className="text-xl font-bold text-green-600">{'noiDia' in card ? card.noiDia : 0}</div>
-                      <div className="text-xs text-gray-600 mt-0.5">Nội địa</div>
+                      <div className="text-lg font-bold text-green-600 truncate">{'noiDia' in card ? card.noiDia : 0}</div>
+                      <div className="text-xs text-gray-500 mt-0.5 break-words line-clamp-2 leading-tight">Nội địa</div>
                     </div>
                   </div>
                 )}
@@ -225,21 +226,20 @@ const GeneralManagement = () => {
         </div>
 
         {/* Pie Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {[
             { title: 'Phân bổ YCBG theo loại khách', data: ycbgPieData },
             { title: 'Phân bổ Đơn hàng theo loại khách', data: orderPieData },
           ].map((chart, idx) => (
-            <div key={idx} className="bg-white rounded-xl shadow-lg p-6 border-2 border-gray-300">
-              <h3 className="text-lg font-bold text-gray-800 mb-4 text-center">{chart.title}</h3>
-              <ResponsiveContainer width="100%" height={280}>
+            <ChartCard key={idx} title={chart.title}>
+              <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
                   <Pie
                     data={chart.data}
                     cx="50%"
                     cy="50%"
                     innerRadius={60}
-                    outerRadius={100}
+                    outerRadius={90}
                     paddingAngle={5}
                     dataKey="value"
                     label={({ name, value, percent }: any) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
@@ -252,27 +252,23 @@ const GeneralManagement = () => {
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
-            </div>
+            </ChartCard>
           ))}
         </div>
 
-        {/* Line Charts - Dark Theme */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Line Charts - Dark variant via ChartCard */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {[
             { title: 'Xu hướng đơn hàng theo tháng', data: ordersByMonth, color: '#ec4899' },
             { title: 'Xu hướng báo giá theo tháng', data: quotationsByMonth, color: '#6366f1' },
           ].map((chart, idx) => (
-            <div key={idx} className="bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg shadow-lg p-6">
-              <div className="mb-4">
-                <h3 className="text-2xl font-bold text-white mt-1">{chart.title}</h3>
-                <p className="text-sm text-gray-400">Năm {new Date().getFullYear()}</p>
-              </div>
-              <div className="bg-slate-700/50 rounded-lg p-4">
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={chart.data}>
+            <ChartCard key={idx} title={chart.title} variant="dark">
+              <p className="text-xs text-gray-400 mb-3">Năm {new Date().getFullYear()}</p>
+              <ResponsiveContainer width="100%" height={260}>
+                <LineChart data={chart.data}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
-                    <XAxis dataKey="month" stroke="#94a3b8" tick={{ fill: '#cbd5e1', fontSize: 10 }} />
-                    <YAxis stroke="#94a3b8" tick={{ fill: '#cbd5e1', fontSize: 10 }} width={30} allowDecimals={false} />
+                    <XAxis dataKey="month" stroke="#94a3b8" tick={{ fill: '#cbd5e1', fontSize: 11 }} />
+                    <YAxis stroke="#94a3b8" tick={{ fill: '#cbd5e1', fontSize: 11 }} width={30} allowDecimals={false} />
                     <Tooltip
                       contentStyle={{
                         backgroundColor: '#1e293b',
@@ -294,8 +290,7 @@ const GeneralManagement = () => {
                     />
                   </LineChart>
                 </ResponsiveContainer>
-              </div>
-            </div>
+            </ChartCard>
           ))}
         </div>
     </div>
@@ -303,4 +298,3 @@ const GeneralManagement = () => {
 };
 
 export default GeneralManagement;
-
