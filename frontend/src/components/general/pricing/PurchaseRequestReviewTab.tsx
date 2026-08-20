@@ -158,6 +158,7 @@ const PurchaseRequestReviewTab: React.FC = () => {
       await apiClient.put(`/purchase-requests/${id}`, { trangThai: 'Đã duyệt', nguoiDuyet: (user as any)?.fullName ?? (user as any)?.name ?? 'Phòng giá thành', ngayDuyet: new Date().toISOString() });
       toast.success('Đã duyệt yêu cầu mua hàng');
       queryClient.invalidateQueries({ queryKey: ['purchase-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['pricingOverview'] });
     } catch (err: any) { toast.error(err?.response?.data?.message ?? err.message ?? 'Duyệt thất bại'); }
   };
   const doReject = async (id: string, lyDo?: string) => {
@@ -165,6 +166,7 @@ const PurchaseRequestReviewTab: React.FC = () => {
       await apiClient.put(`/purchase-requests/${id}`, { trangThai: 'Từ chối', ghiChuMuaHang: lyDo ?? '' });
       toast.success('Đã từ chối yêu cầu');
       queryClient.invalidateQueries({ queryKey: ['purchase-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['pricingOverview'] });
     } catch (err: any) { toast.error(err?.response?.data?.message ?? err.message ?? 'Từ chối thất bại'); }
   };
 
