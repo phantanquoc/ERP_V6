@@ -17,7 +17,9 @@ import {
   X,
   Eye,
   Award,
-  FileText
+  FileText,
+  TrendingUp,
+  TrendingDown
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { getDepartmentDisplayName, isAdmin } from "../utils/permissions";
@@ -58,6 +60,8 @@ import { workPlanService } from "../services/workPlanService";
 import employeeEvaluationService from "../services/employeeEvaluationService";
 import dailyWorkReportService from "../services/dailyWorkReportService";
 import DatePicker from "../components/DatePicker";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import ChartCard from '../design-system/ChartCard';
 
 // ── Time-period filter helpers ────────────────────────────────────────────────
 type PeriodFilter = 'week' | 'month' | 'quarter' | 'year' | 'all' | 'custom';
@@ -180,7 +184,7 @@ const DepartmentCard: React.FC<{
 ));
 DepartmentCard.displayName = 'DepartmentCard';
 
-// Component for Quick Stat Card — neutral shell
+// Component for Quick Stat Card — neutral shell, uniform height
 const QuickStatCard: React.FC<{
   stat: any;
   onClick?: () => void;
@@ -190,21 +194,19 @@ const QuickStatCard: React.FC<{
     tabIndex={stat.clickable ? 0 : undefined}
     aria-label={stat.clickable ? stat.label : undefined}
     onKeyDown={stat.clickable ? (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } } : undefined}
-    className={`bg-white rounded-lg shadow-sm px-2 py-2 sm:px-3 sm:py-2.5 border border-gray-200 ${stat.clickable ? 'cursor-pointer hover:border-gray-200 hover:shadow-md transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2' : ''} relative`}
+    className={`bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col h-full p-3 sm:p-3.5 ${stat.clickable ? 'cursor-pointer hover:border-gray-300 hover:shadow-md transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2' : ''} relative`}
     onClick={stat.clickable ? onClick : undefined}
   >
-    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
-      <div className={`p-1.5 sm:p-2 rounded-lg ${stat.bgColor || 'bg-blue-50'} ${stat.color} shrink-0 self-start`}>
+    <div className="flex items-center gap-2.5 flex-1 min-h-0">
+      <div className={`p-2 rounded-lg ${stat.bgColor || 'bg-blue-50'} ${stat.color} shrink-0`}>
         {stat.icon}
       </div>
-      <div className="min-w-0 flex-1">
-        <span className="text-xs font-medium text-gray-400 uppercase tracking-wide leading-none tabular-nums">{stat.label}</span>
-        <div className="flex items-baseline gap-1 mt-0.5">
-          <span className={`text-base sm:text-xl font-bold leading-none tabular-nums ${stat.hasNotification ? 'text-red-600' : 'text-gray-900'}`}>{stat.value}</span>
-        </div>
-        <p className={`text-xs font-medium ${stat.color} truncate mt-0.5`}>{stat.change}</p>
+      <div className="min-w-0 flex-1 flex flex-col justify-center">
+        <span className="text-xs font-medium text-gray-400 uppercase tracking-wide leading-none truncate">{stat.label}</span>
+        <span className={`text-lg sm:text-xl font-bold leading-none tabular-nums mt-1 truncate ${stat.hasNotification ? 'text-red-600' : 'text-gray-900'}`}>{stat.value || '—'}</span>
       </div>
     </div>
+    <p className={`text-xs font-medium truncate mt-2 leading-none ${stat.color}`}>{stat.change}</p>
   </div>
 ));
 QuickStatCard.displayName = 'QuickStatCard';
@@ -602,6 +604,26 @@ const Dashboard1: React.FC = () => {
     machineSystems, repairRequests, faultRecords, spareParts, projects,
   ]);
 
+  // Hero trend chart — monthly bucketing T1-T12 (current year), respects period filter via filteredOrders/filteredQuotations
+  const heroChartData = useMemo(() => {
+    const year = new Date().getFullYear();
+    const orderCounts = new Array(12).fill(0);
+    const quotationCounts = new Array(12).fill(0);
+    (filteredOrders as any[]).forEach((o: any) => {
+      const d = new Date(o.ngayDatHang || o.createdAt);
+      if (!isNaN(d.getTime()) && d.getFullYear() === year) orderCounts[d.getMonth()]++;
+    });
+    (filteredQuotations as any[]).forEach((q: any) => {
+      const d = new Date(q.createdAt || q.ngayTao);
+      if (!isNaN(d.getTime()) && d.getFullYear() === year) quotationCounts[d.getMonth()]++;
+    });
+    return orderCounts.map((c, i) => ({
+      month: `T${i + 1}`,
+      orders: c,
+      quotations: quotationCounts[i],
+    }));
+  }, [filteredOrders, filteredQuotations]);
+
   const handleDepartmentClick = useCallback((deptKey: string) => {
     navigate(`/${deptKey}`);
   }, [navigate]);
@@ -752,10 +774,10 @@ const Dashboard1: React.FC = () => {
           )}
         </div>
 
-        {/* Quick Stats Overview — snap carousel on mobile, grid on sm+ */}
-        <div className="flex gap-2 overflow-x-auto snap-x snap-mandatory scrollbar-none pb-1 sm:grid sm:grid-cols-3 xl:grid-cols-6 sm:overflow-visible sm:pb-0 mb-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        {/* Quick Stats Overview — uniform height cards, responsive grid with snap on mobile */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2 sm:gap-3 mb-4">
           {quickStats.map((stat, index) => (
-            <div key={index} className="snap-start shrink-0 w-[172px] sm:w-auto sm:shrink">
+            <div key={index} className="h-full">
               <QuickStatCard
                 stat={stat}
                 onClick={stat.clickable ? () => handleQuickStatClick(stat.type) : undefined}
@@ -763,6 +785,26 @@ const Dashboard1: React.FC = () => {
             </div>
           ))}
         </div>
+
+        {/* Hero trend chart — spans full width */}
+        <ChartCard title="Xu hướng đơn hàng & báo giá theo tháng" variant="dark">
+          <p className="text-xs text-gray-400 mb-3">Năm {new Date().getFullYear()} — theo ngày đặt hàng / ngày tạo</p>
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={heroChartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+              <XAxis dataKey="month" stroke="#94a3b8" tick={{ fill: '#cbd5e1', fontSize: 11 }} />
+              <YAxis stroke="#94a3b8" tick={{ fill: '#cbd5e1', fontSize: 11 }} width={30} allowDecimals={false} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px', color: '#fff' }}
+                formatter={(value: number, name: string) => [value, name === 'orders' ? 'Đơn hàng' : 'Báo giá']}
+                labelFormatter={(label: string) => label}
+              />
+              <Legend wrapperStyle={{ paddingTop: '5px', color: '#fff' }} iconType="line" formatter={(value: string) => value === 'orders' ? 'Đơn hàng' : 'Báo giá'} />
+              <Line type="monotone" dataKey="orders" stroke="#38bdf8" strokeWidth={3} dot={{ fill: '#38bdf8', r: 3 }} activeDot={{ r: 6 }} name="orders" />
+              <Line type="monotone" dataKey="quotations" stroke="#a78bfa" strokeWidth={3} dot={{ fill: '#a78bfa', r: 3 }} activeDot={{ r: 6 }} name="quotations" />
+            </LineChart>
+          </ResponsiveContainer>
+        </ChartCard>
 
         {/* Admin Dashboard - Full Department Overview */}
         {userIsAdmin ? (

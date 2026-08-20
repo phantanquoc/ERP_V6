@@ -7,7 +7,7 @@ export interface ThemeHeaderProps {
 
 // DEFAULT THEME — Blue gradient, clean, professional
 export const DefaultThemeHeader: React.FC<ThemeHeaderProps> = ({ user, departmentName }) => (
-  <div className="relative bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 rounded-2xl shadow-xl p-4 sm:p-6 mb-6 sm:mb-8 overflow-hidden">
+  <div className="relative bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 rounded-2xl shadow-xl p-4 sm:p-6 overflow-hidden">
     <div className="absolute inset-0 opacity-10">
       <div className="absolute inset-0" style={{
         backgroundImage: `repeating-linear-gradient(135deg, transparent, transparent 20px, rgba(255,255,255,0.05) 20px, rgba(255,255,255,0.05) 40px)`
@@ -46,7 +46,7 @@ export const DefaultThemeHeader: React.FC<ThemeHeaderProps> = ({ user, departmen
 
 // TET THEME — Red + Mai flowers + animations
 export const TetThemeHeader: React.FC<ThemeHeaderProps> = ({ user, departmentName }) => (
-  <div className="relative bg-gradient-to-r from-red-700 via-red-600 to-red-700 rounded-2xl shadow-xl p-4 sm:p-6 mb-6 sm:mb-8 overflow-hidden">
+  <div className="relative bg-gradient-to-r from-red-700 via-red-600 to-red-700 rounded-2xl shadow-xl p-4 sm:p-6 overflow-hidden">
     <div className="absolute inset-0 opacity-10">
       <div className="absolute inset-0" style={{
         backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,215,0,0.1) 10px, rgba(255,215,0,0.1) 20px)`
@@ -125,7 +125,7 @@ export const TetThemeHeader: React.FC<ThemeHeaderProps> = ({ user, departmentNam
 
 // APR30 THEME — Vietnam Liberation Day — animated star + refined skyline
 export const Apr30ThemeHeader: React.FC<ThemeHeaderProps> = ({ user, departmentName }) => (
-  <div className="relative rounded-2xl shadow-xl p-4 sm:p-6 mb-6 sm:mb-8 overflow-hidden" style={{background: 'linear-gradient(135deg, #8B0000 0%, #CC0000 40%, #DA251D 60%, #B71C1C 100%)'}}>
+  <div className="relative rounded-2xl shadow-xl p-4 sm:p-6 overflow-hidden" style={{background: 'linear-gradient(135deg, #8B0000 0%, #CC0000 40%, #DA251D 60%, #B71C1C 100%)'}}>
     {/* Subtle vignette */}
     <div className="absolute inset-0" style={{background: 'linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 40%)'}}></div>
 
