@@ -43,13 +43,21 @@ export const chartPalettes = {
   status: ['#10B981', '#F59E0B', '#EF4444', '#6B7280', '#3B82F6', '#8B5CF6'],
 } as const;
 
-// ── Spacing (8px rhythm) ────────────────────────────────────────────────────
+export const chartHeights = { donut: 200, line: 260, bar: 260 } as const;
+
+/**
+ * Spacing — 8px rhythm reference tokens.
+ * Tailwind 1 unit = 4px, so the mapping is literal:
+ *   xs 4px → p-1 / gap-1, sm 8px → p-2 / gap-2, md 16px → p-4 / gap-4, lg 24px → p-6 / gap-6, xl 32px → p-8 / gap-8
+ * Prefer Tailwind classes directly — no need to import `spacing.sm` in components.
+ * This object exists as a single source of truth for the rhythm, not as a runtime import.
+ */
 export const spacing = {
-  xs: '4px',
-  sm: '8px',
-  md: '16px',
-  lg: '24px',
-  xl: '32px',
+  xs: '4px', // p-1
+  sm: '8px', // p-2 — base 8px rhythm
+  md: '16px', // p-4
+  lg: '24px', // p-6
+  xl: '32px', // p-8
 } as const;
 
 // ── Radii ───────────────────────────────────────────────────────────────────
@@ -67,9 +75,9 @@ export const shadows = {
   floating: '0 8px 24px rgba(0,0,0,0.12)',
 } as const;
 
-// ── Component shell classes (Tailwind) ─────────────────────────────────────
-// Card padding: p-3 sm:p-4 (responsive — tighter on mobile, comfortable on sm+)
-// sectionGap: gap-4 sm:gap-5 for bento grids, gap-2 sm:gap-3 for KPI rows
+// ── Component shell classes (Tailwind, 8px rhythm — see spacing above) ───────
+// Card padding: p-3 sm:p-4 (12px/16px on the 8px rhythm — tighter on mobile, comfortable on sm+)
+// sectionGap: gap-4 sm:gap-5 (16px/20px) for bento grids, gap-2 sm:gap-3 (8px/12px) for KPI rows
 export const shell = {
   card: 'bg-white border border-gray-200 rounded-lg shadow-sm', // use with p-3 sm:p-4
   cardHover: 'hover:border-gray-300 hover:shadow-md transition-all duration-200',
@@ -79,7 +87,7 @@ export const shell = {
   chartCardDark: 'bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg shadow-sm p-3 sm:p-4',
 } as const;
 
-// Responsive section gaps: bento gap-4 sm:gap-5, KPI gap-2 sm:gap-3
+// Responsive section gaps on the 8px rhythm — bento gap-4 sm:gap-5, KPI gap-2 sm:gap-3
 export const sectionGap = {
   bento: 'gap-4 sm:gap-5',
   kpi: 'gap-2 sm:gap-3',

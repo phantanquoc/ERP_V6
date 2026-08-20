@@ -28,6 +28,7 @@ const TONE_DOT: Record<string, string> = {
   gray: 'bg-gray-400',
 };
 
+/** @deprecated Use KpiCard from design-system/KpiCard.tsx instead */
 export const StatCard = ({
   label,
   value,

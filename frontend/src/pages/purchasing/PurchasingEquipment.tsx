@@ -17,6 +17,7 @@ import {
   CheckCircle,
   HelpCircle
 } from 'lucide-react';
+import PageHeader from '../../design-system/PageHeader';
 import FileUpload from '../../components/FileUpload';
 import OrderManagement from '../../components/OrderManagement';
 import purchaseRequestService from '../../services/purchaseRequestService';
@@ -357,36 +358,34 @@ const PurchasingEquipment = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Settings className="w-6 h-6 text-blue-600" />
-            Phòng mua Thiết bị
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">Quản lý nhà cung cấp, đơn hàng mua, hợp đồng và đầu tư thiết bị máy móc</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(Number(e.target.value))}
-            className="border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {Array.from({ length: 12 }, (_, i) => (
-              <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
-            ))}
-          </select>
-          <select
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(Number(e.target.value))}
-            className="border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {Array.from({ length: 4 }, (_, i) => {
-              const y = 2023 + i;
-              return <option key={y} value={y}>{y}</option>;
-            })}
-          </select>
-        </div>
-      </div>
+      <PageHeader
+        title="Phòng mua Thiết bị"
+        description="Quản lý nhà cung cấp, đơn hàng mua, hợp đồng và đầu tư thiết bị máy móc"
+        icon={<Settings className="w-6 h-6 text-blue-600" />}
+        actions={
+          <>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              className="border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {Array.from({ length: 12 }, (_, i) => (
+                <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
+              ))}
+            </select>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {Array.from({ length: 4 }, (_, i) => {
+                const y = 2023 + i;
+                return <option key={y} value={y}>{y}</option>;
+              })}
+            </select>
+          </>
+        }
+      />
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">

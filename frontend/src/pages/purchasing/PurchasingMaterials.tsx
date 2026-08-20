@@ -23,6 +23,7 @@ import { supplierService, Supplier, CreateSupplierData, UpdateSupplierData } fro
 import { parseNumberInput } from '../../utils/numberInput';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSearchParams } from 'react-router-dom';
+import PageHeader from '../../design-system/PageHeader';
 
 interface PurchaseRequest {
   id: string;
@@ -546,36 +547,34 @@ const PurchasingMaterials = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <ShoppingCart className="w-6 h-6 text-blue-600" />
-            Phòng thu mua NVL
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">Quản lý nhà cung cấp, đơn hàng mua, hợp đồng và chi phí nguyên vật liệu</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(Number(e.target.value))}
-            className="border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {Array.from({ length: 12 }, (_, i) => (
-              <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
-            ))}
-          </select>
-          <select
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(Number(e.target.value))}
-            className="border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {Array.from({ length: 4 }, (_, i) => {
-              const y = 2023 + i;
-              return <option key={y} value={y}>{y}</option>;
-            })}
-          </select>
-        </div>
-      </div>
+      <PageHeader
+        title="Phòng thu mua NVL"
+        description="Quản lý nhà cung cấp, đơn hàng mua, hợp đồng và chi phí nguyên vật liệu"
+        icon={<ShoppingCart className="w-6 h-6 text-blue-600" />}
+        actions={
+          <>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              className="border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {Array.from({ length: 12 }, (_, i) => (
+                <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
+              ))}
+            </select>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {Array.from({ length: 4 }, (_, i) => {
+                const y = 2023 + i;
+                return <option key={y} value={y}>{y}</option>;
+              })}
+            </select>
+          </>
+        }
+      />
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">

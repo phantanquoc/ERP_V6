@@ -1,5 +1,12 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+
+interface KpiSubCount {
+  label: string;
+  count: number;
+  tone?: 'red' | 'yellow' | 'green' | 'blue' | 'gray';
+}
 
 interface KpiCardProps {
   label: string;
@@ -11,6 +18,10 @@ interface KpiCardProps {
   dot?: string;
   loading?: boolean;
   className?: string;
+  /** Positive = up, negative = down, 0 or null = flat — ported from deprecated StatCard */
+  delta?: number | null;
+  deltaLabel?: string;
+  subCounts?: KpiSubCount[];
 }
 
 const toneIcon: Record<string, string> = {
@@ -24,6 +35,14 @@ const toneIcon: Record<string, string> = {
   gray: 'text-gray-400',
 };
 
+const TONE_DOT: Record<string, string> = {
+  red: 'bg-red-500',
+  yellow: 'bg-yellow-400',
+  green: 'bg-green-500',
+  blue: 'bg-blue-500',
+  gray: 'bg-gray-400',
+};
+
 export const KpiCard: React.FC<KpiCardProps> = ({
   label,
   value,
@@ -34,9 +53,21 @@ export const KpiCard: React.FC<KpiCardProps> = ({
   dot,
   loading,
   className,
+  delta,
+  deltaLabel,
+  subCounts,
 }) => {
   const navigate = useNavigate();
   const Tag = to ? 'button' : 'div';
+
+  const DeltaIcon =
+    delta == null || delta === 0 ? Minus : delta > 0 ? TrendingUp : TrendingDown;
+  const deltaColor =
+    delta == null || delta === 0
+      ? 'text-gray-500'
+      : delta > 0
+        ? 'text-red-600'
+        : 'text-green-600';
 
   const baseClass =
     'bg-white border border-gray-200 rounded-lg p-3 sm:p-4 shadow-sm text-left w-full';
@@ -77,6 +108,27 @@ export const KpiCard: React.FC<KpiCardProps> = ({
         )}
       </div>
       {sub && <p className="text-xs text-gray-400 mt-1 break-words line-clamp-2 leading-tight" title={sub}>{sub}</p>}
+      {delta != null && (
+        <p className={`mt-1 flex items-center gap-0.5 text-[11px] font-medium ${deltaColor}`}>
+          <DeltaIcon className="h-3 w-3" />
+          {delta > 0 ? '+' : ''}
+          {delta}
+          {deltaLabel && <span className="ml-0.5 font-normal text-gray-500">{deltaLabel}</span>}
+        </p>
+      )}
+      {subCounts && subCounts.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {subCounts.map((sc) => (
+            <span
+              key={sc.label}
+              className="inline-flex items-center gap-0.5 rounded-full border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-[10px] font-medium text-gray-600"
+            >
+              {sc.tone && <span className={`h-1.5 w-1.5 rounded-full ${TONE_DOT[sc.tone] ?? 'bg-gray-400'}`} />}
+              {sc.label}: {sc.count}
+            </span>
+          ))}
+        </div>
+      )}
     </Tag>
   );
 };
