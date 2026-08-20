@@ -655,35 +655,35 @@ const AttendanceManagement: React.FC = () => {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="bg-white rounded-lg border border-green-200 p-4">
           <div className="flex items-center gap-2 mb-1">
-            <div className="w-2.5 h-2.5 rounded-full bg-green-500"></div>
+            <div className="w-3 h-3 rounded-full bg-green-500"></div>
             <span className="text-sm text-gray-600">Đúng giờ</span>
           </div>
           <p className="text-2xl font-bold text-green-700">{kpiCounts.PRESENT}</p>
         </div>
         <div className="bg-white rounded-lg border border-amber-200 p-4">
           <div className="flex items-center gap-2 mb-1">
-            <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
+            <div className="w-3 h-3 rounded-full bg-amber-500"></div>
             <span className="text-sm text-gray-600">Muộn</span>
           </div>
           <p className="text-2xl font-bold text-amber-700">{kpiCounts.LATE}</p>
         </div>
         <div className="bg-white rounded-lg border border-red-200 p-4">
           <div className="flex items-center gap-2 mb-1">
-            <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>
+            <div className="w-3 h-3 rounded-full bg-red-500"></div>
             <span className="text-sm text-gray-600">Vắng mặt</span>
           </div>
           <p className="text-2xl font-bold text-red-700">{kpiCounts.ABSENT}</p>
         </div>
         <div className="bg-white rounded-lg border border-blue-200 p-4">
           <div className="flex items-center gap-2 mb-1">
-            <div className="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
+            <div className="w-3 h-3 rounded-full bg-blue-500"></div>
             <span className="text-sm text-gray-600">Nghỉ phép</span>
           </div>
           <p className="text-2xl font-bold text-blue-700">{kpiCounts.ON_LEAVE}</p>
         </div>
         <div className="bg-white rounded-lg border border-indigo-200 p-4">
           <div className="flex items-center gap-2 mb-1">
-            <div className="w-2.5 h-2.5 rounded-full bg-indigo-500"></div>
+            <div className="w-3 h-3 rounded-full bg-indigo-500"></div>
             <span className="text-sm text-gray-600">Tỷ lệ chuyên cần</span>
           </div>
           <p className="text-2xl font-bold text-indigo-700">{kpiCounts.attendanceRate}%</p>
@@ -695,7 +695,7 @@ const AttendanceManagement: React.FC = () => {
         <div className="flex items-center gap-1">
           <button
             onClick={handlePrevMonth}
-            className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             title="Tháng trước"
           >
             <ChevronLeft className="w-4 h-4 text-gray-600" />
@@ -705,7 +705,7 @@ const AttendanceManagement: React.FC = () => {
           </div>
           <button
             onClick={handleNextMonth}
-            className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             title="Tháng sau"
           >
             <ChevronRight className="w-4 h-4 text-gray-600" />
@@ -751,7 +751,7 @@ const AttendanceManagement: React.FC = () => {
       <div className="flex items-center gap-2">
         <button
           onClick={() => setViewMode('table')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] text-sm rounded-md transition-colors ${
             viewMode === 'table'
               ? 'bg-blue-600 text-white'
               : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
@@ -762,7 +762,7 @@ const AttendanceManagement: React.FC = () => {
         </button>
         <button
           onClick={() => setViewMode('calendar')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] text-sm rounded-md transition-colors ${
             viewMode === 'calendar'
               ? 'bg-blue-600 text-white'
               : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
@@ -776,6 +776,92 @@ const AttendanceManagement: React.FC = () => {
       {/* Table View */}
       {viewMode === 'table' && (
         <>
+          {isNarrow ? (
+            <div className="space-y-3">
+              {loading ? (
+                <div className="p-8 text-center text-gray-500 bg-white rounded-lg border border-gray-200">Đang tải dữ liệu...</div>
+              ) : filteredAttendances.length === 0 ? (
+                <div className="p-8 text-center text-gray-500 bg-white rounded-lg border border-gray-200">Không có dữ liệu điểm danh</div>
+              ) : (
+                paginatedAttendances.map((record) => {
+                  const rowIns = record.regularStatus ? (record.regularCheckInTimes ?? record.checkInTimes) : (record.overtimeCheckInTimes ?? []);
+                  const rowOuts = record.regularStatus ? (record.regularCheckOutTimes ?? record.checkOutTimes) : (record.overtimeCheckOutTimes ?? []);
+                  const rowCrossMidnight = isCrossMidnight(rowIns, rowOuts);
+                  const rowIncomplete = record.regularStatus ? isIncomplete({
+                    attendanceDate: record.attendanceDate,
+                    regularCheckInTimes: record.regularCheckInTimes,
+                    regularCheckOutTimes: record.regularCheckOutTimes,
+                    checkInTimes: record.checkInTimes,
+                    checkOutTimes: record.checkOutTimes,
+                    notes: record.notes,
+                  }) : false;
+                  const badgeStatus = record.regularStatus ?? record.status;
+                  const hoursVal = record.regularStatus ? (record.regularHours ?? record.workHours) : (record.overtimeHours ?? record.workHours);
+                  return (
+                    <div
+                      key={record.id}
+                      onClick={() => setCalendarModal({ type: 'cell', record: record as unknown as AttendanceRecord })}
+                      className="bg-white rounded-lg border border-gray-200 p-3 cursor-pointer active:bg-blue-50"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-gray-900 truncate">{record.employeeName}</div>
+                          <div className="text-xs text-gray-500">{record.employeeCode} · {record.positionName}</div>
+                          <div className="text-xs text-gray-600 mt-1">{formatDateWithWeekday(record.attendanceDate)}</div>
+                        </div>
+                        <span className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full ${STATUS_BADGE_STYLES[badgeStatus] || ''}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_STYLES[badgeStatus] || ''}`}></span>
+                          {getStatusLabel(badgeStatus)}
+                        </span>
+                      </div>
+                      <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                        <div>
+                          <div className="text-gray-500">Giờ vào</div>
+                          <div className="text-gray-900 font-medium truncate">{formatTimes(rowIns)}</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-500">Giờ ra</div>
+                          <div className="text-gray-900 font-medium truncate flex items-center gap-1 flex-wrap">
+                            {rowIncomplete ? <span className="text-red-600">—</span> : formatTimes(rowOuts)}
+                            {rowIncomplete && <span className="inline-flex items-center px-1 py-0.5 text-xs font-bold rounded bg-red-50 text-red-700 border border-red-200">⚠ Quên ra</span>}
+                            {!rowIncomplete && rowCrossMidnight && <span className="inline-flex items-center px-1 py-0.5 text-xs font-bold rounded bg-indigo-50 text-indigo-700 border border-indigo-200">⁺¹</span>}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-gray-500">Số giờ</div>
+                          <div className="text-gray-900 font-medium">{hoursVal.toFixed(2)}</div>
+                        </div>
+                      </div>
+                      {(record.notes || record.hasOvertime) && (
+                        <div className="mt-2 text-xs text-gray-600 truncate">
+                          {record.hasOvertime && record.regularStatus ? (
+                            <span className="text-purple-700">OT {(record.overtimeHours ?? 0).toFixed(2)}h{record.overtimeNotes ? ` · ${record.overtimeNotes}` : ''}{record.notes ? ` · ${record.notes}` : ''}</span>
+                          ) : (
+                            record.notes || (record.overtimeNotes ?? '')
+                          )}
+                        </div>
+                      )}
+                      {record.hasOvertime && record.regularStatus && record.overtimeFlag && (
+                        <div className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                          <AlertTriangle className="w-3 h-3" aria-hidden="true" />
+                          {record.overtimeFlag.message}
+                        </div>
+                      )}
+                      <div className="mt-2 flex justify-end">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDelete(record.id); }}
+                          className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                          title="Xóa"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          ) : (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             {loading ? (
               <div className="p-8 text-center text-gray-500">Đang tải dữ liệu...</div>
@@ -858,7 +944,7 @@ const AttendanceManagement: React.FC = () => {
                               {rowIncomplete ? <span className="text-red-600 font-medium">—</span> : formatTimes(rowOuts)}
                               {rowIncomplete && (
                                 <span
-                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-bold rounded bg-red-50 text-red-700 border border-red-200 cursor-help"
+                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-bold rounded bg-red-50 text-red-700 border border-red-200 cursor-help"
                                   aria-label="Quên chấm ra"
                                 >
                                   ⚠ Quên ra
@@ -866,7 +952,7 @@ const AttendanceManagement: React.FC = () => {
                               )}
                               {!rowIncomplete && rowCrossMidnight && (
                                 <span
-                                  className="inline-flex items-center px-1 py-0.5 text-[10px] font-bold rounded bg-indigo-50 text-indigo-700 border border-indigo-200 cursor-help"
+                                  className="inline-flex items-center px-1 py-0.5 text-xs font-bold rounded bg-indigo-50 text-indigo-700 border border-indigo-200 cursor-help"
                                   aria-label="Ca đêm — ra ngày kế"
                                 >
                                   ⁺¹
@@ -974,8 +1060,9 @@ const AttendanceManagement: React.FC = () => {
               </div>
             )}
           </div>
+          )}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4 px-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 mt-4 px-2">
               <span className="text-sm text-gray-600">
                 Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
               </span>
@@ -983,7 +1070,7 @@ const AttendanceManagement: React.FC = () => {
                 <button
                   onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
-                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1.5 min-h-[44px] text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Trước
                 </button>
@@ -991,10 +1078,10 @@ const AttendanceManagement: React.FC = () => {
                   .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
                   .map((page, idx, arr) => (
                     <React.Fragment key={page}>
-                      {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                      {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-500">...</span>}
                       <button
                         onClick={() => setCurrentPage(page)}
-                        className={`px-3 py-1.5 text-sm rounded-md ${
+                        className={`px-3 py-1.5 min-h-[44px] text-sm rounded-md ${
                           page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
                         }`}
                       >
@@ -1005,7 +1092,7 @@ const AttendanceManagement: React.FC = () => {
                 <button
                   onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                   disabled={currentPage === totalPages}
-                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1.5 min-h-[44px] text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Sau
                 </button>
@@ -1026,11 +1113,11 @@ const AttendanceManagement: React.FC = () => {
             <>
               {/* Legend */}
               <div className="px-4 py-3 border-b border-gray-200 flex flex-wrap gap-x-3 gap-y-2 text-xs">
-                <span className="inline-flex items-center gap-1"><span className="w-6 h-5 rounded flex items-center justify-center bg-green-100 text-green-700 font-medium text-[10px]">8.0</span> Đúng giờ (số giờ)</span>
-                <span className="inline-flex items-center gap-1"><span className="w-6 h-5 rounded flex items-center justify-center bg-amber-100 text-amber-700 font-medium text-[10px]">7.5</span> Muộn (số giờ)</span>
+                <span className="inline-flex items-center gap-1"><span className="w-6 h-5 rounded flex items-center justify-center bg-green-100 text-green-700 font-medium text-xs">8.0</span> Đúng giờ (số giờ)</span>
+                <span className="inline-flex items-center gap-1"><span className="w-6 h-5 rounded flex items-center justify-center bg-amber-100 text-amber-700 font-medium text-xs">7.5</span> Muộn (số giờ)</span>
                 <span className="inline-flex items-center gap-1"><span className="w-5 h-5 rounded flex items-center justify-center bg-red-100 text-red-700 font-medium">V</span> Vắng</span>
                 <span className="inline-flex items-center gap-1"><span className="w-5 h-5 rounded flex items-center justify-center bg-blue-100 text-blue-700 font-medium">N</span> Nghỉ phép</span>
-                <span className="inline-flex items-center gap-1"><span className="w-6 h-5 rounded flex items-center justify-center bg-purple-100 text-purple-700 font-medium text-[10px]">3.0</span> Tăng ca (số giờ)</span>
+                <span className="inline-flex items-center gap-1"><span className="w-6 h-5 rounded flex items-center justify-center bg-purple-100 text-purple-700 font-medium text-xs">3.0</span> Tăng ca (số giờ)</span>
               </div>
               {isNarrow ? (
                 <div className="p-3 space-y-3 max-h-[70vh] overflow-y-auto">
@@ -1045,7 +1132,40 @@ const AttendanceManagement: React.FC = () => {
                       const { display, cellClass } = calendarCellVisual(record);
                       const effectiveStatus = record ? (record.regularStatus ?? record.status) : null;
                       if (effectiveStatus === 'PRESENT' || effectiveStatus === 'LATE' || effectiveStatus === 'OVERTIME') presentDays++;
-                      return { day, dateKey, record, display, cellClass };
+                      // Same flags desktop uses so narrow isn't visually stripped
+                      const isSplit = !!(record?.hasOvertime && record?.regularStatus);
+                      const cellCrossMidnight = !!(record && isCrossMidnight(
+                        record.regularCheckInTimes ?? record.checkInTimes,
+                        record.regularCheckOutTimes ?? record.checkOutTimes,
+                      ));
+                      const cellIncomplete = !!(record && record.regularStatus && isIncomplete({
+                        attendanceDate: record.attendanceDate,
+                        regularCheckInTimes: record.regularCheckInTimes,
+                        regularCheckOutTimes: record.regularCheckOutTimes,
+                        checkInTimes: record.checkInTimes,
+                        checkOutTimes: record.checkOutTimes,
+                        notes: record.notes,
+                      }));
+                      // For split OT days show diagonal two-value display on narrow as well
+                      let overtimeDisplay = '';
+                      if (isSplit && record) {
+                        const v = record.overtimeHours ?? 0;
+                        overtimeDisplay = !v || v <= 0 ? '0' : v.toFixed(1);
+                      }
+                      const narrowDisplay = display;
+                      const narrowCellClass = cellClass;
+                      // Color tokens for narrow diagonal (match desktop palette)
+                      const narrowRegularColor =
+                        effectiveStatus === 'PRESENT' ? '#dcfce7' :
+                        effectiveStatus === 'LATE' ? '#fef3c7' :
+                        effectiveStatus === 'ABSENT' ? '#fee2e2' :
+                        effectiveStatus === 'ON_LEAVE' ? '#dbeafe' : '#dcfce7';
+                      const narrowRegularTextColor =
+                        effectiveStatus === 'PRESENT' ? '#15803d' :
+                        effectiveStatus === 'LATE' ? '#b45309' :
+                        effectiveStatus === 'ABSENT' ? '#b91c1c' :
+                        effectiveStatus === 'ON_LEAVE' ? '#1d4ed8' : '#15803d';
+                      return { day, dateKey, record, display: narrowDisplay, cellClass: narrowCellClass, isSplit, cellCrossMidnight, cellIncomplete, overtimeDisplay, narrowRegularColor, narrowRegularTextColor };
                     });
                     // Calendar-aligned grid: pad the first week so a column always means the same weekday.
                     const leadingBlanks = calendarData.days.length ? calendarData.days[0].getUTCDay() : 0;
@@ -1067,12 +1187,12 @@ const AttendanceManagement: React.FC = () => {
                           </div>
                         </div>
                         <div className="px-3 py-2">
-                          <div className="grid grid-cols-7 gap-0.5 text-[10px] text-gray-400 mb-0.5">
+                          <div className="grid grid-cols-7 gap-1 text-xs font-medium text-gray-600 mb-1">
                             {['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'].map(w => <div key={w} className="text-center">{w}</div>)}
                           </div>
-                          <div className="grid grid-cols-7 gap-0.5">
+                          <div className="grid grid-cols-7 gap-1">
                             {Array.from({ length: leadingBlanks }, (_, i) => <div key={`blank-${i}`} className="min-h-[44px]" />)}
-                            {dayCells.map(({ day, record, display, cellClass }) => {
+                            {dayCells.map(({ day, record, display, cellClass, isSplit, cellCrossMidnight, cellIncomplete, overtimeDisplay, narrowRegularColor, narrowRegularTextColor }) => {
                               const isSunday = day.getUTCDay() === 0;
                               return (
                                 <button
@@ -1098,10 +1218,33 @@ const AttendanceManagement: React.FC = () => {
                                       setShowModal(true);
                                     }
                                   }}
-                                  className={`min-h-[44px] rounded border flex flex-col items-center justify-center leading-tight active:bg-blue-50 ${isSunday ? 'border-red-200' : 'border-gray-200'} ${cellClass}`}
+                                  className={`min-h-[44px] rounded border flex flex-col items-center justify-center leading-tight active:bg-blue-50 relative ${isSunday ? 'border-red-200' : 'border-gray-200'} ${isSplit ? 'overflow-hidden border-gray-300' : ''} ${cellClass}`}
+                                  style={isSplit ? { background: `linear-gradient(to bottom right, ${narrowRegularColor} 50%, #f3e8ff 50%)` } : undefined}
                                 >
-                                  <span className="text-[10px] text-gray-400">{day.getUTCDate()}</span>
-                                  <span className="text-xs font-medium">{display}</span>
+                                  {isSplit ? (
+                                    <>
+                                      <span className="absolute top-0 left-0.5 text-xs font-bold leading-none" style={{ color: narrowRegularTextColor }}>{display}</span>
+                                      <span className="absolute bottom-0 right-0.5 text-xs font-bold leading-none text-purple-700">{overtimeDisplay}</span>
+                                      {cellIncomplete ? (
+                                        <span className="absolute -top-0.5 -right-0.5 text-xs font-bold text-white bg-red-600 rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none" aria-label="Quên chấm ra">!</span>
+                                      ) : cellCrossMidnight ? (
+                                        <span className="absolute -top-0.5 -right-0.5 text-xs font-bold text-indigo-700 bg-white/80 rounded-full px-0.5 leading-none" aria-label="Ca đêm">⁺¹</span>
+                                      ) : null}
+                                      <span className="text-xs font-medium text-gray-600 mt-3">{day.getUTCDate()}</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="text-xs font-medium text-gray-600">{day.getUTCDate()}</span>
+                                      <span className="text-xs font-medium relative inline-flex items-center justify-center">
+                                        {display}
+                                        {cellIncomplete ? (
+                                          <span className="absolute -top-1 -right-2 text-xs font-bold text-white bg-red-600 rounded-full w-3 h-3 flex items-center justify-center leading-none border border-white" aria-label="Quên chấm ra">!</span>
+                                        ) : cellCrossMidnight ? (
+                                          <span className="absolute -top-1 -right-2 text-xs font-bold text-indigo-700 bg-white rounded-full px-0.5 leading-none border border-indigo-200" aria-label="Ca đêm">⁺¹</span>
+                                        ) : null}
+                                      </span>
+                                    </>
+                                  )}
                                 </button>
                               );
                             })}
@@ -1415,7 +1558,7 @@ const AttendanceManagement: React.FC = () => {
                                 updated[index] = { ...updated[index], checkInTime: e.target.value };
                                 setEditEntries(updated);
                               }}
-                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-full px-2 py-1.5 min-h-[44px] text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                           </div>
                           <div>
@@ -1428,7 +1571,7 @@ const AttendanceManagement: React.FC = () => {
                                 updated[index] = { ...updated[index], checkOutTime: e.target.value };
                                 setEditEntries(updated);
                               }}
-                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-full px-2 py-1.5 min-h-[44px] text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                           </div>
                         </div>
@@ -1442,7 +1585,7 @@ const AttendanceManagement: React.FC = () => {
                                 updated[index] = { ...updated[index], status: e.target.value as any };
                                 setEditEntries(updated);
                               }}
-                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-full px-2 py-1.5 min-h-[44px] text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                             >
                               <option value="PRESENT">Đúng giờ</option>
                               <option value="LATE">Muộn</option>
@@ -1462,7 +1605,7 @@ const AttendanceManagement: React.FC = () => {
                                 setEditEntries(updated);
                               }}
                               placeholder="Ghi chú"
-                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-full px-2 py-1.5 min-h-[44px] text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                           </div>
                         </div>
@@ -1476,7 +1619,7 @@ const AttendanceManagement: React.FC = () => {
                   {workShifts.length > 0 && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Chọn ca <span className="text-xs text-gray-400 font-normal">(tự động điền giờ vào/ra)</span>
+                        Chọn ca <span className="text-xs text-gray-500 font-normal">(tự động điền giờ vào/ra)</span>
                       </label>
                       <select
                         value=""
@@ -1508,7 +1651,7 @@ const AttendanceManagement: React.FC = () => {
                         type="time"
                         value={formData.checkInTime}
                         onChange={(e) => setFormData({ ...formData, checkInTime: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
                     <div>
@@ -1517,7 +1660,7 @@ const AttendanceManagement: React.FC = () => {
                         type="time"
                         value={formData.checkOutTime}
                         onChange={(e) => setFormData({ ...formData, checkOutTime: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
                   </div>
@@ -1575,14 +1718,14 @@ const AttendanceManagement: React.FC = () => {
       {/* Calendar Cell Detail Modal */}
       {calendarModal?.type === 'cell' && (
         <Modal isOpen onClose={() => setCalendarModal(null)} showBackdrop closeOnBackdrop>
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
-            <div className="bg-blue-600 px-3 py-3 sm:px-6 sm:py-4 flex justify-between items-center">
+          <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-full sm:max-w-md flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-blue-600 px-3 py-3 sm:px-6 sm:py-4 flex justify-between items-center shrink-0">
               <h3 className="text-lg font-bold text-white">
                 {calendarModal.employee?.name ?? ''} &mdash; {formatDateObj(calendarModal.day ?? new Date())}
               </h3>
-              <button onClick={() => setCalendarModal(null)} className="text-white hover:text-gray-200">&#10005;</button>
+              <button onClick={() => setCalendarModal(null)} className="text-white hover:text-gray-200 min-h-[44px] min-w-[44px] flex items-center justify-center">&#10005;</button>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
               {/* Section 1: Regular shift */}
               {calendarModal.record.regularStatus && (() => {
                 const ins = calendarModal.record.regularCheckInTimes ?? calendarModal.record.checkInTimes;
@@ -1689,7 +1832,7 @@ const AttendanceManagement: React.FC = () => {
               {calendarModal.record.hasOvertime && (
                 <div className="space-y-3 border-t pt-3">
                   {!calendarModal.record.regularStatus && (
-                    <p className="text-xs text-gray-400 italic">Không có ca bình thường</p>
+                    <p className="text-xs text-gray-500 italic">Không có ca bình thường</p>
                   )}
                   <h4 className="text-sm font-semibold text-purple-700 border-b border-purple-100 pb-1">Tăng ca</h4>
                   <div className="flex items-center gap-2">
@@ -1767,14 +1910,14 @@ const AttendanceManagement: React.FC = () => {
         const totalWorkingDays = counts.PRESENT + counts.LATE + counts.OVERTIME;
         return (
           <Modal isOpen onClose={() => setCalendarModal(null)} showBackdrop closeOnBackdrop>
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-full sm:max-w-3xl flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
               <div className="bg-blue-600 px-3 py-3 sm:px-6 sm:py-4 flex justify-between items-center shrink-0">
-                <h3 className="text-lg font-bold text-white">
+                <h3 className="text-lg font-bold text-white pr-2">
                   Tổng hợp &mdash; {emp.name} &mdash; {monthLabel}
                 </h3>
-                <button onClick={() => setCalendarModal(null)} className="text-white hover:text-gray-200">&#10005;</button>
+                <button onClick={() => setCalendarModal(null)} className="text-white hover:text-gray-200 min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0">&#10005;</button>
               </div>
-              <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 overscroll-contain">
                 <div className="flex flex-wrap gap-3 text-sm">
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200">Đúng giờ: {counts.PRESENT}</span>
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Muộn: {counts.LATE}</span>
@@ -1791,85 +1934,130 @@ const AttendanceManagement: React.FC = () => {
                 {empRecords.length === 0 ? (
                   <div className="text-center text-gray-500 py-4">Không có dữ liệu điểm danh</div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse text-sm">
-                      <thead>
-                        <tr className="bg-gray-50 border-b border-gray-200">
-                          <th className="px-3 py-2 text-left font-semibold text-gray-700">Ngày</th>
-                          <th className="px-3 py-2 text-center font-semibold text-gray-700">Trạng thái</th>
-                          <th className="px-3 py-2 text-left font-semibold text-gray-700">Giờ vào</th>
-                          <th className="px-3 py-2 text-left font-semibold text-gray-700">Giờ ra</th>
-                          <th className="px-3 py-2 text-right font-semibold text-gray-700">Số giờ</th>
-                          <th className="px-3 py-2 text-left font-semibold text-gray-700">Ghi chú</th>
-                          <th className="px-3 py-2 text-right font-semibold text-gray-700">Thao tác</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {empRecords.map(({ day, record }) => {
-                          // Determine display data based on split fields
-                          const isPureOvertime = !record.regularStatus && record.hasOvertime;
-                          const hasBoth = !!(record.regularStatus && record.hasOvertime);
-                          const displayStatus = record.regularStatus ?? record.status;
-                          const displayCheckIn = record.regularCheckInTimes ?? record.checkInTimes;
-                          const displayCheckOut = record.regularCheckOutTimes ?? record.checkOutTimes;
-                          const displayHours = record.regularHours ?? record.workHours;
+                  <>
+                    {/* Desktop table */}
+                    <div className="hidden sm:block overflow-x-auto">
+                      <table className="w-full border-collapse text-sm">
+                        <thead className="sticky top-0 z-10 bg-slate-50 border-b border-gray-200">
+                          <tr>
+                            <th className="px-3 py-2 text-left font-semibold text-gray-700">Ngày</th>
+                            <th className="px-3 py-2 text-center font-semibold text-gray-700">Trạng thái</th>
+                            <th className="px-3 py-2 text-left font-semibold text-gray-700">Giờ vào</th>
+                            <th className="px-3 py-2 text-left font-semibold text-gray-700">Giờ ra</th>
+                            <th className="px-3 py-2 text-right font-semibold text-gray-700">Số giờ</th>
+                            <th className="px-3 py-2 text-left font-semibold text-gray-700">Ghi chú</th>
+                            <th className="px-3 py-2 text-right font-semibold text-gray-700">Thao tác</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {empRecords.map(({ day, record }) => {
+                            const isPureOvertime = !record.regularStatus && record.hasOvertime;
+                            const hasBoth = !!(record.regularStatus && record.hasOvertime);
+                            const displayStatus = record.regularStatus ?? record.status;
+                            const displayCheckIn = record.regularCheckInTimes ?? record.checkInTimes;
+                            const displayCheckOut = record.regularCheckOutTimes ?? record.checkOutTimes;
+                            const displayHours = record.regularHours ?? record.workHours;
 
-                          return (
-                            <tr key={day.toISOString()} className="border-b border-gray-100 hover:bg-gray-50">
-                              <td className="px-3 py-2 text-gray-900 whitespace-nowrap">{formatDateObj(day)}</td>
-                              <td className="px-3 py-2 text-center">
-                                {isPureOvertime ? (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-purple-50 text-purple-700 border border-purple-200">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
-                                    Tăng ca
-                                  </span>
-                                ) : (
-                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${STATUS_BADGE_STYLES[displayStatus] || ''}`}>
-                                    <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_STYLES[displayStatus] || ''}`}></span>
-                                    {STATUS_LABELS[displayStatus]}
-                                  </span>
-                                )}
-                              </td>
-                              <td className="px-3 py-2 text-gray-900">
-                                {isPureOvertime ? formatTimes(record.overtimeCheckInTimes ?? []) : formatTimes(displayCheckIn)}
-                              </td>
-                              <td className="px-3 py-2 text-gray-900">
-                                {isPureOvertime ? formatTimes(record.overtimeCheckOutTimes ?? []) : formatTimes(displayCheckOut)}
-                              </td>
-                              <td className="px-3 py-2 text-right text-gray-900">
-                                {isPureOvertime
-                                  ? (record.overtimeHours ?? 0).toFixed(2)
-                                  : displayHours.toFixed(2)}
-                                {hasBoth && (
-                                  <div className="text-xs text-purple-600 italic">
-                                    +{(record.overtimeHours ?? 0).toFixed(2)} TC
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-3 py-2 text-gray-700">
-                                {record.notes || '-'}
-                                {hasBoth && record.overtimeNotes && (
-                                  <div className="text-xs text-purple-600 italic">{record.overtimeNotes}</div>
-                                )}
-                              </td>
-                              <td className="px-3 py-2 text-right">
-                                <button
-                                  onClick={() => {
-                                    setCalendarModal(null);
-                                    handleEdit(record);
-                                  }}
-                                  className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                                  title="Chỉnh sửa"
-                                >
-                                  <Edit2 className="w-4 h-4" />
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                            return (
+                              <tr key={day.toISOString()} className="border-b border-gray-100 hover:bg-gray-50">
+                                <td className="px-3 py-2 text-gray-900 whitespace-nowrap">{formatDateObj(day)}</td>
+                                <td className="px-3 py-2 text-center">
+                                  {isPureOvertime ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                                      Tăng ca
+                                    </span>
+                                  ) : (
+                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${STATUS_BADGE_STYLES[displayStatus] || ''}`}>
+                                      <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_STYLES[displayStatus] || ''}`}></span>
+                                      {STATUS_LABELS[displayStatus]}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 text-gray-900">
+                                  {isPureOvertime ? formatTimes(record.overtimeCheckInTimes ?? []) : formatTimes(displayCheckIn)}
+                                </td>
+                                <td className="px-3 py-2 text-gray-900">
+                                  {isPureOvertime ? formatTimes(record.overtimeCheckOutTimes ?? []) : formatTimes(displayCheckOut)}
+                                </td>
+                                <td className="px-3 py-2 text-right text-gray-900">
+                                  {isPureOvertime
+                                    ? (record.overtimeHours ?? 0).toFixed(2)
+                                    : displayHours.toFixed(2)}
+                                  {hasBoth && (
+                                    <div className="text-xs text-purple-600 italic">
+                                      +{(record.overtimeHours ?? 0).toFixed(2)} TC
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 text-gray-700">
+                                  {record.notes || '-'}
+                                  {hasBoth && record.overtimeNotes && (
+                                    <div className="text-xs text-purple-600 italic">{record.overtimeNotes}</div>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  <button
+                                    onClick={() => {
+                                      setCalendarModal(null);
+                                      handleEdit(record);
+                                    }}
+                                    className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                                    title="Chỉnh sửa"
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    {/* Mobile card list */}
+                    <div className="block sm:hidden space-y-3">
+                      {empRecords.map(({ day, record }) => {
+                        const isPureOvertime = !record.regularStatus && record.hasOvertime;
+                        const hasBoth = !!(record.regularStatus && record.hasOvertime);
+                        const displayStatus = record.regularStatus ?? record.status;
+                        const displayCheckIn = record.regularCheckInTimes ?? record.checkInTimes;
+                        const displayCheckOut = record.regularCheckOutTimes ?? record.checkOutTimes;
+                        const displayHours = record.regularHours ?? record.workHours;
+                        return (
+                          <div key={day.toISOString()} className="rounded-lg border border-gray-200 bg-white p-3 space-y-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="text-sm font-semibold text-gray-900">{formatDateObj(day)}</span>
+                              {isPureOvertime ? (
+                                <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                                  Tăng ca
+                                </span>
+                              ) : (
+                                <span className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${STATUS_BADGE_STYLES[displayStatus] || ''}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_STYLES[displayStatus] || ''}`}></span>
+                                  {STATUS_LABELS[displayStatus]}
+                                </span>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div><span className="text-gray-500">Giờ vào: </span><span className="font-medium text-gray-900">{isPureOvertime ? formatTimes(record.overtimeCheckInTimes ?? []) : formatTimes(displayCheckIn)}</span></div>
+                              <div><span className="text-gray-500">Giờ ra: </span><span className="font-medium text-gray-900">{isPureOvertime ? formatTimes(record.overtimeCheckOutTimes ?? []) : formatTimes(displayCheckOut)}</span></div>
+                              <div><span className="text-gray-500">Số giờ: </span><span className="font-medium text-gray-900">{isPureOvertime ? (record.overtimeHours ?? 0).toFixed(2) : displayHours.toFixed(2)}{hasBoth ? ` +${(record.overtimeHours ?? 0).toFixed(2)} TC` : ''}</span></div>
+                              <div className="col-span-2"><span className="text-gray-500">Ghi chú: </span><span className="text-gray-700">{record.notes || '—'}{hasBoth && record.overtimeNotes ? ` · ${record.overtimeNotes}` : ''}</span></div>
+                            </div>
+                            <div className="flex justify-end">
+                              <button
+                                onClick={() => { setCalendarModal(null); handleEdit(record); }}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 min-h-[44px] text-xs font-medium border border-blue-200 text-blue-700 rounded-md hover:bg-blue-50"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" /> Chỉnh sửa
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
                 )}
               </div>
             </div>
@@ -1893,14 +2081,14 @@ const AttendanceManagement: React.FC = () => {
         });
         return (
           <Modal isOpen onClose={() => setCalendarModal(null)} showBackdrop closeOnBackdrop>
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-full sm:max-w-3xl flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
               <div className="bg-blue-600 px-3 py-3 sm:px-6 sm:py-4 flex justify-between items-center shrink-0">
-                <h3 className="text-lg font-bold text-white">
+                <h3 className="text-lg font-bold text-white pr-2">
                   {formatDateObj(day)} &mdash; Danh sách điểm danh
                 </h3>
-                <button onClick={() => setCalendarModal(null)} className="text-white hover:text-gray-200">&#10005;</button>
+                <button onClick={() => setCalendarModal(null)} className="text-white hover:text-gray-200 min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0">&#10005;</button>
               </div>
-              <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 overscroll-contain">
                 <div className="flex flex-wrap gap-3 text-sm">
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200">Đúng giờ: {counts.PRESENT}</span>
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Muộn: {counts.LATE}</span>
@@ -1908,10 +2096,10 @@ const AttendanceManagement: React.FC = () => {
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">Nghỉ phép: {counts.ON_LEAVE}</span>
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200">Tăng ca: {counts.OVERTIME}</span>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="hidden sm:block overflow-x-auto">
                   <table className="w-full border-collapse text-sm">
-                    <thead>
-                      <tr className="bg-gray-50 border-b border-gray-200">
+                    <thead className="sticky top-0 z-10 bg-slate-50 border-b border-gray-200">
+                      <tr>
                         <th className="px-3 py-2 text-left font-semibold text-gray-700">Nhân viên</th>
                         <th className="px-3 py-2 text-left font-semibold text-gray-700">Giờ vào</th>
                         <th className="px-3 py-2 text-left font-semibold text-gray-700">Giờ ra</th>
@@ -1934,7 +2122,7 @@ const AttendanceManagement: React.FC = () => {
                                 {STATUS_LABELS[record.status]}
                               </span>
                             ) : (
-                              <span className="text-xs text-gray-400">Chưa ghi nhận</span>
+                              <span className="text-xs text-gray-500">Chưa ghi nhận</span>
                             )}
                           </td>
                           <td className="px-3 py-2 text-gray-700">{record ? (record.notes || '-') : '—'}</td>
@@ -1942,6 +2130,29 @@ const AttendanceManagement: React.FC = () => {
                       ))}
                     </tbody>
                   </table>
+                </div>
+                <div className="block sm:hidden space-y-3">
+                  {dayEmployees.map(({ emp, record }) => (
+                    <div key={emp.code} className="rounded-lg border border-gray-200 bg-white p-3 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="text-sm font-semibold text-gray-900">{emp.name}</span>
+                        {record ? (
+                          <span className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${STATUS_BADGE_STYLES[record.status] || ''}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_STYLES[record.status] || ''}`}></span>
+                            {STATUS_LABELS[record.status]}
+                          </span>
+                        ) : (
+                          <span className="shrink-0 text-xs text-gray-500 border border-gray-200 rounded-full px-2 py-0.5">Chưa ghi nhận</span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div><span className="text-gray-500">Giờ vào: </span><span className="font-medium text-gray-900">{record ? formatTimes(record.checkInTimes) : '—'}</span></div>
+                        <div><span className="text-gray-500">Giờ ra: </span><span className="font-medium text-gray-900">{record ? formatTimes(record.checkOutTimes) : '—'}</span></div>
+                        <div><span className="text-gray-500">Số giờ: </span><span className="font-medium text-gray-900">{record ? record.workHours.toFixed(2) : '—'}</span></div>
+                        <div className="col-span-2"><span className="text-gray-500">Ghi chú: </span><span className="text-gray-700">{record ? (record.notes || '—') : '—'}</span></div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

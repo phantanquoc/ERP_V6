@@ -190,6 +190,8 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
   const [preset, setPreset] = useState<QuickRangePreset>('thisMonth');
   const [range, setRange] = useState<DateRangeValue>(() => buildRangeFromPreset('thisMonth'));
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const detailRef = React.useRef<HTMLDivElement>(null);
 
   // Calendar display month: use endDate for presets like "7 ngày" that may cross month boundary
   const calendarRefDate = preset === 'last7Days' ? range.endDate : range.startDate;
@@ -206,6 +208,12 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
     setRange(nextRange);
     setSelectedDay(null);
   }, [isOpen]);
+
+  React.useEffect(() => {
+    if (selectedDay && detailRef.current) {
+      detailRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [selectedDay]);
 
   const {
     data: records = [],
@@ -321,7 +329,7 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
   return (
     <Modal isOpen={isOpen} onClose={onClose} showBackdrop closeOnBackdrop={true} className="max-w-none">
       <div
-        className="relative flex h-[calc(100vh-2rem)] w-full max-w-7xl flex-col overflow-hidden rounded-3xl bg-slate-50 shadow-2xl"
+        className="relative flex h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)] supports-[height:100dvh]:h-[calc(100dvh-2rem)] supports-[height:100dvh]:max-h-[calc(100dvh-2rem)] w-full max-w-7xl flex-col overflow-hidden rounded-t-3xl sm:rounded-3xl bg-slate-50 shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="border-b border-slate-200 bg-white px-4 py-3 sm:px-8 sm:py-5">
@@ -342,7 +350,7 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
               <button
                 type="button"
                 onClick={() => refetch()}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 sm:px-4 sm:py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
+                className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 sm:px-4 sm:py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
               >
                 <RefreshCcw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
                 <span className="hidden sm:inline">Làm mới</span>
@@ -369,7 +377,7 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
                   key={item.key}
                   type="button"
                   onClick={() => applyPreset(item.key as QuickRangePreset)}
-                  className={`rounded-full px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium transition ${
+                  className={`inline-flex min-h-[44px] items-center justify-center rounded-full px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium transition ${
                     preset === item.key
                       ? 'bg-slate-900 text-white'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -388,7 +396,7 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
                     type="date"
                     value={range.startDate}
                     onChange={(event) => handleCustomDateChange('startDate', event.target.value)}
-                    className="rounded-lg sm:rounded-xl border border-slate-200 bg-white px-3 py-2 sm:px-4 sm:py-3 text-sm text-slate-700 outline-none transition focus:border-blue-400"
+                    className="min-h-[44px] rounded-lg sm:rounded-xl border border-slate-200 bg-white px-3 py-2 sm:px-4 sm:py-3 text-sm text-slate-700 outline-none transition focus:border-blue-400"
                   />
                 </label>
                 <label className="flex flex-1 flex-col gap-1 text-xs sm:text-sm font-medium text-slate-600">
@@ -398,7 +406,7 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
                     value={range.endDate}
                     min={range.startDate}
                     onChange={(event) => handleCustomDateChange('endDate', event.target.value)}
-                    className="rounded-lg sm:rounded-xl border border-slate-200 bg-white px-3 py-2 sm:px-4 sm:py-3 text-sm text-slate-700 outline-none transition focus:border-blue-400"
+                    className="min-h-[44px] rounded-lg sm:rounded-xl border border-slate-200 bg-white px-3 py-2 sm:px-4 sm:py-3 text-sm text-slate-700 outline-none transition focus:border-blue-400"
                   />
                 </label>
               </div>
@@ -460,7 +468,7 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
               <button
                 type="button"
                 onClick={() => navigateMonth(-1)}
-                className="rounded-xl border border-slate-200 p-2 text-slate-500 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-700"
+                className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-200 p-2 text-slate-500 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-700"
                 aria-label="Tháng trước"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -469,7 +477,7 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
               <button
                 type="button"
                 onClick={() => navigateMonth(1)}
-                className="rounded-xl border border-slate-200 p-2 text-slate-500 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-700"
+                className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-200 p-2 text-slate-500 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-700"
                 aria-label="Tháng sau"
               >
                 <ChevronRight className="h-4 w-4" />
@@ -511,7 +519,19 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
                 </div>
 
                 {/* Calendar cells */}
-                <div className="grid grid-cols-7 gap-1">
+                <div
+                  className="grid grid-cols-7 gap-1"
+                  onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
+                  onTouchEnd={(e) => {
+                    if (touchStartX === null) return;
+                    const delta = e.changedTouches[0].clientX - touchStartX;
+                    if (Math.abs(delta) > 50) {
+                      if (delta < 0) navigateMonth(1);
+                      else navigateMonth(-1);
+                    }
+                    setTouchStartX(null);
+                  }}
+                >
                   {calendarCells.map(({ dateStr, inMonth }) => {
                     const dots = inMonth ? getStatusDots(dateStr) : [];
                     const isToday = dateStr === todayStr;
@@ -529,11 +549,11 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
                           }
                         }}
                         className={[
-                          'flex min-h-[40px] flex-col items-center justify-start rounded-lg sm:rounded-xl p-1 transition sm:min-h-[64px]',
+                          'flex min-h-[44px] flex-col items-center justify-start rounded-lg sm:rounded-xl p-1 transition sm:min-h-[64px]',
                           !inMonth ? 'opacity-20' : '',
                           inMonth ? 'cursor-pointer hover:bg-slate-100' : 'cursor-default',
-                          isSelected ? 'bg-blue-50 ring-2 ring-blue-500' : '',
-                          isToday && !isSelected ? 'ring-2 ring-emerald-400 bg-emerald-50/40' : '',
+                          isSelected ? 'bg-blue-50 ring-2 ring-blue-500 ring-inset' : '',
+                          isToday && !isSelected ? 'ring-2 ring-emerald-400 bg-emerald-50/40 ring-inset' : '',
                         ].filter(Boolean).join(' ')}
                         aria-label={dateStr}
                       >
@@ -541,13 +561,13 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
                           {dayNum}
                         </span>
                         {isToday && !isSelected && (
-                          <span className="text-[9px] font-semibold text-emerald-500 leading-none">nay</span>
+                          <span className="text-xs font-semibold text-emerald-500 leading-none">nay</span>
                         )}
-                        <div className="mt-1 flex flex-wrap justify-center gap-0.5">
+                        <div className="mt-1 flex flex-wrap justify-center gap-1">
                           {dots.map((status) => (
                             <span
                               key={status}
-                              className={`h-2.5 w-2.5 rounded-full ${statusDotColor[status] ?? 'bg-slate-400'} sm:h-3 sm:w-3`}
+                              className={`h-3 w-3 rounded-full ${statusDotColor[status] ?? 'bg-slate-400'}`}
                               aria-hidden="true"
                             />
                           ))}
@@ -571,30 +591,31 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
 
             {/* Day detail panel */}
             {selectedDay && (
-              <div className="border-t border-slate-200 px-4 py-4 sm:px-6">
+              <div ref={detailRef} className="border-t border-slate-200 px-4 py-4 sm:px-6">
                 <h4 className="mb-3 text-sm font-semibold text-slate-700">
                   Chi tiết: {formatDisplayDate(selectedDay)}
                 </h4>
                 {selectedGroup ? (
                   <>
-                    <div className="mb-3 flex flex-wrap gap-3 text-xs">
-                      <span className="rounded-lg bg-emerald-50 px-3 py-1.5 font-medium text-emerald-700">
+                    <div className="mb-3 grid grid-cols-3 gap-2 text-xs sm:flex sm:flex-wrap sm:gap-3">
+                      <span className="flex min-w-0 flex-1 items-center justify-center rounded-lg bg-emerald-50 px-2 py-2 text-center font-medium text-emerald-700 sm:flex-initial sm:justify-start sm:px-3 sm:py-1.5">
                         Tổng giờ: {formatHours(selectedGroup.totalHours)}
                       </span>
                       {selectedGroup.overtimeHours > 0 && (
-                        <span className="rounded-lg bg-sky-50 px-3 py-1.5 font-medium text-sky-700">
+                        <span className="flex min-w-0 flex-1 items-center justify-center rounded-lg bg-sky-50 px-2 py-2 text-center font-medium text-sky-700 sm:flex-initial sm:justify-start sm:px-3 sm:py-1.5">
                           Tăng ca: {formatHours(selectedGroup.overtimeHours)}
                         </span>
                       )}
                       {selectedGroup.lateCount > 0 && (
-                        <span className="rounded-lg bg-amber-50 px-3 py-1.5 font-medium text-amber-700">
+                        <span className="flex min-w-0 flex-1 items-center justify-center rounded-lg bg-amber-50 px-2 py-2 text-center font-medium text-amber-700 sm:flex-initial sm:justify-start sm:px-3 sm:py-1.5">
                           Đi muộn: {selectedGroup.lateCount} lần
                         </span>
                       )}
                     </div>
-                    <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                    {/* Desktop table */}
+                    <div className="hidden sm:block overflow-x-auto rounded-2xl border border-slate-200">
                       <table className="min-w-full text-sm">
-                        <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                        <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                           <tr>
                             <th className="px-4 py-3 font-medium">Lần</th>
                             <th className="px-4 py-3 font-medium">Giờ vào</th>
@@ -623,6 +644,38 @@ const AttendanceHistoryModal: React.FC<AttendanceHistoryModalProps> = ({
                           ))}
                         </tbody>
                       </table>
+                    </div>
+                    {/* Mobile card list */}
+                    <div className="block space-y-2 sm:hidden">
+                      {selectedGroup.records.map((record, index) => {
+                        const noteText = record.notes || (record.isOvertime ? 'Ca tăng ca' : '');
+                        return (
+                          <div
+                            key={record.id}
+                            className="space-y-2 rounded-xl border border-slate-200 bg-white p-3 hover:border-slate-300"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-semibold text-slate-700">#{index + 1}</span>
+                                <span className={`rounded-full px-3 py-1 text-xs font-medium ${getStatusClasses(record.status)}`}>
+                                  {getStatusLabel(record.status)}
+                                </span>
+                              </div>
+                              <span className="text-sm font-semibold text-slate-900">{formatHours(record.workHours || 0)}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-slate-700">
+                              <span className="font-medium tabular-nums">{formatTime(record.checkInTime)}</span>
+                              <span className="text-slate-400" aria-hidden="true">→</span>
+                              <span className="font-medium tabular-nums">{formatTime(record.checkOutTime)}</span>
+                            </div>
+                            {noteText ? (
+                              <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-600">
+                                {noteText}
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })}
                     </div>
                   </>
                 ) : (

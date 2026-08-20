@@ -535,13 +535,13 @@ const MonthlyTimesheetGrid: React.FC = () => {
       {/* Sub-tabs */}
       <div className="flex gap-1 border-b">
         <button
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${subTab === 'attendance' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+          className={`px-4 py-2 min-h-[44px] text-sm font-medium border-b-2 transition-colors ${subTab === 'attendance' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
           onClick={() => setSubTab('attendance')}
         >
           Chấm công
         </button>
         <button
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${subTab === 'overtime' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+          className={`px-4 py-2 min-h-[44px] text-sm font-medium border-b-2 transition-colors ${subTab === 'overtime' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
           onClick={() => setSubTab('overtime')}
         >
           Tăng ca
@@ -663,18 +663,18 @@ const CodeSelect: React.FC<CodeSelectProps> = ({ value, options, onChange }) => 
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between border border-gray-300 rounded px-2 py-1.5 text-sm text-left hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
+        className="w-full flex items-center justify-between border border-gray-300 rounded px-2 py-1.5 min-h-[44px] text-sm text-left hover:border-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
       >
         <span className={value ? 'text-gray-900' : 'text-gray-400'}>{label}</span>
         <ChevronDown size={16} className={`text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <ul className="absolute z-10 mt-1 w-full max-h-60 overflow-auto rounded-md border border-gray-200 bg-white shadow-lg py-1">
+        <ul className="absolute z-20 mt-1 w-full max-h-60 overflow-auto rounded-md border border-gray-200 bg-white shadow-lg py-1">
           <li>
             <button
               type="button"
               onClick={() => { onChange(''); setOpen(false); }}
-              className={`w-full text-left px-3 py-1.5 text-sm hover:bg-blue-50 ${value === '' ? 'bg-blue-50 font-medium' : 'text-gray-500'}`}
+              className={`w-full text-left px-3 py-1.5 min-h-[44px] text-sm hover:bg-blue-50 ${value === '' ? 'bg-blue-50 font-medium' : 'text-gray-500'}`}
             >
               — Bỏ trống —
             </button>
@@ -684,7 +684,7 @@ const CodeSelect: React.FC<CodeSelectProps> = ({ value, options, onChange }) => 
               <button
                 type="button"
                 onClick={() => { onChange(ac.code); setOpen(false); }}
-                className={`w-full text-left px-3 py-1.5 text-sm hover:bg-blue-50 ${ac.code === value ? 'bg-blue-50 font-medium' : ''}`}
+                className={`w-full text-left px-3 py-1.5 min-h-[44px] text-sm hover:bg-blue-50 ${ac.code === value ? 'bg-blue-50 font-medium' : ''}`}
               >
                 <span className="font-semibold">{ac.code}</span>
                 {(ac.label || ac.description) ? <span className="text-gray-500"> - {ac.label || ac.description}</span> : null}
@@ -697,12 +697,15 @@ const CodeSelect: React.FC<CodeSelectProps> = ({ value, options, onChange }) => 
   );
 };
 
-const CellEditorModal: React.FC<CellEditorModalProps> = ({ editingCell, activeCodes, onSave, onCancel, onChange }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onCancel}>
-    <div className="bg-white rounded-lg shadow-xl p-4 w-72 space-y-3" onClick={e => e.stopPropagation()}>
+const CellEditorModal: React.FC<CellEditorModalProps> = ({ editingCell, activeCodes, onSave, onCancel, onChange }) => {
+  // Position above keyboard on small screens: anchor to top + safe area so the
+  // field the user tapped stays visible. p-4 wrapper padding already handled.
+  return (
+  <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 p-4 pt-[max(1rem,env(safe-area-inset-top))] overflow-y-auto" onClick={onCancel}>
+    <div className="bg-white rounded-lg shadow-xl p-4 w-full max-w-[min(18rem,calc(100vw-2rem))] my-auto max-h-[calc(100dvh-2rem)] overflow-y-auto space-y-3" onClick={e => e.stopPropagation()}>
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-semibold">Chỉnh sửa ô chấm công</h4>
-        <button onClick={onCancel} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
+        <button onClick={onCancel} className="min-h-[44px] min-w-[44px] flex items-center justify-center -mr-2 text-gray-400 hover:text-gray-600"><X size={16} /></button>
       </div>
       <div>
         <label className="block text-xs text-gray-500 mb-1">Mã chấm công</label>
@@ -718,17 +721,18 @@ const CellEditorModal: React.FC<CellEditorModalProps> = ({ editingCell, activeCo
           type="text"
           value={editingCell.note}
           onChange={e => onChange({ ...editingCell, note: e.target.value })}
-          className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
+          className="w-full border border-gray-300 rounded px-2 min-h-[44px] text-sm"
           placeholder="Ghi chú (tùy chọn)"
         />
       </div>
       <div className="flex justify-end gap-2">
-        <button onClick={onCancel} className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded">Hủy</button>
-        <button onClick={onSave} className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">Lưu</button>
+        <button onClick={onCancel} className="min-h-[44px] px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded">Hủy</button>
+        <button onClick={onSave} className="min-h-[44px] px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">Lưu</button>
       </div>
     </div>
   </div>
-);
+  );
+};
 
 /* ---------- Mobile list (narrow screens) ---------- */
 
@@ -863,7 +867,7 @@ const TimesheetMobileList: React.FC<TimesheetMobileListProps> = ({
             </div>
 
             <div className="px-3 py-2">
-              <div className="grid grid-cols-7 gap-0.5 text-[10px] text-gray-400 mb-0.5">
+              <div className="grid grid-cols-7 gap-0.5 text-xs text-gray-400 mb-0.5">
                 {WEEKDAY_HEADS.map(w => <div key={w} className="text-center">{w}</div>)}
               </div>
               <div className="grid grid-cols-7 gap-0.5">
@@ -878,7 +882,7 @@ const TimesheetMobileList: React.FC<TimesheetMobileListProps> = ({
                         key={h.day}
                         className={`min-h-[44px] rounded border flex flex-col items-center justify-center leading-tight ${h.isSunday ? 'border-red-200 bg-red-50/50' : 'border-gray-200'} ${ot > 0 ? 'text-orange-700 font-medium' : 'text-gray-300'}`}
                       >
-                        <span className="text-[10px] text-gray-400">{h.day}</span>
+                        <span className="text-xs text-gray-400">{h.day}</span>
                         <span className="text-xs">{ot > 0 ? ot : ''}</span>
                       </div>
                     );
@@ -891,7 +895,7 @@ const TimesheetMobileList: React.FC<TimesheetMobileListProps> = ({
                       title={formatCellTooltip(cell)}
                       className={`relative min-h-[44px] rounded border flex flex-col items-center justify-center leading-tight active:bg-blue-50 ${h.isSunday ? 'border-red-200' : 'border-gray-200'} ${getCellColor(cell?.code)}`}
                     >
-                      <span className="text-[10px] text-gray-400">{h.day}</span>
+                      <span className="text-xs text-gray-400">{h.day}</span>
                       <span className="text-xs">{cell?.code || ''}</span>
                       {cell?.note && <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 bg-blue-500 rounded-full" />}
                     </button>

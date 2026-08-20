@@ -218,7 +218,7 @@ const AttendanceModal: React.FC<AttendanceModalProps> = ({ isOpen, onClose, show
     <Modal isOpen={isOpen} onClose={onClose} showBackdrop={showBackdrop}>
       <div className="relative bg-white rounded-2xl shadow-xl max-w-md w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 rounded-t-2xl shrink-0">
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-4 sm:px-6 py-4 rounded-t-2xl shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
@@ -231,7 +231,7 @@ const AttendanceModal: React.FC<AttendanceModalProps> = ({ isOpen, onClose, show
               </div>
               <button
                 onClick={onClose}
-                className="text-white hover:text-blue-200 transition-colors"
+                className="text-white hover:text-blue-200 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center -mr-2"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -239,7 +239,7 @@ const AttendanceModal: React.FC<AttendanceModalProps> = ({ isOpen, onClose, show
           </div>
 
           {/* Content */}
-          <div className="p-6 overflow-y-auto flex-1">
+          <div className="p-4 sm:p-6 overflow-y-auto flex-1">
             {submitSuccess ? (
               <div className="text-center py-8">
                 <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
@@ -281,7 +281,7 @@ const AttendanceModal: React.FC<AttendanceModalProps> = ({ isOpen, onClose, show
                       type="button"
                       disabled={hasCheckedIn}
                       onClick={() => !hasCheckedIn && setAttendanceType('checkin')}
-                      className={`p-3 rounded-lg border-2 transition-all ${
+                      className={`p-3 min-h-[44px] flex flex-col items-center justify-center rounded-lg border-2 transition-all ${
                         hasCheckedIn
                           ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed opacity-60'
                           : attendanceType === 'checkin'
@@ -297,7 +297,7 @@ const AttendanceModal: React.FC<AttendanceModalProps> = ({ isOpen, onClose, show
                     <button
                       type="button"
                       onClick={() => setAttendanceType('checkout')}
-                      className={`p-3 rounded-lg border-2 transition-all ${
+                      className={`p-3 min-h-[44px] flex flex-col items-center justify-center rounded-lg border-2 transition-all ${
                         attendanceType === 'checkout'
                           ? 'border-red-500 bg-red-50 text-red-700'
                           : 'border-gray-200 hover:border-gray-300'
