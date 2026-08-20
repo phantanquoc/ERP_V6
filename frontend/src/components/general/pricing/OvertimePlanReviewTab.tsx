@@ -140,6 +140,7 @@ const OvertimePlanReviewTab: React.FC = () => {
       toast.success('Đã duyệt kế hoạch tăng ca');
       queryClient.invalidateQueries({ queryKey: overtimePlanKeys.lists() });
       queryClient.invalidateQueries({ queryKey: overtimePlanKeys.detail(detailId ?? '__none__') });
+      queryClient.invalidateQueries({ queryKey: ['pricingOverview'] });
     },
     onError: (err: any) => toast.error(err?.response?.data?.message ?? err.message ?? 'Duyệt thất bại'),
   });
@@ -149,6 +150,7 @@ const OvertimePlanReviewTab: React.FC = () => {
       toast.success('Đã từ chối kế hoạch');
       queryClient.invalidateQueries({ queryKey: overtimePlanKeys.lists() });
       queryClient.invalidateQueries({ queryKey: overtimePlanKeys.detail(detailId ?? '__none__') });
+      queryClient.invalidateQueries({ queryKey: ['pricingOverview'] });
     },
     onError: (err: any) => toast.error(err?.response?.data?.message ?? err.message ?? 'Từ chối thất bại'),
   });
