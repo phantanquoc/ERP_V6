@@ -9,6 +9,8 @@ import {
 import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
+import { KpiCard } from '../design-system/KpiCard';
+import { CircularProgress, ProgressBar, NavCard } from '../design-system/Progress';
 import machineSystemService from '../services/machineSystemService';
 import { orderService } from '../services/orderService';
 import finishedProductService from '../services/finishedProductService';
@@ -51,96 +53,6 @@ const DashboardSkeleton = () => (
   </div>
 );
 
-// ── Circular Progress (SVG) ──
-const CircularProgress: React.FC<{ value: number; size?: number; strokeWidth?: number; color?: string }> = ({
-  value, size = 100, strokeWidth = 8, color = '#10B981'
-}) => {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (value / 100) * circumference;
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#e5e7eb" strokeWidth={strokeWidth} />
-      <circle
-        cx={size / 2} cy={size / 2} r={radius}
-        fill="none" stroke={color} strokeWidth={strokeWidth}
-        strokeLinecap="round"
-        strokeDasharray={circumference}
-        strokeDashoffset={offset}
-        transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        style={{ transition: 'stroke-dashoffset 0.8s ease' }}
-      />
-      <text x={size / 2} y={size / 2 + 5} textAnchor="middle" fill="#1f2937" style={{ fontSize: '18px', fontWeight: 700 }}>
-        {value}%
-      </text>
-    </svg>
-  );
-};
-
-// ── KPI Card ──
-const KpiCard: React.FC<{
-  label: string; value: number | string; icon: React.ReactNode;
-  dot?: string; sub?: string;
-}> = ({ label, value, icon, dot, sub }) => (
-  <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-    <div className="flex items-center gap-2 mb-1">
-      <div className="text-gray-400">{icon}</div>
-      <span className="text-xs text-gray-500 font-medium">{label}</span>
-    </div>
-    <div className="flex items-center gap-2">
-      {dot && <span className={`w-2.5 h-2.5 rounded-full ${dot} animate-pulse`} />}
-      <span className="text-2xl font-bold text-gray-800">{value}</span>
-    </div>
-    {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
-  </div>
-);
-
-// ── Progress Bar (enhanced) ──
-const ProgressBar: React.FC<{ segments: { label: string; value: number; color: string }[]; total: number }> = ({ segments, total }) => (
-  <div>
-    <div className="flex h-5 rounded-full overflow-hidden gap-0.5 mb-3">
-      {segments.map((s) => {
-        const pct = total > 0 ? (s.value / total) * 100 : 0;
-        return (
-          <div
-            key={s.label}
-            className={`${s.color} transition-all duration-500 flex items-center justify-center`}
-            style={{ width: `${pct}%`, minWidth: pct > 0 ? '2px' : '0' }}
-          >
-            {pct > 8 && <span className="text-white text-xs font-medium">{s.value}</span>}
-          </div>
-        );
-      })}
-    </div>
-    <div className="flex flex-wrap gap-x-4 gap-y-1">
-      {segments.map((s) => (
-        <span key={s.label} className="flex items-center gap-1.5 text-xs text-gray-500">
-          <span className={`inline-block w-2.5 h-2.5 rounded-sm ${s.color}`} />
-          {s.label}: <strong className="text-gray-700">{s.value}</strong>
-        </span>
-      ))}
-    </div>
-  </div>
-);
-
-// ── Nav Card ──
-const NavCard: React.FC<{ title: string; desc: string; icon: React.ReactNode; to: string; navigate: (path: string) => void }> = ({ title, desc, icon, to, navigate }) => (
-  <button
-    onClick={() => navigate(to)}
-    className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:border-blue-300 hover:shadow-md transition-all duration-200 text-left w-full group"
-  >
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-3">
-        <div className="p-2 bg-blue-50 rounded-lg text-blue-600 group-hover:bg-blue-100 transition-colors">{icon}</div>
-        <div>
-          <p className="text-sm font-semibold text-gray-800">{title}</p>
-          <p className="text-xs text-gray-400">{desc}</p>
-        </div>
-      </div>
-      <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-blue-500 transition-colors" />
-    </div>
-  </button>
-);
 
 // ══════════════════════════════════════════════════════════════
 // ██  MAIN COMPONENT
@@ -319,6 +231,7 @@ const ProductionManagement = () => {
           label="Tỷ lệ hoạt động"
           value={`${machineRate}%`}
           icon={<Cog className="w-4 h-4" />}
+          tone="gray"
           dot={machineRateDot}
           sub={`${machineStats.hoatDong}/${machineStats.total} máy`}
         />
@@ -326,23 +239,27 @@ const ProductionManagement = () => {
           label="Tổng đơn hàng"
           value={orderStats.total}
           icon={<ClipboardList className="w-4 h-4" />}
+          tone="gray"
         />
         <KpiCard
           label="Đang sản xuất"
           value={orderStats.dangSanXuat}
           icon={<TrendingUp className="w-4 h-4" />}
+          tone="gray"
           dot="bg-blue-500"
         />
         <KpiCard
           label="Đã giao hàng"
           value={orderStats.daGiao}
           icon={<CheckCircle className="w-4 h-4" />}
+          tone="gray"
           dot="bg-emerald-500"
         />
         <KpiCard
           label="Thành phẩm tháng này"
           value={finishedStats.thangNay}
           icon={<Package className="w-4 h-4" />}
+          tone="gray"
           sub={`Tổng: ${finishedStats.total}`}
         />
       </div>
@@ -511,21 +428,18 @@ const ProductionManagement = () => {
           desc="Máy móc, quy trình, đơn hàng"
           icon={<Factory className="w-5 h-5" />}
           to="/production/management"
-          navigate={navigate}
         />
         <NavCard
           title="Dữ liệu sản xuất"
           desc="Đánh giá NL, vận hành, thành phẩm"
           icon={<FileBarChart className="w-5 h-5" />}
           to="/production/data"
-          navigate={navigate}
         />
         <NavCard
           title="Kho sản xuất"
           desc="Kho, nhập xuất, yêu cầu cung cấp"
           icon={<Warehouse className="w-5 h-5" />}
           to="/production/warehouse"
-          navigate={navigate}
         />
       </div>
     </div>
