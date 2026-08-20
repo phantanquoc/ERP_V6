@@ -27,6 +27,9 @@ import employeeEvaluationService, { EmployeeEvaluation } from '@services/employe
 import attendanceService, { AttendanceRecord } from '@services/attendanceService';
 import { useAuth } from '../../contexts/AuthContext';
 import { UserRole } from '../../types/auth';
+import { PageHeader } from '../../design-system/PageHeader';
+import { SectionCard } from '../../design-system/SectionCard';
+import { LoadingState, ErrorState } from '../../design-system/States';
 
 interface Employee {
   id: string;
@@ -79,7 +82,8 @@ const QualityPersonnel = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [evaluations, setEvaluations] = useState<EmployeeEvaluation[]>([]);
   const [attendances, setAttendances] = useState<AttendanceRecord[]>([]);
-  const [_loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
 
   // Evaluation filters
   const currentDate = new Date();
@@ -107,13 +111,14 @@ const QualityPersonnel = () => {
       return;
     }
     try {
-      setLoading(true);
+      setPageLoading(true);
       const response = await employeeService.getAllEmployees(1, 1000); // Get all employees
       setEmployees(response.data);
     } catch (error) {
       console.error('Error loading employees:', error);
+      setPageError('Không thể tải danh sách nhân viên');
     } finally {
-      setLoading(false);
+      setPageLoading(false);
     }
   };
 
@@ -166,67 +171,69 @@ const QualityPersonnel = () => {
   ].filter(tab => !user?.role || tab.roles.includes(user.role as UserRole));
 
   return (
-    <div className="space-y-6">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center">
-            <Users className="w-8 h-8 text-blue-600 mr-3" />
-            Phòng chất lượng nhân sự
-          </h1>
-          <p className="text-gray-600">Quản lý nhân viên, trách nhiệm, đánh giá và lương bổng</p>
-        </div>
+    <div className="space-y-5">
+        <PageHeader
+          title="Phòng chất lượng nhân sự"
+          description="Quản lý nhân viên, trách nhiệm, đánh giá và lương bổng"
+          icon={<Users className="w-6 h-6 text-violet-500" />}
+        />
+
+        {pageLoading && (
+          <div className="py-8">
+            <LoadingState message="Đang tải dữ liệu nhân sự..." />
+          </div>
+        )}
+        {pageError && !pageLoading && (
+          <ErrorState message={pageError} onRetry={() => { setPageError(null); loadEmployees(); }} />
+        )}
 
         {/* Overview Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-5">
           {/* Tổng quan nhân viên */}
-          <div onClick={() => setActiveTab('employees')} className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-blue-400 cursor-pointer">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold flex items-center text-gray-800">
-                <Users className="w-5 h-5 mr-2 text-blue-600" />
-                Tổng quan nhân viên
-              </h3>
+          <div onClick={() => setActiveTab('employees')} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 hover:border-gray-300 hover:shadow-md transition-all duration-200 cursor-pointer">
+            <div className="flex items-center gap-2 mb-3">
+              <Users className="w-4 h-4 text-violet-500" />
+              <h3 className="text-sm font-semibold text-gray-700">Tổng quan nhân viên</h3>
             </div>
             <div className="space-y-3">
-              <div className="bg-blue-50 rounded-lg p-3 hover:bg-blue-100 hover:shadow-md hover:scale-105 transition-all duration-200 border-2 border-blue-300 cursor-pointer">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-medium text-gray-700">Tổng nhân viên</span>
-                  <span className="text-2xl font-bold text-blue-600">{employees.length}</span>
+                  <span className="text-xs font-medium text-gray-500">Tổng nhân viên</span>
+                  <span className="text-2xl font-bold text-gray-800">{employees.length}</span>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
-                  <div className="text-xl font-bold text-gray-800">{employees.filter(emp => emp.contractType === 'PERMANENT').length}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Chính thức</div>
+                <div className="bg-white border border-gray-200 rounded-lg p-2 text-center">
+                  <div className="text-lg font-bold text-gray-800">{employees.filter(emp => emp.contractType === 'PERMANENT').length}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">Chính thức</div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
-                  <div className="text-xl font-bold text-gray-800">{employees.filter(emp => emp.contractType === 'PROBATION').length}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Thử việc</div>
+                <div className="bg-white border border-gray-200 rounded-lg p-2 text-center">
+                  <div className="text-lg font-bold text-gray-800">{employees.filter(emp => emp.contractType === 'PROBATION').length}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">Thử việc</div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
-                  <div className="text-xl font-bold text-gray-800">{employees.filter(emp => emp.contractType === 'PART_TIME').length}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Bán thời gian</div>
+                <div className="bg-white border border-gray-200 rounded-lg p-2 text-center">
+                  <div className="text-lg font-bold text-gray-800">{employees.filter(emp => emp.contractType === 'PART_TIME').length}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">Bán thời gian</div>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Tổng quan đánh giá */}
-          <div onClick={() => setActiveTab('evaluations')} className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-yellow-400 cursor-pointer">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold flex items-center text-gray-800">
-                <Star className="w-5 h-5 mr-2 text-yellow-500" />
-                Tổng quan đánh giá
-              </h3>
+          <div onClick={() => setActiveTab('evaluations')} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 hover:border-gray-300 hover:shadow-md transition-all duration-200 cursor-pointer">
+            <div className="flex items-center gap-2 mb-3">
+              <Star className="w-4 h-4 text-amber-500" />
+              <h3 className="text-sm font-semibold text-gray-700">Tổng quan đánh giá</h3>
             </div>
 
             {/* Month/Year Filter */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
+            <div className="grid grid-cols-2 gap-2 mb-3" onClick={e => e.stopPropagation()}>
               <div>
-                <label className="block text-xs font-medium mb-1 text-gray-700">Tháng</label>
+                <label className="block text-xs font-medium mb-1 text-gray-500">Tháng</label>
                 <select
                   value={selectedMonth}
                   onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                  className="w-full px-2 py-1.5 bg-gray-50 border-2 border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-blue-400 transition-colors"
+                  className="w-full px-2 py-1.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
                     <option key={month} value={month}>{month}</option>
@@ -234,11 +241,11 @@ const QualityPersonnel = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1 text-gray-700">Năm</label>
+                <label className="block text-xs font-medium mb-1 text-gray-500">Năm</label>
                 <select
                   value={selectedYear}
                   onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  className="w-full px-2 py-1.5 bg-gray-50 border-2 border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-blue-400 transition-colors"
+                  className="w-full px-2 py-1.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   {Array.from({ length: 5 }, (_, i) => currentDate.getFullYear() - 2 + i).map(year => (
                     <option key={year} value={year}>{year}</option>
@@ -248,42 +255,40 @@ const QualityPersonnel = () => {
             </div>
 
             <div className="space-y-3">
-              <div className="bg-blue-50 rounded-lg p-3 hover:bg-blue-100 hover:shadow-md hover:scale-105 transition-all duration-200 border-2 border-blue-300 cursor-pointer">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-medium text-gray-700">Đã đánh giá</span>
-                  <span className="text-2xl font-bold text-blue-600">
+                  <span className="text-xs font-medium text-gray-500">Đã đánh giá</span>
+                  <span className="text-2xl font-bold text-gray-800">
                     {evaluations.filter(e => e.supervisorScore2 > 0).length}
                   </span>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <div className="bg-green-50 rounded-lg p-2 text-center hover:bg-green-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-green-300 cursor-pointer">
-                  <div className="text-xl font-bold text-green-600">{evaluations.filter(e => e.supervisorScore2 > 100).length}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Vượt KPI</div>
+                <div className="bg-white border border-gray-200 rounded-lg p-2 text-center">
+                  <div className="text-lg font-bold text-emerald-600">{evaluations.filter(e => e.supervisorScore2 > 100).length}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">Vượt KPI</div>
                 </div>
-                <div className="bg-blue-50 rounded-lg p-2 text-center hover:bg-blue-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-blue-300 cursor-pointer">
-                  <div className="text-xl font-bold text-blue-600">{evaluations.filter(e => e.supervisorScore2 === 100).length}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Đạt KPI</div>
+                <div className="bg-white border border-gray-200 rounded-lg p-2 text-center">
+                  <div className="text-lg font-bold text-blue-600">{evaluations.filter(e => e.supervisorScore2 === 100).length}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">Đạt KPI</div>
                 </div>
-                <div className="bg-red-50 rounded-lg p-2 text-center hover:bg-red-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-red-300 cursor-pointer">
-                  <div className="text-xl font-bold text-red-600">{evaluations.filter(e => e.supervisorScore2 > 0 && e.supervisorScore2 < 100).length}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Chưa đạt</div>
+                <div className="bg-white border border-gray-200 rounded-lg p-2 text-center">
+                  <div className="text-lg font-bold text-red-500">{evaluations.filter(e => e.supervisorScore2 > 0 && e.supervisorScore2 < 100).length}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">Chưa đạt</div>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Tổng quan điểm danh */}
-          <div onClick={() => setActiveTab('attendance')} className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-purple-400 cursor-pointer">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold flex items-center text-gray-800">
-                <Calendar className="w-5 h-5 mr-2 text-purple-600" />
-                Tổng quan điểm danh
-              </h3>
+          <div onClick={() => setActiveTab('attendance')} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 hover:border-gray-300 hover:shadow-md transition-all duration-200 cursor-pointer">
+            <div className="flex items-center gap-2 mb-3">
+              <Calendar className="w-4 h-4 text-violet-500" />
+              <h3 className="text-sm font-semibold text-gray-700">Tổng quan điểm danh</h3>
             </div>
 
             {/* Date Filter */}
-            <div className="mb-3">
+            <div className="mb-3" onClick={e => e.stopPropagation()}>
               <DatePicker
                 label="Ngày"
                 value={selectedDate}
@@ -293,24 +298,24 @@ const QualityPersonnel = () => {
             </div>
 
             <div className="space-y-3">
-              <div className="bg-blue-50 rounded-lg p-3 hover:bg-blue-100 hover:shadow-md hover:scale-105 transition-all duration-200 border-2 border-blue-300 cursor-pointer">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-medium text-gray-700">Tổng điểm danh</span>
-                  <span className="text-2xl font-bold text-blue-600">{attendances.filter(a => a.status !== 'OVERTIME').length}</span>
+                  <span className="text-xs font-medium text-gray-500">Tổng điểm danh</span>
+                  <span className="text-2xl font-bold text-gray-800">{attendances.filter(a => a.status !== 'OVERTIME').length}</span>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <div className="bg-green-50 rounded-lg p-2 text-center hover:bg-green-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-green-300 cursor-pointer">
-                  <div className="text-xl font-bold text-green-600">{attendances.filter(a => a.status !== 'OVERTIME' && a.checkInTimes?.length > 0).length}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Đã vào</div>
+                <div className="bg-white border border-gray-200 rounded-lg p-2 text-center">
+                  <div className="text-lg font-bold text-emerald-600">{attendances.filter(a => a.status !== 'OVERTIME' && a.checkInTimes?.length > 0).length}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">Đã vào</div>
                 </div>
-                <div className="bg-blue-50 rounded-lg p-2 text-center hover:bg-blue-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-blue-300 cursor-pointer">
-                  <div className="text-xl font-bold text-blue-600">{attendances.filter(a => a.status !== 'OVERTIME' && a.checkOutTimes?.length > 0).length}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Đã ra</div>
+                <div className="bg-white border border-gray-200 rounded-lg p-2 text-center">
+                  <div className="text-lg font-bold text-blue-600">{attendances.filter(a => a.status !== 'OVERTIME' && a.checkOutTimes?.length > 0).length}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">Đã ra</div>
                 </div>
-                <div className="bg-red-50 rounded-lg p-2 text-center hover:bg-red-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-red-300 cursor-pointer">
-                  <div className="text-xl font-bold text-red-600">{employees.length - attendances.filter(a => a.status !== 'OVERTIME').length}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Chưa điểm danh</div>
+                <div className="bg-white border border-gray-200 rounded-lg p-2 text-center">
+                  <div className="text-lg font-bold text-red-500">{employees.length - attendances.filter(a => a.status !== 'OVERTIME').length}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">Chưa điểm danh</div>
                 </div>
               </div>
             </div>
@@ -318,9 +323,9 @@ const QualityPersonnel = () => {
         </div>
 
         {/* Tabs */}
-        <div className="mb-6">
+        <div className="mb-5">
           <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8 overflow-x-auto">
+            <nav className="-mb-px flex space-x-6 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
@@ -329,9 +334,9 @@ const QualityPersonnel = () => {
                     // Clear positionId when user manually clicks a tab
                     setSearchParams({ tab: tab.id }, { replace: true });
                   }}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
+                  className={`min-h-[44px] py-2.5 px-1 border-b-2 font-medium text-sm flex items-center gap-2 whitespace-nowrap ${
                     activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600'
+                      ? 'border-violet-500 text-violet-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
@@ -349,62 +354,62 @@ const QualityPersonnel = () => {
         <div>
           {/* DANH SÁCH NHÂN VIÊN */}
           {activeTab === 'employees' && (
-            <div className="bg-white rounded-lg shadow-sm"><div className="p-6"><EmployeeManagement /></div></div>
+            <SectionCard padded={false}><div className="p-4"><EmployeeManagement /></div></SectionCard>
           )}
 
           {/* QUẢN LÝ VỊ TRÍ */}
           {activeTab === 'positions' && (
-            <div className="bg-white rounded-lg shadow-sm"><div className="p-6"><PositionManagement initialPositionId={positionIdParam} /></div></div>
+            <SectionCard padded={false}><div className="p-4"><PositionManagement initialPositionId={positionIdParam} /></div></SectionCard>
           )}
 
           {/* QUẢN LÝ CẤP ĐỘ & LƯƠNG */}
           {activeTab === 'levels' && (
-            <div className="bg-white rounded-lg shadow-sm"><div className="p-6"><PositionLevelManagement initialPositionId={positionIdParam} /></div></div>
+            <SectionCard padded={false}><div className="p-4"><PositionLevelManagement initialPositionId={positionIdParam} /></div></SectionCard>
           )}
 
           {/* DANH SÁCH TRÁCH NHIỆM */}
           {activeTab === 'responsibilities' && (
-            <div className="bg-white rounded-lg shadow-sm"><div className="p-6"><ResponsibilityManagement initialPositionId={positionIdParam} /></div></div>
+            <SectionCard padded={false}><div className="p-4"><ResponsibilityManagement initialPositionId={positionIdParam} /></div></SectionCard>
           )}
 
           {/* ĐÁNH GIÁ NHÂN VIÊN */}
           {activeTab === 'evaluations' && (
-            <div className="bg-white rounded-lg shadow-sm"><div className="p-6"><EmployeeEvaluationManagement /></div></div>
+            <SectionCard padded={false}><div className="p-4"><EmployeeEvaluationManagement /></div></SectionCard>
           )}
 
           {/* BẢNG TÍNH LƯƠNG */}
           {activeTab === 'payroll' && (
-            <div className="bg-white rounded-lg shadow-sm"><div className="p-6"><PayrollManagement /></div></div>
+            <SectionCard padded={false}><div className="p-4"><PayrollManagement /></div></SectionCard>
           )}
 
           {/* BẢNG ĐIỂM DANH NHÂN VIÊN */}
           {activeTab === 'attendance' && (
-            <div className="bg-white rounded-lg shadow-sm"><div className="p-6"><AttendanceManagement /></div></div>
+            <SectionCard padded={false}><div className="p-4"><AttendanceManagement /></div></SectionCard>
           )}
 
           {/* CHẤM CÔNG THÁNG */}
           {activeTab === 'monthly-timesheet' && (
-            <div className="bg-white rounded-lg shadow-sm"><div className="p-6"><MonthlyTimesheetGrid /></div></div>
+            <SectionCard padded={false}><div className="p-4"><MonthlyTimesheetGrid /></div></SectionCard>
           )}
 
           {/* NGÀY LỄ */}
           {activeTab === 'holidays' && (
-            <div className="bg-white rounded-lg shadow-sm"><div className="p-6"><HolidayManager /></div></div>
+            <SectionCard padded={false}><div className="p-4"><HolidayManager /></div></SectionCard>
           )}
 
           {/* MÃ CHẤM CÔNG */}
           {activeTab === 'attendance-codes' && (
-            <div className="bg-white rounded-lg shadow-sm"><div className="p-6"><AttendanceCodeManager /></div></div>
+            <SectionCard padded={false}><div className="p-4"><AttendanceCodeManager /></div></SectionCard>
           )}
 
           {/* DANH SÁCH ĐƠN NGHỈ PHÉP */}
           {activeTab === 'leave-requests' && (
-            <div className="bg-white rounded-lg shadow-sm"><div className="p-6"><LeaveRequestManagement /></div></div>
+            <SectionCard padded={false}><div className="p-4"><LeaveRequestManagement /></div></SectionCard>
           )}
 
           {/* QUẢN LÝ USER */}
           {activeTab === 'users' && (
-            <div className="bg-white rounded-lg shadow-sm"><div className="p-6"><UserManagement /></div></div>
+            <SectionCard padded={false}><div className="p-4"><UserManagement /></div></SectionCard>
           )}
         </div>
     </div>

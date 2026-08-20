@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Plus, Edit, Trash2, Lock, X, Save, Settings } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PageHeader } from '../../design-system/PageHeader';
+import { SectionCard } from '../../design-system/SectionCard';
 import {
   useProcessTypes,
   useCreateProcessType,
@@ -97,66 +99,62 @@ const ProcessTypeSettings: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-        <div className="mb-6 flex items-center justify-between">
-          <div>
+    <div className="space-y-5">
+      <PageHeader
+          title="Cài đặt loại quy trình"
+          description="Quản lý danh mục loại quy trình dùng chung. Các loại hệ thống không thể đổi tên hoặc xóa."
+          icon={<Settings className="w-6 h-6 text-violet-500" />}
+          breadcrumb={
             <button
               onClick={() => navigate('/quality/process')}
-              className="mb-3 inline-flex items-center gap-2 text-sm text-gray-600 hover:text-blue-600 transition-colors"
+              className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-600 transition-colors"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-3.5 h-3.5" />
               Quay lại
             </button>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 flex items-center">
-              <Settings className="w-7 h-7 text-blue-600 mr-3" />
-              Cài đặt loại quy trình
-            </h1>
-            <p className="text-sm text-gray-600 mt-1">
-              Quản lý danh mục loại quy trình dùng chung. Các loại hệ thống không thể đổi tên hoặc xóa.
-            </p>
-          </div>
-          <button
-            onClick={() => setIsCreateOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            Thêm loại quy trình
-          </button>
-        </div>
+          }
+          actions={
+            <button
+              onClick={() => setIsCreateOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              Thêm loại quy trình
+            </button>
+          }
+        />
 
-        {/* Table */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <SectionCard bodyClassName="overflow-hidden -m-4">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] border-collapse">
               <thead>
-                <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã</th>
-                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Thứ tự</th>
-                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Kích hoạt</th>
-                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-900">Thao tác</th>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 border-r border-gray-200">STT</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 border-r border-gray-200">Tên</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 border-r border-gray-200">Mã</th>
+                  <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 border-r border-gray-200">Thứ tự</th>
+                  <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-500 border-r border-gray-200">Kích hoạt</th>
+                  <th className="px-3 py-2.5 text-center text-xs font-semibold text-gray-500">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
                 {isLoading && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500">Đang tải...</td>
+                    <td colSpan={6} className="px-3 py-8 text-center text-sm text-gray-400">Đang tải...</td>
                   </tr>
                 )}
                 {!isLoading && rows.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500">Chưa có loại quy trình nào</td>
+                    <td colSpan={6} className="px-3 py-8 text-center text-sm text-gray-400">Chưa có loại quy trình nào</td>
                   </tr>
                 )}
                 {rows.map((row, idx) => (
                   <tr
                     key={row.id}
-                    className={`border-b border-gray-200 hover:bg-blue-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
+                    className={`border-b border-gray-100 hover:bg-blue-50/50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
                   >
-                    <td className="px-4 py-3 text-center text-sm text-gray-700 border-r border-gray-200">{idx + 1}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 border-r border-gray-200">
+                    <td className="px-3 py-2.5 text-center text-sm text-gray-700 border-r border-gray-100">{idx + 1}</td>
+                    <td className="px-3 py-2.5 text-sm text-gray-700 border-r border-gray-100">
                       <div className="flex items-center gap-2">
                         {row.macDinhHeThong && (
                           <Lock className="w-4 h-4 text-amber-500 flex-shrink-0" aria-label="Loại quy trình hệ thống" />
@@ -164,17 +162,17 @@ const ProcessTypeSettings: React.FC = () => {
                         <span className={row.macDinhHeThong ? 'font-medium' : ''}>{row.name}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 font-mono border-r border-gray-200">{row.code}</td>
-                    <td className="px-4 py-3 text-center border-r border-gray-200">
+                    <td className="px-3 py-2.5 text-sm text-gray-500 font-mono border-r border-gray-100">{row.code}</td>
+                    <td className="px-3 py-2.5 text-center border-r border-gray-100">
                       <input
                         type="number"
                         defaultValue={row.thuTu}
                         min={0}
                         onBlur={(e) => handleUpdateThuTu(row, parseInt(e.target.value, 10) || 0)}
-                        className="w-20 px-2 py-1 text-center border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-20 px-2 py-1 text-center border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </td>
-                    <td className="px-4 py-3 text-center border-r border-gray-200">
+                    <td className="px-3 py-2.5 text-center border-r border-gray-100">
                       <button
                         onClick={() => handleToggleKichHoat(row)}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${row.kichHoat ? 'bg-blue-600' : 'bg-gray-300'}`}
@@ -185,7 +183,7 @@ const ProcessTypeSettings: React.FC = () => {
                         />
                       </button>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2.5">
                       <div className="flex items-center justify-center gap-2">
                         <button
                           onClick={() => {
@@ -218,15 +216,15 @@ const ProcessTypeSettings: React.FC = () => {
               </tbody>
             </table>
           </div>
-        </div>
+        </SectionCard>
 
       {/* Create modal */}
       {isCreateOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-            <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-gray-700">
-              <h2 className="text-lg font-bold text-white">Thêm loại quy trình</h2>
-              <button onClick={() => setIsCreateOpen(false)} className="text-gray-300 hover:text-white">
+          <div className="bg-white rounded-lg shadow-sm w-full max-w-md">
+            <div className="flex justify-between items-center p-4 border-b border-gray-200">
+              <h2 className="text-base font-semibold text-gray-800">Thêm loại quy trình</h2>
+              <button onClick={() => setIsCreateOpen(false)} className="p-1.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -238,7 +236,7 @@ const ProcessTypeSettings: React.FC = () => {
                   value={createName}
                   onChange={(e) => setCreateName(e.target.value)}
                   placeholder="VD: Kiểm định"
-                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                   autoFocus
                 />
                 <p className="text-xs text-gray-500 mt-1">Mã sẽ được tạo tự động từ tên</p>
@@ -250,7 +248,7 @@ const ProcessTypeSettings: React.FC = () => {
                   min={0}
                   value={createThuTu}
                   onChange={(e) => setCreateThuTu(parseInt(e.target.value, 10) || 0)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
@@ -277,10 +275,10 @@ const ProcessTypeSettings: React.FC = () => {
       {/* Edit modal */}
       {editingRow && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-            <div className="flex justify-between items-center p-4 border-b border-gray-200 bg-gray-700">
-              <h2 className="text-lg font-bold text-white">Đổi tên loại quy trình</h2>
-              <button onClick={() => setEditingRow(null)} className="text-gray-300 hover:text-white">
+          <div className="bg-white rounded-lg shadow-sm w-full max-w-md">
+            <div className="flex justify-between items-center p-4 border-b border-gray-200">
+              <h2 className="text-base font-semibold text-gray-800">Đổi tên loại quy trình</h2>
+              <button onClick={() => setEditingRow(null)} className="p-1.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -291,7 +289,7 @@ const ProcessTypeSettings: React.FC = () => {
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                   autoFocus
                 />
                 <p className="text-xs text-gray-500 mt-1">Mã ({editingRow.code}) giữ nguyên</p>
@@ -320,9 +318,9 @@ const ProcessTypeSettings: React.FC = () => {
       {/* Delete confirmation */}
       {deletingRow && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-            <div className="p-4 border-b border-gray-200 bg-red-600">
-              <h2 className="text-lg font-bold text-white">Xác nhận xóa</h2>
+          <div className="bg-white rounded-lg shadow-sm w-full max-w-md">
+            <div className="p-4 border-b border-gray-200">
+              <h2 className="text-base font-semibold text-red-600">Xác nhận xóa</h2>
             </div>
             <div className="p-5">
               <p className="text-gray-700">

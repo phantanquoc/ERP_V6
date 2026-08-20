@@ -1,10 +1,22 @@
+import { ShieldCheck } from 'lucide-react';
+import { PageHeader } from '../../design-system/PageHeader';
+import { SectionCard } from '../../design-system/SectionCard';
+import { EmptyState } from '../../design-system/States';
+
 const QualityProduction = () => {
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6">Chất lượng khối sản xuất</h1>
-      <div className="bg-white rounded-lg shadow p-6">
-        <p>Nội dung quản lý chất lượng khối sản xuất sẽ được hiển thị ở đây.</p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Chất lượng khối sản xuất"
+        description="Quản lý chất lượng khối sản xuất"
+        icon={<ShieldCheck className="w-6 h-6 text-violet-500" />}
+      />
+      <SectionCard>
+        <EmptyState
+          message="Chức năng đang được phát triển"
+          description="Nội dung quản lý chất lượng khối sản xuất sẽ được hiển thị ở đây."
+        />
+      </SectionCard>
     </div>
   );
 };

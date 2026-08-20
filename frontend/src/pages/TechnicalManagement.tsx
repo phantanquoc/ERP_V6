@@ -1,5 +1,4 @@
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   Wrench, Settings, AlertTriangle, Layers3,
   RefreshCw, ArrowRight, Package, ClipboardCheck,
@@ -10,6 +9,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTechnicalSummary } from '../hooks/useTechnicalSummary';
 import { hasSubModuleAccess } from '../utils/permissions';
 import type { TechnicalSummary } from '../services/technicalSummaryService';
+import PageHeader from '../design-system/PageHeader';
+import KpiCard from '../design-system/KpiCard';
+import ChartCard from '../design-system/ChartCard';
+import { CircularProgress, ProgressBar } from '../design-system/Progress';
+import { LoadingSkeleton } from '../design-system/States';
 
 // ── Constants ──
 const STATUS_COLORS = ['#10B981', '#F59E0B', '#EF4444', '#6B7280', '#3B82F6', '#8B5CF6'];
@@ -41,113 +45,9 @@ const fallbackSummary: TechnicalSummary = {
   spareParts: { total: 0, lowStock: 0, outOfStock: 0 },
 };
 
-// ── Skeleton ──
-const DashboardSkeleton = () => (
-  <div>
-    <div className="flex items-center justify-between mb-5">
-      <div>
-        <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-2" />
-        <div className="h-3 w-64 bg-gray-200 rounded animate-pulse" />
-      </div>
-      <div className="h-8 w-24 bg-gray-200 rounded animate-pulse" />
-    </div>
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
-      {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="h-24 bg-white border border-gray-200 rounded-lg animate-pulse" />
-      ))}
-    </div>
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-      <div className="h-72 bg-white border border-gray-200 rounded-lg animate-pulse" />
-      <div className="lg:col-span-2 h-72 bg-white border border-gray-200 rounded-lg animate-pulse" />
-    </div>
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-      <div className="lg:col-span-2 h-52 bg-white border border-gray-200 rounded-lg animate-pulse" />
-      <div className="h-52 bg-white border border-gray-200 rounded-lg animate-pulse" />
-    </div>
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="h-24 bg-white border border-gray-200 rounded-lg animate-pulse" />
-      ))}
-    </div>
-  </div>
-);
-
-// ── Circular Progress (SVG) ──
-const CircularProgress: React.FC<{ value: number; size?: number; strokeWidth?: number; color?: string; label?: string }> = ({
-  value, size = 100, strokeWidth = 8, color = '#10B981', label
-}) => {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (value / 100) * circumference;
-  return (
-    <div className="flex flex-col items-center">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#e5e7eb" strokeWidth={strokeWidth} />
-        <circle
-          cx={size / 2} cy={size / 2} r={radius}
-          fill="none" stroke={color} strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
-          style={{ transition: 'stroke-dashoffset 0.8s ease' }}
-        />
-        <text x={size / 2} y={size / 2 + 5} textAnchor="middle" fill="#1f2937" style={{ fontSize: '18px', fontWeight: 700 }}>
-          {value}%
-        </text>
-      </svg>
-      {label && <p className="text-xs text-gray-400 mt-1">{label}</p>}
-    </div>
-  );
-};
-
-// ── KPI Card ──
-const KpiCard: React.FC<{
-  label: string; value: number | string; icon: React.ReactNode;
-  dot?: string; sub?: string;
-}> = ({ label, value, icon, dot, sub }) => (
-  <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-    <div className="flex items-center gap-2 mb-1">
-      <div className="text-cyan-500">{icon}</div>
-      <span className="text-xs text-gray-500 font-medium">{label}</span>
-    </div>
-    <div className="flex items-center gap-2">
-      {dot && <span className={`w-2.5 h-2.5 rounded-full ${dot} animate-pulse`} />}
-      <span className="text-2xl font-bold text-gray-800">{value}</span>
-    </div>
-    {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
-  </div>
-);
-
-// ── Progress Bar ──
-const ProgressBar: React.FC<{ segments: { label: string; value: number; color: string }[]; total: number }> = ({ segments, total }) => (
-  <div>
-    <div className="flex h-5 rounded-full overflow-hidden gap-0.5 mb-3">
-      {segments.map((s) => {
-        const pct = total > 0 ? (s.value / total) * 100 : 0;
-        return (
-          <div
-            key={s.label}
-            className={`${s.color} transition-all duration-500 flex items-center justify-center`}
-            style={{ width: `${pct}%`, minWidth: pct > 0 ? '2px' : '0' }}
-          >
-            {pct > 8 && <span className="text-white text-xs font-medium">{s.value}</span>}
-          </div>
-        );
-      })}
-    </div>
-    <div className="flex flex-wrap gap-x-4 gap-y-1">
-      {segments.map((s) => (
-        <span key={s.label} className="flex items-center gap-1.5 text-xs text-gray-500">
-          <span className={`inline-block w-2.5 h-2.5 rounded-sm ${s.color}`} />
-          {s.label}: <strong className="text-gray-700">{s.value}</strong>
-        </span>
-      ))}
-    </div>
-  </div>
-);
-
 // ── Nav Card ──
+// Kept local to preserve SPA navigation via useNavigate (design-system NavCard uses window.location.href).
+// Shell classes aligned with tokens.shell.card: bg-white border border-gray-200 rounded-lg shadow-sm
 const NavCard: React.FC<{ title: string; desc: string; icon: React.ReactNode; to: string }> = ({ title, desc, icon, to }) => {
   const navigate = useNavigate();
   return (
@@ -210,7 +110,7 @@ const TechnicalManagement = () => {
 
   const machineDot = machineActiveRate >= 80 ? 'bg-emerald-500' : machineActiveRate >= 60 ? 'bg-amber-400' : 'bg-red-500';
 
-  if (isLoading) return <DashboardSkeleton />;
+  if (isLoading) return <LoadingSkeleton />;
 
   if (isError) return (
     <div className="flex flex-col items-center justify-center py-20">
@@ -223,32 +123,29 @@ const TechnicalManagement = () => {
   return (
     <div>
       {/* ── HEADER ── */}
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-            <Wrench className="w-6 h-6 text-cyan-500" />
-            Tổng quan Kỹ thuật
-          </h1>
-          <p className="text-xs text-gray-400 mt-0.5">
-            Theo dõi vận hành hệ thống máy, sửa chữa, lỗi và dự án
-          </p>
-        </div>
-        <button
-          onClick={() => refetch()}
-          disabled={isLoading}
-          className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 bg-white rounded-lg px-3 py-2 hover:bg-gray-50 hover:border-gray-300 disabled:opacity-50 transition-colors shadow-sm"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-          {isLoading ? 'Đang tải...' : 'Làm mới'}
-        </button>
-      </div>
+      <PageHeader
+        title="Tổng quan Kỹ thuật"
+        description="Theo dõi vận hành hệ thống máy, sửa chữa, lỗi và dự án"
+        icon={<Wrench className="w-6 h-6 text-cyan-500" />}
+        actions={
+          <button
+            onClick={() => refetch()}
+            disabled={isLoading}
+            className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 bg-white rounded-lg px-3 py-2 hover:bg-gray-50 hover:border-gray-200 disabled:opacity-50 transition-colors shadow-sm"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            {isLoading ? 'Đang tải...' : 'Làm mới'}
+          </button>
+        }
+      />
 
-      {/* ── KPI ROW (6 cards) ── */}
+      {/* ── KPI ROW (6 cards) — semantic tones ── */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
         <KpiCard
           label="Hệ thống máy"
           value={summary.qlhtm.machineSystems.active}
           icon={<Cog className="w-4 h-4" />}
+          tone="cyan"
           dot={machineDot}
           sub={`${summary.qlhtm.machineSystems.active}/${summary.qlhtm.machineSystems.total} hoạt động`}
         />
@@ -256,12 +153,14 @@ const TechnicalManagement = () => {
           label="Chi tiết máy"
           value={summary.qlhtm.machineDetails.active}
           icon={<Settings className="w-4 h-4" />}
+          tone="blue"
           sub={`Tổng: ${summary.qlhtm.machineDetails.total}`}
         />
         <KpiCard
           label="Yêu cầu sửa chữa"
           value={pendingRepairs}
           icon={<ClipboardCheck className="w-4 h-4" />}
+          tone="amber"
           dot={pendingRepairs > 0 ? 'bg-amber-400' : 'bg-emerald-500'}
           sub={`${repairTotal} tổng`}
         />
@@ -269,18 +168,21 @@ const TechnicalManagement = () => {
           label="Nghiệm thu"
           value={summary.repairHandovers.acceptanceHandovers}
           icon={<ShieldCheck className="w-4 h-4" />}
+          tone="green"
           sub={`trên ${repairTotal} yêu cầu`}
         />
         <KpiCard
           label="Mẫu lỗi"
           value={summary.coDien.activeFaultTemplates}
           icon={<AlertCircle className="w-4 h-4" />}
+          tone="orange"
           sub={`${faultRecordTotal} bản ghi lỗi`}
         />
         <KpiCard
           label="Linh kiện"
           value={spareParts.total}
           icon={<Package className="w-4 h-4" />}
+          tone="purple"
           dot={spareParts.outOfStock > 0 ? 'bg-red-500' : spareParts.lowStock > 0 ? 'bg-amber-400' : 'bg-emerald-500'}
           sub={spareParts.outOfStock > 0 ? `${spareParts.outOfStock} hết hàng` : spareParts.lowStock > 0 ? `${spareParts.lowStock} sắp hết` : 'Đủ hàng'}
         />
@@ -288,14 +190,10 @@ const TechnicalManagement = () => {
 
       {/* ── BENTO ROW A: Machine donut + Repair status ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-        {/* A1: Machine Status Donut */}
-        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <Cog className="w-4 h-4 text-cyan-500" />
-            <h3 className="text-sm font-semibold text-gray-700">
-              {canOpen('quality') ? <Link to="/technical/quality" className="hover:text-cyan-600 transition-colors">Trạng thái hệ thống</Link> : 'Trạng thái hệ thống'}
-            </h3>
-          </div>
+        <ChartCard
+          title="Trạng thái hệ thống"
+          to={canOpen('quality') ? '/technical/quality' : undefined}
+        >
           {summary.qlhtm.machineSystems.total === 0 ? (
             <div className="flex items-center justify-center h-[200px] text-xs text-gray-400">Chưa có dữ liệu hệ thống máy</div>
           ) : (
@@ -332,26 +230,19 @@ const TechnicalManagement = () => {
               {summary.qlhtm.machineDetails.active} chi tiết máy hoạt động
             </p>
           </div>
-        </div>
+        </ChartCard>
 
-        {/* A2: Repair Request Status */}
-        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <ClipboardCheck className="w-4 h-4 text-cyan-500" />
-              <h3 className="text-sm font-semibold text-gray-700">
-                {canOpen('quality') ? <Link to="/technical/quality?tab=repairAndFault" className="hover:text-cyan-600 transition-colors">Yêu cầu sửa chữa</Link> : 'Yêu cầu sửa chữa'}
-              </h3>
-            </div>
-            <span className="text-xs text-gray-400">Tổng: {repairTotal}</span>
-          </div>
-
-          {/* Status grid */}
+        <ChartCard
+          title="Yêu cầu sửa chữa"
+          to={canOpen('quality') ? '/technical/quality?tab=repairAndFault&sub=repair' : undefined}
+          action={<span className="text-xs text-gray-400">Tổng: {repairTotal}</span>}
+          className="lg:col-span-2"
+        >
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mb-4">
             {summary.repairHandovers.repairRequestsByStatus.map((item, i) => (
               <div key={item.trangThai} className="text-center p-2 bg-gray-50 rounded-lg">
                 <div className="flex items-center justify-center gap-1 mb-1">
-                  <span className={`w-2 h-2 rounded-full`} style={{ backgroundColor: STATUS_COLORS[i % STATUS_COLORS.length] }} />
+                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: STATUS_COLORS[i % STATUS_COLORS.length] }} />
                   <span className="text-xs text-gray-500">{item.trangThai}</span>
                 </div>
                 <span className="text-lg font-bold text-gray-800">{item.total}</span>
@@ -361,30 +252,21 @@ const TechnicalManagement = () => {
               <div className="col-span-full text-center text-xs text-gray-400 py-4">Chưa có yêu cầu sửa chữa</div>
             )}
           </div>
-
-          {/* Progress bar */}
           {repairTotal > 0 && (
             <ProgressBar segments={repairSegments} total={repairTotal} />
           )}
-        </div>
+        </ChartCard>
       </div>
 
       {/* ── BENTO ROW B: Fault Records + Projects ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-        {/* B1: Fault Records */}
-        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-cyan-500" />
-              <h3 className="text-sm font-semibold text-gray-700">
-              {canOpen('quality') ? <Link to="/technical/quality?tab=repairAndFault" className="hover:text-cyan-600 transition-colors">Bản ghi lỗi</Link> : 'Bản ghi lỗi'}
-            </h3>
-            </div>
-            <span className="text-xs text-gray-400">Tổng: {faultRecordTotal}</span>
-          </div>
-
+        <ChartCard
+          title="Bản ghi lỗi"
+          to={canOpen('quality') ? '/technical/quality?tab=repairAndFault&sub=fault' : undefined}
+          action={<span className="text-xs text-gray-400">Tổng: {faultRecordTotal}</span>}
+          className="lg:col-span-2"
+        >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Fault status grid */}
             <div className="grid grid-cols-1 gap-2">
               {summary.coDien.faultRecordsByStatus.map((item, i) => (
                 <div key={item.trangThai} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -399,11 +281,9 @@ const TechnicalManagement = () => {
                 <div className="text-center text-xs text-gray-400 py-4">Chưa có bản ghi lỗi</div>
               )}
             </div>
-
-            {/* Fault donut */}
             {faultDonutData.length > 0 && (
               <div className="relative">
-                <ResponsiveContainer width="100%" height={180}>
+                <ResponsiveContainer width="100%" height={200}>
                   <PieChart>
                     <Pie
                       data={faultDonutData}
@@ -427,23 +307,17 @@ const TechnicalManagement = () => {
               </div>
             )}
           </div>
-
           <div className="mt-3 flex items-center gap-4 text-xs text-gray-400">
             <span>Mẫu lỗi đang dùng: <strong className="text-gray-600">{summary.coDien.activeFaultTemplates}</strong></span>
             <span>|</span>
             <span>Nghiệm thu: <strong className="text-gray-600">{summary.repairHandovers.acceptanceHandovers}</strong></span>
           </div>
-        </div>
+        </ChartCard>
 
-        {/* B2: Projects */}
-        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <Layers3 className="w-4 h-4 text-cyan-500" />
-            <h3 className="text-sm font-semibold text-gray-700">
-              {canOpen('projects') ? <Link to="/technical/projects" className="hover:text-cyan-600 transition-colors">Phòng phát triển</Link> : 'Phòng phát triển'}
-            </h3>
-          </div>
-
+        <ChartCard
+          title="Phòng phát triển"
+          to={canOpen('projects') ? '/technical/projects' : undefined}
+        >
           <div className="flex flex-col items-center">
             <CircularProgress
               value={summary.projects.projectsByStatus.length > 0
@@ -455,19 +329,17 @@ const TechnicalManagement = () => {
               color="#10B981"
               label={`${summary.projects.projectsByStatus.reduce((s, p) => s + p.total, 0)} dự án tổng`}
             />
-
             <div className="grid grid-cols-2 gap-2 mt-4 w-full">
               {summary.projects.projectsByStatus.map((item, i) => (
                 <div key={item.trangThai} className="text-center p-2 bg-gray-50 rounded-lg">
                   <div className="flex items-center justify-center gap-1 mb-1">
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: PROJECT_COLORS[i % PROJECT_COLORS.length] }} />
+                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: PROJECT_COLORS[i % PROJECT_COLORS.length] }} />
                     <span className="text-xs text-gray-500">{item.trangThai}</span>
                   </div>
                   <span className="text-base font-bold text-gray-800">{item.total}</span>
                 </div>
               ))}
             </div>
-
             {summary.projects.unphasedTasks > 0 && (
               <div className="mt-3 w-full flex items-center gap-2 p-2 bg-amber-50 rounded-lg border border-amber-200">
                 <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
@@ -475,7 +347,7 @@ const TechnicalManagement = () => {
               </div>
             )}
           </div>
-        </div>
+        </ChartCard>
       </div>
 
       {/* ── NAV CARDS ── */}

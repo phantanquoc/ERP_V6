@@ -17,6 +17,8 @@ import { processService } from '../../services/processService';
 import { internationalProductService } from '../../services/internationalProductService';
 import { useAuth } from '../../contexts/AuthContext';
 import { UserRole } from '../../types/auth';
+import { PageHeader } from '../../design-system/PageHeader';
+import { SectionCard } from '../../design-system/SectionCard';
 
 interface CostItem {
   id: string;
@@ -63,15 +65,26 @@ const QualityProcess = () => {
     return VALID_TABS.includes(tabParam) ? tabParam : 'processList';
   });
 
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const m = parseInt(searchParams.get('month') || '', 10);
+    return m >= 1 && m <= 12 ? m : new Date().getMonth() + 1;
+  });
+  const [selectedYear, setSelectedYear] = useState(() => {
+    const y = parseInt(searchParams.get('year') || '', 10);
+    return y >= 2000 && y <= 2100 ? y : new Date().getFullYear();
+  });
 
   useEffect(() => {
     const currentTab = searchParams.get('tab');
     if (currentTab !== activeTab) {
-      setSearchParams({ tab: activeTab }, { replace: true });
+      const next = new URLSearchParams(searchParams);
+      next.set('tab', activeTab);
+      // preserve month/year when switching tabs
+      next.set('month', String(selectedMonth));
+      next.set('year', String(selectedYear));
+      setSearchParams(next, { replace: true });
     }
-  }, [activeTab]);
+  }, [activeTab, selectedMonth, selectedYear]);
 
   // State for Process List
   const [processDetails, setProcessDetails] = useState<ProcessDetail[]>([]);
@@ -288,84 +301,80 @@ const QualityProcess = () => {
   ];
 
   return (
-    <div className="space-y-6">
-        {/* Header */}
-        <div className="mb-6 sm:mb-8 flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2 flex items-center">
-              <Settings className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 mr-3" />
-              Quản lý quy trình chất lượng
-            </h1>
-            <p className="text-sm sm:text-base text-gray-600">Quản lý tiêu chuẩn, quy trình, kiểm tra và cải tiến chất lượng</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-gray-500" />
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {Array.from({ length: 12 }, (_, i) => (
-                <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
-              ))}
-            </select>
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {Array.from({ length: 4 }, (_, i) => {
-                const y = new Date().getFullYear() - 3 + i;
-                return <option key={y} value={y}>{y}</option>;
-              })}
-            </select>
-          </div>
-        </div>
+    <div className="space-y-5">
+        <PageHeader
+          title="Quản lý quy trình chất lượng"
+          description="Quản lý tiêu chuẩn, quy trình, kiểm tra và cải tiến chất lượng"
+          icon={<Settings className="w-6 h-6 text-violet-500" />}
+          actions={
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-gray-400" />
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                className="border border-gray-200 bg-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {Array.from({ length: 12 }, (_, i) => (
+                  <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
+                ))}
+              </select>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                className="border border-gray-200 bg-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {Array.from({ length: 4 }, (_, i) => {
+                  const y = new Date().getFullYear() - 3 + i;
+                  return <option key={y} value={y}>{y}</option>;
+                })}
+              </select>
+            </div>
+          }
+        />
 
         {/* Overview Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-5">
           {/* Tổng quan danh sách quy trình */}
-          <div onClick={() => setActiveTab('processList')} className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-blue-400 cursor-pointer">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold flex items-center text-gray-800">
-                <FileText className="w-5 h-5 mr-2 text-blue-600" />
-                Tổng quan danh sách quy trình
+          <div onClick={() => setActiveTab('processList')} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 hover:border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer">
+            <div className="flex items-center gap-2 mb-3">
+              <FileText className="w-4 h-4 text-violet-500" />
+              <h3 className="text-sm font-semibold text-gray-700">Tổng quan danh sách quy trình
               </h3>
             </div>
             <div className="space-y-3">
-              <div className="bg-blue-50 rounded-lg p-3 hover:bg-blue-100 hover:shadow-md hover:scale-105 transition-all duration-200 border-2 border-blue-300 cursor-pointer">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-medium text-gray-700">Tổng số quy trình</span>
-                  <span className="text-2xl font-bold text-blue-600">{loading ? '...' : processes.length}</span>
+                  <span className="text-xs font-medium text-gray-500">Tổng số quy trình</span>
+                  <span className="text-2xl font-bold text-gray-800">{loading ? '...' : processes.length}</span>
                 </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
-                  <div className="text-xl font-bold text-gray-800">
+                <div className="bg-white border border-gray-200 rounded-lg p-2 text-center">
+                  <div className="text-lg font-bold text-gray-800">
                     {loading ? '...' : processes.filter(p => p.loaiQuyTrinh === 'Sản xuất').length}
                   </div>
-                  <div className="text-xs text-gray-600 mt-0.5">Sản xuất</div>
+                  <div className="text-xs text-gray-400 mt-0.5">Sản xuất</div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
-                  <div className="text-xl font-bold text-gray-800">
+                <div className="bg-white border border-gray-200 rounded-lg p-2 text-center">
+                  <div className="text-lg font-bold text-gray-800">
                     {loading ? '...' : processes.filter(p => p.loaiQuyTrinh === 'Kiểm tra').length}
                   </div>
-                  <div className="text-xs text-gray-600 mt-0.5">Kiểm tra</div>
+                  <div className="text-xs text-gray-400 mt-0.5">Kiểm tra</div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
-                  <div className="text-xl font-bold text-gray-800">
+                <div className="bg-white border border-gray-200 rounded-lg p-2 text-center">
+                  <div className="text-lg font-bold text-gray-800">
                     {loading ? '...' : processes.filter(p => p.loaiQuyTrinh === 'Đóng gói').length}
                   </div>
-                  <div className="text-xs text-gray-600 mt-0.5">Đóng gói</div>
+                  <div className="text-xs text-gray-400 mt-0.5">Đóng gói</div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
-                  <div className="text-xl font-bold text-gray-800">
+                <div className="bg-white border border-gray-200 rounded-lg p-2 text-center">
+                  <div className="text-lg font-bold text-gray-800">
                     {loading ? '...' : processes.filter(p => p.loaiQuyTrinh === 'Vận chuyển').length}
                   </div>
-                  <div className="text-xs text-gray-600 mt-0.5">Vận chuyển</div>
+                  <div className="text-xs text-gray-400 mt-0.5">Vận chuyển</div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
-                  <div className="text-xl font-bold text-gray-800">
+                <div className="bg-white border border-gray-200 rounded-lg p-2 text-center">
+                  <div className="text-lg font-bold text-gray-800">
                     {loading ? '...' : processes.filter(p =>
                       p.loaiQuyTrinh !== 'Sản xuất' &&
                       p.loaiQuyTrinh !== 'Kiểm tra' &&
@@ -373,57 +382,56 @@ const QualityProcess = () => {
                       p.loaiQuyTrinh !== 'Vận chuyển'
                     ).length}
                   </div>
-                  <div className="text-xs text-gray-600 mt-0.5">Khác</div>
+                  <div className="text-xs text-gray-400 mt-0.5">Khác</div>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Tổng quan danh sách sản phẩm */}
-          <div onClick={() => setActiveTab('productionProcess')} className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-emerald-400 cursor-pointer">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold flex items-center text-gray-800">
-                <Package className="w-5 h-5 mr-2 text-emerald-600" />
-                Tổng quan danh sách sản phẩm
+          <div onClick={() => setActiveTab('productionProcess')} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 hover:border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer">
+            <div className="flex items-center gap-2 mb-3">
+              <Package className="w-4 h-4 text-emerald-500" />
+              <h3 className="text-sm font-semibold text-gray-700">Tổng quan danh sách sản phẩm
               </h3>
             </div>
             <div className="space-y-3">
-              <div className="bg-blue-50 rounded-lg p-3 hover:bg-blue-100 hover:shadow-md hover:scale-105 transition-all duration-200 border-2 border-blue-300 cursor-pointer">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-medium text-gray-700">Tổng sản phẩm</span>
-                  <span className="text-2xl font-bold text-blue-600">{loading ? '...' : realProducts.length}</span>
+                  <span className="text-xs font-medium text-gray-500">Tổng sản phẩm</span>
+                  <span className="text-2xl font-bold text-gray-800">{loading ? '...' : realProducts.length}</span>
                 </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
-                  <div className="text-xl font-bold text-gray-800">
+                <div className="bg-white border border-gray-200 rounded-lg p-2 text-center">
+                  <div className="text-lg font-bold text-gray-800">
                     {loading ? '...' : realProducts.filter(p => p.loaiSanPham === 'Nguyên liệu tươi').length}
                   </div>
-                  <div className="text-xs text-gray-600 mt-0.5">NL tươi</div>
+                  <div className="text-xs text-gray-400 mt-0.5">NL tươi</div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
-                  <div className="text-xl font-bold text-gray-800">
+                <div className="bg-white border border-gray-200 rounded-lg p-2 text-center">
+                  <div className="text-lg font-bold text-gray-800">
                     {loading ? '...' : realProducts.filter(p => p.loaiSanPham === 'Nguyên liệu đông').length}
                   </div>
-                  <div className="text-xs text-gray-600 mt-0.5">NL đông</div>
+                  <div className="text-xs text-gray-400 mt-0.5">NL đông</div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
-                  <div className="text-xl font-bold text-gray-800">
+                <div className="bg-white border border-gray-200 rounded-lg p-2 text-center">
+                  <div className="text-lg font-bold text-gray-800">
                     {loading ? '...' : realProducts.filter(p => p.loaiSanPham === 'Sản phẩm khô').length}
                   </div>
-                  <div className="text-xs text-gray-600 mt-0.5">SP khô</div>
+                  <div className="text-xs text-gray-400 mt-0.5">SP khô</div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
-                  <div className="text-xl font-bold text-gray-800">
+                <div className="bg-white border border-gray-200 rounded-lg p-2 text-center">
+                  <div className="text-lg font-bold text-gray-800">
                     {loading ? '...' : realProducts.filter(p => p.loaiSanPham === 'Sản phẩm đông').length}
                   </div>
-                  <div className="text-xs text-gray-600 mt-0.5">SP đông</div>
+                  <div className="text-xs text-gray-400 mt-0.5">SP đông</div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border-2 border-gray-300 cursor-pointer">
-                  <div className="text-xl font-bold text-gray-800">
+                <div className="bg-white border border-gray-200 rounded-lg p-2 text-center">
+                  <div className="text-lg font-bold text-gray-800">
                     {loading ? '...' : realProducts.filter(p => p.loaiSanPham === 'Phụ liệu').length}
                   </div>
-                  <div className="text-xs text-gray-600 mt-0.5">Phụ liệu</div>
+                  <div className="text-xs text-gray-400 mt-0.5">Phụ liệu</div>
                 </div>
               </div>
             </div>
@@ -431,17 +439,17 @@ const QualityProcess = () => {
         </div>
 
         {/* Tabs */}
-        <div className="mb-6">
+        <div className="mb-5">
           <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8 overflow-x-auto pb-px">
+            <nav className="-mb-px flex space-x-6 overflow-x-auto">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`shrink-0 py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
+                  className={`shrink-0 py-2.5 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
                     activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? 'border-violet-500 text-violet-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200'
                   }`}
                 >
                   {tab.icon}
@@ -455,7 +463,8 @@ const QualityProcess = () => {
 
 
         {/* Content */}
-        <div className="bg-white rounded-lg shadow-sm">
+        <SectionCard padded={false} bodyClassName="">
+          <div>
           {/* DANH SÁCH QUY TRÌNH */}
           {activeTab === 'processList' && (
             <div className="p-4 sm:p-6">
@@ -488,19 +497,18 @@ const QualityProcess = () => {
           )}
 
 
-
-
-        </div>
+          </div>
+        </SectionCard>
 
         {/* Process Modal */}
         {isProcessModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
-            <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-1rem)] sm:max-w-4xl sm:w-full my-2 sm:my-8 flex flex-col max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-2rem)]">
-              <div className="flex justify-between items-start sm:items-center gap-3 p-4 sm:p-6 border-b border-gray-200 bg-gray-700 shrink-0">
-                <h2 className="text-xl sm:text-2xl font-bold text-white">TẠO QUY TRÌNH</h2>
+            <div className="bg-white rounded-lg shadow-sm w-[calc(100vw-1rem)] sm:max-w-4xl sm:w-full my-2 sm:my-8 flex flex-col max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-2rem)]">
+              <div className="flex justify-between items-start sm:items-center gap-3 p-4 sm:p-6 border-b border-gray-200 bg-white shrink-0">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-800">TẠO QUY TRÌNH</h2>
                 <button
                   onClick={handleCloseProcessModal}
-                  className="text-gray-300 hover:text-white"
+                  className="text-gray-400 hover:text-gray-600"
                 >
                   <X className="w-6 h-6" />
                 </button>
@@ -517,7 +525,7 @@ const QualityProcess = () => {
                       value={processFormData.tenNhanVien}
                       onChange={handleProcessInputChange}
                       placeholder="Nhập tên nhân viên"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                   <div>
@@ -528,7 +536,7 @@ const QualityProcess = () => {
                       value={processFormData.tenQuyTrinh}
                       onChange={handleProcessInputChange}
                       placeholder="Nhập tên quy trình"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </div>
@@ -542,7 +550,7 @@ const QualityProcess = () => {
                       value={processFormData.loaiQuyTrinh}
                       onChange={handleProcessInputChange}
                       placeholder="Nhập loại quy trình"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                   <div>
@@ -553,7 +561,7 @@ const QualityProcess = () => {
                       value={processFormData.luuDo}
                       onChange={handleProcessInputChange}
                       placeholder="Nhập lưu đồ"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </div>
@@ -561,7 +569,7 @@ const QualityProcess = () => {
                 {/* Sections */}
                 <div className="space-y-4">
                   {processFormData.sections.map((section, sectionIndex) => (
-                    <div key={section.id} className="border border-gray-300 rounded-lg p-4 bg-gray-50">
+                    <div key={section.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
                       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
                         <h3 className="text-lg font-bold text-white bg-green-600 px-4 py-2 rounded w-full">
                           Phân đoạn {sectionIndex + 1}
@@ -585,7 +593,7 @@ const QualityProcess = () => {
                             value={section.tenPhanDoan}
                             onChange={(e) => handleSectionInputChange(section.id, 'tenPhanDoan', e.target.value)}
                             placeholder="Nhập tên phân đoạn"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                           />
                         </div>
                       </div>
@@ -597,7 +605,7 @@ const QualityProcess = () => {
                           onChange={(e) => handleSectionInputChange(section.id, 'noiDungCongViec', e.target.value)}
                           placeholder="Nhập nội dung công việc"
                           rows={2}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
 
@@ -606,7 +614,7 @@ const QualityProcess = () => {
                         <label className="block text-sm font-medium text-gray-700 mb-2">Loại chi phí:</label>
                         {section.costs.length > 0 && (
                           <div className="mb-3 overflow-x-auto">
-                            <table className="w-full min-w-[650px] border-collapse border border-gray-300">
+                            <table className="w-full min-w-[650px] border-collapse border border-gray-200">
                               <tbody>
                                 {section.costs.map((cost, _costIndex) => {
                                   // Count how many costs of the same type appear before this one
@@ -614,11 +622,11 @@ const QualityProcess = () => {
                                   const displayLabel = `${cost.loaiChiPhi} ${sameTypeIndex}`;
 
                                   return (
-                                    <tr key={cost.id} className="border-b border-gray-300">
-                                      <td className="px-3 py-2 border-r border-gray-300 font-medium text-sm">{displayLabel}</td>
-                                      <td className="px-3 py-2 border-r border-gray-300 text-sm">{cost.tenChiPhi}</td>
-                                      <td className="px-3 py-2 border-r border-gray-300 text-sm">{cost.dvt}</td>
-                                      <td className="px-3 py-2 border-r border-gray-300 text-sm">{cost.donViTinh}</td>
+                                    <tr key={cost.id} className="border-b border-gray-200">
+                                      <td className="px-3 py-2 border-r border-gray-200 font-medium text-sm">{displayLabel}</td>
+                                      <td className="px-3 py-2 border-r border-gray-200 text-sm">{cost.tenChiPhi}</td>
+                                      <td className="px-3 py-2 border-r border-gray-200 text-sm">{cost.dvt}</td>
+                                      <td className="px-3 py-2 border-r border-gray-200 text-sm">{cost.donViTinh}</td>
                                       <td className="px-3 py-2 text-center">
                                         <button
                                           type="button"
@@ -638,7 +646,7 @@ const QualityProcess = () => {
 
                         {/* Add Cost Form */}
                         {currentSectionCost.sectionId === section.id && (
-                          <div className="bg-gray-50 p-4 rounded border border-gray-300 space-y-3">
+                          <div className="bg-gray-50 p-4 rounded border border-gray-200 space-y-3">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <div>
                                 <label className="block text-xs font-medium text-gray-700 mb-1">Loại chi phí:</label>
@@ -648,7 +656,7 @@ const QualityProcess = () => {
                                     ...currentSectionCost,
                                     loaiChiPhi: e.target.value as 'Nhân công' | 'Vật tư'
                                   })}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  className="w-full px-3 py-2 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 >
                                   <option value="Nhân công">Nhân công</option>
                                   <option value="Vật tư">Vật tư</option>
@@ -664,7 +672,7 @@ const QualityProcess = () => {
                                     tenChiPhi: e.target.value
                                   })}
                                   placeholder="Nhập tên chi phí"
-                                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  className="w-full px-3 py-2 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 />
                               </div>
                             </div>
@@ -680,7 +688,7 @@ const QualityProcess = () => {
                                     dvt: e.target.value
                                   })}
                                   placeholder="Nhập DVT"
-                                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  className="w-full px-3 py-2 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 />
                               </div>
                               <div>
@@ -693,7 +701,7 @@ const QualityProcess = () => {
                                     donViTinh: e.target.value
                                   })}
                                   placeholder="Nhập đơn vị"
-                                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  className="w-full px-3 py-2 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 />
                               </div>
                             </div>
@@ -732,7 +740,7 @@ const QualityProcess = () => {
                 <button
                   type="button"
                   onClick={handleAddSection}
-                  className="w-full px-4 py-3 bg-gray-700 text-white rounded hover:bg-gray-800 font-medium"
+                  className="w-full px-4 py-3 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-200 font-medium shadow-sm transition-colors"
                 >
                   + THÊM PHÂN ĐOẠN
                 </button>
