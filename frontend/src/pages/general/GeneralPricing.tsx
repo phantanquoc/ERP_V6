@@ -167,62 +167,54 @@ const GeneralPricing = () => {
         </div>
       )}
 
-      {/* Row 1: YCBG | BaoGia | DonHang */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Row 1: YCBG | BaoGia | DonHang — compact */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         {/* Card 1: YCBG funnel */}
         <div
           onClick={() => setActiveTab('requests')}
-          className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-blue-400 cursor-pointer"
+          className="bg-white rounded-lg shadow p-3 border border-gray-300 hover:shadow-md hover:border-blue-400 transition-all cursor-pointer"
         >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold flex items-center text-gray-800">
-              <FileText className="w-5 h-5 mr-2 text-blue-600" />
-              Yêu cầu báo giá
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-bold flex items-center text-gray-800">
+              <FileText className="w-4 h-4 mr-1.5 text-blue-600" />
+              YCBG
             </h3>
-            <span className="text-xs text-gray-400">YCBG</span>
+            <span className="text-xl font-bold text-blue-600">{fmtInt(overview?.requests.total ?? 0)}</span>
           </div>
 
           {isLoading ? (
             <Skeleton />
           ) : (
-            <div className="space-y-3">
-              {/* Total */}
-              <div className="bg-blue-50 rounded-lg p-3 border-2 border-blue-300">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-medium text-gray-700">Tổng yêu cầu</span>
-                  <span className="text-2xl font-bold text-blue-600">{fmtInt(overview?.requests.total ?? 0)}</span>
-                </div>
-              </div>
-
+            <div className="space-y-2">
               {/* 4 status pills */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className={`rounded-lg px-2 py-2 text-center border ${pillTone.yellow}`}>
-                  <div className="text-lg font-bold leading-none">{fmtInt(reqByStatus?.['CHO_XU_LY'] ?? 0)}</div>
-                  <div className="text-[11px] font-medium mt-1 leading-tight">Chờ xử lý</div>
+              <div className="grid grid-cols-4 gap-1.5">
+                <div className={`rounded px-1.5 py-1 text-center border ${pillTone.yellow}`}>
+                  <div className="text-sm font-bold leading-none">{fmtInt(reqByStatus?.['CHO_XU_LY'] ?? 0)}</div>
+                  <div className="text-[10px] font-medium mt-0.5 leading-tight">Chờ</div>
                 </div>
-                <div className={`rounded-lg px-2 py-2 text-center border ${pillTone.blue}`}>
-                  <div className="text-lg font-bold leading-none">{fmtInt(reqByStatus?.['DANG_BAO_GIA'] ?? 0)}</div>
-                  <div className="text-[11px] font-medium mt-1 leading-tight">Đang báo giá</div>
+                <div className={`rounded px-1.5 py-1 text-center border ${pillTone.blue}`}>
+                  <div className="text-sm font-bold leading-none">{fmtInt(reqByStatus?.['DANG_BAO_GIA'] ?? 0)}</div>
+                  <div className="text-[10px] font-medium mt-0.5 leading-tight">Đang</div>
                 </div>
-                <div className={`rounded-lg px-2 py-2 text-center border ${pillTone.green}`}>
-                  <div className="text-lg font-bold leading-none">{fmtInt(reqByStatus?.['DA_BAO_GIA'] ?? 0)}</div>
-                  <div className="text-[11px] font-medium mt-1 leading-tight">Đã báo giá</div>
+                <div className={`rounded px-1.5 py-1 text-center border ${pillTone.green}`}>
+                  <div className="text-sm font-bold leading-none">{fmtInt(reqByStatus?.['DA_BAO_GIA'] ?? 0)}</div>
+                  <div className="text-[10px] font-medium mt-0.5 leading-tight">Xong</div>
                 </div>
-                <div className={`rounded-lg px-2 py-2 text-center border ${pillTone.gray}`}>
-                  <div className="text-lg font-bold leading-none">{fmtInt(reqByStatus?.['HUY'] ?? 0)}</div>
-                  <div className="text-[11px] font-medium mt-1 leading-tight">Hủy</div>
+                <div className={`rounded px-1.5 py-1 text-center border ${pillTone.gray}`}>
+                  <div className="text-sm font-bold leading-none">{fmtInt(reqByStatus?.['HUY'] ?? 0)}</div>
+                  <div className="text-[10px] font-medium mt-0.5 leading-tight">Hủy</div>
                 </div>
               </div>
 
               {/* QuocTe / NoiDia mini row */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300">
-                  <div className="text-base font-bold text-blue-600">{fmtInt(overview?.requests.byCustomerType.quocTe ?? 0)}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Quốc tế</div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <div className="bg-gray-50 rounded px-2 py-1 text-center border border-gray-200">
+                  <span className="text-sm font-bold text-blue-600">{fmtInt(overview?.requests.byCustomerType.quocTe ?? 0)}</span>
+                  <span className="text-[10px] text-gray-600 ml-1">QT</span>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300">
-                  <div className="text-base font-bold text-green-600">{fmtInt(overview?.requests.byCustomerType.noiDia ?? 0)}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Nội địa</div>
+                <div className="bg-gray-50 rounded px-2 py-1 text-center border border-gray-200">
+                  <span className="text-sm font-bold text-green-600">{fmtInt(overview?.requests.byCustomerType.noiDia ?? 0)}</span>
+                  <span className="text-[10px] text-gray-600 ml-1">NĐ</span>
                 </div>
               </div>
             </div>
@@ -232,18 +224,19 @@ const GeneralPricing = () => {
         {/* Card 2: BaoGia grouped */}
         <div
           onClick={() => setActiveTab('quotes')}
-          className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-green-400 cursor-pointer"
+          className="bg-white rounded-lg shadow p-3 border border-gray-300 hover:shadow-md hover:border-green-400 transition-all cursor-pointer"
         >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold flex items-center text-gray-800">
-              <Calculator className="w-5 h-5 mr-2 text-green-600" />
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-bold flex items-center text-gray-800">
+              <Calculator className="w-4 h-4 mr-1.5 text-green-600" />
               Báo giá
             </h3>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xl font-bold text-green-600">{fmtInt(overview?.quotations.total ?? 0)}</span>
               {priceLockedCount > 0 && (
-                <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5" title="Số báo giá đã khóa giá">
-                  <Lock className="w-3 h-3" />
-                  {fmtInt(priceLockedCount)} khóa giá
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5" title="Khóa giá">
+                  <Lock className="w-2.5 h-2.5" />
+                  {fmtInt(priceLockedCount)}
                 </span>
               )}
             </div>
@@ -252,42 +245,25 @@ const GeneralPricing = () => {
           {isLoading ? (
             <Skeleton />
           ) : (
-            <div className="space-y-3">
-              <div className="bg-green-50 rounded-lg p-3 border-2 border-green-300">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-medium text-gray-700">Tổng báo giá</span>
-                  <span className="text-2xl font-bold text-green-600">{fmtInt(overview?.quotations.total ?? 0)}</span>
-                </div>
-              </div>
-
+            <div className="space-y-2">
               {/* 5 grouped pills */}
-              <div className="space-y-2">
-                <div className="grid grid-cols-3 gap-2">
-                  {quoGroups.slice(0, 3).map((g) => (
-                    <div key={g.label} className={`rounded-lg px-2 py-2 text-center border ${pillTone[g.tone]}`} title={g.label}>
-                      <div className="text-base font-bold leading-none">{fmtInt(g.count)}</div>
-                      <div className="text-[11px] font-medium mt-1 leading-tight truncate">{g.short}</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {quoGroups.slice(3).map((g) => (
-                    <div key={g.label} className={`rounded-lg px-2 py-2 text-center border ${pillTone[g.tone]}`} title={g.label}>
-                      <div className="text-base font-bold leading-none">{fmtInt(g.count)}</div>
-                      <div className="text-[11px] font-medium mt-1 leading-tight truncate">{g.short}</div>
-                    </div>
-                  ))}
-                </div>
+              <div className="grid grid-cols-5 gap-1.5">
+                {quoGroups.map((g) => (
+                  <div key={g.label} className={`rounded px-1 py-1 text-center border ${pillTone[g.tone]}`} title={g.label}>
+                    <div className="text-sm font-bold leading-none">{fmtInt(g.count)}</div>
+                    <div className="text-[10px] font-medium mt-0.5 leading-tight truncate">{g.short.split('/')[0]}</div>
+                  </div>
+                ))}
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300">
-                  <div className="text-base font-bold text-blue-600">{fmtInt(overview?.quotations.byCustomerType.quocTe ?? 0)}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Quốc tế</div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <div className="bg-gray-50 rounded px-2 py-1 text-center border border-gray-200">
+                  <span className="text-sm font-bold text-blue-600">{fmtInt(overview?.quotations.byCustomerType.quocTe ?? 0)}</span>
+                  <span className="text-[10px] text-gray-600 ml-1">QT</span>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300">
-                  <div className="text-base font-bold text-green-600">{fmtInt(overview?.quotations.byCustomerType.noiDia ?? 0)}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Nội địa</div>
+                <div className="bg-gray-50 rounded px-2 py-1 text-center border border-gray-200">
+                  <span className="text-sm font-bold text-green-600">{fmtInt(overview?.quotations.byCustomerType.noiDia ?? 0)}</span>
+                  <span className="text-[10px] text-gray-600 ml-1">NĐ</span>
                 </div>
               </div>
             </div>
@@ -297,39 +273,33 @@ const GeneralPricing = () => {
         {/* Card 3: DonHang — total + VND + prod/pay */}
         <div
           onClick={() => setActiveTab('orders')}
-          className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-purple-400 cursor-pointer"
+          className="bg-white rounded-lg shadow p-3 border border-gray-300 hover:shadow-md hover:border-purple-400 transition-all cursor-pointer"
         >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold flex items-center text-gray-800">
-              <ShoppingCart className="w-5 h-5 mr-2 text-purple-600" />
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-bold flex items-center text-gray-800">
+              <ShoppingCart className="w-4 h-4 mr-1.5 text-purple-600" />
               Đơn hàng
             </h3>
+            <div className="text-right">
+              <div className="text-xl font-bold text-purple-600">{fmtInt(overview?.orders.total ?? 0)}</div>
+              <div className="text-[10px] font-semibold text-gray-600 leading-tight">
+                {(overview?.orders.totalValueVND ?? 0) > 0 ? fmtVND(Math.round(overview?.orders.totalValueVND ?? 0)) : '—'}
+              </div>
+            </div>
           </div>
 
           {isLoading ? (
             <Skeleton />
           ) : (
-            <div className="space-y-3">
-              <div className="bg-purple-50 rounded-lg p-3 border-2 border-purple-300">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-medium text-gray-700">Tổng đơn</span>
-                  <span className="text-2xl font-bold text-purple-600">{fmtInt(overview?.orders.total ?? 0)}</span>
-                </div>
-                <div className="mt-1 text-right">
-                  <span className="text-xs font-semibold text-gray-700">
-                    {(overview?.orders.totalValueVND ?? 0) > 0 ? fmtVND(Math.round(overview?.orders.totalValueVND ?? 0)) : '—'}
-                  </span>
-                </div>
-              </div>
-
+            <div className="space-y-2">
               {/* Production pills */}
               <div>
-                <div className="text-[11px] font-semibold text-gray-600 mb-1">Sản xuất</div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="text-[10px] font-semibold text-gray-500 mb-1">SX</div>
+                <div className="grid grid-cols-3 gap-1.5">
                   {ordProdGroups.map((g) => (
-                    <div key={g.label} className={`rounded-lg px-2 py-2 text-center border ${pillTone[g.tone]}`}>
-                      <div className="text-base font-bold leading-none">{fmtInt(g.count)}</div>
-                      <div className="text-[11px] font-medium mt-1 leading-tight">{g.label}</div>
+                    <div key={g.label} className={`rounded px-1 py-1 text-center border ${pillTone[g.tone]}`}>
+                      <div className="text-sm font-bold leading-none">{fmtInt(g.count)}</div>
+                      <div className="text-[10px] font-medium mt-0.5 leading-tight">{g.label}</div>
                     </div>
                   ))}
                 </div>
@@ -337,28 +307,28 @@ const GeneralPricing = () => {
 
               {/* Payment pills */}
               <div>
-                <div className="text-[11px] font-semibold text-gray-600 mb-1">Thanh toán</div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className={`rounded-lg px-2 py-2 text-center border ${pillTone.orange}`}>
-                    <div className="text-base font-bold leading-none">{fmtInt(ordPayChuaTT)}</div>
-                    <div className="text-[11px] font-medium mt-1 leading-tight">Chưa TT đủ</div>
+                <div className="text-[10px] font-semibold text-gray-500 mb-1">TT</div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div className={`rounded px-1 py-1 text-center border ${pillTone.orange}`}>
+                    <div className="text-sm font-bold leading-none">{fmtInt(ordPayChuaTT)}</div>
+                    <div className="text-[10px] font-medium mt-0.5 leading-tight">Chưa đủ</div>
                   </div>
-                  <div className={`rounded-lg px-2 py-2 text-center border ${pillTone.green}`}>
-                    <div className="text-base font-bold leading-none">{fmtInt(ordPayDaTT)}</div>
-                    <div className="text-[11px] font-medium mt-1 leading-tight">Đã TT đủ</div>
+                  <div className={`rounded px-1 py-1 text-center border ${pillTone.green}`}>
+                    <div className="text-sm font-bold leading-none">{fmtInt(ordPayDaTT)}</div>
+                    <div className="text-[10px] font-medium mt-0.5 leading-tight">Đã đủ</div>
                   </div>
                 </div>
               </div>
 
               {/* QuocTe/NoiDia */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300">
-                  <div className="text-base font-bold text-blue-600">{fmtInt(overview?.orders.byCustomerType.quocTe ?? 0)}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Quốc tế</div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <div className="bg-gray-50 rounded px-2 py-1 text-center border border-gray-200">
+                  <span className="text-sm font-bold text-blue-600">{fmtInt(overview?.orders.byCustomerType.quocTe ?? 0)}</span>
+                  <span className="text-[10px] text-gray-600 ml-1">QT</span>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-2 text-center border-2 border-gray-300">
-                  <div className="text-base font-bold text-green-600">{fmtInt(overview?.orders.byCustomerType.noiDia ?? 0)}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Nội địa</div>
+                <div className="bg-gray-50 rounded px-2 py-1 text-center border border-gray-200">
+                  <span className="text-sm font-bold text-green-600">{fmtInt(overview?.orders.byCustomerType.noiDia ?? 0)}</span>
+                  <span className="text-[10px] text-gray-600 ml-1">NĐ</span>
                 </div>
               </div>
             </div>
@@ -366,130 +336,129 @@ const GeneralPricing = () => {
         </div>
       </div>
 
-      {/* Row 2: ChiPhi (span 2) | ChoDuyet & CanhBao (span 1) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Row 2: ChiPhi (span 2) | ChoDuyet & CanhBao (span 1) — compact */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         {/* Card 4: ChiPhi */}
         <div
           onClick={() => setActiveTab('costs')}
-          className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-orange-400 cursor-pointer lg:col-span-2"
+          className="bg-white rounded-lg shadow p-3 border border-gray-300 hover:shadow-md hover:border-orange-400 transition-all cursor-pointer lg:col-span-2"
         >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold flex items-center text-gray-800">
-              <DollarSign className="w-5 h-5 mr-2 text-orange-600" />
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-bold flex items-center text-gray-800">
+              <DollarSign className="w-4 h-4 mr-1.5 text-orange-600" />
               Chi phí
             </h3>
-            <span className="text-xs text-gray-400">Tổng hợp</span>
           </div>
 
           {isLoading ? (
             <Skeleton />
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               <div className="grid grid-cols-3 gap-2">
-                <div className="bg-orange-50 rounded-lg p-3 text-center border-2 border-orange-300">
-                  <div className="text-xl font-bold text-orange-600">{fmtInt(overview?.costs.generalTotal ?? 0)}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Chi phí chung</div>
+                <div className="bg-orange-50 rounded p-2 text-center border border-orange-200">
+                  <div className="text-lg font-bold text-orange-600">{fmtInt(overview?.costs.generalTotal ?? 0)}</div>
+                  <div className="text-[10px] text-gray-600 mt-0.5">CP chung</div>
                 </div>
-                <div className="bg-red-50 rounded-lg p-3 text-center border-2 border-red-200">
-                  <div className="text-xl font-bold text-red-500">{fmtInt(overview?.costs.exportTotal ?? 0)}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Chi phí XK</div>
+                <div className="bg-red-50 rounded p-2 text-center border border-red-200">
+                  <div className="text-lg font-bold text-red-500">{fmtInt(overview?.costs.exportTotal ?? 0)}</div>
+                  <div className="text-[10px] text-gray-600 mt-0.5">CP XK</div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-3 text-center border-2 border-gray-300">
-                  <div className="text-sm font-bold text-gray-800 leading-tight">
+                <div className="bg-gray-50 rounded p-2 text-center border border-gray-200">
+                  <div className="text-xs font-bold text-gray-800 leading-tight">
                     {overview?.costs.avgGiaThanhNgay != null ? fmtVND(Math.round(overview.costs.avgGiaThanhNgay)) : '—'}
                   </div>
-                  <div className="text-xs text-gray-600 mt-0.5">TB giá/ngày</div>
+                  <div className="text-[10px] text-gray-600 mt-0.5">TB giá/ngày</div>
                 </div>
               </div>
 
               {/* Top 2 loaiChiPhi */}
               {(overview?.costs.topLoaiChiPhi?.length ?? 0) > 0 ? (
                 <div>
-                  <div className="text-[11px] font-semibold text-gray-600 mb-1">Top loại chi phí</div>
+                  <div className="text-[10px] font-semibold text-gray-500 mb-1">Top loại</div>
                   <div className="grid grid-cols-2 gap-2">
                     {overview!.costs.topLoaiChiPhi.map((it) => (
-                      <div key={it.loaiChiPhi} className="bg-white rounded-lg px-3 py-2 border-2 border-gray-200 flex items-center justify-between gap-2">
-                        <span className="text-xs font-semibold text-gray-700 truncate" title={it.loaiChiPhi}>{it.loaiChiPhi}</span>
-                        <span className="text-xs font-bold text-orange-600 whitespace-nowrap">{fmtInt(it.count)} · {fmtVND(Math.round(it.total))}</span>
+                      <div key={it.loaiChiPhi} className="bg-white rounded px-2 py-1.5 border border-gray-200 flex items-center justify-between gap-1">
+                        <span className="text-[11px] font-semibold text-gray-700 truncate" title={it.loaiChiPhi}>{it.loaiChiPhi}</span>
+                        <span className="text-[10px] font-bold text-orange-600 whitespace-nowrap">{fmtInt(it.count)}</span>
                       </div>
                     ))}
                   </div>
                 </div>
               ) : (
-                <div className="text-xs text-gray-400 text-center py-2 border border-dashed border-gray-200 rounded-lg">Chưa có dữ liệu chi phí</div>
+                <div className="text-[10px] text-gray-400 text-center py-1.5 border border-dashed border-gray-200 rounded">Chưa có dữ liệu</div>
               )}
             </div>
           )}
         </div>
 
-        {/* Card 5: ChoDuyet & CanhBao — split click areas */}
-        <div className="bg-white rounded-xl shadow-lg p-5 border-2 border-gray-300 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-red-300 lg:col-span-1">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold flex items-center text-gray-800">
-              <AlertTriangle className="w-5 h-5 mr-2 text-red-500" />
-              Chờ duyệt & Cảnh báo
+        {/* Card 5: ChoDuyet & CanhBao */}
+        <div className="bg-white rounded-lg shadow p-3 border border-gray-300 hover:shadow-md hover:border-red-300 transition-all lg:col-span-1">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-bold flex items-center text-gray-800">
+              <AlertTriangle className="w-4 h-4 mr-1.5 text-red-500" />
+              Duyệt & Cảnh báo
             </h3>
           </div>
 
           {isLoading ? (
             <Skeleton />
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-2">
               {/* Cho duyet */}
               <div>
-                <div className="text-[11px] font-semibold text-gray-600 mb-2 uppercase tracking-wide">Chờ duyệt</div>
+                <div className="text-[10px] font-semibold text-gray-500 mb-1">CHỜ DUYỆT</div>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => setActiveTab('overtime-review')}
-                    className="bg-white rounded-lg p-3 text-center border-2 border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
+                    className="bg-white rounded p-2 border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-gray-700 flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> Tăng ca
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-medium text-gray-700 flex items-center gap-0.5">
+                        <Clock className="w-2.5 h-2.5" /> Tăng ca
                       </span>
                       {overtimePending > 0 && (
-                        <span className="inline-flex items-center justify-center min-w-6 h-5 px-1.5 text-xs font-bold text-white bg-red-500 rounded-full">{overtimePending}</span>
+                        <span className="inline-flex items-center justify-center min-w-4 h-4 px-1 text-[10px] font-bold text-white bg-red-500 rounded-full">{overtimePending}</span>
                       )}
                     </div>
-                    <div className={`mt-1 text-lg font-bold ${overtimePending > 0 ? 'text-red-600' : 'text-gray-400'}`}>{fmtInt(overtimePending)}</div>
+                    <div className={`text-base font-bold ${overtimePending > 0 ? 'text-red-600' : 'text-gray-400'}`}>{fmtInt(overtimePending)}</div>
                   </button>
                   <button
                     onClick={() => setActiveTab('purchase-review')}
-                    className="bg-white rounded-lg p-3 text-center border-2 border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
+                    className="bg-white rounded p-2 border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-gray-700 flex items-center gap-1">
-                        <PackageCheck className="w-3 h-3" /> Mua hàng
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-medium text-gray-700 flex items-center gap-0.5">
+                        <PackageCheck className="w-2.5 h-2.5" /> Mua hàng
                       </span>
                       {purchasePending > 0 && (
-                        <span className="inline-flex items-center justify-center min-w-6 h-5 px-1.5 text-xs font-bold text-white bg-red-500 rounded-full">{purchasePending}</span>
+                        <span className="inline-flex items-center justify-center min-w-4 h-4 px-1 text-[10px] font-bold text-white bg-red-500 rounded-full">{purchasePending}</span>
                       )}
                     </div>
-                    <div className={`mt-1 text-lg font-bold ${purchasePending > 0 ? 'text-red-600' : 'text-gray-400'}`}>{fmtInt(purchasePending)}</div>
+                    <div className={`text-base font-bold ${purchasePending > 0 ? 'text-red-600' : 'text-gray-400'}`}>{fmtInt(purchasePending)}</div>
                   </button>
                 </div>
               </div>
 
               {/* Canh bao */}
               <div>
-                <div className="text-[11px] font-semibold text-gray-600 mb-2 uppercase tracking-wide">Cảnh báo quá hạn</div>
+                <div className="text-[10px] font-semibold text-gray-500 mb-1">QUÁ HẠN</div>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-yellow-50 rounded-lg p-3 text-center border-2 border-yellow-200">
-                    <div className="text-xl font-bold text-yellow-600">{fmtInt(agingYellow)}</div>
-                    <div className="text-xs text-gray-600 mt-0.5">Vàng (≥7 ngày)</div>
+                  <div className="bg-yellow-50 rounded p-2 text-center border border-yellow-200">
+                    <div className="text-base font-bold text-yellow-600">{fmtInt(agingYellow)}</div>
+                    <div className="text-[10px] text-gray-600 mt-0.5">Vàng ≥7d</div>
                   </div>
-                  <div className="bg-red-50 rounded-lg p-3 text-center border-2 border-red-200">
-                    <div className="text-xl font-bold text-red-600">{fmtInt(agingRed)}</div>
-                    <div className="text-xs text-gray-600 mt-0.5">Đỏ (≥14 ngày)</div>
+                  <div className="bg-red-50 rounded p-2 text-center border border-red-200">
+                    <div className="text-base font-bold text-red-600">{fmtInt(agingRed)}</div>
+                    <div className="text-[10px] text-gray-600 mt-0.5">Đỏ ≥14d</div>
                   </div>
                 </div>
               </div>
 
               <div
-                className="text-[11px] text-gray-400 text-center border-t border-gray-100 pt-3"
-                title="Số chờ duyệt và cảnh báo là tồn kho hiện tại, không áp dụng bộ lọc tháng/năm"
+                className="text-[10px] text-gray-400 text-center border-t border-gray-100 pt-2"
+                title="Số chờ duyệt và cảnh báo là tồn hiện tại, không áp dụng bộ lọc tháng/năm"
               >
-                Tồn chờ xử lý — Không áp dụng bộ lọc tháng/năm
+                Tồn chờ — Không lọc tháng/năm
               </div>
             </div>
           )}
