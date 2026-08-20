@@ -1,6 +1,6 @@
 import React from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
-import { EmptyState, LoadingState } from './States';
+import { EmptyState } from './States';
 
 interface Column<T> {
   key: string;
