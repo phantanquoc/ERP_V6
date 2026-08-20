@@ -108,7 +108,7 @@ const getQuickActions = () => {
   ];
 };
 
-// Component for Personal Stat Card
+// Component for Personal Stat Card — neutral shell (grid-cols-3 ~111px on 375px)
 const PersonalStatCard: React.FC<{ stat: any; onEvaluationClick?: () => void; onTaskClick?: () => void; onWorkPlanClick?: () => void }> = ({ stat, onEvaluationClick, onTaskClick, onWorkPlanClick }) => (
   <div
     onClick={() => {
@@ -120,22 +120,22 @@ const PersonalStatCard: React.FC<{ stat: any; onEvaluationClick?: () => void; on
         onWorkPlanClick();
       }
     }}
-    className={`bg-white rounded-xl shadow-sm border ${stat.hasNotification ? 'border-red-300 bg-red-50' : 'border-gray-100'} p-3 sm:p-6 hover:shadow-md transition-shadow relative ${(stat.label === "Đánh giá" || stat.label === "Nhiệm vụ" || stat.label === "Kế hoạch") ? 'cursor-pointer' : ''}`}
+    className={`bg-white rounded-lg shadow-sm border ${stat.hasNotification ? 'border-red-300 bg-red-50' : 'border-gray-200'} p-3 sm:p-6 hover:border-gray-300 hover:shadow-md transition-all duration-200 relative min-w-0 overflow-hidden ${(stat.label === "Đánh giá" || stat.label === "Nhiệm vụ" || stat.label === "Kế hoạch") ? 'cursor-pointer' : ''}`}
   >
     {stat.hasNotification && (
       <div className="absolute top-2 right-2 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
     )}
     <div className="flex items-center justify-between">
       <div className="flex-1 min-w-0">
-        <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 truncate">{stat.label}</p>
-        <div className="flex items-baseline space-x-1 sm:space-x-2">
-          <p className={`text-base sm:text-lg font-bold ${stat.hasNotification ? 'text-red-600' : 'text-gray-900'} truncate`}>{stat.value}</p>
+        <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 truncate" title={stat.label}>{stat.label}</p>
+        <div className="flex items-baseline space-x-1 sm:space-x-2 min-w-0">
+          <p className={`text-sm sm:text-lg font-bold ${stat.hasNotification ? 'text-red-600' : 'text-gray-900'} break-words line-clamp-2 leading-tight`} title={String(stat.value)}>{stat.value}</p>
           {stat.total && (
             <p className="text-sm text-gray-500 flex-shrink-0">/ {stat.total}</p>
           )}
         </div>
         {stat.subtitle && (
-          <p className="text-xs text-red-600 mt-1 sm:mt-2 font-medium leading-tight">{stat.subtitle}</p>
+          <p className="text-xs text-red-600 mt-1 sm:mt-2 font-medium leading-tight break-words line-clamp-2" title={stat.subtitle}>{stat.subtitle}</p>
         )}
       </div>
       <div className={`hidden sm:flex p-3 rounded-lg bg-gradient-to-r ${stat.color} flex-shrink-0 ml-2`}>
@@ -167,7 +167,7 @@ const QuickActionCard: React.FC<{
   return (
     <div
       onClick={handleClick}
-      className="relative h-full cursor-pointer rounded-xl border border-gray-100 bg-white p-3 sm:p-5 shadow-sm transition-all hover:shadow-md group"
+      className="relative h-full cursor-pointer rounded-lg border border-gray-200 bg-white p-3 sm:p-5 shadow-sm transition-all hover:border-gray-300 hover:shadow-md group"
     >
       <div className="flex items-center space-x-3">
         <div className={`rounded-lg p-2 sm:p-3 ${action.color} transition-transform group-hover:scale-110 flex-shrink-0`}>
@@ -191,7 +191,7 @@ const CompanyAnnouncementBanner: React.FC = () => {
   const [dismissed, setDismissed] = useState(false);
   if (dismissed) return null;
   return (
-    <div className="relative bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 rounded-xl p-3 sm:p-4 mb-4 sm:mb-6 flex items-start gap-3">
+    <div className="relative bg-amber-50 border border-amber-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6 flex items-start gap-3">
       <div className="flex-shrink-0 p-2 bg-amber-100 rounded-lg">
         <Megaphone className="w-5 h-5 text-amber-600" />
       </div>
@@ -231,6 +231,7 @@ const AttendanceMiniCalendar: React.FC<AttendanceMiniCalendarProps> = ({ employe
     return new Date(today.getFullYear(), today.getMonth(), 1);
   });
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
   // First and last day of displayed month
   const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
@@ -332,7 +333,7 @@ const AttendanceMiniCalendar: React.FC<AttendanceMiniCalendarProps> = ({ employe
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
       {/* Calendar header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-base sm:text-xl font-bold text-gray-900 flex items-center gap-2">
@@ -342,7 +343,7 @@ const AttendanceMiniCalendar: React.FC<AttendanceMiniCalendarProps> = ({ employe
         <div className="flex items-center gap-1 sm:gap-2">
           <button
             onClick={prevMonth}
-            className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+            className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
             aria-label="Tháng trước"
           >
             <ChevronLeft className="w-4 h-4 text-gray-600" />
@@ -350,7 +351,7 @@ const AttendanceMiniCalendar: React.FC<AttendanceMiniCalendarProps> = ({ employe
           <span className="text-sm font-semibold text-gray-700 min-w-[110px] text-center">{monthLabelDisplay}</span>
           <button
             onClick={nextMonth}
-            className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+            className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
             aria-label="Tháng sau"
           >
             <ChevronRight className="w-4 h-4 text-gray-600" />
@@ -367,8 +368,20 @@ const AttendanceMiniCalendar: React.FC<AttendanceMiniCalendarProps> = ({ employe
         ))}
       </div>
 
-      {/* Day cells */}
-      <div className="grid grid-cols-7 gap-0.5">
+      {/* Day cells — swipe affordance: month navigation via 44px nav buttons; future: add touch swipe handlers */}
+      <div
+        className="grid grid-cols-7 gap-0.5"
+        onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
+        onTouchEnd={(e) => {
+          if (touchStartX === null) return;
+          const delta = e.changedTouches[0].clientX - touchStartX;
+          if (Math.abs(delta) > 50) {
+            if (delta < 0) nextMonth();
+            else prevMonth();
+          }
+          setTouchStartX(null);
+        }}
+      >
         {/* Leading blanks */}
         {Array.from({ length: leadingBlanks }).map((_, i) => (
           <div key={`lead-${i}`} className="aspect-square" />
@@ -397,17 +410,27 @@ const AttendanceMiniCalendar: React.FC<AttendanceMiniCalendarProps> = ({ employe
           return (
             <div
               key={dayNum}
+              role={isClickable ? 'button' : undefined}
+              tabIndex={isClickable ? 0 : -1}
+              aria-label={isClickable ? `Xem điểm danh ngày ${dateStr}` : undefined}
               onClick={() => isClickable && onDayClick(dayDate)}
+              onKeyDown={(e) => {
+                if (!isClickable) return;
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onDayClick(dayDate);
+                }
+              }}
               className={[
-                'aspect-square flex flex-col items-center justify-center rounded-lg transition-colors min-h-[36px]',
+                'aspect-square flex flex-col items-center justify-center rounded-lg transition-colors min-h-[44px]',
                 isToday ? 'ring-2 ring-blue-500' : '',
-                isClickable ? 'cursor-pointer hover:bg-gray-50' : '',
+                isClickable ? 'cursor-pointer hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:outline-none' : '',
                 isSunday ? 'text-gray-400' : isFuture ? 'text-gray-400' : 'text-gray-800',
               ].join(' ')}
             >
               <span className="text-xs sm:text-sm font-medium leading-none">{dayNum}</span>
               {dotColor && (
-                <span className={`w-1.5 h-1.5 rounded-full mt-0.5 ${dotColor}`} />
+                <span className={`w-2 h-2 rounded-full mt-0.5 ${dotColor}`} aria-hidden="true" />
               )}
             </div>
           );
@@ -534,7 +557,7 @@ const EmployeeDashboard: React.FC = () => {
         {/* Main Content — vertical stack */}
         <div className="space-y-4 sm:space-y-8">
           {/* Quick Actions Card */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
             <h2 className="text-xl font-bold text-gray-900 mb-4 sm:mb-6 flex items-center">
               <Activity className="w-6 h-6 text-blue-600 mr-2" />
               Thao tác nhanh
