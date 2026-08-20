@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { X, Upload } from 'lucide-react';
 import Modal from './Modal';
 
@@ -15,6 +15,8 @@ interface ModalFormProps {
   children: React.ReactNode;
   /** Footer tùy chỉnh — nếu không truyền thì không render footer */
   footer?: React.ReactNode;
+  /** Cho phép click backdrop để đóng (default: true — giữ consistent với hành vi ModalForm hiện tại) */
+  closeOnBackdrop?: boolean;
 }
 
 const maxWidthMap: Record<string, string> = {
@@ -38,46 +40,51 @@ export const ModalForm: React.FC<ModalFormProps> = ({
   maxWidth = '3xl',
   children,
   footer,
-}) => (
-  <Modal isOpen={isOpen} onClose={onClose} showBackdrop closeOnBackdrop={true}>
-    {/* stopPropagation trực tiếp trên modal box — ngăn click bên trong bubble lên backdrop */}
-    <div
-      className={`
+  closeOnBackdrop = true,
+}) => {
+  const titleId = `${useId()}-modal-title`;
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} showBackdrop closeOnBackdrop={closeOnBackdrop} ariaLabelledby={titleId}>
+      {/* stopPropagation trực tiếp trên modal box — ngăn click bên trong bubble lên backdrop */}
+      <div
+        className={`
         bg-white rounded-xl shadow-2xl w-full ${maxWidthMap[maxWidth]}
         flex flex-col
         modal-viewport-h
       `}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {/* Header — trắng, border dưới */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
-        <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-          {titleIcon && <span className="text-gray-500">{titleIcon}</span>}
-          {title}
-        </h3>
-        <button
-          type="button"
-          onClick={onClose}
-          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-        >
-          <X className="h-5 w-5" />
-        </button>
-      </div>
-
-      {/* Body — scrollable */}
-      <div className="overflow-y-auto flex-1 px-6 py-5">
-        {children}
-      </div>
-
-      {/* Footer */}
-      {footer !== undefined && (
-        <div className="px-6 py-4 border-t border-gray-200 shrink-0 bg-gray-50 rounded-b-xl">
-          {footer}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header — trắng, border dưới */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+          <h3 id={titleId} className="text-base font-semibold text-gray-900 flex items-center gap-2">
+            {titleIcon && <span className="text-gray-500" aria-hidden="true">{titleIcon}</span>}
+            {title}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Đóng"
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+          >
+            <X className="h-5 w-5" aria-hidden="true" />
+          </button>
         </div>
-      )}
-    </div>
-  </Modal>
-);
+
+        {/* Body — scrollable */}
+        <div className="overflow-y-auto flex-1 px-6 py-5">
+          {children}
+        </div>
+
+        {/* Footer */}
+        {footer !== undefined && (
+          <div className="px-6 py-4 border-t border-gray-200 shrink-0 bg-gray-50 rounded-b-xl">
+            {footer}
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+};
 
 // ─── Footer helpers ───────────────────────────────────────────────────────────
 
@@ -127,17 +134,50 @@ interface FormFieldProps {
   children: React.ReactNode;
 }
 
-export const FormField: React.FC<FormFieldProps> = ({ label, required, error, hint, children }) => (
-  <div>
-    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-      {label}
-      {required && <span className="text-red-500 ml-0.5">*</span>}
-    </label>
-    {children}
-    {hint && !error && <p className="mt-1 text-xs text-gray-400">{hint}</p>}
-    {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
-  </div>
-);
+export const FormField: React.FC<FormFieldProps> = ({ label, required, error, hint, children }) => {
+  const autoId = useId();
+  const fieldId = `${autoId}-field`;
+  const hintId = `${autoId}-hint`;
+  const errorId = `${autoId}-error`;
+  const hasError = Boolean(error);
+  const hasHint = Boolean(hint && !hasError);
+
+  const describedByParts: string[] = [];
+  if (hasHint) describedByParts.push(hintId);
+  if (hasError) describedByParts.push(errorId);
+  const newDescribedBy = describedByParts.length ? describedByParts.join(' ') : undefined;
+
+  // Determine effective id for label association (respect child's existing id)
+  const isSingleValidElement = React.isValidElement(children);
+  const childExistingId = isSingleValidElement ? (children.props as { id?: string }).id : undefined;
+  const effectiveFieldId = childExistingId ?? fieldId;
+
+  let enhancedChildren: React.ReactNode = children;
+  if (isSingleValidElement) {
+    const childProps = children.props as Record<string, unknown>;
+    const existingDescribedBy = childProps['aria-describedby'] as string | undefined;
+    const mergedDescribedBy = [existingDescribedBy, newDescribedBy].filter(Boolean).join(' ') || undefined;
+    const extraProps: Record<string, unknown> = {};
+    if (!childExistingId) extraProps.id = fieldId;
+    if (mergedDescribedBy) extraProps['aria-describedby'] = mergedDescribedBy;
+    else if (newDescribedBy) extraProps['aria-describedby'] = newDescribedBy;
+    if (hasError) extraProps['aria-invalid'] = true;
+    if (required) extraProps['aria-required'] = true;
+    enhancedChildren = React.cloneElement(children as React.ReactElement<Record<string, unknown>>, extraProps);
+  }
+
+  return (
+    <div>
+      <label htmlFor={effectiveFieldId} className="block text-sm font-medium text-gray-700 mb-1.5">
+        {label}
+        {required && <span className="text-red-500 ml-0.5" aria-hidden="true">*</span>}
+      </label>
+      {enhancedChildren}
+      {hasHint && <p id={hintId} className="mt-1 text-xs text-gray-400">{hint}</p>}
+      {hasError && <p id={errorId} role="alert" className="mt-1 text-xs text-red-500">{error}</p>}
+    </div>
+  );
+};
 
 // ─── Input class helpers ──────────────────────────────────────────────────────
 
@@ -168,7 +208,7 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
   <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-blue-400 hover:bg-blue-50/30 transition-colors">
     <input type="file" id={id} accept={accept} multiple={multiple} className="hidden" {...inputProps} />
     <label htmlFor={id} className="cursor-pointer flex flex-col items-center gap-1">
-      <Upload className="w-6 h-6 text-gray-400" />
+      <Upload className="w-6 h-6 text-gray-400" aria-hidden="true" />
       <p className="text-sm text-gray-600">Click để chọn file</p>
       <p className="text-xs text-gray-400">{hint}</p>
     </label>

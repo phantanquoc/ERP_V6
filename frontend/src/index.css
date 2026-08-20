@@ -22,6 +22,11 @@
     -moz-appearance: textfield;
     appearance: textfield;
   }
+
+  *:focus-visible {
+    outline: 2px solid #2563EB;
+    outline-offset: 2px;
+  }
 }
 
 /* Marquee scrolling text for slogan bar */
@@ -302,5 +307,14 @@
   .print-warehouse-label {
     break-after: avoid;
     page-break-after: avoid;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }
