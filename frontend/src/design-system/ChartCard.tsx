@@ -5,9 +5,11 @@ import { shell } from './tokens';
 /**
  * ChartCard — styled container for chart content.
  *
- * Expected chart heights (set by the consumer via ResponsiveContainer):
- * - donut: 200px
- * - line: 260px
+ * Expected chart heights — use `chartHeights` from `./tokens` via
+ * `ResponsiveContainer height={chartHeights.donut | chartHeights.line | chartHeights.bar}`:
+ * - donut: chartHeights.donut (200px)
+ * - line: chartHeights.line (260px)
+ * - bar: chartHeights.bar (260px)
  *
  * ChartCard itself does NOT set a hardcoded height; height is controlled
  * by the consumer's ResponsiveContainer so all charts stay consistent.
