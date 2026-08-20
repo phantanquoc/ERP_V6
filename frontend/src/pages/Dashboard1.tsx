@@ -59,6 +59,7 @@ import qualityEvaluationService from "../services/qualityEvaluationService";
 import { workPlanService } from "../services/workPlanService";
 import employeeEvaluationService from "../services/employeeEvaluationService";
 import dailyWorkReportService from "../services/dailyWorkReportService";
+import { taskService } from "../services/taskService";
 import DatePicker from "../components/DatePicker";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import ChartCard from '../design-system/ChartCard';
@@ -115,9 +116,22 @@ function filterByDateRange<T extends Record<string, any>>(
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Quick Stats for Overview
-const getQuickStats = (tasksCount: number = 0, feedbackCount: number = 0, purchaseRequestCount: number = 0, purchaseRequestPendingCount: number = 0, workPlanCount: number = 0, overtimeCount: number = 0, overtimePendingCount: number = 0, evaluationPendingCount: number = 0, reportUnreadCount: number = 0) => [
-  { label: "Mua hàng", value: purchaseRequestCount.toString(), change: `Chờ duyệt: ${purchaseRequestPendingCount}`, icon: <ShoppingCart className="h-4 w-4" />, color: "text-blue-600", bgColor: "bg-blue-50", clickable: true, type: 'purchaseRequests' },
-  { label: "Nhiệm vụ", value: tasksCount.toString(), change: `${tasksCount} nhiệm vụ`, icon: <CheckSquare className="h-4 w-4" />, color: "text-green-600", bgColor: "bg-green-50", clickable: true, type: 'tasks' },
+type DeltaInfo = { delta: number; pct: number; show: boolean } | null;
+const getQuickStats = (
+  tasksCount: number = 0,
+  feedbackCount: number = 0,
+  purchaseRequestCount: number = 0,
+  purchaseRequestPendingCount: number = 0,
+  workPlanCount: number = 0,
+  overtimeCount: number = 0,
+  overtimePendingCount: number = 0,
+  evaluationPendingCount: number = 0,
+  reportUnreadCount: number = 0,
+  purchaseDelta: DeltaInfo = null,
+  tasksDelta: DeltaInfo = null,
+) => [
+  { label: "Mua hàng", value: purchaseRequestCount.toString(), change: `Chờ duyệt: ${purchaseRequestPendingCount}`, icon: <ShoppingCart className="h-4 w-4" />, color: "text-blue-600", bgColor: "bg-blue-50", clickable: true, type: 'purchaseRequests', delta: purchaseDelta },
+  { label: "Nhiệm vụ", value: tasksCount.toString(), change: `${tasksCount} nhiệm vụ`, icon: <CheckSquare className="h-4 w-4" />, color: "text-green-600", bgColor: "bg-green-50", clickable: true, type: 'tasks', delta: tasksDelta },
   { label: "Kế hoạch", value: (workPlanCount + overtimeCount).toString(), change: `TC chờ duyệt: ${overtimePendingCount}`, icon: <Calendar className="h-4 w-4" />, color: overtimePendingCount > 0 ? "text-red-600" : "text-purple-600", bgColor: overtimePendingCount > 0 ? "bg-red-50" : "bg-purple-50", clickable: true, type: 'plans' },
   { label: "Góp ý & KK", value: feedbackCount.toString(), change: `${feedbackCount} góp ý`, icon: <AlertTriangle className="h-4 w-4" />, color: "text-orange-600", bgColor: "bg-orange-50", clickable: true, type: 'feedbacks' },
   { label: "Đánh giá", value: "", change: `${evaluationPendingCount} chưa đánh giá`, icon: <Award className="h-4 w-4" />, color: "text-purple-600", bgColor: "bg-purple-50", clickable: true, type: 'evaluation' },
