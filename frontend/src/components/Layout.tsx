@@ -35,7 +35,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       />
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-1">
+        <header className="bg-white shadow-sm border-b border-gray-200 px-4 sm:px-6 py-1">
           <div className="relative flex items-center justify-between">
             {/* Toggle button - positioned to the left */}
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -72,8 +72,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </header>
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-y-auto p-6">
+        {/* Main Content — Dashboard1 uses -m-6 to escape this padding (kept intentionally; Dashboard1 handles its own responsive offset separately) */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           <Suspense fallback={
             <div className="flex items-center justify-center h-64">
               <Loader2 className="w-8 h-8 animate-spin text-blue-600" />

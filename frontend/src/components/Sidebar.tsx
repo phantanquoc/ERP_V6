@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Users, ClipboardList, ShieldCheck, Briefcase, Calculator, ShoppingCart, Factory, Wrench, Settings, ChevronDown, ChevronRight, ChevronLeft, ScanFace, BookOpen, History, Bell, BarChart2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { hasModuleAccess, hasSubModuleAccess, isAdmin } from '../utils/permissions';
 import { useQuery } from '@tanstack/react-query';
@@ -100,6 +100,23 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
     }));
   };
 
+  const handleGroupKeyDown = useCallback((e: React.KeyboardEvent, path: string) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      navigate(path);
+      if (!collapsed) toggleExpand(path);
+    }
+  }, [navigate, collapsed]);
+
+  useEffect(() => {
+    if (!mobileOpen || !onMobileClose) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onMobileClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [mobileOpen, onMobileClose]);
+
   const allMenuItems = [
     { path: '/dashboard', name: 'Dashboard', icon: <LayoutDashboard size={20} />, subItems: [], module: 'dashboard' },
     { path: '/common', name: 'Chung', icon: <Users size={20} />, subItems: [], module: 'common' },
@@ -169,7 +186,7 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
           </span>
           <button
             onClick={onToggle}
-            className={`p-1.5 rounded-lg hover:bg-gray-100 transition-colors shrink-0 ${collapsed ? '' : 'absolute right-3'}`}
+            className={`p-1.5 rounded-lg hover:bg-gray-100 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${collapsed ? '' : 'absolute right-3'}`}
             title={collapsed ? 'Mở menu' : 'Thu gọn menu'}
             aria-label={collapsed ? 'Mở menu' : 'Thu gọn menu'}
           >
@@ -192,6 +209,7 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
                   {item.subItems.length === 0 ? (
                     <Link
                       to={item.path}
+                      aria-current={active ? 'page' : undefined}
                       className={`flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group border-l-2 ${
                         active
                           ? `${activeBg} text-gray-900 font-semibold`
@@ -207,7 +225,11 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
                   ) : (
                     <>
                       <div
-                        className={`flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 cursor-pointer group border-l-2 ${
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={!!expandedItems[item.path]}
+                        onKeyDown={(e) => handleGroupKeyDown(e, item.path)}
+                        className={`flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 cursor-pointer group border-l-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
                           active
                             ? `${activeBg} text-gray-900 font-semibold`
                             : 'border-transparent text-gray-700 hover:bg-gray-50 hover:text-gray-900'
@@ -249,6 +271,7 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
                               <li key={subItem.path}>
                                 <Link
                                   to={subItem.path}
+                                  aria-current={location.pathname === subItem.path ? 'page' : undefined}
                                   className={`flex items-center px-3 py-2 rounded-md text-sm transition-all duration-200 ${
                                     location.pathname === subItem.path
                                       ? 'text-gray-900 bg-gray-100'
@@ -276,6 +299,7 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
         <div className="border-t border-gray-200 p-2 space-y-1">
           <Link
             to="/my-history"
+            aria-current={location.pathname === '/my-history' ? 'page' : undefined}
             className={`flex items-center px-3 py-2.5 rounded-lg text-sm transition-all duration-200 ${
               location.pathname === '/my-history'
                 ? 'bg-gray-100 text-gray-900'
@@ -289,6 +313,7 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
 
           <Link
             to="/my-notifications"
+            aria-current={location.pathname === '/my-notifications' ? 'page' : undefined}
             className={`relative flex items-center px-3 py-2.5 rounded-lg text-sm transition-all duration-200 ${
               location.pathname === '/my-notifications'
                 ? 'bg-gray-100 text-gray-900'
@@ -309,6 +334,7 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
 
           <Link
             to="/huong-dan"
+            aria-current={location.pathname === '/huong-dan' ? 'page' : undefined}
             className={`flex items-center px-3 py-2.5 rounded-lg text-sm transition-all duration-200 ${
               location.pathname === '/huong-dan'
                 ? 'bg-gray-100 text-gray-900'
@@ -323,6 +349,7 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
           {user && (user.role === UserRole.ADMIN || user.role === UserRole.DEPARTMENT_HEAD) && (
             <Link
               to="/dashboard/evaluation-calibration"
+              aria-current={location.pathname === '/dashboard/evaluation-calibration' ? 'page' : undefined}
               className={`flex items-center px-3 py-2.5 rounded-lg text-sm transition-all duration-200 ${
                 location.pathname === '/dashboard/evaluation-calibration'
                   ? 'bg-gray-100 text-gray-900'
@@ -339,6 +366,7 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
             <>
               <Link
                 to="/diemdanh/admin"
+                aria-current={location.pathname === '/diemdanh/admin' ? 'page' : undefined}
                 className={`flex items-center px-3 py-2.5 rounded-lg text-sm transition-all duration-200 ${
                   location.pathname === '/diemdanh/admin'
                     ? 'bg-gray-100 text-gray-900'
@@ -351,6 +379,7 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
               </Link>
               <Link
                 to="/system-settings"
+                aria-current={location.pathname === '/system-settings' ? 'page' : undefined}
                 className={`flex items-center px-3 py-2.5 rounded-lg text-sm transition-all duration-200 ${
                   location.pathname === '/system-settings'
                     ? 'bg-gray-100 text-gray-900'

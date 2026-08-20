@@ -4,8 +4,33 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  safelist: [
+    { pattern: /hover:border-.*/ },
+    { pattern: /bg-.*-50/ },
+    { pattern: /text-.*-(500|600)/ },
+    { pattern: /border-.*-(200|300|400|500)/ },
+  ],
   theme: {
     extend: {
+      colors: {
+        primary: '#2563EB',
+        primaryHover: '#1D4ED8',
+        success: '#10B981',
+        warning: '#F59E0B',
+        danger: '#EF4444',
+        info: '#06B6D4',
+      },
+      borderRadius: {
+        sm: '6px',
+        md: '8px',
+        lg: '12px',
+        xl: '16px',
+      },
+      boxShadow: {
+        card: '0 1px 3px rgba(0,0,0,0.08)',
+        cardHover: '0 4px 12px rgba(0,0,0,0.10)',
+        floating: '0 8px 24px rgba(0,0,0,0.12)',
+      },
       typography: {
         DEFAULT: {
           css: {
