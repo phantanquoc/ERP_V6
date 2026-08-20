@@ -585,7 +585,7 @@ const FaceKioskPageV2: React.FC = () => {
     return (
       <div className="fixed inset-0 bg-black flex flex-col items-center justify-center cursor-pointer" onClick={wakeUp}>
         <div className="flex flex-col items-center gap-4 opacity-30">
-          <div className="border-2 border-white/60 border-dashed rounded-full animate-pulse"
+          <div className="border border-white/60 border-dashed rounded-full animate-pulse"
             style={{ width: 'min(180px, 25vw)', height: 'min(220px, 30vh)' }} />
           <p className="text-white text-lg font-light tracking-widest uppercase">Nhấn để bật lại</p>
           <p className="text-white/50 text-sm">{currentTime.toLocaleTimeString('vi-VN')}</p>
@@ -600,7 +600,7 @@ const FaceKioskPageV2: React.FC = () => {
       {dimmed && !sleeping && (
         <div className="absolute inset-0 z-50 bg-black flex flex-col items-center justify-center transition-opacity duration-[2000ms]">
           <div className="flex flex-col items-center gap-6 opacity-40">
-            <div className="border-2 border-white/60 border-dashed rounded-full animate-pulse"
+            <div className="border border-white/60 border-dashed rounded-full animate-pulse"
               style={{ width: 'min(220px, 30vw)', height: 'min(280px, 38vh)' }} />
             <p className="text-white text-xl font-light tracking-widest uppercase">Chế độ chờ</p>
             <p className="text-white/50 text-sm">{currentTime.toLocaleTimeString('vi-VN')}</p>
@@ -659,7 +659,7 @@ const FaceKioskPageV2: React.FC = () => {
       {kioskState === 'waiting' && facePos === 'none' && !spoofDetected && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
           <div className="flex flex-col items-center">
-            <div className="border-2 border-white/50 border-dashed rounded-full animate-pulse"
+            <div className="border border-white/50 border-dashed rounded-full animate-pulse"
               style={{ width: 'min(320px, 40vw)', height: 'min(420px, 55vh)' }} />
             <p className="mt-4 text-white/70 text-base font-medium tracking-wide drop-shadow">
               Đặt khuôn mặt vào khung
@@ -756,7 +756,7 @@ const FaceKioskPageV2: React.FC = () => {
       {kioskState === 'result' && result && (
         <div className={`absolute inset-0 z-30 flex flex-col items-center justify-center ${overlayBg[result.type]} bg-opacity-90 backdrop-blur-sm px-6`}>
           {overlayIcon[result.type]}
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mt-6 text-center drop-shadow-lg">{result.title}</h2>
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mt-6 text-center drop-shadow-sm">{result.title}</h2>
           {result.employee && (
             <p className="text-xl sm:text-2xl md:text-3xl text-white/90 mt-4 font-semibold text-center drop-shadow max-w-3xl">{result.employee}</p>
           )}

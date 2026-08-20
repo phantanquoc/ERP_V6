@@ -105,7 +105,7 @@ const Login: React.FC = () => {
 
         <div className="hidden lg:flex flex-col justify-between h-full min-h-screen p-12 xl:p-16 relative z-10">
           <div className="flex items-center gap-3">
-            <img src="/abf-logo.png" alt="An Binh Foods" className="h-16 w-auto drop-shadow-lg" />
+            <img src="/abf-logo.png" alt="An Binh Foods" className="h-16 w-auto drop-shadow-sm" />
           </div>
 
           <div className="max-w-lg">
@@ -161,7 +161,7 @@ const Login: React.FC = () => {
             <span className="text-xs font-semibold uppercase tracking-wider">Cổng nội bộ ABF</span>
           </div>
 
-          <h2 className="text-3xl font-bold text-slate-900">Đăng nhập tài khoản</h2>
+          <h2 className="text-2xl font-bold text-slate-900">Đăng nhập tài khoản</h2>
           <p className="mt-2 text-sm text-slate-500">
             Sử dụng email hoặc mã nhân viên do quản trị viên cấp.
           </p>

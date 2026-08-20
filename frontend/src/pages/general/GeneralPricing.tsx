@@ -121,7 +121,7 @@ const GeneralPricing = () => {
       {/* Header */}
       <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-2 flex items-center">
+          <h1 className="text-2xl font-bold text-gray-800 mb-2 flex items-center">
             <Calculator className="w-8 h-8 text-blue-600 mr-3" />
             Phòng giá thành
           </h1>
@@ -132,7 +132,7 @@ const GeneralPricing = () => {
           <select
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             {Array.from({ length: 12 }, (_, i) => (
               <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
@@ -141,7 +141,7 @@ const GeneralPricing = () => {
           <select
             value={selectedYear}
             onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             {Array.from({ length: 4 }, (_, i) => {
               const y = new Date().getFullYear() - 3 + i;
@@ -156,7 +156,7 @@ const GeneralPricing = () => {
 
       {/* Overview — 2 rows: 3 funnel + 2 ops */}
       {isError && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between">
           <span className="text-sm text-red-700">Không tải được tổng quan. Thử lại.</span>
           <button
             onClick={() => refetch()}
@@ -172,7 +172,7 @@ const GeneralPricing = () => {
         {/* Card 1: YCBG funnel */}
         <div
           onClick={() => setActiveTab('requests')}
-          className="bg-white rounded-lg shadow p-3 border border-gray-300 hover:shadow-md hover:border-blue-400 transition-all cursor-pointer"
+          className="bg-white rounded-lg shadow p-3 border border-gray-200 hover:shadow-md hover:border-blue-400 transition-all cursor-pointer"
         >
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-bold flex items-center text-gray-800">
@@ -224,7 +224,7 @@ const GeneralPricing = () => {
         {/* Card 2: BaoGia grouped */}
         <div
           onClick={() => setActiveTab('quotes')}
-          className="bg-white rounded-lg shadow p-3 border border-gray-300 hover:shadow-md hover:border-green-400 transition-all cursor-pointer"
+          className="bg-white rounded-lg shadow p-3 border border-gray-200 hover:shadow-md hover:border-green-400 transition-all cursor-pointer"
         >
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-bold flex items-center text-gray-800">
@@ -273,7 +273,7 @@ const GeneralPricing = () => {
         {/* Card 3: DonHang — total + VND + prod/pay */}
         <div
           onClick={() => setActiveTab('orders')}
-          className="bg-white rounded-lg shadow p-3 border border-gray-300 hover:shadow-md hover:border-purple-400 transition-all cursor-pointer"
+          className="bg-white rounded-lg shadow p-3 border border-gray-200 hover:shadow-md hover:border-purple-400 transition-all cursor-pointer"
         >
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-bold flex items-center text-gray-800">
@@ -341,7 +341,7 @@ const GeneralPricing = () => {
         {/* Card 4: ChiPhi */}
         <div
           onClick={() => setActiveTab('costs')}
-          className="bg-white rounded-lg shadow p-3 border border-gray-300 hover:shadow-md hover:border-orange-400 transition-all cursor-pointer lg:col-span-2"
+          className="bg-white rounded-lg shadow p-3 border border-gray-200 hover:shadow-md hover:border-orange-400 transition-all cursor-pointer lg:col-span-2"
         >
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-bold flex items-center text-gray-800">
@@ -392,7 +392,7 @@ const GeneralPricing = () => {
         </div>
 
         {/* Card 5: ChoDuyet & CanhBao */}
-        <div className="bg-white rounded-lg shadow p-3 border border-gray-300 hover:shadow-md hover:border-red-300 transition-all lg:col-span-1">
+        <div className="bg-white rounded-lg shadow p-3 border border-gray-200 hover:shadow-md hover:border-red-300 transition-all lg:col-span-1">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-bold flex items-center text-gray-800">
               <AlertTriangle className="w-4 h-4 mr-1.5 text-red-500" />
@@ -476,7 +476,7 @@ const GeneralPricing = () => {
                 className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200'
                 }`}
               >
                 {tab.icon}

@@ -48,7 +48,7 @@ const ForgotPassword: React.FC = () => {
 
         <div className="hidden lg:flex flex-col justify-between h-full min-h-screen p-12 xl:p-16 relative z-10">
           <div className="flex items-center gap-3">
-            <img src="/abf-logo.png" alt="An Binh Foods" className="h-16 w-auto drop-shadow-lg" />
+            <img src="/abf-logo.png" alt="An Binh Foods" className="h-16 w-auto drop-shadow-sm" />
           </div>
 
           <div className="max-w-lg">
@@ -104,7 +104,7 @@ const ForgotPassword: React.FC = () => {
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-100">
                 <CheckCircle2 className="h-7 w-7 text-green-600" />
               </div>
-              <h2 className="mt-6 text-3xl font-bold text-slate-900 text-center">Yêu cầu đã được gửi</h2>
+              <h2 className="mt-6 text-2xl font-bold text-slate-900 text-center">Yêu cầu đã được gửi</h2>
               <p className="mt-3 text-sm text-slate-500 text-center leading-relaxed">
                 Yêu cầu đặt lại mật khẩu đã được chuyển đến quản trị viên. Vui lòng liên hệ Admin để nhận mật khẩu mới.
               </p>
@@ -152,7 +152,7 @@ const ForgotPassword: React.FC = () => {
                 <span className="text-xs font-semibold uppercase tracking-wider">Khôi phục tài khoản</span>
               </div>
 
-              <h2 className="text-3xl font-bold text-slate-900">Quên mật khẩu?</h2>
+              <h2 className="text-2xl font-bold text-slate-900">Quên mật khẩu?</h2>
               <p className="mt-2 text-sm text-slate-500">
                 Nhập email hoặc mã nhân viên. Yêu cầu đặt lại sẽ được gửi tới quản trị viên.
               </p>

@@ -149,7 +149,7 @@ function clearDraft(key: string): void {
 
 const NotActivatedScreen: React.FC = () => (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-    <div className="bg-white rounded-xl shadow-sm border p-8 max-w-md w-full text-center">
+    <div className="bg-white rounded-lg shadow-sm border p-8 max-w-md w-full text-center">
       <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
       <h2 className="text-lg font-semibold text-gray-800 mb-2">Phiên chưa được kích hoạt</h2>
       <p className="text-gray-600">Nhờ admin mở lại trang này từ hệ thống ERP.</p>
@@ -159,7 +159,7 @@ const NotActivatedScreen: React.FC = () => (
 
 const ExpiredScreen: React.FC = () => (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-    <div className="bg-white rounded-xl shadow-sm border p-8 max-w-md w-full text-center">
+    <div className="bg-white rounded-lg shadow-sm border p-8 max-w-md w-full text-center">
       <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
       <h2 className="text-lg font-semibold text-gray-800 mb-2">Phiên hết hạn</h2>
       <p className="text-gray-600">Nhờ admin mở lại trang này từ hệ thống ERP.</p>
@@ -195,7 +195,7 @@ const NumericField: React.FC<NumericFieldProps> = ({ label, value, onChange, uni
       min={min}
       max={max}
       readOnly={readOnly}
-      className={`w-full min-h-[52px] px-4 py-2 border border-gray-300 rounded-xl text-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+      className={`w-full min-h-[52px] px-4 py-2 border border-gray-200 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
         readOnly ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''
       }`}
       value={value === 0 ? '' : value}
@@ -570,7 +570,7 @@ const ProductionSystemOperationEntry: React.FC = () => {
             value={deviceKeyInput}
             onChange={(e) => setDeviceKeyInput(e.target.value)}
             placeholder="Dán device key..."
-            className="w-full min-h-[48px] px-4 py-3 border border-gray-300 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full min-h-[48px] px-4 py-3 border border-gray-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button
             disabled={!deviceKeyInput.trim()}
@@ -578,7 +578,7 @@ const ProductionSystemOperationEntry: React.FC = () => {
               setDeviceKey(deviceKeyInput.trim());
               setDeviceKeyInput('');
             }}
-            className="w-full min-h-[48px] bg-blue-600 text-white rounded-xl font-medium disabled:opacity-40"
+            className="w-full min-h-[48px] bg-blue-600 text-white rounded-lg font-medium disabled:opacity-40"
           >
             Xác nhận
           </button>
@@ -595,7 +595,7 @@ const ProductionSystemOperationEntry: React.FC = () => {
                 value={deviceName}
                 onChange={(e) => setDeviceName(e.target.value)}
                 placeholder="VD: Tablet Kho 1"
-                className="w-full min-h-[48px] px-4 py-3 border border-gray-300 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-full min-h-[48px] px-4 py-3 border border-gray-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-green-500"
               />
               <button
                 disabled={!deviceName.trim() || registering}
@@ -617,7 +617,7 @@ const ProductionSystemOperationEntry: React.FC = () => {
                     setRegistering(false);
                   }
                 }}
-                className="w-full min-h-[48px] bg-green-600 text-white rounded-xl font-medium disabled:opacity-40 flex items-center justify-center gap-2"
+                className="w-full min-h-[48px] bg-green-600 text-white rounded-lg font-medium disabled:opacity-40 flex items-center justify-center gap-2"
               >
                 {registering && <Loader2 className="w-4 h-4 animate-spin" />}
                 Đăng ký & kích hoạt
@@ -694,7 +694,7 @@ const ProductionSystemOperationEntry: React.FC = () => {
                 type="button"
                 onClick={handleChangeOperator}
                 title="Đổi người thực hiện"
-                className="flex items-center gap-1.5 min-h-[44px] px-3 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium border border-gray-300"
+                className="flex items-center gap-1.5 min-h-[44px] px-3 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium border border-gray-200"
               >
                 <User className="w-4 h-4" />
                 <span className="hidden sm:inline">Đổi người</span>
@@ -703,7 +703,7 @@ const ProductionSystemOperationEntry: React.FC = () => {
                 type="button"
                 onClick={handleChangeShift}
                 title="Đổi ca làm việc"
-                className="flex items-center gap-1.5 min-h-[44px] px-3 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium border border-gray-300"
+                className="flex items-center gap-1.5 min-h-[44px] px-3 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium border border-gray-200"
               >
                 <CalendarClock className="w-4 h-4" />
                 <span className="hidden sm:inline">Đổi ca</span>
@@ -719,11 +719,11 @@ const ProductionSystemOperationEntry: React.FC = () => {
                 type="date"
                 value={productionDate}
                 onChange={(e) => setProductionDate(e.target.value)}
-                className="min-h-[44px] px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="min-h-[44px] px-3 py-2 border border-gray-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <button
                 onClick={() => setProductionDate(todayStr())}
-                className="min-h-[44px] px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-200"
+                className="min-h-[44px] px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-200"
               >
                 Hôm nay
               </button>
@@ -769,7 +769,7 @@ const ProductionSystemOperationEntry: React.FC = () => {
                 <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
               </div>
             ) : batchesError ? (
-              <div className="text-center py-12 bg-white rounded-xl border">
+              <div className="text-center py-12 bg-white rounded-lg border">
                 <AlertTriangle className="w-10 h-10 text-red-400 mx-auto mb-3" />
                 <p className="text-gray-700 font-medium">Không tải được danh sách mã chiên</p>
                 <p className="text-sm text-gray-500 mt-1 mb-4">
@@ -783,7 +783,7 @@ const ProductionSystemOperationEntry: React.FC = () => {
                 </button>
               </div>
             ) : filteredBatches.length === 0 ? (
-              <div className="text-center py-12 bg-white rounded-xl border">
+              <div className="text-center py-12 bg-white rounded-lg border">
                 <p className="text-gray-500">
                   Không có mã chiên cho Ca {selectedShift} ngày {formatDateVN(productionDate)}.
                 </p>
@@ -825,7 +825,7 @@ const ProductionSystemOperationEntry: React.FC = () => {
                 <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
               </div>
             ) : machineRows.length === 0 ? (
-              <div className="text-center py-12 bg-white rounded-xl border">
+              <div className="text-center py-12 bg-white rounded-lg border">
                 <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto mb-3" />
                 <p className="text-gray-600">Chưa có máy nào được tạo dòng cho mã chiên này.</p>
                 <p className="text-sm text-gray-400 mt-1">Vui lòng liên hệ admin.</p>
@@ -851,7 +851,7 @@ const ProductionSystemOperationEntry: React.FC = () => {
                         onClick={() => op.machineSystemId && handleSelectMachine(op.machineSystemId)}
                         className={`relative min-h-[110px] px-5 py-4 rounded-2xl border shadow-sm transition-all flex flex-col items-center justify-center gap-2 ${
                           locked
-                            ? 'bg-gray-50 border-gray-200 hover:border-gray-300'
+                            ? 'bg-gray-50 border-gray-200 hover:border-gray-200'
                             : 'bg-white border-gray-200 hover:border-blue-400 hover:bg-blue-50 hover:shadow-md'
                         }`}
                       >
@@ -887,7 +887,7 @@ const ProductionSystemOperationEntry: React.FC = () => {
                 <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
               </div>
             ) : !existingOperation ? (
-              <div className="text-center py-12 bg-white rounded-xl border">
+              <div className="text-center py-12 bg-white rounded-lg border">
                 <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto mb-3" />
                 <p className="text-gray-600">
                   Chưa có dòng thông số vận hành sẵn cho mã chiên và máy này.
@@ -900,7 +900,7 @@ const ProductionSystemOperationEntry: React.FC = () => {
               <>
                 {/* Context strip — 14 parameter fields with only a small grey breadcrumb
                     left the worker unsure which batch and machine they were filling in. */}
-                <div className="bg-white rounded-xl border px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+                <div className="bg-white rounded-lg border px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-1">
                   <span className="text-base font-bold text-gray-800">{selectedMaChien}</span>
                   {selectedBatch?.maSanPham && (
                     <span className="text-base font-semibold text-blue-700">{selectedBatch.maSanPham}</span>
@@ -920,7 +920,7 @@ const ProductionSystemOperationEntry: React.FC = () => {
 
                 {/* Locked banner — máy đang bảo trì/ngưng: chỉ xem, không sửa */}
                 {formLocked && (
-                  <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+                  <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-lg p-4">
                     <AlertTriangle className="w-6 h-6 text-amber-500 flex-shrink-0" />
                     <p className="text-sm text-amber-800">
                       Máy đang {selectedMachineStatus === 'BAO_TRI' ? 'bảo trì' : 'ngưng hoạt động'} —
@@ -931,13 +931,13 @@ const ProductionSystemOperationEntry: React.FC = () => {
 
                 {/* Draft indicator */}
                 {usingDraft && !formLocked && (
-                  <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-2">
+                  <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
                     <span className="text-sm text-blue-700">Đang dùng nháp chưa lưu</span>
                   </div>
                 )}
 
                 {/* Weight + total time */}
-                <section className="bg-white rounded-xl border p-4 space-y-4">
+                <section className="bg-white rounded-lg border p-4 space-y-4">
                   <h3 className="text-base font-semibold text-gray-700">Thông tin chung</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <NumericField
@@ -970,7 +970,7 @@ const ProductionSystemOperationEntry: React.FC = () => {
                   const limitND = PRODUCTION_LIMITS[keyNhietDo as keyof typeof PRODUCTION_LIMITS];
                   const limitAS = PRODUCTION_LIMITS[keyApSuat as keyof typeof PRODUCTION_LIMITS];
                   return (
-                    <section key={stage} className="bg-white rounded-xl border p-4 space-y-4">
+                    <section key={stage} className="bg-white rounded-lg border p-4 space-y-4">
                       <h3 className="text-base font-semibold text-gray-700">Giai đoạn {stage}</h3>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <NumericField
@@ -1022,7 +1022,7 @@ const ProductionSystemOperationEntry: React.FC = () => {
             <button
               type="button"
               onClick={handleBackToMachine}
-              className="min-h-[52px] px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 rounded-lg text-base font-medium flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-gray-400"
+              className="min-h-[52px] px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 rounded-lg text-base font-medium flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-gray-400"
             >
               <ArrowLeft className="w-5 h-5" />
               Quay lại

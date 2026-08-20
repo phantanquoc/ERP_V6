@@ -558,7 +558,7 @@ const PurchasingMaterials = () => {
           <select
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(Number(e.target.value))}
-            className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             {Array.from({ length: 12 }, (_, i) => (
               <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
@@ -567,7 +567,7 @@ const PurchasingMaterials = () => {
           <select
             value={selectedYear}
             onChange={(e) => setSelectedYear(Number(e.target.value))}
-            className="border border-gray-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             {Array.from({ length: 4 }, (_, i) => {
               const y = 2023 + i;
@@ -582,7 +582,7 @@ const PurchasingMaterials = () => {
         {/* Card NCC */}
         <div
           onClick={() => setActiveTab('suppliers')}
-          className="bg-white rounded-xl shadow-lg border-2 border-transparent hover:border-blue-400 hover:shadow-xl transition-all cursor-pointer p-5"
+          className="bg-white rounded-lg shadow-sm border border-transparent hover:border-blue-400 hover:shadow-sm transition-all cursor-pointer p-5"
         >
           <div className="flex items-center gap-3 mb-3">
             <div className="p-2 bg-blue-100 rounded-lg">
@@ -590,7 +590,7 @@ const PurchasingMaterials = () => {
             </div>
             <h3 className="font-semibold text-gray-800">Nhà cung cấp</h3>
           </div>
-          <div className="text-3xl font-bold text-gray-900 mb-2">{cardSupplierStats.total}</div>
+          <div className="text-2xl font-bold text-gray-900 mb-2">{cardSupplierStats.total}</div>
           <div className="flex gap-4 text-sm">
             <span className="text-green-600">Đang cung cấp: {cardSupplierStats.active}</span>
             <span className="text-red-600">Ngừng: {cardSupplierStats.inactive}</span>
@@ -600,7 +600,7 @@ const PurchasingMaterials = () => {
         {/* Card Yeu cau mua hang (NVL) */}
         <div
           onClick={() => setActiveTab('purchaseRequestList')}
-          className="bg-white rounded-xl shadow-lg border-2 border-transparent hover:border-green-400 hover:shadow-xl transition-all cursor-pointer p-5"
+          className="bg-white rounded-lg shadow-sm border border-transparent hover:border-green-400 hover:shadow-sm transition-all cursor-pointer p-5"
         >
           <div className="flex items-center gap-3 mb-3">
             <div className="p-2 bg-green-100 rounded-lg">
@@ -608,7 +608,7 @@ const PurchasingMaterials = () => {
             </div>
             <h3 className="font-semibold text-gray-800">Yêu cầu mua hàng (NVL)</h3>
           </div>
-          <div className="text-3xl font-bold text-gray-900 mb-2">{cardPRStats.total}</div>
+          <div className="text-2xl font-bold text-gray-900 mb-2">{cardPRStats.total}</div>
           <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
             <span className="text-orange-600">Chờ báo giá: {cardPRStats.choBaoGia}</span>
             <span className="text-yellow-600">Chờ duyệt: {cardPRStats.choDuyet}</span>
@@ -634,7 +634,7 @@ const PurchasingMaterials = () => {
               className={`px-3 sm:px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
                 activeTab === tab.id
                   ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200'
               }`}
             >
               {tab.icon}
@@ -658,7 +658,7 @@ const PurchasingMaterials = () => {
                       placeholder="Tìm kiếm nhà cung cấp..."
                       value={supplierSearch}
                       onChange={(e) => setSupplierSearch(e.target.value)}
-                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 w-full sm:w-64"
+                      className="pl-10 pr-4 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 w-full sm:w-64"
                     />
                   </div>
                   <button
@@ -837,7 +837,7 @@ const PurchasingMaterials = () => {
                       placeholder="Tìm kiếm yêu cầu mua hàng..."
                       value={purchaseRequestSearch}
                       onChange={(e) => setPurchaseRequestSearch(e.target.value)}
-                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 w-full sm:w-64"
+                      className="pl-10 pr-4 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 w-full sm:w-64"
                     />
                   </div>
                   <button
@@ -1000,7 +1000,7 @@ const PurchasingMaterials = () => {
                   <button
                     onClick={() => setPage(prev => Math.max(prev - 1, 1))}
                     disabled={purchaseRequestPage === 1}
-                    className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-3 py-1 border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Trước
                   </button>
@@ -1010,7 +1010,7 @@ const PurchasingMaterials = () => {
                   <button
                     onClick={() => setPage(prev => Math.min(prev + 1, purchaseRequestTotalPages))}
                     disabled={purchaseRequestPage === purchaseRequestTotalPages}
-                    className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-3 py-1 border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Sau
                   </button>
@@ -1022,7 +1022,7 @@ const PurchasingMaterials = () => {
         {/* Detail Modal */}
         {isDetailModalOpen && selectedItem && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-2 sm:mx-4 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-lg shadow-sm max-w-4xl w-full mx-2 sm:mx-4 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
               <div className="p-4 sm:p-6">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-2xl font-bold text-gray-800">Chi tiết thông tin</h2>
@@ -1050,7 +1050,7 @@ const PurchasingMaterials = () => {
                 <div className="flex justify-end gap-4 mt-6">
                   <button
                     onClick={closeDetailModal}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                    className="px-4 py-2 border border-gray-200 rounded-md text-gray-700 hover:bg-gray-50"
                   >
                     Đóng
                   </button>
@@ -1066,7 +1066,7 @@ const PurchasingMaterials = () => {
         {/* Purchase Request Detail Modal */}
         {selectedPurchaseRequest && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-2 sm:mx-4 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-lg shadow-sm max-w-4xl w-full mx-2 sm:mx-4 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
               <div className="p-4 sm:p-6">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-2xl font-bold text-gray-800">Chi tiết yêu cầu mua hàng</h2>
@@ -1209,7 +1209,7 @@ const PurchasingMaterials = () => {
                 <div className="flex justify-end gap-4 mt-6">
                   <button
                     onClick={closePurchaseRequestDetail}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                    className="px-4 py-2 border border-gray-200 rounded-md text-gray-700 hover:bg-gray-50"
                   >
                     Đóng
                   </button>
@@ -1222,7 +1222,7 @@ const PurchasingMaterials = () => {
         {/* Xử lý yêu cầu mua hàng Modal */}
         {editingPurchaseRequest && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl md:max-w-4xl lg:max-w-5xl mx-2 sm:mx-4 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-lg shadow-sm w-full max-w-2xl md:max-w-4xl lg:max-w-5xl mx-2 sm:mx-4 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
               <form onSubmit={handleEditSubmit} className="p-4 sm:p-6">
                 {/* Header */}
                 <div className="flex justify-between items-center mb-5">
@@ -1368,7 +1368,7 @@ const PurchasingMaterials = () => {
                           ngayDuyet: newStatus === 'Đã duyệt' ? (prev.ngayDuyet || new Date().toISOString()) : prev.ngayDuyet,
                         }));
                       }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                     >
                       <option value="Chờ duyệt">Chờ duyệt</option>
                       <option value="Đã duyệt">Đã duyệt</option>
@@ -1440,7 +1440,7 @@ const PurchasingMaterials = () => {
                                   <select
                                     value={it.nhaCungCapId || ''}
                                     onChange={(e) => updateEditItem(idx, { nhaCungCapId: e.target.value || null })}
-                                    className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
+                                    className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
                                   >
                                     <option value="">— Chọn NCC —</option>
                                     {suppliers.map((s) => (
@@ -1456,7 +1456,7 @@ const PurchasingMaterials = () => {
                                     value={it.giaDuKien ?? ''}
                                     onChange={(e) => updateEditItem(idx, { giaDuKien: e.target.value ? parseFloat(e.target.value) : null })}
                                     placeholder="0"
-                                    className="w-full px-2 py-1 border border-gray-300 rounded text-sm text-right focus:outline-none focus:ring-1 focus:ring-green-500"
+                                    className="w-full px-2 py-1 border border-gray-200 rounded text-sm text-right focus:outline-none focus:ring-1 focus:ring-green-500"
                                   />
                                 </td>
                                 <td className="px-2 py-2 text-right font-medium text-green-700">
@@ -1498,7 +1498,7 @@ const PurchasingMaterials = () => {
                       onChange={(e) => setEditFormData({ ...editFormData, ghiChuMuaHang: e.target.value })}
                       rows={3}
                       placeholder="Ghi chú nội bộ của phòng thu mua..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                     />
                   </div>
 
@@ -1518,7 +1518,7 @@ const PurchasingMaterials = () => {
                   <button
                     type="button"
                     onClick={closeEditPurchaseRequest}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                    className="px-4 py-2 border border-gray-200 rounded-md text-gray-700 hover:bg-gray-50"
                   >
                     Hủy
                   </button>
@@ -1602,7 +1602,7 @@ const PurchasingMaterials = () => {
         {/* Modal Thêm nhà cung cấp */}
         {isAddSupplierModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-lg shadow-sm max-w-3xl w-full max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
               <div className="p-4 sm:p-6 border-b flex justify-between items-center sticky top-0 bg-white">
                 <h2 className="text-xl font-semibold">Thêm nhà cung cấp mới</h2>
                 <button onClick={() => setIsAddSupplierModalOpen(false)} className="text-gray-500 hover:text-gray-700">
@@ -1671,7 +1671,7 @@ const PurchasingMaterials = () => {
                   </div>
                 </div>
                 <div className="flex justify-end gap-4 mt-6">
-                  <button type="button" onClick={() => setIsAddSupplierModalOpen(false)} className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Hủy</button>
+                  <button type="button" onClick={() => setIsAddSupplierModalOpen(false)} className="px-4 py-2 border border-gray-200 rounded-md text-gray-700 hover:bg-gray-50">Hủy</button>
                   <button type="submit" disabled={supplierFormLoading} className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50">
                     {supplierFormLoading ? 'Đang lưu...' : 'Thêm mới'}
                   </button>
@@ -1684,7 +1684,7 @@ const PurchasingMaterials = () => {
         {/* Modal Sửa nhà cung cấp */}
         {isEditSupplierModalOpen && editingSupplier && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-lg shadow-sm max-w-3xl w-full max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
               <div className="p-4 sm:p-6 border-b flex justify-between items-center sticky top-0 bg-white">
                 <h2 className="text-xl font-semibold">Sửa nhà cung cấp - {editingSupplier.maNhaCungCap}</h2>
                 <button onClick={() => { setIsEditSupplierModalOpen(false); setEditingSupplier(null); }} className="text-gray-500 hover:text-gray-700">
@@ -1749,7 +1749,7 @@ const PurchasingMaterials = () => {
                   </div>
                 </div>
                 <div className="flex justify-end gap-4 mt-6">
-                  <button type="button" onClick={() => { setIsEditSupplierModalOpen(false); setEditingSupplier(null); }} className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Hủy</button>
+                  <button type="button" onClick={() => { setIsEditSupplierModalOpen(false); setEditingSupplier(null); }} className="px-4 py-2 border border-gray-200 rounded-md text-gray-700 hover:bg-gray-50">Hủy</button>
                   <button type="submit" disabled={supplierFormLoading} className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50">
                     {supplierFormLoading ? 'Đang lưu...' : 'Lưu thay đổi'}
                   </button>
@@ -1762,11 +1762,11 @@ const PurchasingMaterials = () => {
         {/* Modal xác nhận xóa */}
         {deleteConfirmId && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="bg-white rounded-lg shadow-sm max-w-md w-full p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Xác nhận xóa</h3>
               <p className="text-gray-600 mb-6">Bạn có chắc chắn muốn xóa nhà cung cấp này? Hành động này không thể hoàn tác.</p>
               <div className="flex justify-end gap-4">
-                <button onClick={() => setDeleteConfirmId(null)} className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Hủy</button>
+                <button onClick={() => setDeleteConfirmId(null)} className="px-4 py-2 border border-gray-200 rounded-md text-gray-700 hover:bg-gray-50">Hủy</button>
                 <button onClick={() => handleDeleteSupplier(deleteConfirmId)} className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">Xóa</button>
               </div>
             </div>
@@ -1776,7 +1776,7 @@ const PurchasingMaterials = () => {
         {/* Generic confirm modal — replaces window.confirm across the page */}
         {confirmAction && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="bg-white rounded-lg shadow-sm max-w-md w-full p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-3">{confirmAction.title}</h3>
               <p className="text-sm text-gray-600 mb-6 whitespace-pre-line">{confirmAction.message}</p>
               <div className="flex justify-end gap-3">
@@ -1784,7 +1784,7 @@ const PurchasingMaterials = () => {
                   <button
                     onClick={() => { if (!confirmLoading) setConfirmAction(null); }}
                     disabled={confirmLoading}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+                    className="px-4 py-2 border border-gray-200 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-40"
                   >
                     Hủy
                   </button>

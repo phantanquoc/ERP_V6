@@ -656,14 +656,14 @@ const FaceAdminPage: React.FC = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
           {/* ── Employee list ────────────────────────────────────────────── */}
-          <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-3 border-b border-gray-200 flex gap-2">
               <input
                 type="text"
                 placeholder="Tìm theo tên / mã NV..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="flex-1 bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-400"
+                className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-400"
               />
               <button onClick={loadEmployees} className="text-gray-500 hover:text-blue-600 transition-colors px-1">
                 <RefreshCw className="w-4 h-4" />
@@ -717,14 +717,14 @@ const FaceAdminPage: React.FC = () => {
           {/* ── Enroll panel ─────────────────────────────────────────────── */}
           <div className="lg:col-span-3 flex flex-col gap-4">
             {!selected ? (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col items-center justify-center h-96 text-gray-500">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col items-center justify-center h-96 text-gray-500">
                 <User className="w-20 h-20 mb-3 text-gray-300" />
                 <p className="text-lg">Chọn nhân viên từ danh sách</p>
               </div>
             ) : (
               <>
                 {/* Employee info */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-bold text-gray-900">{selected.fullName}</h2>
                     <p className="text-sm text-gray-500">{selected.employeeCode} · {selected.email}</p>
@@ -779,7 +779,7 @@ const FaceAdminPage: React.FC = () => {
 
                 {/* ── Camera + auto-capture ─────────────────────────────────── */}
                 {enrollState === 'capturing' && (
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                     {/* Pose instruction */}
                     <div className="px-4 sm:px-5 pt-4 pb-3 flex flex-col sm:flex-row sm:items-center gap-3">
                       <span className="text-4xl">{pose.emoji}</span>
@@ -799,7 +799,7 @@ const FaceAdminPage: React.FC = () => {
                     </div>
 
                     {/* Camera view */}
-                    <div className="relative bg-black mx-3 sm:mx-4 mb-3 rounded-xl overflow-hidden max-h-[60vh]" style={{ aspectRatio: '4/3' }}>
+                    <div className="relative bg-black mx-3 sm:mx-4 mb-3 rounded-lg overflow-hidden max-h-[60vh]" style={{ aspectRatio: '4/3' }}>
                       <video
                         ref={videoRef} muted playsInline autoPlay
                         className="w-full h-full object-cover"
@@ -811,7 +811,7 @@ const FaceAdminPage: React.FC = () => {
                         style={{ transform: 'scaleX(-1)' }}
                       />
                       {ovalState === 'flash' && (
-                        <div className="absolute inset-0 bg-white opacity-40 pointer-events-none rounded-xl animate-ping" />
+                        <div className="absolute inset-0 bg-white opacity-40 pointer-events-none rounded-lg animate-ping" />
                       )}
                     </div>
 
@@ -854,9 +854,9 @@ const FaceAdminPage: React.FC = () => {
 
                 {/* ── Idle: start button ─────────────────────────────────────── */}
                 {enrollState === 'idle' && capturedImages.length === 0 && (
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 text-center">
+                  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-center">
                     {enrollMode === 'variation' && (
-                      <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 flex items-center gap-2">
+                      <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 flex items-center gap-2">
                         <Glasses className="w-4 h-4 shrink-0" /> Chế độ <strong>thêm biến thể</strong> — ảnh cũ được giữ lại.
                       </div>
                     )}
@@ -873,7 +873,7 @@ const FaceAdminPage: React.FC = () => {
                     </p>
                     <button
                       onClick={startCamera}
-                      className="px-8 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 flex items-center gap-2 mx-auto transition"
+                      className="px-8 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 flex items-center gap-2 mx-auto transition"
                     >
                       <Camera className="w-4 h-4" /> Bắt đầu đăng ký
                     </button>
@@ -882,7 +882,7 @@ const FaceAdminPage: React.FC = () => {
 
                 {/* ── Submitting ────────────────────────────────────────────── */}
                 {enrollState === 'submitting' && (
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-10 text-center">
+                  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-10 text-center">
                     <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
                     <p className="text-gray-700">Đang xử lý & lưu embedding khuôn mặt...</p>
                   </div>
@@ -890,7 +890,7 @@ const FaceAdminPage: React.FC = () => {
 
                 {/* ── Done / Error ───────────────────────────────────────────── */}
                 {(enrollState === 'done' || enrollState === 'error') && enrollMsg && (
-                  <div className={`rounded-xl p-5 flex items-start gap-3 ${
+                  <div className={`rounded-lg p-5 flex items-start gap-3 ${
                     enrollState === 'done'
                       ? 'bg-green-50 border border-green-200 text-green-800'
                       : 'bg-red-50 border border-red-200 text-red-800'
@@ -917,7 +917,7 @@ const FaceAdminPage: React.FC = () => {
       {user && isAdmin(user.department) && (
         <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
           {showKioskMenu && (
-            <div className="bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
               <button
                 onClick={async () => {
                   setShowKioskMenu(false);
@@ -981,7 +981,7 @@ const FaceAdminPage: React.FC = () => {
           )}
           <button
             onClick={() => setShowKioskMenu(prev => !prev)}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-3 rounded-full shadow-lg shadow-blue-600/30 transition-all hover:scale-105 font-medium"
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-3 rounded-full shadow-sm shadow-blue-600/30 transition-all hover:scale-105 font-medium"
           >
             <ScanFace className="w-5 h-5" />
             Tiến hành chấm công
