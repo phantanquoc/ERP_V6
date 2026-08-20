@@ -72,7 +72,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </header>
 
-        {/* Main Content — Dashboard1 uses -m-6 to escape this padding (kept intentionally; Dashboard1 handles its own responsive offset separately) */}
+        {/* Main Content — dashboards use -m-4 sm:-m-6 to escape this padding (responsive offset handled per page) */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           <Suspense fallback={
             <div className="flex items-center justify-center h-64">
