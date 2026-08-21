@@ -32,6 +32,7 @@ model Position {
   name                  String                   @unique
   description           String?
   category              PositionCategory         @default(OFFICE)
+  defaultRole           UserRole?
   createdAt             DateTime                 @default(now())
   updatedAt             DateTime                 @updatedAt
   employees             Employee[]
@@ -88,60 +89,60 @@ model PositionResponsibility {
 }
 
 model Employee {
-  id                       String                  @id @default(cuid())
-  userId                   String                  @unique
-  employeeCode             String                  @unique
-  gender                   Gender?
-  dateOfBirth              DateTime?
-  phoneNumber              String?
-  address                  String?
-  positionId               String?
-  positionLevelId          String?
-  subDepartmentId          String?
-  secondarySubDepartmentId String?
-  status                   EmployeeStatus          @default(ACTIVE)
-  hireDate                 DateTime
-  contractType             ContractType            @default(PERMANENT)
-  educationLevel           EmployeeEducationLevel?
-  specialization           String?
-  specialSkills            String?
-  baseSalary               Float
-  kpiLevel                 Float?
-  responsibilityCode       String?
-  weight                   Float?
-  height                   Float?
-  shirtSize                String?
-  pantSize                 String?
-  shoeSize                 String?
-  bankAccount              String?
-  lockerNumber             String?
-  notes                    String?
-  createdAt                DateTime                @default(now())
-  updatedAt                DateTime                @updatedAt
-  orders                   Order[]
-  quotationRequests        QuotationRequest[]
-  supplyRequests           SupplyRequest[]
-  attendances              Attendance[]
-  profile                  EmployeeProfile?
-  position                 Position?               @relation(fields: [positionId], references: [id])
-  positionLevel            PositionLevel?          @relation(fields: [positionLevelId], references: [id])
-  subDepartment            SubDepartment?          @relation(fields: [subDepartmentId], references: [id])
-  user                     User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  evaluations              Evaluation[]
-  inspections              Inspection[]
-  notifications            Notification[]
-  payrolls                 Payroll[]
-  responsibilities         Responsibility[]
-  dailyWorkReports         DailyWorkReport[]
-  leaveRequests            LeaveRequest[]
-  purchaseRequests         PurchaseRequest[]
-  suppliers                Supplier[]              @relation("SupplierCreatedBy")
-  faceProfile              FaceProfile?
-  lastFaceScanAt           DateTime?
-  kmDistance               Float?
-  leaveBalanceCarryOver    Float?
-  timesheetCells                TimesheetCell[]
-  monthlyTimesheetOverrides     MonthlyTimesheetOverride[]
+  id                        String                     @id @default(cuid())
+  userId                    String                     @unique
+  employeeCode              String                     @unique
+  gender                    Gender?
+  dateOfBirth               DateTime?
+  phoneNumber               String?
+  address                   String?
+  positionId                String?
+  positionLevelId           String?
+  subDepartmentId           String?
+  secondarySubDepartmentId  String?
+  status                    EmployeeStatus             @default(ACTIVE)
+  hireDate                  DateTime
+  contractType              ContractType               @default(PERMANENT)
+  educationLevel            EmployeeEducationLevel?
+  specialization            String?
+  specialSkills             String?
+  baseSalary                Float
+  kpiLevel                  Float?
+  responsibilityCode        String?
+  weight                    Float?
+  height                    Float?
+  shirtSize                 String?
+  pantSize                  String?
+  shoeSize                  String?
+  bankAccount               String?
+  lockerNumber              String?
+  notes                     String?
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  orders                    Order[]
+  quotationRequests         QuotationRequest[]
+  supplyRequests            SupplyRequest[]
+  attendances               Attendance[]
+  profile                   EmployeeProfile?
+  position                  Position?                  @relation(fields: [positionId], references: [id])
+  positionLevel             PositionLevel?             @relation(fields: [positionLevelId], references: [id])
+  subDepartment             SubDepartment?             @relation(fields: [subDepartmentId], references: [id])
+  user                      User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  evaluations               Evaluation[]
+  inspections               Inspection[]
+  notifications             Notification[]
+  payrolls                  Payroll[]
+  responsibilities          Responsibility[]
+  dailyWorkReports          DailyWorkReport[]
+  leaveRequests             LeaveRequest[]
+  purchaseRequests          PurchaseRequest[]
+  suppliers                 Supplier[]                 @relation("SupplierCreatedBy")
+  faceProfile               FaceProfile?
+  lastFaceScanAt            DateTime?
+  kmDistance                Float?
+  leaveBalanceCarryOver     Float?
+  timesheetCells            TimesheetCell[]
+  monthlyTimesheetOverrides MonthlyTimesheetOverride[]
 
   @@map("employees")
   @@schema("common")
@@ -175,38 +176,38 @@ model Responsibility {
 }
 
 model Evaluation {
-  id                    String                  @id @default(cuid())
-  employeeId            String
-  period                String
-  score                 Float
-  comment               String?
-  status                String                  @default("SELF_PENDING")
-  evaluatedBy1Id        String?                 @db.VarChar(30)
-  evaluatedBy2Id        String?                 @db.VarChar(30)
-  acknowledgedAt        DateTime?
-  acknowledgedBy        String?                 @db.VarChar(30)
+  id                  String                   @id @default(cuid())
+  employeeId          String
+  period              String
+  score               Float
+  comment             String?
+  status              String                   @default("SELF_PENDING")
+  evaluatedBy1Id      String?                  @db.VarChar(30)
+  evaluatedBy2Id      String?                  @db.VarChar(30)
+  acknowledgedAt      DateTime?
+  acknowledgedBy      String?                  @db.VarChar(30)
   // New fields (enhance-employee-evaluation)
-  mode                  EvaluationMode          @default(FULL)
-  commentEmployee       String?
-  commentSup1           String?
-  commentSup2           String?
-  selfScorePercentage   Float?
-  sup1Percentage        Float?
-  sup2Percentage        Float?
-  appealComment         String?
-  appealResponse        String?
-  appealedAt            DateTime?
-  appealRespondedAt     DateTime?
-  appealResponderId     String?                 @db.VarChar(30)
-  createdAt             DateTime                @default(now())
-  updatedAt             DateTime                @updatedAt
-  details               EvaluationDetail[]
-  employee              Employee                @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  goals                 EvaluationGoal[]
-  idpItems              EvaluationIdpItem[]
-  auditLogs             EvaluationAuditLog[]
-  peerInvites           PeerFeedbackInvite[]
-  peerFeedbacks         EvaluationPeerFeedback[]
+  mode                EvaluationMode           @default(FULL)
+  commentEmployee     String?
+  commentSup1         String?
+  commentSup2         String?
+  selfScorePercentage Float?
+  sup1Percentage      Float?
+  sup2Percentage      Float?
+  appealComment       String?
+  appealResponse      String?
+  appealedAt          DateTime?
+  appealRespondedAt   DateTime?
+  appealResponderId   String?                  @db.VarChar(30)
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  details             EvaluationDetail[]
+  employee            Employee                 @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  goals               EvaluationGoal[]
+  idpItems            EvaluationIdpItem[]
+  auditLogs           EvaluationAuditLog[]
+  peerInvites         PeerFeedbackInvite[]
+  peerFeedbacks       EvaluationPeerFeedback[]
 
   @@unique([employeeId, period])
   @@map("evaluations")
@@ -602,37 +603,37 @@ model Attendance {
 }
 
 model WorkShift {
-  id                  String             @id @default(cuid())
-  name                String             @unique // e.g. "Ca 1", "Ca 2", "Ca 3", "Hành chính", "Văn phòng"
-  startTime           String // "HH:mm" — shift start (e.g. "06:00")
-  endTime             String // "HH:mm" — shift end (e.g. "14:00"); may be < startTime for overnight shifts
-  checkInWindowStart  String? // "HH:mm" — earliest scan accepted for this shift; null → fallback (startTime - 30m)
-  checkInWindowEnd    String? // "HH:mm" — latest scan accepted, half-open [start, end); null → fallback endTime
-  isActive            Boolean            @default(true)
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
-  overtimeItems       OvertimePlanItem[]
+  id                 String             @id @default(cuid())
+  name               String             @unique // e.g. "Ca 1", "Ca 2", "Ca 3", "Hành chính", "Văn phòng"
+  startTime          String // "HH:mm" — shift start (e.g. "06:00")
+  endTime            String // "HH:mm" — shift end (e.g. "14:00"); may be < startTime for overnight shifts
+  checkInWindowStart String? // "HH:mm" — earliest scan accepted for this shift; null → fallback (startTime - 30m)
+  checkInWindowEnd   String? // "HH:mm" — latest scan accepted, half-open [start, end); null → fallback endTime
+  isActive           Boolean            @default(true)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  overtimeItems      OvertimePlanItem[]
 
   @@map("work_shifts")
   @@schema("common")
 }
 
 model MaterialStandard {
-  id                  String                      @id @default(cuid())
-  maDinhMuc           String                      @unique
+  id                           String                      @id @default(cuid())
+  maDinhMuc                    String                      @unique
   // Tên thành phẩm đầu ra của định mức (nhãn UI: "Tên thành phẩm đầu ra")
-  tenDinhMuc          String
+  tenDinhMuc                   String
   // Sinh tự động từ loaiSanPham của item đầu vào → đầu ra, vd "Nguyên liệu → Thành phẩm".
   // Cache để filter/sort; tính lại mỗi lần ghi trong materialStandardService.
-  loaiDinhMuc         String?
+  loaiDinhMuc                  String?
   // Số kg nguyên liệu cần để tạo ra 1 kg thành phẩm, vd 4.5
   kgNguyenLieuTren1KgThanhPham Float?
-  ghiChu              String?
-  createdAt           DateTime                    @default(now())
-  updatedAt           DateTime                    @updatedAt
-  items               MaterialStandardItem[]
-  inputItems          MaterialStandardInputItem[] @relation("MaterialStandardInputItems")
-  productionProcesses ProductionProcess[]
+  ghiChu                       String?
+  createdAt                    DateTime                    @default(now())
+  updatedAt                    DateTime                    @updatedAt
+  items                        MaterialStandardItem[]
+  inputItems                   MaterialStandardInputItem[] @relation("MaterialStandardInputItems")
+  productionProcesses          ProductionProcess[]
 
   @@map("material_standards")
   @@schema("common")
@@ -972,9 +973,9 @@ enum HalfDayPeriod {
 }
 
 model RepairRequest {
-  id               Int                  @id @default(autoincrement())
-  ngayThang        DateTime             @default(now())
-  maYeuCau         String               @unique
+  id               Int                 @id @default(autoincrement())
+  ngayThang        DateTime            @default(now())
+  maYeuCau         String              @unique
   // @deprecated — kept for backward compatibility, use items relation instead
   tenHeThong       String? // Tên hệ thống/thiết bị
   // @deprecated — kept for backward compatibility, use items relation instead
@@ -983,17 +984,17 @@ model RepairRequest {
   loaiLoi          String? // Loại lỗi
   mucDoUuTien      String // Mức độ ưu tiên
   // @deprecated — kept for backward compatibility, use items relation instead
-  noiDungLoi       String?              @db.Text // Nội dung lỗi
-  ghiChu           String?              @db.Text
-  trangThai        RepairRequestStatus  @default(CHO_XU_LY) // Trạng thái
+  noiDungLoi       String?             @db.Text // Nội dung lỗi
+  ghiChu           String?             @db.Text
+  trangThai        RepairRequestStatus @default(CHO_XU_LY) // Trạng thái
   fileDinhKem      String? // File đính kèm
   createdById      String? // soft ref to auth.User.id — no FK constraint
   createdByName    String? // Tên người yêu cầu
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
 
-  items               RepairRequestItem[]
-  acceptanceHandovers AcceptanceHandover[]
+  items                   RepairRequestItem[]
+  acceptanceHandovers     AcceptanceHandover[]
   repairRequestStatusLogs RepairRequestStatusLog[]
 
   @@index([createdById])
@@ -1002,10 +1003,10 @@ model RepairRequest {
 }
 
 enum RepairRequestStatus {
-  CHO_XU_LY    // Chờ xử lý
+  CHO_XU_LY // Chờ xử lý
   DANG_SUA_CHUA // Đang sửa chữa
-  HOAN_THANH   // Hoàn thành
-  DA_HUY       // Đã hủy
+  HOAN_THANH // Hoàn thành
+  DA_HUY // Đã hủy
 
   @@schema("common")
 }
@@ -1091,42 +1092,42 @@ model AcceptanceHandoverItem {
 }
 
 model OvertimePlan {
-  id          String             @id @default(cuid())
-  ngayTao     DateTime           @default(now())
-  nguoiTaoId  String // User ID người tạo
-  noiDung     String // Nội dung công việc tăng ca
-  ghiChu      String?
-  files       String[]           @default([])
-  mucDoUuTien TaskPriority // Reuse TaskPriority enum
-  trangThai   OvertimePlanStatus @default(CHO_DUYET)
+  id           String             @id @default(cuid())
+  ngayTao      DateTime           @default(now())
+  nguoiTaoId   String // User ID người tạo
+  noiDung      String // Nội dung công việc tăng ca
+  ghiChu       String?
+  files        String[]           @default([])
+  mucDoUuTien  TaskPriority // Reuse TaskPriority enum
+  trangThai    OvertimePlanStatus @default(CHO_DUYET)
   nguoiDuyetId String? // User ID người duyệt/từ chối
-  ngayDuyet   DateTime?
-  lyDoTuChoi  String?            @db.Text
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  items       OvertimePlanItem[]
-  attendances Attendance[]
+  ngayDuyet    DateTime?
+  lyDoTuChoi   String?            @db.Text
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  items        OvertimePlanItem[]
+  attendances  Attendance[]
 
   @@map("overtime_plans")
   @@schema("common")
 }
 
 model OvertimePlanItem {
-  id               String       @id @default(cuid())
-  overtimePlanId   String
-  ngayTangCa       DateTime // Ngày thực hiện tăng ca
-  gioBatDau        String // Giờ bắt đầu (format "HH:mm")
-  gioKetThuc       String // Giờ kết thúc (format "HH:mm")
-  workShiftId      String? // FK to WorkShift (nullable, SetNull on delete)
-  workShiftName    String? // Snapshot of shift name at creation/update time
-  nguoiThamGiaIds  String[] // Array of user IDs tham gia tăng ca
-  ghiChuItem       String?
-  trangThaiTiepNhan Json        @default("{}") @db.JsonB // Map userId -> "CHUA_TIEP_NHAN" | "DA_TIEP_NHAN" | "TU_CHOI"
-  gioThucTe        Json        @default("{}") @db.JsonB // Map userId -> { gioVao, gioRa }
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-  overtimePlan     OvertimePlan @relation(fields: [overtimePlanId], references: [id], onDelete: Cascade)
-  workShift        WorkShift?   @relation(fields: [workShiftId], references: [id], onDelete: SetNull)
+  id                String       @id @default(cuid())
+  overtimePlanId    String
+  ngayTangCa        DateTime // Ngày thực hiện tăng ca
+  gioBatDau         String // Giờ bắt đầu (format "HH:mm")
+  gioKetThuc        String // Giờ kết thúc (format "HH:mm")
+  workShiftId       String? // FK to WorkShift (nullable, SetNull on delete)
+  workShiftName     String? // Snapshot of shift name at creation/update time
+  nguoiThamGiaIds   String[] // Array of user IDs tham gia tăng ca
+  ghiChuItem        String?
+  trangThaiTiepNhan Json         @default("{}") @db.JsonB // Map userId -> "CHUA_TIEP_NHAN" | "DA_TIEP_NHAN" | "TU_CHOI"
+  gioThucTe         Json         @default("{}") @db.JsonB // Map userId -> { gioVao, gioRa }
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  overtimePlan      OvertimePlan @relation(fields: [overtimePlanId], references: [id], onDelete: Cascade)
+  workShift         WorkShift?   @relation(fields: [workShiftId], references: [id], onDelete: SetNull)
 
   @@index([overtimePlanId])
   @@index([ngayTangCa])
@@ -1146,29 +1147,29 @@ enum OvertimePlanStatus {
 }
 
 model PayrollSettings {
-  id                    String   @id @default(cuid())
-  standardWorkDays      Int      @default(26)
+  id                     String   @id @default(cuid())
+  standardWorkDays       Int      @default(26)
   /// Giờ chuẩn một ngày công. Cùng với standardWorkDays tạo mẫu số để suy lương
   /// giờ từ lương tháng: hourlyRate = baseSalary / standardWorkDays / standardHoursPerDay.
-  standardHoursPerDay   Float    @default(8)
+  standardHoursPerDay    Float    @default(8)
   /// DEPRECATED — tiền OT phẳng (₫/giờ) dùng chung cho mọi nhân viên. Không thể
   /// đúng khi lương mỗi người một khác; giữ lại để không phá dữ liệu cũ. Tiền OT
   /// giờ suy từ lương từng người nhân hệ số otRate* bên dưới. Chỉ dùng làm fallback
   /// khi nhân viên chưa có baseSalary.
-  overtimeRate          Float    @default(0)
-  mealAllowancePerDay   Float    @default(0)
-  overtimeMealAllowance Float    @default(25000)
-  sundayMealAllowance   Float    @default(0)
-  fuelPricePerKm        Float    @default(0)
-  otRateWeekday         Float    @default(1.5)
-  otRateSunday          Float    @default(2)
-  otRateHoliday         Float    @default(3)
+  overtimeRate           Float    @default(0)
+  mealAllowancePerDay    Float    @default(0)
+  overtimeMealAllowance  Float    @default(25000)
+  sundayMealAllowance    Float    @default(0)
+  fuelPricePerKm         Float    @default(0)
+  otRateWeekday          Float    @default(1.5)
+  otRateSunday           Float    @default(2)
+  otRateHoliday          Float    @default(3)
   /// Selects which overtime figure payroll consumes. False (default) = planned
   /// hours, i.e. exactly the pre-change behaviour, so deploying moves no payslip.
   /// True = hours derived from the clock pair; a flagged participant-day pays zero.
-  useActualOvertimeHours Boolean @default(false)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  useActualOvertimeHours Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   @@map("payroll_settings")
   @@schema("common")
@@ -1221,15 +1222,15 @@ model FaceImage {
 
 // Event log cho adaptive replacement — observability
 model FaceAdaptiveEvent {
-  id            String    @id @default(cuid())
-  faceProfileId String
-  eventType     String // "inserted" | "replaced" | "rejected"
-  reason        String? // detail reason (low_quality, poison_risk, cap_reached, etc)
-  newQuality    Float?
-  replacedId    String? // FaceImage.id nếu là replace
+  id              String   @id @default(cuid())
+  faceProfileId   String
+  eventType       String // "inserted" | "replaced" | "rejected"
+  reason          String? // detail reason (low_quality, poison_risk, cap_reached, etc)
+  newQuality      Float?
+  replacedId      String? // FaceImage.id nếu là replace
   replacedQuality Float?
-  distToCentroid Float?
-  createdAt     DateTime  @default(now())
+  distToCentroid  Float?
+  createdAt       DateTime @default(now())
 
   @@index([faceProfileId, createdAt])
   @@index([eventType, createdAt])
@@ -1328,7 +1329,7 @@ model EvaluationGoal {
   orderIndex   Int
   title        String
   description  String?
-  targetPeriod String     // YYYY-MM — the next period this goal applies to
+  targetPeriod String // YYYY-MM — the next period this goal applies to
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   evaluation   Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
@@ -1355,7 +1356,7 @@ model EvaluationIdpItem {
 }
 
 model EvaluationAuditLog {
-  id                 String               @id @default(cuid())
+  id                 String                @id @default(cuid())
   evaluationId       String
   evaluationDetailId String?
   changedByUserId    String?
@@ -1363,9 +1364,9 @@ model EvaluationAuditLog {
   field              String
   oldValue           String?
   newValue           String?
-  createdAt          DateTime             @default(now())
-  evaluation         Evaluation           @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
-  evaluationDetail   EvaluationDetail?    @relation(fields: [evaluationDetailId], references: [id], onDelete: Cascade)
+  createdAt          DateTime              @default(now())
+  evaluation         Evaluation            @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  evaluationDetail   EvaluationDetail?     @relation(fields: [evaluationDetailId], references: [id], onDelete: Cascade)
 
   @@index([evaluationId, createdAt(sort: Desc)])
   @@index([evaluationDetailId])
@@ -1374,15 +1375,15 @@ model EvaluationAuditLog {
 }
 
 model PeerFeedbackInvite {
-  id             String          @id @default(cuid())
-  evaluationId   String
-  inviteeUserId  String
+  id              String           @id @default(cuid())
+  evaluationId    String
+  inviteeUserId   String
   invitedByUserId String
-  status         PeerInviteStatus @default(PENDING)
-  token          String           @unique
-  createdAt      DateTime         @default(now())
-  respondedAt    DateTime?
-  evaluation     Evaluation       @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  status          PeerInviteStatus @default(PENDING)
+  token           String           @unique
+  createdAt       DateTime         @default(now())
+  respondedAt     DateTime?
+  evaluation      Evaluation       @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
 
   @@unique([evaluationId, inviteeUserId])
   @@index([token])
