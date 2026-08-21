@@ -221,6 +221,12 @@ const QuickStatCard: React.FC<{
       </div>
     </div>
     <p className={`text-xs font-medium truncate mt-2 leading-none ${stat.color}`}>{stat.change}</p>
+    {stat.delta?.show && stat.delta.delta !== 0 && (
+      <span className={`inline-flex items-center gap-1 text-[11px] font-semibold mt-1 ${stat.delta.delta > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+        {stat.delta.delta > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+        {stat.delta.delta > 0 ? `↑${stat.delta.pct}%` : `↓${Math.abs(stat.delta.pct)}%`} vs kỳ trước
+      </span>
+    )}
   </div>
 ));
 QuickStatCard.displayName = 'QuickStatCard';

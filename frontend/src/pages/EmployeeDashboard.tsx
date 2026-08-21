@@ -138,6 +138,14 @@ const PersonalStatCard: React.FC<{ stat: any; onEvaluationClick?: () => void; on
         {stat.subtitle && (
           <p className="text-xs text-red-600 mt-1 sm:mt-2 font-medium leading-tight break-words line-clamp-2" title={stat.subtitle}>{stat.subtitle}</p>
         )}
+        {stat.hasNotification && stat.label === "Đánh giá" && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onEvaluationClick?.(); }}
+            className="mt-2 text-xs font-semibold text-red-600 hover:text-red-700 hover:underline"
+          >
+            Làm ngay →
+          </button>
+        )}
       </div>
       <div className={`hidden sm:flex p-3 rounded-lg bg-gradient-to-r ${stat.color} flex-shrink-0 ml-2`}>
         <div className="text-white">
@@ -568,24 +576,6 @@ const EmployeeDashboard: React.FC = () => {
             />
           ))}
         </div>
-
-        {/* Evaluation alerts lane */}
-        {latestEvaluationNotification && !latestEvaluationNotification.isRead && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center justify-between mb-6 sm:mb-8 gap-3">
-            <div className="flex items-center gap-2 min-w-0">
-              <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
-              <span className="text-sm font-medium text-red-800 break-words">
-                Bạn có đánh giá tháng {latestEvaluationNotification.period ? new Date(latestEvaluationNotification.period + '-01').toLocaleDateString('vi-VN', { month: 'numeric', year: 'numeric' }) : ''} chưa hoàn thành
-              </span>
-            </div>
-            <button
-              onClick={() => setIsEvaluationModalOpen(true)}
-              className="flex-shrink-0 text-sm font-semibold text-red-600 hover:text-red-700 hover:underline whitespace-nowrap"
-            >
-              Làm ngay →
-            </button>
-          </div>
-        )}
 
         {/* Main Content — vertical stack */}
         <div className="space-y-4 sm:space-y-8">
