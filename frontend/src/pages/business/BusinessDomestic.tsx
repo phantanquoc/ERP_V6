@@ -8,6 +8,7 @@ import {
   MessageCircle,
   Calendar
 } from 'lucide-react';
+import { PageHeader } from '../../design-system/PageHeader';
 import DomesticCustomerManagement from '../../components/DomesticCustomerManagement';
 import QuotationRequestManagement from '../../components/QuotationRequestManagement';
 import QuotationManagement from '../../components/QuotationManagement';
@@ -166,17 +167,12 @@ const BusinessDomestic = () => {
   ];
 
   return (
-    <div>
-      <div>
-        {/* Header */}
-        <div className="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800 mb-2 flex items-center">
-              <Home className="w-8 h-8 text-green-600 mr-3" />
-              Phòng KD Nội Địa
-            </h1>
-            <p className="text-gray-600">Quản lý khách hàng nội địa, đơn hàng trong nước và hợp đồng thương mại</p>
-          </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Phòng KD Nội Địa"
+        description="Quản lý khách hàng nội địa, đơn hàng trong nước và hợp đồng thương mại"
+        icon={<Home className="w-5 h-5 text-green-600" />}
+        actions={
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-gray-500" />
             <select
@@ -199,7 +195,8 @@ const BusinessDomestic = () => {
               })}
             </select>
           </div>
-        </div>
+        }
+      />
 
         {/* Overview Cards — shell.card + shell.cardInteractive; inner pills are static (no hover:scale) */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-5 mb-5">
@@ -379,7 +376,6 @@ const BusinessDomestic = () => {
             </div>
           )}
         </div>
-      </div>
     </div>
   );
 };

@@ -18,6 +18,7 @@ import ExportCostManagement from '../../components/ExportCostManagement';
 import OvertimePlanReviewTab from '../../components/general/pricing/OvertimePlanReviewTab';
 import PurchaseRequestReviewTab from '../../components/general/pricing/PurchaseRequestReviewTab';
 import { usePricingOverview } from '../../hooks/usePricingOverview';
+import PageHeader from '../../design-system/PageHeader';
 
 const VALID_TABS = ['requests', 'quotes', 'orders', 'costs', 'overtime-review', 'purchase-review'] as const;
 type TabType = typeof VALID_TABS[number];
@@ -117,42 +118,39 @@ const GeneralPricing = () => {
   );
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800 mb-2 flex items-center">
-            <Calculator className="w-8 h-8 text-blue-600 mr-3" />
-            Phòng giá thành
-          </h1>
-          <p className="text-gray-600">Quản lý yêu cầu báo giá, báo giá và đơn hàng</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-gray-500" />
-          <select
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {Array.from({ length: 12 }, (_, i) => (
-              <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
-            ))}
-          </select>
-          <select
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {Array.from({ length: 4 }, (_, i) => {
-              const y = new Date().getFullYear() - 3 + i;
-              return <option key={y} value={y}>{y}</option>;
-            })}
-          </select>
-          {isFetching && !isLoading && (
-            <span className="text-xs text-gray-400 ml-1">Đang cập nhật…</span>
-          )}
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Phòng giá thành"
+        description="Quản lý yêu cầu báo giá, báo giá và đơn hàng"
+        icon={<Calculator className="w-5 h-5 text-blue-600" />}
+        actions={
+          <div className="flex items-center gap-2 flex-wrap">
+            <Calendar className="w-4 h-4 text-gray-500" />
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {Array.from({ length: 12 }, (_, i) => (
+                <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
+              ))}
+            </select>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {Array.from({ length: 4 }, (_, i) => {
+                const y = new Date().getFullYear() - 3 + i;
+                return <option key={y} value={y}>{y}</option>;
+              })}
+            </select>
+            {isFetching && !isLoading && (
+              <span className="text-xs text-gray-400">Đang cập nhật…</span>
+            )}
+          </div>
+        }
+      />
 
       {/* Overview — 2 rows: 3 funnel + 2 ops */}
       {isError && (
