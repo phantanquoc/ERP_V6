@@ -1,5 +1,6 @@
 import webpush from 'web-push';
 import prisma from '@config/database';
+import logger from '@config/logger';
 
 // Initialize VAPID keys at module load time
 const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
@@ -68,8 +69,8 @@ class PushNotificationService {
             if (error?.statusCode === 404 || error?.statusCode === 410) {
               await prisma.pushSubscription
                 .delete({ where: { id: sub.id } })
-                .catch(() => {
-                  // Ignore errors during cleanup
+                .catch((err) => {
+                  logger.warn(`[PushNotificationService] Failed to clean up expired subscription ${sub.id}`, err);
                 });
             } else {
               console.error(

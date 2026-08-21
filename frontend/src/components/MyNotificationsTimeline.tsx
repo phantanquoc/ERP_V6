@@ -100,6 +100,8 @@ interface MyNotificationsTimelineProps {
   hasActiveFilters: boolean;
   onExpandYear: () => void;
   onClearFilters: () => void;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }
 
 const MyNotificationsTimeline: React.FC<MyNotificationsTimelineProps> = ({
@@ -114,6 +116,8 @@ const MyNotificationsTimeline: React.FC<MyNotificationsTimelineProps> = ({
   hasActiveFilters,
   onExpandYear,
   onClearFilters,
+  selectedIds,
+  onToggleSelect,
 }) => {
   // Per-day expansion state — resets when items reference changes
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
@@ -229,6 +233,8 @@ const MyNotificationsTimeline: React.FC<MyNotificationsTimelineProps> = ({
                     item={item}
                     onItemClick={onItemClick}
                     onDelete={onDelete}
+                    selected={selectedIds?.has(item.id)}
+                    onToggleSelect={onToggleSelect}
                   />
                 ))}
               </div>

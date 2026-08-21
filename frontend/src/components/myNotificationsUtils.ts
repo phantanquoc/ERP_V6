@@ -197,11 +197,11 @@ export function formatRelativeTime(dateStr: string): string {
   if (diffMinutes < 60) return `${diffMinutes} phút trước`;
   if (diffHours < 24) return `${diffHours} giờ trước`;
   if (diffDays === 1) return 'Hôm qua';
+  if (diffDays <= 6) return `${diffDays} ngày trước`;
+  if (diffDays <= 13) return '1 tuần trước';
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} tuần trước`;
 
-  const d = date.getDate().toString().padStart(2, '0');
-  const m = (date.getMonth() + 1).toString().padStart(2, '0');
-  const y = date.getFullYear();
-  return `${d}/${m}/${y}`;
+  return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 // ---- Deep-link resolver -------------------------------------------------
