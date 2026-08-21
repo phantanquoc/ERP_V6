@@ -1,8 +1,7 @@
+import { requireRule } from '@middlewares/requireRule';
 import { Router } from 'express';
 import supplierController from '../controllers/supplierController';
-import { authenticate, authorize } from '../middlewares/auth';
-import { UserRole } from '../types';
-
+import { authenticate } from '../middlewares/auth';
 const router = Router();
 
 router.use(authenticate);
@@ -103,7 +102,7 @@ router.get('/:id', supplierController.getSupplierById);
  *       400:
  *         description: Dữ liệu không hợp lệ
  */
-router.post('/', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), supplierController.createSupplier);
+router.post('/', requireRule('suppliers', 'CREATE'), supplierController.createSupplier);
 
 /**
  * @swagger
@@ -131,7 +130,7 @@ router.post('/', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), supplierCo
  *       404:
  *         description: Không tìm thấy nhà cung cấp
  */
-router.put('/:id', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), supplierController.updateSupplier);
+router.put('/:id', requireRule('suppliers', 'UPDATE'), supplierController.updateSupplier);
 
 /**
  * @swagger
@@ -153,7 +152,7 @@ router.put('/:id', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), supplier
  *       404:
  *         description: Không tìm thấy nhà cung cấp
  */
-router.delete('/:id', authorize(UserRole.ADMIN), supplierController.deleteSupplier);
+router.delete('/:id', requireRule('suppliers', 'DELETE'), supplierController.deleteSupplier);
 
 export default router;
 

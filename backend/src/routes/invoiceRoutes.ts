@@ -1,8 +1,7 @@
 import { Router } from 'express';
 import invoiceController from '@controllers/invoiceController';
-import { authenticate, authorize } from '@middlewares/auth';
-import { UserRole } from '@types';
-
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 const router = Router();
 
 // All routes require authentication
@@ -75,7 +74,7 @@ router.get('/export/excel', invoiceController.exportToExcel);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/generate-code', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), invoiceController.generateInvoiceNumber);
+router.get('/generate-code', requireRule('invoices', 'READ'), invoiceController.generateInvoiceNumber);
 
 /**
  * @swagger
@@ -124,7 +123,7 @@ router.get('/:id', invoiceController.getInvoiceById);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), invoiceController.createInvoice);
+router.post('/', requireRule('invoices', 'CREATE'), invoiceController.createInvoice);
 
 /**
  * @swagger
@@ -157,7 +156,7 @@ router.post('/', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), invoiceCon
  *       401:
  *         description: Không có quyền truy cập
  */
-router.put('/:id', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), invoiceController.updateInvoice);
+router.put('/:id', requireRule('invoices', 'UPDATE'), invoiceController.updateInvoice);
 
 /**
  * @swagger
@@ -182,7 +181,7 @@ router.put('/:id', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), invoiceC
  *       401:
  *         description: Không có quyền truy cập
  */
-router.delete('/:id', authorize(UserRole.ADMIN), invoiceController.deleteInvoice);
+router.delete('/:id', requireRule('invoices', 'DELETE'), invoiceController.deleteInvoice);
 
 export default router;
 

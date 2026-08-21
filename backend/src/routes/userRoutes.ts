@@ -1,9 +1,8 @@
 import { Router } from 'express';
 import userController from '@controllers/userController';
-import { authenticate, authorize } from '@middlewares/auth';
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 import { validate } from '@middlewares/validation';
-import { UserRole } from '@types';
-
 const router = Router();
 
 /**
@@ -112,7 +111,7 @@ router.patch('/profile', authenticate, (req, res, next) => userController.update
 router.post(
   '/',
   authenticate,
-  authorize(UserRole.ADMIN),
+  requireRule('users', 'CREATE'),
   validate([
     { field: 'email', type: 'string' },
     { field: 'password', type: 'string' },
@@ -140,7 +139,7 @@ router.post(
 router.get(
   '/',
   authenticate,
-  authorize(UserRole.ADMIN),
+  requireRule('users', 'READ'),
   (req, res, next) => userController.getAllUsers(req, res, next)
 );
 
@@ -170,7 +169,7 @@ router.get(
 router.get(
   '/:id',
   authenticate,
-  authorize(UserRole.ADMIN),
+  requireRule('users', 'READ'),
   (req, res, next) => userController.getUserById(req, res, next)
 );
 
@@ -191,7 +190,7 @@ router.get(
 router.post(
   '/recalculate-supervisors',
   authenticate,
-  authorize(UserRole.ADMIN),
+  requireRule('users', 'CREATE'),
   (req, res, next) => userController.recalculateSupervisors(req, res, next)
 );
 
@@ -227,7 +226,7 @@ router.post(
 router.post(
   '/:id/reset-password',
   authenticate,
-  authorize(UserRole.ADMIN),
+  requireRule('users', 'CREATE'),
   (req, res, next) => userController.adminResetPassword(req, res, next)
 );
 
@@ -272,7 +271,7 @@ router.post(
 router.patch(
   '/:id',
   authenticate,
-  authorize(UserRole.ADMIN),
+  requireRule('users', 'UPDATE'),
   validate([
     { field: 'firstName', type: 'string' },
     { field: 'lastName', type: 'string' },
@@ -308,7 +307,7 @@ router.patch(
 router.delete(
   '/:id',
   authenticate,
-  authorize(UserRole.ADMIN),
+  requireRule('users', 'DELETE'),
   (req, res, next) => userController.deleteUser(req, res, next)
 );
 

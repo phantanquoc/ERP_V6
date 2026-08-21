@@ -1,9 +1,7 @@
 import { Router } from 'express';
 import positionResponsibilityController from '@controllers/positionResponsibilityController';
-import { authenticate, authorize } from '@middlewares/auth';
-import { checkAccess } from '@middlewares/rbacAbac';
-import { UserRole } from '@types';
-
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 const router = Router();
 
 // All responsibility routes require authentication
@@ -11,7 +9,7 @@ router.use(authenticate);
 
 // Export must come before any parameterized routes
 router.get('/export.xlsx',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('position-responsibilities', 'EXPORT'),
   positionResponsibilityController.exportXlsx
 );
 
@@ -38,10 +36,7 @@ router.get('/export.xlsx',
  *         description: "Không tìm thấy chức vụ"
  */
 router.get('/:positionId/responsibilities',
-  checkAccess({
-    allowedRoles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD],
-    checkDepartment: true,
-  }),
+  requireRule('position-responsibilities', 'READ'),
   positionResponsibilityController.getAllResponsibilities
 );
 
@@ -68,15 +63,12 @@ router.get('/:positionId/responsibilities',
  *         description: "Không tìm thấy trách nhiệm"
  */
 router.get('/responsibility/:id',
-  checkAccess({
-    allowedRoles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD],
-    checkDepartment: true,
-  }),
+  requireRule('position-responsibilities', 'READ'),
   positionResponsibilityController.getResponsibilityById
 );
 
 router.get('/responsibility/:id/usage',
-  checkAccess({ allowedRoles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD], checkDepartment: true }),
+  requireRule('position-responsibilities', 'READ'),
   positionResponsibilityController.getResponsibilityUsage
 );
 
@@ -114,12 +106,12 @@ router.get('/responsibility/:id/usage',
  *         description: "Dữ liệu không hợp lệ"
  */
 router.post('/:positionId/responsibilities',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('position-responsibilities', 'CREATE'),
   positionResponsibilityController.createResponsibility
 );
 
 router.post('/:positionId/responsibilities/rescale',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('position-responsibilities', 'CREATE'),
   positionResponsibilityController.rescaleResponsibilityWeights
 );
 
@@ -157,7 +149,7 @@ router.post('/:positionId/responsibilities/rescale',
  *         description: "Không tìm thấy trách nhiệm"
  */
 router.patch('/responsibility/:id',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('position-responsibilities', 'UPDATE'),
   positionResponsibilityController.updateResponsibility
 );
 
@@ -184,7 +176,7 @@ router.patch('/responsibility/:id',
  *         description: "Không tìm thấy trách nhiệm"
  */
 router.delete('/responsibility/:id',
-  authorize(UserRole.ADMIN),
+  requireRule('position-responsibilities', 'DELETE'),
   positionResponsibilityController.deleteResponsibility
 );
 
@@ -219,7 +211,7 @@ router.delete('/responsibility/:id',
  *         description: "Chức vụ đích đã có tiêu chí đánh giá"
  */
 router.post('/:positionId/responsibilities/copy-from/:sourcePositionId',
-  authorize(UserRole.ADMIN),
+  requireRule('position-responsibilities', 'CREATE'),
   positionResponsibilityController.copyResponsibilitiesFrom
 );
 

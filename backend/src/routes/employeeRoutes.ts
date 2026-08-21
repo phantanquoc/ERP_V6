@@ -1,9 +1,7 @@
 import { Router } from 'express';
 import employeeController from '@controllers/employeeController';
-import { authenticate, authorize, deviceOrJwtAuth } from '@middlewares/auth';
-import { checkAccess } from '@middlewares/rbacAbac';
-import { UserRole } from '@types';
-
+import { authenticate, deviceOrJwtAuth } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 const router = Router();
 
 // Kiosk-accessible endpoint — accept device key OR JWT (must be before router.use(authenticate))
@@ -46,9 +44,7 @@ router.use(authenticate);
  *         description: Không có quyền truy cập
  */
 router.get('/',
-  checkAccess({
-    allowedRoles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE],
-  }),
+  requireRule('employees', 'EXPORT'),
   employeeController.getAllEmployees
 );
 
@@ -75,10 +71,7 @@ router.get('/',
  *         description: Không có quyền truy cập
  */
 router.get('/export/excel',
-  checkAccess({
-    allowedRoles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD],
-    checkDepartment: true,
-  }),
+  requireRule('employees', 'EXPORT'),
   employeeController.exportToExcel
 );
 
@@ -107,10 +100,7 @@ router.get('/export/excel',
  *         description: Không tìm thấy nhân viên
  */
 router.get('/:id',
-  checkAccess({
-    allowedRoles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD],
-    checkDepartment: true,
-  }),
+  requireRule('employees', 'READ'),
   employeeController.getEmployeeById
 );
 
@@ -139,10 +129,7 @@ router.get('/:id',
  *         description: Không tìm thấy nhân viên
  */
 router.get('/code/:code',
-  checkAccess({
-    allowedRoles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD],
-    checkDepartment: true,
-  }),
+  requireRule('employees', 'READ'),
   employeeController.getEmployeeByCode
 );
 
@@ -174,7 +161,7 @@ router.get('/code/:code',
  *         description: Không có quyền thực hiện
  */
 router.post('/generate-code',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('employees', 'CREATE'),
   employeeController.generateEmployeeCode
 );
 
@@ -214,7 +201,7 @@ router.post('/generate-code',
  *         description: Không có quyền thực hiện
  */
 router.post('/',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('employees', 'CREATE'),
   employeeController.createEmployee
 );
 
@@ -256,10 +243,7 @@ router.post('/',
  *         description: Không tìm thấy nhân viên
  */
 router.patch('/:id',
-  checkAccess({
-    allowedRoles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD],
-    checkDepartment: true,
-  }),
+  requireRule('employees', 'UPDATE'),
   employeeController.updateEmployee
 );
 
@@ -287,6 +271,6 @@ router.patch('/:id',
  *       404:
  *         description: Không tìm thấy nhân viên
  */
-router.delete('/:id', authorize(UserRole.ADMIN), employeeController.deleteEmployee);
+router.delete('/:id', requireRule('employees', 'DELETE'), employeeController.deleteEmployee);
 
 export default router;

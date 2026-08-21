@@ -1,8 +1,7 @@
 import { Router } from 'express';
 import processTypeController from '@controllers/processTypeController';
-import { authenticate, authorize } from '@middlewares/auth';
-import { UserRole } from '@types';
-
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 const router = Router();
 
 // All routes require authentication
@@ -15,19 +14,19 @@ router.get('/:id', processTypeController.getById);
 // Mutations — ADMIN or DEPARTMENT_HEAD (controller enforces DEPT_QUALITY via assertDepartment)
 router.post(
   '/',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('process-types', 'READ'),
   processTypeController.create
 );
 
 router.patch(
   '/:id',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('process-types', 'UPDATE'),
   processTypeController.update
 );
 
 router.delete(
   '/:id',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('process-types', 'DELETE'),
   processTypeController.remove
 );
 

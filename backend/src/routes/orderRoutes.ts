@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import orderController from '@controllers/orderController';
-import { authenticate, authorize } from '@middlewares/auth';
-import { UserRole } from '@types';
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 import { createSingleUploadMiddleware } from '@middlewares/upload';
 
 const router = Router();
@@ -137,7 +137,7 @@ router.get('/:id', orderController.getOrderById);
  */
 router.post(
   '/from-quotation',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('orders', 'CREATE'),
   uploadOrder,
   orderController.createOrderFromQuotation
 );
@@ -182,7 +182,7 @@ router.post(
  */
 router.patch(
   '/:id',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('orders', 'UPDATE'),
   uploadOrder,
   orderController.updateOrder
 );
@@ -214,7 +214,7 @@ router.patch(
  */
 router.patch(
   '/items/:itemId',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('orders', 'UPDATE'),
   orderController.updateOrderItem
 );
 
@@ -245,7 +245,7 @@ router.patch(
  */
 router.delete(
   '/:id',
-  authorize(UserRole.ADMIN),
+  requireRule('orders', 'DELETE'),
   orderController.deleteOrder
 );
 

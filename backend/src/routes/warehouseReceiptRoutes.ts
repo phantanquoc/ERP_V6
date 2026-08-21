@@ -9,23 +9,22 @@ import {
   markReceiptPrinted,
   exportReceiptXlsxHandler,
 } from '../controllers/warehouseReceiptController';
-import { authenticate, authorize } from '@middlewares/auth';
-import { UserRole } from '@types';
-
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 const router = express.Router();
 
 router.use(authenticate);
 
 router.get('/generate-code', generateReceiptCode);
 
-router.post('/', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD), createWarehouseReceipt);
+router.post('/', requireRule('warehouse-receipts', 'READ'), createWarehouseReceipt);
 
 router.get('/', getAllWarehouseReceipts);
 router.get('/:id', getWarehouseReceiptById);
 router.get('/:id/export-xlsx', exportReceiptXlsxHandler);
-router.post('/:id/mark-printed', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD), markReceiptPrinted);
+router.post('/:id/mark-printed', requireRule('warehouse-receipts', 'CREATE'), markReceiptPrinted);
 
-router.put('/:id', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD), updateWarehouseReceipt);
-router.delete('/:id', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD), deleteWarehouseReceipt);
+router.put('/:id', requireRule('warehouse-receipts', 'READ'), updateWarehouseReceipt);
+router.delete('/:id', requireRule('warehouse-receipts', 'READ'), deleteWarehouseReceipt);
 
 export default router;

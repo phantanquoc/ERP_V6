@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '@middlewares/auth';
-import { checkAccess } from '@middlewares/rbacAbac';
+import { requireRule } from '@middlewares/requireRule';
 import { getMyHistoryHandler, getUserHistoryHandler } from '@controllers/myHistoryController';
 
 const router = Router();
@@ -26,10 +26,7 @@ router.get(
 router.get(
   '/users/:userId/history',
   authenticate,
-  checkAccess({
-    allowedRoles: ['DEPARTMENT_HEAD', 'ADMIN'],
-    checkDepartment: true,
-  }),
+  requireRule('my-history', 'EXPORT'),
   getUserHistoryHandler,
 );
 

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import internalInspectionController from '@controllers/internalInspectionController';
-import { authenticate, authorize } from '@middlewares/auth';
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 
 const router = Router();
 
@@ -40,7 +41,7 @@ const router = Router();
 router.get(
   '/',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  requireRule('internal-inspections', 'READ'),
   (req, res, next) => internalInspectionController.getAllInspections(req, res, next)
 );
 
@@ -69,7 +70,7 @@ router.get(
 router.get(
   '/export/excel',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  requireRule('internal-inspections', 'READ'),
   (req, res, next) => internalInspectionController.exportToExcel(req, res, next)
 );
 
@@ -102,7 +103,7 @@ router.get(
 router.get(
   '/:id',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'),
+  requireRule('internal-inspections', 'READ'),
   (req, res, next) => internalInspectionController.getInspectionById(req, res, next)
 );
 
@@ -134,7 +135,7 @@ router.get(
 router.post(
   '/',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  requireRule('internal-inspections', 'CREATE'),
   (req, res, next) => internalInspectionController.createInspection(req, res, next)
 );
 
@@ -175,7 +176,7 @@ router.post(
 router.patch(
   '/:id',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  requireRule('internal-inspections', 'UPDATE'),
   (req, res, next) => internalInspectionController.updateInspection(req, res, next)
 );
 
@@ -208,7 +209,7 @@ router.patch(
 router.delete(
   '/:id',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  requireRule('internal-inspections', 'DELETE'),
   (req, res, next) => internalInspectionController.deleteInspection(req, res, next)
 );
 

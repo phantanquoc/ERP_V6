@@ -177,6 +177,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsLoading(true);
       const authResponse = await AuthService.login(credentials);
       queryClient.clear();
+      // Fetch Rule Matrix permissions after login for frontend gating
+      try {
+        const { default: ruleService } = await import('../services/ruleService');
+        const perms = await ruleService.getMyPermissions();
+        const { setCachedPermissions } = await import('../utils/permissions');
+        setCachedPermissions(perms as any);
+      } catch { /* permissions fetch is non-fatal */ }
       setUser(authResponse.user);
     } catch (error) {
       console.error('Login error:', error);

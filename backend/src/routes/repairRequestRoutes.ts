@@ -1,9 +1,8 @@
 import { Router } from 'express';
 import repairRequestController from '@controllers/repairRequestController';
-import { authenticate, authorize } from '@middlewares/auth';
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 import { createSingleUploadMiddleware } from '@middlewares/upload';
-import { UserRole } from '@types';
-
 const router = Router();
 
 // Upload middleware for repair requests (single file)
@@ -133,7 +132,7 @@ router.get('/:id', authenticate, repairRequestController.getRepairRequestById);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/', authenticate, authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE), uploadRepairRequest, repairRequestController.createRepairRequest);
+router.post('/', authenticate, requireRule('repair-requests', 'CREATE'), uploadRepairRequest, repairRequestController.createRepairRequest);
 
 /**
  * @swagger
@@ -169,7 +168,7 @@ router.post('/', authenticate, authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEA
  *       404:
  *         description: Không tìm thấy yêu cầu sửa chữa
  */
-router.put('/:id', authenticate, authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD), uploadRepairRequest, repairRequestController.updateRepairRequest);
+router.put('/:id', authenticate, requireRule('repair-requests', 'UPDATE'), uploadRepairRequest, repairRequestController.updateRepairRequest);
 
 /**
  * @swagger
@@ -194,17 +193,17 @@ router.put('/:id', authenticate, authorize(UserRole.ADMIN, UserRole.DEPARTMENT_H
  *       404:
  *         description: Không tìm thấy yêu cầu sửa chữa
  */
-router.delete('/:id', authenticate, authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), repairRequestController.deleteRepairRequest);
+router.delete('/:id', authenticate, requireRule('repair-requests', 'DELETE'), repairRequestController.deleteRepairRequest);
 
 /**
  * POST /:id/start-repair — CHO_XU_LY → DANG_SUA_CHUA
  */
-router.post('/:id/start-repair', authenticate, authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD), repairRequestController.startRepair);
+router.post('/:id/start-repair', authenticate, requireRule('repair-requests', 'DELETE'), repairRequestController.startRepair);
 
 /**
  * POST /:id/cancel — any non-terminal → DA_HUY
  */
-router.post('/:id/cancel', authenticate, authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE), repairRequestController.cancel);
+router.post('/:id/cancel', authenticate, requireRule('repair-requests', 'CREATE'), repairRequestController.cancel);
 
 /**
  * GET /:id/status-history — audit log

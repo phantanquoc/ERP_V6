@@ -1,8 +1,7 @@
 import { Router } from 'express';
 import materialStandardController from '@controllers/materialStandardController';
-import { authenticate, authorize } from '@middlewares/auth';
-import { UserRole } from '@types';
-
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 const router = Router();
 
 // All material standard routes require authentication
@@ -43,7 +42,7 @@ router.use(authenticate);
  */
 router.get(
   '/',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  requireRule('material-standards', 'READ'),
   materialStandardController.getAllMaterialStandards
 );
 
@@ -75,7 +74,7 @@ router.get(
  */
 router.get(
   '/:id',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  requireRule('material-standards', 'READ'),
   materialStandardController.getMaterialStandardById
 );
 
@@ -98,7 +97,7 @@ router.get(
  */
 router.post(
   '/generate-code',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('material-standards', 'CREATE'),
   materialStandardController.generateMaterialStandardCode
 );
 
@@ -127,7 +126,7 @@ router.post(
  */
 router.post(
   '/',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('material-standards', 'CREATE'),
   materialStandardController.createMaterialStandard
 );
 
@@ -165,7 +164,7 @@ router.post(
  */
 router.patch(
   '/:id',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('material-standards', 'UPDATE'),
   materialStandardController.updateMaterialStandard
 );
 
@@ -197,7 +196,7 @@ router.patch(
  */
 router.delete(
   '/:id',
-  authorize(UserRole.ADMIN),
+  requireRule('material-standards', 'DELETE'),
   materialStandardController.deleteMaterialStandard
 );
 

@@ -1,7 +1,7 @@
 import express from 'express';
+import { requireRule } from '@middlewares/requireRule';
 import productionProcessController from '../controllers/productionProcessController';
-import { authenticate, authorize } from '../middlewares/auth';
-import { UserRole } from '../types';
+import { authenticate } from '../middlewares/auth';
 import { createSingleUploadMiddleware } from '../middlewares/upload';
 
 const uploadProductionProcessFile = createSingleUploadMiddleware('production-processes');
@@ -65,7 +65,7 @@ router.get('/', productionProcessController.getAllProductionProcesses);
  */
 router.post(
   '/',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  requireRule('production-processes', 'CREATE'),
   productionProcessController.createProductionProcess
 );
 
@@ -182,7 +182,7 @@ router.get('/:id', productionProcessController.getProductionProcessById);
  */
 router.put(
   '/:id',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  requireRule('production-processes', 'UPDATE'),
   productionProcessController.updateProductionProcess
 );
 
@@ -236,7 +236,7 @@ router.post('/:id/sync', productionProcessController.syncFromTemplate);
  */
 router.delete(
   '/:id',
-  authorize(UserRole.ADMIN),
+  requireRule('production-processes', 'DELETE'),
   productionProcessController.deleteProductionProcess
 );
 

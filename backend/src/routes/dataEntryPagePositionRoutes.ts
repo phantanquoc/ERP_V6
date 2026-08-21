@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { authenticate, authorize } from '@middlewares/auth';
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 import dataEntryPagePositionController from '@controllers/dataEntryPagePositionController';
 
 const router = Router();
@@ -8,21 +9,21 @@ const router = Router();
 router.get(
   '/pages/:pageKey/positions',
   authenticate,
-  authorize('ADMIN'),
+  requireRule('data-entry-page-positions', 'READ'),
   dataEntryPagePositionController.listByPage
 );
 
 router.post(
   '/pages/:pageKey/positions',
   authenticate,
-  authorize('ADMIN'),
+  requireRule('data-entry-page-positions', 'CREATE'),
   dataEntryPagePositionController.addMapping
 );
 
 router.delete(
   '/pages/:pageKey/positions/:positionId',
   authenticate,
-  authorize('ADMIN'),
+  requireRule('data-entry-page-positions', 'DELETE'),
   dataEntryPagePositionController.removeMapping
 );
 

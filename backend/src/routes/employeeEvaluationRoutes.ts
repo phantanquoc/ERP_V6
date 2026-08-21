@@ -4,10 +4,8 @@ import path from 'path';
 import fs from 'fs';
 import rateLimit from 'express-rate-limit';
 import employeeEvaluationController from '@controllers/employeeEvaluationController';
-import { authenticate, authorize } from '@middlewares/auth';
-import { checkAccess } from '@middlewares/rbacAbac';
-import { UserRole } from '@types';
-
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 const router = Router();
 
 // ─── Multer config for evidence uploads ─────────────────────────────────────
@@ -42,7 +40,7 @@ const pdfLimiter = rateLimit({
 router.get(
   '/export.xlsx',
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('employee-evaluations', 'READ'),
   employeeEvaluationController.exportXlsx
 );
 
@@ -89,11 +87,7 @@ router.get(
 router.get(
   '/evaluations',
   authenticate,
-  checkAccess({
-    allowedRoles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE],
-    checkDepartment: true,
-    checkSubDepartment: true,
-  }),
+  requireRule('employee-evaluations', 'READ'),
   employeeEvaluationController.getEmployeeEvaluations
 );
 
@@ -106,7 +100,7 @@ router.get(
 router.get(
   '/completion-stats',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  requireRule('employee-evaluations', 'READ'),
   employeeEvaluationController.getCompletionStats
 );
 
@@ -136,7 +130,7 @@ router.get(
 router.get(
   '/my-evaluation/:evaluationId',
   authenticate,
-  authorize('EMPLOYEE'),
+  requireRule('employee-evaluations', 'READ'),
   employeeEvaluationController.getEvaluationDetails
 );
 
@@ -166,7 +160,7 @@ router.get(
 router.get(
   '/evaluations/:evaluationId/details',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'),
+  requireRule('employee-evaluations', 'READ'),
   employeeEvaluationController.getEvaluationDetails
 );
 
@@ -196,7 +190,7 @@ router.get(
 router.get(
   '/evaluations/:evaluationId/history',
   authenticate,
-  authorize('EMPLOYEE', 'ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'),
+  requireRule('employee-evaluations', 'READ'),
   employeeEvaluationController.getEvaluationHistory
 );
 
@@ -230,7 +224,7 @@ router.get(
 router.post(
   '/evaluations/bulk',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  requireRule('employee-evaluations', 'CREATE'),
   employeeEvaluationController.createBulkEvaluations
 );
 
@@ -267,7 +261,7 @@ router.post(
 router.post(
   '/evaluations',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD', 'EMPLOYEE'),
+  requireRule('employee-evaluations', 'CREATE'),
   employeeEvaluationController.createOrUpdateEvaluation
 );
 
@@ -307,7 +301,7 @@ router.post(
 router.patch(
   '/my-evaluation/details/:detailId',
   authenticate,
-  authorize('EMPLOYEE'),
+  requireRule('employee-evaluations', 'UPDATE'),
   employeeEvaluationController.updateEvaluationDetail
 );
 
@@ -347,7 +341,7 @@ router.patch(
 router.patch(
   '/evaluations/details/:detailId',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'),
+  requireRule('employee-evaluations', 'UPDATE'),
   employeeEvaluationController.updateEvaluationDetail
 );
 
@@ -377,7 +371,7 @@ router.patch(
 router.post(
   '/evaluations/:evaluationId/acknowledge',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD', 'EMPLOYEE'),
+  requireRule('employee-evaluations', 'CREATE'),
   employeeEvaluationController.acknowledgeEvaluation
 );
 
@@ -407,7 +401,7 @@ router.post(
 router.post(
   '/evaluations/:evaluationId/finalize',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  requireRule('employee-evaluations', 'CREATE'),
   employeeEvaluationController.finalizeEvaluation
 );
 
@@ -437,7 +431,7 @@ router.post(
 router.post(
   '/sync-details',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  requireRule('employee-evaluations', 'CREATE'),
   employeeEvaluationController.syncEvaluationDetails
 );
 
@@ -471,7 +465,7 @@ router.post(
 router.get(
   '/subordinates/:month/:year',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'),
+  requireRule('employee-evaluations', 'READ'),
   employeeEvaluationController.getSubordinatesForEvaluation
 );
 
@@ -513,14 +507,14 @@ router.get(
 router.post(
   '/evaluations/:id/appeal',
   authenticate,
-  authorize('EMPLOYEE'),
+  requireRule('employee-evaluations', 'CREATE'),
   employeeEvaluationController.submitAppeal
 );
 
 router.post(
   '/evaluations/:id/appeal/reply',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'),
+  requireRule('employee-evaluations', 'CREATE'),
   employeeEvaluationController.replyAppeal
 );
 
@@ -528,7 +522,7 @@ router.post(
 router.get(
   '/evaluations/:id/audit-log',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  requireRule('employee-evaluations', 'READ'),
   employeeEvaluationController.getAuditLog
 );
 
@@ -551,7 +545,7 @@ router.get(
 router.get(
   '/calibration/heatmap',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  requireRule('employee-evaluations', 'READ'),
   employeeEvaluationController.getCalibrationHeatmap
 );
 
@@ -559,7 +553,7 @@ router.get(
 router.post(
   '/evaluations/:id/copy-previous-month',
   authenticate,
-  authorize('EMPLOYEE'),
+  requireRule('employee-evaluations', 'CREATE'),
   employeeEvaluationController.copyFromPreviousMonth
 );
 
@@ -579,7 +573,7 @@ router.delete('/evaluations/:id/idp-items/:idpItemId', authenticate, employeeEva
 router.post(
   '/evaluations/:id/peer-feedback/invite',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'),
+  requireRule('employee-evaluations', 'CREATE'),
   employeeEvaluationController.invitePeers
 );
 

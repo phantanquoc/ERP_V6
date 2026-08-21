@@ -10,7 +10,8 @@ import {
 import lotController from '@controllers/lotController';
 
 const { getLotsByWarehouse } = lotController;
-import { authenticate, authorize } from '@middlewares/auth';
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 
 const router = Router();
 
@@ -62,7 +63,7 @@ router.get('/generate-code', generateWarehouseCode);
  *       201:
  *         description: Tạo kho thành công
  */
-router.post('/', authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'), createWarehouse);
+router.post('/', requireRule('warehouses', 'CREATE'), createWarehouse);
 
 /**
  * @swagger
@@ -91,7 +92,7 @@ router.post('/', authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'), createWareh
  *       404:
  *         description: Không tìm thấy kho
  */
-router.put('/:id', authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'), updateWarehouse);
+router.put('/:id', requireRule('warehouses', 'UPDATE'), updateWarehouse);
 
 /**
  * @swagger
@@ -114,7 +115,7 @@ router.put('/:id', authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'), updateWar
  *       404:
  *         description: Không tìm thấy kho
  */
-router.delete('/:id', authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'), deleteWarehouse);
+router.delete('/:id', requireRule('warehouses', 'DELETE'), deleteWarehouse);
 
 /**
  * @swagger
@@ -151,6 +152,6 @@ router.get('/:warehouseId/lots', getLotsByWarehouse);
  *       200:
  *         description: Thống kê số lô/vị trí được tạo
  */
-router.post('/sync-layouts', authorize('ADMIN'), syncLayouts);
+router.post('/sync-layouts', requireRule('warehouses', 'CREATE'), syncLayouts);
 
 export default router;

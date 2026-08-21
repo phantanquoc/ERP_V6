@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { authenticate, authorize, deviceOrJwtAuth } from '@middlewares/auth';
-import { UserRole } from '@types';
+import { authenticate, deviceOrJwtAuth } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 import materialEvaluationCriteriaService from '../services/materialEvaluationCriteriaService';
 
 const router = Router();
@@ -49,7 +49,7 @@ router.get(
 router.get(
   '/next-code',
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  requireRule('material-evaluation-criteria', 'READ'),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const nextCode = await materialEvaluationCriteriaService.getNextCode();
@@ -87,7 +87,7 @@ router.get(
 router.get(
   '/:id',
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  requireRule('material-evaluation-criteria', 'READ'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const criterion = await materialEvaluationCriteriaService.getCriteriaById(req.params.id as string);
@@ -124,7 +124,7 @@ router.get(
 router.post(
   '/',
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('material-evaluation-criteria', 'CREATE'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const criterion = await materialEvaluationCriteriaService.createCriteria(req.body);
@@ -170,7 +170,7 @@ router.post(
 router.put(
   '/:id',
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('material-evaluation-criteria', 'UPDATE'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const criterion = await materialEvaluationCriteriaService.updateCriteria(req.params.id as string, req.body);
@@ -210,7 +210,7 @@ router.put(
 router.delete(
   '/:id',
   authenticate,
-  authorize(UserRole.ADMIN),
+  requireRule('material-evaluation-criteria', 'DELETE'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       await materialEvaluationCriteriaService.deleteCriteria(req.params.id as string);
@@ -241,7 +241,7 @@ router.delete(
 router.post(
   '/seed',
   authenticate,
-  authorize(UserRole.ADMIN),
+  requireRule('material-evaluation-criteria', 'CREATE'),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const result = await materialEvaluationCriteriaService.seedDefaultCriteria();

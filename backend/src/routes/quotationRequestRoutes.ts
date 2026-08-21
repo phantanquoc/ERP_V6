@@ -1,10 +1,9 @@
 import { Router } from 'express';
 import quotationRequestController from '@controllers/quotationRequestController';
-import { authenticate, authorize } from '@middlewares/auth';
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 import { zodValidate } from '@middlewares/zodValidation';
 import { createQuotationRequestSchema, updateQuotationRequestSchema } from '@schemas';
-import { UserRole } from '@types';
-
 const router = Router();
 
 // All routes require authentication
@@ -155,7 +154,7 @@ router.get('/:id', quotationRequestController.getQuotationRequestById);
  */
 router.post(
   '/',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.EMPLOYEE),
+  requireRule('quotation-requests', 'CREATE'),
   zodValidate(createQuotationRequestSchema),
   quotationRequestController.createQuotationRequest
 );
@@ -195,7 +194,7 @@ router.post(
  */
 router.patch(
   '/:id',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.EMPLOYEE),
+  requireRule('quotation-requests', 'UPDATE'),
   zodValidate(updateQuotationRequestSchema),
   quotationRequestController.updateQuotationRequest
 );
@@ -227,14 +226,14 @@ router.patch(
  */
 router.delete(
   '/:id',
-  authorize(UserRole.ADMIN),
+  requireRule('quotation-requests', 'DELETE'),
   quotationRequestController.deleteQuotationRequest
 );
 
 // Cancel action — POST /:id/cancel
 router.post(
   '/:id/cancel',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  requireRule('quotation-requests', 'CREATE'),
   quotationRequestController.cancelQuotationRequest
 );
 
@@ -242,14 +241,14 @@ router.post(
 // Advances CHO_XU_LY → DANG_BAO_GIA when user opens the create-quotation popup
 router.post(
   '/:id/mark-in-progress',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  requireRule('quotation-requests', 'CREATE'),
   quotationRequestController.markInProgress
 );
 
 // Pricing room review — approve CHO_XU_LY → DANG_BAO_GIA
 router.post(
   '/:id/approve',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  requireRule('quotation-requests', 'CREATE'),
   async (req: any, res: any, next: any) => {
     const { isPricingApprover } = await import('@utils/isPricingApprover');
     if (await isPricingApprover(req.user)) return next();
@@ -261,7 +260,7 @@ router.post(
 // Pricing room review — reject CHO_XU_LY → HUY
 router.post(
   '/:id/reject',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  requireRule('quotation-requests', 'CREATE'),
   async (req: any, res: any, next: any) => {
     const { isPricingApprover } = await import('@utils/isPricingApprover');
     if (await isPricingApprover(req.user)) return next();

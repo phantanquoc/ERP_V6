@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import workPlanController from '@controllers/workPlanController';
-import { authenticate, authorize } from '@middlewares/auth';
-import { UserRole } from '@types';
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 import { createUploadMiddleware } from '@middlewares/upload';
 
 const router = Router();
@@ -179,7 +179,7 @@ router.post(
  */
 router.put(
   '/:id',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  requireRule('work-plans', 'UPDATE'),
   uploadWorkPlans,
   workPlanController.updateWorkPlan
 );

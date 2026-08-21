@@ -1,4 +1,5 @@
 import express from 'express';
+import { requireRule } from '@middlewares/requireRule';
 import debtController from '../controllers/debtController';
 
 const {
@@ -10,10 +11,8 @@ const {
   getDebtSummary,
   exportDebtsToExcel,
 } = debtController;
-import { authenticate, authorize } from '../middlewares/auth';
+import { authenticate } from '../middlewares/auth';
 import { createSingleUploadMiddleware } from '../middlewares/upload';
-import { UserRole } from '../types';
-
 const router = express.Router();
 
 router.use(authenticate);
@@ -116,7 +115,7 @@ router.get('/:id', getDebtById);
  *       400:
  *         description: Dữ liệu không hợp lệ
  */
-router.post('/', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), uploadDebt, createDebt);
+router.post('/', requireRule('debts', 'CREATE'), uploadDebt, createDebt);
 
 /**
  * @swagger
@@ -143,7 +142,7 @@ router.post('/', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), uploadDebt
  *       404:
  *         description: Không tìm thấy công nợ
  */
-router.put('/:id', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), uploadDebt, updateDebt);
+router.put('/:id', requireRule('debts', 'UPDATE'), uploadDebt, updateDebt);
 
 /**
  * @swagger
@@ -165,7 +164,7 @@ router.put('/:id', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), uploadDe
  *       404:
  *         description: Không tìm thấy công nợ
  */
-router.delete('/:id', authorize(UserRole.ADMIN), deleteDebt);
+router.delete('/:id', requireRule('debts', 'DELETE'), deleteDebt);
 
 export default router;
 

@@ -1,9 +1,8 @@
 import { Router } from 'express';
 import purchaseRequestController from '@controllers/purchaseRequestController';
-import { authenticate, authorize } from '@middlewares/auth';
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 import { createSingleUploadMiddleware } from '@middlewares/upload';
-import { UserRole } from '@types';
-
 const router = Router();
 
 // Upload middleware for purchase requests (single file)
@@ -133,7 +132,7 @@ router.get('/:id', purchaseRequestController.getPurchaseRequestById);
  *       400:
  *         description: Dữ liệu không hợp lệ
  */
-router.post('/', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD), uploadPurchaseRequest, purchaseRequestController.createPurchaseRequest);
+router.post('/', requireRule('purchase-requests', 'CREATE'), uploadPurchaseRequest, purchaseRequestController.createPurchaseRequest);
 
 /**
  * @swagger
@@ -169,7 +168,7 @@ router.post('/', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TE
  *       404:
  *         description: Không tìm thấy yêu cầu mua hàng
  */
-router.put('/:id', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+router.put('/:id', requireRule('purchase-requests', 'UPDATE'),
   async (req: any, res: any, next: any) => {
     // EMPLOYEE is only allowed if pricing approver; heads always pass above via authorize
     if (req.user?.role === 'EMPLOYEE') {
@@ -205,14 +204,14 @@ router.put('/:id', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.
  *       404:
  *         description: Không tìm thấy yêu cầu mua hàng
  */
-router.delete('/:id', authorize(UserRole.ADMIN), purchaseRequestController.deletePurchaseRequest);
+router.delete('/:id', requireRule('purchase-requests', 'DELETE'), purchaseRequestController.deletePurchaseRequest);
 
 /**
  * Purchasing submits a PR (in 'Chờ báo giá' status) to admin for approval.
  */
 router.post(
   '/:id/submit-approval',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  requireRule('purchase-requests', 'CREATE'),
   purchaseRequestController.submitForApproval
 );
 

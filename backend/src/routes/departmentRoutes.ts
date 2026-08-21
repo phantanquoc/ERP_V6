@@ -1,9 +1,7 @@
 import { Router } from 'express';
 import departmentController from '@controllers/departmentController';
-import { authenticate, authorize } from '@middlewares/auth';
-import { checkAccess } from '@middlewares/rbacAbac';
-import { UserRole } from '@types';
-
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 const router = Router();
 
 /**
@@ -54,10 +52,7 @@ router.use(authenticate);
  *         description: "Chưa xác thực"
  */
 router.get('/',
-  checkAccess({
-    allowedRoles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD],
-    checkDepartment: true,
-  }),
+  requireRule('departments', 'READ'),
   departmentController.getAllDepartments
 );
 
@@ -84,10 +79,7 @@ router.get('/',
  *         description: "Không tìm thấy phòng ban"
  */
 router.get('/:id',
-  checkAccess({
-    allowedRoles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD],
-    checkDepartment: true,
-  }),
+  requireRule('departments', 'READ'),
   departmentController.getDepartmentById
 );
 
@@ -117,7 +109,7 @@ router.get('/:id',
  *       400:
  *         description: "Dữ liệu không hợp lệ"
  */
-router.post('/', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), departmentController.createDepartment);
+router.post('/', requireRule('departments', 'CREATE'), departmentController.createDepartment);
 
 /**
  * @swagger
@@ -153,10 +145,7 @@ router.post('/', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), department
  *         description: "Không tìm thấy phòng ban"
  */
 router.patch('/:id',
-  checkAccess({
-    allowedRoles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD],
-    checkDepartment: true,
-  }),
+  requireRule('departments', 'UPDATE'),
   departmentController.updateDepartment
 );
 
@@ -182,7 +171,7 @@ router.patch('/:id',
  *       404:
  *         description: "Không tìm thấy phòng ban"
  */
-router.delete('/:id', authorize(UserRole.ADMIN), departmentController.deleteDepartment);
+router.delete('/:id', requireRule('departments', 'DELETE'), departmentController.deleteDepartment);
 
 export default router;
 

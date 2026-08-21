@@ -1,9 +1,7 @@
 import { Router } from 'express';
 import payrollController from '@controllers/payrollController';
-import { authenticate, authorize } from '@middlewares/auth';
-import { checkAccess } from '@middlewares/rbacAbac';
-import { UserRole } from '@types';
-
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 const router = Router();
 
 /**
@@ -49,25 +47,21 @@ const router = Router();
 router.get(
   '/',
   authenticate,
-  checkAccess({
-    allowedRoles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE],
-    checkDepartment: true,
-    checkSubDepartment: true,
-  }),
+  requireRule('payrolls', 'READ'),
   payrollController.getPayrollByMonthYear
 );
 
 router.get(
   '/settings',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  requireRule('payrolls', 'READ'),
   payrollController.getPayrollSettings
 );
 
 router.put(
   '/settings',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  requireRule('payrolls', 'UPDATE'),
   payrollController.updatePayrollSettings
 );
 
@@ -104,14 +98,14 @@ router.put(
 router.get(
   '/export/excel',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  requireRule('payrolls', 'READ'),
   payrollController.exportToExcel
 );
 
 router.post(
   '/send-notifications',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  requireRule('payrolls', 'CREATE'),
   payrollController.sendPayrollNotifications
 );
 
@@ -147,7 +141,7 @@ router.get(
 router.get(
   '/:payrollId/detail',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'),
+  requireRule('payrolls', 'READ'),
   payrollController.getPayrollDetail
 );
 
@@ -181,7 +175,7 @@ router.get(
 router.post(
   '/',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  requireRule('payrolls', 'CREATE'),
   payrollController.createOrUpdatePayroll
 );
 
@@ -217,7 +211,7 @@ router.post(
 router.patch(
   '/:payrollId',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  requireRule('payrolls', 'UPDATE'),
   payrollController.updatePayroll
 );
 
