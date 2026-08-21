@@ -1,25 +1,27 @@
 model User {
-  id                   String                    @id @default(cuid())
-  email                String                    @unique
-  password             String
-  firstName            String
-  lastName             String
-  role                 UserRole                  @default(EMPLOYEE)
-  isActive             Boolean                   @default(true)
-  departmentId         String?
-  subDepartmentId      String?
-  supervisor1Id        String?
-  supervisor2Id        String?
-  createdAt            DateTime                  @default(now())
-  updatedAt            DateTime                  @updatedAt
-  loginHistory         LoginHistory[]
-  refreshTokens        RefreshToken[]
-  userRoles            UserRoleAssignment[]
-  employees                 Employee?
-  privateFeedbacks          PrivateFeedback[]
-  pushSubscriptions         PushSubscription[]
-  notificationPreferences   NotificationPreference[]
-  secondaryDepartments UserSecondaryDepartment[]
+  id                              String                           @id @default(cuid())
+  email                           String                           @unique
+  password                        String
+  firstName                       String
+  lastName                        String
+  role                            UserRole                         @default(EMPLOYEE)
+  isActive                        Boolean                          @default(true)
+  departmentId                    String?
+  subDepartmentId                 String?
+  supervisor1Id                   String?
+  supervisor2Id                   String?
+  createdAt                       DateTime                         @default(now())
+  updatedAt                       DateTime                         @updatedAt
+  loginHistory                    LoginHistory[]
+  refreshTokens                   RefreshToken[]
+  userRoles                       UserRoleAssignment[]
+  employees                       Employee?
+  privateFeedbacks                PrivateFeedback[]
+  pushSubscriptions               PushSubscription[]
+  notificationPreferences         NotificationPreference[]
+  secondaryDepartments            UserSecondaryDepartment[]
+  delegationsFrom                 Delegation[]                     @relation("DelegationFrom")
+  delegationsTo                   Delegation[]                     @relation("DelegationTo")
   processFlowchartSectionFiles    ProcessFlowchartSectionFile[]    @relation("ProcessFlowchartSectionFileUploader")
   productionFlowchartSectionFiles ProductionFlowchartSectionFile[] @relation("ProductionFlowchartSectionFileUploader")
 
@@ -33,11 +35,13 @@ model UserSecondaryDepartment {
   departmentId    String
   subDepartmentId String?
   role            UserRole @default(EMPLOYEE)
+  positionId      String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, departmentId, subDepartmentId])
+  @@index([positionId])
   @@map("user_secondary_departments")
   @@schema("auth")
 }
@@ -160,5 +164,93 @@ enum PermissionAction {
   EXPORT
   IMPORT
 
+  @@schema("auth")
+}
+
+enum RuleScope {
+  GLOBAL
+  DEPARTMENT
+  SUB_DEPARTMENT
+
+  @@schema("auth")
+}
+
+model Resource {
+  code        String       @id
+  label       String
+  group       String
+  sortOrder   Int          @default(0)
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  rules       Rule[]
+  delegations Delegation[]
+
+  @@map("resources")
+  @@schema("auth")
+}
+
+model Rule {
+  id               String           @id @default(cuid())
+  resourceCode     String
+  action           PermissionAction
+  scope            RuleScope        @default(GLOBAL)
+  departmentId     String?
+  subDepartmentId  String?
+  positionId       String?
+  role             UserRole?
+  allow            Boolean          @default(true)
+  isActive         Boolean          @default(true)
+  responsibilityId String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  resource         Resource         @relation(fields: [resourceCode], references: [code], onDelete: Cascade)
+  auditLogs        RuleAuditLog[]
+
+  @@unique([resourceCode, action, scope, departmentId, subDepartmentId, positionId, role])
+  @@index([resourceCode, action])
+  @@index([scope, departmentId, subDepartmentId])
+  @@index([positionId])
+  @@map("rules")
+  @@schema("auth")
+}
+
+model RuleAuditLog {
+  id        String   @id @default(cuid())
+  ruleId    String?
+  actorId   String?
+  action    String
+  before    Json?    @db.JsonB
+  after     Json?    @db.JsonB
+  createdAt DateTime @default(now())
+  rule      Rule?    @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+
+  @@index([ruleId, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("rule_audit_logs")
+  @@schema("auth")
+}
+
+model Delegation {
+  id              String           @id @default(cuid())
+  fromUserId      String
+  toUserId        String
+  resourceCode    String
+  action          PermissionAction
+  departmentId    String?
+  subDepartmentId String?
+  from            DateTime
+  to              DateTime
+  isActive        Boolean          @default(true)
+  createdBy       String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  resource        Resource         @relation(fields: [resourceCode], references: [code], onDelete: Cascade)
+  fromUser        User             @relation("DelegationFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser          User             @relation("DelegationTo", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@index([toUserId, isActive])
+  @@index([resourceCode, action])
+  @@map("delegations")
   @@schema("auth")
 }
