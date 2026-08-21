@@ -4,6 +4,7 @@ import { Eye, Edit, Trash2, ShoppingCart, Download, AlertCircle, CheckCircle } f
 import toast from 'react-hot-toast';
 import Modal from './Modal';
 import ConfirmDialog from './common/ConfirmDialog';
+import StatusBadge, { BadgeTone } from './shared/StatusBadge';
 import TableFilter, { FilterField } from './TableFilter';
 import { quotationService, Quotation } from '../services/quotationService';
 import { orderService } from '../services/orderService';
@@ -215,24 +216,19 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
   };
 
   const getStatusBadge = (status: string) => {
-    const statusMap: Record<string, { label: string; className: string }> = {
-      DRAFT: { label: 'Nháp', className: 'bg-gray-100 text-gray-800' },
-      DANG_CHO_PHAN_HOI: { label: 'Đang chờ phản hồi', className: 'bg-yellow-100 text-yellow-800' },
-      DANG_CHO_GUI_DON_HANG: { label: 'Đang chờ gửi đơn hàng', className: 'bg-blue-100 text-blue-800' },
-      DA_DAT_HANG: { label: 'Đã đặt hàng', className: 'bg-green-100 text-green-800' },
-      KHONG_DAT_HANG: { label: 'Không đặt hàng', className: 'bg-red-100 text-red-800' },
-      SENT: { label: 'Đã gửi', className: 'bg-blue-100 text-blue-800' },
-      APPROVED: { label: 'Đã duyệt', className: 'bg-green-100 text-green-800' },
-      REJECTED: { label: 'Từ chối', className: 'bg-red-100 text-red-800' },
-      EXPIRED: { label: 'Hết hạn', className: 'bg-gray-100 text-gray-800' },
+    const statusMap: Record<string, { label: string; tone: BadgeTone }> = {
+      DRAFT: { label: 'Nháp', tone: 'gray' },
+      DANG_CHO_PHAN_HOI: { label: 'Đang chờ phản hồi', tone: 'yellow' },
+      DANG_CHO_GUI_DON_HANG: { label: 'Đang chờ gửi đơn hàng', tone: 'blue' },
+      DA_DAT_HANG: { label: 'Đã đặt hàng', tone: 'green' },
+      KHONG_DAT_HANG: { label: 'Không đặt hàng', tone: 'red' },
+      SENT: { label: 'Đã gửi', tone: 'blue' },
+      APPROVED: { label: 'Đã duyệt', tone: 'green' },
+      REJECTED: { label: 'Từ chối', tone: 'red' },
+      EXPIRED: { label: 'Hết hạn', tone: 'gray' },
     };
-
-    const statusInfo = statusMap[status] || { label: status, className: 'bg-gray-100 text-gray-800' };
-    return (
-      <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${statusInfo.className}`}>
-        {statusInfo.label}
-      </span>
-    );
+    const info = statusMap[status] ?? { label: status, tone: 'gray' as BadgeTone };
+    return <StatusBadge label={info.label} tone={info.tone} />;
   };
 
   const formatDate = (dateString: string) => {

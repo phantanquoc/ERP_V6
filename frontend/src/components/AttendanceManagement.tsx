@@ -14,6 +14,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types/auth';
 import Modal from './Modal';
 import useIsNarrowScreen from '../hooks/useIsNarrowScreen';
+import StatusBadge, { type BadgeTone } from './shared/StatusBadge';
 
 interface AttendanceRecord {
   stt: number;
@@ -92,6 +93,14 @@ const STATUS_DOT_STYLES: Record<string, string> = {
   ABSENT: 'bg-red-500',
   ON_LEAVE: 'bg-blue-500',
   OVERTIME: 'bg-purple-500',
+};
+
+const STATUS_TONE: Record<string, BadgeTone> = {
+  PRESENT: 'green',
+  LATE: 'yellow',
+  ABSENT: 'red',
+  ON_LEAVE: 'blue',
+  OVERTIME: 'gray',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -809,10 +818,7 @@ const AttendanceManagement: React.FC = () => {
                           <div className="text-xs text-gray-500">{record.employeeCode} · {record.positionName}</div>
                           <div className="text-xs text-gray-600 mt-1">{formatDateWithWeekday(record.attendanceDate)}</div>
                         </div>
-                        <span className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full ${STATUS_BADGE_STYLES[badgeStatus] || ''}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_STYLES[badgeStatus] || ''}`}></span>
-                          {getStatusLabel(badgeStatus)}
-                        </span>
+                        <StatusBadge label={getStatusLabel(badgeStatus)} tone={STATUS_TONE[badgeStatus] ?? 'gray'} size="md" />
                       </div>
                       <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
                         <div>
@@ -965,15 +971,9 @@ const AttendanceManagement: React.FC = () => {
                           </td>
                           <td className="px-3 py-3 sm:px-6 sm:py-4 text-center border-r border-gray-200">
                             {record.regularStatus ? (
-                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full ${STATUS_BADGE_STYLES[record.regularStatus] || ''}`}>
-                                <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_STYLES[record.regularStatus] || ''}`}></span>
-                                {getStatusLabel(record.regularStatus)}
-                              </span>
+                              <StatusBadge label={getStatusLabel(record.regularStatus)} tone={STATUS_TONE[record.regularStatus] ?? 'gray'} size="md" />
                             ) : (
-                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full ${STATUS_BADGE_STYLES[record.status] || ''}`}>
-                                <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_STYLES[record.status] || ''}`}></span>
-                                {getStatusLabel(record.status)}
-                              </span>
+                              <StatusBadge label={getStatusLabel(record.status)} tone={STATUS_TONE[record.status] ?? 'gray'} size="md" />
                             )}
                           </td>
                           <td className="px-3 py-3 sm:px-6 sm:py-4 text-sm text-gray-700 border-r border-gray-200">
@@ -1755,10 +1755,7 @@ const AttendanceManagement: React.FC = () => {
                   )}
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-medium text-gray-600">Trạng thái:</span>
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full ${STATUS_BADGE_STYLES[calendarModal.record.regularStatus] || ''}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_STYLES[calendarModal.record.regularStatus] || ''}`}></span>
-                      {STATUS_LABELS[calendarModal.record.regularStatus]}
-                    </span>
+                    <StatusBadge label={STATUS_LABELS[calendarModal.record.regularStatus] ?? calendarModal.record.regularStatus} tone={STATUS_TONE[calendarModal.record.regularStatus] ?? 'gray'} size="md" />
                     {crossMidnight && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
                         <span aria-hidden>🌙</span>
@@ -1796,10 +1793,7 @@ const AttendanceManagement: React.FC = () => {
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-medium text-gray-600">Trạng thái:</span>
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full ${STATUS_BADGE_STYLES[calendarModal.record.status] || ''}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_STYLES[calendarModal.record.status] || ''}`}></span>
-                      {STATUS_LABELS[calendarModal.record.status]}
-                    </span>
+                    <StatusBadge label={STATUS_LABELS[calendarModal.record.status] ?? calendarModal.record.status} tone={STATUS_TONE[calendarModal.record.status] ?? 'gray'} size="md" />
                     {crossMidnight && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
                         <span aria-hidden>🌙</span>
