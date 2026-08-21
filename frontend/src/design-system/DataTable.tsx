@@ -3,7 +3,7 @@ import { ChevronUp, ChevronDown } from 'lucide-react';
 import { EmptyState } from './States';
 import { shell } from './tokens';
 
-interface Column<T> {
+export interface Column<T> {
   key: string;
   header: string;
   width?: string;

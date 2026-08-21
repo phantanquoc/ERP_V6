@@ -8,6 +8,7 @@ import Modal from './Modal';
 import { parseNumberInputStr } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
 import StatusBadge, { BadgeTone } from './shared/StatusBadge';
+import DataTable from '../design-system/DataTable';
 
 interface DebtManagementProps {
   month?: number;
@@ -298,6 +299,13 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ month, year }) => {
     },
   ];
 
+  const [sortKey, setSortKey] = useState<string | undefined>(undefined);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const handleSort = (key: string) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  };
+
   const filteredDebtData = debtData.filter(item => {
     const search = filterValues._search.toLowerCase();
     if (search && !item.tenNhaCungCap.toLowerCase().includes(search) && !item.maNhaCungCap.toLowerCase().includes(search) && !(item.loaiChiPhi || '').toLowerCase().includes(search)) return false;
@@ -307,9 +315,93 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ month, year }) => {
     return true;
   });
 
-  const totalItems = filteredDebtData.length;
+  const sortedDebtData = React.useMemo(() => {
+    if (!sortKey) return filteredDebtData;
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return [...filteredDebtData].sort((a: any, b: any) => {
+      const av = a[sortKey];
+      const bv = b[sortKey];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
+      return String(av).localeCompare(String(bv), 'vi') * dir;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredDebtData, sortKey, sortDir]);
+
+  const totalItems = sortedDebtData.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const paginatedDebtData = filteredDebtData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const paginatedDebtData = sortedDebtData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  // DataTable column definitions — maps the 7 original <th> headers to Column[]
+  const columns: import('../design-system/DataTable').Column<Debt & Record<string, unknown>>[] = [
+    {
+      key: '_stt',
+      header: 'STT',
+      width: '60px',
+      align: 'left' as const,
+      render: (_: unknown, row: Record<string, unknown>) => (
+        <span className="text-blue-600 font-medium">{String(row._stt ?? '—')}</span>
+      ),
+    },
+    {
+      key: 'ngayPhatSinh',
+      header: 'Ngày phát sinh',
+      sortable: true,
+      render: (v: unknown) => <span className="whitespace-nowrap">{formatDate(v as string | undefined)}</span>,
+    },
+    {
+      key: 'loaiChiPhi',
+      header: 'Loại chi phí',
+      sortable: true,
+      render: (v: unknown) => (v as string) || '-',
+    },
+    {
+      key: 'soTienPhaiTra',
+      header: 'Số tiền phải trả',
+      sortable: true,
+      align: 'right' as const,
+      render: (v: unknown) => <span className="font-semibold text-red-600">{formatCurrency((v as number) ?? 0)}</span>,
+    },
+    {
+      key: 'soTienDaThanhToan',
+      header: 'Số tiền đã thanh toán',
+      sortable: true,
+      align: 'right' as const,
+      render: (v: unknown) => <span className="font-semibold text-green-600">{formatCurrency((v as number) ?? 0)}</span>,
+    },
+    {
+      key: '_trangThai',
+      header: 'Trạng thái',
+      render: (_: unknown, row: Record<string, unknown>) => {
+        const s = getDebtStatus(row as unknown as Debt);
+        return <StatusBadge label={s} tone={DEBT_STATUS_TONE[s] ?? 'gray'} />;
+      },
+    },
+    {
+      key: '_actions',
+      header: 'Hoạt động',
+      align: 'center' as const,
+      width: '90px',
+      render: (_: unknown, row: Record<string, unknown>) => (
+        <div className="flex items-center justify-center gap-1">
+          <button
+            onClick={(e) => { e.stopPropagation(); handleDelete((row as unknown as Debt).id); }}
+            className="p-1.5 rounded-md text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
+            title="Xóa"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  const paginatedWithStt = paginatedDebtData.map((row, idx) => ({
+    ...row as unknown as Record<string, unknown>,
+    _stt: (currentPage - 1) * itemsPerPage + idx + 1,
+  })) as unknown as (Debt & Record<string, unknown>)[];
 
   return (
     <div className="space-y-4">
@@ -342,93 +434,17 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ month, year }) => {
         searchPlaceholder="Tìm kiếm mã, tên nhà cung cấp, loại chi phí..."
       />
 
-      {/* Table */}
-      <div className="overflow-x-auto">
-        {loading ? (
-          <div className="text-center py-8">
-            <p className="text-gray-500">Đang tải...</p>
-          </div>
-        ) : (
-          <table className="w-full">
-            <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-              <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">STT</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">Ngày phát sinh</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">Loại chi phí</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">Số tiền phải trả</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">Số tiền đã thanh toán</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">Trạng thái</th>
-                <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Hoạt động</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {paginatedDebtData.map((item, index) => (
-                <tr
-                  key={item.id}
-                  onClick={() => handleView(item)}
-                  className={`border-b border-gray-200 hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
-                >
-                  <td className="px-6 py-4 text-sm text-blue-600 font-medium border-r border-gray-200">{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{formatDate(item.ngayPhatSinh)}</td>
-                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{item.loaiChiPhi || '-'}</td>
-                  <td className="px-6 py-4 text-sm font-semibold text-red-600 border-r border-gray-200">{formatCurrency(item.soTienPhaiTra)}</td>
-                  <td className="px-6 py-4 text-sm font-semibold text-green-600 border-r border-gray-200">{formatCurrency(item.soTienDaThanhToan)}</td>
-                  <td className="px-6 py-4 border-r border-gray-200">{(() => { const s = getDebtStatus(item); return <StatusBadge label={s} tone={DEBT_STATUS_TONE[s] ?? 'gray'} />; })()}</td>
-                  <td className="px-6 py-4 text-sm">
-                    <div className="flex items-center justify-center gap-1">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
-                        className="p-1.5 rounded-md text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
-                        title="Xóa"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4 px-2">
-          <span className="text-sm text-gray-600">
-            Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, totalItems)} / {totalItems} mục
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Trước
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
-              .map((page, idx, arr) => (
-                <React.Fragment key={page}>
-                  {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
-                  <button
-                    onClick={() => setCurrentPage(page)}
-                    className={`px-3 py-1.5 text-sm rounded-md ${
-                      page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                </React.Fragment>
-              ))}
-            <button
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Sau
-            </button>
-          </div>
-        </div>
-      )}
+      <DataTable
+        columns={columns}
+        data={paginatedWithStt}
+        loading={loading}
+        sortKey={sortKey}
+        sortDir={sortDir}
+        onSort={handleSort}
+        onRowClick={(row) => handleView(row as unknown as Debt)}
+        emptyMessage="Chưa có dữ liệu công nợ"
+        pagination={{ page: currentPage, totalPages, total: totalItems, onPageChange: setCurrentPage }}
+      />
 
       {/* Add Modal */}
       <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} showBackdrop>

@@ -1,15 +1,13 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { CheckCheck, Trash2, Check } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
-import notificationService, { MyNotificationsParams } from '../services/notificationService';
+import { CheckCheck } from 'lucide-react';
+import type { MyNotificationsParams } from '../services/notificationService';
 import {
   useMyNotificationsList,
   useMyNotificationsStats,
   useMarkAllNotificationsAsRead,
   useDeleteNotification,
-  myNotificationsKeys,
 } from '../hooks/useMyNotifications';
 import MyNotificationsFilters from '../components/MyNotificationsFilters';
 import MyNotificationsTimeline from '../components/MyNotificationsTimeline';
