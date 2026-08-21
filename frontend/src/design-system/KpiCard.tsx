@@ -1,11 +1,12 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { shell, typography } from './tokens';
 
 interface KpiSubCount {
   label: string;
   count: number;
-  tone?: 'red' | 'yellow' | 'green' | 'blue' | 'gray';
+  tone?: 'red' | 'yellow' | 'amber' | 'green' | 'blue' | 'gray';
 }
 
 interface KpiCardProps {
@@ -38,6 +39,7 @@ const toneIcon: Record<string, string> = {
 const TONE_DOT: Record<string, string> = {
   red: 'bg-red-500',
   yellow: 'bg-yellow-400',
+  amber: 'bg-amber-500',
   green: 'bg-green-500',
   blue: 'bg-blue-500',
   gray: 'bg-gray-400',
@@ -69,11 +71,10 @@ export const KpiCard: React.FC<KpiCardProps> = ({
         ? 'text-red-600'
         : 'text-green-600';
 
-  const baseClass =
-    'bg-white border border-gray-200 rounded-lg p-3 sm:p-4 shadow-sm text-left w-full';
-  const interactiveClass = to
-    ? ' cursor-pointer hover:border-gray-300 hover:shadow-md transition-all duration-200'
-    : '';
+  // Shell: shell.card (bg-white border border-gray-200 rounded-lg shadow-sm) + p-3 sm:p-4
+  // Interactive: shell.cardInteractive for clickable cards — keeps token as single source.
+  const baseClass = `${shell.card} p-3 sm:p-4 text-left w-full`;
+  const interactiveClass = to ? ` ${shell.cardInteractive}` : '';
   const extraClass = className ? ` ${className}` : '';
 
   const ariaLabel = to ? [label, String(value), sub].filter(Boolean).join(' — ') : undefined;
@@ -93,7 +94,7 @@ export const KpiCard: React.FC<KpiCardProps> = ({
     <Tag {...tagProps}>
       <div className="flex items-center gap-2 mb-1 min-w-0">
         {icon && <span className={`${toneIcon[tone] ?? toneIcon.blue} shrink-0`}>{icon}</span>}
-        <span className="text-xs font-medium text-gray-500 break-words line-clamp-2 leading-tight flex-1 min-w-0" title={label}>{label}</span>
+        <span className={`${typography.cardLabel} break-words line-clamp-2 leading-tight flex-1 min-w-0`} title={label}>{label}</span>
       </div>
       <div className="flex items-center gap-2 min-w-0">
         {dot && (
@@ -104,10 +105,10 @@ export const KpiCard: React.FC<KpiCardProps> = ({
         {loading ? (
           <span className="h-7 w-24 bg-gray-200 rounded animate-pulse inline-block" aria-hidden="true" />
         ) : (
-          <span className="text-xl sm:text-2xl font-bold text-gray-800 truncate min-w-0" title={String(value)}>{value}</span>
+          <span className={`${typography.cardValue} truncate min-w-0`} title={String(value)}>{value}</span>
         )}
       </div>
-      {sub && <p className="text-xs text-gray-400 mt-1 break-words line-clamp-2 leading-tight" title={sub}>{sub}</p>}
+      {sub && <p className={`${typography.cardSub} mt-1 break-words line-clamp-2 leading-tight`} title={sub}>{sub}</p>}
       {delta != null && (
         <p className={`mt-1 flex items-center gap-0.5 text-[11px] font-medium ${deltaColor}`}>
           <DeltaIcon className="h-3 w-3" />

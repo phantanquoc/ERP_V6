@@ -27,8 +27,11 @@ export const colors = {
   },
 } as const;
 
-// Domain accent (icon/dot), card shell vẫn neutral
-export const domainAccent: Record<string, string> = {
+/** Domain keys for accent color mapping — card shells stay neutral, only icon/dot is tinted. */
+export type DomainKey = 'technical' | 'quality' | 'accounting' | 'common' | 'dashboard';
+
+/** Accent text color per domain (icon/dot only). Shell remains neutral — see `shell.card`. */
+export const domainAccent: Record<DomainKey, string> = {
   technical: 'text-cyan-500',
   quality: 'text-violet-500',
   accounting: 'text-orange-500',
@@ -36,12 +39,12 @@ export const domainAccent: Record<string, string> = {
   dashboard: 'text-blue-600',
 };
 
-// Chart palettes (centralized)
+// Chart palettes (centralized) — readonly tuples so consumers cannot mutate shared palette
 export const chartPalettes = {
   product: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#6B7280', '#14B8A6'],
   inspection: ['#EF4444', '#F59E0B', '#3B82F6', '#10B981'],
   status: ['#10B981', '#F59E0B', '#EF4444', '#6B7280', '#3B82F6', '#8B5CF6'],
-} as const;
+} as const satisfies Record<string, readonly string[]>;
 
 export const chartHeights = { donut: 200, line: 260, bar: 260 } as const;
 

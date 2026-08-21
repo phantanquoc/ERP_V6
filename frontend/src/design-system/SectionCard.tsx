@@ -1,4 +1,5 @@
 import React from 'react';
+import { shell, typography } from './tokens';
 
 interface SectionCardProps {
   title?: string;
@@ -20,12 +21,12 @@ export const SectionCard: React.FC<SectionCardProps> = ({
   bodyClassName = '',
   padded = true,
 }) => (
-  <div className={`bg-white border border-gray-200 rounded-lg shadow-sm ${padded ? 'p-3 sm:p-4' : ''} ${className}`}>
+  <div className={`${shell.card} ${padded ? 'p-3 sm:p-4' : ''} ${className}`}>
     {(title || action || icon) && (
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           {icon && <span className="text-gray-400">{icon}</span>}
-          {title && <h3 className="text-sm font-semibold text-gray-700">{title}</h3>}
+          {title && <h3 className={typography.sectionTitle}>{title}</h3>}
         </div>
         {action}
       </div>
