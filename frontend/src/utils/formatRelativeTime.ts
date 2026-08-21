@@ -1,6 +1,7 @@
 /**
  * Format a date string as relative time in Vietnamese.
- * e.g. "Vừa xong", "5 phút trước", "2 giờ trước", "Hôm qua"
+ * Thresholds: Vừa xong (<1m), N phút (<60m), N giờ (<24h), Hôm qua (1d),
+ * N ngày trước (2-6d), 1 tuần trước (7-13d), N tuần trước (14-29d), dd/mm/yyyy (>=30d)
  */
 export function formatRelativeTime(dateStr: string): string {
   const date = new Date(dateStr);
@@ -14,7 +15,9 @@ export function formatRelativeTime(dateStr: string): string {
   if (diffMinutes < 60) return `${diffMinutes} phút trước`;
   if (diffHours < 24) return `${diffHours} giờ trước`;
   if (diffDays === 1) return 'Hôm qua';
-  if (diffDays < 7) return `${diffDays} ngày trước`;
+  if (diffDays <= 6) return `${diffDays} ngày trước`;
+  if (diffDays <= 13) return '1 tuần trước';
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} tuần trước`;
 
   return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }

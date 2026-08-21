@@ -28,6 +28,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [wsConnected, setWsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wsReconnectAttemptsRef = useRef(0);
   const queryClient = useQueryClient();
 
   /* ── WebSocket lifecycle ─────────────────────────────────────────────────── */
@@ -45,6 +46,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     wsRef.current = ws;
 
     ws.onopen = () => {
+      wsReconnectAttemptsRef.current = 0;
       setWsConnected(true);
     };
 
@@ -70,10 +72,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     ws.onclose = () => {
       setWsConnected(false);
       if (wsRef.current === ws) wsRef.current = null;
-      // Auto-reconnect after 5s if still logged in
       const currentToken = AuthService.getAccessToken();
       if (currentToken) {
-        reconnectTimerRef.current = setTimeout(() => connectWs(currentToken), 5000);
+        const baseDelay = Math.min(1000 * Math.pow(2, wsReconnectAttemptsRef.current), 30000);
+        const jitter = Math.random() * 1000;
+        const delay = baseDelay + jitter;
+        wsReconnectAttemptsRef.current += 1;
+        reconnectTimerRef.current = setTimeout(() => connectWs(currentToken), delay);
       }
     };
 

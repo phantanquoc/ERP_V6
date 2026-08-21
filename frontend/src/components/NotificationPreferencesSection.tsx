@@ -5,107 +5,18 @@ import {
   useNotificationPreferences,
   useUpdateNotificationPreferences,
 } from '../hooks/useNotificationPreferences';
+import {
+  NOTIFICATION_TYPE_GROUPS,
+  NOTIFICATION_TYPE_LABELS,
+  type NotificationGroup,
+} from './myNotificationsUtils';
 
-// ---- Notification type definitions + grouping ---------------------------
+// Re-export canonical groups/labels for backwards compatibility
+export { NOTIFICATION_TYPE_LABELS };
+export const NOTIFICATION_GROUPS = NOTIFICATION_TYPE_GROUPS;
 
-export const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
-  FAULT_RECORD: 'Sự cố thiết bị / Lỗi máy',
-  REPAIR_REQUEST: 'Yêu cầu sửa chữa',
-  ACCEPTANCE_HANDOVER: 'Nghiệm thu bàn giao',
-  OVERTIME_PLAN: 'Kế hoạch tăng ca',
-  OVERTIME_PLAN_APPROVAL: 'Phê duyệt tăng ca',
-  SUPPLY_REQUEST: 'Yêu cầu vật tư',
-  SUPPLY_REQUEST_PROCESSING: 'Vật tư đang xử lý',
-  SUPPLY_REQUEST_APPROVED: 'Vật tư đã duyệt',
-  SUPPLY_REQUEST_FULFILLED: 'Vật tư đã cấp',
-  PROJECT_APPROVAL: 'Phê duyệt dự án',
-  PURCHASE_REQUEST: 'Yêu cầu mua hàng',
-  DAILY_WORK_REPORT: 'Báo cáo công việc hàng ngày',
-  PRODUCTION_REPORT: 'Báo cáo sản xuất',
-  WORK_PLAN: 'Kế hoạch công việc',
-  PRIVATE_FEEDBACK: 'Góp ý riêng',
-  EVALUATION: 'Đánh giá nhân viên',
-  EVALUATION_SUPERVISOR1: 'Đánh giá cấp 1',
-  EVALUATION_SUPERVISOR2: 'Đánh giá cấp 2',
-  EVALUATION_SUPERVISOR1_COMPLETED: 'Hoàn thành đánh giá cấp 1',
-  EVALUATION_COMPLETED: 'Hoàn thành đánh giá',
-  PAYROLL: 'Bảng lương',
-  TASK: 'Nhiệm vụ được giao',
-  TASK_ADMIN: 'Nhiệm vụ (admin)',
-  PASSWORD_RESET: 'Đặt lại mật khẩu',
-  ORDER: 'Đơn hàng',
-  WAREHOUSE: 'Kho hàng',
-  INVOICE: 'Hóa đơn',
-  DEBT: 'Công nợ',
-  PRICING: 'Báo giá / Định giá',
-  LEAVE_REQUEST: 'Đơn nghỉ phép',
-  LEAVE_REQUEST_RESPONSE: 'Phản hồi đơn nghỉ phép',
-};
-
-interface NotificationGroup {
-  label: string;
-  hint?: string;
-  types: string[];
-}
-
-export const NOTIFICATION_GROUPS: NotificationGroup[] = [
-  {
-    label: 'Cảnh báo kỹ thuật',
-    hint: 'Nên giữ bật',
-    types: [
-      'FAULT_RECORD',
-      'REPAIR_REQUEST',
-      'ACCEPTANCE_HANDOVER',
-    ],
-  },
-  {
-    label: 'Luồng phê duyệt',
-    hint: 'Nên giữ bật',
-    types: [
-      'OVERTIME_PLAN',
-      'OVERTIME_PLAN_APPROVAL',
-      'SUPPLY_REQUEST',
-      'SUPPLY_REQUEST_PROCESSING',
-      'SUPPLY_REQUEST_APPROVED',
-      'SUPPLY_REQUEST_FULFILLED',
-      'PROJECT_APPROVAL',
-      'PURCHASE_REQUEST',
-    ],
-  },
-  {
-    label: 'Báo cáo',
-    types: [
-      'DAILY_WORK_REPORT',
-      'PRODUCTION_REPORT',
-      'WORK_PLAN',
-      'PRIVATE_FEEDBACK',
-      'EVALUATION',
-      'EVALUATION_SUPERVISOR1',
-      'EVALUATION_SUPERVISOR2',
-      'EVALUATION_SUPERVISOR1_COMPLETED',
-      'EVALUATION_COMPLETED',
-      'PAYROLL',
-    ],
-  },
-  {
-    label: 'Khác',
-    types: [
-      'TASK',
-      'TASK_ADMIN',
-      'PASSWORD_RESET',
-      'ORDER',
-      'WAREHOUSE',
-      'INVOICE',
-      'DEBT',
-      'PRICING',
-      'LEAVE_REQUEST',
-      'LEAVE_REQUEST_RESPONSE',
-    ],
-  },
-];
-
-// Groups considered "important" for IMPORTANT_ONLY preset (first 2)
-const IMPORTANT_GROUP_LABELS = new Set(['Cảnh báo kỹ thuật', 'Luồng phê duyệt']);
+// Groups considered "important" for IMPORTANT_ONLY preset (keys from NOTIFICATION_TYPE_GROUPS)
+const IMPORTANT_GROUP_KEYS = new Set(['supplyPurchase', 'leaveOvertime', 'orderWarehouse']);
 
 type PresetMode = 'ALL' | 'IMPORTANT_ONLY' | 'CUSTOM';
 
@@ -115,10 +26,10 @@ function detectPreset(mutedMap: Record<string, boolean>): PresetMode {
   if (allOff) return 'ALL';
 
   const importantTypes = NOTIFICATION_GROUPS
-    .filter((g) => IMPORTANT_GROUP_LABELS.has(g.label))
+    .filter((g) => IMPORTANT_GROUP_KEYS.has(g.key))
     .flatMap((g) => g.types);
   const otherTypes = NOTIFICATION_GROUPS
-    .filter((g) => !IMPORTANT_GROUP_LABELS.has(g.label))
+    .filter((g) => !IMPORTANT_GROUP_KEYS.has(g.key))
     .flatMap((g) => g.types);
 
   const importantAllOn = importantTypes.every((t) => !mutedMap[t]);
@@ -132,7 +43,7 @@ function buildMutedMapForPreset(preset: 'ALL' | 'IMPORTANT_ONLY'): Record<string
   const map: Record<string, boolean> = {};
   for (const group of NOTIFICATION_GROUPS) {
     const muted = preset === 'IMPORTANT_ONLY'
-      ? !IMPORTANT_GROUP_LABELS.has(group.label)
+      ? !IMPORTANT_GROUP_KEYS.has(group.key)
       : false;
     for (const type of group.types) {
       map[type] = muted;
@@ -144,7 +55,7 @@ function buildMutedMapForPreset(preset: 'ALL' | 'IMPORTANT_ONLY'): Record<string
 // ---- CollapsibleGroup sub-component ------------------------------------
 
 interface CollapsibleGroupProps {
-  group: NotificationGroup;
+  group: NotificationGroup & { hint?: string };
   mutedMap: Record<string, boolean>;
   defaultOpen: boolean;
   onToggle: (type: string) => void;
@@ -185,8 +96,8 @@ const CollapsibleGroup: React.FC<CollapsibleGroupProps> = ({
             {countLabel}
           </span>
         </div>
-        {group.hint && (
-          <span className="text-xs text-gray-400 italic hidden sm:inline">{group.hint}</span>
+        {(group as { hint?: string }).hint && (
+          <span className="text-xs text-gray-400 italic hidden sm:inline">{(group as { hint?: string }).hint}</span>
         )}
       </button>
 

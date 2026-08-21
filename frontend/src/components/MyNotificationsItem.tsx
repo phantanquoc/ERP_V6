@@ -7,17 +7,34 @@ interface MyNotificationsItemProps {
   item: AppNotification;
   onItemClick: (item: AppNotification, buttonEl?: HTMLButtonElement) => void;
   onDelete: (id: string) => void;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
 const MyNotificationsItem: React.FC<MyNotificationsItemProps> = ({
   item,
   onItemClick,
   onDelete,
+  selected = false,
+  onToggleSelect,
 }) => {
   const rowRef = useRef<HTMLButtonElement>(null);
 
   return (
-    <div className="group relative flex items-start gap-3 px-4 py-3 hover:bg-gray-50/70 transition-colors border-b border-gray-100 last:border-0">
+    <div
+      className={`group relative flex items-start gap-3 px-4 py-3 transition-colors border-b border-gray-100 last:border-0 ${selected ? 'bg-blue-50/60' : 'hover:bg-gray-50/70'}`}
+    >
+      {/* Selection checkbox */}
+      {onToggleSelect && (
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onToggleSelect(item.id)}
+          onClick={(e) => e.stopPropagation()}
+          className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 focus:ring-2 flex-shrink-0 cursor-pointer"
+          aria-label={`Chọn thông báo "${item.title}"`}
+        />
+      )}
       {/* Unread dot */}
       {!item.isRead && (
         <span

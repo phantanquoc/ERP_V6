@@ -1,13 +1,15 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { CheckCheck } from 'lucide-react';
-import { MyNotificationsParams } from '../services/notificationService';
+import { CheckCheck, Trash2, Check } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import notificationService, { MyNotificationsParams } from '../services/notificationService';
 import {
   useMyNotificationsList,
   useMyNotificationsStats,
   useMarkAllNotificationsAsRead,
   useDeleteNotification,
+  myNotificationsKeys,
 } from '../hooks/useMyNotifications';
 import MyNotificationsFilters from '../components/MyNotificationsFilters';
 import MyNotificationsTimeline from '../components/MyNotificationsTimeline';
@@ -178,6 +180,144 @@ const ActiveChips: React.FC<ActiveChipsProps> = ({
   );
 };
 
+// ---- Quick filter pills (shortcuts above timeline) -----------------------
+
+const PRICING_TYPES: string[] = ['PRICING'];
+
+interface QuickPillsProps {
+  params: MyNotificationsParams;
+  stats: { total: number; unread: number; byType: Record<string, number> };
+  onChange: (next: MyNotificationsParams) => void;
+}
+
+const QuickFilterPills: React.FC<QuickPillsProps> = ({ params, stats, onChange }) => {
+  const activeTypes = params.types ?? [];
+  const byType = stats.byType ?? {};
+
+  const evaluationGroup = NOTIFICATION_TYPE_GROUPS.find((g) => g.key === 'evaluation');
+  const taskGroup = NOTIFICATION_TYPE_GROUPS.find((g) => g.key === 'task');
+
+  const isGroupExactlyActive = (group: (typeof NOTIFICATION_TYPE_GROUPS)[number] | undefined) =>
+    !!group &&
+    group.types.length > 0 &&
+    group.types.length === activeTypes.length &&
+    group.types.every((t) => activeTypes.includes(t));
+
+  const isPricingActive =
+    PRICING_TYPES.length === activeTypes.length &&
+    PRICING_TYPES.every((t) => activeTypes.includes(t));
+
+  const isAllActive = !params.types && params.isRead === undefined;
+  const isUnreadActive = params.isRead === false;
+  const isEvaluationActive = isGroupExactlyActive(evaluationGroup);
+  const isTaskActive = isGroupExactlyActive(taskGroup);
+
+  const groupCount = (group: (typeof NOTIFICATION_TYPE_GROUPS)[number] | undefined) =>
+    group ? group.types.reduce((s, t) => s + (byType[t] ?? 0), 0) : 0;
+
+  const pricingCount = byType['PRICING'] ?? 0;
+
+  const pillBase =
+    'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors';
+  const activeCls = 'bg-blue-600 text-white border-blue-600';
+  const inactiveCls = 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50';
+
+  return (
+    <div className="flex flex-wrap gap-2 mb-3" role="group" aria-label="Bộ lọc nhanh">
+      <button
+        type="button"
+        onClick={() => onChange({ ...params, types: undefined, isRead: undefined, page: 1 })}
+        aria-pressed={isAllActive}
+        className={`${pillBase} ${isAllActive ? activeCls : inactiveCls}`}
+      >
+        Tất cả
+        <span
+          className={`inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full text-[11px] ${isAllActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'}`}
+        >
+          {stats.total}
+        </span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => onChange({ ...params, isRead: isUnreadActive ? undefined : false, page: 1 })}
+        aria-pressed={isUnreadActive}
+        className={`${pillBase} ${isUnreadActive ? activeCls : inactiveCls}`}
+      >
+        Chưa đọc
+        <span
+          className={`inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full text-[11px] ${isUnreadActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'}`}
+        >
+          {stats.unread}
+        </span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => {
+          if (isEvaluationActive) {
+            onChange({ ...params, types: undefined, page: 1 });
+          } else if (evaluationGroup) {
+            onChange({ ...params, types: [...evaluationGroup.types], page: 1 });
+          }
+        }}
+        aria-pressed={isEvaluationActive}
+        className={`${pillBase} ${isEvaluationActive ? activeCls : inactiveCls}`}
+      >
+        Đánh giá
+        {groupCount(evaluationGroup) > 0 && (
+          <span
+            className={`inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full text-[11px] ${isEvaluationActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'}`}
+          >
+            {groupCount(evaluationGroup)}
+          </span>
+        )}
+      </button>
+
+      <button
+        type="button"
+        onClick={() => {
+          if (isTaskActive) {
+            onChange({ ...params, types: undefined, page: 1 });
+          } else if (taskGroup) {
+            onChange({ ...params, types: [...taskGroup.types], page: 1 });
+          }
+        }}
+        aria-pressed={isTaskActive}
+        className={`${pillBase} ${isTaskActive ? activeCls : inactiveCls}`}
+      >
+        Nhiệm vụ
+        {groupCount(taskGroup) > 0 && (
+          <span
+            className={`inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full text-[11px] ${isTaskActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'}`}
+          >
+            {groupCount(taskGroup)}
+          </span>
+        )}
+      </button>
+
+      <button
+        type="button"
+        onClick={() => {
+          if (isPricingActive) onChange({ ...params, types: undefined, page: 1 });
+          else onChange({ ...params, types: [...PRICING_TYPES], page: 1 });
+        }}
+        aria-pressed={isPricingActive}
+        className={`${pillBase} ${isPricingActive ? activeCls : inactiveCls}`}
+      >
+        Báo giá
+        {pricingCount > 0 && (
+          <span
+            className={`inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full text-[11px] ${isPricingActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'}`}
+          >
+            {pricingCount}
+          </span>
+        )}
+      </button>
+    </div>
+  );
+};
+
 // ---- Main page ----------------------------------------------------------
 
 const MyNotifications: React.FC = () => {
@@ -342,6 +482,7 @@ const MyNotifications: React.FC = () => {
 
           {/* Timeline */}
           <div className="flex-1 min-w-0">
+            <QuickFilterPills params={params} stats={stats} onChange={updateParams} />
             <MyNotificationsTimeline
               items={items}
               total={total}
