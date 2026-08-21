@@ -7,6 +7,7 @@ import DatePicker from './DatePicker';
 import Modal from './Modal';
 import { parseNumberInputStr } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
+import StatusBadge, { BadgeTone } from './shared/StatusBadge';
 
 interface DebtManagementProps {
   month?: number;
@@ -253,6 +254,26 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ month, year }) => {
     return new Date(dateString).toLocaleDateString('vi-VN');
   };
 
+  const getDebtStatus = (item: Debt): string => {
+    const fullyPaid = item.soTienDaThanhToan >= item.soTienPhaiTra && item.soTienPhaiTra > 0;
+    if (fullyPaid) return 'Đã thanh toán';
+    const overdue = item.ngayDenHan ? new Date(item.ngayDenHan).getTime() < Date.now() : false;
+    if (overdue) return 'Quá hạn';
+    return 'Chưa thanh toán';
+  };
+
+  const DEBT_STATUS_TONE: Record<string, BadgeTone> = {
+    'Chưa thanh toán': 'yellow',
+    'Đã thanh toán': 'green',
+    'Quá hạn': 'red',
+  };
+
+  const LOAI_HINH_TONE: Record<string, BadgeTone> = {
+    'Tổ chức': 'blue',
+    'Hộ gia đình': 'green',
+    'Cá nhân': 'yellow',
+  };
+
   const filterFields: FilterField[] = [
     {
       key: 'loaiChiPhi',
@@ -336,6 +357,7 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ month, year }) => {
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">Loại chi phí</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">Số tiền phải trả</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">Số tiền đã thanh toán</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-r border-gray-200">Trạng thái</th>
                 <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Hoạt động</th>
               </tr>
             </thead>
@@ -351,6 +373,7 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ month, year }) => {
                   <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">{item.loaiChiPhi || '-'}</td>
                   <td className="px-6 py-4 text-sm font-semibold text-red-600 border-r border-gray-200">{formatCurrency(item.soTienPhaiTra)}</td>
                   <td className="px-6 py-4 text-sm font-semibold text-green-600 border-r border-gray-200">{formatCurrency(item.soTienDaThanhToan)}</td>
+                  <td className="px-6 py-4 border-r border-gray-200">{(() => { const s = getDebtStatus(item); return <StatusBadge label={s} tone={DEBT_STATUS_TONE[s] ?? 'gray'} />; })()}</td>
                   <td className="px-6 py-4 text-sm">
                     <div className="flex items-center justify-center gap-1">
                       <button
@@ -976,14 +999,7 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ month, year }) => {
                 <div>
                   <label className="block text-sm font-medium text-gray-500 mb-1">Loại hình</label>
                   <p>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      selectedDebt.loaiHinh === 'Tổ chức' ? 'bg-blue-100 text-blue-800' :
-                      selectedDebt.loaiHinh === 'Hộ gia đình' ? 'bg-green-100 text-green-800' :
-                      selectedDebt.loaiHinh === 'Cá nhân' ? 'bg-purple-100 text-purple-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {selectedDebt.loaiHinh || '-'}
-                    </span>
+                    <StatusBadge label={selectedDebt.loaiHinh || '-'} tone={selectedDebt.loaiHinh ? (LOAI_HINH_TONE[selectedDebt.loaiHinh] ?? 'gray') : 'gray'} />
                   </p>
                 </div>
 

@@ -14,6 +14,7 @@ import { parseNumberInput } from '../utils/numberInput';
 import { useAuth } from '../contexts/AuthContext';
 import { useAuditLogs } from '../hooks/useAuditLogs';
 import { AuditLog } from '../services/auditLogService';
+import StatusBadge, { BadgeTone } from './shared/StatusBadge';
 
 const ORDER_ACTION_LABELS: Record<string, { label: string; className: string }> = {
   CREATE: { label: 'Tạo mới', className: 'bg-green-100 text-green-800' },
@@ -264,26 +265,20 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
     return status ? statusMap[status] || status : 'Chọn trạng thái';
   };
 
-  const getProductionStatusColor = (status?: string) => {
-    const colorMap: Record<string, string> = {
-      CHO_LEN_KE_HOACH: 'bg-gray-100 text-gray-800',
-      CHO_SAN_XUAT: 'bg-yellow-100 text-yellow-800',
-      DANG_SAN_XUAT: 'bg-blue-100 text-blue-800',
-      CHO_GIAO_HANG: 'bg-purple-100 text-purple-800',
-      DA_LEN_CONTAINER: 'bg-indigo-100 text-indigo-800',
-      DANG_VAN_CHUYEN: 'bg-orange-100 text-orange-800',
-      DA_GIAO_CHO_KHACH_HANG: 'bg-green-100 text-green-800',
-    };
-    return status ? colorMap[status] || 'bg-gray-100 text-gray-800' : 'bg-gray-100 text-gray-800';
+  const PRODUCTION_TONE: Record<string, BadgeTone> = {
+    CHO_LEN_KE_HOACH: 'gray',
+    CHO_SAN_XUAT: 'yellow',
+    DANG_SAN_XUAT: 'blue',
+    CHO_GIAO_HANG: 'yellow',
+    DA_LEN_CONTAINER: 'blue',
+    DANG_VAN_CHUYEN: 'yellow',
+    DA_GIAO_CHO_KHACH_HANG: 'green',
   };
 
-  const getPaymentStatusColor = (status?: string) => {
-    const colorMap: Record<string, string> = {
-      DA_THANH_TOAN_DOT_1: 'bg-yellow-100 text-yellow-800',
-      CHO_THANH_TOAN_DOT_2: 'bg-orange-100 text-orange-800',
-      DA_THANH_TOAN_DU: 'bg-green-100 text-green-800',
-    };
-    return status ? colorMap[status] || 'bg-gray-100 text-gray-800' : 'bg-gray-100 text-gray-800';
+  const PAYMENT_TONE: Record<string, BadgeTone> = {
+    DA_THANH_TOAN_DOT_1: 'yellow',
+    CHO_THANH_TOAN_DOT_2: 'red',
+    DA_THANH_TOAN_DU: 'green',
   };
 
   return (
@@ -378,14 +373,10 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
                     {order.items?.length || 0}
                   </td>
                   <td className="px-6 py-4 border-r border-gray-200">
-                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getProductionStatusColor(order.trangThaiSanXuat)}`}>
-                      {getProductionStatusLabel(order.trangThaiSanXuat)}
-                    </span>
+                    <StatusBadge label={getProductionStatusLabel(order.trangThaiSanXuat)} tone={PRODUCTION_TONE[order.trangThaiSanXuat ?? ''] ?? 'gray'} />
                   </td>
                   <td className="px-6 py-4 border-r border-gray-200">
-                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getPaymentStatusColor(order.trangThaiThanhToan)}`}>
-                      {getPaymentStatusLabel(order.trangThaiThanhToan)}
-                    </span>
+                    <StatusBadge label={getPaymentStatusLabel(order.trangThaiThanhToan)} tone={PAYMENT_TONE[order.trangThaiThanhToan ?? ''] ?? 'gray'} />
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-center gap-3">
@@ -683,17 +674,13 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
                     <div>
                       <label className="text-sm font-medium text-gray-500">Trạng thái sản xuất:</label>
                       <p className="text-sm mt-1">
-                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getProductionStatusColor(selectedOrder.trangThaiSanXuat)}`}>
-                          {getProductionStatusLabel(selectedOrder.trangThaiSanXuat)}
-                        </span>
+                        <StatusBadge label={getProductionStatusLabel(selectedOrder.trangThaiSanXuat)} tone={PRODUCTION_TONE[selectedOrder.trangThaiSanXuat ?? ''] ?? 'gray'} />
                       </p>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-500">Trạng thái thanh toán:</label>
                       <p className="text-sm mt-1">
-                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getPaymentStatusColor(selectedOrder.trangThaiThanhToan)}`}>
-                          {getPaymentStatusLabel(selectedOrder.trangThaiThanhToan)}
-                        </span>
+                        <StatusBadge label={getPaymentStatusLabel(selectedOrder.trangThaiThanhToan)} tone={PAYMENT_TONE[selectedOrder.trangThaiThanhToan ?? ''] ?? 'gray'} />
                       </p>
                     </div>
                   </div>
