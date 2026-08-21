@@ -16,6 +16,7 @@ import FinishedProductManagement from '../../components/FinishedProductManagemen
 import QualityEvaluationManagement from '../../components/QualityEvaluationManagement';
 import { activate as activateKiosk } from '../../utils/kioskSession';
 import { getCurrentProductionDay } from '../../utils/productionDay';
+import PageHeader from '../../design-system/PageHeader';
 
 type Tab = 'materialEvaluation' | 'systemOperation' | 'finishedProduct' | 'qualityEvaluation';
 
@@ -61,50 +62,46 @@ const ProductionData = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <FlaskConical className="w-6 h-6 text-blue-600" />
-            Dữ liệu sản xuất
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Đánh giá nguyên liệu, thông số vận hành, thành phẩm và đánh giá chất lượng
-          </p>
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-gray-500" />
-            <label className="text-sm font-medium text-gray-600 whitespace-nowrap">Ngày SX:</label>
-            <input
-              type="date"
-              value={productionDay}
-              onChange={(e) => setProductionDay(e.target.value)}
-              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+    <div className="space-y-5">
+      <PageHeader
+        title="Dữ liệu sản xuất"
+        description="Đánh giá nguyên liệu, thông số vận hành, thành phẩm và đánh giá chất lượng"
+        icon={<FlaskConical className="w-5 h-5 text-blue-600" />}
+        actions={
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-gray-500" />
+              <label className="text-sm font-medium text-gray-600 whitespace-nowrap">Ngày SX:</label>
+              <input
+                type="date"
+                value={productionDay}
+                onChange={(e) => setProductionDay(e.target.value)}
+                className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </span>
+            <button
+              onClick={() => {
+                activateKiosk();
+                if (activeTab === 'materialEvaluation') {
+                  window.open('/production/nhap-lieu-danh-gia', '_blank');
+                } else {
+                  window.open('/production/nhap-lieu', '_blank');
+                }
+              }}
+              className="shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              title={activeTab === 'materialEvaluation'
+                ? 'Mở trang nhập liệu đánh giá nguyên liệu dành cho tablet (tab mới)'
+                : 'Mở trang nhập liệu sản lượng dành cho nhân viên trên tablet (tab mới)'}
+            >
+              <Tablet className="w-4 h-4" />
+              {activeTab === 'materialEvaluation'
+                ? 'Mở nhập liệu (Tablet)'
+                : 'Mở nhập liệu sản lượng (Tablet)'}
+              <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+            </button>
           </div>
-          <button
-            onClick={() => {
-              activateKiosk();
-              if (activeTab === 'materialEvaluation') {
-                window.open('/production/nhap-lieu-danh-gia', '_blank');
-              } else {
-                window.open('/production/nhap-lieu', '_blank');
-              }
-            }}
-            className="shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-            title={activeTab === 'materialEvaluation'
-              ? 'Mở trang nhập liệu đánh giá nguyên liệu dành cho tablet (tab mới)'
-              : 'Mở trang nhập liệu sản lượng dành cho nhân viên trên tablet (tab mới)'}
-          >
-            <Tablet className="w-4 h-4" />
-            {activeTab === 'materialEvaluation'
-              ? 'Mở nhập liệu (Tablet)'
-              : 'Mở nhập liệu sản lượng (Tablet)'}
-            <ExternalLink className="w-3.5 h-3.5 opacity-70" />
-          </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Tabs */}
       <div className="border-b border-gray-200">

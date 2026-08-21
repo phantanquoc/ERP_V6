@@ -6,8 +6,10 @@ import {
   ArrowDown,
   FileText,
   ClipboardList,
-  Warehouse
+  Warehouse,
+  Calendar
 } from 'lucide-react';
+import PageHeader from '../../design-system/PageHeader';
 import SupplyRequestManagement from '../../components/SupplyRequestManagement';
 import WarehouseUnifiedView from '../../components/WarehouseUnifiedView';
 import FactoryOverview from '../../components/FactoryOverview';
@@ -355,44 +357,42 @@ const ProductionWarehouse = () => {
   });
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <Warehouse className="w-6 h-6 text-blue-600" />
-          Quản lý kho
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">Quản lý kho, nhập xuất kho và yêu cầu cung cấp</p>
-      </div>
-
-        {/* Period Filter */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <label className="text-sm font-medium text-gray-700">Lọc theo:</label>
-          <select
-            value={filterMonth ?? ''}
-            onChange={(e) => setFilterMonth(e.target.value ? Number(e.target.value) : undefined)}
-            className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Tất cả tháng</option>
-            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-              <option key={m} value={m}>Tháng {m}</option>
-            ))}
-          </select>
-          <select
-            value={filterYear ?? ''}
-            onChange={(e) => setFilterYear(e.target.value ? Number(e.target.value) : undefined)}
-            className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Tất cả năm</option>
-            {availableYears.map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
-        </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Quản lý kho"
+        description="Quản lý kho, nhập xuất kho và yêu cầu cung cấp"
+        icon={<Warehouse className="w-5 h-5 text-blue-600" />}
+        actions={
+          <div className="flex items-center gap-2 flex-wrap">
+            <Calendar className="w-4 h-4 text-gray-500" />
+            <select
+              value={filterMonth ?? ''}
+              onChange={(e) => setFilterMonth(e.target.value ? Number(e.target.value) : undefined)}
+              className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Tất cả tháng</option>
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                <option key={m} value={m}>Tháng {m}</option>
+              ))}
+            </select>
+            <select
+              value={filterYear ?? ''}
+              onChange={(e) => setFilterYear(e.target.value ? Number(e.target.value) : undefined)}
+              className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Tất cả năm</option>
+              {availableYears.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+        }
+      />
 
         {/* Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5">
           {/* Card 1: Tổng quan tồn kho */}
-          <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-200 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-blue-400">
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-3 sm:p-4 hover:border-gray-300 hover:shadow-md transition-all duration-200">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <Package className="w-5 h-5 mr-2 text-blue-600" />
@@ -400,27 +400,27 @@ const ProductionWarehouse = () => {
               </h3>
             </div>
             <div className="space-y-3">
-              <div {...clickableProps('warehouseManagement')} className="bg-blue-50 rounded-lg p-3 hover:bg-blue-100 hover:shadow-md hover:scale-105 transition-all duration-200 border border-blue-300 cursor-pointer">
+              <div {...clickableProps('warehouseManagement')} className="bg-blue-50 rounded-lg p-3 transition-all duration-200 border border-blue-300 cursor-pointer">
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-medium text-gray-700">Số lượng kho</span>
                   <span className="text-2xl font-bold text-blue-600">{loadingOverview ? '...' : totalWarehouses}</span>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <div {...clickableProps('warehouseManagement')} className="bg-yellow-50 rounded-lg p-2 text-center hover:bg-yellow-100 hover:shadow-md hover:scale-110 transition-all duration-200 border border-yellow-300 cursor-pointer">
+                <div {...clickableProps('warehouseManagement')} className="bg-yellow-50 rounded-lg p-2 text-center transition-all duration-200 border border-yellow-300 cursor-pointer">
                   <div className="text-xl font-bold text-yellow-600">{loadingOverview ? '...' : emptyWarehouses}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Kho trống</div>
                 </div>
-                <div {...clickableProps('warehouseManagement')} className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border border-gray-200 cursor-pointer">
+                <div {...clickableProps('warehouseManagement')} className="bg-gray-50 rounded-lg p-2 text-center transition-all duration-200 border border-gray-200 cursor-pointer">
                   <div className="text-xl font-bold text-gray-600">{loadingOverview ? '...' : emptyLots}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Lô trống</div>
                 </div>
-                <div {...clickableProps('warehouseManagement')} className="bg-green-50 rounded-lg p-2 text-center hover:bg-green-100 hover:shadow-md hover:scale-110 transition-all duration-200 border border-green-300 cursor-pointer">
+                <div {...clickableProps('warehouseManagement')} className="bg-green-50 rounded-lg p-2 text-center transition-all duration-200 border border-green-300 cursor-pointer">
                   <div className="text-xl font-bold text-green-600">{loadingOverview ? '...' : inStockItemCount}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Có hàng</div>
                 </div>
               </div>
-              <div {...clickableProps('warehouseManagement')} className="bg-indigo-50 rounded-lg p-3 border border-indigo-200 cursor-pointer hover:bg-indigo-100 hover:shadow-md transition-all duration-200">
+              <div {...clickableProps('warehouseManagement')} className="bg-indigo-50 rounded-lg p-3 border border-indigo-200 cursor-pointer transition-all duration-200">
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-medium text-gray-700">Tổng giá trị tồn</span>
                   <span className="text-lg font-bold text-indigo-700">{loadingOverview ? '...' : formattedInventoryValue}</span>
@@ -430,7 +430,7 @@ const ProductionWarehouse = () => {
           </div>
 
           {/* Card 2: Tổng quan nhập xuất kho */}
-          <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-200 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-green-400">
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-3 sm:p-4 hover:border-gray-300 hover:shadow-md transition-all duration-200">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <ArrowDown className="w-5 h-5 mr-2 text-green-600" />
@@ -439,14 +439,14 @@ const ProductionWarehouse = () => {
             </div>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-2">
-                <div {...clickableProps('inbound')} className="bg-green-50 rounded-lg p-3 hover:bg-green-100 hover:shadow-md hover:scale-105 transition-all duration-200 border border-green-300 cursor-pointer">
+                <div {...clickableProps('inbound')} className="bg-green-50 rounded-lg p-3 transition-all duration-200 border border-green-300 cursor-pointer">
                   <div className="flex flex-col items-center">
                     <ArrowDown className="w-5 h-5 text-green-600 mb-1" />
                     <span className="text-2xl font-bold text-green-600">{loadingOverview ? '...' : totalReceipts}</span>
                     <span className="text-xs text-gray-600 mt-0.5">Phiếu nhập</span>
                   </div>
                 </div>
-                <div {...clickableProps('outbound')} className="bg-red-50 rounded-lg p-3 hover:bg-red-100 hover:shadow-md hover:scale-105 transition-all duration-200 border border-red-300 cursor-pointer">
+                <div {...clickableProps('outbound')} className="bg-red-50 rounded-lg p-3 transition-all duration-200 border border-red-300 cursor-pointer">
                   <div className="flex flex-col items-center">
                     <ArrowUp className="w-5 h-5 text-red-600 mb-1" />
                     <span className="text-2xl font-bold text-red-600">{loadingOverview ? '...' : totalIssues}</span>
@@ -456,13 +456,13 @@ const ProductionWarehouse = () => {
               </div>
               {!loadingOverview && (totalReceipts > 0 || totalIssues > 0) ? (
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div {...clickableProps('inbound')} className="space-y-1 cursor-pointer rounded-lg p-1 hover:bg-green-50 transition-all duration-200">
+                  <div {...clickableProps('inbound')} className="space-y-1 cursor-pointer rounded-lg p-1 transition-all duration-200">
                     <div className="font-medium text-gray-600">Top nhập:</div>
                     {topReceiptProducts.length > 0 ? topReceiptProducts.map(([name, count]) => (
                       <div key={name} className="text-gray-700 truncate" title={name}>{name} · {count} phiếu</div>
                     )) : <div className="text-gray-400 italic">Không có phiếu trong kỳ</div>}
                   </div>
-                  <div {...clickableProps('outbound')} className="space-y-1 cursor-pointer rounded-lg p-1 hover:bg-red-50 transition-all duration-200">
+                  <div {...clickableProps('outbound')} className="space-y-1 cursor-pointer rounded-lg p-1 transition-all duration-200">
                     <div className="font-medium text-gray-600">Top xuất:</div>
                     {topIssueProducts.length > 0 ? topIssueProducts.map(([name, count]) => (
                       <div key={name} className="text-gray-700 truncate" title={name}>{name} · {count} phiếu</div>
@@ -476,7 +476,7 @@ const ProductionWarehouse = () => {
           </div>
 
           {/* Card 3: Tổng quan yêu cầu cung cấp — funnel */}
-          <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-200 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-purple-400">
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-3 sm:p-4 hover:border-gray-300 hover:shadow-md transition-all duration-200">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <ClipboardList className="w-5 h-5 mr-2 text-purple-600" />
@@ -484,28 +484,28 @@ const ProductionWarehouse = () => {
               </h3>
             </div>
             <div className="space-y-3">
-              <div {...clickableProps('supplyRequest')} className="bg-purple-50 rounded-lg p-3 border border-purple-300 cursor-pointer hover:bg-purple-100 hover:shadow-md transition-all duration-200">
+              <div {...clickableProps('supplyRequest')} className="bg-purple-50 rounded-lg p-3 border border-purple-300 cursor-pointer transition-all duration-200">
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-medium text-gray-700">Tổng yêu cầu</span>
                   <span className="text-2xl font-bold text-purple-600">{loadingOverview ? '...' : totalSupplyRequests}</span>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <div {...clickableProps('supplyRequest')} className="bg-orange-50 rounded-lg p-2 text-center border border-orange-300 cursor-pointer hover:bg-orange-100 hover:shadow-md transition-all duration-200">
+                <div {...clickableProps('supplyRequest')} className="bg-orange-50 rounded-lg p-2 text-center border border-orange-300 cursor-pointer transition-all duration-200">
                   <div className="text-xl font-bold text-orange-600">{loadingOverview ? '...' : supplyFunnel.pending}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Chờ xử lý</div>
                 </div>
-                <div {...clickableProps('supplyRequest')} className="bg-amber-50 rounded-lg p-2 text-center border border-amber-300 cursor-pointer hover:bg-amber-100 hover:shadow-md transition-all duration-200">
+                <div {...clickableProps('supplyRequest')} className="bg-amber-50 rounded-lg p-2 text-center border border-amber-300 cursor-pointer transition-all duration-200">
                   <div className="text-xl font-bold text-amber-600">{loadingOverview ? '...' : supplyFunnel.inTransit}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Đang mua</div>
                 </div>
-                <div {...clickableProps('supplyRequest')} className="bg-green-50 rounded-lg p-2 text-center border border-green-300 cursor-pointer hover:bg-green-100 hover:shadow-md transition-all duration-200">
+                <div {...clickableProps('supplyRequest')} className="bg-green-50 rounded-lg p-2 text-center border border-green-300 cursor-pointer transition-all duration-200">
                   <div className="text-xl font-bold text-green-600">{loadingOverview ? '...' : supplyFunnel.fulfilled}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Đã cung cấp</div>
                 </div>
               </div>
               {!loadingOverview && supplyFunnel.highPriorityPending > 0 && (
-                <div {...clickableProps('supplyRequest')} className="bg-red-50 rounded-lg px-3 py-2 border border-red-200 flex items-center gap-2 cursor-pointer hover:bg-red-100 hover:shadow-md transition-all duration-200">
+                <div {...clickableProps('supplyRequest')} className="bg-red-50 rounded-lg px-3 py-2 border border-red-200 flex items-center gap-2 cursor-pointer transition-all duration-200">
                   <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white min-w-[18px]">
                     {supplyFunnel.highPriorityPending}
                   </span>
@@ -516,7 +516,7 @@ const ProductionWarehouse = () => {
           </div>
 
           {/* Card 4: Hàng hóa còn tồn */}
-          <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-200 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-emerald-400">
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-3 sm:p-4 hover:border-gray-300 hover:shadow-md transition-all duration-200">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <Package className="w-5 h-5 mr-2 text-emerald-600" />
@@ -539,7 +539,7 @@ const ProductionWarehouse = () => {
                         openWarehouse(item.warehouseId);
                       }
                     }}
-                    className="flex items-center justify-between bg-emerald-50 rounded-lg px-3 py-2 border border-emerald-200 cursor-pointer hover:bg-emerald-100 hover:shadow-md transition-all duration-200"
+                    className="flex items-center justify-between bg-emerald-50 rounded-lg px-3 py-2 border border-emerald-200 cursor-pointer transition-all duration-200"
                   >
                     <div className="min-w-0 mr-2">
                       <span className="text-xs font-medium text-gray-700 truncate block" title={item.name}>
@@ -624,7 +624,7 @@ const ProductionWarehouse = () => {
                 <div className="flex justify-end gap-4 mt-6">
                   <button
                     onClick={closeDetailModal}
-                    className="px-4 py-2 border border-gray-200 rounded-md text-gray-700 hover:bg-gray-50"
+                    className="px-4 py-2 border border-gray-200 rounded-md text-gray-700"
                   >
                     Đóng
                   </button>

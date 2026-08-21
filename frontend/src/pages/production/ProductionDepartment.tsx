@@ -22,6 +22,7 @@ import FinishedProductManagement from '../../components/FinishedProductManagemen
 import QualityEvaluationManagement from '../../components/QualityEvaluationManagement';
 import ProductionReportList from '../../components/ProductionDepartment/ProductionReportList';
 import { orderService } from '../../services/orderService';
+import PageHeader from '../../design-system/PageHeader';
 
 const ProductionDepartment = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -97,43 +98,41 @@ const ProductionDepartment = () => {
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Factory className="w-6 h-6 text-blue-600" />
-            Phòng QLSX
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">Quản lý quy trình, đơn hàng và định mức nguyên vật liệu</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-gray-500" />
-          <select
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {Array.from({ length: 12 }, (_, i) => (
-              <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
-            ))}
-          </select>
-          <select
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {Array.from({ length: 4 }, (_, i) => {
-              const y = new Date().getFullYear() - 3 + i;
-              return <option key={y} value={y}>{y}</option>;
-            })}
-          </select>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Phòng QLSX"
+        description="Quản lý quy trình, đơn hàng và định mức nguyên vật liệu"
+        icon={<Factory className="w-5 h-5 text-blue-600" />}
+        actions={
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-gray-500" />
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {Array.from({ length: 12 }, (_, i) => (
+                <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
+              ))}
+            </select>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {Array.from({ length: 4 }, (_, i) => {
+                const y = new Date().getFullYear() - 3 + i;
+                return <option key={y} value={y}>{y}</option>;
+              })}
+            </select>
+          </div>
+        }
+      />
 
         {/* Overview Cards */}
-        <div className="grid grid-cols-1 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 gap-4">
           {/* Tổng quan đơn hàng */}
-          <div onClick={() => setActiveTab('orderList')} className="bg-white rounded-lg shadow-sm p-5 border border-gray-200 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-purple-400 cursor-pointer">
+          <div onClick={() => setActiveTab('orderList')} className="bg-white border border-gray-200 rounded-lg shadow-sm p-3 sm:p-4 cursor-pointer hover:border-gray-300 hover:shadow-md transition-all duration-200">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <Package className="w-5 h-5 mr-2 text-purple-600" />
@@ -141,26 +140,26 @@ const ProductionDepartment = () => {
               </h3>
             </div>
             <div className="space-y-3">
-              <div className="bg-purple-50 rounded-lg p-3 hover:bg-purple-100 hover:shadow-md hover:scale-105 transition-all duration-200 border border-purple-300 cursor-pointer">
+              <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-medium text-gray-700">Tổng đơn hàng</span>
                   <span className="text-2xl font-bold text-purple-600">{orderStats.total}</span>
                 </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border border-gray-200 cursor-pointer">
+                <div className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200">
                   <div className="text-lg sm:text-xl font-bold text-gray-600">{orderStats.choSanXuat}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Chờ SX</div>
                 </div>
-                <div className="bg-blue-50 rounded-lg p-2 text-center hover:bg-blue-100 hover:shadow-md hover:scale-110 transition-all duration-200 border border-blue-300 cursor-pointer">
+                <div className="bg-blue-50 rounded-lg p-2 text-center border border-blue-200">
                   <div className="text-lg sm:text-xl font-bold text-blue-600">{orderStats.dangSanXuat}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Đang SX</div>
                 </div>
-                <div className="bg-orange-50 rounded-lg p-2 text-center hover:bg-orange-100 hover:shadow-md hover:scale-110 transition-all duration-200 border border-orange-300 cursor-pointer">
+                <div className="bg-orange-50 rounded-lg p-2 text-center border border-orange-200">
                   <div className="text-lg sm:text-xl font-bold text-orange-600">{orderStats.vanChuyen}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Vận chuyển</div>
                 </div>
-                <div className="bg-green-50 rounded-lg p-2 text-center hover:bg-green-100 hover:shadow-md hover:scale-110 transition-all duration-200 border border-green-300 cursor-pointer">
+                <div className="bg-green-50 rounded-lg p-2 text-center border border-green-200">
                   <div className="text-lg sm:text-xl font-bold text-green-600">{orderStats.daGiao}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Đã giao</div>
                 </div>
