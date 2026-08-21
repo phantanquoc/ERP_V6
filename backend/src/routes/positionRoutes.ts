@@ -1,9 +1,7 @@
 import { Router } from 'express';
 import positionController from '@controllers/positionController';
-import { authenticate, authorize } from '@middlewares/auth';
-import { checkAccess } from '@middlewares/rbacAbac';
-import { UserRole } from '@types';
-
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 const router = Router();
 
 // All position routes require authentication
@@ -41,16 +39,13 @@ router.use(authenticate);
  *         description: "Chưa xác thực"
  */
 router.get('/',
-  checkAccess({
-    allowedRoles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD],
-    checkDepartment: true,
-  }),
+  requireRule('positions', 'EXPORT'),
   positionController.getAllPositions
 );
 
 // Export must come before /:id to avoid route param capture
 router.get('/export.xlsx',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('positions', 'EXPORT'),
   positionController.exportXlsx
 );
 
@@ -77,10 +72,7 @@ router.get('/export.xlsx',
  *         description: "Không tìm thấy chức vụ"
  */
 router.get('/:id',
-  checkAccess({
-    allowedRoles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD],
-    checkDepartment: true,
-  }),
+  requireRule('positions', 'READ'),
   positionController.getPositionById
 );
 
@@ -110,15 +102,15 @@ router.get('/:id',
  *       400:
  *         description: "Dữ liệu không hợp lệ"
  */
-router.post('/', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD), positionController.createPosition);
+router.post('/', requireRule('positions', 'CREATE'), positionController.createPosition);
 
 router.patch('/bulk-category',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('positions', 'CREATE'),
   positionController.bulkUpdateCategory
 );
 
 router.get('/:id/usage',
-  checkAccess({ allowedRoles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD], checkDepartment: true }),
+  requireRule('positions', 'READ'),
   positionController.getPositionUsage
 );
 
@@ -156,10 +148,7 @@ router.get('/:id/usage',
  *         description: "Không tìm thấy chức vụ"
  */
 router.patch('/:id',
-  checkAccess({
-    allowedRoles: [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD],
-    checkDepartment: true,
-  }),
+  requireRule('positions', 'UPDATE'),
   positionController.updatePosition
 );
 
@@ -185,7 +174,7 @@ router.patch('/:id',
  *       404:
  *         description: "Không tìm thấy chức vụ"
  */
-router.delete('/:id', authorize(UserRole.ADMIN), positionController.deletePosition);
+router.delete('/:id', requireRule('positions', 'DELETE'), positionController.deletePosition);
 
 export default router;
 

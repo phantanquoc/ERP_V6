@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import processController from '@controllers/processController';
-import { authenticate, authorize } from '@middlewares/auth';
-import { UserRole } from '@types';
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 import { createSingleUploadMiddleware, createUploadMiddleware } from '@middlewares/upload';
 
 const uploadProcessFile = createSingleUploadMiddleware('processes');
@@ -130,7 +130,7 @@ router.get('/:id', processController.getProcessById);
  */
 router.post(
   '/',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  requireRule('processes', 'CREATE'),
   processController.createProcess
 );
 
@@ -162,14 +162,14 @@ router.post(
  */
 router.post(
   '/upload-file',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  requireRule('processes', 'CREATE'),
   uploadProcessFile,
   processController.uploadFile
 );
 
 router.post(
   '/upload-files',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  requireRule('processes', 'CREATE'),
   uploadProcessFiles,
   processController.uploadFiles
 );
@@ -207,7 +207,7 @@ router.post(
  */
 router.put(
   '/:id',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  requireRule('processes', 'UPDATE'),
   processController.updateProcess
 );
 
@@ -238,13 +238,13 @@ router.put(
  */
 router.delete(
   '/:id',
-  authorize(UserRole.ADMIN),
+  requireRule('processes', 'DELETE'),
   processController.deleteProcess
 );
 
 router.patch(
   '/:id/toggle-hien-thi',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('processes', 'UPDATE'),
   processController.toggleHienThiTrongChung
 );
 
@@ -306,7 +306,7 @@ router.get('/:processId/flowchart', processController.getFlowchart);
  */
 router.post(
   '/:processId/flowchart',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  requireRule('processes', 'CREATE'),
   processController.createFlowchart
 );
 
@@ -341,7 +341,7 @@ router.post(
  */
 router.put(
   '/:processId/flowchart',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  requireRule('processes', 'UPDATE'),
   processController.updateFlowchart
 );
 
@@ -372,7 +372,7 @@ router.put(
  */
 router.delete(
   '/:processId/flowchart',
-  authorize(UserRole.ADMIN),
+  requireRule('processes', 'DELETE'),
   processController.deleteFlowchart
 );
 

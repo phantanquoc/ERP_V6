@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import auditLogController from '@controllers/auditLogController';
-import { authenticate, authorize } from '@middlewares/auth';
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 
 const router = Router();
 
@@ -8,7 +9,7 @@ const router = Router();
 router.get(
   '/',
   authenticate,
-  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  requireRule('audit-logs', 'READ'),
   auditLogController.listAudit.bind(auditLogController)
 );
 

@@ -403,18 +403,58 @@ export const getDepartmentDisplayName = (department?: string): string => {
   }
 };
 
+// --- Rule-based helpers (Rule Matrix) — preferred over DEPARTMENT_PERMISSIONS hard-code
+
+let cachedPermissions: Array<{ resourceCode: string; action: string; allow: boolean }> | null = null;
+
+export function setCachedPermissions(perms: Array<{ resourceCode: string; action: string; allow: boolean }>): void {
+  cachedPermissions = perms;
+}
+
+export function getCachedPermissions(): Array<{ resourceCode: string; action: string; allow: boolean }> | null {
+  return cachedPermissions;
+}
+
+/**
+ * Check if current user can perform action on resource via Rule Matrix.
+ * Falls back to baseline (REQ-RBAC-006): CREATE/READ/UPDATE/EXPORT/IMPORT allow all, APPROVE/REJECT TEAM_LEAD+, DELETE DEPARTMENT_HEAD/ADMIN.
+ */
+export function can(resourceCode: string, action: string, role?: string): boolean {
+  if (cachedPermissions) {
+    const entry = cachedPermissions.find(p => p.resourceCode === resourceCode && p.action === action);
+    if (entry !== undefined) return entry.allow;
+  }
+  // Baseline fallback when Rule Matrix not loaded
+  if (action === 'DELETE') return role === UserRole.ADMIN || role === UserRole.DEPARTMENT_HEAD;
+  if (action === 'APPROVE' || action === 'REJECT') return role === UserRole.ADMIN || role === UserRole.DEPARTMENT_HEAD || role === UserRole.TEAM_LEAD;
+  return true;
+}
+
+export function canDelete(role?: string): boolean {
+  if (cachedPermissions) {
+    // Generic delete check — any resource DELETE; if none found, fallback
+    const deletes = cachedPermissions.filter(p => p.action === 'DELETE');
+    if (deletes.length > 0) return deletes.some(p => p.allow);
+  }
+  return canDeleteFallback(role);
+}
+
+function canDeleteFallback(role?: string): boolean {
+  return role === UserRole.ADMIN || role === UserRole.DEPARTMENT_HEAD;
+}
+
 // --- Quotation role helpers ---
 
 /**
  * Returns true for roles allowed to edit quotations: ADMIN, DEPARTMENT_HEAD, TEAM_LEAD.
  */
 export function canEditQuotation(role?: string): boolean {
-  return role === UserRole.ADMIN || role === UserRole.DEPARTMENT_HEAD || role === UserRole.TEAM_LEAD;
+  return can('quotations', 'UPDATE', role);
 }
 
 /**
  * Returns true for roles allowed to delete quotations: ADMIN, DEPARTMENT_HEAD.
  */
 export function canDeleteQuotation(role?: string): boolean {
-  return role === UserRole.ADMIN || role === UserRole.DEPARTMENT_HEAD;
+  return can('quotations', 'DELETE', role);
 }

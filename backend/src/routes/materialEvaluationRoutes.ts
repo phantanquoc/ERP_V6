@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import materialEvaluationController from '@controllers/materialEvaluationController';
-import { authenticate, authorize, deviceOrJwtAuth } from '@middlewares/auth';
-import { UserRole } from '@types';
+import { authenticate, deviceOrJwtAuth } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 import { createSingleUploadMiddleware } from '@middlewares/upload';
 import { zodValidate } from '@middlewares/zodValidation';
 import { createMaterialEvaluationSchema } from '@schemas';
@@ -111,7 +111,7 @@ router.get(
 router.get(
   '/ma-chien/:maChien',
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  requireRule('material-evaluations', 'READ'),
   materialEvaluationController.getMaterialEvaluationByMaChien
 );
 
@@ -142,7 +142,7 @@ router.get(
 router.get(
   '/:id/delete-info',
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('material-evaluations', 'READ'),
   materialEvaluationController.getDeleteInfo
 );
 
@@ -246,7 +246,7 @@ router.post(
 router.patch(
   '/:id',
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  requireRule('material-evaluations', 'UPDATE'),
   uploadMaterialEvaluation,
   materialEvaluationController.updateMaterialEvaluation
 );
@@ -278,7 +278,7 @@ router.patch(
 router.delete(
   '/:id',
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('material-evaluations', 'DELETE'),
   materialEvaluationController.deleteMaterialEvaluation
 );
 

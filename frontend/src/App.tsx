@@ -85,6 +85,7 @@ const ProductionDataEntry = React.lazy(() => import('./pages/production/Producti
 const ProductionMaterialEvaluationEntry = React.lazy(() => import('./pages/production/ProductionMaterialEvaluationEntry'));
 const ProductionSystemOperationEntry = React.lazy(() => import('./pages/production/ProductionSystemOperationEntry'));
 const DataEntryPositionConfig = React.lazy(() => import('./pages/production/DataEntryPositionConfig'));
+const RuleManagement = React.lazy(() => import('./pages/RuleManagement'));
 
 function PageTitleUpdater() {
   usePageTitle();
@@ -310,6 +311,13 @@ function App() {
 
             {/* Documentation Guide */}
             <Route path="/huong-dan" element={<DocumentationGuide />} />
+
+            {/* Rule Management — ADMIN only */}
+            <Route path="/admin/rules" element={
+              <AdminRoute>
+                <RuleManagement />
+              </AdminRoute>
+            } />
 
             {/* My History */}
             <Route path="/my-history" element={<MyHistory />} />

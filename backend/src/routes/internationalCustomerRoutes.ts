@@ -1,10 +1,9 @@
 import { Router } from 'express';
 import internationalCustomerController from '@controllers/internationalCustomerController';
-import { authenticate, authorize } from '@middlewares/auth';
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 import { zodValidate } from '@middlewares/zodValidation';
 import { createCustomerSchema, updateCustomerSchema } from '@schemas';
-import { UserRole } from '@types';
-
 const router = Router();
 
 // All routes require authentication
@@ -73,7 +72,7 @@ router.get('/',
  *         description: Không đủ quyền hạn
  */
 router.post('/generate-code',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('international-customers', 'CREATE'),
   internationalCustomerController.generateCustomerCode
 );
 
@@ -177,7 +176,7 @@ router.get('/:id',
  *         description: Không đủ quyền hạn
  */
 router.post('/',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('international-customers', 'CREATE'),
   zodValidate(createCustomerSchema),
   internationalCustomerController.createCustomer
 );
@@ -214,7 +213,7 @@ router.post('/',
  *         description: Không tìm thấy khách hàng
  */
 router.patch('/:id',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('international-customers', 'UPDATE'),
   zodValidate(updateCustomerSchema),
   internationalCustomerController.updateCustomer
 );
@@ -245,7 +244,7 @@ router.patch('/:id',
  *         description: Không tìm thấy khách hàng
  */
 router.delete('/:id',
-  authorize(UserRole.ADMIN),
+  requireRule('international-customers', 'DELETE'),
   internationalCustomerController.deleteCustomer
 );
 

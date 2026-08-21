@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import holidayController from '@controllers/holidayController';
-import { authenticate, authorize } from '@middlewares/auth';
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 
 const router = Router();
 
-router.get('/', authenticate, authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD'), holidayController.list);
-router.post('/', authenticate, authorize('ADMIN', 'DEPARTMENT_HEAD'), holidayController.create);
-router.put('/:id', authenticate, authorize('ADMIN', 'DEPARTMENT_HEAD'), holidayController.update);
-router.delete('/:id', authenticate, authorize('ADMIN', 'DEPARTMENT_HEAD'), holidayController.delete);
+router.get('/', authenticate, requireRule('holidays', 'READ'), holidayController.list);
+router.post('/', authenticate, requireRule('holidays', 'READ'), holidayController.create);
+router.put('/:id', authenticate, requireRule('holidays', 'READ'), holidayController.update);
+router.delete('/:id', authenticate, requireRule('holidays', 'READ'), holidayController.delete);
 
 export default router;

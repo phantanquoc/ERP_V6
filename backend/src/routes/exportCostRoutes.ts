@@ -1,6 +1,7 @@
+import { requireRule } from '@middlewares/requireRule';
 import { Router } from 'express';
 import exportCostController from '../controllers/exportCostController';
-import { authenticate, authorize } from '../middlewares/auth';
+import { authenticate } from '../middlewares/auth';
 
 const router = Router();
 
@@ -8,24 +9,24 @@ const router = Router();
 router.use(authenticate);
 
 // GET list — all authenticated roles
-router.get('/', authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD', 'EMPLOYEE'), exportCostController.getAllExportCosts);
+router.get('/', requireRule('export-costs', 'EXPORT'), exportCostController.getAllExportCosts);
 
 // GET Excel export — all authenticated roles
-router.get('/export/excel', authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD', 'EMPLOYEE'), exportCostController.exportToExcel);
+router.get('/export/excel', requireRule('export-costs', 'EXPORT'), exportCostController.exportToExcel);
 
 // GET by ID — all authenticated roles
-router.get('/:id', authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD', 'EMPLOYEE'), exportCostController.getExportCostById);
+router.get('/:id', requireRule('export-costs', 'EXPORT'), exportCostController.getExportCostById);
 
 // POST create — ADMIN and DEPARTMENT_HEAD only
-router.post('/', authorize('ADMIN', 'DEPARTMENT_HEAD'), exportCostController.createExportCost);
+router.post('/', requireRule('export-costs', 'EXPORT'), exportCostController.createExportCost);
 
 // PATCH update — ADMIN and DEPARTMENT_HEAD only
-router.patch('/:id', authorize('ADMIN', 'DEPARTMENT_HEAD'), exportCostController.updateExportCost);
+router.patch('/:id', requireRule('export-costs', 'CREATE'), exportCostController.updateExportCost);
 
 // PUT update (legacy support) — ADMIN and DEPARTMENT_HEAD only
-router.put('/:id', authorize('ADMIN', 'DEPARTMENT_HEAD'), exportCostController.updateExportCost);
+router.put('/:id', requireRule('export-costs', 'UPDATE'), exportCostController.updateExportCost);
 
 // DELETE — ADMIN only
-router.delete('/:id', authorize('ADMIN'), exportCostController.deleteExportCost);
+router.delete('/:id', requireRule('export-costs', 'UPDATE'), exportCostController.deleteExportCost);
 
 export default router;

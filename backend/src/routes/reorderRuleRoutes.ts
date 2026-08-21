@@ -1,8 +1,7 @@
 import { Router } from 'express';
 import reorderRuleController from '@controllers/reorderRuleController';
-import { authenticate, authorize } from '@middlewares/auth';
-import { UserRole } from '@types';
-
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 const router = Router();
 
 router.use(authenticate);
@@ -15,17 +14,17 @@ router.get('/:id', reorderRuleController.getRuleById);
 // Mutations — admin, department head, or purchasing lead
 router.post(
   '/',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  requireRule('reorder-rules', 'READ'),
   reorderRuleController.createRule
 );
 router.put(
   '/:id',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  requireRule('reorder-rules', 'UPDATE'),
   reorderRuleController.updateRule
 );
 router.delete(
   '/:id',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('reorder-rules', 'DELETE'),
   reorderRuleController.deleteRule
 );
 

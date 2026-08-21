@@ -1,8 +1,7 @@
 import { Router } from 'express';
 import internationalProductController from '@controllers/internationalProductController';
-import { authenticate, authorize, deviceOrJwtAuth } from '@middlewares/auth';
-import { UserRole } from '@types';
-
+import { authenticate, deviceOrJwtAuth } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 const router = Router();
 
 // Kiosk-accessible endpoint — accept device key OR JWT (must be before router.use(authenticate))
@@ -109,7 +108,7 @@ router.get('/categories', internationalProductController.getCategories);
 
 router.post(
   '/categories',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('international-products', 'READ'),
   internationalProductController.addCategory
 );
 
@@ -117,19 +116,19 @@ router.post(
 // a body, not because it mutates anything.
 router.post(
   '/categories/rename-preview',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('international-products', 'CREATE'),
   internationalProductController.previewRenameCategory
 );
 
 router.put(
   '/categories/rename',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('international-products', 'UPDATE'),
   internationalProductController.renameCategory
 );
 
 router.post(
   '/categories/delete',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('international-products', 'CREATE'),
   internationalProductController.deleteCategory
 );
 
@@ -184,7 +183,7 @@ router.get('/:id', internationalProductController.getProductById);
  */
 router.post(
   '/',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  requireRule('international-products', 'CREATE'),
   internationalProductController.createProduct
 );
 
@@ -221,7 +220,7 @@ router.post(
  */
 router.patch(
   '/:id',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  requireRule('international-products', 'UPDATE'),
   internationalProductController.updateProduct
 );
 
@@ -252,7 +251,7 @@ router.patch(
  */
 router.delete(
   '/:id',
-  authorize(UserRole.ADMIN),
+  requireRule('international-products', 'DELETE'),
   internationalProductController.deleteProduct
 );
 

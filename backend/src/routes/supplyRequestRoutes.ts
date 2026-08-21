@@ -1,8 +1,7 @@
 import { Router } from 'express';
 import supplyRequestController from '@controllers/supplyRequestController';
-import { authenticate, authorize } from '@middlewares/auth';
-import { UserRole } from '@types';
-
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 const router = Router();
 
 // All routes require authentication
@@ -146,7 +145,7 @@ router.post(
  */
 router.put(
   '/:id',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  requireRule('supply-requests', 'UPDATE'),
   supplyRequestController.updateSupplyRequest
 );
 
@@ -178,7 +177,7 @@ router.put(
  */
 router.delete(
   '/:id',
-  authorize(UserRole.ADMIN),
+  requireRule('supply-requests', 'DELETE'),
   supplyRequestController.deleteSupplyRequest
 );
 
@@ -210,7 +209,7 @@ router.delete(
  */
 router.post(
   '/:id/cancel',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  requireRule('supply-requests', 'CREATE'),
   supplyRequestController.cancelSupplyRequest
 );
 
@@ -225,7 +224,7 @@ router.patch(
  */
 router.patch(
   '/items/:itemId/partial-fulfill',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  requireRule('supply-requests', 'UPDATE'),
   supplyRequestController.partialFulfillItem
 );
 
@@ -236,7 +235,7 @@ router.patch(
  */
 router.post(
   '/batch-fulfill',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  requireRule('supply-requests', 'CREATE'),
   supplyRequestController.batchFulfill
 );
 

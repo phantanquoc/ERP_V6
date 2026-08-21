@@ -1,10 +1,9 @@
 import { Router } from 'express';
 import systemOperationController from '@controllers/systemOperationController';
-import { authenticate, authorize, deviceOrJwtAuth } from '@middlewares/auth';
+import { authenticate, deviceOrJwtAuth } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 import { zodValidate } from '@middlewares/zodValidation';
 import { createSystemOperationSchema, createBulkSystemOperationSchema, updateSystemOperationSchema } from '@schemas';
-import { UserRole } from '@types';
-
 const router = Router();
 
 // Note: auth is applied per-route. Kiosk-facing routes (read by maChien, update by id)
@@ -43,7 +42,7 @@ const router = Router();
 router.get(
   '/',
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  requireRule('system-operations', 'READ'),
   systemOperationController.getAllSystemOperations
 );
 
@@ -103,7 +102,7 @@ router.get(
 router.get(
   '/:id',
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  requireRule('system-operations', 'READ'),
   systemOperationController.getSystemOperationById
 );
 
@@ -132,7 +131,7 @@ router.get(
 router.post(
   '/bulk',
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  requireRule('system-operations', 'CREATE'),
   zodValidate(createBulkSystemOperationSchema),
   systemOperationController.createBulkSystemOperations
 );
@@ -162,7 +161,7 @@ router.post(
 router.post(
   '/',
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD, UserRole.EMPLOYEE),
+  requireRule('system-operations', 'CREATE'),
   zodValidate(createSystemOperationSchema),
   systemOperationController.createSystemOperation
 );
@@ -234,7 +233,7 @@ router.patch(
 router.delete(
   '/:id',
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('system-operations', 'DELETE'),
   systemOperationController.deleteSystemOperation
 );
 

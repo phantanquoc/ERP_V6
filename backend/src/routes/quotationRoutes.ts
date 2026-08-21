@@ -1,11 +1,10 @@
 import { Router } from 'express';
 import quotationController from '@controllers/quotationController';
 import quotationRevisionController from '@controllers/quotationRevisionController';
-import { authenticate, authorize } from '@middlewares/auth';
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 import { zodValidate } from '@middlewares/zodValidation';
 import { createQuotationSchema, updateQuotationSchema } from '@schemas';
-import { UserRole } from '@types';
-
 const router = Router();
 
 // All routes require authentication
@@ -83,7 +82,7 @@ router.get('/export/excel', quotationController.exportToExcel);
 // Aging warnings (task 7.4) — must be before /:id to avoid route conflict
 router.get(
   '/aging-warnings',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('quotations', 'EXPORT'),
   quotationController.listAgingWarnings
 );
 
@@ -138,7 +137,7 @@ router.get('/:id', quotationController.getQuotationById);
  */
 router.post(
   '/',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('quotations', 'CREATE'),
   zodValidate(createQuotationSchema),
   quotationController.createQuotation
 );
@@ -178,7 +177,7 @@ router.post(
  */
 router.patch(
   '/:id',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('quotations', 'UPDATE'),
   zodValidate(updateQuotationSchema),
   quotationController.updateQuotation
 );
@@ -210,20 +209,20 @@ router.patch(
  */
 router.delete(
   '/:id',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD),
+  requireRule('quotations', 'DELETE'),
   quotationController.deleteQuotation
 );
 
 // Revision sub-routes (task 3.5)
 router.get(
   '/:id/revisions',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  requireRule('quotations', 'READ'),
   quotationRevisionController.listRevisions
 );
 
 router.get(
   '/:id/revisions/:revisionId',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  requireRule('quotations', 'READ'),
   quotationRevisionController.getRevisionById
 );
 

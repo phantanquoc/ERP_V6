@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import positionLevelController from '@controllers/positionLevelController';
-import { authenticate, authorize } from '@middlewares/auth';
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 
 const router = Router();
 
@@ -8,7 +9,7 @@ const router = Router();
 router.use(authenticate);
 
 // Export route (no role import from @types here, use string literals consistent with file)
-router.get('/export.xlsx', authorize('ADMIN', 'DEPARTMENT_HEAD'), positionLevelController.exportXlsx);
+router.get('/export.xlsx', requireRule('position-levels', 'EXPORT'), positionLevelController.exportXlsx);
 
 /**
  * @swagger
@@ -125,7 +126,7 @@ router.get('/level/:id/usage',
  *       400:
  *         description: "Dữ liệu không hợp lệ"
  */
-router.post('/:positionId/levels', authorize('ADMIN', 'DEPARTMENT_HEAD'), positionLevelController.createLevel);
+router.post('/:positionId/levels', requireRule('position-levels', 'CREATE'), positionLevelController.createLevel);
 
 /**
  * @swagger
@@ -160,7 +161,7 @@ router.post('/:positionId/levels', authorize('ADMIN', 'DEPARTMENT_HEAD'), positi
  *       404:
  *         description: "Không tìm thấy cấp bậc"
  */
-router.patch('/level/:id', authorize('ADMIN', 'DEPARTMENT_HEAD'), positionLevelController.updateLevel);
+router.patch('/level/:id', requireRule('position-levels', 'UPDATE'), positionLevelController.updateLevel);
 
 /**
  * @swagger
@@ -184,7 +185,7 @@ router.patch('/level/:id', authorize('ADMIN', 'DEPARTMENT_HEAD'), positionLevelC
  *       404:
  *         description: "Không tìm thấy cấp bậc"
  */
-router.delete('/level/:id', authorize('ADMIN'), positionLevelController.deleteLevel);
+router.delete('/level/:id', requireRule('position-levels', 'DELETE'), positionLevelController.deleteLevel);
 
 export default router;
 

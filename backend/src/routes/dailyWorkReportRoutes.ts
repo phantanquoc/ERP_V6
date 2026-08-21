@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import dailyWorkReportController from '@controllers/dailyWorkReportController';
-import { authenticate, authorize } from '@middlewares/auth';
-import { UserRole } from '@types';
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 import { createUploadMiddleware } from '@middlewares/upload';
 
 const router = Router();
@@ -40,7 +40,7 @@ router.use(authenticate);
  */
 router.get('/my-reports', dailyWorkReportController.getMyReports);
 
-router.get('/submitted-count', authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD), dailyWorkReportController.getSubmittedCount);
+router.get('/submitted-count', requireRule('daily-work-reports', 'READ'), dailyWorkReportController.getSubmittedCount);
 
 /**
  * @swagger
@@ -191,7 +191,7 @@ router.delete('/:id', dailyWorkReportController.deleteReport);
  */
 router.get(
   '/',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  requireRule('daily-work-reports', 'READ'),
   dailyWorkReportController.getAllReports
 );
 
@@ -249,7 +249,7 @@ router.get('/:id', dailyWorkReportController.getReportById);
  */
 router.get(
   '/employee/:employeeId',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  requireRule('daily-work-reports', 'READ'),
   dailyWorkReportController.getReportsByEmployeeId
 );
 
@@ -281,7 +281,7 @@ router.get(
  */
 router.post(
   '/:id/comment',
-  authorize(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD),
+  requireRule('daily-work-reports', 'CREATE'),
   dailyWorkReportController.addSupervisorComment
 );
 

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import lookupController from '@controllers/lookupController';
-import { authenticate, authorize } from '@middlewares/auth';
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 
 const router = Router();
 
@@ -33,9 +34,9 @@ router.get('/', authenticate, lookupController.getAll);
 router.get('/:id', authenticate, lookupController.getById);
 
 // --- Mutations: ADMIN only ---
-router.post('/', authenticate, authorize('ADMIN'), lookupController.create);
-router.put('/:id', authenticate, authorize('ADMIN'), lookupController.update);
+router.post('/', authenticate, requireRule('lookups', 'READ'), lookupController.create);
+router.put('/:id', authenticate, requireRule('lookups', 'READ'), lookupController.update);
 // Soft delete only — sets isActive=false, never removes the row.
-router.delete('/:id', authenticate, authorize('ADMIN'), lookupController.remove);
+router.delete('/:id', authenticate, requireRule('lookups', 'CREATE'), lookupController.remove);
 
 export default router;

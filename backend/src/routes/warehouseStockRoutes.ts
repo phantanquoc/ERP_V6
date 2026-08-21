@@ -1,13 +1,11 @@
 import { Router } from 'express';
-import { authenticate, authorize } from '@middlewares/auth';
-import { UserRole } from '@types';
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 import { receiveSplit, issueFifo } from '@controllers/warehouseStockController';
 
 const router = Router();
 
-const ALLOWED = [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD];
-
-router.post('/receive', authenticate, authorize(...ALLOWED), receiveSplit);
-router.post('/issue', authenticate, authorize(...ALLOWED), issueFifo);
+router.post('/receive', authenticate, requireRule('warehouse-stock', 'CREATE'), receiveSplit);
+router.post('/issue', authenticate, requireRule('warehouse-stock', 'CREATE'), issueFifo);
 
 export default router;

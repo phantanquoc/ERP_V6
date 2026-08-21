@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import overtimePlanController from '@controllers/overtimePlanController';
-import { authenticate, authorize } from '@middlewares/auth';
+import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 import { createUploadMiddleware } from '@middlewares/upload';
 
 const router = Router();
@@ -12,12 +13,12 @@ router.use(authenticate);
 router.get('/my-plans', overtimePlanController.getMyPlans);
 router.get('/', overtimePlanController.getAll);
 router.get('/:id', overtimePlanController.getById);
-router.post('/', authorize('ADMIN', 'DEPARTMENT_HEAD'), uploadOvertimePlans, overtimePlanController.create);
+router.post('/', requireRule('overtime-plans', 'READ'), uploadOvertimePlans, overtimePlanController.create);
 router.put('/:id', uploadOvertimePlans, overtimePlanController.update);
 router.delete('/:id', overtimePlanController.delete);
 router.patch('/:id/accept', overtimePlanController.acceptPlan);
 router.patch('/:id/approve',
-  authorize('ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD', 'EMPLOYEE'),
+  requireRule('overtime-plans', 'CREATE'),
   async (req: any, res: any, next: any) => {
     if (req.user?.role === 'ADMIN') return next();
     const { isPricingApprover } = await import('@utils/isPricingApprover');

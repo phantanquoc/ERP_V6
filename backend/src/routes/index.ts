@@ -83,6 +83,7 @@ const ROUTE_MAP: Record<string, string> = {
   lookup: '/api/lookups',
   inventory: '/api/inventory',
   pricingOverview: '/api/pricing/overview',
+  rule: '/api/rules',
 };
 
 export const registerRoutes = (app: Express): void => {
