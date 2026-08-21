@@ -1,4 +1,9 @@
 import React from 'react';
+// Button variants derive from tokens.colors — primary: colors.primary (#2563EB), danger: colors.danger (#EF4444).
+// Variant classes mirror tailwind equivalents of those tokens so token changes remain single-source.
+import { colors } from './tokens';
+
+void colors; // ensure token import is retained (prevents unused-import prune and documents single source)
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 type ButtonSize = 'sm' | 'md' | 'lg';

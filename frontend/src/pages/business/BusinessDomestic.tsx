@@ -169,7 +169,7 @@ const BusinessDomestic = () => {
     <div>
       <div>
         {/* Header */}
-        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-800 mb-2 flex items-center">
               <Home className="w-8 h-8 text-green-600 mr-3" />
@@ -201,29 +201,29 @@ const BusinessDomestic = () => {
           </div>
         </div>
 
-        {/* Overview Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+        {/* Overview Cards — shell.card + shell.cardInteractive; inner pills are static (no hover:scale) */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-5 mb-5">
           {/* Card 1: Yêu cầu báo giá */}
-          <div onClick={() => setActiveTab('quotationRequests')} className="bg-white rounded-lg shadow-sm p-5 border border-gray-200 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-blue-400 cursor-pointer">
+          <div onClick={() => setActiveTab('quotationRequests')} className="bg-white border border-gray-200 rounded-lg shadow-sm p-3 sm:p-4 cursor-pointer hover:border-gray-300 hover:shadow-md transition-all duration-200">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
-                <FileText className="w-5 h-5 mr-2 text-blue-600" />
+                <FileText className="w-5 h-5 mr-2 text-green-600" />
                 Yêu cầu báo giá
               </h3>
             </div>
             <div className="space-y-3">
-              <div className="bg-blue-50 rounded-lg p-3 hover:bg-blue-100 hover:shadow-md hover:scale-105 transition-all duration-200 border border-blue-300 cursor-pointer">
+              <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-medium text-gray-700">Tổng yêu cầu</span>
                   <span className="text-2xl font-bold text-blue-600">{quotationRequestStats.total}</span>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border border-gray-200 cursor-pointer">
+                <div className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200">
                   <div className="text-xl font-bold text-green-600">{quotationRequestStats.daBaoGia}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Đã báo giá</div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border border-gray-200 cursor-pointer">
+                <div className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200">
                   <div className="text-xl font-bold text-orange-600">{quotationRequestStats.chuaBaoGia}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Chưa báo giá</div>
                 </div>
@@ -232,7 +232,7 @@ const BusinessDomestic = () => {
           </div>
 
           {/* Card 2: Báo giá */}
-          <div onClick={() => setActiveTab('quotations')} className="bg-white rounded-lg shadow-sm p-5 border border-gray-200 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-green-400 cursor-pointer">
+          <div onClick={() => setActiveTab('quotations')} className="bg-white border border-gray-200 rounded-lg shadow-sm p-3 sm:p-4 cursor-pointer hover:border-gray-300 hover:shadow-md transition-all duration-200">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
                 <FileText className="w-5 h-5 mr-2 text-green-600" />
@@ -240,26 +240,26 @@ const BusinessDomestic = () => {
               </h3>
             </div>
             <div className="space-y-3">
-              <div className="bg-green-50 rounded-lg p-3 hover:bg-green-100 hover:shadow-md hover:scale-105 transition-all duration-200 border border-green-300 cursor-pointer">
+              <div className="bg-green-50 rounded-lg p-3 border border-green-200">
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-medium text-gray-700">Tổng báo giá</span>
                   <span className="text-2xl font-bold text-green-600">{quotationStats.total}</span>
                 </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border border-gray-200 cursor-pointer">
+                <div className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200">
                   <div className="text-lg font-bold text-green-600">{quotationStats.daDatHang}</div>
                   <div className="text-[10px] text-gray-600 mt-0.5 leading-tight">Đã Đ.hàng</div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border border-gray-200 cursor-pointer">
+                <div className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200">
                   <div className="text-lg font-bold text-blue-600">{quotationStats.dangChoPhanhoi}</div>
                   <div className="text-[10px] text-gray-600 mt-0.5 leading-tight">Chờ P.hồi</div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border border-gray-200 cursor-pointer">
+                <div className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200">
                   <div className="text-lg font-bold text-yellow-600">{quotationStats.dangChoGuiDonHang}</div>
                   <div className="text-[10px] text-gray-600 mt-0.5 leading-tight">Chờ gửi ĐH</div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border border-gray-200 cursor-pointer">
+                <div className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200">
                   <div className="text-lg font-bold text-red-600">{quotationStats.khongDatHang}</div>
                   <div className="text-[10px] text-gray-600 mt-0.5 leading-tight">Không ĐH</div>
                 </div>
@@ -268,22 +268,22 @@ const BusinessDomestic = () => {
           </div>
 
           {/* Card 3: Đơn hàng */}
-          <div onClick={() => setActiveTab('orders')} className="bg-white rounded-lg shadow-sm p-5 border border-gray-200 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-purple-400 cursor-pointer">
+          <div onClick={() => setActiveTab('orders')} className="bg-white border border-gray-200 rounded-lg shadow-sm p-3 sm:p-4 cursor-pointer hover:border-gray-300 hover:shadow-md transition-all duration-200">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
-                <Package className="w-5 h-5 mr-2 text-purple-600" />
+                <Package className="w-5 h-5 mr-2 text-green-600" />
                 Đơn hàng
               </h3>
             </div>
             <div className="space-y-3">
-              <div className="bg-purple-50 rounded-lg p-3 hover:bg-purple-100 hover:shadow-md hover:scale-105 transition-all duration-200 border border-purple-300 cursor-pointer">
+              <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-medium text-gray-700">Tổng đơn hàng</span>
                   <span className="text-2xl font-bold text-purple-600">{orderStats.total}</span>
                 </div>
               </div>
               <div className="grid grid-cols-1 gap-2">
-                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border border-gray-200 cursor-pointer">
+                <div className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200">
                   <div className="text-xl font-bold text-green-600">{orderStats.total}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Trong kỳ</div>
                 </div>
@@ -292,26 +292,26 @@ const BusinessDomestic = () => {
           </div>
 
           {/* Card 4: Phản hồi khách hàng */}
-          <div onClick={() => setActiveTab('feedback')} className="bg-white rounded-lg shadow-sm p-5 border border-gray-200 hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 hover:border-red-400 cursor-pointer">
+          <div onClick={() => setActiveTab('feedback')} className="bg-white border border-gray-200 rounded-lg shadow-sm p-3 sm:p-4 cursor-pointer hover:border-gray-300 hover:shadow-md transition-all duration-200">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center text-gray-800">
-                <MessageCircle className="w-5 h-5 mr-2 text-red-600" />
+                <MessageCircle className="w-5 h-5 mr-2 text-green-600" />
                 Phản hồi KH
               </h3>
             </div>
             <div className="space-y-3">
-              <div className="bg-red-50 rounded-lg p-3 hover:bg-red-100 hover:shadow-md hover:scale-105 transition-all duration-200 border border-red-300 cursor-pointer">
+              <div className="bg-red-50 rounded-lg p-3 border border-red-200">
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-medium text-gray-700">Số phản hồi</span>
                   <span className="text-2xl font-bold text-red-600">{feedbackStats.total}</span>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border border-gray-200 cursor-pointer">
+                <div className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200">
                   <div className="text-xl font-bold text-red-600">{feedbackStats.khanCap}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Khẩn cấp</div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-2 text-center hover:bg-gray-100 hover:shadow-md hover:scale-110 transition-all duration-200 border border-gray-200 cursor-pointer">
+                <div className="bg-gray-50 rounded-lg p-2 text-center border border-gray-200">
                   <div className="text-xl font-bold text-orange-600">{feedbackStats.cao}</div>
                   <div className="text-xs text-gray-600 mt-0.5">Cao</div>
                 </div>

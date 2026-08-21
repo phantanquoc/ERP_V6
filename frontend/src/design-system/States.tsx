@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle, RefreshCw, Inbox } from 'lucide-react';
+import { shell } from './tokens';
 
 export const LoadingState: React.FC<{ message?: string }> = ({ message = 'Đang tải dữ liệu...' }) => (
   <div role="status" aria-live="polite" aria-busy="true" className="flex flex-col items-center justify-center py-12 gap-3">
@@ -9,7 +10,7 @@ export const LoadingState: React.FC<{ message?: string }> = ({ message = 'Đang 
 );
 
 export const LoadingSkeleton: React.FC = () => (
-  <div aria-hidden="true" aria-busy="true" role="status" aria-label="Đang tải..." >
+  <div aria-hidden="true" aria-busy="true" role="status" aria-label="Đang tải...">
     <div className="flex items-center justify-between mb-5">
       <div>
         <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-2" />
@@ -19,12 +20,12 @@ export const LoadingSkeleton: React.FC = () => (
     </div>
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-5">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="h-24 bg-white border border-gray-200 rounded-lg animate-pulse" />
+        <div key={i} className={`h-24 ${shell.card} animate-pulse`} />
       ))}
     </div>
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <div className="h-72 bg-white border border-gray-200 rounded-lg animate-pulse" />
-      <div className="h-72 bg-white border border-gray-200 rounded-lg animate-pulse" />
+      <div className={`h-72 ${shell.card} animate-pulse`} />
+      <div className={`h-72 ${shell.card} animate-pulse`} />
     </div>
   </div>
 );

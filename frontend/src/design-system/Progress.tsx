@@ -1,8 +1,13 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { typography, colors } from './tokens';
+
+// Re-export NavCard from its own module — keeps Progress.tsx focused on progress primitives
+// while preserving backward-compat import path `from '../design-system/Progress'`.
+export { NavCard } from './NavCard';
+export type { NavCardProps, NavCardTone } from './NavCard';
 
 export const CircularProgress: React.FC<{ value: number; size?: number; strokeWidth?: number; color?: string; label?: string }> = ({
-  value, size = 100, strokeWidth = 8, color = '#10B981', label,
+  value, size = 100, strokeWidth = 8, color = colors.success, label,
 }) => {
   const clamped = Math.min(100, Math.max(0, value));
   const radius = (size - strokeWidth) / 2;
@@ -32,7 +37,7 @@ export const CircularProgress: React.FC<{ value: number; size?: number; strokeWi
           {clamped}%
         </text>
       </svg>
-      {label && <p className="text-xs text-gray-400 mt-1">{label}</p>}
+      {label && <p className={typography.cardSub + ' mt-1'}>{label}</p>}
     </div>
   );
 };
@@ -59,24 +64,5 @@ export const ProgressBar: React.FC<{ segments: { label: string; value: number; c
     </div>
   </div>
 );
-
-export const NavCard: React.FC<{ title: string; desc: string; icon: React.ReactNode; to: string }> = ({ title, desc, icon, to }) => {
-  const navigate = useNavigate();
-  const handleClick = () => { navigate(to); };
-  return (
-    <button onClick={handleClick} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:border-cyan-300 hover:shadow-md transition-all duration-200 text-left w-full group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-cyan-50 rounded-lg text-cyan-600 group-hover:bg-cyan-100 transition-colors">{icon}</div>
-          <div>
-            <p className="text-sm font-semibold text-gray-800">{title}</p>
-            <p className="text-xs text-gray-400">{desc}</p>
-          </div>
-        </div>
-        <span className="text-gray-300 group-hover:text-cyan-500 transition-colors" aria-hidden="true">→</span>
-      </div>
-    </button>
-  );
-};
 
 export default CircularProgress;

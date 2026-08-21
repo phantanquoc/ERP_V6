@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Briefcase, FileText, FileCheck, ShoppingCart, Users, TrendingUp, Layers } from 'lucide-react';
+import { KpiCard } from '../design-system/KpiCard';
 import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import PageHeader from '../design-system/PageHeader';
 import ChartCard from '../design-system/ChartCard';
@@ -107,13 +108,6 @@ const BusinessManagement = () => {
   const hasYcbgData = !(ycbgByStatus.length === 1 && ycbgByStatus[0].name === 'Chưa có dữ liệu');
   const hasOrderData = !(orderByStatus.length === 1 && orderByStatus[0].name === 'Chưa có dữ liệu');
 
-  const kpiCards = [
-    { label: 'Yêu cầu báo giá', value: kpi.ycbg, icon: <FileText className="w-4 h-4" />, bg: 'bg-sky-50', text: 'text-sky-600', border: 'border-sky-200', to: '/business/international' },
-    { label: 'Báo giá', value: kpi.baoGia, icon: <FileCheck className="w-4 h-4" />, bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200', to: '/business/international' },
-    { label: 'Đơn hàng', value: kpi.donHang, icon: <ShoppingCart className="w-4 h-4" />, bg: 'bg-violet-50', text: 'text-violet-600', border: 'border-violet-200', to: '/business/international' },
-    { label: 'Khách hàng', value: kpi.khachHang, icon: <Users className="w-4 h-4" />, bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-200', to: '/business/international' },
-  ];
-
   return (
     <div className="space-y-5">
       <PageHeader
@@ -129,22 +123,12 @@ const BusinessManagement = () => {
       />
       {lastRefreshed && <p className="text-xs text-gray-400 -mt-3">Cập nhật lúc: {lastRefreshed.toLocaleTimeString('vi-VN')}</p>}
 
-      {/* KPI row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-        {kpiCards.map((card) => (
-          <button
-            key={card.label}
-            onClick={() => navigate(card.to)}
-            className={`bg-white rounded-lg shadow-sm p-4 border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all text-left ${card.bg} ${card.border} border`}
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <span className={`${card.text}`}>{card.icon}</span>
-              <span className="text-xs font-medium text-gray-500">{card.label}</span>
-            </div>
-            <p className={`text-xl sm:text-2xl font-bold ${card.text}`}>{card.value}</p>
-            <p className="text-xs text-gray-400 mt-1">Xem chi tiết →</p>
-          </button>
-        ))}
+      {/* KPI row — KpiCard (design-system): p-3 sm:p-4, hover:border-gray-300 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+        <KpiCard label="Yêu cầu báo giá" value={kpi.ycbg} icon={<FileText className="w-4 h-4" />} tone="blue" to="/business/international?tab=quotationRequests" sub="Xem chi tiết →" />
+        <KpiCard label="Báo giá" value={kpi.baoGia} icon={<FileCheck className="w-4 h-4" />} tone="green" to="/business/international?tab=quotations" sub="Xem chi tiết →" />
+        <KpiCard label="Đơn hàng" value={kpi.donHang} icon={<ShoppingCart className="w-4 h-4" />} tone="purple" to="/business/international?tab=orders" sub="Xem chi tiết →" />
+        <KpiCard label="Khách hàng" value={kpi.khachHang} icon={<Users className="w-4 h-4" />} tone="orange" to="/business/international?tab=customers" sub="Xem chi tiết →" />
       </div>
 
       {/* Pies */}

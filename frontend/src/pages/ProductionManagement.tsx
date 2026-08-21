@@ -11,6 +11,11 @@ import {
 } from 'recharts';
 import { KpiCard } from '../design-system/KpiCard';
 import { CircularProgress, ProgressBar, NavCard } from '../design-system/Progress';
+import { PageHeader } from '../design-system/PageHeader';
+import { LoadingSkeleton } from '../design-system/States';
+import { ChartCard } from '../design-system/ChartCard';
+import { SectionCard } from '../design-system/SectionCard';
+import { chartPalettes, chartHeights } from '../design-system/tokens';
 import machineSystemService from '../services/machineSystemService';
 import { orderService } from '../services/orderService';
 import finishedProductService from '../services/finishedProductService';
@@ -20,38 +25,7 @@ import warehouseIssueService from '../services/warehouseIssueService';
 import supplyRequestService from '../services/supplyRequestService';
 
 // ── Constants ──
-const MACHINE_COLORS = ['#10B981', '#F59E0B', '#EF4444'];
-
-// ── Skeleton ──
-const DashboardSkeleton = () => (
-  <div className="px-2 sm:px-4 lg:px-6 py-2 sm:py-4">
-    <div className="flex items-center justify-between mb-5">
-      <div>
-        <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-2" />
-        <div className="h-3 w-32 bg-gray-200 rounded animate-pulse" />
-      </div>
-      <div className="h-8 w-24 bg-gray-200 rounded animate-pulse" />
-    </div>
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="h-24 bg-white border border-gray-200 rounded-lg animate-pulse" />
-      ))}
-    </div>
-    <div className="grid grid-cols-3 gap-4 mb-4">
-      <div className="h-72 bg-white border border-gray-200 rounded-lg animate-pulse" />
-      <div className="col-span-2 h-72 bg-white border border-gray-200 rounded-lg animate-pulse" />
-    </div>
-    <div className="grid grid-cols-3 gap-4 mb-4">
-      <div className="col-span-2 h-52 bg-white border border-gray-200 rounded-lg animate-pulse" />
-      <div className="h-52 bg-white border border-gray-200 rounded-lg animate-pulse" />
-    </div>
-    <div className="grid grid-cols-3 gap-4">
-      {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="h-24 bg-white border border-gray-200 rounded-lg animate-pulse" />
-      ))}
-    </div>
-  </div>
-);
+const MACHINE_COLORS = chartPalettes.status.slice(0, 3);
 
 
 // ══════════════════════════════════════════════════════════════
@@ -200,30 +174,30 @@ const ProductionManagement = () => {
 
   // ── Skeleton on first load ──
   if (loading && !lastRefreshed) {
-    return <DashboardSkeleton />;
+    return (
+      <div className="space-y-5">
+        <LoadingSkeleton />
+      </div>
+    );
   }
 
   return (
-    <div className="px-2 sm:px-4 lg:px-6 py-2 sm:py-4">
-      {/* ── HEADER ── */}
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <h1 className="text-xl font-bold text-gray-800">Tổng quan Sản xuất</h1>
-          {lastRefreshed && (
-            <p className="text-xs text-gray-400 mt-0.5">
-              Cập nhật lúc: {lastRefreshed.toLocaleTimeString('vi-VN')}
-            </p>
-          )}
-        </div>
-        <button
-          onClick={loadAllStats}
-          disabled={loading}
-          className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 bg-white rounded-lg px-3 py-2 hover:bg-gray-50 hover:border-gray-300 disabled:opacity-50 transition-colors shadow-sm"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          {loading ? 'Đang tải...' : 'Làm mới'}
-        </button>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Tổng quan Sản xuất"
+        description={lastRefreshed ? `Cập nhật lúc: ${lastRefreshed.toLocaleTimeString('vi-VN')}` : 'Theo dõi máy móc, đơn hàng, kho và yêu cầu cung cấp'}
+        icon={<Factory className="w-6 h-6 text-blue-500" />}
+        actions={(
+          <button
+            onClick={loadAllStats}
+            disabled={loading}
+            className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 bg-white rounded-lg px-3 py-2 hover:bg-gray-50 hover:border-gray-300 disabled:opacity-50 transition-colors shadow-sm"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            {loading ? 'Đang tải...' : 'Làm mới'}
+          </button>
+        )}
+      />
 
       {/* ── HERO KPI STRIP ── */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
@@ -267,13 +241,9 @@ const ProductionManagement = () => {
       {/* ── BENTO ROW A: Machine donut + Order bar ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         {/* A1: Machine Donut Chart */}
-        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <Cog className="w-4 h-4 text-gray-400" />
-            <h3 className="text-sm font-semibold text-gray-700">Trạng thái máy móc</h3>
-          </div>
+        <ChartCard title="Trạng thái máy móc">
           <div className="relative">
-            <ResponsiveContainer width="100%" height={220}>
+            <ResponsiveContainer width="100%" height={chartHeights.donut}>
               <PieChart>
                 <Pie
                   data={machineDonutData}
@@ -300,17 +270,15 @@ const ProductionManagement = () => {
               <span className="text-xs text-gray-400">vận hành</span>
             </div>
           </div>
-        </div>
+        </ChartCard>
 
         {/* A2: Order Status */}
-        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <ClipboardList className="w-4 h-4 text-gray-400" />
-              <h3 className="text-sm font-semibold text-gray-700">Phân bổ trạng thái đơn hàng</h3>
-            </div>
-            <span className="text-xs text-gray-400">Tổng: {orderStats.total}</span>
-          </div>
+        <SectionCard
+          title="Phân bổ trạng thái đơn hàng"
+          icon={<ClipboardList className="w-4 h-4" />}
+          action={<span className="text-xs text-gray-400">Tổng: {orderStats.total}</span>}
+          className="lg:col-span-2"
+        >
 
           {/* Order stat grid */}
           <div className="grid grid-cols-4 lg:grid-cols-7 gap-2 mb-4">
@@ -327,25 +295,25 @@ const ProductionManagement = () => {
 
           {/* Progress bar */}
           <ProgressBar segments={orderSegments} total={orderStats.total} />
-        </div>
+        </SectionCard>
       </div>
 
       {/* ── BENTO ROW B: Warehouse + Supply ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         {/* B1: Warehouse Summary */}
-        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Warehouse className="w-4 h-4 text-gray-400" />
-              <h3 className="text-sm font-semibold text-gray-700">Tổng quan kho</h3>
-            </div>
+        <SectionCard
+          title="Tổng quan kho"
+          icon={<Warehouse className="w-4 h-4" />}
+          action={(
             <button
               onClick={() => navigate('/production/warehouse')}
               className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
             >
               Chi tiết <ArrowRight className="w-3.5 h-3.5" />
             </button>
-          </div>
+          )}
+          className="lg:col-span-2"
+        >
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
             <div className="bg-gray-50 rounded-lg p-3">
@@ -389,14 +357,10 @@ const ProductionManagement = () => {
               <span className="text-xs text-gray-400">(tổng: {receiptIssueStats.totalIssues})</span>
             </div>
           </div>
-        </div>
+        </SectionCard>
 
         {/* B2: Supply Completion */}
-        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <Package className="w-4 h-4 text-gray-400" />
-            <h3 className="text-sm font-semibold text-gray-700">Yêu cầu cung cấp</h3>
-          </div>
+        <SectionCard title="Yêu cầu cung cấp" icon={<Package className="w-4 h-4" />}>
 
           <div className="flex flex-col items-center">
             <CircularProgress
@@ -418,7 +382,7 @@ const ProductionManagement = () => {
               </div>
             </div>
           </div>
-        </div>
+        </SectionCard>
       </div>
 
       {/* ── ROW C: Navigation Cards ── */}

@@ -6,7 +6,6 @@ import {
   Settings,
   Users,
   ClipboardList,
-  ArrowRight,
   RefreshCw,
 } from 'lucide-react';
 import {
@@ -24,6 +23,8 @@ import {
 } from 'recharts';
 import PageHeader from '../design-system/PageHeader';
 import ChartCard from '../design-system/ChartCard';
+import { KpiCard } from '../design-system/KpiCard';
+import { NavCard } from '../design-system/Progress';
 import { LoadingState } from '../design-system/States';
 import { chartPalettes } from '../design-system/tokens';
 import purchaseRequestService from '../services/purchaseRequestService';
@@ -31,9 +32,10 @@ import supplyRequestService from '../services/supplyRequestService';
 import supplierService from '../services/supplierService';
 
 const PIE_COLORS = chartPalettes.product.slice(0, 6);
-const SUPPLIER_COLORS = ['#3B82F6', '#8B5CF6', '#9CA3AF'];
-const LINE_COLOR_PR = '#f97316';
-const LINE_COLOR_SUPPLY = '#6366f1';
+// Supplier pie — tokenized via chartPalettes (blue / violet / neutral gray)
+const SUPPLIER_COLORS: readonly string[] = [chartPalettes.product[0], chartPalettes.product[4], chartPalettes.product[6]];
+const LINE_COLOR_PR = chartPalettes.product[2];
+const LINE_COLOR_SUPPLY = chartPalettes.product[0];
 
 interface KpiStats {
   purchaseRequests: number;
@@ -51,62 +53,6 @@ interface MonthlyPoint {
   month: string;
   count: number;
 }
-
-const KpiCardLocal: React.FC<{
-  label: string;
-  value: number | string;
-  icon: React.ReactNode;
-  sub?: string;
-  to?: string;
-  tone?: string;
-}> = ({ label, value, icon, sub, to }) => {
-  const navigate = useNavigate();
-  const Tag = to ? 'button' : 'div';
-  const props: Record<string, unknown> = to
-    ? { type: 'button' as const, onClick: () => navigate(to) }
-    : {};
-  return (
-    <Tag
-      {...props}
-      className={`bg-white border border-gray-200 rounded-lg p-3 sm:p-4 shadow-sm text-left w-full ${to ? 'cursor-pointer hover:border-gray-300 hover:shadow-md transition-all duration-200' : ''}`}
-    >
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-gray-400 shrink-0">{icon}</span>
-        <span className="text-xs font-medium text-gray-500 line-clamp-2 flex-1 min-w-0">{label}</span>
-      </div>
-      <div className="text-xl sm:text-2xl font-bold text-gray-800">{value}</div>
-      {sub && <p className="text-xs text-gray-400 mt-1 line-clamp-2">{sub}</p>}
-    </Tag>
-  );
-};
-
-const NavCard: React.FC<{ title: string; desc: string; icon: React.ReactNode; to: string }> = ({
-  title,
-  desc,
-  icon,
-  to,
-}) => {
-  const navigate = useNavigate();
-  return (
-    <button
-      onClick={() => navigate(to)}
-      className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:border-orange-300 hover:shadow-md transition-all duration-200 text-left w-full group"
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-orange-50 rounded-lg text-orange-600 group-hover:bg-orange-100 transition-colors">
-            {icon}
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-gray-800">{title}</p>
-            <p className="text-xs text-gray-400">{desc}</p>
-          </div>
-        </div>
-        <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-orange-500 transition-colors" />
-      </div>
-    </button>
-  );
-};
 
 const PurchasingManagement = () => {
   const navigate = useNavigate();
@@ -262,28 +208,32 @@ const PurchasingManagement = () => {
 
       {/* KPI row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCardLocal
+        <KpiCard
           label="Yêu cầu mua NVL"
           value={stats.purchaseRequests}
           icon={<Package className="w-4 h-4" />}
+          tone="orange"
           sub={`Chờ báo giá: ${stats.choBaoGia} · Chờ duyệt: ${stats.choDuyet}`}
         />
-        <KpiCardLocal
+        <KpiCard
           label="Mua thiết bị"
-          value={stats.thietBiSuppliers + stats.hoanThanh}
+          value={stats.thietBiSuppliers}
           icon={<Settings className="w-4 h-4" />}
+          tone="cyan"
           sub={`NCC thiết bị: ${stats.thietBiSuppliers} · Hoàn thành: ${stats.hoanThanh}`}
         />
-        <KpiCardLocal
+        <KpiCard
           label="Nhà cung cấp"
           value={stats.suppliers}
           icon={<Users className="w-4 h-4" />}
+          tone="blue"
           sub={`NVL: ${stats.nvlSuppliers} · Thiết bị: ${stats.thietBiSuppliers}`}
         />
-        <KpiCardLocal
+        <KpiCard
           label="Đơn mua hàng"
           value={stats.supplyRequests}
           icon={<ClipboardList className="w-4 h-4" />}
+          tone="purple"
           sub={`Yêu cầu cung cấp: ${stats.supplyRequests}`}
         />
       </div>

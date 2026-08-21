@@ -1,48 +1,49 @@
-import { Users, Settings } from 'lucide-react';
+import { Users, ClipboardList, Factory, Truck } from 'lucide-react';
+import { PageHeader } from '../../design-system/PageHeader';
+import { SectionCard } from '../../design-system/SectionCard';
+import { EmptyState } from '../../design-system/States';
 
 const GeneralPartners = () => {
   return (
-    <div className="space-y-6">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2 flex items-center">
-            <Users className="w-8 h-8 text-blue-600 mr-3" />
-            Phòng chăm sóc đối tác
-          </h1>
-          <p className="text-gray-600">Quản lý khách hàng, nhà cung cấp và dịch vụ logistics</p>
-        </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Phòng chăm sóc đối tác"
+        description="Quản lý khách hàng, nhà cung cấp và dịch vụ logistics"
+        icon={<Users className="w-6 h-6 text-blue-600" aria-hidden="true" />}
+      />
 
-        {/* Under Development Notice */}
-        <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-          <div className="flex justify-center mb-6">
-            <div className="p-4 bg-yellow-100 rounded-full">
-              <Settings className="w-16 h-16 text-yellow-600 animate-spin" style={{ animationDuration: '3s' }} />
+      <SectionCard>
+        <EmptyState
+          message="Chưa có dữ liệu đối tác"
+          description="Chức năng quản lý đối tác đang được hoàn thiện và sẽ sớm ra mắt. Hệ thống sẽ hỗ trợ quản lý khách hàng, nhà cung cấp và đối tác logistics trên cùng một giao diện tập trung."
+        />
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-3xl mx-auto mt-2">
+          <div className="flex flex-col items-center text-center p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center mb-2.5">
+              <ClipboardList className="w-5 h-5 text-gray-500" aria-hidden="true" />
             </div>
+            <p className="text-sm font-medium text-gray-700">Khách hàng</p>
+            <p className="text-xs text-gray-500 mt-1">Quản lý thông tin và lịch sử giao dịch</p>
           </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">
-            🚧 Tính năng đang phát triển
-          </h2>
-          <p className="text-gray-600 text-lg mb-6">
-            Chúng tôi đang xây dựng tính năng quản lý đối tác bao gồm:
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto">
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="text-blue-600 font-semibold">📋 Khách hàng</div>
-              <p className="text-sm text-gray-600 mt-1">Quản lý thông tin khách hàng</p>
+
+          <div className="flex flex-col items-center text-center p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center mb-2.5">
+              <Factory className="w-5 h-5 text-gray-500" aria-hidden="true" />
             </div>
-            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-              <div className="text-green-600 font-semibold">🏭 Nhà cung cấp</div>
-              <p className="text-sm text-gray-600 mt-1">Quản lý nhà cung cấp nguyên liệu</p>
-            </div>
-            <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-              <div className="text-purple-600 font-semibold">🚚 Logistics</div>
-              <p className="text-sm text-gray-600 mt-1">Quản lý đối tác vận chuyển</p>
-            </div>
+            <p className="text-sm font-medium text-gray-700">Nhà cung cấp</p>
+            <p className="text-xs text-gray-500 mt-1">Quản lý nhà cung cấp nguyên liệu</p>
           </div>
-          <p className="text-gray-500 mt-8 text-sm">
-            Vui lòng quay lại sau. Xin cảm ơn!
-          </p>
+
+          <div className="flex flex-col items-center text-center p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center mb-2.5">
+              <Truck className="w-5 h-5 text-gray-500" aria-hidden="true" />
+            </div>
+            <p className="text-sm font-medium text-gray-700">Logistics</p>
+            <p className="text-xs text-gray-500 mt-1">Quản lý đối tác vận chuyển</p>
+          </div>
         </div>
+      </SectionCard>
     </div>
   );
 };
