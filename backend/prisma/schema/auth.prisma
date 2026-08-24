@@ -25,6 +25,8 @@ model User {
   processFlowchartSectionFiles    ProcessFlowchartSectionFile[]    @relation("ProcessFlowchartSectionFileUploader")
   productionFlowchartSectionFiles ProductionFlowchartSectionFile[] @relation("ProductionFlowchartSectionFileUploader")
 
+  @@index([departmentId])
+  @@index([subDepartmentId])
   @@map("users")
   @@schema("auth")
 }
@@ -176,13 +178,14 @@ enum RuleScope {
 }
 
 model Resource {
-  code        String       @id
-  label       String
-  group       String
-  sortOrder   Int          @default(0)
-  isActive    Boolean      @default(true)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  code      String @id
+  label     String
+  /// Allowed groups: system, hr, quality, production, finance, business, purchasing, warehouse, technical, project
+  group     String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   rules       Rule[]
   delegations Delegation[]
 
@@ -190,6 +193,14 @@ model Resource {
   @@schema("auth")
 }
 
+/// Rule scope ↔ ids invariant (validated app-side in ruleService.validateScopeFields):
+///   GLOBAL → departmentId IS NULL && subDepartmentId IS NULL
+///   DEPARTMENT → departmentId NOT NULL && subDepartmentId IS NULL
+///   SUB_DEPARTMENT → subDepartmentId NOT NULL (departmentId optional, derived via SubDepartment)
+/// Pg NULL != NULL so @@unique does NOT block duplicate GLOBAL rows — dedup is app-level via findFirst IS NULL.
+/// Cross-schema FKs (departmentId/subDepartmentId/positionId → common.*) are kept as loose strings
+/// intentionally: Prisma cross-schema FK requires same datasource + migration complexity, and
+/// orphan risk is covered by seed-time checks (see Group 3.4).
 model Rule {
   id               String           @id @default(cuid())
   resourceCode     String
@@ -211,6 +222,10 @@ model Rule {
   @@index([resourceCode, action])
   @@index([scope, departmentId, subDepartmentId])
   @@index([positionId])
+  @@index([role])
+  @@index([isActive])
+  @@index([isActive, resourceCode, action])
+  @@index([responsibilityId])
   @@map("rules")
   @@schema("auth")
 }
@@ -219,6 +234,7 @@ model RuleAuditLog {
   id        String   @id @default(cuid())
   ruleId    String?
   actorId   String?
+  /// Values: CREATE | UPDATE | DELETE (kept as String to avoid enum migration; validated app-side)
   action    String
   before    Json?    @db.JsonB
   after     Json?    @db.JsonB
@@ -227,6 +243,7 @@ model RuleAuditLog {
 
   @@index([ruleId, createdAt(sort: Desc)])
   @@index([createdAt(sort: Desc)])
+  @@index([actorId])
   @@map("rule_audit_logs")
   @@schema("auth")
 }
