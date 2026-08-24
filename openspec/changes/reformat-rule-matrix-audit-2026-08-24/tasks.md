@@ -16,10 +16,10 @@
 
 ## 3. Chuẩn hoá schema Prisma (P2)
 
-- [ ] 3.1 Thêm check `scope ↔ ids` (app-level validate + DB check constraint nếu có thể): `GLOBAL` → cả hai NULL; `DEPARTMENT` → `departmentId NOT NULL && subDepartmentId IS NULL`; `SUB_DEPARTMENT` → `subDepartmentId NOT NULL`. Reject ở `ruleService.validateScopeFields`.
-- [ ] 3.2 Fix unique với nullable: thêm app-level duplicate check cho GLOBAL (2 GLOBAL cùng resource/action/role/position phải 409) hoặc partial unique indexes. Thêm test global-duplicate.
-- [ ] 3.3 Index bổ sung: `Rule.role`, `Rule.isActive`, `RuleAuditLog.actorId`, `User.departmentId/subDepartmentId`. Giữ `ResourceType` dead-enum doc hoặc xóa; `Resource.group` doc như enum string; `RuleAuditLog.action` đổi thành enum.
-- [ ] 3.4 FK cross-schema: quyết định giữ loose string (doc lý do) hoặc thêm FK thực (`@relation` cross-schema — Prisma hỗ trợ). Nếu giữ loose, thêm orphan check ở seed/migration.
+- [x] 3.1 Thêm check `scope ↔ ids` (app-level validate + DB check constraint nếu có thể): `GLOBAL` → cả hai NULL; `DEPARTMENT` → `departmentId NOT NULL && subDepartmentId IS NULL`; `SUB_DEPARTMENT` → `subDepartmentId NOT NULL`. Reject ở `ruleService.validateScopeFields`.
+- [x] 3.2 Fix unique với nullable: thêm app-level duplicate check cho GLOBAL (2 GLOBAL cùng resource/action/role/position phải 409) hoặc partial unique indexes. Thêm test global-duplicate.
+- [x] 3.3 Index bổ sung: `Rule.role`, `Rule.isActive`, `RuleAuditLog.actorId`, `User.departmentId/subDepartmentId`. Giữ `ResourceType` dead-enum doc hoặc xóa; `Resource.group` doc như enum string; `RuleAuditLog.action` đổi thành enum.
+- [x] 3.4 FK cross-schema: quyết định giữ loose string (doc lý do) hoặc thêm FK thực (`@relation` cross-schema — Prisma hỗ trợ). Nếu giữ loose, thêm orphan check ở seed/migration.
 
 ## 4. Seed & format lại Rule theo Phòng ban × Chức vụ
 

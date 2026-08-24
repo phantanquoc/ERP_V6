@@ -737,6 +737,7 @@ enum EmployeeEducationLevel {
   @@schema("common")
 }
 
+/// DEPRECATED — use Resource table (auth.Resource) for RBAC. Kept for Permission.resource legacy only.
 enum ResourceType {
   EMPLOYEE
   DEPARTMENT
