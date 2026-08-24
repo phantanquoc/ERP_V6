@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Settings, Palette, Type, Save, Check, Server, ExternalLink, Terminal, Copy, User, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSystemSettings } from '../contexts/SystemSettingsContext';
-import { isAdmin } from '../utils/permissions';
+import { isAdminUser } from '../utils/permissions';
 import systemSettingsService from '../services/systemSettingsService';
 import NotificationPreferencesSection from '../components/NotificationPreferencesSection';
 import DeviceManagementSection from '../components/DeviceManagementSection';
@@ -44,7 +44,7 @@ const SystemSettingsPage: React.FC = () => {
   const [copiedTunnel, setCopiedTunnel] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>('personal');
 
-  const userIsAdmin = user ? isAdmin(user.department) : false;
+  const userIsAdmin = user ? isAdminUser(user as any) : false;
 
   const TUNNEL_CMD = 'ssh -f -N -L 9443:localhost:9443 vps-anbinh';
 

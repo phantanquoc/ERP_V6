@@ -20,7 +20,7 @@ import ProductCombobox from './common/ProductCombobox';
 import UnitSelect from './common/UnitSelect';
 import { DEFAULT_DON_VI_TINH } from '../constants/units';
 import { useAuth } from '../contexts/AuthContext';
-import { isAdmin } from '../utils/permissions';
+import { can, isCachedPermissionsLoaded, isAdminUser } from '../utils/permissions';
 
 interface WarehouseManagementProps {
   initialWarehouseId?: string;
@@ -49,7 +49,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
   const updateWarehouse = useUpdateWarehouse();
   const syncLayouts = useSyncWarehouseLayouts();
   const { user } = useAuth();
-  const canSyncLayouts = isAdmin(user?.department);
+  const canSyncLayouts = isCachedPermissionsLoaded() ? can('warehouses', 'CREATE', user?.role as string) : isAdminUser(user as any);
   const createLot = useCreateLot();
   const deleteLot = useDeleteLot();
   const addProductToLot = useAddProductToLot();

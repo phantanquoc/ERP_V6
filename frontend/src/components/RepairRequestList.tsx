@@ -8,6 +8,8 @@ import Modal from './Modal';
 import RepairRequestFormModal from './RepairRequestFormModal';
 import ResponsiveRowActions from './ResponsiveRowActions';
 import { useAuth } from '../contexts/AuthContext';
+import { can, isCachedPermissionsLoaded } from '../utils/permissions';
+import { UserRole } from '../types/auth';
 import { StatCard, CollapsibleSection, StatusBadge } from './shared';
 import {
   useCancelRepair,
@@ -47,7 +49,7 @@ interface RepairRequestListProps {
 
 const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {}) => {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = isCachedPermissionsLoaded() ? can('repair-requests', 'DELETE', user?.role as string) : user?.role === UserRole.ADMIN; // isAdmin also used for delete gating; fallback to legacy check
   const [filters, setFilters] = useState({ page: 1, limit: lockedMachineSystemId ? 200 : 10, search: '', trangThai: '' });
 
   // 9.3: date range for stats dashboard (default last 90 days)

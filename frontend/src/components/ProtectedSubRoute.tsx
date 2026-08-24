@@ -1,7 +1,7 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { hasSubModuleAccess } from '../utils/permissions';
+import { hasSubModuleAccess, canIfConfigured } from '../utils/permissions';
 
 interface ProtectedSubRouteProps {
   children: React.ReactNode;
@@ -22,8 +22,21 @@ const ProtectedSubRoute: React.FC<ProtectedSubRouteProps> = ({
     return <Navigate to="/login" replace />;
   }
 
-  // Kiểm tra quyền truy cập sub-module
-  const hasAccess = hasSubModuleAccess(
+  // Kiểm tra quyền truy cập sub-module — kết hợp hasSubModuleAccess và can() nếu sẵn sàng
+  const SUB_MODULE_RESOURCE_MAP: Record<string, string> = {
+    quality: 'quality-evaluations',
+    general: 'general-costs',
+    business: 'orders',
+    accounting: 'invoices',
+    purchasing: 'supply-requests',
+    production: 'finished-products',
+    technical: 'repair-requests',
+  };
+  const subResource = SUB_MODULE_RESOURCE_MAP[department];
+  const canRead = subResource ? canIfConfigured(subResource, 'READ') : null;
+  const hasAccess = canRead === false
+    ? false
+    : hasSubModuleAccess(
     department,
     subModule,
     user.department,

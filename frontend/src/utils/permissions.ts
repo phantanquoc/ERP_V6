@@ -152,9 +152,17 @@ export const hasSubModuleAccess = (
   return false;
 };
 
-// Kiểm tra xem user có phải admin không
-export const isAdmin = (userDepartment?: string): boolean => {
+// Kiểm tra xem user có phải admin không — đồng bộ với backend `role === 'ADMIN'`.
+// Giữ backward-compat với `department === 'admin'` (legacy) nhưng ưu tiên check role.
+export const isAdmin = (userDepartment?: string, userRole?: string): boolean => {
+  if (userRole === UserRole.ADMIN || (userRole as string) === 'ADMIN') return true;
   return userDepartment === DEPARTMENTS.ADMIN;
+};
+
+export const isAdminUser = (user?: { role?: string; department?: string } | null): boolean => {
+  if (!user) return false;
+  if (user.role === UserRole.ADMIN || (user.role as string) === 'ADMIN') return true;
+  return user.department === DEPARTMENTS.ADMIN;
 };
 
 // Kiểm tra quyền xem dashboard features dựa trên phòng ban
@@ -403,12 +411,24 @@ export const getDepartmentDisplayName = (department?: string): string => {
   }
 };
 
-// --- Rule-based helpers (Rule Matrix) — preferred over DEPARTMENT_PERMISSIONS hard-code
-
+// ── Rule Matrix bridge ─────────────────────────────────────────────────────
 let cachedPermissions: Array<{ resourceCode: string; action: string; allow: boolean }> | null = null;
+// Track whether myPermissions have been loaded at least once so callers can
+// distinguish "not loaded yet" from "loaded but empty" for safe fallback.
+let cachedPermissionsLoaded = false;
 
 export function setCachedPermissions(perms: Array<{ resourceCode: string; action: string; allow: boolean }>): void {
   cachedPermissions = perms;
+  cachedPermissionsLoaded = true;
+}
+
+export function clearCachedPermissions(): void {
+  cachedPermissions = null;
+  cachedPermissionsLoaded = false;
+}
+
+export function isCachedPermissionsLoaded(): boolean {
+  return cachedPermissionsLoaded;
 }
 
 export function getCachedPermissions(): Array<{ resourceCode: string; action: string; allow: boolean }> | null {
@@ -428,6 +448,18 @@ export function can(resourceCode: string, action: string, role?: string): boolea
   if (action === 'DELETE') return role === UserRole.ADMIN || role === UserRole.DEPARTMENT_HEAD;
   if (action === 'APPROVE' || action === 'REJECT') return role === UserRole.ADMIN || role === UserRole.DEPARTMENT_HEAD || role === UserRole.TEAM_LEAD;
   return true;
+}
+
+/**
+ * Like can() but returns null when no explicit Rule exists for the resource/action
+ * (i.e. would fall back to baseline). Allows callers to keep hasModuleAccess as
+ * primary gate and only override when an explicit Rule was configured.
+ */
+export function canIfConfigured(resourceCode: string, action: string): boolean | null {
+  if (!cachedPermissions) return null;
+  const entry = cachedPermissions.find(p => p.resourceCode === resourceCode && p.action === action);
+  if (entry === undefined) return null;
+  return entry.allow;
 }
 
 export function canDelete(role?: string): boolean {

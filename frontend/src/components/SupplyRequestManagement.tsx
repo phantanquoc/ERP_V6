@@ -3,6 +3,8 @@ import { Trash2, Package, ShoppingCart, Download, X, ClipboardCheck, PackagePlus
 import { useSearchParams } from 'react-router-dom';
 import supplyRequestService, { SupplyRequest } from '../services/supplyRequestService';
 import { useAuth } from '../contexts/AuthContext';
+import { can, isCachedPermissionsLoaded } from '../utils/permissions';
+import { UserRole } from '../types/auth';
 import CreateWarehouseIssueModal from './CreateWarehouseIssueModal';
 import CreatePurchaseRequestModal from './CreatePurchaseRequestModal';
 import CreateWarehouseReceiptModal from './CreateWarehouseReceiptModal';
@@ -68,9 +70,12 @@ const getFulfillmentStatusColor = (status?: string) => {
 const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
-  const canEdit = user?.role === 'admin' || user?.role === 'department_head' || user?.role === 'team_lead';
-  const canDelete = user?.role === 'admin';
-  const canCancel = user?.role === 'admin' || user?.role === 'department_head' || user?.role === 'team_lead';
+  // Rule Matrix: fallback to role check until my-permissions loaded
+  const _roleEdit = user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD || user?.role === UserRole.TEAM_LEAD;
+  const _roleAdmin = user?.role === UserRole.ADMIN;
+  const canEdit = isCachedPermissionsLoaded() ? can('supply-requests', 'UPDATE', user?.role) : _roleEdit;
+  const canDelete = isCachedPermissionsLoaded() ? can('supply-requests', 'DELETE', user?.role) : _roleAdmin;
+  const canCancel = isCachedPermissionsLoaded() ? can('supply-requests', 'UPDATE', user?.role) : _roleEdit; // CANCEL maps to UPDATE
   const [requests, setRequests] = useState<SupplyRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm] = useState('');

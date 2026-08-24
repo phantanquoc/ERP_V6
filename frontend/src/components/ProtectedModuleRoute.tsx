@@ -1,7 +1,7 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { hasModuleAccess } from '../utils/permissions';
+import { hasModuleAccess, canIfConfigured } from '../utils/permissions';
 
 interface ProtectedModuleRouteProps {
   children: React.ReactNode;
@@ -19,7 +19,22 @@ const ProtectedModuleRoute: React.FC<ProtectedModuleRouteProps> = ({
     return <Navigate to="/login" replace />;
   }
 
-  const hasAccess = hasModuleAccess(
+  const MODULE_RESOURCE_MAP: Record<string, string> = {
+    dashboard: 'dashboard',
+    common: 'lookups',
+    general: 'general-costs',
+    quality: 'quality-evaluations',
+    business: 'orders',
+    accounting: 'invoices',
+    purchasing: 'supply-requests',
+    production: 'finished-products',
+    technical: 'repair-requests',
+  };
+  const resource = MODULE_RESOURCE_MAP[module];
+  const canRead = resource ? canIfConfigured(resource, 'READ') : null;
+  const hasAccess = canRead !== null
+    ? canRead
+    : hasModuleAccess(
     module,
     user.role,
     user.department,

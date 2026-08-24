@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Shield, History, Clock, LogOut, ChevronDown } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { UserRole } from '../types/auth';
 import PersonalInfoModal from './PersonalInfoModal';
 import LoginHistoryModal from './LoginHistoryModal';
 import ChangePasswordModal from './ChangePasswordModal';
@@ -86,7 +87,7 @@ const UserProfileDropdown: React.FC = () => {
             {user.lastName} {user.firstName}
           </div>
           <div className="text-xs text-gray-500">
-            {user.role === 'admin' ? 'Admin System' : user.position}
+            {user.role === UserRole.ADMIN ? 'Admin System' : user.position} {/* TODO: display only */}
           </div>
         </div>
 

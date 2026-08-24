@@ -2,6 +2,7 @@ import React, { Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
+import { usePermissionSync } from './hooks/usePermissionSync';
 import { SystemSettingsProvider } from './contexts/SystemSettingsContext';
 import ProtectedLayout from './components/ProtectedLayout';
 import ProtectedSubRoute from './components/ProtectedSubRoute';
@@ -92,11 +93,17 @@ function PageTitleUpdater() {
   return null;
 }
 
+function PermissionSyncBridge() {
+  usePermissionSync();
+  return null;
+}
+
 function App() {
   return (
     <Router>
       <PageTitleUpdater />
       <AuthProvider>
+        <PermissionSyncBridge />
         <SystemSettingsProvider>
         <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>}>
         <Routes>

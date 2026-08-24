@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { useRules, useResources, useCreateRule, useUpdateRule, useDeleteRule, useMyPermissions } from '../hooks/useRules';
+import { useRules, useResources, useCreateRule, useUpdateRule, useDeleteRule, useMyPermissions, useRuleMatrix } from '../hooks/useRules';
+import { usePositions } from '../hooks/usePositions';
 import { useDepartments } from '../hooks/useDepartments';
 import { PageHeader } from '../design-system/PageHeader';
 
@@ -17,6 +18,10 @@ const RuleManagement: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<Record<string, unknown>>({ resourceCode: '', action: 'READ', scope: 'GLOBAL', allow: true });
   const [activeTab, setActiveTab] = useState<'rules' | 'matrix' | 'my-perms'>('rules');
+  const [matrixPositionId, setMatrixPositionId] = useState('');
+  const [matrixDepartmentId, setMatrixDepartmentId] = useState('');
+  const { data: positions } = usePositions(activeTab === 'matrix');
+  const { data: matrixData, isLoading: matrixLoading, isError: matrixError } = useRuleMatrix(matrixPositionId || undefined, matrixDepartmentId || undefined);
 
   const filtered = (rules ?? []).filter((r: any) => {
     if (filterResource && r.resourceCode !== filterResource) return false;
@@ -129,10 +134,53 @@ const RuleManagement: React.FC = () => {
       )}
 
       {activeTab === 'matrix' && (
-        <div className="text-sm text-gray-500">
-          Ma trận Position × Resource × Action — hiển thị baseline-allow/baseline-deny, inherited, override.
-          Dữ liệu chi tiết sẽ được mở rộng khi có nhiều Position/Department.
-          Hiện có {resources?.length ?? 0} resources × 8 actions = {(resources?.length ?? 0) * 8} ô.
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2 items-center">
+            <select value={matrixPositionId} onChange={e => setMatrixPositionId(e.target.value)} className="border rounded px-2 py-1 text-sm">
+              <option value="">-- Chọn chức vụ --</option>
+              {((positions as any)?.data ?? positions ?? []).map((pos: any) => <option key={pos.id} value={pos.id}>{pos.name ?? pos.code} ({pos.code})</option>)}
+            </select>
+            <select value={matrixDepartmentId} onChange={e => setMatrixDepartmentId(e.target.value)} className="border rounded px-2 py-1 text-sm">
+              <option value="">-- Chọn phòng ban --</option>
+              {(departments as any)?.data ? (departments as any).data.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>) : (departments ?? []).map((d: any) => <option key={d.id} value={d.id}>{d.name ?? d.code}</option>)}
+            </select>
+            {(matrixPositionId || matrixDepartmentId) && <span className="text-xs text-gray-500">Ma trận lấy qua /rules/matrix{` + (matrixPositionId || matrixDepartmentId ? ' (có filter)' : '')`}</span>}
+          </div>
+          {!matrixPositionId && !matrixDepartmentId && (
+            <p className="text-sm text-gray-500">Chọn chức vụ hoặc phòng ban để xem ma trận Position × Resource × Action. Hiện có {resources?.length ?? 0} resources × 8 actions = {(resources?.length ?? 0) * 8} ô.</p>
+          )}
+          {(matrixPositionId || matrixDepartmentId) && (
+            matrixLoading ? <p className="text-sm text-gray-400">Đang tải ma trận...</p>
+            : matrixError ? <p className="text-sm text-red-500">Không tải được ma trận.</p>
+            : !matrixData || (matrixData as any).rules?.length === 0 ? <p className="text-sm text-gray-400">Chưa có Rule cho filter này — hệ thống đang chạy baseline.</p>
+            : (
+              <div className="border rounded overflow-auto max-h-[60vh]">
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="px-2 py-1 text-left">Resource</th>
+                      <th className="px-2 py-1 text-left">Action</th>
+                      <th className="px-2 py-1 text-left">Scope</th>
+                      <th className="px-2 py-1 text-center">Allow</th>
+                      <th className="px-2 py-1 text-left">Source</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(matrixData as any).rules.slice(0, 300).map((r: any) => (
+                      <tr key={r.id} className="border-t">
+                        <td className="px-2 py-1">{r.resourceCode}</td>
+                        <td className="px-2 py-1">{r.action}</td>
+                        <td className="px-2 py-1">{r.scope}{r.departmentId ? ` (${String(r.departmentId).slice(0,6)})` : ''}{r.subDepartmentId ? `/${String(r.subDepartmentId).slice(0,6)}` : ''}</td>
+                        <td className="px-2 py-1 text-center"><span className={`px-1.5 py-0.5 rounded text-[11px] ${r.allow ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{r.allow ? 'Allow' : 'Deny'}</span></td>
+                        <td className="px-2 py-1 text-gray-500">{r.positionId ? `pos:${String(r.positionId).slice(0,6)}` : r.role ? `role:${r.role}` : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {(matrixData as any).rules.length > 300 && <p className="text-center text-xs text-gray-400 py-1">... và {(matrixData as any).rules.length - 300} dòng nữa</p>}
+              </div>
+            )
+          )}
         </div>
       )}
 
