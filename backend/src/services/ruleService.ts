@@ -1,22 +1,17 @@
 import prisma from '@config/database';
 import { cacheGet, cacheSet, cacheDel } from '@utils/cache';
 import { ConflictError, NotFoundError, ValidationError } from '@utils/errors';
+import { baselineAllow } from '@utils/baselineAllow';
 import type { Rule } from '@prisma/client';
 
-const RULE_CACHE_KEY = 'cache:rules:all';
 const RESOURCE_CACHE_KEY = 'cache:resources:all';
 const RESOURCE_CACHE_TTL = 3600;
-void RULE_CACHE_KEY;
-
-function invalidateRuleCache(): Promise<void> {
-  return cacheDel(RULE_CACHE_KEY);
-}
 
 // ─── Resource helpers ────────────────────────────────────────────────────────
 export async function listResources() {
   const cached = await cacheGet('cache:resources:all');
   if (cached) return cached as unknown[];
-  const rows = await prisma.resource.findMany({ orderBy: { sortOrder: 'asc' } });
+  const rows = await prisma.resource.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } });
   await cacheSet(RESOURCE_CACHE_KEY, rows, RESOURCE_CACHE_TTL);
   return rows;
 }
@@ -70,12 +65,21 @@ export interface CreateRuleInput {
   actorId?: string | null;
 }
 
-function validateScopeFields(input: CreateRuleInput): void {
-  if (input.scope === 'DEPARTMENT' && !input.departmentId) {
+function validateScopeFields(input: CreateRuleInput | Partial<CreateRuleInput>): void {
+  const scope = (input as CreateRuleInput).scope;
+  // Required ids per scope
+  if (scope === 'DEPARTMENT' && !input.departmentId) {
     throw new ValidationError('DEPARTMENT scope yêu cầu departmentId');
   }
-  if (input.scope === 'SUB_DEPARTMENT' && !input.subDepartmentId) {
+  if (scope === 'SUB_DEPARTMENT' && !input.subDepartmentId) {
     throw new ValidationError('SUB_DEPARTMENT scope yêu cầu subDepartmentId');
+  }
+  // Reject stray ids
+  if (scope === 'GLOBAL' && (input.departmentId || input.subDepartmentId)) {
+    throw new ValidationError('GLOBAL scope không được kèm departmentId/subDepartmentId');
+  }
+  if (scope === 'DEPARTMENT' && input.subDepartmentId) {
+    throw new ValidationError('DEPARTMENT scope không được kèm subDepartmentId');
   }
 }
 
@@ -116,13 +120,26 @@ export async function createRule(input: CreateRuleInput) {
   await prisma.ruleAuditLog.create({
     data: { ruleId: rule.id, actorId: input.actorId ?? null, action: 'CREATE', after: rule as unknown as object },
   });
-  await invalidateRuleCache();
   return rule;
 }
 
 export async function updateRule(id: string, input: Partial<CreateRuleInput>) {
   const existing = await prisma.rule.findUnique({ where: { id } });
   if (!existing) throw new NotFoundError('Không tìm thấy rule');
+  // If scope-related fields are being changed, validate
+  if (input.scope !== undefined || input.departmentId !== undefined || input.subDepartmentId !== undefined) {
+    const merged: CreateRuleInput = {
+      resourceCode: existing.resourceCode,
+      action: existing.action,
+      scope: (input.scope ?? existing.scope) as string,
+      departmentId: (input.departmentId !== undefined ? input.departmentId : existing.departmentId) as string | null,
+      subDepartmentId: (input.subDepartmentId !== undefined ? input.subDepartmentId : existing.subDepartmentId) as string | null,
+      positionId: existing.positionId,
+      role: existing.role as string | null,
+      allow: existing.allow,
+    };
+    validateScopeFields(merged);
+  }
   const before = { ...existing };
 
   const data: Record<string, unknown> = {};
@@ -134,7 +151,6 @@ export async function updateRule(id: string, input: Partial<CreateRuleInput>) {
   await prisma.ruleAuditLog.create({
     data: { ruleId: id, actorId: input.actorId ?? null, action: 'UPDATE', before: before as unknown as object, after: updated as unknown as object },
   });
-  await invalidateRuleCache();
   return updated;
 }
 
@@ -145,16 +161,20 @@ export async function deleteRule(id: string, actorId?: string | null) {
   await prisma.ruleAuditLog.create({
     data: { ruleId: null, actorId: actorId ?? null, action: 'DELETE', before: existing as unknown as object },
   });
-  await invalidateRuleCache();
 }
 
 // ─── Matrix & my-permissions ─────────────────────────────────────────────────
 const ACTIONS = ['CREATE', 'READ', 'UPDATE', 'DELETE', 'APPROVE', 'REJECT', 'EXPORT', 'IMPORT'] as const;
 
-function baselineAllow(action: string, userRole: string): boolean {
-  if (action === 'DELETE') return userRole === 'DEPARTMENT_HEAD' || userRole === 'ADMIN';
-  if (action === 'APPROVE' || action === 'REJECT') return userRole === 'TEAM_LEAD' || userRole === 'DEPARTMENT_HEAD' || userRole === 'ADMIN';
-  return true; // CREATE, READ, UPDATE, EXPORT, IMPORT
+function delegationScopeMatches(
+  delegation: { departmentId: string | null; subDepartmentId: string | null },
+  departmentIds: string[],
+  subDepartmentId: string | null,
+): boolean {
+  if (!delegation.departmentId && !delegation.subDepartmentId) return true;
+  if (delegation.subDepartmentId) return delegation.subDepartmentId === subDepartmentId;
+  if (delegation.departmentId) return departmentIds.includes(delegation.departmentId);
+  return false;
 }
 
 export async function getMatrix(params: { positionId?: string; departmentId?: string; subDepartmentId?: string }) {
@@ -164,6 +184,7 @@ export async function getMatrix(params: { positionId?: string; departmentId?: st
       isActive: true,
       ...(params.positionId ? { positionId: params.positionId } : {}),
       ...(params.departmentId ? { departmentId: params.departmentId } : {}),
+      ...(params.subDepartmentId ? { subDepartmentId: params.subDepartmentId } : {}),
     },
   });
 
@@ -179,7 +200,7 @@ export async function getMyPermissions(userId: string) {
   if (!user) throw new NotFoundError('Không tìm thấy người dùng');
   if (user.role === 'ADMIN') {
     const resources = await prisma.resource.findMany({ where: { isActive: true } });
-    return resources.flatMap(r => ACTIONS.map(a => ({ resourceCode: r.code, action: a, allow: true, source: 'ADMIN_BYPASS' })));
+    return resources.flatMap((r) => ACTIONS.map((a) => ({ resourceCode: r.code, action: a, allow: true, source: 'ADMIN_BYPASS' })));
   }
 
   const employee = await prisma.employee.findUnique({ where: { userId } });
@@ -193,49 +214,51 @@ export async function getMyPermissions(userId: string) {
   }
 
   const secondaryDeps = await prisma.userSecondaryDepartment.findMany({ where: { userId } });
-  const departmentIds = [user.departmentId, ...secondaryDeps.map(s => s.departmentId)].filter(Boolean) as string[];
-  const subDepartmentId = user.subDepartmentId ?? employee?.subDepartmentId ?? null;
+  const departmentIds: string[] = [user.departmentId, ...secondaryDeps.map((s) => s.departmentId)].filter((v): v is string => !!v);
+  const subDepartmentId: string | null = (user.subDepartmentId ?? employee?.subDepartmentId ?? null) as string | null;
 
   const resources = await prisma.resource.findMany({ where: { isActive: true } });
 
-  // Check delegations active now
+  // Check delegations active now — scope-aware
   const now = new Date();
   const delegations = await prisma.delegation.findMany({
     where: { toUserId: userId, isActive: true, from: { lte: now }, to: { gte: now } },
   });
-  const delegationSet = new Set(delegations.map(d => `${d.resourceCode}:${d.action}`));
 
   // Load relevant rules
-  const allRules = await prisma.rule.findMany({ where: { isActive: true } });
+  const allRules: Rule[] = await prisma.rule.findMany({ where: { isActive: true } });
 
   const result: Array<{ resourceCode: string; action: string; allow: boolean; source: string }> = [];
   for (const res of resources) {
     for (const action of ACTIONS) {
-      // Priority: delegation → explicit Rule → baseline
-      if (delegationSet.has(`${res.code}:${action}`)) {
+      // Priority: delegation → explicit Rule → baseline — delegation only if scope matches
+      const hasDelegation = delegations.some(
+        (d) => d.resourceCode === res.code && d.action === action && delegationScopeMatches(d, departmentIds, subDepartmentId),
+      );
+      if (hasDelegation) {
         result.push({ resourceCode: res.code, action, allow: true, source: 'DELEGATION' });
         continue;
       }
 
       // Find matching Rule (most specific wins: position > role, subDept > dept > global)
-      const candidates = allRules.filter(r => r.resourceCode === res.code && r.action === action);
+      const candidates: Rule[] = allRules.filter((r) => r.resourceCode === res.code && r.action === action);
       let matched: Rule | null = null;
 
       // Position-specific first
       if (positionId) {
-        matched = candidates.find(r => r.positionId === positionId && r.subDepartmentId === subDepartmentId) ?? null;
-        if (!matched) matched = candidates.find(r => r.positionId === positionId && r.departmentId && departmentIds.includes(r.departmentId)) ?? null;
-        if (!matched) matched = candidates.find(r => r.positionId === positionId && r.scope === 'GLOBAL') ?? null;
+        matched = (candidates.find((r) => r.positionId === positionId && r.subDepartmentId === subDepartmentId) as Rule | undefined) ?? null;
+        if (!matched) matched = (candidates.find((r) => r.positionId === positionId && r.departmentId !== null && departmentIds.includes(r.departmentId)) as Rule | undefined) ?? null;
+        if (!matched) matched = (candidates.find((r) => r.positionId === positionId && r.scope === 'GLOBAL') as Rule | undefined) ?? null;
       }
       // Fallback to role-based
       if (!matched) {
-        matched = candidates.find(r => r.role === effectiveRole && r.subDepartmentId === subDepartmentId) ?? null;
-        if (!matched) matched = candidates.find(r => r.role === effectiveRole && r.departmentId && departmentIds.includes(r.departmentId)) ?? null;
-        if (!matched) matched = candidates.find(r => r.role === effectiveRole && r.scope === 'GLOBAL') ?? null;
+        matched = (candidates.find((r) => r.role === (effectiveRole as never) && r.subDepartmentId === subDepartmentId) as Rule | undefined) ?? null;
+        if (!matched) matched = (candidates.find((r) => r.role === (effectiveRole as never) && r.departmentId !== null && departmentIds.includes(r.departmentId)) as Rule | undefined) ?? null;
+        if (!matched) matched = (candidates.find((r) => r.role === (effectiveRole as never) && r.scope === 'GLOBAL') as Rule | undefined) ?? null;
       }
       // Generic global rule without position/role
       if (!matched) {
-        matched = candidates.find(r => !r.positionId && !r.role && r.scope === 'GLOBAL') ?? null;
+        matched = (candidates.find((r) => !r.positionId && !r.role && r.scope === 'GLOBAL') as Rule | undefined) ?? null;
       }
 
       if (matched) {
@@ -320,4 +343,4 @@ export async function revokeDelegation(id: string) {
   return prisma.delegation.update({ where: { id }, data: { isActive: false } });
 }
 
-export { invalidateRuleCache, baselineAllow };
+export { baselineAllow };
