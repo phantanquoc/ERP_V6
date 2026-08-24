@@ -92,25 +92,66 @@ async function main() {
   }
   console.log(`Seeded ${RESOURCES.length} resources`);
 
-  // Seed Position.defaultRole for existing positions
-  const positionRoleMap: Record<string, string> = {
-    // Map by code prefix or name heuristics — best-effort
+  /**
+   * 4.1 — Chuẩn hoá Position.defaultRole (53 Position)
+   *
+   * Hardcode overrides for positions whose name does not match heuristic
+   * (e.g. POS_021 "Trưởng nhóm thu mua", POS_QC_* that are not in POS_001-050).
+   * Fallback to name-based heuristic for the rest.
+   * After seed every Position has defaultRole != null.
+   */
+  type UserRole = 'ADMIN' | 'DEPARTMENT_HEAD' | 'TEAM_LEAD' | 'EMPLOYEE';
+  const POSITION_DEFAULT_ROLE: Record<string, UserRole> = {
+    // Explicit overrides — do not rely on heuristic
+    POS_001: 'DEPARTMENT_HEAD', // Giám đốc
+    POS_002: 'DEPARTMENT_HEAD', // Phó Giám đốc
+    POS_003: 'DEPARTMENT_HEAD', // Trưởng phòng
+    POS_004: 'DEPARTMENT_HEAD', // Phó Trưởng phòng (treated as head tier)
+    POS_014: 'TEAM_LEAD', // Quản lý dự án
+    POS_019: 'TEAM_LEAD', // Kế toán trưởng
+    POS_021: 'TEAM_LEAD', // Trưởng nhóm thu mua (was falling to EMPLOYEE)
+    POS_023: 'TEAM_LEAD', // Quản lý kho
+    POS_028: 'TEAM_LEAD', // Trưởng nhóm nhân sự
+    POS_QC_LEAD: 'TEAM_LEAD', // Trưởng nhóm QC
+    POS_QC_STAFF: 'EMPLOYEE',
+    POS_PROD_WORKER: 'EMPLOYEE',
   };
-  // Heuristic: positions with "Trưởng phòng" or "Trưởng bộ phận" → DEPARTMENT_HEAD
-  const allPositions = await prisma.position.findMany({ select: { id: true, name: true, code: true } });
-  for (const p of allPositions) {
-    const nameLower = p.name.toLowerCase();
-    let role: string | null = null;
-    if (nameLower.includes('giám đốc') || nameLower.includes('trưởng phòng') || nameLower.includes('trưởng bộ phận')) {
-      role = 'DEPARTMENT_HEAD';
-    } else if (nameLower.includes('tổ trưởng') || nameLower.includes('tổ phó') || nameLower.includes('quản đốc')) {
-      role = 'TEAM_LEAD';
-    } else {
-      role = 'EMPLOYEE';
+
+  function resolvePositionRole(code: string, name: string): UserRole {
+    const override = POSITION_DEFAULT_ROLE[code];
+    if (override) return override;
+    const nl = name.toLowerCase();
+    if (nl.includes('giám đốc') || nl.includes('trưởng phòng') || nl.includes('trưởng bộ phận')) {
+      return 'DEPARTMENT_HEAD';
     }
+    if (
+      nl.includes('trưởng nhóm') ||
+      nl.includes('nhóm trưởng') ||
+      nl.includes('tổ trưởng') ||
+      nl.includes('tổ phó') ||
+      nl.includes('quản đốc') ||
+      nl.includes('kế toán trưởng') ||
+      nl.includes('quản lý kho') ||
+      nl.includes('quản lý dự án')
+    ) {
+      return 'TEAM_LEAD';
+    }
+    return 'EMPLOYEE';
+  }
+
+  const allPositions = await prisma.position.findMany({ select: { id: true, name: true, code: true } });
+  // Report mapping table for audit (task 4.1)
+  const mappingRows: Array<{ code: string; name: string; role: string; source: string }> = [];
+  for (const p of allPositions) {
+    const isOverride = POSITION_DEFAULT_ROLE[p.code] !== undefined;
+    const role = resolvePositionRole(p.code, p.name);
+    mappingRows.push({ code: p.code, name: p.name, role, source: isOverride ? 'override' : 'heuristic' });
     await prisma.position.update({ where: { id: p.id }, data: { defaultRole: role as never } });
   }
   console.log(`Updated defaultRole for ${allPositions.length} positions`);
+  // Print mapping table (sorted by code)
+  mappingRows.sort((a, b) => a.code.localeCompare(b.code));
+  console.table(mappingRows);
 }
 
 main()
