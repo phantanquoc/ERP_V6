@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import faceAttendanceController from '@controllers/faceAttendanceController';
 import { authenticate } from '@middlewares/auth';
+import { kioskLimiter } from '@middlewares/rateLimiter';
 import { requireRule } from '@middlewares/requireRule';
 
 const router = Router();
@@ -51,16 +52,16 @@ router.patch('/devices/:deviceId/toggle', authenticate, requireRule('face-attend
 router.post('/kiosk/session', authenticate, requireRule('face-attendance', 'UPDATE'), faceAttendanceController.createKioskSession.bind(faceAttendanceController));
 
 /** GET /api/face-attendance/kiosk/validate-session — kiosk validate key (public, legacy) */
-router.get('/kiosk/validate-session', faceAttendanceController.validateKioskSession.bind(faceAttendanceController));
+router.get('/kiosk/validate-session', kioskLimiter, faceAttendanceController.validateKioskSession.bind(faceAttendanceController));
 
 /** GET /api/face-attendance/kiosk/validate-device — validate device key (public, persistent) */
-router.get('/kiosk/validate-device', faceAttendanceController.validateDeviceKey.bind(faceAttendanceController));
+router.get('/kiosk/validate-device', kioskLimiter, faceAttendanceController.validateDeviceKey.bind(faceAttendanceController));
 
 /** POST /api/face-attendance/kiosk/verify — kiosk chấm công (dùng x-device-key) */
-router.post('/kiosk/verify', faceAttendanceController.kioskVerify.bind(faceAttendanceController));
+router.post('/kiosk/verify', kioskLimiter, faceAttendanceController.kioskVerify.bind(faceAttendanceController));
 
 /** POST /api/face-attendance/kiosk/verify-dev — dev-only, không cần device key — 404 in production */
-router.post('/kiosk/verify-dev', (_req, res, next) => {
+router.post('/kiosk/verify-dev', kioskLimiter, (_req, res, next) => {
   if (process.env.NODE_ENV === 'production') {
     res.status(404).json({ success: false, message: 'Không tìm thấy' });
     return;
