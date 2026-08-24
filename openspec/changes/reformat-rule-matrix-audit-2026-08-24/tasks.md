@@ -36,7 +36,7 @@
 
 ## 6. Tests & Verification
 
-- [ ] 6.1 Cập nhật `routeAuth.test.ts`: chuyển assert `authorize` → `requireRule(resource, action)` per route; thêm case delegation-scope, owner-scope, baseline per role.
-- [ ] 6.2 Backend tests: `requireRule` (delegation → rule priority → owner → baseline), `ruleService.getMatrix`/`getMyPermissions`, `Rule` scope validation, global duplicate, audit log.
-- [ ] 6.3 Frontend tests: `permissions.can()` baseline vs DB, `canDelete` per-resource, cachedPermissions staleness.
-- [ ] 6.4 Chạy `backend npx tsc --noEmit`, `npm run lint`, `npm test`; `frontend npx tsc --noEmit -p tsconfig.app.json`, `npm run lint`; `npx prisma validate`. Manual spot-check 3 role × 2 dept.
+- [x] 6.1 Cập nhật `routeAuth.test.ts`: chuyển assert `authorize` → `requireRule(resource, action)` per route; thêm case delegation-scope, owner-scope, baseline per role.
+- [x] 6.2 Backend tests: `requireRule` (delegation → rule priority → owner → baseline), `ruleService.getMatrix`/`getMyPermissions`, `Rule` scope validation, global duplicate, audit log.
+- [x] 6.3 Frontend tests: `permissions.can()` baseline vs DB, `canDelete` per-resource, cachedPermissions staleness.
+- [x] 6.4 Chạy `backend npx tsc --noEmit`, `npm run lint`, `npm test`; `frontend npx tsc --noEmit -p tsconfig.app.json`, `npm run lint`; `npx prisma validate`. Manual spot-check 3 role × 2 dept.
