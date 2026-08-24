@@ -23,16 +23,16 @@
 
 ## 4. Seed & format lại Rule theo Phòng ban × Chức vụ
 
-- [ ] 4.1 Chuẩn hoá `Position.defaultRole` cho 53 Position: chạy lại `seed-resources.ts` heuristic + review thủ công (đặc biệt `POS_021` Trưởng nhóm, các POS QC), sửa mapping sai, verify mọi Position có `defaultRole`.
-- [ ] 4.2 Sinh Rule baseline explicit per Department×Position×Resource: với mỗi (dept, position, resource thuộc dept) tạo Rule cho 8 actions theo bảng phân tầng (C/R/U/E/I allow-all, A/RJ TEAM_LEAD+, DELETE DEPT_HEAD) với `scope=DEPARTMENT` hoặc `SUB_DEPARTMENT` tương ứng. Review với product owner trước khi seed prod. Bao phủ `PositionResponsibility` → `Rule.responsibilityId` để phase 2.
-- [ ] 4.3 Migration seed: script idempotent upsert theo unique key, dry-run in số Rule sẽ tạo, report "uncovered routes" so với `grep -rn authorize` cũ (nếu còn). Chạy trong transaction.
+- [x] 4.1 Chuẩn hoá `Position.defaultRole` cho 53 Position: chạy lại `seed-resources.ts` heuristic + review thủ công (đặc biệt `POS_021` Trưởng nhóm, các POS QC), sửa mapping sai, verify mọi Position có `defaultRole`.
+- [x] 4.2 Sinh Rule baseline explicit per Department×Position×Resource: với mỗi (dept, position, resource thuộc dept) tạo Rule cho 8 actions theo bảng phân tầng (C/R/U/E/I allow-all, A/RJ TEAM_LEAD+, DELETE DEPT_HEAD) với `scope=DEPARTMENT` hoặc `SUB_DEPARTMENT` tương ứng. Review với product owner trước khi seed prod. Bao phủ `PositionResponsibility` → `Rule.responsibilityId` để phase 2.
+- [x] 4.3 Migration seed: script idempotent upsert theo unique key, dry-run in số Rule sẽ tạo, report "uncovered routes" so với `grep -rn authorize` cũ (nếu còn). Chạy trong transaction.
 
 ## 5. Đồng bộ Frontend
 
-- [ ] 5.1 `AuthContext` refresh `my-permissions` sau `USER_PROFILE_UPDATED` và sau mỗi Rule CRUD (invalidate `myPermissions` query), không chỉ on-login (P2-08).
-- [ ] 5.2 `Sidebar` + `ProtectedModuleRoute/SubRoute` đọc `can(resource,action)` / `my-permissions` thay vì `DEPARTMENTS` hard-code; `RuleManagement` matrix tab hiển thị đúng per-position×scope (P2-06). Thay `role==='admin'` literals bằng `can()`.
-- [ ] 5.3 `AdminRoute` đồng bộ với backend: check `role==='ADMIN'` (hoặc cả hai), không chỉ `department==='admin'` (P2-07).
-- [ ] 5.4 Button gating toàn app: mọi nút DELETE/APPROVE/REJECT dùng `can(resource, correctAction)` thay vì `isAdmin`.
+- [x] 5.1 `AuthContext` refresh `my-permissions` sau `USER_PROFILE_UPDATED` và sau mỗi Rule CRUD (invalidate `myPermissions` query), không chỉ on-login (P2-08).
+- [x] 5.2 `Sidebar` + `ProtectedModuleRoute/SubRoute` đọc `can(resource,action)` / `my-permissions` thay vì `DEPARTMENTS` hard-code; `RuleManagement` matrix tab hiển thị đúng per-position×scope (P2-06). Thay `role==='admin'` literals bằng `can()`.
+- [x] 5.3 `AdminRoute` đồng bộ với backend: check `role==='ADMIN'` (hoặc cả hai), không chỉ `department==='admin'` (P2-07).
+- [x] 5.4 Button gating toàn app: mọi nút DELETE/APPROVE/REJECT dùng `can(resource, correctAction)` thay vì `isAdmin`.
 
 ## 6. Tests & Verification
 

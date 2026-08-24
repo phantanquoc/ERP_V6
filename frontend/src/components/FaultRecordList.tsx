@@ -2,6 +2,8 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { CheckCircle, Edit, Eye, Plus, Power, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { can, isCachedPermissionsLoaded } from '../utils/permissions';
+import { UserRole } from '../types/auth';
 import FileUpload from './FileUpload';
 import FaultTemplateDetail from './FaultTemplateDetail';
 import Modal from './Modal';
@@ -230,7 +232,9 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
   const isTechnical = user?.department === 'technical' ||
     user?.secondaryDepartments?.some(d => d.departmentCode === 'technical');
   const canCreate = !!user;
-  const canMutate = user?.role === 'admin' || isTechnical;
+  // Rule Matrix: fault-records / fault-templates (use fault-records as primary)
+  const _baseMutate = user?.role === UserRole.ADMIN || isTechnical;
+  const canMutate = isCachedPermissionsLoaded() ? (can('fault-records', 'CREATE', user?.role as string) || can('fault-records', 'UPDATE', user?.role as string)) : _baseMutate;
 
   const [view, setView] = useState<ViewMode>('records');
   const [recordFilters, setRecordFilters] = useState<FaultRecordFilters>({ page: 1, limit: 10, sortBy: 'createdAt', sortOrder: 'desc', machineSystemId: lockedMachineSystemId });
@@ -780,11 +784,11 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
                         actions={[
                           ...(canMutate ? [{ key: 'edit', label: 'Sửa bản ghi', icon: <Edit className="h-4 w-4" />, onClick: () => openRecordModal('edit', record), tone: 'success' } satisfies RowAction] : []),
                           // 8.7: mark-resolved — visible when not DA_XU_LY, role ADMIN/DEPT_HEAD/TEAM_LEAD
-                          ...((user?.role === 'admin' || user?.role === 'department_head' || user?.role === 'team_lead') && record.trangThai !== 'DA_XU_LY'
+                          ...((isCachedPermissionsLoaded() ? can('fault-records', 'UPDATE', user?.role as string) : (user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD || user?.role === UserRole.TEAM_LEAD)) && record.trangThai !== 'DA_XU_LY'
                             ? [{ key: 'mark-resolved', label: 'Đánh dấu đã xử lý', icon: <CheckCircle className="h-4 w-4" />, onClick: () => markResolved.mutate({ id: record.id }), tone: 'success', disabled: markResolved.isPending } satisfies RowAction]
                             : []),
                           // 8.7: mark-recurred — visible only when DA_XU_LY, role ADMIN/DEPT_HEAD
-                          ...((user?.role === 'admin' || user?.role === 'department_head') && record.trangThai === 'DA_XU_LY'
+                          ...((isCachedPermissionsLoaded() ? can('fault-records', 'UPDATE', user?.role as string) : (user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD)) && record.trangThai === 'DA_XU_LY'
                             ? [{ key: 'mark-recurred', label: 'Đánh dấu tái phát', icon: <RefreshCw className="h-4 w-4" />, onClick: () => markRecurred.mutate({ id: record.id }), tone: 'warning', disabled: markRecurred.isPending } satisfies RowAction]
                             : []),
                           ...(canMutate ? [{ key: 'delete', label: 'Xóa bản ghi', icon: <Trash2 className="h-4 w-4" />, onClick: () => deleteRecord.mutate(record.id), tone: 'danger' } satisfies RowAction] : []),

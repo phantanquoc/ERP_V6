@@ -4,7 +4,7 @@ import faceAttendanceService, { EmployeeFaceProfile, FaceProfileImage, FaceProfi
 import { SERVER_BASE_URL } from '../../config/api';
 import { loadFaceMesh } from '../../utils/loadFaceMesh';
 import { useAuth } from '../../contexts/AuthContext';
-import { isAdmin } from '../../utils/permissions';
+import { isAdminUser } from '../../utils/permissions';
 
 // MediaPipe FaceMesh — loaded via dynamic script injection
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -914,7 +914,7 @@ const FaceAdminPage: React.FC = () => {
       <canvas ref={captureRef} className="hidden" />
 
       {/* Floating button — Tiến hành chấm công (admin only) */}
-      {user && isAdmin(user.department) && (
+      {user && isAdminUser(user as any) && (
         <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
           {showKioskMenu && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">

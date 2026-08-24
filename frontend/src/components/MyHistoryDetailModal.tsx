@@ -3,6 +3,7 @@ import { X, ExternalLink, Clock, Tag, User, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { HistoryItem, getEntityDetailEndpoint } from '../services/myHistoryService';
 import { useAuth } from '../contexts/AuthContext';
+import { UserRole } from '../types/auth';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import TaskListModal from './TaskListModal';
 import WorkPlanListModal from './WorkPlanListModal';
@@ -84,7 +85,8 @@ interface MyHistoryDetailModalProps {
 const MyHistoryDetailModal: React.FC<MyHistoryDetailModalProps> = ({ item, onClose }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const userIsAdmin = user?.role === 'admin';
+  // TODO(Rule Matrix): display-only admin flag — not a resource gate; keep literal until resource mapping defined
+  const userIsAdmin = user?.role === UserRole.ADMIN;
   const isDepartmentHead = user?.role === 'department_head';
 
   const dialogRef = useRef<HTMLDivElement>(null);

@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '../contexts/AuthContext';
+import { can, isCachedPermissionsLoaded } from '../utils/permissions';
+import { UserRole } from '../types/auth';
 import { ModalForm, ModalFooter, FormField, inputCls, selectCls, textareaCls, readonlyCls, FileDropZone } from '../components/ModalForm';
 import RepairRequestFormModal from '../components/RepairRequestFormModal';
 import SupplyRequestModal from '../components/SupplyRequestModal';
@@ -44,7 +46,9 @@ const CommonManagement = () => {
 
   if (!user) return <LoadingState message="Đang tải thông tin người dùng..." />;
 
-  const isManagerOrAdmin = user?.role === 'admin' || user?.role === 'department_head';
+  // Rule Matrix: tasks/work-plans/approvals — fallback to legacy until loaded
+  const _roleMgr = user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD;
+  const isManagerOrAdmin = isCachedPermissionsLoaded() ? can('tasks', 'APPROVE', user?.role as string) || can('work-plans', 'APPROVE', user?.role as string) : _roleMgr;
 
   const categories = [
     {
@@ -205,8 +209,8 @@ const CommonManagement = () => {
       <OvertimePlanListModal
         isOpen={isOvertimePlanListOpen}
         onClose={() => setIsOvertimePlanListOpen(false)}
-        isAdmin={user?.role === 'admin'}
-        canViewAll={user?.role === 'admin' || user?.role === 'department_head' || user?.department === 'general' || user?.department === 'quality'}
+        isAdmin={isCachedPermissionsLoaded() ? can('overtime-plans', 'APPROVE', user?.role as string) : user?.role === UserRole.ADMIN}
+        canViewAll={isCachedPermissionsLoaded() ? can('overtime-plans', 'READ', user?.role as string) : (user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD || user?.department === 'general' || user?.department === 'quality')}
         canCreate={isManagerOrAdmin}
       />
       <PrivateFeedbackModal

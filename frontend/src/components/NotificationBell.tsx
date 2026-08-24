@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import notificationService, { AppNotification } from '@services/notificationService';
 import pushNotificationService from '@services/pushNotificationService';
 import { useAuth } from '../contexts/AuthContext';
+import { UserRole } from '../types/auth';
 import { getNotificationIcon } from '../utils/notificationIcons';
 import { formatRelativeTime } from '../utils/formatRelativeTime';
 import { resolveDeepLink, resolveModalKind } from './myNotificationsUtils';
@@ -88,7 +89,8 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const userIsAdmin = user?.role === 'admin';
+  // TODO(Rule Matrix): display-only admin flag — not a resource gate; keep literal until resource mapping defined
+  const userIsAdmin = user?.role === UserRole.ADMIN;
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [isTaskListModalOpen, setIsTaskListModalOpen] = useState(false);

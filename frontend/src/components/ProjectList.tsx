@@ -12,6 +12,8 @@ import ProjectOverview from './ProjectOverview';
 import ProjectCosts from './ProjectCosts';
 import EmployeePicker from './EmployeePicker';
 import { useAuth } from '../contexts/AuthContext';
+import { can, isCachedPermissionsLoaded } from '../utils/permissions';
+import { UserRole } from '../types/auth';
 import { useUsers } from '../hooks/useUsers';
 import {
   useCreateProject,
@@ -130,7 +132,9 @@ const ProjectList = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const isTechnical = user?.department === 'technical' ||
     user?.secondaryDepartments?.some(d => d.departmentCode === 'technical');
-  const canWriteAll = user?.role === 'admin' || isTechnical;
+  // Rule Matrix: projects resource — fallback to legacy check until loaded
+  const _baseWriteAll = user?.role === UserRole.ADMIN || isTechnical;
+  const canWriteAll = isCachedPermissionsLoaded() ? (can('projects', 'CREATE', user?.role as string) || can('projects', 'UPDATE', user?.role as string)) : _baseWriteAll;
   const [filters, setFilters] = useState({ page: 1, limit: 10, search: '', trangThai: '' });
   const projectsQuery = useProjects({
     page: filters.page,
@@ -233,7 +237,7 @@ const ProjectList = () => {
   const isCreator = !!selectedProject && (selectedProject.nguoiTaoId === user?._id || selectedProject.nguoiTaoId === user?.employeeId);
   const isActualEditPlanTask = taskModal?.fromTab === 'updates' && !!taskModal?.task && !taskModal.task.laPhatSinh;
   const canChangeStatus = (project?: Project) =>
-    user?.role === 'admin' || (!!project && (project.nguoiTaoId === user?._id || project.nguoiTaoId === user?.employeeId));
+    ((isCachedPermissionsLoaded() ? can('projects', 'UPDATE', user?.role as string) : user?.role === UserRole.ADMIN) || (!!project && (project.nguoiTaoId === user?._id || project.nguoiTaoId === user?.employeeId)));
 
   useEffect(() => {
     if (selectedProject && !projects.some((project) => project.id === selectedProject.id)) {
@@ -676,7 +680,7 @@ const ProjectList = () => {
                   </div>
                 )}
 
-                {selectedProject.trangThai === 'Chờ duyệt' && !hasRejection && user?.role === 'admin' && (
+                {selectedProject.trangThai === 'Chờ duyệt' && !hasRejection && (isCachedPermissionsLoaded() ? can('projects', 'APPROVE', user?.role as string) : user?.role === UserRole.ADMIN) && (
                   <div className="flex items-center gap-3 rounded-md border border-purple-200 bg-purple-50 px-4 py-2.5">
                     <p className="flex-1 text-sm text-purple-800">Kế hoạch đang chờ phê duyệt.</p>
                     <button onClick={() => approveProject.mutate({ projectId: selectedProject.id })} disabled={approveProject.isPending} className="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50">{approveProject.isPending ? 'Đang duyệt...' : 'Phê duyệt'}</button>

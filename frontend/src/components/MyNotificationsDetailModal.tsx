@@ -11,6 +11,7 @@ import {
 } from './myNotificationsUtils';
 import { useMarkNotificationAsRead } from '../hooks/useMyNotifications';
 import { useAuth } from '../contexts/AuthContext';
+import { UserRole } from '../types/auth';
 import DailyWorkReportListModal from './DailyWorkReportListModal';
 import FeedbackListModal from './FeedbackListModal';
 import WorkPlanListModal from './WorkPlanListModal';
@@ -91,7 +92,8 @@ const MyNotificationsDetailModal: React.FC<MyNotificationsDetailModalProps> = ({
 }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const userIsAdmin = user?.role === 'admin';
+  // TODO(Rule Matrix): display-only admin flag — not a resource gate; keep literal until resource mapping defined
+  const userIsAdmin = user?.role === UserRole.ADMIN;
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const isOpen = item !== null;

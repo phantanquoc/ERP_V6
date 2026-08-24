@@ -1,7 +1,7 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { isAdmin } from '../utils/permissions';
+import { isAdminUser } from '../utils/permissions';
 
 interface AdminRouteProps {
   children: React.ReactNode;
@@ -14,7 +14,8 @@ const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (!isAdmin(user.department)) {
+  // Đồng bộ backend: backend check `role === 'ADMIN'`. Giữ backward-compat với legacy `department === 'admin'`.
+  if (!isAdminUser(user)) {
     return <Navigate to="/dashboard" replace />;
   }
 

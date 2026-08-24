@@ -28,8 +28,13 @@ export function useRuleMatrix(positionId?: string, departmentId?: string) {
   });
 }
 
-export function useMyPermissions() {
-  return useQuery({ queryKey: ruleKeys.myPermissions(), queryFn: () => ruleService.getMyPermissions(), staleTime: 60_000 });
+export function useMyPermissions(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ruleKeys.myPermissions(),
+    queryFn: () => ruleService.getMyPermissions(),
+    staleTime: 60_000,
+    enabled: options?.enabled ?? true,
+  });
 }
 
 export function useResources() {

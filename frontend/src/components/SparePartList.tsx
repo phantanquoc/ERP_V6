@@ -3,6 +3,8 @@ import toast from 'react-hot-toast';
 import { Plus, Edit, Trash2, X, Download, Search } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getFileUrl } from '../config/api';
+import { can, isCachedPermissionsLoaded } from '../utils/permissions';
+import { UserRole } from '../types/auth';
 import { useSpareParts, useCreateSparePart, useUpdateSparePart, useDeleteSparePart } from '../hooks/useSpareParts';
 import sparePartService from '../services/sparePartService';
 import FileUpload from './FileUpload';
@@ -68,8 +70,10 @@ const SparePartList = () => {
 
   const isTechnical = user?.department === 'technical' ||
     user?.secondaryDepartments?.some(d => d.departmentCode === 'technical');
-  const canWrite = user?.role === 'admin' || isTechnical;
-  const canDelete = user?.role === 'admin' || isTechnical;
+  // Rule Matrix: spare-parts resource
+  const _baseWrite = user?.role === UserRole.ADMIN || isTechnical;
+  const canWrite = isCachedPermissionsLoaded() ? can('spare-parts', 'CREATE', user?.role as string) || can('spare-parts', 'UPDATE', user?.role as string) : _baseWrite;
+  const canDelete = isCachedPermissionsLoaded() ? can('spare-parts', 'DELETE', user?.role as string) : (user?.role === UserRole.ADMIN || isTechnical);
 
   const filters = useMemo(() => ({
     page: currentPage,

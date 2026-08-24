@@ -4,6 +4,8 @@ import { User, LoginRequest, RegisterRequest } from '../types/auth';
 import AuthService from '../services/authService';
 import { WS_BASE_URL } from '../config/api';
 import { isKioskTab } from '../utils/kioskSession';
+import { ruleKeys } from '../hooks/useRules';
+import { clearCachedPermissions, setCachedPermissions } from '../utils/permissions';
 
 interface AuthContextType {
   user: User | null;
@@ -58,6 +60,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             AuthService.fetchMe().then(fresh => {
               if (fresh) setUser(fresh);
             }).catch(() => {});
+            // Refresh my-permissions so can() reflects new position/role without re-login (P2-08)
+            queryClient.invalidateQueries({ queryKey: ruleKeys.myPermissions() });
+            (async () => {
+              try {
+                const { default: ruleService } = await import('../services/ruleService');
+                const perms = await ruleService.getMyPermissions();
+                setCachedPermissions(perms as any);
+              } catch { /* non-fatal */ }
+            })();
           } else {
             queryClient.invalidateQueries({ queryKey: ['notifications'] });
             window.dispatchEvent(new CustomEvent('ws-notification', { detail: msg.payload }));
@@ -181,9 +192,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         const { default: ruleService } = await import('../services/ruleService');
         const perms = await ruleService.getMyPermissions();
-        const { setCachedPermissions } = await import('../utils/permissions');
         setCachedPermissions(perms as any);
       } catch { /* permissions fetch is non-fatal */ }
+      // Invalidate so any already-mounted useMyPermissions refetches with fresh perms
+      queryClient.invalidateQueries({ queryKey: ruleKeys.myPermissions() });
       setUser(authResponse.user);
     } catch (error) {
       console.error('Login error:', error);
@@ -212,6 +224,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       disconnectWs();
       await AuthService.logout();
       setUser(null);
+      clearCachedPermissions();
       queryClient.clear();
     } catch (error) {
       console.error('Logout error:', error);

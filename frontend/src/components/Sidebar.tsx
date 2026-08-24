@@ -2,7 +2,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Users, ClipboardList, ShieldCheck, Briefcase, Calculator, ShoppingCart, Factory, Wrench, Settings, ChevronDown, ChevronRight, ChevronLeft, ScanFace, BookOpen, History, Bell, BarChart2 } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { hasModuleAccess, hasSubModuleAccess, isAdmin } from '../utils/permissions';
+import { hasModuleAccess, hasSubModuleAccess, isAdminUser, canIfConfigured } from '../utils/permissions';
 import { useQuery } from '@tanstack/react-query';
 import notificationService from '../services/notificationService';
 import { UserRole } from '../types/auth';
@@ -117,6 +117,24 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [mobileOpen, onMobileClose]);
 
+  const MODULE_RESOURCE_MAP: Record<string, string> = {
+    dashboard: 'dashboard',
+    common: 'lookups',
+    general: 'general-costs',
+    quality: 'quality-evaluations',
+    business: 'orders',
+    accounting: 'invoices',
+    purchasing: 'supply-requests',
+    production: 'finished-products',
+    technical: 'repair-requests',
+  };
+
+  function canReadModule(module: string): boolean | null {
+    const res = MODULE_RESOURCE_MAP[module];
+    if (!res) return null;
+    return canIfConfigured(res, 'READ');
+  }
+
   const allMenuItems = [
     { path: '/dashboard', name: 'Dashboard', icon: <LayoutDashboard size={20} />, subItems: [], module: 'dashboard' },
     { path: '/common', name: 'Chung', icon: <Users size={20} />, subItems: [], module: 'common' },
@@ -154,6 +172,8 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
 
   const menuItems = allMenuItems.filter(item => {
     if (!user) return false;
+    const canRead = canReadModule(item.module);
+    if (canRead !== null) return canRead;
     return hasModuleAccess(item.module, user.role, user.department, user.secondaryDepartments);
   });
 
@@ -260,9 +280,13 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
                               if (!user) return false;
                               // Admin-only items require ADMIN role
                               if (subItem.adminOnly && user.role !== UserRole.ADMIN) return false;
-                              // Items with subModule check access via hasSubModuleAccess
+                              // Items with subModule check access via hasSubModuleAccess.
+                              // When Rule Matrix READ for the module is explicitly denied, hide sub-module too.
                               if (subItem.subModule) {
-                                return hasSubModuleAccess(item.module, subItem.subModule, user.department, user.subDepartment, user.role, user.secondaryDepartments);
+                                const baseOk = hasSubModuleAccess(item.module, subItem.subModule, user.department, user.subDepartment, user.role, user.secondaryDepartments);
+                                const canRead = canReadModule(item.module);
+                                if (canRead === false) return false;
+                                return baseOk;
                               }
                               // Items without subModule (e.g. adminOnly links) are visible if adminOnly check passed
                               return true;
@@ -362,7 +386,7 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
             </Link>
           )}
 
-          {user && isAdmin(user.department) && (
+          {user && isAdminUser(user) && (
             <>
               <Link
                 to="/diemdanh/admin"
