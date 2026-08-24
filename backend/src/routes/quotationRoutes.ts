@@ -40,7 +40,7 @@ router.use(authenticate);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/', quotationController.getAllQuotations);
+router.get('/', requireRule('quotations', 'READ'), quotationController.getAllQuotations);
 
 /**
  * @swagger
@@ -56,7 +56,7 @@ router.get('/', quotationController.getAllQuotations);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/generate-code', quotationController.generateQuotationCode);
+router.get('/generate-code', requireRule('quotations', 'READ'), quotationController.generateQuotationCode);
 
 /**
  * @swagger
@@ -77,7 +77,7 @@ router.get('/generate-code', quotationController.generateQuotationCode);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/export/excel', quotationController.exportToExcel);
+router.get('/export/excel', requireRule('quotations', 'EXPORT'), quotationController.exportToExcel);
 
 // Aging warnings (task 7.4) — must be before /:id to avoid route conflict
 router.get(
@@ -109,7 +109,7 @@ router.get(
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/:id', quotationController.getQuotationById);
+router.get('/:id', requireRule('quotations', 'READ'), quotationController.getQuotationById);
 
 /**
  * @swagger

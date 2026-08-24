@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import qualityEvaluationController from '@controllers/qualityEvaluationController';
 import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 import { createSingleUploadMiddleware } from '@middlewares/upload';
 
 const router = Router();
@@ -41,7 +42,7 @@ router.use(authenticate);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/', qualityEvaluationController.getAllQualityEvaluations.bind(qualityEvaluationController));
+router.get('/', requireRule('quality-evaluations', 'READ'), qualityEvaluationController.getAllQualityEvaluations.bind(qualityEvaluationController));
 
 /**
  * @swagger
@@ -62,7 +63,7 @@ router.get('/', qualityEvaluationController.getAllQualityEvaluations.bind(qualit
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/export/excel', qualityEvaluationController.exportToExcel.bind(qualityEvaluationController));
+router.get('/export/excel', requireRule('quality-evaluations', 'EXPORT'), qualityEvaluationController.exportToExcel.bind(qualityEvaluationController));
 
 /**
  * @swagger
@@ -87,7 +88,7 @@ router.get('/export/excel', qualityEvaluationController.exportToExcel.bind(quali
  *       404:
  *         description: Không tìm thấy đánh giá chất lượng
  */
-router.get('/:id', qualityEvaluationController.getQualityEvaluationById.bind(qualityEvaluationController));
+router.get('/:id', requireRule('quality-evaluations', 'READ'), qualityEvaluationController.getQualityEvaluationById.bind(qualityEvaluationController));
 
 /**
  * @swagger
@@ -113,7 +114,7 @@ router.get('/:id', qualityEvaluationController.getQualityEvaluationById.bind(qua
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/', uploadQualityEvaluation, qualityEvaluationController.createQualityEvaluation.bind(qualityEvaluationController));
+router.post('/', requireRule('quality-evaluations', 'CREATE'), uploadQualityEvaluation, qualityEvaluationController.createQualityEvaluation.bind(qualityEvaluationController));
 
 /**
  * @swagger
@@ -148,7 +149,7 @@ router.post('/', uploadQualityEvaluation, qualityEvaluationController.createQual
  *       404:
  *         description: Không tìm thấy đánh giá chất lượng
  */
-router.put('/:id', uploadQualityEvaluation, qualityEvaluationController.updateQualityEvaluation.bind(qualityEvaluationController));
+router.put('/:id', requireRule('quality-evaluations', 'UPDATE'), uploadQualityEvaluation, qualityEvaluationController.updateQualityEvaluation.bind(qualityEvaluationController));
 
 /**
  * @swagger
@@ -173,7 +174,7 @@ router.put('/:id', uploadQualityEvaluation, qualityEvaluationController.updateQu
  *       404:
  *         description: Không tìm thấy đánh giá chất lượng
  */
-router.delete('/:id', qualityEvaluationController.deleteQualityEvaluation.bind(qualityEvaluationController));
+router.delete('/:id', requireRule('quality-evaluations', 'DELETE'), qualityEvaluationController.deleteQualityEvaluation.bind(qualityEvaluationController));
 
 export default router;
 

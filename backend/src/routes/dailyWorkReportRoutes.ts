@@ -88,7 +88,7 @@ router.get('/my-statistics', dailyWorkReportController.getReportStatistics);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/', uploadDailyWorkReports, dailyWorkReportController.createReport);
+router.post('/', requireRule('daily-work-reports', 'CREATE'), uploadDailyWorkReports, dailyWorkReportController.createReport);
 
 /**
  * @swagger
@@ -128,7 +128,7 @@ router.post('/', uploadDailyWorkReports, dailyWorkReportController.createReport)
  *       404:
  *         description: Không tìm thấy báo cáo
  */
-router.patch('/:id', uploadDailyWorkReports, dailyWorkReportController.updateReport);
+router.patch('/:id', requireRule('daily-work-reports', 'UPDATE'), uploadDailyWorkReports, dailyWorkReportController.updateReport);
 
 /**
  * @swagger
@@ -154,7 +154,7 @@ router.patch('/:id', uploadDailyWorkReports, dailyWorkReportController.updateRep
  *       404:
  *         description: Không tìm thấy báo cáo
  */
-router.delete('/:id', dailyWorkReportController.deleteReport);
+router.delete('/:id', requireRule('daily-work-reports', 'DELETE'), dailyWorkReportController.deleteReport);
 
 /**
  * @swagger
@@ -219,7 +219,7 @@ router.get(
  *       404:
  *         description: Không tìm thấy báo cáo
  */
-router.get('/:id', dailyWorkReportController.getReportById);
+router.get('/:id', requireRule('daily-work-reports', 'READ'), dailyWorkReportController.getReportById);
 
 /**
  * @swagger

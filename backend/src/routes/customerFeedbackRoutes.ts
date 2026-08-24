@@ -1,6 +1,7 @@
 import express from 'express';
 import customerFeedbackService from '../services/customerFeedbackService';
 import { authenticate } from '../middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 
 const router = express.Router();
 
@@ -34,7 +35,7 @@ const router = express.Router();
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/', authenticate, async (req, res) => {
+router.get('/', authenticate, requireRule('customer-feedbacks', 'READ'), async (req, res) => {
   try {
     const filters = {
       trangThaiXuLy: req.query.trangThaiXuLy as string,
@@ -70,7 +71,7 @@ router.get('/', authenticate, async (req, res) => {
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/statistics/summary', authenticate, async (_req, res) => {
+router.get('/statistics/summary', authenticate, requireRule('customer-feedbacks', 'READ'), async (_req, res) => {
   try {
     const stats = await customerFeedbackService.getStatistics();
     res.json({
@@ -101,7 +102,7 @@ router.get('/statistics/summary', authenticate, async (_req, res) => {
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/export/excel', authenticate, async (req, res) => {
+router.get('/export/excel', authenticate, requireRule('customer-feedbacks', 'EXPORT'), async (req, res) => {
   try {
     const filters = {
       trangThaiXuLy: req.query.trangThaiXuLy as string,
@@ -144,7 +145,7 @@ router.get('/export/excel', authenticate, async (req, res) => {
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/:id', authenticate, async (req, res) => {
+router.get('/:id', authenticate, requireRule('customer-feedbacks', 'READ'), async (req, res) => {
   try {
     const feedback = await customerFeedbackService.getFeedbackById(req.params.id as string);
     res.json({
@@ -178,7 +179,7 @@ router.get('/:id', authenticate, async (req, res) => {
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/', authenticate, async (req, res) => {
+router.post('/', authenticate, requireRule('customer-feedbacks', 'CREATE'), async (req, res) => {
   try {
     const feedback = await customerFeedbackService.createFeedback({
       ...req.body,
@@ -224,7 +225,7 @@ router.post('/', authenticate, async (req, res) => {
  *       401:
  *         description: Không có quyền truy cập
  */
-router.put('/:id', authenticate, async (req, res) => {
+router.put('/:id', authenticate, requireRule('customer-feedbacks', 'UPDATE'), async (req, res) => {
   try {
     const feedback = await customerFeedbackService.updateFeedback(req.params.id as string, req.body);
     res.json({
@@ -259,7 +260,7 @@ router.put('/:id', authenticate, async (req, res) => {
  *       401:
  *         description: Không có quyền truy cập
  */
-router.delete('/:id', authenticate, async (req, res) => {
+router.delete('/:id', authenticate, requireRule('customer-feedbacks', 'DELETE'), async (req, res) => {
   try {
     const result = await customerFeedbackService.deleteFeedback(req.params.id as string);
     res.json({

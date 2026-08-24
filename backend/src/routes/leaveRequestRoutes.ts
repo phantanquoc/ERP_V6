@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import leaveRequestController from '@controllers/leaveRequestController';
 import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 
 const router = Router();
 
@@ -22,7 +23,7 @@ router.use(authenticate);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/export/excel', leaveRequestController.exportToExcel);
+router.get('/export/excel', requireRule('leave-requests', 'EXPORT'), leaveRequestController.exportToExcel);
 
 /**
  * @swagger
@@ -41,7 +42,7 @@ router.get('/export/excel', leaveRequestController.exportToExcel);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/', leaveRequestController.createLeaveRequest);
+router.post('/', requireRule('leave-requests', 'CREATE'), leaveRequestController.createLeaveRequest);
 
 /**
  * @swagger
@@ -74,7 +75,7 @@ router.post('/', leaveRequestController.createLeaveRequest);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/', leaveRequestController.getAllLeaveRequests);
+router.get('/', requireRule('leave-requests', 'READ'), leaveRequestController.getAllLeaveRequests);
 
 /**
  * @swagger
@@ -100,7 +101,7 @@ router.get('/', leaveRequestController.getAllLeaveRequests);
  *       404:
  *         description: Không tìm thấy yêu cầu nghỉ phép
  */
-router.get('/:id', leaveRequestController.getLeaveRequestById);
+router.get('/:id', requireRule('leave-requests', 'READ'), leaveRequestController.getLeaveRequestById);
 
 /**
  * @swagger
@@ -126,7 +127,7 @@ router.get('/:id', leaveRequestController.getLeaveRequestById);
  *       404:
  *         description: Không tìm thấy yêu cầu nghỉ phép
  */
-router.patch('/:id/approve', leaveRequestController.approveLeaveRequest);
+router.patch('/:id/approve', requireRule('leave-requests', 'APPROVE'), leaveRequestController.approveLeaveRequest);
 
 /**
  * @swagger
@@ -152,7 +153,7 @@ router.patch('/:id/approve', leaveRequestController.approveLeaveRequest);
  *       404:
  *         description: Không tìm thấy yêu cầu nghỉ phép
  */
-router.patch('/:id/reject', leaveRequestController.rejectLeaveRequest);
+router.patch('/:id/reject', requireRule('leave-requests', 'REJECT'), leaveRequestController.rejectLeaveRequest);
 
 export default router;
 

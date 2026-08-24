@@ -20,7 +20,7 @@ router.get('/profiles/:employeeId/stats', authenticate, requireRule('face-attend
 router.get('/adaptive-metrics', authenticate, requireRule('face-attendance', 'READ'), faceAttendanceController.getAdaptiveMetrics.bind(faceAttendanceController));
 
 /** POST /api/face-attendance/profiles/:employeeId/enroll — đăng ký khuôn mặt */
-router.post('/profiles/:employeeId/enroll', authenticate, requireRule('face-attendance', 'READ'), faceAttendanceController.enrollFace.bind(faceAttendanceController));
+router.post('/profiles/:employeeId/enroll', authenticate, requireRule('face-attendance', 'CREATE'), faceAttendanceController.enrollFace.bind(faceAttendanceController));
 
 /** POST /api/face-attendance/profiles/:employeeId/enroll-variation — thêm biến thể (kính, v.v.) */
 router.post('/profiles/:employeeId/enroll-variation', authenticate, requireRule('face-attendance', 'CREATE'), faceAttendanceController.enrollVariation.bind(faceAttendanceController));
@@ -29,10 +29,10 @@ router.post('/profiles/:employeeId/enroll-variation', authenticate, requireRule(
 router.patch('/profiles/:profileId/toggle', authenticate, requireRule('face-attendance', 'CREATE'), faceAttendanceController.toggleProfile.bind(faceAttendanceController));
 
 /** DELETE /api/face-attendance/profiles/:employeeId — xóa face profile */
-router.delete('/profiles/:employeeId', authenticate, requireRule('face-attendance', 'UPDATE'), faceAttendanceController.deleteProfile.bind(faceAttendanceController));
+router.delete('/profiles/:employeeId', authenticate, requireRule('face-attendance', 'DELETE'), faceAttendanceController.deleteProfile.bind(faceAttendanceController));
 
 /** GET /api/face-attendance/logs — xem lịch sử nhận diện */
-router.get('/logs', authenticate, requireRule('face-attendance', 'DELETE'), faceAttendanceController.getLogs.bind(faceAttendanceController));
+router.get('/logs', authenticate, requireRule('face-attendance', 'READ'), faceAttendanceController.getLogs.bind(faceAttendanceController));
 
 // ─── Device Management (ADMIN) ─────────────────────────────────────────────
 
@@ -40,10 +40,10 @@ router.get('/logs', authenticate, requireRule('face-attendance', 'DELETE'), face
 router.get('/devices', authenticate, requireRule('face-attendance', 'READ'), faceAttendanceController.listDevices.bind(faceAttendanceController));
 
 /** POST /api/face-attendance/devices */
-router.post('/devices', authenticate, requireRule('face-attendance', 'READ'), faceAttendanceController.createDevice.bind(faceAttendanceController));
+router.post('/devices', authenticate, requireRule('face-attendance', 'CREATE'), faceAttendanceController.createDevice.bind(faceAttendanceController));
 
 /** PATCH /api/face-attendance/devices/:deviceId/toggle */
-router.patch('/devices/:deviceId/toggle', authenticate, requireRule('face-attendance', 'CREATE'), faceAttendanceController.toggleDevice.bind(faceAttendanceController));
+router.patch('/devices/:deviceId/toggle', authenticate, requireRule('face-attendance', 'UPDATE'), faceAttendanceController.toggleDevice.bind(faceAttendanceController));
 
 // ─── Kiosk Routes (device-key auth) ────────────────────────────────────────
 
@@ -59,7 +59,13 @@ router.get('/kiosk/validate-device', faceAttendanceController.validateDeviceKey.
 /** POST /api/face-attendance/kiosk/verify — kiosk chấm công (dùng x-device-key) */
 router.post('/kiosk/verify', faceAttendanceController.kioskVerify.bind(faceAttendanceController));
 
-/** POST /api/face-attendance/kiosk/verify-dev — dev-only, không cần device key */
-router.post('/kiosk/verify-dev', faceAttendanceController.kioskVerifyDev.bind(faceAttendanceController));
+/** POST /api/face-attendance/kiosk/verify-dev — dev-only, không cần device key — 404 in production */
+router.post('/kiosk/verify-dev', (_req, res, next) => {
+  if (process.env.NODE_ENV === 'production') {
+    res.status(404).json({ success: false, message: 'Không tìm thấy' });
+    return;
+  }
+  next();
+}, faceAttendanceController.kioskVerifyDev.bind(faceAttendanceController));
 
 export default router;

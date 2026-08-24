@@ -34,8 +34,8 @@ router.get('/', authenticate, lookupController.getAll);
 router.get('/:id', authenticate, lookupController.getById);
 
 // --- Mutations: ADMIN only ---
-router.post('/', authenticate, requireRule('lookups', 'READ'), lookupController.create);
-router.put('/:id', authenticate, requireRule('lookups', 'READ'), lookupController.update);
+router.post('/', authenticate, requireRule('lookups', 'CREATE'), lookupController.create);
+router.put('/:id', authenticate, requireRule('lookups', 'UPDATE'), lookupController.update);
 // Soft delete only — sets isActive=false, never removes the row.
 router.delete('/:id', authenticate, requireRule('lookups', 'CREATE'), lookupController.remove);
 

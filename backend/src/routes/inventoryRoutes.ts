@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import inventoryController from '@controllers/inventoryController';
 import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 
 const router = Router();
 
@@ -53,6 +54,6 @@ router.use(authenticate);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/overview', inventoryController.getInventoryOverview);
+router.get('/overview', requireRule('inventory', 'READ'), inventoryController.getInventoryOverview);
 
 export default router;

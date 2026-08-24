@@ -39,7 +39,7 @@ router.use(authenticate);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/', quotationRequestController.getAllQuotationRequests);
+router.get('/', requireRule('quotation-requests', 'READ'), quotationRequestController.getAllQuotationRequests);
 
 /**
  * @swagger
@@ -55,7 +55,7 @@ router.get('/', quotationRequestController.getAllQuotationRequests);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/generate-code', quotationRequestController.generateQuotationRequestCode);
+router.get('/generate-code', requireRule('quotation-requests', 'READ'), quotationRequestController.generateQuotationRequestCode);
 
 /**
  * @swagger
@@ -76,7 +76,7 @@ router.get('/generate-code', quotationRequestController.generateQuotationRequest
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/export/excel', quotationRequestController.exportToExcel);
+router.get('/export/excel', requireRule('quotation-requests', 'EXPORT'), quotationRequestController.exportToExcel);
 
 /**
  * @swagger
@@ -101,7 +101,7 @@ router.get('/export/excel', quotationRequestController.exportToExcel);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/code/:code', quotationRequestController.getQuotationRequestByCode);
+router.get('/code/:code', requireRule('quotation-requests', 'READ'), quotationRequestController.getQuotationRequestByCode);
 
 /**
  * @swagger
@@ -126,7 +126,7 @@ router.get('/code/:code', quotationRequestController.getQuotationRequestByCode);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/:id', quotationRequestController.getQuotationRequestById);
+router.get('/:id', requireRule('quotation-requests', 'READ'), quotationRequestController.getQuotationRequestById);
 
 /**
  * @swagger

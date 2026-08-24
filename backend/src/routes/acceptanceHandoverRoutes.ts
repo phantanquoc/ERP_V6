@@ -41,7 +41,7 @@ router.use(authenticate);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/', acceptanceHandoverController.getAllAcceptanceHandovers);
+router.get('/', requireRule('acceptance-handovers', 'READ'), acceptanceHandoverController.getAllAcceptanceHandovers);
 
 /**
  * @swagger
@@ -62,7 +62,7 @@ router.get('/', acceptanceHandoverController.getAllAcceptanceHandovers);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/export/excel', acceptanceHandoverController.exportToExcel);
+router.get('/export/excel', requireRule('acceptance-handovers', 'EXPORT'), acceptanceHandoverController.exportToExcel);
 
 /**
  * @swagger
@@ -78,7 +78,7 @@ router.get('/export/excel', acceptanceHandoverController.exportToExcel);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/generate-code', acceptanceHandoverController.generateAcceptanceHandoverCode);
+router.get('/generate-code', requireRule('acceptance-handovers', 'READ'), acceptanceHandoverController.generateAcceptanceHandoverCode);
 
 /**
  * @swagger
@@ -103,7 +103,7 @@ router.get('/generate-code', acceptanceHandoverController.generateAcceptanceHand
  *       404:
  *         description: Không tìm thấy biên bản nghiệm thu
  */
-router.get('/:id', acceptanceHandoverController.getAcceptanceHandoverById);
+router.get('/:id', requireRule('acceptance-handovers', 'READ'), acceptanceHandoverController.getAcceptanceHandoverById);
 
 /**
  * @swagger

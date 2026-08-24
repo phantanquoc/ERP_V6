@@ -12,6 +12,7 @@ const {
   getKienByProductAndLot,
 } = lotProductController;
 import { authenticate, deviceOrJwtAuth } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 
 const router = Router();
 
@@ -20,12 +21,12 @@ router.get('/lots', deviceOrJwtAuth('DATA_ENTRY'), getLotsByProduct);
 router.get('/kien', deviceOrJwtAuth('DATA_ENTRY'), getKienByProductAndLot);
 
 // Desktop-only endpoints — require JWT
-router.get('/', authenticate, getAllLotProducts);
-router.post('/', authenticate, addProductToLot);
-router.put('/move', authenticate, moveProductBetweenLots);
-router.get('/:lotProductId/receipt-history', authenticate, getLotProductReceiptHistory);
-router.put('/:id', authenticate, updateProductQuantity);
-router.delete('/:id', authenticate, removeProductFromLot);
+router.get('/', authenticate, requireRule('lot-products', 'READ'), getAllLotProducts);
+router.post('/', authenticate, requireRule('lot-products', 'CREATE'), addProductToLot);
+router.put('/move', authenticate, requireRule('lot-products', 'UPDATE'), moveProductBetweenLots);
+router.get('/:lotProductId/receipt-history', authenticate, requireRule('lot-products', 'READ'), getLotProductReceiptHistory);
+router.put('/:id', authenticate, requireRule('lot-products', 'UPDATE'), updateProductQuantity);
+router.delete('/:id', authenticate, requireRule('lot-products', 'DELETE'), removeProductFromLot);
 
 export default router;
 

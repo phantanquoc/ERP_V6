@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import loginHistoryController from '@controllers/loginHistoryController';
 import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 
 const router = Router();
 
@@ -38,7 +39,7 @@ router.get('/my-history', authenticate, (req, res, next) =>
  *       403:
  *         description: Không có quyền truy cập
  */
-router.get('/', authenticate, (req, res, next) =>
+router.get('/', authenticate, requireRule('login-history', 'READ'), (req, res, next) =>
   loginHistoryController.getAllLoginHistory(req, res, next)
 );
 

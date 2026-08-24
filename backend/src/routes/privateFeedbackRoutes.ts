@@ -1,6 +1,7 @@
 import express from 'express';
 import privateFeedbackController from '../controllers/privateFeedbackController';
 import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 import { createUploadMiddleware } from '@middlewares/upload';
 
 const router = express.Router();
@@ -26,7 +27,7 @@ router.use(authenticate);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/stats', privateFeedbackController.getStats);
+router.get('/stats', requireRule('private-feedbacks', 'READ'), privateFeedbackController.getStats);
 
 /**
  * @swagger
@@ -43,7 +44,7 @@ router.get('/stats', privateFeedbackController.getStats);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/generate-code', privateFeedbackController.generateCode);
+router.post('/generate-code', requireRule('private-feedbacks', 'CREATE'), privateFeedbackController.generateCode);
 
 /**
  * @swagger
@@ -69,7 +70,7 @@ router.post('/generate-code', privateFeedbackController.generateCode);
  *       404:
  *         description: Không tìm thấy góp ý
  */
-router.get('/code/:code', privateFeedbackController.getByCode);
+router.get('/code/:code', requireRule('private-feedbacks', 'READ'), privateFeedbackController.getByCode);
 
 /**
  * @swagger
@@ -102,7 +103,7 @@ router.get('/code/:code', privateFeedbackController.getByCode);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/', privateFeedbackController.getAll);
+router.get('/', requireRule('private-feedbacks', 'READ'), privateFeedbackController.getAll);
 
 /**
  * @swagger
@@ -128,7 +129,7 @@ router.get('/', privateFeedbackController.getAll);
  *       404:
  *         description: Không tìm thấy góp ý
  */
-router.get('/:id', privateFeedbackController.getById);
+router.get('/:id', requireRule('private-feedbacks', 'READ'), privateFeedbackController.getById);
 
 /**
  * @swagger
@@ -159,7 +160,7 @@ router.get('/:id', privateFeedbackController.getById);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/', uploadFeedback, privateFeedbackController.create);
+router.post('/', requireRule('private-feedbacks', 'CREATE'), uploadFeedback, privateFeedbackController.create);
 
 /**
  * @swagger
@@ -199,7 +200,7 @@ router.post('/', uploadFeedback, privateFeedbackController.create);
  *       404:
  *         description: Không tìm thấy góp ý
  */
-router.patch('/:id', uploadFeedback, privateFeedbackController.update);
+router.patch('/:id', requireRule('private-feedbacks', 'UPDATE'), uploadFeedback, privateFeedbackController.update);
 
 /**
  * @swagger
@@ -225,7 +226,7 @@ router.patch('/:id', uploadFeedback, privateFeedbackController.update);
  *       404:
  *         description: Không tìm thấy góp ý
  */
-router.delete('/:id', privateFeedbackController.delete);
+router.delete('/:id', requireRule('private-feedbacks', 'DELETE'), privateFeedbackController.delete);
 
 export default router;
 

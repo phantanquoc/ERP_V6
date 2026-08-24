@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import generalCostController from '../controllers/generalCostController';
 import { authenticate } from '../middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 
 const router = Router();
 
@@ -33,7 +34,7 @@ router.use(authenticate);
  *       401:
  *         description: Chưa xác thực
  */
-router.get('/', generalCostController.getAllGeneralCosts);
+router.get('/', requireRule('general-costs', 'READ'), generalCostController.getAllGeneralCosts);
 
 /**
  * @swagger
@@ -55,7 +56,7 @@ router.get('/', generalCostController.getAllGeneralCosts);
  *       401:
  *         description: Chưa xác thực
  */
-router.get('/export/excel', generalCostController.exportToExcel);
+router.get('/export/excel', requireRule('general-costs', 'EXPORT'), generalCostController.exportToExcel);
 
 /**
  * @swagger
@@ -81,7 +82,7 @@ router.get('/export/excel', generalCostController.exportToExcel);
  *       404:
  *         description: Không tìm thấy chi phí chung
  */
-router.get('/:id', generalCostController.getGeneralCostById);
+router.get('/:id', requireRule('general-costs', 'READ'), generalCostController.getGeneralCostById);
 
 /**
  * @swagger
@@ -106,7 +107,7 @@ router.get('/:id', generalCostController.getGeneralCostById);
  *       401:
  *         description: Chưa xác thực
  */
-router.post('/', generalCostController.createGeneralCost);
+router.post('/', requireRule('general-costs', 'CREATE'), generalCostController.createGeneralCost);
 
 /**
  * @swagger
@@ -138,7 +139,7 @@ router.post('/', generalCostController.createGeneralCost);
  *       404:
  *         description: Không tìm thấy chi phí chung
  */
-router.put('/:id', generalCostController.updateGeneralCost);
+router.put('/:id', requireRule('general-costs', 'UPDATE'), generalCostController.updateGeneralCost);
 
 /**
  * @swagger
@@ -164,7 +165,7 @@ router.put('/:id', generalCostController.updateGeneralCost);
  *       404:
  *         description: Không tìm thấy chi phí chung
  */
-router.delete('/:id', generalCostController.deleteGeneralCost);
+router.delete('/:id', requireRule('general-costs', 'DELETE'), generalCostController.deleteGeneralCost);
 
 export default router;
 

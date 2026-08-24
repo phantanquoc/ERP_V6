@@ -37,7 +37,7 @@ router.use(authenticate);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/', invoiceController.getAllInvoices);
+router.get('/', requireRule('invoices', 'READ'), invoiceController.getAllInvoices);
 
 /**
  * @swagger
@@ -58,7 +58,7 @@ router.get('/', invoiceController.getAllInvoices);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/export/excel', invoiceController.exportToExcel);
+router.get('/export/excel', requireRule('invoices', 'EXPORT'), invoiceController.exportToExcel);
 
 /**
  * @swagger
@@ -99,7 +99,7 @@ router.get('/generate-code', requireRule('invoices', 'READ'), invoiceController.
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/:id', invoiceController.getInvoiceById);
+router.get('/:id', requireRule('invoices', 'READ'), invoiceController.getInvoiceById);
 
 /**
  * @swagger

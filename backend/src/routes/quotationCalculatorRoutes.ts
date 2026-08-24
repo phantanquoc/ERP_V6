@@ -8,6 +8,7 @@ const {
   createQuotationFromCalculator,
 } = quotationCalculatorController;
 import { authenticate } from '../middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 
 const router = express.Router();
 
@@ -37,7 +38,7 @@ router.use(authenticate);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/quotation-request/:quotationRequestId', getCalculatorByQuotationRequestId);
+router.get('/quotation-request/:quotationRequestId', requireRule('quotation-calculators', 'READ'), getCalculatorByQuotationRequestId);
 
 /**
  * @swagger
@@ -61,7 +62,7 @@ router.get('/quotation-request/:quotationRequestId', getCalculatorByQuotationReq
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/', upsertCalculator);
+router.post('/', requireRule('quotation-calculators', 'CREATE'), upsertCalculator);
 
 /**
  * @swagger
@@ -86,7 +87,7 @@ router.post('/', upsertCalculator);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/quotation-request/:quotationRequestId/create-quotation', createQuotationFromCalculator);
+router.post('/quotation-request/:quotationRequestId/create-quotation', requireRule('quotation-calculators', 'CREATE'), createQuotationFromCalculator);
 
 /**
  * @swagger
@@ -111,7 +112,7 @@ router.post('/quotation-request/:quotationRequestId/create-quotation', createQuo
  *       401:
  *         description: Không có quyền truy cập
  */
-router.delete('/quotation-request/:quotationRequestId', deleteCalculator);
+router.delete('/quotation-request/:quotationRequestId', requireRule('quotation-calculators', 'DELETE'), deleteCalculator);
 
 export default router;
 
