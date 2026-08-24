@@ -72,6 +72,16 @@ export const authLimiter = rateLimit({
   keyGenerator: resolveClientIp,
 });
 
+export const kioskLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: isDev ? 120 : 30,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  store: createStore('kiosk'),
+  message: { success: false, message: 'Quá nhiều request, vui lòng thử lại sau 1 phút' },
+  keyGenerator: resolveClientIp,
+});
+
 export const sensitiveRouteLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: isDev ? 200 : 100,

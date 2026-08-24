@@ -3,6 +3,21 @@ import notificationController from '@controllers/notificationController';
 import notificationPreferencesController from '@controllers/notificationPreferencesController';
 import { authenticate } from '@middlewares/auth';
 
+/**
+ * Notification routes — intentionally owner-scoped (no requireRule ABAC).
+ *
+ * Every handler derives `employeeId` from `req.user` and queries
+ * `WHERE employeeId = :currentEmployeeId` in `notificationService`
+ * (e.g. getEmployeeNotifications, markAsRead, deleteNotification).
+ * That row-level owner check makes cross-user access impossible even
+ * without a Rule-table gate, and adding `requireRule('notifications', …)`
+ * would incorrectly require a DEPARTMENT-scoped Rule for a per-user
+ * resource that does not belong to any department. See audit report
+ * P0-01 exception and change proposal "notificationRoutes owner-scoped".
+ *
+ * `GET /push/vapid-public-key` is intentionally public (VAPID key).
+ */
+
 const router = Router();
 
 /**
