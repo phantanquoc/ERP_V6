@@ -74,7 +74,9 @@ export const authLimiter = rateLimit({
 
 export const kioskLimiter = rateLimit({
   windowMs: 60 * 1000,
-  limit: isDev ? 120 : 30,
+  // 1 ca ~40 người chấm công dồn dập lúc vào ca (thường cùng 1 IP kiosk):
+  // validate-device + verify + retry ≈ 3 req/người → 120 req/phút phủ thoải mái.
+  limit: isDev ? 600 : 120,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   store: createStore('kiosk'),
