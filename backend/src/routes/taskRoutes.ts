@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import taskController from '@controllers/taskController';
 import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 import { createUploadMiddleware } from '@middlewares/upload';
 
 const router = Router();
@@ -42,7 +43,7 @@ router.use(authenticate);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/my-tasks', taskController.getMyTasks);
+router.get('/my-tasks', requireRule('tasks', 'READ'), taskController.getMyTasks);
 
 /**
  * @swagger
@@ -75,7 +76,7 @@ router.get('/my-tasks', taskController.getMyTasks);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/', taskController.getAllTasks);
+router.get('/', requireRule('tasks', 'READ'), taskController.getAllTasks);
 
 /**
  * @swagger
@@ -101,7 +102,7 @@ router.get('/', taskController.getAllTasks);
  *       404:
  *         description: Không tìm thấy nhiệm vụ
  */
-router.get('/:id', taskController.getTaskById);
+router.get('/:id', requireRule('tasks', 'READ'), taskController.getTaskById);
 
 /**
  * @swagger
@@ -134,6 +135,7 @@ router.get('/:id', taskController.getTaskById);
  */
 router.post(
   '/',
+  requireRule('tasks', 'CREATE'),
   uploadTasks,
   taskController.createTask
 );
@@ -178,6 +180,7 @@ router.post(
  */
 router.put(
   '/:id',
+  requireRule('tasks', 'UPDATE'),
   uploadTasks,
   taskController.updateTask
 );
@@ -206,7 +209,7 @@ router.put(
  *       404:
  *         description: Không tìm thấy nhiệm vụ
  */
-router.delete('/:id', taskController.deleteTask);
+router.delete('/:id', requireRule('tasks', 'DELETE'), taskController.deleteTask);
 
 /**
  * @swagger
@@ -244,7 +247,7 @@ router.delete('/:id', taskController.deleteTask);
  *       404:
  *         description: Không tìm thấy nhiệm vụ
  */
-router.patch('/:id/accept', taskController.acceptTask);
+router.patch('/:id/accept', requireRule('tasks', 'UPDATE'), taskController.acceptTask);
 
 /**
  * @swagger
@@ -289,7 +292,7 @@ router.patch('/:id/accept', taskController.acceptTask);
  *       404:
  *         description: Không tìm thấy nhiệm vụ
  */
-router.patch('/:id/evaluate', taskController.evaluateTask);
+router.patch('/:id/evaluate', requireRule('tasks', 'UPDATE'), taskController.evaluateTask);
 
 export default router;
 

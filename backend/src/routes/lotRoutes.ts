@@ -3,6 +3,7 @@ import lotController from '@controllers/lotController';
 
 const { createLot, deleteLot } = lotController;
 import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 
 const router = Router();
 
@@ -26,7 +27,7 @@ router.use(authenticate);
  *       201:
  *         description: Tạo lô hàng thành công
  */
-router.post('/', createLot);
+router.post('/', requireRule('lots', 'CREATE'), createLot);
 
 /**
  * @swagger
@@ -49,7 +50,7 @@ router.post('/', createLot);
  *       404:
  *         description: Không tìm thấy lô hàng
  */
-router.delete('/:id', deleteLot);
+router.delete('/:id', requireRule('lots', 'DELETE'), deleteLot);
 
 export default router;
 

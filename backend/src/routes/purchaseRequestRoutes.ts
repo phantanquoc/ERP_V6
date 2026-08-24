@@ -37,7 +37,7 @@ router.use(authenticate);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/', purchaseRequestController.getAllPurchaseRequests);
+router.get('/', requireRule('purchase-requests', 'READ'), purchaseRequestController.getAllPurchaseRequests);
 
 /**
  * @swagger
@@ -54,7 +54,7 @@ router.get('/', purchaseRequestController.getAllPurchaseRequests);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/generate-code', purchaseRequestController.generatePurchaseRequestCode);
+router.get('/generate-code', requireRule('purchase-requests', 'READ'), purchaseRequestController.generatePurchaseRequestCode);
 
 /**
  * @swagger
@@ -76,7 +76,7 @@ router.get('/generate-code', purchaseRequestController.generatePurchaseRequestCo
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/export/excel', purchaseRequestController.exportToExcel);
+router.get('/export/excel', requireRule('purchase-requests', 'EXPORT'), purchaseRequestController.exportToExcel);
 
 /**
  * @swagger
@@ -102,7 +102,7 @@ router.get('/export/excel', purchaseRequestController.exportToExcel);
  *       404:
  *         description: Không tìm thấy yêu cầu mua hàng
  */
-router.get('/:id', purchaseRequestController.getPurchaseRequestById);
+router.get('/:id', requireRule('purchase-requests', 'READ'), purchaseRequestController.getPurchaseRequestById);
 
 /**
  * @swagger

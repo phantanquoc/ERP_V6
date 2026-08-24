@@ -28,7 +28,7 @@ router.use(authenticate);
  *       200:
  *         description: Lấy danh sách nhà cung cấp thành công
  */
-router.get('/', supplierController.getAllSuppliers);
+router.get('/', requireRule('suppliers', 'READ'), supplierController.getAllSuppliers);
 
 /**
  * @swagger
@@ -41,7 +41,7 @@ router.get('/', supplierController.getAllSuppliers);
  *       200:
  *         description: Tạo mã thành công
  */
-router.get('/generate-code', supplierController.generateCode);
+router.get('/generate-code', requireRule('suppliers', 'READ'), supplierController.generateCode);
 
 /**
  * @swagger
@@ -59,7 +59,7 @@ router.get('/generate-code', supplierController.generateCode);
  *               type: string
  *               format: binary
  */
-router.get('/export/excel', supplierController.exportToExcel);
+router.get('/export/excel', requireRule('suppliers', 'EXPORT'), supplierController.exportToExcel);
 
 /**
  * @swagger
@@ -81,7 +81,7 @@ router.get('/export/excel', supplierController.exportToExcel);
  *       404:
  *         description: Không tìm thấy nhà cung cấp
  */
-router.get('/:id', supplierController.getSupplierById);
+router.get('/:id', requireRule('suppliers', 'READ'), supplierController.getSupplierById);
 
 /**
  * @swagger

@@ -11,6 +11,7 @@ const {
   exportTaxReportsToExcel,
 } = taxReportController;
 import { authenticate } from '../middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 import { createSingleUploadMiddleware } from '../middlewares/upload';
 
 const router = express.Router();
@@ -47,7 +48,7 @@ router.use(authenticate);
  *       401:
  *         description: Chưa xác thực
  */
-router.get('/', getAllTaxReports);
+router.get('/', requireRule('tax-reports', 'READ'), getAllTaxReports);
 
 /**
  * @swagger
@@ -69,7 +70,7 @@ router.get('/', getAllTaxReports);
  *       401:
  *         description: Chưa xác thực
  */
-router.get('/export/excel', exportTaxReportsToExcel);
+router.get('/export/excel', requireRule('tax-reports', 'EXPORT'), exportTaxReportsToExcel);
 
 /**
  * @swagger
@@ -95,7 +96,7 @@ router.get('/export/excel', exportTaxReportsToExcel);
  *       404:
  *         description: Không tìm thấy báo cáo thuế
  */
-router.get('/:id', getTaxReportById);
+router.get('/:id', requireRule('tax-reports', 'READ'), getTaxReportById);
 
 /**
  * @swagger
@@ -121,7 +122,7 @@ router.get('/:id', getTaxReportById);
  *       404:
  *         description: Không tìm thấy báo cáo thuế
  */
-router.get('/order/:orderId', getTaxReportByOrderId);
+router.get('/order/:orderId', requireRule('tax-reports', 'READ'), getTaxReportByOrderId);
 
 /**
  * @swagger
@@ -152,7 +153,7 @@ router.get('/order/:orderId', getTaxReportByOrderId);
  *       401:
  *         description: Chưa xác thực
  */
-router.post('/order/:orderId', uploadTaxReport, createTaxReportFromOrder);
+router.post('/order/:orderId', requireRule('tax-reports', 'CREATE'), uploadTaxReport, createTaxReportFromOrder);
 
 /**
  * @swagger
@@ -183,7 +184,7 @@ router.post('/order/:orderId', uploadTaxReport, createTaxReportFromOrder);
  *       404:
  *         description: Không tìm thấy báo cáo thuế
  */
-router.put('/:id', uploadTaxReport, updateTaxReport);
+router.put('/:id', requireRule('tax-reports', 'UPDATE'), uploadTaxReport, updateTaxReport);
 
 /**
  * @swagger
@@ -209,7 +210,7 @@ router.put('/:id', uploadTaxReport, updateTaxReport);
  *       404:
  *         description: Không tìm thấy báo cáo thuế
  */
-router.delete('/:id', deleteTaxReport);
+router.delete('/:id', requireRule('tax-reports', 'DELETE'), deleteTaxReport);
 
 export default router;
 

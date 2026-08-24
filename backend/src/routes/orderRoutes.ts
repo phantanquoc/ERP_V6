@@ -42,7 +42,7 @@ router.use(authenticate);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/', orderController.getAllOrders);
+router.get('/', requireRule('orders', 'READ'), orderController.getAllOrders);
 
 /**
  * @swagger
@@ -58,7 +58,7 @@ router.get('/', orderController.getAllOrders);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/generate-code', orderController.generateOrderCode);
+router.get('/generate-code', requireRule('orders', 'READ'), orderController.generateOrderCode);
 
 /**
  * @swagger
@@ -79,7 +79,7 @@ router.get('/generate-code', orderController.generateOrderCode);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/export/excel', orderController.exportToExcel);
+router.get('/export/excel', requireRule('orders', 'EXPORT'), orderController.exportToExcel);
 
 /**
  * @swagger
@@ -104,7 +104,7 @@ router.get('/export/excel', orderController.exportToExcel);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/:id', orderController.getOrderById);
+router.get('/:id', requireRule('orders', 'READ'), orderController.getOrderById);
 
 /**
  * @swagger

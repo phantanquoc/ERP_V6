@@ -13,7 +13,7 @@ router.use(authenticate);
 router.get('/my-plans', overtimePlanController.getMyPlans);
 router.get('/', overtimePlanController.getAll);
 router.get('/:id', overtimePlanController.getById);
-router.post('/', requireRule('overtime-plans', 'READ'), uploadOvertimePlans, overtimePlanController.create);
+router.post('/', requireRule('overtime-plans', 'CREATE'), uploadOvertimePlans, overtimePlanController.create);
 router.put('/:id', uploadOvertimePlans, overtimePlanController.update);
 router.delete('/:id', overtimePlanController.delete);
 router.patch('/:id/accept', overtimePlanController.acceptPlan);

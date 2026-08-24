@@ -14,7 +14,7 @@ router.get('/:id', reorderRuleController.getRuleById);
 // Mutations — admin, department head, or purchasing lead
 router.post(
   '/',
-  requireRule('reorder-rules', 'READ'),
+  requireRule('reorder-rules', 'CREATE'),
   reorderRuleController.createRule
 );
 router.put(

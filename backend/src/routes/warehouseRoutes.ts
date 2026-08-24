@@ -29,7 +29,7 @@ router.use(authenticate);
  *       200:
  *         description: Danh sách kho
  */
-router.get('/', getAllWarehouses);
+router.get('/', requireRule('warehouses', 'READ'), getAllWarehouses);
 
 /**
  * @swagger
@@ -43,7 +43,7 @@ router.get('/', getAllWarehouses);
  *       200:
  *         description: Mã kho được tạo tự động
  */
-router.get('/generate-code', generateWarehouseCode);
+router.get('/generate-code', requireRule('warehouses', 'READ'), generateWarehouseCode);
 
 /**
  * @swagger
@@ -138,7 +138,7 @@ router.delete('/:id', requireRule('warehouses', 'DELETE'), deleteWarehouse);
  *       404:
  *         description: Không tìm thấy kho
  */
-router.get('/:warehouseId/lots', getLotsByWarehouse);
+router.get('/:warehouseId/lots', requireRule('warehouses', 'READ'), getLotsByWarehouse);
 
 /**
  * @swagger

@@ -17,15 +17,15 @@ router.use(authenticate);
 
 router.get('/generate-code', generateIssueCode);
 
-router.post('/', requireRule('warehouse-issues', 'READ'), createWarehouseIssue);
+router.post('/', requireRule('warehouse-issues', 'CREATE'), createWarehouseIssue);
 
 router.get('/', getAllWarehouseIssues);
 router.get('/:id', getWarehouseIssueById);
 router.get('/:id/export-xlsx', exportIssueXlsxHandler);
 router.post('/:id/mark-printed', requireRule('warehouse-issues', 'CREATE'), markIssuePrinted);
 
-router.put('/:id', requireRule('warehouse-issues', 'READ'), updateWarehouseIssue);
-router.delete('/:id', requireRule('warehouse-issues', 'READ'), deleteWarehouseIssue);
+router.put('/:id', requireRule('warehouse-issues', 'UPDATE'), updateWarehouseIssue);
+router.delete('/:id', requireRule('warehouse-issues', 'DELETE'), deleteWarehouseIssue);
 
 export default router;
 

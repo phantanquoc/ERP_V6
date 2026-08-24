@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import attendanceController from '@controllers/attendanceController';
 import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 import multer from 'multer';
 
 const router = Router();
@@ -33,7 +34,7 @@ const upload = multer({ storage: multer.memoryStorage() });
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/date-range', authenticate, (req, res, next) => attendanceController.getAttendanceByDateRange(req, res, next));
+router.get('/date-range', authenticate, requireRule('attendances', 'READ'), (req, res, next) => attendanceController.getAttendanceByDateRange(req, res, next));
 
 /**
  * @swagger
@@ -74,7 +75,7 @@ router.get('/date-range', authenticate, (req, res, next) => attendanceController
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/export/excel/calendar', authenticate, (req, res, next) => attendanceController.exportToExcelCalendar(req, res, next));
+router.get('/export/excel/calendar', authenticate, requireRule('attendances', 'EXPORT'), (req, res, next) => attendanceController.exportToExcelCalendar(req, res, next));
 
 /**
  * @swagger
@@ -109,7 +110,7 @@ router.get('/export/excel/calendar', authenticate, (req, res, next) => attendanc
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/import/excel/calendar', authenticate, upload.single('file'), (req, res, next) => attendanceController.importFromExcelCalendar(req, res, next));
+router.post('/import/excel/calendar', authenticate, requireRule('attendances', 'IMPORT'), upload.single('file'), (req, res, next) => attendanceController.importFromExcelCalendar(req, res, next));
 
 /**
  * @swagger
@@ -134,7 +135,7 @@ router.post('/import/excel/calendar', authenticate, upload.single('file'), (req,
  *       404:
  *         description: Không tìm thấy nhân viên
  */
-router.get('/employee/:employeeId', authenticate, (req, res, next) => attendanceController.getEmployeeAttendance(req, res, next));
+router.get('/employee/:employeeId', authenticate, requireRule('attendances', 'READ'), (req, res, next) => attendanceController.getEmployeeAttendance(req, res, next));
 
 /**
  * @swagger
@@ -150,7 +151,7 @@ router.get('/employee/:employeeId', authenticate, (req, res, next) => attendance
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/check-in', authenticate, (req, res, next) => attendanceController.checkIn(req, res, next));
+router.post('/check-in', authenticate, requireRule('attendances', 'CREATE'), (req, res, next) => attendanceController.checkIn(req, res, next));
 
 /**
  * @swagger
@@ -166,7 +167,7 @@ router.post('/check-in', authenticate, (req, res, next) => attendanceController.
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/check-out', authenticate, (req, res, next) => attendanceController.checkOut(req, res, next));
+router.post('/check-out', authenticate, requireRule('attendances', 'CREATE'), (req, res, next) => attendanceController.checkOut(req, res, next));
 
 /**
  * @swagger
@@ -182,7 +183,7 @@ router.post('/check-out', authenticate, (req, res, next) => attendanceController
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/overtime-check-in', authenticate, (req, res, next) => attendanceController.overtimeCheckIn(req, res, next));
+router.post('/overtime-check-in', authenticate, requireRule('attendances', 'CREATE'), (req, res, next) => attendanceController.overtimeCheckIn(req, res, next));
 
 /**
  * @swagger
@@ -198,7 +199,7 @@ router.post('/overtime-check-in', authenticate, (req, res, next) => attendanceCo
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/overtime-check-out', authenticate, (req, res, next) => attendanceController.overtimeCheckOut(req, res, next));
+router.post('/overtime-check-out', authenticate, requireRule('attendances', 'CREATE'), (req, res, next) => attendanceController.overtimeCheckOut(req, res, next));
 
 /**
  * @swagger
@@ -220,7 +221,7 @@ router.post('/overtime-check-out', authenticate, (req, res, next) => attendanceC
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/', authenticate, (req, res, next) => attendanceController.createAttendance(req, res, next));
+router.post('/', authenticate, requireRule('attendances', 'CREATE'), (req, res, next) => attendanceController.createAttendance(req, res, next));
 
 /**
  * @swagger
@@ -251,7 +252,7 @@ router.post('/', authenticate, (req, res, next) => attendanceController.createAt
  *       404:
  *         description: Không tìm thấy chấm công
  */
-router.put('/:id', authenticate, (req, res, next) => attendanceController.updateAttendance(req, res, next));
+router.put('/:id', authenticate, requireRule('attendances', 'UPDATE'), (req, res, next) => attendanceController.updateAttendance(req, res, next));
 
 /**
  * @swagger
@@ -276,7 +277,7 @@ router.put('/:id', authenticate, (req, res, next) => attendanceController.update
  *       404:
  *         description: Không tìm thấy chấm công
  */
-router.delete('/:id', authenticate, (req, res, next) => attendanceController.deleteAttendance(req, res, next));
+router.delete('/:id', authenticate, requireRule('attendances', 'DELETE'), (req, res, next) => attendanceController.deleteAttendance(req, res, next));
 
 export default router;
 
