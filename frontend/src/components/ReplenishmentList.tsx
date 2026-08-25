@@ -14,38 +14,30 @@ const ReplenishmentList: React.FC<ReplenishmentListProps> = ({ onOpenDetail, onO
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const PAGE_SIZE = 10;
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res: any = await purchaseRequestService.getAllPurchaseRequests(1, 10000, undefined, undefined, undefined, {
+      const res: any = await purchaseRequestService.getAllPurchaseRequests(page, PAGE_SIZE, undefined, undefined, undefined, {
         sourceType: 'SHORTAGE',
         trangThai: 'Chờ báo giá',
       });
-      // fallback: if backend ignores sourceType/trangThai, filter client-side as safety
-      const data: any[] = res?.data ?? [];
-      const filtered = data.filter(
-        (r: any) => r.sourceType === 'SHORTAGE' && r.trangThai === 'Chờ báo giá'
-      );
-      // Use server total when available
-      const serverTotal = res?.pagination?.total;
-      const effective = filtered.length > 0 || data.length === 0 ? filtered : data;
-      setRows(effective);
-      setTotal(typeof serverTotal === 'number' ? serverTotal : effective.length);
-      setTotalPages(Math.ceil((typeof serverTotal === 'number' ? serverTotal : effective.length) / 10) || 1);
-      void page;
+      setRows(res?.data ?? []);
+      const serverTotal: number = res?.pagination?.total ?? 0;
+      const serverPages: number = res?.pagination?.totalPages ?? Math.ceil(serverTotal / PAGE_SIZE) || 1;
+      setTotal(serverTotal);
+      setTotalPages(serverPages);
     } catch (e) {
       console.error('Failed to load replenishment list', e);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  const paged = rows.slice((page - 1) * 10, page * 10);
 
   if (loading) {
     return <div className="text-center py-8 text-sm text-gray-500">Đang tải yêu cầu bổ sung...</div>;
@@ -85,7 +77,7 @@ const ReplenishmentList: React.FC<ReplenishmentListProps> = ({ onOpenDetail, onO
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {paged.map((r: any) => (
+            {rows.map((r: any) => (
               <tr key={r.id} className="hover:bg-amber-50/60">
                 <td className="px-3 py-2 font-medium text-blue-600">{r.maYeuCau}</td>
                 <td className="px-3 py-2">
