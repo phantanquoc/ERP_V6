@@ -737,7 +737,7 @@ class SupplyRequestService {
     const batchSupplyRequestId = itemMap.get(lines[0].itemId)?.supplyRequestId ?? null;
     const batchSRMeta = itemMap.get(lines[0].itemId)?.supplyRequest as any;
     let bucketPRIdByItem = new Map<string, string>();
-    let batchCreatedPRMeta: Array<{ id: string; bucket: string; items: ShortageEntry[] }> = [];
+    let batchCreatedPRMeta: Array<{ id: string; maYeuCau: string; bucket: string; items: ShortageEntry[] }> = [];
     await prisma.$transaction(async (tx) => {
       for (const line of lines) {
         const item = itemMap.get(line.itemId)!;
@@ -780,7 +780,7 @@ class SupplyRequestService {
           })),
         });
         for (const e of entries) bucketPRIdByItem.set(e.itemId, pr.id);
-        batchCreatedPRMeta.push({ id: pr.id, bucket, items: entries });
+        batchCreatedPRMeta.push({ id: pr.id, maYeuCau, bucket, items: entries });
       }
       for (const line of lines) {
         const shortage = lineShortage.get(line.itemId) ?? 0;
@@ -811,7 +811,7 @@ class SupplyRequestService {
       try {
         await notificationService.notify(NotificationEvent.PURCHASE_REQUEST_CREATED, {
           metadata: {
-            maYeuCau: pr.id,
+            maYeuCau: pr.maYeuCau,
             purchaseRequestId: pr.id,
             supplyRequestId: batchSupplyRequestId ?? undefined,
             sourceType: 'SHORTAGE',
