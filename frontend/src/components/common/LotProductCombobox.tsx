@@ -9,6 +9,12 @@ interface LotProductComboboxProps {
   disabled?: boolean;
   /** Hide items with zero stock — issuing from an empty kiện is never valid. */
   hideEmpty?: boolean;
+  /**
+   * Render zero-stock kiện as disabled rows with a "Hết hàng" badge instead of
+   * hiding them, so staff can SEE that stock is 0 (not that it doesn't exist).
+   * Takes precedence over hideEmpty.
+   */
+  showEmptyDisabled?: boolean;
 }
 
 /** Label for a kiện: mã kiện · tên sản phẩm · tồn. */
@@ -30,6 +36,7 @@ const LotProductCombobox: React.FC<LotProductComboboxProps> = ({
   placeholder = 'Tìm theo mã kiện hoặc tên hàng hóa...',
   disabled = false,
   hideEmpty = true,
+  showEmptyDisabled = false,
 }) => {
   const selected = value ? (lotProducts.find((lp) => lp.id === value) ?? null) : null;
 
@@ -61,10 +68,10 @@ const LotProductCombobox: React.FC<LotProductComboboxProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [selected]);
 
-  const candidates = React.useMemo(
-    () => (hideEmpty ? lotProducts.filter((lp) => lp.soLuong > 0) : lotProducts),
-    [lotProducts, hideEmpty]
-  );
+  const candidates = React.useMemo(() => {
+    if (showEmptyDisabled) return [...lotProducts].sort((a, b) => Number(b.soLuong > 0) - Number(a.soLuong > 0));
+    return hideEmpty ? lotProducts.filter((lp) => lp.soLuong > 0) : lotProducts;
+  }, [lotProducts, hideEmpty, showEmptyDisabled]);
 
   const filtered = React.useMemo(() => {
     const query = inputText.trim().toLowerCase();
@@ -168,23 +175,22 @@ const LotProductCombobox: React.FC<LotProductComboboxProps> = ({
           role="listbox"
           className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto"
         >
-          {filtered.map((lp, index) => (
+          {filtered.map((lp, index) => {
+            const isEmpty = lp.soLuong <= 0;
+            const isDisabled = showEmptyDisabled && isEmpty;
+            return (
             <li
               key={lp.id}
               role="option"
               aria-selected={lp.id === value}
+              aria-disabled={isDisabled || undefined}
               onMouseDown={(e) => {
+                if (isDisabled) { e.preventDefault(); return; }
                 e.preventDefault();
                 selectItem(lp);
               }}
-              onMouseEnter={() => setHighlightedIndex(index)}
-              className={`px-3 py-2 text-sm cursor-pointer ${
-                index === highlightedIndex
-                  ? 'bg-red-50 text-red-900'
-                  : lp.id === value
-                  ? 'bg-gray-50 text-gray-800'
-                  : 'text-gray-700 hover:bg-gray-50'
-              }`}
+              onMouseEnter={() => { if (!isDisabled) setHighlightedIndex(index); }}
+              className={`px-3 py-2 text-sm ${isDisabled ? 'cursor-not-allowed opacity-60 bg-gray-50' : `cursor-pointer ${index === highlightedIndex ? 'bg-red-50 text-red-900' : lp.id === value ? 'bg-gray-50 text-gray-800' : 'text-gray-700 hover:bg-gray-50'}`}`}
             >
               <span className="font-medium font-mono text-xs text-gray-500">
                 {lp.maKien ?? lp.id.slice(-4)}
@@ -195,8 +201,12 @@ const LotProductCombobox: React.FC<LotProductComboboxProps> = ({
               <span className="text-xs font-semibold text-blue-700">
                 Tồn: {lp.soLuong} {lp.donViTinh}
               </span>
+              {isEmpty && (
+                <span className="ml-2 inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700 border border-red-200 align-middle">Hết hàng</span>
+              )}
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
 

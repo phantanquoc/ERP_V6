@@ -899,7 +899,15 @@ class SupplyRequestService {
       }
     }
 
-    return { success: true, decisionsCount: lines.length };
+    return {
+      success: true,
+      decisionsCount: lines.length,
+      createdPurchaseRequests: batchCreatedPRMeta.map((pr) => ({
+        id: pr.id,
+        maYeuCau: pr.maYeuCau,
+        bucket: pr.bucket,
+      })),
+    };
   }
 
   /**

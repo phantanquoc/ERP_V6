@@ -92,6 +92,24 @@ export interface UpdateSupplyRequestRequest {
   fileKemTheo?: string;
 }
 
+export interface BatchFulfillLine {
+  itemId: string;
+  fulfilledQty: number;
+  reason?: string;
+  decidedByEmployeeId: string;
+  routeShortageToPurchase?: boolean;
+  lotProductId?: string;
+  warehouseId?: string;
+  lotId?: string;
+  autoCreateProduct?: boolean;
+}
+
+export interface BatchFulfillResult {
+  success: boolean;
+  decisionsCount: number;
+  createdPurchaseRequests: { id: string; maYeuCau: string; bucket: string }[];
+}
+
 class SupplyRequestService {
   async getAllSupplyRequests(page: number = 1, limit: number = 10, search?: string) {
     const params: any = { page, limit };
@@ -143,6 +161,11 @@ class SupplyRequestService {
 
   async getDecisionHistory(supplyRequestId: string) {
     const response = await apiClient.get(`/supply-requests/${supplyRequestId}/decisions`);
+    return response;
+  }
+
+  async batchFulfill(lines: BatchFulfillLine[]) {
+    const response = await apiClient.post<BatchFulfillResult>('/supply-requests/batch-fulfill', { lines });
     return response;
   }
 

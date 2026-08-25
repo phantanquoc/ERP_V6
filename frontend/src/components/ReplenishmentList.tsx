@@ -25,7 +25,7 @@ const ReplenishmentList: React.FC<ReplenishmentListProps> = ({ onOpenDetail, onO
       });
       setRows(res?.data ?? []);
       const serverTotal: number = res?.pagination?.total ?? 0;
-      const serverPages: number = res?.pagination?.totalPages ?? Math.ceil(serverTotal / PAGE_SIZE) || 1;
+      const serverPages: number = res?.pagination?.totalPages ?? (Math.ceil(serverTotal / PAGE_SIZE) || 1);
       setTotal(serverTotal);
       setTotalPages(serverPages);
     } catch (e) {
