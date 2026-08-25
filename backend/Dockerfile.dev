@@ -24,5 +24,8 @@ RUN npx prisma generate
 EXPOSE 5000
 
 # Chạy migrate trước rồi mới start
+# Dev DB được sinh từ baseline ngoài luồng migrate (shadow DB drift) nên
+# `_prisma_migrations` không tồn tại — `migrate deploy` sẽ P3005 và restart loop.
+# Thay vì `migrate deploy &&`, chỉ `generate` rồi dev trực tiếp (migration đã apply thủ công).
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["sh", "-c", "npx prisma migrate deploy && npm run dev"]
+CMD ["sh", "-c", "npx prisma generate && npm run dev"]
