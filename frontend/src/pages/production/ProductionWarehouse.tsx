@@ -232,10 +232,12 @@ const ProductionWarehouse = () => {
   // Funnel groups for supply requests (not period-scoped)
   const supplyFunnel = useMemo(() => {
     const pendingStatuses = new Set(['Chờ xử lý', 'Chưa cung cấp', 'Đã duyệt mua', 'Chờ duyệt', 'Đã duyệt']);
+    const awaitingReplenishmentStatuses = new Set(['Chờ bổ sung']);
     const inTransitStatuses = new Set(['Đã mua hàng']);
     const fulfilledStatuses = new Set(['Đã cung cấp', 'Đã cấp đủ', 'Đã cấp một phần']);
 
     let pending = 0;
+    let awaitingReplenishment = 0;
     let inTransit = 0;
     let fulfilled = 0;
     let highPriorityPending = 0;
@@ -244,6 +246,9 @@ const ProductionWarehouse = () => {
       const status = r.trangThai || '';
       if (pendingStatuses.has(status)) {
         pending++;
+        if (r.mucDoUuTien === 'Cao') highPriorityPending++;
+      } else if (awaitingReplenishmentStatuses.has(status)) {
+        awaitingReplenishment++;
         if (r.mucDoUuTien === 'Cao') highPriorityPending++;
       } else if (inTransitStatuses.has(status)) {
         inTransit++;
@@ -254,7 +259,7 @@ const ProductionWarehouse = () => {
       // Unknown statuses are silently skipped
     });
 
-    return { pending, inTransit, fulfilled, highPriorityPending };
+    return { pending, awaitingReplenishment, inTransit, fulfilled, highPriorityPending };
   }, [supplyRequests]);
 
   // Top in-stock items per warehouse (not merged across warehouses)
@@ -490,18 +495,22 @@ const ProductionWarehouse = () => {
                   <span className="text-2xl font-bold text-purple-600">{loadingOverview ? '...' : totalSupplyRequests}</span>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div {...clickableProps('supplyRequest')} className="bg-orange-50 rounded-lg p-2 text-center border border-orange-300 cursor-pointer transition-all duration-200">
-                  <div className="text-xl font-bold text-orange-600">{loadingOverview ? '...' : supplyFunnel.pending}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Chờ xử lý</div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2">
+                <div {...clickableProps('supplyRequest')} title="Chờ xử lý" className="bg-orange-50 rounded-lg p-1.5 sm:p-2 text-center border border-orange-300 cursor-pointer transition-all duration-200">
+                  <div className="text-lg sm:text-xl font-bold text-orange-600">{loadingOverview ? '...' : supplyFunnel.pending}</div>
+                  <div className="text-[10px] sm:text-xs text-gray-600 mt-0.5 truncate">Chờ xử lý</div>
                 </div>
-                <div {...clickableProps('supplyRequest')} className="bg-amber-50 rounded-lg p-2 text-center border border-amber-300 cursor-pointer transition-all duration-200">
-                  <div className="text-xl font-bold text-amber-600">{loadingOverview ? '...' : supplyFunnel.inTransit}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Đang mua</div>
+                <div {...clickableProps('supplyRequest')} title="Chờ bổ sung — thiếu hàng, đã chuyển thu mua" className="bg-violet-50 rounded-lg p-1.5 sm:p-2 text-center border border-violet-300 cursor-pointer transition-all duration-200">
+                  <div className="text-lg sm:text-xl font-bold text-violet-600">{loadingOverview ? '...' : supplyFunnel.awaitingReplenishment}</div>
+                  <div className="text-[10px] sm:text-xs text-gray-600 mt-0.5 truncate">Chờ bổ sung</div>
                 </div>
-                <div {...clickableProps('supplyRequest')} className="bg-green-50 rounded-lg p-2 text-center border border-green-300 cursor-pointer transition-all duration-200">
-                  <div className="text-xl font-bold text-green-600">{loadingOverview ? '...' : supplyFunnel.fulfilled}</div>
-                  <div className="text-xs text-gray-600 mt-0.5">Đã cung cấp</div>
+                <div {...clickableProps('supplyRequest')} title="Đang mua" className="bg-amber-50 rounded-lg p-1.5 sm:p-2 text-center border border-amber-300 cursor-pointer transition-all duration-200">
+                  <div className="text-lg sm:text-xl font-bold text-amber-600">{loadingOverview ? '...' : supplyFunnel.inTransit}</div>
+                  <div className="text-[10px] sm:text-xs text-gray-600 mt-0.5 truncate">Đang mua</div>
+                </div>
+                <div {...clickableProps('supplyRequest')} title="Đã cung cấp" className="bg-green-50 rounded-lg p-1.5 sm:p-2 text-center border border-green-300 cursor-pointer transition-all duration-200">
+                  <div className="text-lg sm:text-xl font-bold text-green-600">{loadingOverview ? '...' : supplyFunnel.fulfilled}</div>
+                  <div className="text-[10px] sm:text-xs text-gray-600 mt-0.5 truncate">Đã cung cấp</div>
                 </div>
               </div>
               {!loadingOverview && supplyFunnel.highPriorityPending > 0 && (
