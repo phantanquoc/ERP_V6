@@ -389,6 +389,9 @@ const entries: NotificationEventDef[] = [
   },
 
   // ── Purchase Request — auto-created from SR shortage / reorder rule → notify purchasing ──
+  // 5.2 — route by goods class: material buckets → SUBDEPT_PURCHASING_MATERIALS,
+  // equipment → SUBDEPT_PURCHASING_EQUIPMENT, fallback → DEPT_PURCHASING.
+  // QUICK/MANUAL keep existing broadcast; SHORTAGE uses phanLoaiGroup/items metadata.
   {
     event: NotificationEvent.PURCHASE_REQUEST_CREATED,
     notificationType: NotificationType.PURCHASE_REQUEST,
@@ -402,7 +405,37 @@ const entries: NotificationEventDef[] = [
           : ''
       }. Vui lòng bổ sung nhà cung cấp, đơn giá và gửi duyệt.`,
     }),
-    resolveRecipients: async () => {
+    resolveRecipients: async (ctx) => {
+      // QUICK/MANUAL flows keep broadcast — only branch SHORTAGE/REORDER by goods class
+      const sourceType = ctx.metadata?.sourceType as string | undefined;
+      const isShortageLike = sourceType === 'SHORTAGE' || sourceType === 'REORDER';
+      if (!isShortageLike) {
+        return getEmployeeIdsByDeptCode('DEPT_PURCHASING');
+      }
+      // Inspect phanLoaiGroup (bucket: MATERIALS/EQUIPMENT/OTHER) or items[].phanLoai heuristic
+      const phanLoaiGroup = ctx.metadata?.phanLoaiGroup as string | undefined;
+      if (phanLoaiGroup === 'MATERIALS') return getEmployeeIdsBySubDeptCode('SUBDEPT_PURCHASING_MATERIALS');
+      if (phanLoaiGroup === 'EQUIPMENT') return getEmployeeIdsBySubDeptCode('SUBDEPT_PURCHASING_EQUIPMENT');
+      // Fallback: inspect items[].phanLoai with the same bucket heuristic as supplyRequestService
+      const items = ctx.metadata?.items as Array<{ phanLoai?: string }> | undefined;
+      if (items && items.length > 0) {
+        const stripDiacritics = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
+        const bucketFor = (phanLoai: string): 'MATERIALS' | 'EQUIPMENT' | 'OTHER' => {
+          const raw = (phanLoai ?? '').trim();
+          if (!raw) return 'OTHER';
+          const n = stripDiacritics(raw).toLowerCase();
+          if (n.includes('thiet bi') || n.includes('cong cu') || n.includes('dung cu')) return 'EQUIPMENT';
+          if (n.includes('nguyen') || n.includes('vat tu') || n.includes('vat lieu') || n.includes('phu lieu') || n.includes('bao bi') || n.includes('nhien lieu')) return 'MATERIALS';
+          return 'OTHER';
+        };
+        const buckets = new Set(items.map((it) => bucketFor(String(it.phanLoai ?? ''))));
+        if (buckets.size === 1) {
+          const sole = [...buckets][0];
+          if (sole === 'MATERIALS') return getEmployeeIdsBySubDeptCode('SUBDEPT_PURCHASING_MATERIALS');
+          if (sole === 'EQUIPMENT') return getEmployeeIdsBySubDeptCode('SUBDEPT_PURCHASING_EQUIPMENT');
+        }
+        // Mixed or OTHER → broadcast fallback
+      }
       return getEmployeeIdsByDeptCode('DEPT_PURCHASING');
     },
   },

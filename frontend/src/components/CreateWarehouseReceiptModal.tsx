@@ -15,6 +15,7 @@ import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
 import { useUnitOptions } from '../hooks/useLookups';
 import { TINH_TRANG_OPTIONS } from '../constants/warehouseCatalogs';
 import { kienCapacityByUnit } from '../utils/kienCapacity';
+import { can } from '../utils/permissions';
 
 interface CreateWarehouseReceiptModalProps {
   isOpen: boolean;
@@ -187,6 +188,13 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+
+    // Rule Matrix gate — warehouse receipt from a supply request is a supply-side mutation
+    if (!can('supply-requests', 'UPDATE', user?.role)) {
+      alert('Bạn không có quyền tạo phiếu nhập kho');
+      return;
+    }
+
     const submittedRows = isSupplyBatch ? selectedRows : rows;
     if (submittedRows.length === 0) {
       alert('Vui lòng chọn ít nhất một sản phẩm');

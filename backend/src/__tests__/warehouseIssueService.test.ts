@@ -25,6 +25,7 @@ const mockTx = {
     findMany: jest.fn(),
     findUnique: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
   },
 };
 
@@ -40,6 +41,7 @@ jest.mock('@config/database', () => ({
       findMany: jest.fn(),
       findUnique: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     $transaction: jest.fn((fn: any) => fn(mockTx)),
   },
@@ -130,6 +132,7 @@ beforeEach(() => {
   mockTx.warehouseIssue.update.mockResolvedValue({ id: 'i1', supplyRequestId: null, items: [] });
   mockTx.warehouseIssue.delete.mockResolvedValue({});
   mockTx.lotProduct.update.mockResolvedValue({});
+  mockTx.lotProduct.updateMany.mockResolvedValue({ count: 1 });
   mockTx.warehouseIssueItem.create.mockResolvedValue({});
   mockTx.warehouseIssueItem.update.mockResolvedValue({});
   mockTx.warehouseIssueItem.deleteMany.mockResolvedValue({ count: 0 });
@@ -148,6 +151,7 @@ describe('warehouseIssueService.create — aggregate stock validation', () => {
 
     // Nothing may be written when the aggregate guard fails.
     expect(mockTx.warehouseIssue.create).not.toHaveBeenCalled();
+    expect(mockTx.lotProduct.updateMany).not.toHaveBeenCalled();
     expect(mockTx.lotProduct.update).not.toHaveBeenCalled();
   });
 
@@ -159,10 +163,10 @@ describe('warehouseIssueService.create — aggregate stock validation', () => {
       items: [line('lp1', 40), line('lp1', 40)],
     });
 
-    expect(mockTx.lotProduct.update).toHaveBeenCalledTimes(1);
-    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({
-      where: { id: 'lp1' },
-      data: { soLuong: 20 },
+    expect(mockTx.lotProduct.updateMany).toHaveBeenCalledTimes(1);
+    expect(mockTx.lotProduct.updateMany).toHaveBeenCalledWith({
+      where: { id: 'lp1', soLuong: { gte: 80 } },
+      data: { soLuong: { decrement: 80 } },
     });
   });
 
@@ -220,9 +224,9 @@ describe('warehouseIssueService.create — aggregate stock validation', () => {
     const created = mockTx.warehouseIssue.create.mock.calls[0][0].data;
     expect(created.soDongHang).toBe(1);
     expect(created.soLuongXuat).toBe(5);
-    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({
-      where: { id: 'lp1' },
-      data: { soLuong: 45 },
+    expect(mockTx.lotProduct.updateMany).toHaveBeenCalledWith({
+      where: { id: 'lp1', soLuong: { gte: 5 } },
+      data: { soLuong: { decrement: 5 } },
     });
   });
 });
@@ -268,10 +272,10 @@ describe('warehouseIssueService.update', () => {
       items: [line('lp1', 8, { id: 'it1' })],
     });
 
-    // 20 + 5 refunded = 25, then 25 - 8 = 17.
-    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({
-      where: { id: 'lp1' },
-      data: { soLuong: 17 },
+    // 20 + 5 refunded = 25, netOut = 8 - 5 = 3.
+    expect(mockTx.lotProduct.updateMany).toHaveBeenCalledWith({
+      where: { id: 'lp1', soLuong: { gte: 3 } },
+      data: { soLuong: { decrement: 3 } },
     });
     expect(mockTx.warehouseIssueItem.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -295,9 +299,9 @@ describe('warehouseIssueService.update', () => {
       items: [line('lp1', 95, { id: 'it1' })],
     });
 
-    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({
-      where: { id: 'lp1' },
-      data: { soLuong: 5 },
+    expect(mockTx.lotProduct.updateMany).toHaveBeenCalledWith({
+      where: { id: 'lp1', soLuong: { gte: 5 } },
+      data: { soLuong: { decrement: 5 } },
     });
   });
 
@@ -325,17 +329,20 @@ describe('warehouseIssueService.update', () => {
     expect(mockTx.warehouseIssueItem.deleteMany).toHaveBeenCalledWith({
       where: { id: { in: ['it2'] } },
     });
+    // lp1 fully refunded (netOut < 0 → increment)
     expect(mockTx.lotProduct.update).toHaveBeenCalledWith({
       where: { id: 'lp1' },
-      data: { soLuong: 60 }, // fully refunded, nothing re-applied
+      data: { soLuong: { increment: 10 } },
     });
+    // lp2: reversal 10, incoming 4 → netOut = -6 → increment 6
     expect(mockTx.lotProduct.update).toHaveBeenCalledWith({
       where: { id: 'lp2' },
-      data: { soLuong: 56 }, // 50 + 10 refunded - 4 new
+      data: { soLuong: { increment: 6 } },
     });
-    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({
-      where: { id: 'lp3' },
-      data: { soLuong: 40 }, // 50 - 10 repointed
+    // lp3 newly targeted (not in afterReversal) → updateMany decrement
+    expect(mockTx.lotProduct.updateMany).toHaveBeenCalledWith({
+      where: { id: 'lp3', soLuong: { gte: 10 } },
+      data: { soLuong: { decrement: 10 } },
     });
     expect(mockTx.warehouseIssueItem.create).toHaveBeenCalledTimes(1);
   });
@@ -356,6 +363,7 @@ describe('warehouseIssueService.update', () => {
       })
     ).rejects.toThrow('Số lượng tồn kho');
 
+    expect(mockTx.lotProduct.updateMany).not.toHaveBeenCalled();
     expect(mockTx.lotProduct.update).not.toHaveBeenCalled();
     expect(mockTx.warehouseIssueItem.update).not.toHaveBeenCalled();
     expect(mockTx.warehouseIssueItem.create).not.toHaveBeenCalled();
@@ -413,11 +421,11 @@ describe('warehouseIssueService.delete', () => {
     expect(result).toEqual({ id: 'i1' });
     expect(mockTx.lotProduct.update).toHaveBeenCalledWith({
       where: { id: 'lp1' },
-      data: { soLuong: 42 },
+      data: { soLuong: { increment: 12 } },
     });
     expect(mockTx.lotProduct.update).toHaveBeenCalledWith({
       where: { id: 'lp2' },
-      data: { soLuong: 4 },
+      data: { soLuong: { increment: 3 } },
     });
     expect(mockTx.warehouseIssue.delete).toHaveBeenCalledWith({ where: { id: 'i1' } });
   });
@@ -436,7 +444,7 @@ describe('warehouseIssueService.delete', () => {
     expect(mockTx.lotProduct.update).toHaveBeenCalledTimes(1);
     expect(mockTx.lotProduct.update).toHaveBeenCalledWith({
       where: { id: 'lp1' },
-      data: { soLuong: 35 },
+      data: { soLuong: { increment: 15 } },
     });
   });
 

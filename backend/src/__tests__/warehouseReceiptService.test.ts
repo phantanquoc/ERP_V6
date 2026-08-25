@@ -25,6 +25,7 @@ const mockTx = {
     findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn().mockResolvedValue({ count: 1 }),
   },
   internationalProduct: {
     findFirst: jest.fn(),
@@ -51,6 +52,7 @@ jest.mock('@config/database', () => ({
       findUnique: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     $transaction: jest.fn((fn: any) => fn(mockTx)),
   },
@@ -174,7 +176,7 @@ describe('warehouseReceiptService.create', () => {
     expect(lines[0]).toMatchObject({ stt: 1, soLuongTruoc: 100, soLuongSau: 130 });
     // Line 2 opens where line 1 closed, not at the pre-transaction balance.
     expect(lines[1]).toMatchObject({ stt: 2, soLuongTruoc: 130, soLuongSau: 150 });
-    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp1' }, data: { soLuong: 150 } });
+    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp1' }, data: { soLuong: { increment: 50 } } });
   });
 
   it('records header totals from its lines', async () => {
@@ -237,7 +239,7 @@ describe('warehouseReceiptService.create', () => {
 
     // Resolution used the transaction client, not the global prisma client.
     expect(mockTx.internationalProduct.findFirst).toHaveBeenCalled();
-    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lpNew' }, data: { soLuong: 10 } });
+    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lpNew' }, data: { soLuong: { increment: 3 } } });
   });
 });
 
@@ -267,7 +269,8 @@ describe('warehouseReceiptService.update', () => {
         data: expect.objectContaining({ soLuongTruoc: 40, soLuongSau: 55, soLuongThucTe: 15 }),
       })
     );
-    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp1' }, data: { soLuong: 55 } });
+    // netIn = 15 - 10 = 5
+    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp1' }, data: { soLuong: { increment: 5 } } });
   });
 
   it('removes a dropped line and settles its package at the reversed balance', async () => {
@@ -288,9 +291,15 @@ describe('warehouseReceiptService.update', () => {
     });
 
     expect(mockTx.warehouseReceiptItem.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['it2'] } } });
-    // lp1 keeps its line: 50 - 10 + 10 = 50. lp2 only reverses: 60 - 25 = 35.
-    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp1' }, data: { soLuong: 50 } });
-    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp2' }, data: { soLuong: 35 } });
+    // lp1 keeps its line: netIn 10 - 10 = 0 → no stock update for lp1.
+    expect(mockTx.lotProduct.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: 'lp1' }) })
+    );
+    // lp2 only reverses: netIn = 0 - 25 = -25 → decrement 25 with gte guard.
+    expect(mockTx.lotProduct.updateMany).toHaveBeenCalledWith({
+      where: { id: 'lp2', soLuong: { gte: 25 } },
+      data: { soLuong: { decrement: 25 } },
+    });
   });
 
   it('creates an added line and leaves the existing one intact', async () => {
@@ -310,8 +319,11 @@ describe('warehouseReceiptService.update', () => {
         data: expect.objectContaining({ receiptId: 'r1', stt: 2, lotProductId: 'lp2', soLuongTruoc: 5, soLuongSau: 12 }),
       })
     );
-    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp1' }, data: { soLuong: 50 } });
-    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp2' }, data: { soLuong: 12 } });
+    // lp1 netIn = 0 → no stock update.
+    expect(mockTx.lotProduct.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: 'lp1' }) })
+    );
+    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp2' }, data: { soLuong: { increment: 7 } } });
   });
 
   it('repoints a line to another package, reversing the original', async () => {
@@ -326,8 +338,11 @@ describe('warehouseReceiptService.update', () => {
       items: [line({ id: 'it1', lotProductId: 'lp2', soLuongThucTe: 10 })],
     });
 
-    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp1' }, data: { soLuong: 40 } });
-    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp2' }, data: { soLuong: 30 } });
+    expect(mockTx.lotProduct.updateMany).toHaveBeenCalledWith({
+      where: { id: 'lp1', soLuong: { gte: 10 } },
+      data: { soLuong: { decrement: 10 } },
+    });
+    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp2' }, data: { soLuong: { increment: 10 } } });
     expect(mockTx.warehouseReceiptItem.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'it1' },
@@ -394,8 +409,14 @@ describe('warehouseReceiptService.delete', () => {
     const result = await warehouseReceiptService.delete('r1');
 
     expect(result).toEqual({ id: 'r1' });
-    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp1' }, data: { soLuong: 30 } });
-    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp2' }, data: { soLuong: 3 } });
+    expect(mockTx.lotProduct.updateMany).toHaveBeenCalledWith({
+      where: { id: 'lp1', soLuong: { gte: 20 } },
+      data: { soLuong: { decrement: 20 } },
+    });
+    expect(mockTx.lotProduct.updateMany).toHaveBeenCalledWith({
+      where: { id: 'lp2', soLuong: { gte: 5 } },
+      data: { soLuong: { decrement: 5 } },
+    });
     expect(mockTx.warehouseReceipt.delete).toHaveBeenCalledWith({ where: { id: 'r1' } });
   });
 
@@ -412,8 +433,11 @@ describe('warehouseReceiptService.delete', () => {
 
     await warehouseReceiptService.delete('r1');
 
-    expect(mockTx.lotProduct.update).toHaveBeenCalledTimes(1);
-    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp1' }, data: { soLuong: 100 } });
+    expect(mockTx.lotProduct.updateMany).toHaveBeenCalledTimes(1);
+    expect(mockTx.lotProduct.updateMany).toHaveBeenCalledWith({
+      where: { id: 'lp1', soLuong: { gte: 50 } },
+      data: { soLuong: { decrement: 50 } },
+    });
   });
 
   it('writes nothing when the aggregate reversal would go negative', async () => {
@@ -430,6 +454,7 @@ describe('warehouseReceiptService.delete', () => {
 
     await expect(warehouseReceiptService.delete('r1')).rejects.toThrow('không đủ');
 
+    expect(mockTx.lotProduct.updateMany).not.toHaveBeenCalled();
     expect(mockTx.lotProduct.update).not.toHaveBeenCalled();
     expect(mockTx.warehouseReceipt.delete).not.toHaveBeenCalled();
   });

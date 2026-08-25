@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../../contexts/AuthContext';
-import { hasSubModuleAccess } from '../../../utils/permissions';
+import { hasSubModuleAccess, can } from '../../../utils/permissions';
 import purchaseRequestService from '../../../services/purchaseRequestService';
 import apiClient from '../../../services/apiClient';
+import { labelForPurchaseRequest } from '../../../utils/purchaseRequestLabel';
 import TableFilter, { FilterField } from '../../TableFilter';
 import Modal from '../../Modal';
 import ConfirmDialog from '../../common/ConfirmDialog';
@@ -22,6 +23,8 @@ const PurchaseRequestReviewTab: React.FC = () => {
   const [rejectReason, setRejectReason] = useState('');
 
   const canApprove = !!user && hasSubModuleAccess('general', 'pricing', (user as any).department, (user as any).subDepartment, (user as any).role, (user as any).secondaryDepartments);
+  const canApprovePurchaseRequests = can('purchase-requests', 'APPROVE', (user as any)?.role);
+  const canUpdatePurchaseRequests = can('purchase-requests', 'UPDATE', (user as any)?.role);
 
   const { data, isLoading } = useQuery({
     queryKey: ['purchase-requests', 'pricing-review', page, limit, filterValues._search, filterValues.maYeuCau, filterValues.tenNhanVien, filterValues.mucDichYeuCau, filterValues.mucDoUuTien],
@@ -268,8 +271,8 @@ const PurchaseRequestReviewTab: React.FC = () => {
                       <button onClick={() => setDetailId(r.id)} className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md" title="Chi tiết">Chi tiết</button>
                       {canApprove && isPending ? (
                         <>
-                          <button onClick={() => doApprove(r.id)} className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 shadow-sm">Duyệt</button>
-                          <button onClick={() => setRejectId(r.id)} className="px-3 py-1.5 text-xs bg-white border border-red-300 text-red-600 rounded-md hover:bg-red-50">Từ chối</button>
+                          <button onClick={() => doApprove(r.id)} disabled={!canApprovePurchaseRequests} title={!canApprovePurchaseRequests ? 'Bạn không có quyền duyệt' : undefined} className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">Duyệt</button>
+                          <button onClick={() => setRejectId(r.id)} disabled={!canUpdatePurchaseRequests} title={!canUpdatePurchaseRequests ? 'Bạn không có quyền từ chối' : undefined} className="px-3 py-1.5 text-xs bg-white border border-red-300 text-red-600 rounded-md hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed">Từ chối</button>
                         </>
                       ) : isPending ? <span className="text-xs text-gray-400 px-2">—</span> : <span className="text-xs text-gray-400 px-2">{st}</span>}
                     </div>
@@ -306,7 +309,7 @@ const PurchaseRequestReviewTab: React.FC = () => {
       <Modal isOpen={!!detailId} onClose={() => setDetailId(null)} showBackdrop>
         <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl flex flex-col modal-viewport-h" onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between px-6 py-4 border-b shrink-0 bg-gray-50 rounded-t-lg">
-            <h3 className="text-lg font-semibold">Chi tiết: {(allRows.find((x: any) => x.id === detailId) as any)?.maYeuCau ?? '—'}</h3>
+            <h3 className="text-lg font-semibold">Chi tiết {(() => { const r = allRows.find((x: any) => x.id === detailId) as any; return r ? labelForPurchaseRequest(r) : 'yêu cầu'; })()}: {(allRows.find((x: any) => x.id === detailId) as any)?.maYeuCau ?? '—'}</h3>
             <button onClick={() => setDetailId(null)} className="text-gray-400 hover:text-gray-600 p-1 hover:bg-white rounded-md">✕</button>
           </div>
           <div className="overflow-y-auto flex-1 p-6 space-y-4">
@@ -379,8 +382,8 @@ const PurchaseRequestReviewTab: React.FC = () => {
                 if (!row || !canApprove || String(row.trangThai).includes('Đã duyệt') || String(row.trangThai).includes('Từ chối')) return null;
                 return (
                   <>
-                    <button onClick={() => { setDetailId(null); setRejectId(row.id); }} className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 text-sm">Từ chối</button>
-                    <button onClick={() => { doApprove(row.id); setDetailId(null); }} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">Duyệt ngay</button>
+                    <button onClick={() => { setDetailId(null); setRejectId(row.id); }} disabled={!canUpdatePurchaseRequests} title={!canUpdatePurchaseRequests ? 'Bạn không có quyền từ chối' : undefined} className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 text-sm disabled:opacity-50 disabled:cursor-not-allowed">Từ chối</button>
+                    <button onClick={() => { doApprove(row.id); setDetailId(null); }} disabled={!canApprovePurchaseRequests} title={!canApprovePurchaseRequests ? 'Bạn không có quyền duyệt' : undefined} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed">Duyệt ngay</button>
                   </>
                 );
               })()}

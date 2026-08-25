@@ -6,6 +6,40 @@ import ExcelJS from 'exceljs';
 import { NotificationEvent } from '@types';
 import notificationService from '@services/notificationService';
 
+// 4.1 — shortage grouping helpers (family buckets for purchasing sub-teams)
+function stripDiacritics(input: string): string {
+  return (input ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\u0111/g, 'd')
+    .replace(/\u0110/g, 'D');
+}
+function bucketPhanLoai(phanLoai: string): 'MATERIALS' | 'EQUIPMENT' | 'OTHER' {
+  const raw = (phanLoai ?? '').trim();
+  if (!raw) return 'OTHER';
+  const n = stripDiacritics(raw).toLowerCase();
+  if (n.includes('thiet bi') || n.includes('cong cu') || n.includes('dung cu')) return 'EQUIPMENT';
+  if (
+    n.includes('nguyen') ||
+    n.includes('vat tu') ||
+    n.includes('vat lieu') ||
+    n.includes('phu lieu') ||
+    n.includes('bao bi') ||
+    n.includes('nhien lieu')
+  )
+    return 'MATERIALS';
+  return 'OTHER';
+}
+async function generatePurchaseRequestCodeTx(tx: any): Promise<string> {
+  const year = new Date().getFullYear();
+  const last = await tx.purchaseRequest.findFirst({
+    where: { maYeuCau: yearlyCodeWhere('YC-MH', year) },
+    orderBy: { maYeuCau: 'desc' },
+    select: { maYeuCau: true },
+  });
+  return nextYearlyCode(last?.maYeuCau ?? null, 'YC-MH', year);
+}
+
 interface SupplyRequestItemInput {
   phanLoai: string;
   tenGoi: string;
@@ -48,16 +82,39 @@ interface PartialFulfillRequest {
 }
 
 // Status sequence for advancement checks
-const STATUS_SEQUENCE = ['Chưa cung cấp', 'Đang xử lý', 'Đã duyệt mua', 'Đã mua hàng', 'Đã cung cấp'];
-// Mua nhanh skips to Đã mua hàng directly
+// "Chờ bổ sung" bridges warehouse shortage → purchasing replenishment (SHORTAGE PR)
+const STATUS_SEQUENCE = ['Chưa cung cấp', 'Đang xử lý', 'Chờ bổ sung', 'Đã duyệt mua', 'Đã mua hàng', 'Đã cung cấp', 'Đã hủy'];
+// Mua nhanh skips to Đã mua hàng directly (unchanged)
 const MUAN_HANH_STATUS_SEQUENCE = ['Chưa cung cấp', 'Đã mua hàng', 'Đã cung cấp'];
 
 class SupplyRequestService {
-  async getAllSupplyRequests(page: number = 1, limit: number = 10, search?: string) {
+  async getAllSupplyRequests(
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+    departmentIds?: string[],
+    subDepartmentIds?: string[],
+    phanLoai?: string,
+  ) {
     const { skip } = getPaginationParams(page, limit);
+
+    const deptFilter =
+      departmentIds?.length
+        ? { employee: { user: { OR: [{ departmentId: { in: departmentIds } }, { departmentId: null }] } } }
+        : {};
+    const subDeptFilter =
+      subDepartmentIds?.length
+        ? { employee: { subDepartmentId: { in: subDepartmentIds } } }
+        : {};
+    const phanLoaiFilter = phanLoai ? { items: { some: { phanLoai: { contains: phanLoai, mode: 'insensitive' as const } } } } : {};
 
     const where = search
       ? {
+          AND: [
+            deptFilter,
+            subDeptFilter,
+            phanLoaiFilter,
+            {
           OR: [
             { maYeuCau: { contains: search, mode: 'insensitive' as const } },
             { tenNhanVien: { contains: search, mode: 'insensitive' as const } },
@@ -73,8 +130,10 @@ class SupplyRequestService {
               },
             },
           ],
+        },
+          ],
         }
-      : {};
+      : { AND: [deptFilter, subDeptFilter, phanLoaiFilter] };
 
     const [data, total] = await Promise.all([
       prisma.supplyRequest.findMany({
@@ -294,6 +353,8 @@ class SupplyRequestService {
    *   for the shortage (linked back to the parent SupplyRequest).
    * - Advances parent SR status and notifies requester.
    */
+  // 4.1/4.2 — shortage grouped by normalized phanLoai, one PR per bucket,
+  // materialized inside a single transaction; ownership from SR.employeeId
   async partialFulfill(itemId: string, req: PartialFulfillRequest) {
     if (req.fulfilledQty < 0) {
       throw new ValidationError('Số lượng cấp không thể âm.');
@@ -331,57 +392,103 @@ class SupplyRequestService {
       decision = 'Cấp một phần';
     }
 
-    // Auto-create shortage PR (outside transaction to avoid nested $transaction complexity)
-    let shortagePRId: string | null = null;
+    // Build shortage bucket list for the (up to) one shortage line
+    let buckets: Map<string, Array<{ phanLoai: string; tenHangHoa: string; soLuong: number; donViTinh: string; itemId: string }>> | null = null;
     if (shortage > 0 && req.routeShortageToPurchase !== false) {
-      try {
-        const purchaseRequestService = (await import('./purchaseRequestService')).default;
-        const createdPR = await purchaseRequestService.createPurchaseRequest({
-          employeeId: req.decidedByEmployeeId,
-          maNhanVien: '',
-          tenNhanVien: 'Kho (Tự động)',
-          mucDichYeuCau: `Bổ sung tồn kho từ yêu cầu ${item.supplyRequest.maYeuCau}`,
-          mucDoUuTien: item.supplyRequest.mucDoUuTien,
-          ghiChu: req.reason ?? undefined,
-          supplyRequestId: item.supplyRequestId,
-          sourceType: 'SHORTAGE',
-          isQuickPurchase: false,
-          items: [
-            {
-              phanLoai: item.phanLoai,
-              tenHangHoa: item.tenGoi,
-              soLuong: shortage,
-              donViTinh: item.donViTinh,
-            },
-          ],
-        });
-        shortagePRId = (createdPR as { id?: string })?.id ?? null;
-      } catch (prError) {
-        console.error('Error creating shortage purchase request:', prError);
-      }
+      buckets = new Map();
+      const b = bucketPhanLoai(item.phanLoai);
+      buckets.set(b, [
+        { phanLoai: item.phanLoai, tenHangHoa: item.tenGoi, soLuong: shortage, donViTinh: item.donViTinh, itemId },
+      ]);
     }
 
+    // Transactionally: update item + decisions (+ per-bucket PRs) + status bridge
+    let createdPRs: Array<{ id: string; maYeuCau: string; bucket: string }> = [];
+    let shortagePRId: string | null = null;
     await prisma.$transaction(async (tx) => {
       await tx.supplyRequestItem.update({
         where: { id: itemId },
-        data: {
-          fulfilledQty: newFulfilled,
-          fulfillmentStatus,
-        },
+        data: { fulfilledQty: newFulfilled, fulfillmentStatus },
       });
 
+      // Create shortage PRs from SR ownership (4.2), one per bucket
+      if (buckets && buckets.size > 0) {
+        const sr = item.supplyRequest as any;
+        for (const [bucket, shortageItems] of buckets) {
+          const maYeuCau = await generatePurchaseRequestCodeTx(tx);
+          const pr = await tx.purchaseRequest.create({
+            data: {
+              maYeuCau,
+              employeeId: sr.employeeId,
+              maNhanVien: sr.maNhanVien ?? '',
+              tenNhanVien: sr.tenNhanVien ?? '',
+              mucDichYeuCau: `Bổ sung tồn kho từ yêu cầu ${sr.maYeuCau} — ${bucket}`,
+              mucDoUuTien: sr.mucDoUuTien,
+              ghiChu: req.reason ?? undefined,
+              supplyRequestId: item.supplyRequestId,
+              sourceType: 'SHORTAGE',
+              isQuickPurchase: false,
+              trangThai: 'Chờ báo giá',
+            },
+          });
+          await tx.purchaseRequestItem.createMany({
+            data: shortageItems.map((si) => ({
+              purchaseRequestId: pr.id,
+              phanLoai: si.phanLoai,
+              tenHangHoa: si.tenHangHoa,
+              soLuong: si.soLuong,
+              donViTinh: si.donViTinh,
+            })),
+          });
+          createdPRs.push({ id: pr.id, maYeuCau: pr.maYeuCau, bucket });
+        }
+        shortagePRId = createdPRs[0]?.id ?? null; // single-line path has at most one bucket
+      }
+
+      const decisionPRId = shortagePRId;
       await tx.supplyRequestDecision.create({
         data: {
           supplyRequestItemId: itemId,
-          decision: shortagePRId ? 'Chuyển thu mua' : decision,
+          decision: decisionPRId ? 'Chuyển thu mua' : decision,
           fulfilledQty: req.fulfilledQty,
           shortageQty: shortage,
           reason: req.reason,
           decidedByEmployeeId: req.decidedByEmployeeId,
-          triggeredPurchaseRequestId: shortagePRId,
+          triggeredPurchaseRequestId: decisionPRId,
         },
       });
+
+      // Bridge SR status to Chờ bổ sung inside the same transaction when shortage was routed
+      if (buckets && buckets.size > 0) {
+        const cur = await tx.supplyRequest.findUnique({ where: { id: item.supplyRequestId }, select: { trangThai: true } });
+        if (cur) {
+          const curIdx = STATUS_SEQUENCE.indexOf(cur.trangThai);
+          const tgtIdx = STATUS_SEQUENCE.indexOf('Chờ bổ sung');
+          if (tgtIdx > curIdx) {
+            await tx.supplyRequest.update({ where: { id: item.supplyRequestId }, data: { trangThai: 'Chờ bổ sung' } });
+          }
+        }
+      }
     });
+
+    // Post-tx: notify purchasing per bucket with phanLoai metadata (4.2)
+    for (const pr of createdPRs) {
+      try {
+        const si = [...(buckets?.get(pr.bucket) ?? [])];
+        await notificationService.notify(NotificationEvent.PURCHASE_REQUEST_CREATED, {
+          metadata: {
+            maYeuCau: pr.maYeuCau,
+            purchaseRequestId: pr.id,
+            supplyRequestId: item.supplyRequestId,
+            sourceType: 'SHORTAGE',
+            employeeName: (item.supplyRequest as any).tenNhanVien ?? '',
+            items: si.map((x) => ({ phanLoai: x.phanLoai })),
+            phanLoaiGroup: pr.bucket,
+          },
+        });
+        // SR status already bridged to Chờ bổ sung inside tx; legacy hook is idempotent and runs outside tx if needed, but self-import is circular — skip here.
+      } catch (e) { console.error('post-partialFulfill notify/PR hook failed', e); }
+    }
 
     // Auto-create warehouse issue when qty > 0 and warehouse/lot are provided
     // Task 8.3: use nested items shape for header+lines
@@ -602,99 +709,119 @@ class SupplyRequestService {
       }
     }
 
-    // 4. Record decisions and update fulfillment status
-    const purchaseRequestService = (await import('./purchaseRequestService')).default;
-    const decisionRecords: Array<{
-      itemId: string;
-      decision: string;
-      fulfilledQty: number;
-      shortageQty: number;
-      shortagePRId: string | null;
-    }> = [];
-
+    // 4. — bucketed shortage PRs, one PR per phanLoai group (4.1/4.2)
+    type ShortageEntry = { itemId: string; phanLoai: string; tenHangHoa: string; soLuong: number; donViTinh: string };
+    const shortageBuckets = new Map<string, ShortageEntry[]>();
+    const lineShortage = new Map<string, number>();
+    const lineDecisionLabel = new Map<string, string>();
+    let hasShortage = false;
     for (const line of lines) {
       const item = itemMap.get(line.itemId)!;
       const alreadyFulfilled = item.fulfilledQty ?? 0;
       const newFulfilled = alreadyFulfilled + line.fulfilledQty;
       const shortage = Math.max(0, item.soLuong - newFulfilled);
-
-      let decision: string;
-      if (newFulfilled === 0) {
-        decision = 'Không cấp';
-      } else if (shortage === 0) {
-        decision = 'Cấp đủ';
-      } else {
-        decision = 'Cấp một phần';
-      }
-
-      let shortagePRId: string | null = null;
+      lineShortage.set(line.itemId, shortage);
+      let label: string;
+      if (newFulfilled === 0) label = 'Không cấp';
+      else if (shortage === 0) label = 'Cấp đủ';
+      else label = 'Cấp một phần';
+      lineDecisionLabel.set(line.itemId, label);
       if (shortage > 0 && line.routeShortageToPurchase !== false) {
-        try {
-          const createdPR = await purchaseRequestService.createPurchaseRequest({
-            employeeId: line.decidedByEmployeeId,
-            maNhanVien: '',
-            tenNhanVien: 'Kho (Tự động)',
-            mucDichYeuCau: `Bổ sung tồn kho từ yêu cầu ${item.supplyRequest.maYeuCau}`,
-            mucDoUuTien: item.supplyRequest.mucDoUuTien,
-            ghiChu: line.reason ?? undefined,
-            supplyRequestId: item.supplyRequestId,
-            sourceType: 'SHORTAGE',
-            isQuickPurchase: false,
-            items: [{
-              phanLoai: item.phanLoai,
-              tenHangHoa: item.tenGoi,
-              soLuong: shortage,
-              donViTinh: item.donViTinh,
-            }],
-          });
-          shortagePRId = (createdPR as { id?: string })?.id ?? null;
-        } catch (prError) {
-          console.error('Error creating shortage purchase request:', prError);
-        }
+        hasShortage = true;
+        const b = bucketPhanLoai(item.phanLoai);
+        const arr = shortageBuckets.get(b) ?? [];
+        arr.push({ itemId: line.itemId, phanLoai: item.phanLoai, tenHangHoa: item.tenGoi, soLuong: shortage, donViTinh: item.donViTinh });
+        shortageBuckets.set(b, arr);
       }
-
-      decisionRecords.push({
-        itemId: line.itemId,
-        decision: shortagePRId ? 'Chuyển thu mua' : decision,
-        fulfilledQty: line.fulfilledQty,
-        shortageQty: shortage,
-        shortagePRId,
-      });
     }
-
+    const batchSupplyRequestId = itemMap.get(lines[0].itemId)?.supplyRequestId ?? null;
+    const batchSRMeta = itemMap.get(lines[0].itemId)?.supplyRequest as any;
+    let bucketPRIdByItem = new Map<string, string>();
+    let batchCreatedPRMeta: Array<{ id: string; bucket: string; items: ShortageEntry[] }> = [];
     await prisma.$transaction(async (tx) => {
       for (const line of lines) {
         const item = itemMap.get(line.itemId)!;
         const alreadyFulfilled = item.fulfilledQty ?? 0;
         const newFulfilled = alreadyFulfilled + line.fulfilledQty;
-        const shortage = Math.max(0, item.soLuong - newFulfilled);
-
+        const shortage = lineShortage.get(line.itemId) ?? 0;
         let fulfillmentStatus: string;
         if (newFulfilled === 0) fulfillmentStatus = 'Không cấp';
         else if (shortage === 0) fulfillmentStatus = 'Đã cấp đủ';
         else fulfillmentStatus = 'Đã cấp một phần';
-
         await tx.supplyRequestItem.update({
           where: { id: line.itemId },
           data: { fulfilledQty: newFulfilled, fulfillmentStatus },
         });
       }
-
-      for (const rec of decisionRecords) {
-        const matchingLine = lines.find((l) => l.itemId === rec.itemId);
+      for (const [bucket, entries] of shortageBuckets) {
+        const maYeuCau = await generatePurchaseRequestCodeTx(tx);
+        const pr = await tx.purchaseRequest.create({
+          data: {
+            maYeuCau,
+            employeeId: batchSRMeta?.employeeId ?? '',
+            maNhanVien: batchSRMeta?.maNhanVien ?? '',
+            tenNhanVien: batchSRMeta?.tenNhanVien ?? '',
+            mucDichYeuCau: `Bổ sung tồn kho từ yêu cầu ${batchSRMeta?.maYeuCau ?? ''} — ${bucket}`,
+            mucDoUuTien: batchSRMeta?.mucDoUuTien ?? 'Trung bình',
+            ghiChu: undefined,
+            supplyRequestId: batchSupplyRequestId ?? undefined,
+            sourceType: 'SHORTAGE',
+            isQuickPurchase: false,
+            trangThai: 'Chờ báo giá',
+          },
+        });
+        await tx.purchaseRequestItem.createMany({
+          data: entries.map((e) => ({
+            purchaseRequestId: pr.id,
+            phanLoai: e.phanLoai,
+            tenHangHoa: e.tenHangHoa,
+            soLuong: e.soLuong,
+            donViTinh: e.donViTinh,
+          })),
+        });
+        for (const e of entries) bucketPRIdByItem.set(e.itemId, pr.id);
+        batchCreatedPRMeta.push({ id: pr.id, bucket, items: entries });
+      }
+      for (const line of lines) {
+        const shortage = lineShortage.get(line.itemId) ?? 0;
+        const label = lineDecisionLabel.get(line.itemId) ?? 'Không cấp';
+        const prIdForItem = bucketPRIdByItem.get(line.itemId) ?? null;
         await tx.supplyRequestDecision.create({
           data: {
-            supplyRequestItemId: rec.itemId,
-            decision: rec.decision,
-            fulfilledQty: rec.fulfilledQty,
-            shortageQty: rec.shortageQty,
-            reason: matchingLine?.reason,
-            decidedByEmployeeId: matchingLine?.decidedByEmployeeId ?? '',
-            triggeredPurchaseRequestId: rec.shortagePRId,
+            supplyRequestItemId: line.itemId,
+            decision: prIdForItem ? 'Chuyển thu mua' : label,
+            fulfilledQty: line.fulfilledQty,
+            shortageQty: shortage,
+            reason: line.reason,
+            decidedByEmployeeId: line.decidedByEmployeeId ?? '',
+            triggeredPurchaseRequestId: prIdForItem,
           },
         });
       }
+      if (hasShortage && batchSupplyRequestId) {
+        const cur = await tx.supplyRequest.findUnique({ where: { id: batchSupplyRequestId }, select: { trangThai: true } });
+        if (cur) {
+          const curIdx = STATUS_SEQUENCE.indexOf(cur.trangThai);
+          const tgtIdx = STATUS_SEQUENCE.indexOf('Chờ bổ sung');
+          if (tgtIdx > curIdx) await tx.supplyRequest.update({ where: { id: batchSupplyRequestId }, data: { trangThai: 'Chờ bổ sung' } });
+        }
+      }
     });
+    for (const pr of batchCreatedPRMeta) {
+      try {
+        await notificationService.notify(NotificationEvent.PURCHASE_REQUEST_CREATED, {
+          metadata: {
+            maYeuCau: pr.id,
+            purchaseRequestId: pr.id,
+            supplyRequestId: batchSupplyRequestId ?? undefined,
+            sourceType: 'SHORTAGE',
+            employeeName: batchSRMeta?.tenNhanVien ?? '',
+            items: pr.items.map((x) => ({ phanLoai: x.phanLoai })),
+            phanLoaiGroup: pr.bucket,
+          },
+        });
+      } catch (e) { console.error('batchFulfill post-notify failed', e); }
+    }
 
     // 5. Create one multi-line issue slip for all lines with fulfilledQty > 0
     if (issueLineInputs.length > 0) {
@@ -772,7 +899,7 @@ class SupplyRequestService {
       }
     }
 
-    return { success: true, decisionsCount: decisionRecords.length };
+    return { success: true, decisionsCount: lines.length };
   }
 
   /**

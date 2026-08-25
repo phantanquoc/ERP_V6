@@ -1,14 +1,22 @@
 import { Request, Response, NextFunction } from 'express';
+import prisma from '@config/database';
 import supplyRequestService from '@services/supplyRequestService';
+import type { AuthenticatedRequest } from '@types';
 
 class SupplyRequestController {
-  async getAllSupplyRequests(req: Request, res: Response, next: NextFunction) {
+  async getAllSupplyRequests(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
       const search = req.query.search as string;
+      const phanLoai = (req.query.phanLoai as string) || undefined;
+      const departmentIds = (req as unknown as { userDepartmentIds?: string[] }).userDepartmentIds;
+      const subDepartmentIds = (() => {
+        const v = (req as unknown as { userSubDepartmentId?: string | null }).userSubDepartmentId;
+        return v ? [v] : undefined;
+      })();
 
-      const result = await supplyRequestService.getAllSupplyRequests(page, limit, search);
+      const result = await supplyRequestService.getAllSupplyRequests(page, limit, search, departmentIds, subDepartmentIds, phanLoai);
 
       return res.json({
         success: true,
@@ -34,9 +42,21 @@ class SupplyRequestController {
     }
   }
 
-  async createSupplyRequest(req: Request, res: Response, next: NextFunction) {
+  async createSupplyRequest(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const supplyRequest = await supplyRequestService.createSupplyRequest(req.body);
+      // Derive employeeId from JWT — do not trust client-provided identity
+      let employeeId: string | null = null;
+      if (req.user?.id) {
+        const employee = await prisma.employee.findUnique({
+          where: { userId: req.user.id },
+          select: { id: true },
+        });
+        employeeId = employee?.id ?? (req.body.employeeId as string | undefined) ?? null;
+      } else {
+        employeeId = (req.body.employeeId as string | undefined) ?? null;
+      }
+      const body = { ...req.body, employeeId };
+      const supplyRequest = await supplyRequestService.createSupplyRequest(body);
 
       return res.status(201).json({
         success: true,

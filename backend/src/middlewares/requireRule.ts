@@ -25,8 +25,8 @@ const RESOURCE_TO_MODEL: Record<string, { delegate: string; ownerField: string }
   'internal-inspections': { delegate: 'internalInspection', ownerField: 'createdById' },
   'repair-requests': { delegate: 'repairRequest', ownerField: 'createdById' },
   'acceptance-handovers': { delegate: 'acceptanceHandover', ownerField: 'createdById' },
-  'supply-requests': { delegate: 'supplyRequest', ownerField: 'createdById' },
-  'purchase-requests': { delegate: 'purchaseRequest', ownerField: 'createdById' },
+  'supply-requests': { delegate: 'supplyRequest', ownerField: 'employeeId' },
+  'purchase-requests': { delegate: 'purchaseRequest', ownerField: 'employeeId' },
   'general-costs': { delegate: 'generalCost', ownerField: 'createdById' },
   'export-costs': { delegate: 'exportCost', ownerField: 'createdById' },
   // business: creator stored under different column names
@@ -66,6 +66,10 @@ function delegationScopeMatches(
  * Try to load the owner of a record identified by :id for the given resourceCode.
  * Returns the owner userId string if found, null if record missing or no owner field, undefined if resource not mapped.
  */
+// Resources whose ownerField stores an Employee.id (not auth.User.id) —
+// loadRecordOwner must join via employee.userId to compare against req.user.id.
+const EMPLOYEE_OWNER_RESOURCES = new Set(['supply-requests', 'purchase-requests', 'leave-requests', 'daily-work-reports']);
+
 async function loadRecordOwner(resourceCode: string, recordId: string): Promise<string | null | undefined> {
   const mapping = RESOURCE_TO_MODEL[resourceCode];
   if (!mapping) return undefined; // unknown resource → caller should deny
@@ -75,6 +79,21 @@ async function loadRecordOwner(resourceCode: string, recordId: string): Promise<
     return undefined;
   }
   try {
+    // Employee-owned resources: resolve employeeId → employee.userId
+    if (EMPLOYEE_OWNER_RESOURCES.has(resourceCode)) {
+      const row = await delegate.findUnique({
+        where: { id: recordId },
+        select: { [mapping.ownerField]: true },
+      });
+      if (!row) return null;
+      const employeeId = row[mapping.ownerField];
+      if (typeof employeeId !== 'string' || !employeeId) return null;
+      const employee = await prisma.employee.findUnique({
+        where: { id: employeeId },
+        select: { userId: true },
+      });
+      return employee?.userId ?? null;
+    }
     const row = await delegate.findUnique({
       where: { id: recordId },
       select: { [mapping.ownerField]: true },

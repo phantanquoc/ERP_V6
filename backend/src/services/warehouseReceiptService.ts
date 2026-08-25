@@ -451,7 +451,7 @@ class WarehouseReceiptService {
       resolved.map((line) => line.lotProductId)
     );
 
-    const { lines, closingBalances } = computeSequentialSnapshots(resolved, balances, 'IN');
+    const { lines } = computeSequentialSnapshots(resolved, balances, 'IN');
     const totals = computeHeaderTotals(lines);
 
     const receipt = await tx.warehouseReceipt.create({
@@ -477,8 +477,10 @@ class WarehouseReceiptService {
       include: { items: { orderBy: { stt: 'asc' } } },
     });
 
-    for (const [id, soLuong] of closingBalances) {
-      await tx.lotProduct.update({ where: { id }, data: { soLuong } });
+    // 2.1 atomic increment per package; overflow guard remains via computeSequentialSnapshots
+    const totalsByPackage = this.sumByPackage(resolved);
+    for (const [lotProductId, qty] of totalsByPackage) {
+      await tx.lotProduct.update({ where: { id: lotProductId }, data: { soLuong: { increment: qty } } });
     }
 
     return { ...receipt, isLocked: !!receipt.supplyRequestId };
@@ -530,7 +532,7 @@ class WarehouseReceiptService {
         });
       }
 
-      const { lines, closingBalances } = computeSequentialSnapshots(incoming, afterReversal, 'IN');
+      const { lines } = computeSequentialSnapshots(incoming, afterReversal, 'IN');
       const totals = computeHeaderTotals(lines);
 
       if (diff.removed.length > 0) {
@@ -549,10 +551,32 @@ class WarehouseReceiptService {
         }
       }
 
-      // A package touched only by a reversal settles at its post-reversal balance.
+      // Atomic net stock delta per package: incoming increments, reversals decrement.
+      // Guards above (assertSufficientStock + computeSequentialSnapshots) validate
+      // feasibility; the affected-rows check below is the DB-level second defence.
+      const incomingByPackage = this.sumByPackage(incoming);
       for (const [lotProductId, balance] of afterReversal) {
-        const soLuong = closingBalances.get(lotProductId) ?? balance.soLuong;
-        await tx.lotProduct.update({ where: { id: lotProductId }, data: { soLuong } });
+        const incoming = incomingByPackage.get(lotProductId) ?? 0;
+        const reversal = reversals.get(lotProductId) ?? 0;
+        const netIn = incoming - reversal; // >0 adds stock, <0 removes stock
+        if (netIn > 0) {
+          await tx.lotProduct.update({ where: { id: lotProductId }, data: { soLuong: { increment: netIn } } });
+        } else if (netIn < 0) {
+          const res = await tx.lotProduct.updateMany({
+            where: { id: lotProductId, soLuong: { gte: -netIn } },
+            data: { soLuong: { decrement: -netIn } },
+          });
+          if (res.count === 0) {
+            throw new ValidationError(
+              `Số lượng tồn kho của ${balance.tenSanPham ? `"${balance.tenSanPham}"` : `kiện ${lotProductId}`} không đủ`
+            );
+          }
+        }
+      }
+      // Packages appearing only in incoming (not covered by afterReversal map).
+      for (const [lotProductId, incoming] of incomingByPackage) {
+        if (afterReversal.has(lotProductId)) continue;
+        await tx.lotProduct.update({ where: { id: lotProductId }, data: { soLuong: { increment: incoming } } });
       }
 
       const updated = await tx.warehouseReceipt.update({
@@ -612,12 +636,18 @@ class WarehouseReceiptService {
         // Guard every package before the first stock write.
         assertSufficientStock(reversals, balances);
 
+        // Atomic decrement with affected-rows check; guards above are the second defence.
         for (const [lotProductId, quantity] of reversals) {
-          const balance = balances.get(lotProductId)!;
-          await tx.lotProduct.update({
-            where: { id: lotProductId },
-            data: { soLuong: balance.soLuong - quantity },
+          const res = await tx.lotProduct.updateMany({
+            where: { id: lotProductId, soLuong: { gte: quantity } },
+            data: { soLuong: { decrement: quantity } },
           });
+          if (res.count === 0) {
+            const balance = balances.get(lotProductId);
+            throw new ValidationError(
+              `Số lượng tồn kho của ${balance?.tenSanPham ? `"${balance.tenSanPham}"` : `kiện ${lotProductId}`} không đủ`
+            );
+          }
         }
       }
 
@@ -684,6 +714,12 @@ class WarehouseReceiptService {
    *
    * `client` lets the caller keep this inside its own transaction; without it the
    * package would be created on the global client and survive a rolled-back slip.
+   *
+   * Idempotence (task 2.2): both creates are upsert-or-catch-P2002-retry —
+   * concurrent receipts carrying the same new `tenSanPham` race to `create`,
+   * the loser catches the unique violation (`P2002`) and re-reads the winner's
+   * row instead of duplicating catalog rows. The app-level `findFirst` by
+   * case-insensitive name remains the fast path.
    */
   async resolveOrCreateLotProduct(
     lotId: string,
@@ -709,9 +745,20 @@ class WarehouseReceiptService {
         tenSanPham,
         loaiSanPham: resolvedLoai,
       });
-      product = await db.internationalProduct.create({
-        data: { maSanPham, tenSanPham, donViTinh, loaiSanPham: resolvedLoai },
-      });
+      try {
+        product = await db.internationalProduct.create({
+          data: { maSanPham, tenSanPham, donViTinh, loaiSanPham: resolvedLoai },
+        });
+      } catch (err) {
+        // P2002: a concurrent transaction inserted the same product first.
+        // Re-read — the winner's row is the canonical one.
+        if (isUniqueViolation(err)) {
+          product = await db.internationalProduct.findFirst({
+            where: { tenSanPham: { equals: tenSanPham, mode: 'insensitive' } },
+          });
+        }
+        if (!product) throw err;
+      }
     }
 
     const lot = await db.lot.findUnique({ where: { id: lotId } });
@@ -744,22 +791,46 @@ class WarehouseReceiptService {
       return { id: lotProduct.id, soLuong: lotProduct.soLuong, maKien: lotProduct.maKien };
     }
 
-    lotProduct = await db.lotProduct.create({
-      data: {
-        lotId,
-        internationalProductId: product.id,
-        soLuong: 0,
-        donViTinh: donViTinh || product.donViTinh || 'Kg',
-      },
-    });
-    // Auto-generate maKien from lot tenLo + last 4 chars of id
-    const autoMaKien = `${lot?.tenLo ?? lotId.slice(-4)}-${lotProduct.id.slice(-4)}`;
-    lotProduct = await db.lotProduct.update({
-      where: { id: lotProduct.id },
-      data: { maKien: autoMaKien },
-    });
-    return { id: lotProduct.id, soLuong: 0, maKien: lotProduct.maKien };
+    try {
+      lotProduct = await db.lotProduct.create({
+        data: {
+          lotId,
+          internationalProductId: product.id,
+          soLuong: 0,
+          donViTinh: donViTinh || product.donViTinh || 'Kg',
+        },
+      });
+      // Auto-generate maKien from lot tenLo + last 4 chars of id
+      const autoMaKien = `${lot?.tenLo ?? lotId.slice(-4)}-${lotProduct.id.slice(-4)}`;
+      lotProduct = await db.lotProduct.update({
+        where: { id: lotProduct.id },
+        data: { maKien: autoMaKien },
+      });
+      return { id: lotProduct.id, soLuong: 0, maKien: lotProduct.maKien };
+    } catch (err) {
+      // P2002 on the ad-hoc partial unique index (lotId, internationalProductId
+      // WHERE slotId IS NULL): a concurrent resolver created the same package.
+      // Re-read the winner's row and use it.
+      if (isUniqueViolation(err)) {
+        lotProduct = await db.lotProduct.findFirst({
+          where: { lotId, internationalProductId: product.id },
+        });
+        if (lotProduct) {
+          return { id: lotProduct.id, soLuong: lotProduct.soLuong, maKien: lotProduct.maKien };
+        }
+      }
+      throw err;
+    }
   }
+}
+
+/** Prisma unique-constraint violation (P2002). */
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    (err as { code?: string }).code === 'P2002'
+  );
 }
 
 export default new WarehouseReceiptService();

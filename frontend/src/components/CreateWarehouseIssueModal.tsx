@@ -12,6 +12,7 @@ import LotProductCombobox from './common/LotProductCombobox';
 import EmployeeCombobox from './common/EmployeeCombobox';
 import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
 import { TINH_TRANG_OPTIONS, LY_DO_XUAT_KHO_PRESETS } from '../constants/warehouseCatalogs';
+import { can } from '../utils/permissions';
 
 interface CreateWarehouseIssueModalProps {
   isOpen: boolean;
@@ -167,6 +168,12 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Rule Matrix gate — warehouse issue from a supply request is a supply-side mutation
+    if (!can('supply-requests', 'UPDATE', user?.role)) {
+      alert('Bạn không có quyền tạo phiếu xuất kho');
+      return;
+    }
 
     if (fifoMode) {
       const total = parseFloat(fifoTongSoLuong);

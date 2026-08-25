@@ -64,6 +64,7 @@ model SupplyRequestItem {
   supplyRequest     SupplyRequest           @relation(fields: [supplyRequestId], references: [id], onDelete: Cascade)
   decisions         SupplyRequestDecision[]
 
+  @@index([supplyRequestId])
   @@map("supply_request_items")
   @@schema("business")
 }
@@ -82,12 +83,14 @@ model SupplyRequestDecision {
   decidedAt                  DateTime          @default(now())
   // Optional link to auto-created purchase request when decision routes shortage to procurement
   triggeredPurchaseRequestId String?
+  triggeredPurchaseRequest   PurchaseRequest?  @relation(fields: [triggeredPurchaseRequestId], references: [id], onDelete: SetNull)
   createdAt                  DateTime          @default(now())
   updatedAt                  DateTime          @updatedAt
   supplyRequestItem          SupplyRequestItem @relation(fields: [supplyRequestItemId], references: [id], onDelete: Cascade)
 
   @@index([supplyRequestItemId])
   @@index([decidedByEmployeeId])
+  @@index([triggeredPurchaseRequestId])
   @@map("supply_request_decisions")
   @@schema("business")
 }
@@ -129,7 +132,13 @@ model PurchaseRequest {
   supplyRequest   SupplyRequest?        @relation(fields: [supplyRequestId], references: [id])
   supplier        Supplier?             @relation(fields: [nhaCungCapId], references: [id])
   items           PurchaseRequestItem[]
+  supplyDecisions SupplyRequestDecision[]
 
+  @@index([employeeId])
+  @@index([supplyRequestId])
+  @@index([nhaCungCapId])
+  @@index([trangThai])
+  @@index([sourceType])
   @@map("purchase_requests")
   @@schema("business")
 }
@@ -148,6 +157,8 @@ model PurchaseRequestItem {
   updatedAt         DateTime        @updatedAt
   purchaseRequest   PurchaseRequest @relation(fields: [purchaseRequestId], references: [id], onDelete: Cascade)
 
+  @@index([purchaseRequestId])
+  @@index([nhaCungCapId])
   @@map("purchase_request_items")
   @@schema("business")
 }
@@ -176,6 +187,7 @@ model Supplier {
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
 
+  @@index([phanLoaiNCC])
   @@map("suppliers")
   @@schema("business")
 }
@@ -193,7 +205,7 @@ model warehouses {
   trangThai   String   @default("active")
   ghiChu      String?
   createdAt   DateTime @default(now())
-  updatedAt   DateTime
+  updatedAt   DateTime @updatedAt
   lots        Lot[]
   warehouseSlots WarehouseSlot[]
 
@@ -255,6 +267,8 @@ model LotProduct {
   warehouseIssues        WarehouseIssueItem[]
 
   @@unique([lotId, maKien])
+  @@index([lotId])
+  @@index([internationalProductId])
   @@map("lot_products")
   @@schema("business")
 }
@@ -304,6 +318,7 @@ model WarehouseReceipt {
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
 
+  @@index([supplyRequestId])
   @@map("warehouse_receipts")
   @@schema("business")
 }
@@ -340,6 +355,7 @@ model WarehouseReceiptItem {
   receipt       WarehouseReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
   lotProduct    LotProduct       @relation(fields: [lotProductId], references: [id], onDelete: Restrict)
 
+  @@unique([receiptId, stt])
   @@index([receiptId])
   @@index([lotProductId])
   @@map("warehouse_receipt_items")
@@ -392,6 +408,7 @@ model WarehouseIssue {
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
 
+  @@index([supplyRequestId])
   @@map("warehouse_issues")
   @@schema("business")
 }
@@ -428,6 +445,7 @@ model WarehouseIssueItem {
   issue         WarehouseIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
   lotProduct    LotProduct     @relation(fields: [lotProductId], references: [id], onDelete: Restrict)
 
+  @@unique([issueId, stt])
   @@index([issueId])
   @@index([lotProductId])
   @@map("warehouse_issue_items")
