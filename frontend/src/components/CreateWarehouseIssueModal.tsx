@@ -5,7 +5,7 @@ import warehouseIssueService from '../services/warehouseIssueService';
 import warehouseService, { Warehouse, Lot, LotProduct } from '../services/warehouseService';
 import { warehouseKeys } from '../hooks/useWarehouses';
 import { useAuth } from '../contexts/AuthContext';
-import { SupplyRequest } from '../services/supplyRequestService';
+import supplyRequestService, { SupplyRequest, BatchFulfillLine, BatchFulfillResult } from '../services/supplyRequestService';
 import { parseNumberInput } from '../utils/numberInput';
 import Modal from './Modal';
 import LotProductCombobox from './common/LotProductCombobox';
@@ -36,6 +36,12 @@ interface IssueRow {
   // Source item info
   tenGoi: string;
   donViTinh: string;
+  // Fulfillment accounting — links this line back to the supply request item so
+  // fulfilledQty/fulfillmentStatus are updated via batch-fulfill (see P0-1).
+  supplyRequestItemId?: string;
+  // Original request vs already-issued so the default is remaining, not full.
+  yeuCau?: number;
+  daCap?: number;
 }
 
 const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
@@ -56,6 +62,8 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
   const [maNguoiDeNghi, setMaNguoiDeNghi] = useState('');
   const [boPhan, setBoPhan] = useState('');
   const [lyDoXuatKho, setLyDoXuatKho] = useState('');
+  // Mặc định bật: phần thiếu (không đủ tồn kho để xuất) tự sinh "Yêu cầu bổ sung" sang Thu mua
+  const [routeShortage, setRouteShortage] = useState(true);
 
   const handleNguoiDeNghiChange = (name: string) => {
     setNguoiDeNghi(name);
@@ -83,20 +91,46 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
       setMaNguoiDeNghi('');
       setLyDoXuatKho('');
 
-      // Init rows from supply request items
+      // Init rows from supply request items — only pending items, default =
+      // remaining (soLuong − fulfilledQty), not the full request. Already
+      // finished items are hidden; an all-finished YC disables creation.
       if (supplyRequest?.items && supplyRequest.items.length > 0) {
-        setRows(supplyRequest.items.map(item => ({
-          warehouseId: '',
-          lotId: '',
-          lotProductId: '',
-          soLuongXuat: item.soLuong,
-          ghiChu: `Xuất kho cho ${supplyRequest.maYeuCau} - ${item.tenGoi}`,
-          tinhTrang: 'Bình thường', tinhTrangCustom: '', quyCach: '',
-          lots: [],
-          lotProducts: [],
-          tenGoi: item.tenGoi,
-          donViTinh: item.donViTinh,
-        })));
+        const pendingItems = supplyRequest.items.filter((item: any) => {
+          const status = item.fulfillmentStatus;
+          if (status === 'Đã cấp đủ' || status === 'Chuyển thu mua') return false;
+          const remaining = (item.soLuong ?? 0) - (item.fulfilledQty ?? 0);
+          return remaining > 1e-9;
+        });
+        if (pendingItems.length > 0) {
+          setRows(pendingItems.map((item: any): IssueRow => {
+            const soLuong: number = item.soLuong ?? 0;
+            const daCap: number = item.fulfilledQty ?? 0;
+            const remaining = Math.max(0, soLuong - daCap);
+            return {
+              warehouseId: '',
+              lotId: '',
+              lotProductId: '',
+              soLuongXuat: remaining,
+              ghiChu: `Xuất kho cho ${supplyRequest.maYeuCau} - ${item.tenGoi}`,
+              tinhTrang: 'Bình thường', tinhTrangCustom: '', quyCach: '',
+              lots: [],
+              lotProducts: [],
+              tenGoi: item.tenGoi,
+              donViTinh: item.donViTinh,
+              supplyRequestItemId: item.id,
+              yeuCau: soLuong,
+              daCap,
+            };
+          }));
+        } else {
+          // Everything is already fulfilled — keep an empty placeholder so the
+          // modal renders "all done" without crashing, creation is blocked in handleSubmit.
+          setRows([{
+            warehouseId: '', lotId: '', lotProductId: '',
+            soLuongXuat: 0, ghiChu: '', tinhTrang: 'Bình thường', tinhTrangCustom: '', quyCach: '', lots: [], lotProducts: [],
+            tenGoi: '', donViTinh: '',
+          }]);
+        }
       } else {
         setRows([{
           warehouseId: '', lotId: '', lotProductId: '',
@@ -153,6 +187,37 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
     });
   };
 
+  // ── Product-aware stock helpers (kho nào thật sự có món của dòng này) ──────
+  // Match diacritic-insensitive, substring cả 2 chiều vì tenGoi trong YC có thể
+  // không khớp tuyệt đối tenSanPham trong danh mục kho.
+  const normalizeName = (s: string) =>
+    (s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd').toLowerCase().trim();
+
+  const productMatches = (tenGoi: string, lp: LotProduct): boolean => {
+    const name = normalizeName(tenGoi);
+    const pname = normalizeName(lp.internationalProduct?.tenSanPham ?? '');
+    if (!name || !pname) return false;
+    return pname.includes(name) || name.includes(pname);
+  };
+
+  /** Tất cả lô của 1 kho chứa kiện khớp món của dòng. */
+  const matchingLotsInWarehouse = (row: IssueRow, warehouse: Warehouse): Lot[] => {
+    if (!row.tenGoi) return warehouse.lots ?? [];
+    return (warehouse.lots ?? []).filter((l) => (l.lotProducts ?? []).some((lp) => productMatches(row.tenGoi, lp)));
+  };
+
+  /** Các kiện khớp món trong lô đã chọn (cả kiện còn hàng và hết hàng). */
+  const matchingLotProductsInLot = (row: IssueRow, lot: Lot | undefined): LotProduct[] => {
+    if (!row.tenGoi || !lot) return lot?.lotProducts ?? [];
+    return (lot.lotProducts ?? []).filter((lp) => productMatches(row.tenGoi, lp));
+  };
+
+  /** Tổng tồn của món này trên TẤT CẢ kho (để cảnh báo hết hàng toàn cục). */
+  const totalStockForName = (tenGoi: string): number =>
+    warehouses.reduce((acc, w) =>
+      acc + (w.lots ?? []).reduce((a, l) =>
+        a + (l.lotProducts ?? []).reduce((s, lp) => s + (productMatches(tenGoi, lp) ? lp.soLuong : 0), 0), 0), 0);
+
   const addRow = () => {
     setRows(prev => [...prev, {
       warehouseId: '', lotId: '', lotProductId: '',
@@ -169,13 +234,26 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Rule Matrix gate — warehouse issue from a supply request is a supply-side mutation
-    if (!can('supply-requests', 'UPDATE', user?.role)) {
+    const isFromSupplyRequest = !!supplyRequest?.id;
+
+    // Rule Matrix gate — split per path: fulfillment mutates the supply request,
+    // a standalone slip mutates warehouse issues.
+    const allowed = isFromSupplyRequest
+      ? can('supply-requests', 'UPDATE', user?.role)
+      : can('warehouse-issues', 'CREATE', user?.role);
+    if (!allowed) {
       alert('Bạn không có quyền tạo phiếu xuất kho');
       return;
     }
 
-    if (fifoMode) {
+    if (!user?.employeeId) {
+      alert('Không tìm thấy thông tin nhân viên. Vui lòng đăng nhập lại.');
+      return;
+    }
+
+    // FIFO mode bypasses the row-based flow — standalone slips only: it does not
+    // touch fulfillment accounting, so it is unavailable when opened from a YC.
+    if (fifoMode && !isFromSupplyRequest) {
       const total = parseFloat(fifoTongSoLuong);
       if (!fifoLotId || !fifoProductId || !(total > 0)) {
         alert('Vui lòng chọn đủ lô, sản phẩm và nhập tổng số lượng');
@@ -207,7 +285,64 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
       return;
     }
 
-    // Validate all rows
+    // ── Path A: opened from a supply request → batchFulfill (accounting-correct) ──
+    // One transaction on the backend: fulfilledQty/fulfillmentStatus per line,
+    // decisions, shortage PRs bucketed by phanLoai, ONE issue slip, header status.
+    if (isFromSupplyRequest) {
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const remaining = (row.yeuCau ?? row.soLuongXuat) - (row.daCap ?? 0);
+        if (row.soLuongXuat > remaining) {
+          alert(`Dòng ${i + 1}: Số lượng xuất (${row.soLuongXuat}) vượt phần còn lại của yêu cầu (${remaining} ${row.donViTinh})`);
+          return;
+        }
+        if (row.soLuongXuat > 0 && (!row.warehouseId || !row.lotId || !row.lotProductId)) {
+          alert(`Dòng ${i + 1}: Vui lòng chọn đầy đủ kho, lô và kiện hàng, hoặc đặt số lượng về 0 để chuyển phần này sang thu mua`);
+          return;
+        }
+        const lp = row.lotProducts.find((p) => p.id === row.lotProductId);
+        if (row.soLuongXuat > 0 && lp && row.soLuongXuat > lp.soLuong) {
+          alert(
+            `Dòng ${i + 1}: Số lượng xuất (${row.soLuongXuat}) vượt tồn kho của kiện ` +
+            `${lp.maKien ?? ''} (còn ${lp.soLuong} ${lp.donViTinh})`
+          );
+          return;
+        }
+      }
+
+      const lines: BatchFulfillLine[] = rows.map((row) => ({
+        itemId: row.supplyRequestItemId ?? '',
+        fulfilledQty: row.soLuongXuat,
+        decidedByEmployeeId: user.employeeId ?? '',
+        routeShortageToPurchase: routeShortage,
+        warehouseId: row.warehouseId || undefined,
+        lotId: row.lotId || undefined,
+        lotProductId: row.lotProductId || undefined,
+      }));
+
+      setLoading(true);
+      try {
+        const response = await supplyRequestService.batchFulfill(lines);
+        const result = (response.data as { data?: BatchFulfillResult } | undefined)?.data;
+        const createdPRs = result?.createdPurchaseRequests ?? [];
+        let msg = `Đã cấp phát ${result?.decisionsCount ?? rows.length} dòng thành công!`;
+        if (createdPRs.length > 0) {
+          msg += `\nĐã tạo ${createdPRs.length} yêu cầu bổ sung: ${createdPRs.map((p) => p.maYeuCau).join(', ')}`;
+        }
+        alert(msg);
+        onSuccess?.();
+        queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
+        queryClient.invalidateQueries({ queryKey: warehouseKeys.lotProducts() });
+        onClose();
+      } catch (error: any) {
+        alert(error.response?.data?.message || 'Lỗi khi cấp phát yêu cầu cung cấp');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // ── Path B: standalone issue slip (không gắn yêu cầu cung cấp) ──
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       if (!row.warehouseId || !row.lotId || !row.lotProductId) {
@@ -326,7 +461,8 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
           </div>
           <div><label className="block text-sm font-medium text-gray-700 mb-1">Lý do xuất kho</label><input type="text" list="ly-do-xuat-create" value={lyDoXuatKho} onChange={(e) => setLyDoXuatKho(e.target.value)} placeholder="" className="w-full px-3 py-2 border border-gray-300 rounded-lg" /><datalist id="ly-do-xuat-create">{LY_DO_XUAT_KHO_PRESETS.map((p) => <option key={p} value={p} />)}</datalist></div>
 
-          {/* Chế độ xuất */}
+          {/* Chế độ xuất — FIFO không khả dụng khi mở từ YC (không đụng hạch toán cấp phát) */}
+          {!supplyRequest && (
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-gray-700">Chế độ:</span>
             <button
@@ -344,6 +480,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
               Nhập tổng (trừ FIFO)
             </button>
           </div>
+          )}
 
           {fifoMode && (
             <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 p-4 space-y-3">
@@ -402,12 +539,25 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
               <label className="block text-sm font-medium text-gray-700">
                 Danh sách sản phẩm xuất kho <span className="text-red-500">*</span>
               </label>
-              <button type="button" onClick={addRow}
-                className="flex items-center gap-1 px-3 py-1.5 text-sm bg-red-600 text-white rounded-md hover:bg-red-700">
-                <Plus className="h-4 w-4" />
-                Thêm dòng
-              </button>
+              {supplyRequest ? (
+                <span className="text-xs text-gray-500">{rows.length} dòng yêu cầu — mặc định xuất phần còn thiếu</span>
+              ) : (
+                <button type="button" onClick={addRow}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm bg-red-600 text-white rounded-md hover:bg-red-700">
+                  <Plus className="h-4 w-4" />
+                  Thêm dòng
+                </button>
+              )}
             </div>
+
+            {supplyRequest && (
+              <label className="flex items-center gap-2 mb-3 px-3 py-2 border border-violet-200 bg-violet-50 rounded-md text-sm">
+                <input type="checkbox" checked={routeShortage} onChange={(e) => setRouteShortage(e.target.checked)}
+                  className="h-3.5 w-3.5 rounded border-violet-300 text-violet-600 focus:ring-violet-500" />
+                <span className="text-violet-900">Chuyển phần thiếu sang Thu mua</span>
+                <span className="text-gray-500">— đặt 0 thì phần còn lại sẽ thành "Yêu cầu bổ sung"</span>
+              </label>
+            )}
 
             <div className="space-y-4">
               {rows.map((row, index) => (
@@ -415,6 +565,11 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-sm font-semibold text-gray-700">
                       Sản phẩm {index + 1}{row.tenGoi ? `: ${row.tenGoi}` : ''}
+                      {row.supplyRequestItemId != null && row.yeuCau != null && row.daCap != null && (
+                        <span className="ml-2 text-xs font-normal text-gray-500">
+                          Đã cấp {row.daCap} / {row.yeuCau} {row.donViTinh} — còn thiếu {(row.yeuCau - row.daCap).toLocaleString('vi-VN')} {row.donViTinh}
+                        </span>
+                      )}
                     </span>
                     <button type="button" onClick={() => removeRow(index)} disabled={rows.length === 1}
                       className="text-red-500 hover:text-red-700 disabled:text-gray-300">
@@ -426,33 +581,82 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
                     {/* Kho */}
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Kho <span className="text-red-500">*</span></label>
+                      {(() => {
+                        const candidates = row.tenGoi
+                          ? warehouses.filter((w) => matchingLotsInWarehouse(row, w).length > 0)
+                          : warehouses;
+                        if (row.tenGoi && candidates.length === 0) {
+                          return <p className="text-xs text-amber-700 py-1">Không có kho nào còn món này</p>;
+                        }
+                        return (
                       <select value={row.warehouseId} onChange={(e) => handleWarehouseChange(index, e.target.value)}
                         required className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500">
                         <option value="">Chọn kho</option>
-                        {warehouses.map(w => <option key={w.id} value={w.id}>{w.tenKho}</option>)}
+                        {(row.tenGoi ? candidates : warehouses).map(w => <option key={w.id} value={w.id}>{w.tenKho}</option>)}
                       </select>
+                        );
+                      })()}
+                      {row.tenGoi && row.tenGoi.trim() && (() => {
+                        const stock = totalStockForName(row.tenGoi);
+                        if (stock <= 0) return (
+                          <p className="text-xs text-amber-700 mt-1">
+                            Hết hàng toàn kho — lượng tồn = 0. Đặt 0 để chuyển phần này sang <strong>Yêu cầu bổ sung</strong>.
+                          </p>
+                        );
+                        return <p className="text-xs text-gray-500 mt-1">Tồn toàn kho cho "{row.tenGoi}": {stock} {row.donViTinh}</p>;
+                      })()}
                     </div>
 
                     {/* Lô */}
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Lô <span className="text-red-500">*</span></label>
+                      {row.warehouseId ? (() => {
+                        const w = warehouses.find((x) => x.id === row.warehouseId);
+                        const lots = row.tenGoi ? matchingLotsInWarehouse(row, w as Warehouse) : (row.lots ?? []);
+                        if (lots.length === 0) return (
+                          <p className="text-xs text-gray-500 py-1">Không có lô chứa món này trong kho đã chọn</p>
+                        );
+                        return (
                       <select value={row.lotId} onChange={(e) => handleLotChange(index, e.target.value)}
-                        required disabled={!row.warehouseId}
+                        required
                         className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500 disabled:bg-gray-100">
                         <option value="">Chọn lô</option>
-                        {row.lots.map(l => <option key={l.id} value={l.id}>{l.tenLo}</option>)}
+                        {lots.map(l => <option key={l.id} value={l.id}>{l.tenLo}</option>)}
                       </select>
+                        );
+                      })() : (
+                      <select value={row.lotId} disabled
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500 disabled:bg-gray-100">
+                        <option value="">Chọn lô</option>
+                      </select>
+                      )}
                     </div>
 
                     {/* Sản phẩm — searchable, chỉ hiện kiện còn tồn */}
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Kiện hàng <span className="text-red-500">*</span></label>
+                      {row.lotId ? (
                       <LotProductCombobox
-                        lotProducts={row.lotProducts}
+                        lotProducts={(() => {
+                          const lot = row.lots.find((l) => l.id === row.lotId);
+                          const m = matchingLotProductsInLot(row, lot);
+                          // If nothing matched tenGoi, fall back to all kiện in lot (defensive)
+                          return m.length > 0 ? m : (lot?.lotProducts ?? []);
+                        })()}
                         value={row.lotProductId || null}
                         disabled={!row.lotId}
+                        hideEmpty={false}
+                        showEmptyDisabled
                         onChange={(lotProductId) => updateRow(index, { lotProductId: lotProductId ?? '' })}
                       />
+                      ) : (
+                      <LotProductCombobox
+                        lotProducts={[]}
+                        value={null}
+                        disabled
+                        onChange={() => {}}
+                      />
+                      )}
                     </div>
                   </div>
 

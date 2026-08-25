@@ -54,7 +54,7 @@ const CreatePurchaseRequestModal: React.FC<CreatePurchaseRequestModalProps> = ({
   const [ngayYeuCau] = useState(new Date().toISOString().split('T')[0]);
   const [items, setItems] = useState<ItemRow[]>([emptyRow()]);
   const [mucDichYeuCau, setMucDichYeuCau] = useState('');
-  const [mucDoUuTien, setMucDoUuTien] = useState('Trung binh');
+  const [mucDoUuTien, setMucDoUuTien] = useState('Trung bình');
   const [ghiChu, setGhiChu] = useState('');
   const [ghiChuMuaHang, setGhiChuMuaHang] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -63,13 +63,20 @@ const CreatePurchaseRequestModal: React.FC<CreatePurchaseRequestModalProps> = ({
     if (isOpen) {
       generateCode();
 
-      // Pre-fill items from supply request if available
+      // Pre-fill from the supply request — chỉ các dòng CHƯA cấp đủ; số lượng mặc
+      // định là phần còn thiếu (soLuong − fulfilledQty), không phải toàn bộ yêu
+      // cầu, để tránh tạo trùng phần kho đã cấp hoặc đã chuyển thu mua.
       if (supplyRequest) {
-        if (supplyRequest.items && supplyRequest.items.length > 0) {
-          setItems(supplyRequest.items.map(item => ({
+        const pending = (supplyRequest.items ?? []).filter((item) => {
+          const status = item.fulfillmentStatus;
+          if (status === 'Đã cấp đủ' || status === 'Chuyển thu mua') return false;
+          return (item.soLuong ?? 0) - (item.fulfilledQty ?? 0) > 1e-9;
+        });
+        if (pending.length > 0) {
+          setItems(pending.map(item => ({
             phanLoai: item.phanLoai,
             tenHangHoa: item.tenGoi,
-            soLuong: item.soLuong,
+            soLuong: Math.max(0, (item.soLuong ?? 0) - (item.fulfilledQty ?? 0)),
             donViTinh: item.donViTinh,
             nhaCungCapId: '',
             giaDuKien: '',
@@ -79,7 +86,15 @@ const CreatePurchaseRequestModal: React.FC<CreatePurchaseRequestModalProps> = ({
         }
         setMucDichYeuCau(supplyRequest.mucDichYeuCau);
         setMucDoUuTien(supplyRequest.mucDoUuTien);
-        setGhiChu(`Yeu cau mua hang tu yeu cau cung cap ${supplyRequest.maYeuCau}`);
+        setGhiChu(`Yêu cầu mua hàng từ yêu cầu cung cấp ${supplyRequest.maYeuCau}`);
+      } else {
+        // Standalone open — reset so a previous draft (or SR prefill) doesn't leak in.
+        setItems([emptyRow()]);
+        setMucDichYeuCau('');
+        setMucDoUuTien('Trung bình');
+        setGhiChu('');
+        setGhiChuMuaHang('');
+        setSelectedFiles([]);
       }
     }
   }, [isOpen, supplyRequest]);
@@ -227,6 +242,11 @@ const CreatePurchaseRequestModal: React.FC<CreatePurchaseRequestModalProps> = ({
                 Thêm dòng
               </button>
             </div>
+            {supplyRequest && (
+              <p className="text-xs text-gray-500 mb-2">
+                Số lượng mặc định là phần còn thiếu của yêu cầu {supplyRequest.maYeuCau} — điều chỉnh trước khi tạo.
+              </p>
+            )}
             <div className="border border-gray-200 rounded-md overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50">
