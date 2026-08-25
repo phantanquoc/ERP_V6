@@ -33,7 +33,7 @@ router.use(authenticate);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/', supplyRequestController.getAllSupplyRequests);
+router.get('/', requireRule('supply-requests', 'READ'), supplyRequestController.getAllSupplyRequests);
 
 /**
  * @swagger
@@ -55,7 +55,7 @@ router.get('/', supplyRequestController.getAllSupplyRequests);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/export/excel', supplyRequestController.exportToExcel);
+router.get('/export/excel', requireRule('supply-requests', 'EXPORT'), supplyRequestController.exportToExcel);
 
 /**
  * @swagger
@@ -81,7 +81,7 @@ router.get('/export/excel', supplyRequestController.exportToExcel);
  *       404:
  *         description: Không tìm thấy yêu cầu cung ứng
  */
-router.get('/:id', supplyRequestController.getSupplyRequestById);
+router.get('/:id', requireRule('supply-requests', 'READ'), supplyRequestController.getSupplyRequestById);
 
 /**
  * @swagger
@@ -108,6 +108,7 @@ router.get('/:id', supplyRequestController.getSupplyRequestById);
  */
 router.post(
   '/',
+  requireRule('supply-requests', 'CREATE'),
   supplyRequestController.createSupplyRequest
 );
 
@@ -209,12 +210,13 @@ router.delete(
  */
 router.post(
   '/:id/cancel',
-  requireRule('supply-requests', 'CREATE'),
+  requireRule('supply-requests', 'UPDATE'),
   supplyRequestController.cancelSupplyRequest
 );
 
 router.patch(
   '/:id/mark-purchased',
+  requireRule('supply-requests', 'UPDATE'),
   supplyRequestController.markMuaNhanhAsPurchased
 );
 
@@ -235,7 +237,7 @@ router.patch(
  */
 router.post(
   '/batch-fulfill',
-  requireRule('supply-requests', 'CREATE'),
+  requireRule('supply-requests', 'UPDATE'),
   supplyRequestController.batchFulfill
 );
 
@@ -244,6 +246,7 @@ router.post(
  */
 router.get(
   '/:id/decisions',
+  requireRule('supply-requests', 'READ'),
   supplyRequestController.getDecisionHistory
 );
 

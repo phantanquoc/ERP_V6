@@ -24,6 +24,10 @@ import purchaseRequestService from '../../services/purchaseRequestService';
 import { supplierService, Supplier, CreateSupplierData, UpdateSupplierData } from '../../services/supplierService';
 import { parseNumberInput } from '../../utils/numberInput';
 import UnitSelect from '../../components/common/UnitSelect';
+import { can } from '../../utils/permissions';
+import { useAuth } from '../../contexts/AuthContext';
+import { labelForPurchaseRequest } from '../../utils/purchaseRequestLabel';
+import ReplenishmentList from '../../components/ReplenishmentList';
 
 interface PurchaseRequest {
   id: string;
@@ -45,15 +49,17 @@ interface PurchaseRequest {
   nguoiDuyet?: string;
   ngayDuyet?: string;
   supplyRequestId?: string;
+  sourceType?: string;
   createdAt: string;
   updatedAt: string;
   items?: { id: string; tenHangHoa: string; soLuong: number; donViTinh: string; phanLoai: string; giaDuKien?: number; nhaCungCapId?: string | null }[];
 }
 
-const VALID_TABS = ['suppliers', 'orderList', 'purchaseRequestList'] as const;
+const VALID_TABS = ['suppliers', 'orderList', 'purchaseRequestList', 'replenishment'] as const;
 type TabType = typeof VALID_TABS[number];
 
 const PurchasingEquipment = () => {
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     const tabParam = searchParams.get('tab') as TabType;
@@ -93,31 +99,21 @@ const PurchasingEquipment = () => {
     fetchSupplierStats();
   }, []);
 
-  // Fetch purchase request stats (by month/year, filtered by Thiet bi category)
+  // Fetch purchase request stats (server-filtered by Thiết bị category + pagination.total)
   useEffect(() => {
     const fetchPRStats = async () => {
       try {
-        const response = await purchaseRequestService.getAllPurchaseRequests(1, 1000, undefined, selectedMonth, selectedYear) as any;
-        const allPR = response.data || [];
-
-        // Helper: PR matches Thiet bi category if at least 1 item has supplier.phanLoaiNCC === 'Thiết bị'
-        const prMatchesCategory = (pr: any) =>
-          pr.items?.some((item: any) => item.supplier?.phanLoaiNCC === 'Thiết bị');
-        // PR is unclassified if NO item has a classified supplier
-        const prIsUnclassified = (pr: any) =>
-          !pr.items?.some((item: any) => item.supplier?.phanLoaiNCC);
-
-        const matchedPRs = allPR.filter((pr: any) => prMatchesCategory(pr));
-        const unclassifiedPRs = allPR.filter((pr: any) => prIsUnclassified(pr));
-        const relevantPRs = [...matchedPRs, ...unclassifiedPRs.filter((pr: any) => !matchedPRs.includes(pr))];
-
+        const nvlPage: any = await purchaseRequestService.getAllPurchaseRequests(1, 1000, undefined, selectedMonth, selectedYear, { phanLoaiNCC: 'Thiết bị' });
+        const nvlList: any[] = nvlPage?.data ?? [];
+        const nvlRes: any = await purchaseRequestService.getAllPurchaseRequests(1, 1, undefined, selectedMonth, selectedYear, { phanLoaiNCC: 'Thiết bị' });
+        const nvlTotal = nvlRes?.pagination?.total;
         setCardPRStats({
-          total: relevantPRs.length,
-          choBaoGia: relevantPRs.filter((pr: any) => pr.trangThai === 'Chờ báo giá').length,
-          choDuyet: relevantPRs.filter((pr: any) => pr.trangThai === 'Chờ duyệt').length,
-          daDuyet: relevantPRs.filter((pr: any) => pr.trangThai === 'Đã duyệt').length,
-          hoanThanh: relevantPRs.filter((pr: any) => pr.trangThai === 'Hoàn thành').length,
-          chuaPhanLoai: unclassifiedPRs.length,
+          total: typeof nvlTotal === 'number' ? nvlTotal : nvlList.length,
+          choBaoGia: nvlList.filter((pr: any) => pr.trangThai === 'Chờ báo giá').length,
+          choDuyet: nvlList.filter((pr: any) => pr.trangThai === 'Chờ duyệt').length,
+          daDuyet: nvlList.filter((pr: any) => pr.trangThai === 'Đã duyệt').length,
+          hoanThanh: nvlList.filter((pr: any) => pr.trangThai === 'Hoàn thành').length,
+          chuaPhanLoai: 0,
         });
       } catch (error) {
         console.error('Error fetching PR stats:', error);
@@ -142,7 +138,7 @@ const PurchasingEquipment = () => {
   const fetchPurchaseRequests = async () => {
     try {
       setPurchaseRequestLoading(true);
-      const response = await purchaseRequestService.getAllPurchaseRequests(purchaseRequestPage, 10, purchaseRequestSearch || undefined);
+      const response: any = await purchaseRequestService.getAllPurchaseRequests(purchaseRequestPage, 10, purchaseRequestSearch || undefined, undefined, undefined, { phanLoaiNCC: 'Thiết bị' });
       setPurchaseRequests(response.data as PurchaseRequest[] || []);
       setTotalPages(response.pagination?.totalPages || 1);
     } catch (error) {
@@ -352,7 +348,8 @@ const PurchasingEquipment = () => {
   const tabs = useMemo(() => [
     { id: 'suppliers', name: 'Nhà cung cấp Thiết bị', icon: <Users className="w-4 h-4" /> },
     { id: 'orderList', name: 'Danh sách đơn hàng', icon: <ClipboardList className="w-4 h-4" /> },
-    { id: 'purchaseRequestList', name: 'Danh sách mua hàng', icon: <List className="w-4 h-4" /> }
+    { id: 'purchaseRequestList', name: 'Danh sách mua hàng', icon: <List className="w-4 h-4" /> },
+    { id: 'replenishment', name: 'Yêu cầu bổ sung', icon: <List className="w-4 h-4" /> }
   ], []);
 
 
@@ -628,7 +625,14 @@ const PurchasingEquipment = () => {
                       {purchaseRequests.map((item, index) => (
                         <tr key={item.id} className="hover:bg-gray-50">
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{(purchaseRequestPage - 1) * 10 + index + 1}</td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-purple-600">{item.maYeuCau}</td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-purple-600">
+                            {item.maYeuCau}
+                            {item.sourceType === 'SHORTAGE' && item.trangThai === 'Chờ báo giá' && (
+                              <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200 align-middle">
+                                {labelForPurchaseRequest(item)}
+                              </span>
+                            )}
+                          </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{new Date(item.ngayYeuCau).toLocaleDateString('vi-VN')}</td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{item.tenNhanVien}</td>
                           <td className="px-4 py-4 text-sm text-gray-900 max-w-xs">
@@ -662,8 +666,12 @@ const PurchasingEquipment = () => {
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                               <button onClick={() => openPurchaseRequestDetail(item)} className="text-purple-600 hover:text-purple-800" title="Xem chi tiết"><Eye className="w-4 h-4" /></button>
-                              <button onClick={() => openEditPurchaseRequest(item)} className="text-green-600 hover:text-green-800" title="Chỉnh sửa"><Edit className="w-4 h-4" /></button>
-                              <button onClick={() => handleDeletePurchaseRequest(item.id)} className="text-red-600 hover:text-red-800" title="Xóa"><Trash2 className="w-4 h-4" /></button>
+                              {can('purchase-requests','UPDATE', user?.role) && (
+                                <button onClick={() => openEditPurchaseRequest(item)} className="text-green-600 hover:text-green-800" title="Chỉnh sửa"><Edit className="w-4 h-4" /></button>
+                              )}
+                              {can('purchase-requests','DELETE', user?.role) && (
+                                <button onClick={() => handleDeletePurchaseRequest(item.id)} className="text-red-600 hover:text-red-800" title="Xóa"><Trash2 className="w-4 h-4" /></button>
+                              )}
                               {item.trangThai === 'Đã duyệt' && (
                                 <button
                                   onClick={() => handleCompletePurchaseRequest(item)}
@@ -700,6 +708,13 @@ const PurchasingEquipment = () => {
                 </div>
               )}
             </div>
+          )}
+
+          {activeTab === 'replenishment' && (
+            <ReplenishmentList
+              onOpenDetail={(pr) => setSelectedPurchaseRequest(pr)}
+              onOpenSupplyRequest={(id) => window.open(`/supply-requests?supplyRequestId=${id}`, '_blank')}
+            />
           )}
 
         {/* Supplier Detail Modal */}
@@ -742,7 +757,7 @@ const PurchasingEquipment = () => {
             <div className="bg-white rounded-lg shadow-sm max-w-4xl w-full mx-2 sm:mx-4 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
               <div className="p-4 sm:p-6">
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-bold text-gray-800">Chi tiết yêu cầu mua hàng</h2>
+                  <h2 className="text-2xl font-bold text-gray-800">Chi tiết {labelForPurchaseRequest(selectedPurchaseRequest)}</h2>
                   <button onClick={closePurchaseRequestDetail} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

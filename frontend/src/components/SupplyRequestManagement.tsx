@@ -233,14 +233,27 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
 
     // Validate rows
     for (let i = 0; i < editItems.length; i++) {
+      if (!editItems[i].phanLoai || !editItems[i].phanLoai.trim()) {
+        alert(`Dòng ${i + 1}: Vui lòng nhập phân loại`);
+        return;
+      }
       if (!editItems[i].tenGoi || !editItems[i].tenGoi.trim()) {
         alert(`Dòng ${i + 1}: Vui lòng nhập tên gọi`);
+        return;
+      }
+      if (!editItems[i].donViTinh || !editItems[i].donViTinh.trim()) {
+        alert(`Dòng ${i + 1}: Vui lòng chọn đơn vị tính`);
         return;
       }
       if (editItems[i].soLuong <= 0) {
         alert(`Dòng ${i + 1}: Số lượng phải lớn hơn 0`);
         return;
       }
+    }
+
+    if (!editMucDich || !editMucDich.trim()) {
+      alert('Vui lòng nhập mục đích yêu cầu');
+      return;
     }
 
     setLoading(true);
@@ -853,7 +866,6 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
         </div>
       </Modal>
 
-      {/* Warehouse Issue Modal */}
       <CreateWarehouseIssueModal
         isOpen={showWarehouseIssueModal}
         onClose={() => setShowWarehouseIssueModal(false)}

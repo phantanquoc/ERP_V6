@@ -12,6 +12,10 @@ class PurchaseRequestController {
       const search = req.query.search as string;
       const month = req.query.month ? parseInt(req.query.month as string) : undefined;
       const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+      const phanLoaiQ = req.query.phanLoai as string | undefined;
+      const phanLoaiNCC = req.query.phanLoaiNCC as string | undefined;
+      const sourceType = req.query.sourceType as string | undefined;
+      const trangThai = req.query.trangThai as string | undefined;
 
       const isAdmin = req.user?.role === 'ADMIN';
 
@@ -34,7 +38,16 @@ class PurchaseRequestController {
       // If purchasing or admin, no dept filter; otherwise filter by all user's depts
       const departmentIds = (isAdmin || isPurchasing) ? undefined : (allDeptIds.length > 0 ? allDeptIds : undefined);
 
-      const result = await purchaseRequestService.getAllPurchaseRequests(page, limit, search, departmentIds, month, year);
+      const result = await purchaseRequestService.getAllPurchaseRequests(
+        page,
+        limit,
+        search,
+        departmentIds,
+        month,
+        year,
+        phanLoaiQ,
+        { phanLoaiNCC, sourceType, trangThai } as any,
+      );
 
       return res.json({
         success: true,

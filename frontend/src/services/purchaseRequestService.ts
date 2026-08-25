@@ -52,7 +52,14 @@ export interface CreatePurchaseRequestRequest {
 }
 
 class PurchaseRequestService {
-  async getAllPurchaseRequests(page: number = 1, limit: number = 10, search?: string, month?: number, year?: number) {
+  async getAllPurchaseRequests(
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+    month?: number,
+    year?: number,
+    filters?: { phanLoaiNCC?: string; sourceType?: string; trangThai?: string; phanLoai?: string },
+  ) {
     const params: any = { page, limit };
     if (search) {
       params.search = search;
@@ -63,6 +70,10 @@ class PurchaseRequestService {
     if (year) {
       params.year = year;
     }
+    if (filters?.phanLoaiNCC) params.phanLoaiNCC = filters.phanLoaiNCC;
+    if (filters?.sourceType) params.sourceType = filters.sourceType;
+    if (filters?.trangThai) params.trangThai = filters.trangThai;
+    if (filters?.phanLoai) params.phanLoai = filters.phanLoai;
 
      const response = await apiClient.get('/purchase-requests', { params });
      return response;

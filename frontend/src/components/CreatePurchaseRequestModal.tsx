@@ -8,6 +8,7 @@ import { parseNumberInput } from '../utils/numberInput';
 import Modal from './Modal';
 import { useSupplierOptions } from '../hooks/useSuppliers';
 import UnitSelect from './common/UnitSelect';
+import { can } from '../utils/permissions';
 
 interface CreatePurchaseRequestModalProps {
   isOpen: boolean;
@@ -42,6 +43,8 @@ const CreatePurchaseRequestModal: React.FC<CreatePurchaseRequestModalProps> = ({
 }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  // Rule Matrix gate — CREATE purchase-requests (baseline fallback inside can())
+  const canCreate = can('purchase-requests', 'CREATE', user?.role);
 
   // Fetch active suppliers via TanStack Query
   const { data: suppliersData } = useSupplierOptions();
@@ -111,14 +114,32 @@ const CreatePurchaseRequestModal: React.FC<CreatePurchaseRequestModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!canCreate) {
+      alert('Bạn không có quyền tạo yêu cầu mua hàng');
+      return;
+    }
+
+    if (!mucDichYeuCau || !mucDichYeuCau.trim()) {
+      alert('Vui lòng nhập mục đích yêu cầu');
+      return;
+    }
+
     // Validate items
     for (let i = 0; i < items.length; i++) {
+      if (!items[i].phanLoai || !items[i].phanLoai.trim()) {
+        alert(`Dòng ${i + 1}: Vui lòng chọn phân loại`);
+        return;
+      }
       if (!items[i].tenHangHoa || !items[i].tenHangHoa.trim()) {
-        alert(`Dong ${i + 1}: Vui long nhap ten hang hoa`);
+        alert(`Dòng ${i + 1}: Vui lòng nhập tên hàng hóa`);
+        return;
+      }
+      if (!items[i].donViTinh || !items[i].donViTinh.trim()) {
+        alert(`Dòng ${i + 1}: Vui lòng chọn đơn vị tính`);
         return;
       }
       if (!items[i].soLuong || items[i].soLuong <= 0) {
-        alert(`Dong ${i + 1}: So luong phai lon hon 0`);
+        alert(`Dòng ${i + 1}: Số lượng phải lớn hơn 0`);
         return;
       }
     }

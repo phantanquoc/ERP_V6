@@ -34,10 +34,28 @@ interface CreatePurchaseRequestRequest {
   sourceType?: string;
 }
 
+// 3.1 — strict allowlist: every transition must be explicitly listed.
+// Keep legacy `Chờ duyệt` paths for migration, but block shortcuts.
+// Direct Chờ báo giá → Đã duyệt and any *→Hoàn thành except Đã duyệt→Hoàn thành are rejected.
+// FIXME: if a status outside this map is introduced, add it here intentionally — no wildcard.
+export const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+  // purchasing quotation stage → awaiting approval
+  'Chờ báo giá': ['Chờ duyệt'],
+  // approval
+  'Chờ duyệt': ['Đã duyệt', 'Từ chối'],
+  // rejected is terminal — no further transition (also covers blocked *→Hoàn thành)
+  'Từ chối': [],
+  // approved → completed
+  'Đã duyệt': ['Hoàn thành'],
+  // completed is terminal
+  'Hoàn thành': [],
+};
+
 class PurchaseRequestService {
-  private async generatePurchaseRequestCode(): Promise<string> {
+  private async generatePurchaseRequestCode(tx?: any): Promise<string> {
     const year = new Date().getFullYear();
-    const last = await prisma.purchaseRequest.findFirst({
+    const client = tx ?? prisma;
+    const last = await client.purchaseRequest.findFirst({
       where: { maYeuCau: yearlyCodeWhere('YC-MH', year) },
       orderBy: { maYeuCau: 'desc' },
       select: { maYeuCau: true },
@@ -45,7 +63,16 @@ class PurchaseRequestService {
     return nextYearlyCode(last?.maYeuCau ?? null, 'YC-MH', year);
   }
 
-  async getAllPurchaseRequests(page: number = 1, limit: number = 10, search?: string, departmentIds?: string[], month?: number, year?: number) {
+  async getAllPurchaseRequests(
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+    departmentIds?: string[],
+    month?: number,
+    year?: number,
+    phanLoaiFilter?: string | string[],
+    extra?: { phanLoaiNCC?: string; sourceType?: string; trangThai?: string },
+  ) {
     const { skip } = getPaginationParams(page, limit);
 
     // Non-admin: show PR from own departments + PR created by admin (departmentId is null)
@@ -60,11 +87,35 @@ class PurchaseRequestService {
         ? { ngayYeuCau: { gte: new Date(year, 0, 1), lt: new Date(year + 1, 0, 1) } }
         : {};
 
+    // 5.3 — server-side phanLoai / phanLoaiNCC filter
+    const phanLoaiList = (() => {
+      const fromPhanLoai = (() => {
+        if (!phanLoaiFilter) return null as string[] | null;
+        const raw = Array.isArray(phanLoaiFilter) ? phanLoaiFilter : String(phanLoaiFilter).split(',');
+        const vals = raw.map((s) => String(s).trim()).filter(Boolean);
+        return vals.length ? vals : null;
+      })();
+      if (fromPhanLoai) return fromPhanLoai;
+      const ncc = extra?.phanLoaiNCC ? String(extra.phanLoaiNCC).trim() : '';
+      if (!ncc) return null;
+      if (ncc.toUpperCase() === 'NVL') return ['Nguyên liệu', 'Bao bì', 'Nguyên vật liệu'];
+      if (ncc === 'Thiết bị' || ncc.toLowerCase() === 'thiet bi') return ['Thiết bị'];
+      return null;
+    })();
+    const phanLoaiWhere = phanLoaiList ? { items: { some: { phanLoai: { in: phanLoaiList } } } } : {};
+    const sourceTypeWhere = extra?.sourceType ? { sourceType: extra.sourceType } : {};
+    const trangThaiWhere = extra?.trangThai ? { trangThai: extra.trangThai } : {};
+    // SHORTAGE via phanLoaiNCC=SHORTAGE is handled as sourceType filter
+    const effectiveSourceTypeWhere =
+      extra?.phanLoaiNCC === 'SHORTAGE' ? { sourceType: 'SHORTAGE' } : sourceTypeWhere;
+    const classAndStageFilters = { ...phanLoaiWhere, ...effectiveSourceTypeWhere, ...trangThaiWhere };
+
     const where = search
       ? {
           AND: [
             deptFilter,
             dateFilter,
+            classAndStageFilters,
             {
               OR: [
                 { maYeuCau: { contains: search, mode: 'insensitive' as const } },
@@ -84,7 +135,7 @@ class PurchaseRequestService {
             },
           ],
         }
-      : { AND: [deptFilter, dateFilter] };
+      : { AND: [deptFilter, dateFilter, classAndStageFilters] };
 
     const [data, total] = await Promise.all([
       prisma.purchaseRequest.findMany({
@@ -149,10 +200,49 @@ class PurchaseRequestService {
     if (!data.items || data.items.length === 0) {
       throw new ValidationError('Vui lòng thêm ít nhất một sản phẩm');
     }
-
-    const maYeuCau = await this.generatePurchaseRequestCode();
+    // 3.2 — item + reference validation before any DB write
+    for (let i = 0; i < data.items.length; i++) {
+      const it = data.items[i] as PurchaseRequestItemInput;
+      if (!it.tenHangHoa || !String(it.tenHangHoa).trim()) {
+        throw new ValidationError(`Dòng ${i + 1}: tên hàng hóa không được để trống`);
+      }
+      if (!it.phanLoai || !String(it.phanLoai).trim()) {
+        throw new ValidationError(`Dòng ${i + 1}: phân loại không được để trống`);
+      }
+      if (it.soLuong === undefined || it.soLuong === null) {
+        throw new ValidationError(`Dòng ${i + 1}: số lượng không được để trống`);
+      }
+      const q = Number(it.soLuong);
+      if (!Number.isFinite(q) || q <= 0) {
+        throw new ValidationError(`Dòng ${i + 1}: số lượng phải lớn hơn 0 và là số hữu hạn`);
+      }
+    }
+    if (data.supplyRequestId) {
+      const sr = await prisma.supplyRequest.findUnique({ where: { id: data.supplyRequestId }, select: { id: true } });
+      if (!sr) throw new ValidationError('Yêu cầu cung cấp liên kết không tồn tại');
+    }
+    const referencedSupplierIds = new Set<string>();
+    for (const it of data.items) if (it.nhaCungCapId) referencedSupplierIds.add(String(it.nhaCungCapId));
+    if (data.nhaCungCapId) referencedSupplierIds.add(String(data.nhaCungCapId));
+    if (referencedSupplierIds.size > 0) {
+      const suppliers = await prisma.supplier.findMany({
+        where: { id: { in: [...referencedSupplierIds] } },
+        select: { id: true, trangThai: true },
+      });
+      const byId = new Map(suppliers.map((s: any) => [s.id, s]));
+      for (const sid of referencedSupplierIds) {
+        const s = byId.get(sid) as any;
+        if (!s) throw new ValidationError(`Nhà cung cấp không tồn tại: ${sid}`);
+        const st: string = String(s.trangThai ?? '');
+        if (st && st !== 'Đang cung cấp' && st !== 'ACTIVE' && st.toLowerCase() !== 'active') {
+          throw new ValidationError(`Nhà cung cấp không còn hoạt động: ${sid}`);
+        }
+      }
+    }
 
     const purchaseRequest = await prisma.$transaction(async (tx) => {
+      // 3.2 — maYeuCau is selected FOR the transaction, not before it
+      const maYeuCau = await this.generatePurchaseRequestCode(tx);
       const isQuick = data.isQuickPurchase ?? false;
       const sourceType = data.sourceType ?? 'MANUAL';
       // Status matrix:
@@ -227,14 +317,17 @@ class PurchaseRequestService {
     }
 
     // Notify purchasing department about the new PR (registry handles recipients)
+    // 4.2 — carry goods-class metadata for sub-department routing
     try {
       await notificationService.notify(NotificationEvent.PURCHASE_REQUEST_CREATED, {
         metadata: {
-          maYeuCau,
+          maYeuCau: purchaseRequest?.maYeuCau ?? (purchaseRequest as any)?.maYeuCau ?? '',
           purchaseRequestId: purchaseRequest?.id,
           supplyRequestId: data.supplyRequestId,
           sourceType: data.sourceType ?? 'MANUAL',
           employeeName: data.tenNhanVien,
+          items: data.items.map((i) => ({ phanLoai: i.phanLoai, tenHangHoa: i.tenHangHoa })),
+          phanLoaiGroup: (() => { const c = (data.items[0] as any)?.phanLoai; return typeof c === 'string' ? c : undefined; })(),
         },
       });
     } catch (notifError) {
@@ -248,18 +341,24 @@ class PurchaseRequestService {
     return this.generatePurchaseRequestCode();
   }
 
+  // 3.3 — tighten: remove universal TEAM_LEAD/DEPARTMENT_HEAD bypass, require
+  // __actorUserId, restrict EMPLOYEE approvals to the pricing sub-department
   private async assertCanApprovePurchase(actorUserId?: string): Promise<void> {
     if (!actorUserId) throw new ValidationError('Thiếu thông tin người duyệt');
     const user = await prisma.user.findUnique({ where: { id: actorUserId } });
     if (!user) throw new ValidationError('Người duyệt không tồn tại');
     if (user.role === 'ADMIN') return;
-    // Check DEPARTMENT_HEAD / TEAM_LEAD via authorize already? But pricing EMPLOYEE also allowed — check pricing approver
-    const secondary = await prisma.userSecondaryDepartment.findMany({ where: { userId: user.id } }).then((rows: any[]) => rows.map(r => ({ departmentId: r.departmentId, subDepartmentId: r.subDepartmentId, role: r.role })));
-    // Also allow any DEPARTMENT_HEAD/TEAM_LEAD (existing behavior for purchase approvals)
-    if (user.role === 'DEPARTMENT_HEAD' || user.role === 'TEAM_LEAD') return;
-    if (secondary.some((s: any) => s.role === 'DEPARTMENT_HEAD' || s.role === 'TEAM_LEAD')) return;
+    const secondary = await prisma.userSecondaryDepartment.findMany({
+      where: { userId: user.id },
+    }).then((rows: any[]) => rows.map((r) => ({ departmentId: r.departmentId, subDepartmentId: r.subDepartmentId, role: r.role })));
     const { isPricingApprover } = await import('@utils/isPricingApprover');
-    const payload: any = { id: user.id, role: user.role, departmentId: user.departmentId, subDepartmentId: user.subDepartmentId, secondaryDepartments: secondary };
+    const payload: any = {
+      id: user.id,
+      role: user.role,
+      departmentId: user.departmentId,
+      subDepartmentId: user.subDepartmentId,
+      secondaryDepartments: secondary,
+    };
     if (await isPricingApprover(payload)) return;
     throw new AuthorizationError('Không có quyền duyệt yêu cầu mua hàng');
   }
@@ -290,12 +389,42 @@ class PurchaseRequestService {
       throw new NotFoundError('Không tìm thấy yêu cầu mua hàng');
     }
 
-    // Guard: approval/rejection requires pricing approver or dept head (called via controller with actorId)
+    // 3.1 — ALLOWED_TRANSITIONS enforcement; also blocks Chờ báo giá→Đã duyệt
+    // and *→Hoàn thành without prior Đã duyệt, enforced at the top before any write.
+    if (data.trangThai !== undefined && data.trangThai !== existingRequest.trangThai) {
+      const allowed = ALLOWED_TRANSITIONS[existingRequest.trangThai];
+      if (!allowed || !allowed.includes(data.trangThai)) {
+        throw new ValidationError(
+          `Không thể chuyển trạng thái từ "${existingRequest.trangThai}" sang "${data.trangThai}"`
+        );
+      }
+    }
+    // 3.4 — block `* → Hoàn thành` unless prior was Đã duyệt (already blocked by map above,
+    // kept as explicit second defence for audit/readability)
+    if (data.trangThai === 'Hoàn thành' && existingRequest.trangThai !== 'Đã duyệt') {
+      throw new ValidationError('Chỉ có thể chuyển sang Hoàn thành khi đang ở Đã duyệt');
+    }
+    // 3.1 — lock items and pricing fields after Đã duyệt / Hoàn thành (and optionally Từ chối)
+    const lockedStatuses = new Set(['Đã duyệt', 'Hoàn thành']);
+    if (lockedStatuses.has(existingRequest.trangThai)) {
+      const touchesItems = data.items !== undefined;
+      const touchesPricing =
+        (data as any).nhaCungCapId !== undefined ||
+        (data as any).giaDuKien !== undefined ||
+        (data as any).phanLoai !== undefined ||
+        (data as any).tenHangHoa !== undefined ||
+        (data as any).soLuong !== undefined;
+      if (touchesItems || touchesPricing) {
+        throw new ValidationError('Không thể sửa mặt hàng/đơn giá sau khi đã duyệt hoặc hoàn thành');
+      }
+      // still allow non-pricing header edits (ghiChu, mucDichYeuCau, etc.) — only pricing/items are locked
+    }
+
+    // Guard: approval/rejection requires pricing approver (called via controller with actorId)
+    // 3.3 — __actorUserId is required; no silent pass on undefined
     const _actorIdForGuard = (data as any).__actorUserId as string | undefined;
     if (data.trangThai === 'Đã duyệt' || data.trangThai === 'Từ chối') {
-      if (_actorIdForGuard) {
-        await this.assertCanApprovePurchase(_actorIdForGuard);
-      }
+      await this.assertCanApprovePurchase(_actorIdForGuard);
     }
     // Validate approval fields
     if (data.trangThai === 'Đã duyệt') {
@@ -486,6 +615,14 @@ class PurchaseRequestService {
       throw new NotFoundError('Không tìm thấy yêu cầu mua hàng');
     }
 
+    // 3.4 — block deletion of Đã duyệt / Hoàn thành (approved/completed) PRs
+    if (existingRequest.trangThai === 'Đã duyệt' || existingRequest.trangThai === 'Hoàn thành') {
+      throw new ValidationError('Không thể xóa yêu cầu đã duyệt hoặc đã hoàn thành');
+    }
+    if ((existingRequest as any).trangThai === 'Từ chối') {
+      // Deleting a rejected PR is allowed, but keep the branch explicit for auditing
+    }
+
     await prisma.purchaseRequest.delete({
       where: { id },
     });
@@ -615,11 +752,25 @@ class PurchaseRequestService {
       );
     }
 
-    const updated = await prisma.purchaseRequest.update({
-      where: { id },
+    // 3.4 — TOCTOU-safe flip: only one concurrent caller wins; second gets 0 rows → 409-like
+    const res = await prisma.purchaseRequest.updateMany({
+      where: { id, trangThai: 'Chờ báo giá' },
       data: { trangThai: 'Chờ duyệt' },
+    });
+    if (res.count === 0) {
+      // Either not in Chờ báo giá anymore (concurrent submit) or deleted
+      const fresh = await prisma.purchaseRequest.findUnique({ where: { id }, select: { trangThai: true } });
+      throw new ValidationError(
+        fresh
+          ? `Yêu cầu đã rời trạng thái "Chờ báo giá" (hiện tại: ${fresh.trangThai})`
+          : 'Yêu cầu mua hàng không tồn tại'
+      );
+    }
+    const updated = await prisma.purchaseRequest.findUnique({
+      where: { id },
       include: { items: { include: { supplier: true } } },
     });
+    if (!updated) throw new NotFoundError('Không tìm thấy yêu cầu mua hàng');
 
     const tongTien = request.items.reduce(
       (sum, it) => sum + (it.soLuong ?? 0) * (it.giaDuKien ?? 0),

@@ -24,6 +24,9 @@ import { parseNumberInput } from '../../utils/numberInput';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import PageHeader from '../../design-system/PageHeader';
+import { can } from '../../utils/permissions';
+import { labelForPurchaseRequest } from '../../utils/purchaseRequestLabel';
+import ReplenishmentList from '../../components/ReplenishmentList';
 
 interface PurchaseRequest {
   id: string;
@@ -48,17 +51,22 @@ interface PurchaseRequest {
   nhaCungCapId?: string;
   giaDuKien?: number;
   supplyRequestId?: string;
+  sourceType?: string;
   createdAt: string;
   updatedAt: string;
   items?: { id: string; tenHangHoa: string; soLuong: number; donViTinh: string; phanLoai: string; giaDuKien?: number; nhaCungCapId?: string | null }[];
 }
 
-const VALID_TABS = ['suppliers', 'orderList', 'purchaseRequestList'] as const;
+const VALID_TABS = ['suppliers', 'orderList', 'purchaseRequestList', 'replenishment'] as const;
 type TabType = typeof VALID_TABS[number];
 
 const PurchasingMaterials = () => {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  // 6.4 — RBAC gates via Rule Matrix with baseline fallback inside can()
+  const canEditPR = can('purchase-requests', 'UPDATE', user?.role);
+  const canDeletePR = can('purchase-requests', 'DELETE', user?.role);
+  const canApprovePR = can('purchase-requests', 'APPROVE', user?.role);
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     const tabParam = searchParams.get('tab') as TabType;
     return VALID_TABS.includes(tabParam) ? tabParam : 'suppliers';
@@ -100,32 +108,26 @@ const PurchasingMaterials = () => {
     fetchSupplierStats();
   }, []);
 
-  // Fetch purchase request stats (by month/year, filtered by NVL category)
+  // Fetch purchase request stats (server-filtered by NVL category + pagination.total)
   useEffect(() => {
     const fetchPRStats = async () => {
       try {
-        const response = await purchaseRequestService.getAllPurchaseRequests(1, 1000, undefined, selectedMonth, selectedYear) as any;
-        const allPR = response.data || [];
-
-        // Helper: PR matches NVL category if at least 1 item has supplier.phanLoaiNCC === 'NVL'
-        const prMatchesCategory = (pr: any) =>
-          pr.items?.some((item: any) => item.supplier?.phanLoaiNCC === 'NVL');
-        // PR is unclassified if NO item has a classified supplier
-        const prIsUnclassified = (pr: any) =>
-          !pr.items?.some((item: any) => item.supplier?.phanLoaiNCC);
-
-        const matchedPRs = allPR.filter((pr: any) => prMatchesCategory(pr));
-        const unclassifiedPRs = allPR.filter((pr: any) => prIsUnclassified(pr));
-        const relevantPRs = [...matchedPRs, ...unclassifiedPRs.filter((pr: any) => !matchedPRs.includes(pr))];
-
+        const nvlRes: any = await purchaseRequestService.getAllPurchaseRequests(1, 1, undefined, undefined, undefined, { phanLoaiNCC: 'NVL' });
+        const replRes: any = await purchaseRequestService.getAllPurchaseRequests(1, 1, undefined, undefined, undefined, { sourceType: 'SHORTAGE', trangThai: 'Chờ báo giá' });
+        const nvlTotal = nvlRes?.pagination?.total ?? (Array.isArray(nvlRes?.data) ? nvlRes.data.length : 0);
+        const replTotal = replRes?.pagination?.total ?? (Array.isArray(replRes?.data) ? replRes.data.length : 0);
+        // For breakdown within NVL, fetch one page and count locally (filtered set is small); fallback to totals
+        const nvlPage: any = await purchaseRequestService.getAllPurchaseRequests(1, 1000, undefined, selectedMonth, selectedYear, { phanLoaiNCC: 'NVL' });
+        const nvlList: any[] = nvlPage?.data ?? [];
         setCardPRStats({
-          total: relevantPRs.length,
-          choBaoGia: relevantPRs.filter((pr: any) => pr.trangThai === 'Chờ báo giá').length,
-          choDuyet: relevantPRs.filter((pr: any) => pr.trangThai === 'Chờ duyệt').length,
-          daDuyet: relevantPRs.filter((pr: any) => pr.trangThai === 'Đã duyệt').length,
-          hoanThanh: relevantPRs.filter((pr: any) => pr.trangThai === 'Hoàn thành').length,
-          chuaPhanLoai: unclassifiedPRs.length,
+          total: typeof nvlTotal === 'number' ? nvlTotal : nvlList.length,
+          choBaoGia: nvlList.filter((pr: any) => pr.trangThai === 'Chờ báo giá').length,
+          choDuyet: nvlList.filter((pr: any) => pr.trangThai === 'Chờ duyệt').length,
+          daDuyet: nvlList.filter((pr: any) => pr.trangThai === 'Đã duyệt').length,
+          hoanThanh: nvlList.filter((pr: any) => pr.trangThai === 'Hoàn thành').length,
+          chuaPhanLoai: 0,
         });
+        void replTotal;
       } catch (error) {
         console.error('Error fetching PR stats:', error);
       }
@@ -165,7 +167,7 @@ const PurchasingMaterials = () => {
   const fetchPurchaseRequests = async () => {
     try {
       setPurchaseRequestLoading(true);
-      const response = await purchaseRequestService.getAllPurchaseRequests(purchaseRequestPage, 10, purchaseRequestSearch || undefined);
+      const response: any = await purchaseRequestService.getAllPurchaseRequests(purchaseRequestPage, 10, purchaseRequestSearch || undefined, undefined, undefined, { phanLoaiNCC: 'NVL' });
       setPurchaseRequests(response.data as PurchaseRequest[] || []);
       setTotalPages(response.pagination?.totalPages || 1);
     } catch (error) {
@@ -542,7 +544,8 @@ const PurchasingMaterials = () => {
   const tabs = useMemo(() => [
     { id: 'suppliers', name: 'Nhà cung cấp NVL', icon: <Users className="w-4 h-4" /> },
     { id: 'orderList', name: 'Danh sách đơn hàng', icon: <ClipboardList className="w-4 h-4" /> },
-    { id: 'purchaseRequestList', name: 'Danh sách mua hàng', icon: <List className="w-4 h-4" /> }
+    { id: 'purchaseRequestList', name: 'Danh sách mua hàng', icon: <List className="w-4 h-4" /> },
+    { id: 'replenishment', name: 'Yêu cầu bổ sung', icon: <ShoppingCart className="w-4 h-4" /> }
   ], []);
 
   return (
@@ -894,7 +897,14 @@ const PurchasingMaterials = () => {
                       {purchaseRequests.map((item, index) => (
                         <tr key={item.id} className="hover:bg-gray-50">
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{item.maYeuCau}</td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+                            {item.maYeuCau}
+                            {item.sourceType === 'SHORTAGE' && item.trangThai === 'Chờ báo giá' && (
+                              <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200 align-middle">
+                                {labelForPurchaseRequest(item)}
+                              </span>
+                            )}
+                          </td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                             {new Date(item.ngayYeuCau).toLocaleDateString('vi-VN')}
                           </td>
@@ -944,21 +954,25 @@ const PurchasingMaterials = () => {
                               >
                                 <Eye className="w-4 h-4" />
                               </button>
-                              <button
-                                onClick={() => openEditPurchaseRequest(item)}
-                                className="text-green-600 hover:text-green-800"
-                                title="Chỉnh sửa"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => handleDeletePurchaseRequest(item.id)}
-                                className="text-red-600 hover:text-red-800"
-                                title="Xóa"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                              {item.trangThai === 'Chờ báo giá' && (
+                              {canEditPR && (
+                                <button
+                                  onClick={() => openEditPurchaseRequest(item)}
+                                  className="text-green-600 hover:text-green-800"
+                                  title="Chỉnh sửa"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                              )}
+                              {canDeletePR && (
+                                <button
+                                  onClick={() => handleDeletePurchaseRequest(item.id)}
+                                  className="text-red-600 hover:text-red-800"
+                                  title="Xóa"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                              {canApprovePR && item.trangThai === 'Chờ báo giá' && (
                                 <button
                                   onClick={() => handleSubmitForApproval(item)}
                                   className="inline-flex items-center gap-1 px-2 py-1 bg-orange-50 text-orange-700 rounded hover:bg-orange-100 border border-orange-200 text-xs font-medium"
@@ -1018,6 +1032,15 @@ const PurchasingMaterials = () => {
             </div>
           )}
 
+          {activeTab === 'replenishment' && (
+            <ReplenishmentList
+              onOpenDetail={(pr) => setSelectedPurchaseRequest(pr as PurchaseRequest)}
+              onOpenSupplyRequest={(id) => {
+                window.open(`/supply-requests?supplyRequestId=${id}`, '_blank');
+              }}
+            />
+          )}
+
         {/* Detail Modal */}
         {isDetailModalOpen && selectedItem && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -1068,7 +1091,7 @@ const PurchasingMaterials = () => {
             <div className="bg-white rounded-lg shadow-sm max-w-4xl w-full mx-2 sm:mx-4 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
               <div className="p-4 sm:p-6">
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-bold text-gray-800">Chi tiết yêu cầu mua hàng</h2>
+                  <h2 className="text-2xl font-bold text-gray-800">Chi tiết {labelForPurchaseRequest(selectedPurchaseRequest)}</h2>
                   <button
                     onClick={closePurchaseRequestDetail}
                     className="text-gray-400 hover:text-gray-600"

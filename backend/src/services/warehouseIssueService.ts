@@ -378,7 +378,7 @@ class WarehouseIssueService {
       // Aggregate-by-package guard across every group, before anything is written.
       assertLinesFitStock(items, balances);
 
-      const { lines, closingBalances } = computeSequentialSnapshots(items, balances, 'OUT');
+      const { lines } = computeSequentialSnapshots(items, balances, 'OUT');
       const totals = computeHeaderTotals(lines);
       const withMaKien = lines.map((l) => ({ ...l, maKien: balances.get(l.lotProductId)?.maKien ?? undefined }));
 
@@ -405,8 +405,19 @@ class WarehouseIssueService {
         include: { items: { orderBy: { stt: 'asc' } } },
       });
 
-      for (const [lotProductId, soLuong] of closingBalances) {
-        await tx.lotProduct.update({ where: { id: lotProductId }, data: { soLuong } });
+      // 2.1 atomic decrement with affected-rows check; sequential snapshots remain second defence
+      const totalsByPackage = this.sumByPackage(items);
+      for (const [lotProductId, qty] of totalsByPackage) {
+        const res = await tx.lotProduct.updateMany({
+          where: { id: lotProductId, soLuong: { gte: qty } },
+          data: { soLuong: { decrement: qty } },
+        });
+        if (res.count === 0) {
+          const bal = balances.get(lotProductId);
+          throw new ValidationError(
+            `Số lượng tồn kho của ${bal?.tenSanPham ? `"${bal.tenSanPham}"` : `kiện ${lotProductId}`} không đủ. Cần ${qty}, tồn ${bal?.soLuong ?? 0}`
+          );
+        }
       }
 
       return { issue, balances, lotProductIds };
@@ -472,7 +483,7 @@ class WarehouseIssueService {
       // Aggregate guard over the resolved set, before any write.
       assertLinesFitStock(items, afterReversal);
 
-      const { lines, closingBalances } = computeSequentialSnapshots(items, afterReversal, 'OUT');
+      const { lines } = computeSequentialSnapshots(items, afterReversal, 'OUT');
       const totals = computeHeaderTotals(lines);
       const withMaKien = lines.map((l) => ({ ...l, maKien: afterReversal.get(l.lotProductId)?.maKien ?? undefined }));
 
@@ -492,10 +503,37 @@ class WarehouseIssueService {
         }
       }
 
-      // A package touched only by a reversal settles at its post-reversal balance.
-      for (const [lotProductId, balance] of afterReversal) {
-        const soLuong = closingBalances.get(lotProductId) ?? balance.soLuong;
-        await tx.lotProduct.update({ where: { id: lotProductId }, data: { soLuong } });
+      // Atomic net stock delta: incoming vs reversals, with overflow guard as second defence
+      // computeSequentialSnapshots already validated soLuongSau >= 0 per line
+      const incomingByPackage = this.sumByPackage(items);
+      for (const lotProductId of afterReversal.keys()) {
+        const incoming = incomingByPackage.get(lotProductId) ?? 0;
+        const reversal = reversals.get(lotProductId) ?? 0;
+        const netOut = incoming - reversal; // >0 means more taken, <0 means refunded
+        if (netOut > 0) {
+          const res = await tx.lotProduct.updateMany({
+            where: { id: lotProductId, soLuong: { gte: netOut } },
+            data: { soLuong: { decrement: netOut } },
+          });
+          if (res.count === 0) {
+            throw new ValidationError(`Số lượng tồn kho của kiện ${lotProductId} không đủ. Cần thêm ${netOut}`);
+          }
+        } else if (netOut < 0) {
+          await tx.lotProduct.update({ where: { id: lotProductId }, data: { soLuong: { increment: -netOut } } });
+        }
+        // netOut === 0: no stock change; closingBalances still correct via snapshots
+      }
+      // Packages appearing only in incoming (not in afterReversal) — newly targeted
+      for (const [lotProductId, incoming] of incomingByPackage) {
+        if (afterReversal.has(lotProductId)) continue;
+        const res = await tx.lotProduct.updateMany({
+          where: { id: lotProductId, soLuong: { gte: incoming } },
+          data: { soLuong: { decrement: incoming } },
+        });
+        if (res.count === 0) {
+          const bal = balances.get(lotProductId);
+          throw new ValidationError(`Số lượng tồn kho của ${bal?.tenSanPham ? `"${bal.tenSanPham}"` : `kiện ${lotProductId}`} không đủ`);
+        }
       }
 
       const updated = await tx.warehouseIssue.update({
@@ -558,19 +596,11 @@ class WarehouseIssueService {
     return prisma.$transaction(async (tx) => {
       if (stored.length > 0) {
         const refunds = this.sumByPackage(stored);
-        const balances = await this.loadBalances(
-          tx,
-          stored.map((line) => line.lotProductId)
-        );
-
+        // Atomic increment — reversal of an issue is always positive refund.
         for (const [lotProductId, quantity] of refunds) {
-          const balance = balances.get(lotProductId);
-          if (!balance) {
-            throw new ValidationError(`Không tìm thấy kiện hàng ${lotProductId} trong kho`);
-          }
           await tx.lotProduct.update({
             where: { id: lotProductId },
-            data: { soLuong: balance.soLuong + quantity },
+            data: { soLuong: { increment: quantity } },
           });
         }
       }
