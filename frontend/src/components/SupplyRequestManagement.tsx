@@ -43,6 +43,8 @@ const getStatusColor = (status: string) => {
       return 'text-emerald-700 bg-emerald-100';
     case 'Đã duyệt mua':
       return 'text-blue-700 bg-blue-100';
+    case 'Chờ bổ sung':
+      return 'text-violet-700 bg-violet-100';
     case 'Đang xử lý':
       return 'text-yellow-700 bg-yellow-100';
     case 'Đã hủy':
@@ -67,6 +69,30 @@ const getFulfillmentStatusColor = (status?: string) => {
   }
 };
 
+/** Nhãn ngắn cho badge trạng thái (tên đầy đủ giữ trong title) — tránh badge quá dài trên bảng. */
+const getStatusLabel = (status: string) => {
+  switch (status) {
+    case 'Chưa cung cấp': return 'Chưa cấp';
+    case 'Đang xử lý': return 'Đang xử lý';
+    case 'Chờ bổ sung': return 'Chờ bổ sung';
+    case 'Đã duyệt mua': return 'Đã duyệt';
+    case 'Đã mua hàng': return 'Đã mua';
+    case 'Đã cung cấp': return 'Đã cấp';
+    case 'Đã hủy': return 'Đã hủy';
+    default: return status;
+  }
+};
+
+const getFulfillmentStatusLabel = (status?: string) => {
+  switch (status) {
+    case 'Đã cấp đủ': return 'Cấp đủ';
+    case 'Đã cấp một phần': return 'Cấp một phần';
+    case 'Chuyển thu mua': return 'Chuyển thu mua';
+    case 'Chờ xử lý':
+    default: return status || 'Chờ xử lý';
+  }
+};
+
 const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
@@ -87,8 +113,9 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
     { key: 'trangThai', label: 'Trạng thái', type: 'select', options: [
       { value: 'Chưa cung cấp', label: 'Chưa cung cấp' },
       { value: 'Đang xử lý', label: 'Đang xử lý' },
+      { value: 'Chờ bổ sung', label: 'Chờ bổ sung' },
       { value: 'Đã duyệt mua', label: 'Đã duyệt mua' },
-      { value: 'Đã mua hàng', label: 'Đã mua hàng — chờ nhập kho' },
+      { value: 'Đã mua hàng', label: 'Đã mua hàng' },
       { value: 'Đã cung cấp', label: 'Đã cung cấp' },
       { value: 'Đã hủy', label: 'Đã hủy' },
     ]},
@@ -376,19 +403,22 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
 
       {/* Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px]">
+        <div className="overflow-x-auto -mx-px">
+          <table className="w-full min-w-[720px] lg:min-w-[980px] table-auto">
             <thead>
               <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày yêu cầu</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã yêu cầu</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Tên nhân viên</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Bộ phận</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Sản phẩm</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mức độ ưu tiên</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Hoạt động</th>
+                <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 w-9">#</th>
+                <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 w-24 lg:w-28">Ngày YC</th>
+                <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 w-24">Mã YC</th>
+                <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 hidden sm:table-cell">Nhân viên</th>
+                <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 hidden md:table-cell">Bộ phận</th>
+                <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200">Sản phẩm</th>
+                <th className="px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-200 w-16 lg:w-20">Ưu tiên</th>
+                <th className="px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-200 w-20 lg:w-28">Trạng thái</th>
+                <th className="px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-900 w-16 lg:w-20">
+                  <span className="hidden sm:inline">Hành động</span>
+                  <span className="sm:hidden">•••</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -415,51 +445,54 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                         : index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                     } hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all border-b border-gray-200`}
                   >
-                    <td className="px-6 py-4 text-sm border-r border-gray-200">{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                    <td className="px-6 py-4 text-sm border-r border-gray-200">{new Date(request.ngayYeuCau).toLocaleDateString('vi-VN')}</td>
-                    <td className="px-6 py-4 text-sm font-medium text-indigo-600 border-r border-gray-200">{request.maYeuCau}</td>
-                    <td className="px-6 py-4 text-sm border-r border-gray-200">{request.tenNhanVien}</td>
-                    <td className="px-6 py-4 text-sm border-r border-gray-200">{request.boPhan}</td>
-                    <td className="px-6 py-4 text-sm border-r border-gray-200">
+                    <td className="px-2 lg:px-4 py-2 sm:py-3 text-sm border-r border-gray-200 text-center">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                    <td className="px-2 lg:px-4 py-2 sm:py-3 text-xs sm:text-sm border-r border-gray-200 whitespace-nowrap">{new Date(request.ngayYeuCau).toLocaleDateString('vi-VN')}</td>
+                    <td className="px-2 lg:px-4 py-2 sm:py-3 text-xs sm:text-sm font-medium text-indigo-600 border-r border-gray-200 whitespace-nowrap" title={request.maYeuCau}>{request.maYeuCau}</td>
+                    <td className="px-2 lg:px-4 py-2 sm:py-3 text-xs sm:text-sm border-r border-gray-200 hidden sm:table-cell truncate max-w-[120px] lg:max-w-[160px]" title={request.tenNhanVien}>{request.tenNhanVien}</td>
+                    <td className="px-2 lg:px-4 py-2 sm:py-3 text-xs sm:text-sm border-r border-gray-200 hidden md:table-cell truncate max-w-[110px] lg:max-w-[140px]" title={request.boPhan}>{request.boPhan}</td>
+                    <td className="px-2 lg:px-4 py-2 sm:py-3 text-xs sm:text-sm border-r border-gray-200 max-w-[140px] lg:max-w-[260px]">
                       {request.items && request.items.length > 0 ? (
-                        <span className="text-gray-700">{request.items.map(i => i.tenGoi).join(', ')}</span>
+                        <span className="text-gray-700 line-clamp-2 break-words" title={request.items.map((i: any) => i.tenGoi).join(', ')}>{request.items.map((i: any) => i.tenGoi).join(', ')}</span>
                       ) : (
-                        <span className="text-gray-400 italic">Không có sản phẩm</span>
+                        <span className="text-gray-400 italic">Không có</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-sm border-r border-gray-200">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(request.mucDoUuTien)}`}>
+                    <td className="px-2 lg:px-4 py-2 sm:py-3 text-center text-sm border-r border-gray-200">
+                      <span className={`inline-flex px-1.5 lg:px-2 py-0.5 rounded-full text-[10px] lg:text-xs font-medium whitespace-nowrap ${getPriorityColor(request.mucDoUuTien)}`}>
                         {request.mucDoUuTien}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm border-r border-gray-200">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(request.trangThai)}`}>
-                        {request.trangThai}
+                    <td className="px-2 lg:px-4 py-2 sm:py-3 text-center text-sm border-r border-gray-200" title={request.trangThai}>
+                      <span className={`inline-flex px-1.5 lg:px-2 py-0.5 rounded-full text-[10px] lg:text-xs font-medium whitespace-nowrap ${getStatusColor(request.trangThai)}`}>
+                        <span className="hidden lg:inline">{request.trangThai}</span>
+                        <span className="lg:hidden">{getStatusLabel(request.trangThai)}</span>
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm">
-                      <div className="flex items-center gap-1">
+                    <td className="px-2 lg:px-4 py-2 sm:py-3 text-center text-sm" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-center gap-0.5">
                         {!isCancelled(request.trangThai) && canDelete && (
                           <button
                             onClick={(e) => { e.stopPropagation(); handleDelete(request.id); }}
-                            className="p-1.5 rounded-md text-red-600 hover:bg-red-100 hover:text-red-800 transition-colors"
+                            className="p-1 lg:p-1.5 rounded-md text-red-600 hover:bg-red-100 hover:text-red-800 transition-colors"
                             title="Xóa"
+                            aria-label="Xóa"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
                           </button>
                         )}
 
                         {!isCancelled(request.trangThai) && canCancel && (request.trangThai === 'Chưa cung cấp' || request.trangThai === 'Đang xử lý') && (
                           <button
                             onClick={(e) => { e.stopPropagation(); handleCancel(request.id); }}
-                            className="p-1.5 rounded-md text-orange-600 hover:bg-orange-100 hover:text-orange-800 transition-colors"
+                            className="p-1 lg:p-1.5 rounded-md text-orange-600 hover:bg-orange-100 hover:text-orange-800 transition-colors"
                             title="Hủy yêu cầu"
+                            aria-label="Hủy"
                           >
-                            <XCircle className="h-4 w-4" />
+                            <XCircle className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
                           </button>
                         )}
 
-                        {!isCancelled(request.trangThai) && request.purchaseRequests?.some(pr => pr.trangThai === 'Đã duyệt' || pr.trangThai === 'Hoàn thành') && (() => {
+                        {!isCancelled(request.trangThai) && request.purchaseRequests?.some((pr: any) => pr.trangThai === 'Đã duyệt' || pr.trangThai === 'Hoàn thành') && (() => {
                           const daNhapKho = request.warehouseReceipts && request.warehouseReceipts.length > 0;
                           return (
                             <button
@@ -472,12 +505,13 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                               }}
                               disabled={daNhapKho}
                               className={daNhapKho
-                                ? "p-1.5 rounded-md text-gray-400 cursor-not-allowed"
-                                : "p-1.5 rounded-md text-green-600 hover:bg-green-100 hover:text-green-800 transition-colors"
+                                ? "p-1 lg:p-1.5 rounded-md text-gray-400 cursor-not-allowed"
+                                : "p-1 lg:p-1.5 rounded-md text-green-600 hover:bg-green-100 hover:text-green-800 transition-colors"
                               }
                               title={daNhapKho ? "Đã nhập kho" : "Nhập kho"}
+                              aria-label={daNhapKho ? "Đã nhập kho" : "Nhập kho"}
                             >
-                              <PackagePlus className="h-4 w-4" />
+                              <PackagePlus className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
                             </button>
                           );
                         })()}
@@ -570,19 +604,19 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                   {/* Items sub-table */}
                   <div>
                     <h3 className="text-sm font-medium text-gray-700 mb-2">Danh sách sản phẩm</h3>
-                    <div className="border border-gray-200 rounded-md overflow-x-auto">
-                      <table className="w-full min-w-[820px] text-sm">
+                    <div className="border border-gray-200 rounded-md overflow-x-auto -mx-px">
+                      <table className="w-full min-w-[520px] lg:min-w-[640px] text-xs sm:text-sm">
                         <thead className="bg-gray-50">
                           <tr>
                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">#</th>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Phân loại</th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">Phân loại</th>
                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tên gọi</th>
-                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Yêu cầu</th>
-                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Đã cấp</th>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Đơn vị</th>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Yêu cầu</th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Đã cấp</th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Đơn vị</th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Trạng thái</th>
                             {canEdit && (
-                              <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Thao tác</th>
+                              <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Thao tác</th>
                             )}
                           </tr>
                         </thead>
@@ -595,24 +629,24 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                               return (
                                 <tr key={item.id} className="hover:bg-gray-50">
                                   <td className="px-3 py-2 text-gray-500">{idx + 1}</td>
-                                  <td className="px-3 py-2">{item.phanLoai}</td>
+                                  <td className="px-3 py-2 hidden lg:table-cell">{item.phanLoai}</td>
                                   <td className="px-3 py-2 font-medium">
                                     <span>{item.tenGoi}</span>
                                     {item.isNewProduct && (
-                                      <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200 align-middle">
+                                      <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200 align-middle whitespace-nowrap">
                                         <AlertTriangle className="h-3 w-3" />
-                                        Chưa có trong kho
+                                        Mới
                                       </span>
                                     )}
                                   </td>
-                                  <td className="px-3 py-2 text-right">{item.soLuong.toLocaleString('vi-VN')}</td>
-                                  <td className="px-3 py-2 text-right text-blue-700 font-medium">
+                                  <td className="px-3 py-2 text-right whitespace-nowrap">{item.soLuong.toLocaleString('vi-VN')}</td>
+                                  <td className="px-3 py-2 text-right text-blue-700 font-medium whitespace-nowrap">
                                     {fulfilledQty.toLocaleString('vi-VN')}
                                   </td>
-                                  <td className="px-3 py-2">{item.donViTinh}</td>
-                                  <td className="px-3 py-2">
-                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getFulfillmentStatusColor(fulfillmentStatus)}`}>
-                                      {fulfillmentStatus}
+                                  <td className="px-3 py-2 hidden sm:table-cell">{item.donViTinh}</td>
+                                  <td className="px-3 py-2" title={fulfillmentStatus}>
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${getFulfillmentStatusColor(fulfillmentStatus)}`}>
+                                      {getFulfillmentStatusLabel(fulfillmentStatus)}
                                     </span>
                                   </td>
                                   {canEdit && (
