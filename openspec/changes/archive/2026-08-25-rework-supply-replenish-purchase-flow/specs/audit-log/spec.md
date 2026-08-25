@@ -1,9 +1,19 @@
-# audit-log Specification
+## ADDED Requirements
 
-## Purpose
+### Requirement: Supply request decision audit links to replenishment
 
-Cross-entity audit log for pricing and supply workflows.
-## Requirements
+`SupplyRequestDecision.triggeredPurchaseRequestId` SHALL be a nullable foreign key to `PurchaseRequest.id` (`onDelete: SetNull`) with an index. When warehouse fulfillment creates replenishment purchase requests, each affected decision row SHALL store the id of the purchase request created for its `phanLoai` group, so decision history exposes the replenishment linkage.
+
+#### Scenario: Shortage decision stores its replenishment id
+- **WHEN** batch fulfillment groups two shortage lines (same `phanLoai`) into one `SHORTAGE` PR
+- **THEN** both resulting `SupplyRequestDecision` rows share the same `triggeredPurchaseRequestId` pointing to that PR
+
+#### Scenario: Non-shortage decision stores no purchase reference
+- **WHEN** a line is fulfilled in full with no shortage
+- **THEN** its decision row has `triggeredPurchaseRequestId = null`
+
+## MODIFIED Requirements
+
 ### Requirement: Cross-entity audit log model
 
 The system SHALL persist an immutable audit record in the `common.AuditLog` table for every CREATE, UPDATE, DELETE, STATUS_CHANGE, and PRICE_UNLOCK action performed on pricing entities (`QuotationRequest`, `Quotation`, `Order`, `ExportCost`). Each record SHALL capture `entityType`, `entityId`, `action`, `actorId`, `actorRole`, optional `before` and `after` JSON snapshots, optional `note`, and `createdAt`. `before` and `after` columns are JSON because the captured payloads are immutable historical snapshots; they MUST NOT be edited after write.
@@ -55,16 +65,3 @@ The system SHALL expose `GET /api/audit-logs` returning paginated audit rows fil
 
 - **WHEN** the request supplies `entityType` outside the union `'QuotationRequest' | 'Quotation' | 'Order' | 'ExportCost'`
 - **THEN** the system returns HTTP 400 `ValidationError('entityType không hợp lệ')`
-
-### Requirement: Supply request decision audit links to replenishment
-
-`SupplyRequestDecision.triggeredPurchaseRequestId` SHALL be a nullable foreign key to `PurchaseRequest.id` (`onDelete: SetNull`) with an index. When warehouse fulfillment creates replenishment purchase requests, each affected decision row SHALL store the id of the purchase request created for its `phanLoai` group, so decision history exposes the replenishment linkage.
-
-#### Scenario: Shortage decision stores its replenishment id
-- **WHEN** batch fulfillment groups two shortage lines (same `phanLoai`) into one `SHORTAGE` PR
-- **THEN** both resulting `SupplyRequestDecision` rows share the same `triggeredPurchaseRequestId` pointing to that PR
-
-#### Scenario: Non-shortage decision stores no purchase reference
-- **WHEN** a line is fulfilled in full with no shortage
-- **THEN** its decision row has `triggeredPurchaseRequestId = null`
-
