@@ -286,6 +286,49 @@ class LotProductService {
       orderBy: { createdAt: 'asc' },
     });
   }
+
+  /**
+   * Stock lookup for the supply-request "Kiểm tra tồn kho" modal.
+   * Mirrors the frontend fuzzy match (diacritic-insensitive, two-way
+   * substring) but runs server-side so the browser only receives the grouped
+   * result instead of the entire lotProduct table.
+   */
+  async checkStockByNames(names: string[]) {
+    const normalize = (s: string) =>
+      (s ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/gi, 'd')
+        .toLowerCase()
+        .trim();
+
+    const lotProducts = await prisma.lotProduct.findMany({
+      include: {
+        internationalProduct: { select: { tenSanPham: true } },
+        lot: { include: { warehouse: { select: { tenKho: true } } } },
+      },
+    });
+
+    return names.map((name) => {
+      const n = normalize(name);
+      const matched = n
+        ? lotProducts.filter((lp) => {
+            const pname = normalize(lp.internationalProduct?.tenSanPham ?? '');
+            return pname !== '' && (pname.includes(n) || n.includes(pname));
+          })
+        : [];
+      return {
+        productName: name,
+        items: matched.map((lp) => ({
+          tenKho: lp.lot?.warehouse?.tenKho ?? 'N/A',
+          tenLo: lp.lot?.tenLo ?? 'N/A',
+          soLuong: lp.soLuong ?? 0,
+          giaThanh: lp.giaThanh ?? 0,
+          donViTinh: lp.donViTinh ?? 'KG',
+        })),
+      };
+    });
+  }
 }
 
 export default new LotProductService();

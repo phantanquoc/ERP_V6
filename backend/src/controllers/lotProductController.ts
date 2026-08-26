@@ -105,6 +105,35 @@ export class LotProductController {
       next(error);
     }
   }
+
+  async checkStockByNames(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const rawBody = req.body?.names;
+      const rawQuery = req.query.names as string | undefined;
+      let names: string[] = [];
+      if (Array.isArray(rawBody)) {
+        names = rawBody;
+      } else if (typeof rawBody === 'string' && rawBody.trim()) {
+        names = [rawBody.trim()];
+      } else if (typeof rawQuery === 'string' && rawQuery.trim()) {
+        names = rawQuery.split(',').map((s) => s.trim()).filter(Boolean);
+      }
+      const clean = names.map((s) => String(s).trim()).filter(Boolean);
+      if (clean.length === 0) {
+        res.json({ success: true, data: [] });
+        return;
+      }
+      if (clean.length > 200) {
+        res.status(400).json({ success: false, message: 'Tối đa 200 tên sản phẩm' });
+        return;
+      }
+      const data = await lotProductService.checkStockByNames(clean);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
 }
 
 export default new LotProductController();
