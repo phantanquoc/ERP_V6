@@ -49,6 +49,7 @@ const InternationalProductManagement: React.FC = () => {
     moTaSanPham: '',
     loaiSanPham: '',
     donViTinh: '',
+    giaThanh: '',
   });
   /**
    * True once the user edits the code by hand. Auto-suggestion then stops, so typing a
@@ -134,6 +135,11 @@ const InternationalProductManagement: React.FC = () => {
     }
 
     try {
+      const parsedGiaThanh = formData.giaThanh.trim() === '' ? null : Number(formData.giaThanh);
+      if (parsedGiaThanh !== null && (!Number.isFinite(parsedGiaThanh) || parsedGiaThanh < 0)) {
+        toast.error('Giá thành phải là số không âm');
+        return;
+      }
       // The code is user-editable now, so send whatever is in the field. Left empty,
       // the backend falls back to its own suggestion.
       await internationalProductService.createProduct({
@@ -142,6 +148,7 @@ const InternationalProductManagement: React.FC = () => {
         moTaSanPham: formData.moTaSanPham,
         loaiSanPham: formData.loaiSanPham,
         donViTinh: formData.donViTinh,
+        ...(parsedGiaThanh !== null ? { giaThanh: parsedGiaThanh } : {}),
       });
       toast.success('Tạo hàng hóa thành công');
       setShowModal(false);
@@ -165,12 +172,18 @@ const InternationalProductManagement: React.FC = () => {
     }
 
     try {
+      const parsedGiaThanh = formData.giaThanh.trim() === '' ? null : Number(formData.giaThanh);
+      if (parsedGiaThanh !== null && (!Number.isFinite(parsedGiaThanh) || parsedGiaThanh < 0)) {
+        toast.error('Giá thành phải là số không âm');
+        return;
+      }
       await internationalProductService.updateProduct(editingProduct.id, {
         maSanPham: formData.maSanPham.trim(),
         tenSanPham: formData.tenSanPham,
         moTaSanPham: formData.moTaSanPham,
         loaiSanPham: formData.loaiSanPham,
         donViTinh: formData.donViTinh,
+        giaThanh: parsedGiaThanh,
       });
       toast.success('Cập nhật hàng hóa thành công');
       setShowModal(false);
@@ -205,7 +218,7 @@ const InternationalProductManagement: React.FC = () => {
 
   const openCreateModal = () => {
     setEditingProduct(null);
-    setFormData({ maSanPham: '', tenSanPham: '', moTaSanPham: '', loaiSanPham: '', donViTinh: '' });
+    setFormData({ maSanPham: '', tenSanPham: '', moTaSanPham: '', loaiSanPham: '', donViTinh: '', giaThanh: '' });
     // The code is derived from name + category, so there is nothing to suggest until the
     // user has entered them — no fetch on open.
     setCodeTouched(false);
@@ -220,6 +233,7 @@ const InternationalProductManagement: React.FC = () => {
       moTaSanPham: product.moTaSanPham || '',
       loaiSanPham: product.loaiSanPham || '',
       donViTinh: product.donViTinh || '',
+      giaThanh: product.giaThanh != null ? String(product.giaThanh) : '',
     });
     // An existing code is the user's, never auto-replaced.
     setCodeTouched(true);
@@ -267,6 +281,7 @@ const InternationalProductManagement: React.FC = () => {
       moTaSanPham: '',
       loaiSanPham: '',
       donViTinh: '',
+      giaThanh: '',
     });
     setEditingProduct(null);
   };
@@ -420,6 +435,16 @@ const InternationalProductManagement: React.FC = () => {
                 filterOptions={unitOptions}
                 className="w-20"
               />
+              {/* Giá thành chuẩn (VND) — giá vốn mặc định của hàng hóa; kiện thực tế
+                  có thể khác và sửa trong modal "Sửa kiện" của kho. */}
+              <SortableColumnHeader
+                label="Giá thành"
+                sortKey="giaThanh"
+                activeSortKey={sortBy}
+                activeSortOrder={sortOrder}
+                onSort={handleSort}
+                className="w-32"
+              />
               <SortableColumnHeader
                 label="Mô tả"
                 sortKey="moTaSanPham"
@@ -435,13 +460,13 @@ const InternationalProductManagement: React.FC = () => {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                   Đang tải...
                 </td>
               </tr>
             ) : products.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
+                <td colSpan={8} className="px-4 py-10 text-center text-gray-500">
                   {hasActiveFilter ? (
                     <div className="flex flex-col items-center gap-2">
                       <span>Không tìm thấy hàng hóa khớp bộ lọc</span>
@@ -480,6 +505,11 @@ const InternationalProductManagement: React.FC = () => {
                   </td>
                   <td className="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
                     {product.donViTinh || <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-3 py-2 text-sm text-right tabular-nums text-gray-900" title={product.giaThanh != null ? `${product.giaThanh.toLocaleString('vi-VN')} đ` : 'Chưa định giá'}>
+                    {product.giaThanh != null && Number.isFinite(product.giaThanh)
+                      ? `${new Intl.NumberFormat('vi-VN').format(product.giaThanh)} đ`
+                      : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-3 py-2 text-sm text-gray-500 max-w-xs truncate" title={product.moTaSanPham || ''}>
                     {product.moTaSanPham || <span className="text-gray-300">—</span>}

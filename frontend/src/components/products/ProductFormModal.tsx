@@ -10,6 +10,7 @@ export interface ProductFormData {
   moTaSanPham: string;
   loaiSanPham: string;
   donViTinh: string;
+  giaThanh: string;
 }
 
 /**
@@ -103,6 +104,24 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({
               />
               <UnitSuggestions />
             </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Giá thành <span className="text-gray-400 font-normal text-xs">(VND / đơn vị)</span>
+            </label>
+            <input
+              type="number"
+              name="giaThanh"
+              value={formData.giaThanh}
+              onChange={onChange}
+              placeholder="VD: 100000 — để trống nếu chưa định giá"
+              min={0}
+              step={1000}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="mt-1 text-xs text-gray-400">
+              Giá chuẩn của hàng hóa — kiện mới nhập tự nhận giá này thay vì mặc định 100.000.
+            </p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">

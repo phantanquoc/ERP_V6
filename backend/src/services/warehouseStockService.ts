@@ -151,7 +151,15 @@ async function receiveSplit(input: ReceiveSplitInput) {
   if (selected.length > 0) {
     return await prisma.$transaction(async (tx) => {
       for (const k of selected) {
-        await tx.lotProduct.update({ where: { id: k.id }, data: { internationalProductId: product.id, donViTinh: unit } });
+        await tx.lotProduct.update({
+          where: { id: k.id },
+          data: {
+            internationalProductId: product.id,
+            donViTinh: unit,
+            // Kiện mới nhận giá chuẩn của hàng hóa thay vì giữ default DB (100000đ).
+            ...(product.giaThanh != null ? { giaThanh: product.giaThanh } : {}),
+          },
+        });
       }
       // Truyền tx client vào receiptService để cùng transaction (nếu service hỗ trợ, fallback là tạo trong tx hiện tại)
       // Ở đây tự tạo receipt + items + cập nhật soLuong trong cùng tx để đảm bảo atomic

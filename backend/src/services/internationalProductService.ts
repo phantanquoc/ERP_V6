@@ -20,6 +20,7 @@ export const PRODUCT_SORT_FIELDS = [
   'loaiSanPham',
   'donViTinh',
   'moTaSanPham',
+  'giaThanh',
   'createdAt',
 ] as const;
 
@@ -156,11 +157,24 @@ export class InternationalProductService {
   /**
    * Whitelist the writable columns. The controller forwards req.body wholesale, so an
    * unexpected key would otherwise reach Prisma and fail with an opaque error.
+   *
+   * `giaThanh` (VND / unit, nullable) is the default price for the stock item; when the
+   * warehouse creates a new parcel (LotProduct) it seeds its unit price from this field
+   * instead of the hardcoded 100,000 placeholder. Pass `null` or `''` to clear the default.
    */
   private pickProductFields(data: any) {
     const out: Record<string, any> = {};
     for (const key of ['tenSanPham', 'moTaSanPham', 'loaiSanPham', 'donViTinh'] as const) {
       if (data[key] !== undefined) out[key] = data[key];
+    }
+    if (data.giaThanh !== undefined) {
+      if (data.giaThanh === null || data.giaThanh === '') {
+        out.giaThanh = null;
+      } else {
+        const n = typeof data.giaThanh === 'number' ? data.giaThanh : parseFloat(String(data.giaThanh));
+        if (!Number.isFinite(n) || n < 0) throw new ValidationError('Giá thành phải là số không âm');
+        out.giaThanh = n;
+      }
     }
     return out;
   }
@@ -278,6 +292,7 @@ export class InternationalProductService {
       { header: 'Tên hàng hóa', key: 'tenSanPham', width: 40 },
       { header: 'Loại hàng hóa', key: 'loaiSanPham', width: 26 },
       { header: 'Đơn vị tính', key: 'donViTinh', width: 12 },
+      { header: 'Giá thành (VND)', key: 'giaThanh', width: 16 },
       { header: 'Mô tả', key: 'moTaSanPham', width: 40 },
       { header: 'Ngày tạo', key: 'createdAt', width: 14 },
     ];
@@ -295,6 +310,7 @@ export class InternationalProductService {
         tenSanPham: item.tenSanPham,
         loaiSanPham: item.loaiSanPham || '',
         donViTinh: item.donViTinh || '',
+        giaThanh: item.giaThanh != null ? Number(item.giaThanh).toLocaleString('vi-VN') : '',
         moTaSanPham: item.moTaSanPham || '',
         createdAt: new Date(item.createdAt).toLocaleDateString('vi-VN'),
       });

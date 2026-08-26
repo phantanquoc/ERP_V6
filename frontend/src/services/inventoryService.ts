@@ -7,7 +7,7 @@ export interface InventoryFilters {
   donViTinh?: string;
   hasStock?: boolean;
   stockStatus?: 'all' | 'low' | 'normal';
-  sortBy?: 'maSanPham' | 'tenSanPham' | 'loaiSanPham' | 'tongTonKho';
+  sortBy?: 'maSanPham' | 'tenSanPham' | 'loaiSanPham' | 'tongTonKho' | 'giaThanhTB' | 'giaTriTon';
   sortOrder?: 'asc' | 'desc';
   page?: number;
   limit?: number;
@@ -17,6 +17,10 @@ export interface WarehouseStockDetail {
   warehouseId: string;
   tenKho: string;
   soLuong: number;
+  /** Giá thành TB gia quyền của các kiện còn hàng tại kho này (VND/đơn vị). */
+  giaThanhTB: number | null;
+  /** Giá trị tồn tại kho này = soLuong × giaThanhTB. */
+  giaTriTon: number | null;
 }
 
 export interface InventoryItem {
@@ -26,6 +30,10 @@ export interface InventoryItem {
   loaiSanPham: string | null;
   donViTinh: string | null;
   tongTonKho: number;
+  /** Giá thành TB gia quyền trên các kiện còn hàng (VND/đơn vị); null nếu chưa kiện nào có giá. */
+  giaThanhTB: number | null;
+  /** Tổng giá trị tồn = tongTonKho × giaThanhTB; null nếu chưa có giá. */
+  giaTriTon: number | null;
   chiTietTheoKho: WarehouseStockDetail[];
 }
 

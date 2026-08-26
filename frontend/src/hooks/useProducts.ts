@@ -17,6 +17,7 @@ export const PRODUCT_SORT_FIELDS = [
   'loaiSanPham',
   'donViTinh',
   'moTaSanPham',
+  'giaThanh',
   'createdAt',
 ] as const;
 

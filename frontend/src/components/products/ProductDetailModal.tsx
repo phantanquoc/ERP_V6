@@ -66,6 +66,13 @@ const ProductDetailModal: React.FC<ProductDetailModalProps> = ({ isOpen, product
                 </div>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-500">Giá thành (VND / đơn vị)</label>
+                <p className="mt-1 text-sm text-gray-900">
+                  {product.giaThanh != null && Number.isFinite(product.giaThanh)
+                    ? `${new Intl.NumberFormat('vi-VN').format(product.giaThanh)} đ` : 'Chưa định giá'}
+                </p>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-500">Mô tả hàng hóa</label>
                 <p className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">{product.moTaSanPham || '-'}</p>
               </div>

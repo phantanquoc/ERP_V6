@@ -8,6 +8,8 @@ export interface InternationalProduct {
   moTaSanPham?: string;
   loaiSanPham?: string;
   donViTinh?: string;
+  /** Giá thành chuẩn (VND / đơn vị) — mặc định cho kiện mới khi nhập kho. */
+  giaThanh?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -32,6 +34,7 @@ export interface CreateProductData {
   moTaSanPham?: string;
   loaiSanPham?: string;
   donViTinh?: string;
+  giaThanh?: number | null;
 }
 
 export interface UpdateProductData {
@@ -41,6 +44,7 @@ export interface UpdateProductData {
   moTaSanPham?: string;
   loaiSanPham?: string;
   donViTinh?: string;
+  giaThanh?: number | null;
 }
 
 export interface RenameCategoryPreview {
