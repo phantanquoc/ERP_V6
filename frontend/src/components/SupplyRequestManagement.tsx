@@ -12,7 +12,6 @@ import PartialFulfillmentModal from './PartialFulfillmentModal';
 import type { SupplyRequestItem } from '../services/supplyRequestService';
 import { parseNumberInput } from '../utils/numberInput';
 import warehouseService from '../services/warehouseService';
-import { productMatchesName } from '../utils/productNameMatch';
 import TableFilter, { FilterField } from './TableFilter';
 import Modal from './Modal';
 import ConfirmDialog from './common/ConfirmDialog';
@@ -94,6 +93,16 @@ const getFulfillmentStatusLabel = (status?: string) => {
   }
 };
 
+const getDecisionColor = (decision: string) => {
+  switch (decision) {
+    case 'Cấp đủ': return 'text-green-700 bg-green-100';
+    case 'Cấp một phần': return 'text-orange-700 bg-orange-100';
+    case 'Chuyển thu mua': return 'text-blue-700 bg-blue-100';
+    case 'Không cấp': return 'text-red-700 bg-red-100';
+    default: return 'text-gray-700 bg-gray-100';
+  }
+};
+
 const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
@@ -105,7 +114,6 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   const canCancel = isCachedPermissionsLoaded() ? can('supply-requests', 'UPDATE', user?.role) : _roleEdit; // CANCEL maps to UPDATE
   const [requests, setRequests] = useState<SupplyRequest[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm] = useState('');
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maYeuCau: '', tenNhanVien: '', boPhan: '', trangThai: '', mucDoUuTien: '' });
   const supplyFilterFields: FilterField[] = [
     { key: 'maYeuCau', label: 'Mã yêu cầu', type: 'text' },
@@ -152,7 +160,37 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
     onConfirm: () => void;
   }>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
 
+  // Decision history for the detail modal (audit trail of fulfilment)
+  const [decisions, setDecisions] = useState<any[]>([]);
+  const [loadingDecisions, setLoadingDecisions] = useState(false);
+
   const isCancelled = (status: string) => status === 'Đã hủy';
+  const isCompleted = (status: string) => status === 'Đã cung cấp';
+  // Request has already entered the purchasing pipeline — creating another
+  // purchase request from it is redundant.
+  const isPurchasing = (status: string) => status === 'Đã duyệt mua' || status === 'Đã mua hàng';
+
+  const serverFilters = React.useMemo(() => {
+    const f: Record<string, string> = {};
+    const s = (filterValues._search || '').trim();
+    if (s) f.search = s;
+    if ((filterValues.maYeuCau || '').trim()) f.maYeuCau = filterValues.maYeuCau.trim();
+    if ((filterValues.tenNhanVien || '').trim()) f.tenNhanVien = filterValues.tenNhanVien.trim();
+    if ((filterValues.boPhan || '').trim()) f.boPhan = filterValues.boPhan.trim();
+    if (filterValues.trangThai) f.trangThai = filterValues.trangThai;
+    if (filterValues.mucDoUuTien) f.mucDoUuTien = filterValues.mucDoUuTien;
+    return f;
+  }, [filterValues]);
+
+  const handleFilterChange = (next: Record<string, string>) => {
+    setFilterValues(next);
+    setCurrentPage(1);
+  };
+
+  const formatDateVN = (v: string) => {
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('vi-VN');
+  };
 
   // Edit form state
   const [editItems, setEditItems] = useState<EditItemRow[]>([emptyEditRow()]);
@@ -162,7 +200,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
 
   useEffect(() => {
     fetchRequests();
-  }, [searchTerm, currentPage]);
+  }, [currentPage, serverFilters]);
 
   useEffect(() => {
     const srId = searchParams.get('supplyRequestId');
@@ -179,12 +217,32 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
     }
   }, [searchParams]);
 
+  // Load decision history whenever the detail modal opens in view mode.
+  useEffect(() => {
+    if (showModal && modalMode === 'view' && selectedRequest?.id) {
+      setLoadingDecisions(true);
+      supplyRequestService.getDecisionHistory(selectedRequest.id)
+        .then((res: any) => {
+          const payload = res?.data ?? res;
+          setDecisions((payload?.data ?? payload ?? []) as any[]);
+        })
+        .catch(() => setDecisions([]))
+        .finally(() => setLoadingDecisions(false));
+    } else {
+      setDecisions([]);
+    }
+  }, [showModal, modalMode, selectedRequest?.id]);
+
   const fetchRequests = async () => {
     setLoading(true);
     try {
-      const response = await supplyRequestService.getAllSupplyRequests(currentPage, itemsPerPage, searchTerm);
-      setRequests(response.data as SupplyRequest[]);
-      setTotalItems(response.pagination?.total || (response.data as SupplyRequest[]).length);
+      const response: any = await supplyRequestService.getAllSupplyRequests(currentPage, itemsPerPage, serverFilters as any);
+      // apiClient returns axios response: response.data is the JSON payload, response.pagination is inside response.data.pagination
+      const payload = response.data ?? response;
+      const rows = (payload.data ?? payload) as SupplyRequest[];
+      const pagination = payload.pagination ?? response.pagination;
+      setRequests(Array.isArray(rows) ? rows : []);
+      setTotalItems(pagination?.total ?? pagination?.totalItems ?? (Array.isArray(rows) ? rows.length : 0));
     } catch (error: any) {
       alert(error.response?.data?.message || 'Lỗi khi tải danh sách yêu cầu cung cấp');
     } finally {
@@ -324,24 +382,10 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
     setInventoryCheckResult({ show: true, loading: true, productName: productNames.join(', '), items: [], allResults: [] });
 
     try {
-      const response = await warehouseService.getAllLotProducts() as any;
-      const lotProducts = response.data?.data || response.data || [];
-
-      const allResults = productNames.map(name => {
-        const matched = lotProducts.filter((lp: any) => productMatchesName(name, lp));
-
-        return {
-          productName: name,
-          items: matched.map((lp: any) => ({
-            tenKho: lp.lot?.warehouse?.tenKho || 'N/A',
-            tenLo: lp.lot?.tenLo || 'N/A',
-            soLuong: lp.soLuong || 0,
-            giaThanh: lp.giaThanh || 0,
-            donViTinh: lp.donViTinh || 'KG',
-          })),
-        };
-      });
-
+      // Server-side fuzzy lookup — returns only the grouped matches instead of
+      // the entire lotProduct table.
+      const response = await warehouseService.checkStockByNames(productNames) as any;
+      const allResults = response.data?.data || response.data || [];
       setInventoryCheckResult({ show: true, loading: false, productName: productNames.join(', '), items: [], allResults });
     } catch (error) {
       console.error('Lỗi kiểm tra tồn kho:', error);
@@ -349,25 +393,9 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
     }
   };
 
-  const filteredRequests = requests.filter(r => {
-    const search = (filterValues._search || '').toLowerCase().trim();
-    if (search) {
-      const matchSearch =
-        (r.maYeuCau || '').toLowerCase().includes(search) ||
-        (r.tenNhanVien || '').toLowerCase().includes(search) ||
-        (r.boPhan || '').toLowerCase().includes(search) ||
-        (r.mucDichYeuCau || '').toLowerCase().includes(search) ||
-        (r.trangThai || '').toLowerCase().includes(search) ||
-        (r.items || []).some(i => (i.tenGoi || '').toLowerCase().includes(search));
-      if (!matchSearch) return false;
-    }
-    if (filterValues.maYeuCau && !(r.maYeuCau || '').toLowerCase().includes(filterValues.maYeuCau.toLowerCase())) return false;
-    if (filterValues.tenNhanVien && !(r.tenNhanVien || '').toLowerCase().includes(filterValues.tenNhanVien.toLowerCase())) return false;
-    if (filterValues.boPhan && !(r.boPhan || '').toLowerCase().includes(filterValues.boPhan.toLowerCase())) return false;
-    if (filterValues.trangThai && r.trangThai !== filterValues.trangThai) return false;
-    if (filterValues.mucDoUuTien && r.mucDoUuTien !== filterValues.mucDoUuTien) return false;
-    return true;
-  });
+  // Filtering is server-side (see serverFilters) — `requests` is already the
+  // filtered+paginated slice, so render it directly.
+  const filteredRequests = requests;
 
   return (
     <div>
@@ -378,7 +406,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
           <button
             onClick={async () => {
               try {
-                await supplyRequestService.exportToExcel({ search: searchTerm || undefined });
+                await supplyRequestService.exportToExcel(serverFilters as any);
               } catch (error) {
                 console.error('Error exporting to Excel:', error);
                 alert('Lỗi khi xuất Excel');
@@ -393,26 +421,26 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
         <TableFilter
           filters={supplyFilterFields}
           values={filterValues}
-          onChange={setFilterValues}
+          onChange={handleFilterChange}
           searchPlaceholder="Tìm kiếm theo mã, tên nhân viên, bộ phận, sản phẩm..."
         />
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         <div className="overflow-x-auto -mx-px">
           <table className="w-full min-w-[720px] lg:min-w-[980px] table-auto">
             <thead>
-              <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-                <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 w-9">#</th>
-                <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 w-24 lg:w-28">Ngày YC</th>
-                <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 w-24">Mã YC</th>
-                <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 hidden sm:table-cell">Nhân viên</th>
-                <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 hidden md:table-cell">Bộ phận</th>
-                <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200">Sản phẩm</th>
-                <th className="px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-200 w-16 lg:w-20">Ưu tiên</th>
-                <th className="px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-200 w-20 lg:w-28">Trạng thái</th>
-                <th className="px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-900 w-16 lg:w-20">
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th scope="col" className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 w-9">#</th>
+                <th scope="col" className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 w-24 lg:w-28">Ngày YC</th>
+                <th scope="col" className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 w-24">Mã YC</th>
+                <th scope="col" className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 hidden sm:table-cell">Nhân viên</th>
+                <th scope="col" className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 hidden md:table-cell">Bộ phận</th>
+                <th scope="col" className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200">Sản phẩm</th>
+                <th scope="col" className="px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-200 w-16 lg:w-20">Ưu tiên</th>
+                <th scope="col" className="px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-200 w-20 lg:w-28">Trạng thái</th>
+                <th scope="col" className="px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-900 w-16 lg:w-20">
                   <span className="hidden sm:inline">Hành động</span>
                   <span className="sm:hidden">•••</span>
                 </th>
@@ -436,14 +464,23 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                   <tr
                     key={request.id}
                     onClick={() => handleView(request)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleView(request);
+                      }
+                    }}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`Xem chi tiết yêu cầu ${request.maYeuCau} của ${request.tenNhanVien}`}
                     className={`${
                       request.trangThai === 'Đã mua hàng'
                         ? 'bg-amber-50 border-l-4 border-l-amber-400'
                         : index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                    } hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all border-b border-gray-200`}
+                    } hover:bg-blue-100 focus:bg-blue-100 focus:outline-none border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all border-b border-gray-200`}
                   >
                     <td className="px-2 lg:px-4 py-2 sm:py-3 text-sm border-r border-gray-200 text-center">{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                    <td className="px-2 lg:px-4 py-2 sm:py-3 text-xs sm:text-sm border-r border-gray-200 whitespace-nowrap">{new Date(request.ngayYeuCau).toLocaleDateString('vi-VN')}</td>
+                    <td className="px-2 lg:px-4 py-2 sm:py-3 text-xs sm:text-sm border-r border-gray-200 whitespace-nowrap">{formatDateVN(request.ngayYeuCau)}</td>
                     <td className="px-2 lg:px-4 py-2 sm:py-3 text-xs sm:text-sm font-medium text-indigo-600 border-r border-gray-200 whitespace-nowrap" title={request.maYeuCau}>{request.maYeuCau}</td>
                     <td className="px-2 lg:px-4 py-2 sm:py-3 text-xs sm:text-sm border-r border-gray-200 hidden sm:table-cell truncate max-w-[120px] lg:max-w-[160px]" title={request.tenNhanVien}>{request.tenNhanVien}</td>
                     <td className="px-2 lg:px-4 py-2 sm:py-3 text-xs sm:text-sm border-r border-gray-200 hidden md:table-cell truncate max-w-[110px] lg:max-w-[140px]" title={request.boPhan}>{request.boPhan}</td>
@@ -470,9 +507,10 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                         {!isCancelled(request.trangThai) && canDelete && (
                           <button
                             onClick={(e) => { e.stopPropagation(); handleDelete(request.id); }}
-                            className="p-1 lg:p-1.5 rounded-md text-red-600 hover:bg-red-100 hover:text-red-800 transition-colors"
+                            onKeyDown={(e) => e.stopPropagation()}
+                            className="min-h-[32px] min-w-[32px] inline-flex items-center justify-center p-1 lg:p-1.5 rounded-md text-red-600 hover:bg-red-100 hover:text-red-800 transition-colors focus:outline-none focus:ring-1 focus:ring-red-400"
                             title="Xóa"
-                            aria-label="Xóa"
+                            aria-label={`Xóa yêu cầu ${request.maYeuCau}`}
                           >
                             <Trash2 className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
                           </button>
@@ -481,9 +519,10 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                         {!isCancelled(request.trangThai) && canCancel && (request.trangThai === 'Chưa cung cấp' || request.trangThai === 'Đang xử lý') && (
                           <button
                             onClick={(e) => { e.stopPropagation(); handleCancel(request.id); }}
-                            className="p-1 lg:p-1.5 rounded-md text-orange-600 hover:bg-orange-100 hover:text-orange-800 transition-colors"
+                            onKeyDown={(e) => e.stopPropagation()}
+                            className="min-h-[32px] min-w-[32px] inline-flex items-center justify-center p-1 lg:p-1.5 rounded-md text-orange-600 hover:bg-orange-100 hover:text-orange-800 transition-colors focus:outline-none focus:ring-1 focus:ring-orange-400"
                             title="Hủy yêu cầu"
-                            aria-label="Hủy"
+                            aria-label={`Hủy yêu cầu ${request.maYeuCau}`}
                           >
                             <XCircle className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
                           </button>
@@ -500,13 +539,14 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                                   setShowWarehouseReceiptModal(true);
                                 }
                               }}
+                              onKeyDown={(e) => e.stopPropagation()}
                               disabled={daNhapKho}
                               className={daNhapKho
-                                ? "p-1 lg:p-1.5 rounded-md text-gray-400 cursor-not-allowed"
-                                : "p-1 lg:p-1.5 rounded-md text-green-600 hover:bg-green-100 hover:text-green-800 transition-colors"
+                                ? "min-h-[32px] min-w-[32px] inline-flex items-center justify-center p-1 lg:p-1.5 rounded-md text-gray-400 cursor-not-allowed focus:outline-none"
+                                : "min-h-[32px] min-w-[32px] inline-flex items-center justify-center p-1 lg:p-1.5 rounded-md text-green-600 hover:bg-green-100 hover:text-green-800 transition-colors focus:outline-none focus:ring-1 focus:ring-green-400"
                               }
                               title={daNhapKho ? "Đã nhập kho" : "Nhập kho"}
-                              aria-label={daNhapKho ? "Đã nhập kho" : "Nhập kho"}
+                              aria-label={daNhapKho ? `Đã nhập kho ${request.maYeuCau}` : `Nhập kho cho ${request.maYeuCau}`}
                             >
                               <PackagePlus className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
                             </button>
@@ -585,7 +625,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
               {/* Request header info (always shown) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 text-sm bg-gray-50 p-3 rounded-md">
                 <div><span className="font-medium text-gray-600">Mã yêu cầu:</span> <span className="text-indigo-600 font-medium">{selectedRequest.maYeuCau}</span></div>
-                <div><span className="font-medium text-gray-600">Ngày yêu cầu:</span> {new Date(selectedRequest.ngayYeuCau).toLocaleDateString('vi-VN')}</div>
+                <div><span className="font-medium text-gray-600">Ngày yêu cầu:</span> {formatDateVN(selectedRequest.ngayYeuCau)}</div>
                 <div><span className="font-medium text-gray-600">Nhân viên:</span> {selectedRequest.tenNhanVien}</div>
                 <div><span className="font-medium text-gray-600">Bộ phận:</span> {selectedRequest.boPhan}</div>
                 <div className="sm:col-span-2 flex items-center gap-2">
@@ -610,6 +650,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tên gọi</th>
                             <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Yêu cầu</th>
                             <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Đã cấp</th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Còn thiếu</th>
                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Đơn vị</th>
                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Trạng thái</th>
                             {canEdit && (
@@ -640,6 +681,16 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                                   <td className="px-3 py-2 text-right text-blue-700 font-medium whitespace-nowrap">
                                     {fulfilledQty.toLocaleString('vi-VN')}
                                   </td>
+                                  <td className="px-3 py-2 text-right whitespace-nowrap">
+                                    {(() => {
+                                      const shortage = Math.max(0, item.soLuong - fulfilledQty);
+                                      return shortage > 0 ? (
+                                        <span className="text-orange-600 font-medium">{shortage.toLocaleString('vi-VN')}</span>
+                                      ) : (
+                                        <span className="text-gray-400">0</span>
+                                      );
+                                    })()}
+                                  </td>
                                   <td className="px-3 py-2 hidden sm:table-cell">{item.donViTinh}</td>
                                   <td className="px-3 py-2" title={fulfillmentStatus}>
                                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${getFulfillmentStatusColor(fulfillmentStatus)}`}>
@@ -666,7 +717,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                             })
                           ) : (
                             <tr>
-                              <td colSpan={canEdit ? 8 : 7} className="px-3 py-4 text-center text-gray-400 italic">Không có sản phẩm</td>
+                              <td colSpan={canEdit ? 9 : 8} className="px-3 py-4 text-center text-gray-400 italic">Không có sản phẩm</td>
                             </tr>
                           )}
                         </tbody>
@@ -681,11 +732,90 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                     {selectedRequest.ghiChu && (
                       <div className="sm:col-span-2"><span className="font-medium text-gray-600">Ghi chú:</span> <span className="text-gray-700">{selectedRequest.ghiChu}</span></div>
                     )}
+                    {selectedRequest.loaiYeuCau && (
+                      <div><span className="font-medium text-gray-600">Loại yêu cầu:</span> <span className="text-gray-700">{selectedRequest.loaiYeuCau}</span></div>
+                    )}
+                    {selectedRequest.soTien !== undefined && selectedRequest.soTien !== null && (
+                      <div><span className="font-medium text-gray-600">Số tiền:</span> <span className="text-gray-700">{Number(selectedRequest.soTien).toLocaleString('vi-VN')} VNĐ</span></div>
+                    )}
+                    {selectedRequest.fileKemTheo && (
+                      <div className="sm:col-span-2"><span className="font-medium text-gray-600">File đính kèm:</span> <a href={selectedRequest.fileKemTheo} target="_blank" rel="noopener noreferrer" className="ml-1 text-blue-600 hover:underline">Mở file</a></div>
+                    )}
+                    <div><span className="font-medium text-gray-600">Tạo lúc:</span> <span className="text-gray-700">{new Date(selectedRequest.createdAt).toLocaleString('vi-VN')}</span></div>
+                    <div><span className="font-medium text-gray-600">Cập nhật:</span> <span className="text-gray-700">{new Date(selectedRequest.updatedAt).toLocaleString('vi-VN')}</span></div>
+                  </div>
+
+                  {/* Linked purchasing / warehouse docs */}
+                  {(selectedRequest.purchaseRequests?.length || selectedRequest.warehouseReceipts?.length) ? (
+                    <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm">
+                      <div className="font-medium text-gray-700 mb-2">Liên kết</div>
+                      {selectedRequest.purchaseRequests && selectedRequest.purchaseRequests.length > 0 && (
+                        <div className="mb-2">
+                          <div className="text-xs text-gray-500 mb-1">Yêu cầu mua hàng</div>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedRequest.purchaseRequests.map((pr: any) => (
+                              <span key={pr.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-white border border-gray-200">
+                                <ShoppingCart className="h-3 w-3 text-blue-600" />
+                                <span className="font-medium text-gray-800">{pr.maYeuCau}</span>
+                                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${pr.trangThai === 'Hoàn thành' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{pr.trangThai}</span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {selectedRequest.warehouseReceipts && selectedRequest.warehouseReceipts.length > 0 && (
+                        <div>
+                          <div className="text-xs text-gray-500 mb-1">Phiếu nhập kho</div>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedRequest.warehouseReceipts.map((wr: any) => (
+                              <span key={wr.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-white border border-gray-200">
+                                <PackagePlus className="h-3 w-3 text-green-600" />
+                                <span className="font-medium text-gray-800">{wr.maPhieuNhap}</span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {/* Decision / audit history */}
+                  <div className="rounded-md border border-gray-200">
+                    <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-200 rounded-t-md">
+                      <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Lịch sử xử lý</h4>
+                      <span className="text-[11px] text-gray-500">{loadingDecisions ? 'Đang tải…' : `${decisions.length} quyết định`}</span>
+                    </div>
+                    <div className="p-3">
+                      {loadingDecisions ? (
+                        <div className="text-xs text-gray-500">Đang tải lịch sử…</div>
+                      ) : decisions.length === 0 ? (
+                        <div className="text-xs text-gray-400 italic">Chưa có quyết định cấp phát nào.</div>
+                      ) : (
+                        <div className="space-y-2">
+                          {decisions.map((d: any) => (
+                            <div key={d.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 rounded-md bg-white border border-gray-100 px-3 py-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap ${getDecisionColor(d.decision)}`}>{d.decision}</span>
+                                <span className="text-xs text-gray-600">{d.supplyRequestItem?.tenGoi ?? '—'}</span>
+                                <span className="text-xs text-gray-500">• Cấp {d.fulfilledQty} • Thiếu {d.shortageQty}</span>
+                              </div>
+                              <div className="text-[11px] text-gray-400 whitespace-nowrap">
+                                {d.decidedAt ? new Date(d.decidedAt).toLocaleString('vi-VN') : ''}
+                                {d.triggeredPurchaseRequestId ? <span className="ml-2 text-blue-600">→ YC mua hàng #{d.triggeredPurchaseRequestId.slice(0, 8)}</span> : null}
+                                {d.reason ? <span className="ml-2 text-gray-500">— {d.reason}</span> : null}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Action buttons — hidden when cancelled */}
                   {!isCancelled(selectedRequest.trangThai) && (
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 pt-2 border-t border-gray-100">
+                    {/* Chức năng cấp/mua chỉ còn ý nghĩa khi yêu cầu chưa hoàn thành */}
+                    {!isCompleted(selectedRequest.trangThai) && (
                     <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                       {selectedRequest.items && selectedRequest.items.length > 0 && (
                         <button
@@ -711,6 +841,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                         <Package className="h-3.5 w-3.5" />
                         Tạo xuất kho
                       </button>
+                      {!isPurchasing(selectedRequest.trangThai) && !(selectedRequest.purchaseRequests && selectedRequest.purchaseRequests.length > 0) && (
                       <button
                         type="button"
                         onClick={() => {
@@ -722,7 +853,9 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                         <ShoppingCart className="h-3.5 w-3.5" />
                         Tạo yêu cầu mua hàng
                       </button>
+                      )}
                     </div>
+                    )}
                     <div className="flex gap-3">
                       <button
                         type="button"
@@ -750,8 +883,8 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                           setShowModal(false);
                           handleEdit(selectedRequest);
                         }}
-                        disabled={!canEdit}
-                        title={!canEdit ? "Bạn không có quyền chỉnh sửa" : ""}
+                        disabled={!canEdit || isCompleted(selectedRequest.trangThai)}
+                        title={isCompleted(selectedRequest.trangThai) ? "Yêu cầu đã hoàn thành, không thể chỉnh sửa" : (!canEdit ? "Bạn không có quyền chỉnh sửa" : "")}
                         className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                       >
                         Chỉnh sửa

@@ -156,7 +156,7 @@ describe('useSupplyRequests', () => {
       expect(supplyRequestService.getAllSupplyRequests).toHaveBeenCalledWith(
         1,
         10,
-        'Trần'
+        { search: 'Trần' }
       );
     });
   });

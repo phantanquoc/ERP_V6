@@ -23,7 +23,7 @@ export const useSupplyRequests = (
       const response = await supplyRequestService.getAllSupplyRequests(
         page,
         limit,
-        search
+        search ? { search } : undefined
       );
       return response;
     },
