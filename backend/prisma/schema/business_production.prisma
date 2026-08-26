@@ -258,7 +258,8 @@ model LotProduct {
   slotId                 String?
   createdAt              DateTime               @default(now())
   updatedAt              DateTime               @updatedAt
-  giaThanh               Float?                 @default(100000)
+  // Giá thành/đơn vị (VND). 0 = chưa nhập giá (không dùng placeholder 100.000 nữa).
+  giaThanh               Float?                 @default(0)
   internationalProduct   InternationalProduct?  @relation(fields: [internationalProductId], references: [id], onDelete: Cascade)
   lot                    Lot                    @relation(fields: [lotId], references: [id], onDelete: Cascade)
   slot                   WarehouseSlot?         @relation(fields: [slotId], references: [id], onDelete: SetNull)

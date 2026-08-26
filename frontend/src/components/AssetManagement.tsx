@@ -78,7 +78,8 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
 
   const handleEditProduct = (product: LotProduct) => {
     setSelectedProduct(product);
-    setEditGiaThanh(product.giaThanh || 100000);
+    // Chưa nhập giá = 0 (không còn placeholder 100.000)
+    setEditGiaThanh(product.giaThanh ?? 0);
     setEditModalOpen(true);
   };
 
@@ -163,7 +164,7 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
                 {formatCurrency(
                   selectedWarehouse.lots?.reduce((warehouseSum, lot) => {
                     const lotTotal = lot.lotProducts?.reduce((lotSum, product) => {
-                      const giaThanh = product.giaThanh || 100000;
+                      const giaThanh = product.giaThanh ?? 0;
                       return lotSum + (product.soLuong * giaThanh);
                     }, 0) || 0;
                     return warehouseSum + lotTotal;
@@ -204,7 +205,7 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
                       <span className="text-sm font-semibold text-green-600">
                         Tổng thành tiền: {formatCurrency(
                           lot.lotProducts?.reduce((sum, product) => {
-                            const giaThanh = product.giaThanh || 100000;
+                            const giaThanh = product.giaThanh ?? 0;
                             return sum + (product.soLuong * giaThanh);
                           }, 0) || 0
                         )}
@@ -240,7 +241,7 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
                         </thead>
                         <tbody className="divide-y divide-gray-200">
                           {lot.lotProducts.map((product, prodIndex) => {
-                            const giaThanh = product.giaThanh || 100000;
+                            const giaThanh = product.giaThanh ?? 0;
                             const thanhTien = product.soLuong * giaThanh;
                             return (
                               <tr
@@ -368,13 +369,13 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
                 <div>
                   <label className="text-sm font-medium text-gray-600">Đơn giá</label>
                   <p className="text-gray-900 font-semibold text-green-600">
-                    {formatCurrency(selectedProduct.giaThanh || 100000)}
+                    {formatCurrency(selectedProduct.giaThanh ?? 0)}
                   </p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Thành tiền</label>
                   <p className="text-gray-900 font-bold text-orange-600">
-                    {formatCurrency(selectedProduct.soLuong * (selectedProduct.giaThanh || 100000))}
+                    {formatCurrency(selectedProduct.soLuong * (selectedProduct.giaThanh ?? 0))}
                   </p>
                 </div>
                 <div>

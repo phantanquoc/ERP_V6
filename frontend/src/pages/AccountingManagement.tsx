@@ -86,7 +86,7 @@ const AccountingManagement = () => {
       (Array.isArray(warehouses) ? warehouses : []).forEach((w: any) => {
         (w.lots || []).forEach((lot: any) => {
           (lot.lotProducts || []).forEach((p: any) => {
-            const giaThanh = p.giaThanh || 100000;
+            const giaThanh = p.giaThanh ?? 0;
             tongTaiSan += (p.soLuong || 0) * giaThanh;
           });
         });
