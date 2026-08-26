@@ -4,6 +4,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePartialFulfillItem } from '../hooks/useSupplyRequests';
 import { SupplyRequestItem } from '../services/supplyRequestService';
 import warehouseService, { Warehouse, Lot, LotProduct } from '../services/warehouseService';
+import {
+  productMatchesName,
+  totalStockForName,
+  matchingLotsInWarehouse,
+  matchingLotProductsInLot,
+} from '../utils/productNameMatch';
 
 interface PartialFulfillmentModalProps {
   isOpen: boolean;
@@ -88,11 +94,7 @@ const PartialFulfillmentModal: React.FC<PartialFulfillmentModalProps> = ({
     if (lotId && item) {
       const lot = lots.find(l => l.id === lotId);
       const allProducts = lot?.lotProducts || [];
-      const matched = allProducts.filter(lp => {
-        const name = lp.internationalProduct?.tenSanPham?.toLowerCase() || '';
-        const itemName = item.tenGoi.toLowerCase();
-        return name.includes(itemName) || itemName.includes(name);
-      });
+      const matched = allProducts.filter(lp => productMatchesName(item.tenGoi, lp));
       const products = matched.length > 0 ? matched : allProducts;
       setLotProducts(products);
       setNoMatchInLot(matched.length === 0);
@@ -132,6 +134,18 @@ const PartialFulfillmentModal: React.FC<PartialFulfillmentModalProps> = ({
   const qtyNum = parseFloat(fulfilledQty || '0');
   const needsWarehouseSelection = !isNaN(qtyNum) && qtyNum > 0;
 
+  // Total stock across all warehouses for this item's tenGoi (used for zero-stock warning).
+  const totalStockForItem = useMemo(
+    () => (item ? totalStockForName(warehouses, item.tenGoi) : 0),
+    [warehouses, item]
+  );
+
+  // Whether the selected lot's filtered products contain an in-stock option.
+  const hasInStockInLot = useMemo(
+    () => lotProducts.some((lp) => lp.soLuong > 0),
+    [lotProducts]
+  );
+
   const handleSubmit = async () => {
     setError('');
     const qty = parseFloat(fulfilledQty);
@@ -142,6 +156,15 @@ const PartialFulfillmentModal: React.FC<PartialFulfillmentModalProps> = ({
     if (qty > remaining) {
       setError(`Số lượng cấp không được vượt quá số còn lại (${remaining} ${item.donViTinh})`);
       return;
+    }
+    // Guard: prevent issuing more than the kiện's stock (atomic check in backend is second defence).
+    // Resolve the selected kiện to check stock if the user picked one.
+    {
+      const lp = lotProducts.find(p => p.id === selectedLotProductId);
+      if (qty > 0 && lp && qty > lp.soLuong) {
+        setError(`Số lượng cấp (${qty}) vượt tồn kho của kiện ${lp.maKien ?? ''} (còn ${lp.soLuong} ${lp.donViTinh}) — đặt 0 và bật "tạo yêu cầu thu mua" để chuyển phần thiếu`);
+        return;
+      }
     }
     if (qty > 0 && !selectedWarehouseId) {
       setError('Vui lòng chọn kho để xuất kho');
@@ -238,6 +261,17 @@ const PartialFulfillmentModal: React.FC<PartialFulfillmentModalProps> = ({
 
         {needsWarehouseSelection && (
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-3">
+            {/* Global stock summary — shown immediately when qty > 0, before any warehouse is picked */}
+            {totalStockForItem === 0 && warehouses.length > 0 && !loadingWarehouses && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Hết hàng toàn kho — lượng tồn của sản phẩm "{item.tenGoi}" là 0. Đặt số lượng cấp về 0 để chuyển phần này sang <span className="font-semibold">Yêu cầu bổ sung</span>.
+              </div>
+            )}
+            {totalStockForItem > 0 && (
+              <div className="text-xs text-gray-500">
+                Tồn toàn kho cho "{item.tenGoi}": <span className="font-semibold text-gray-800">{totalStockForItem} {item.donViTinh}</span>
+              </div>
+            )}
             <div className="text-xs font-medium text-blue-800">Chọn nguồn xuất kho</div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <FormField label="Kho" required>
@@ -248,9 +282,15 @@ const PartialFulfillmentModal: React.FC<PartialFulfillmentModalProps> = ({
                   disabled={loadingWarehouses}
                 >
                   <option value="">{loadingWarehouses ? 'Đang tải...' : '-- Chọn kho --'}</option>
-                  {warehouses.map(w => (
-                    <option key={w.id} value={w.id}>{w.tenKho}</option>
-                  ))}
+                  {warehouses.map(w => {
+                    const lotsWithMatch = matchingLotsInWarehouse(item.tenGoi, w);
+                    const hasMatch = lotsWithMatch.length > 0;
+                    return (
+                    <option key={w.id} value={w.id} disabled={hasMatch === false && !!item.tenGoi}>
+                      {w.tenKho}{hasMatch ? '' : ' — Không có món này'}
+                    </option>
+                    );
+                  })}
                 </select>
               </FormField>
               <FormField label="Lô" required>
@@ -261,9 +301,15 @@ const PartialFulfillmentModal: React.FC<PartialFulfillmentModalProps> = ({
                   disabled={!selectedWarehouseId || loadingLots}
                 >
                   <option value="">{loadingLots ? 'Đang tải...' : '-- Chọn lô --'}</option>
-                  {lots.map(l => (
-                    <option key={l.id} value={l.id}>{l.tenLo}</option>
-                  ))}
+                  {lots.map(l => {
+                    const lotsWithMatchCount = matchingLotProductsInLot(item.tenGoi, l).length;
+                    const hasMatch = lotsWithMatchCount > 0;
+                    return (
+                    <option key={l.id} value={l.id} disabled={hasMatch === false && !!item.tenGoi && matchingLotsInWarehouse(item.tenGoi, warehouses.find(w => w.id === selectedWarehouseId) as Warehouse).length > 0}>
+                      {l.tenLo}{hasMatch ? '' : ` — Không có "${item.tenGoi}"`}
+                    </option>
+                    );
+                  })}
                 </select>
               </FormField>
               <FormField label="Sản phẩm" required>
@@ -274,12 +320,18 @@ const PartialFulfillmentModal: React.FC<PartialFulfillmentModalProps> = ({
                   disabled={!selectedLotId || autoCreateProduct}
                 >
                   <option value="">{autoCreateProduct ? '-- Sẽ tạo mới --' : '-- Chọn --'}</option>
-                  {lotProducts.map(lp => (
-                    <option key={lp.id} value={lp.id}>
-                      {lp.internationalProduct?.tenSanPham} ({lp.soLuong} {lp.donViTinh})
+                  {lotProducts.map(lp => {
+                    const isEmpty = lp.soLuong <= 0;
+                    return (
+                    <option key={lp.id} value={lp.id} disabled={isEmpty}>
+                      {lp.internationalProduct?.tenSanPham} ({lp.soLuong} {lp.donViTinh}){isEmpty ? ' — Hết hàng' : ''}
                     </option>
-                  ))}
+                    );
+                  })}
                 </select>
+                {!hasInStockInLot && lotProducts.length > 0 && selectedLotId && !autoCreateProduct && (
+                  <div className="mt-1 text-xs text-red-600 font-medium">Lô này không còn kiện nào có hàng — số lượng cấp sẽ bị từ chối. Chọn lô khác hoặc tạo sản phẩm mới.</div>
+                )}
               </FormField>
             </div>
             {selectedLotProduct && (
