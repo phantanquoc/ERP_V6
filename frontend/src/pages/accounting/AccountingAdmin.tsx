@@ -103,7 +103,7 @@ const AccountingAdmin = () => {
         warehouses.forEach((warehouse: any) => {
           warehouse.lots?.forEach((lot: any) => {
             lot.lotProducts?.forEach((product: any) => {
-              const giaThanh = product.giaThanh || 100000;
+              const giaThanh = product.giaThanh ?? 0;
               tongTaiSan += (product.soLuong || 0) * giaThanh;
             });
           });
