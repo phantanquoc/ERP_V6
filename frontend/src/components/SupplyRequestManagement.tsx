@@ -12,6 +12,7 @@ import PartialFulfillmentModal from './PartialFulfillmentModal';
 import type { SupplyRequestItem } from '../services/supplyRequestService';
 import { parseNumberInput } from '../utils/numberInput';
 import warehouseService from '../services/warehouseService';
+import { productMatchesName } from '../utils/productNameMatch';
 import TableFilter, { FilterField } from './TableFilter';
 import Modal from './Modal';
 import ConfirmDialog from './common/ConfirmDialog';
@@ -327,11 +328,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
       const lotProducts = response.data?.data || response.data || [];
 
       const allResults = productNames.map(name => {
-        const nameLower = name.toLowerCase().trim();
-        const matched = lotProducts.filter(
-          (lp: any) => lp.internationalProduct?.tenSanPham?.toLowerCase().includes(nameLower) ||
-            nameLower.includes(lp.internationalProduct?.tenSanPham?.toLowerCase() || '')
-        );
+        const matched = lotProducts.filter((lp: any) => productMatchesName(name, lp));
 
         return {
           productName: name,
@@ -976,6 +973,14 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                         <p className="text-sm text-orange-600 text-center py-2">Không tìm thấy tồn kho cho sản phẩm này</p>
                       ) : (
                         <div className="overflow-x-auto">
+                          {(() => {
+                            const totalStock = result.items.reduce((s, i) => s + i.soLuong, 0);
+                            return totalStock === 0 ? (
+                              <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 mb-2">
+                                Hết hàng toàn kho — sản phẩm "{result.productName}" có 0 tồn. Cần tạo <span className="font-semibold">Yêu cầu bổ sung</span> để thu mua.
+                              </div>
+                            ) : null;
+                          })()}
                           <table className="w-full min-w-[560px] border-collapse text-sm mb-2">
                           <thead>
                             <tr className="bg-teal-100">
@@ -987,11 +992,18 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                           </thead>
                           <tbody>
                             {result.items.map((item, idx) => (
-                              <tr key={idx} className="hover:bg-gray-50">
+                              <tr key={idx} className={`hover:bg-gray-50 ${item.soLuong <= 0 ? 'opacity-60' : ''}`}>
                                 <td className="px-3 py-2 border border-gray-200">{item.tenKho}</td>
                                 <td className="px-3 py-2 border border-gray-200">{item.tenLo}</td>
                                 <td className="px-3 py-2 border border-gray-200 text-right font-medium text-blue-700">
-                                  {item.soLuong.toLocaleString('vi-VN', { maximumFractionDigits: 2 })} {item.donViTinh}
+                                  {item.soLuong <= 0 ? (
+                                    <span className="inline-flex items-center gap-1 text-red-600">
+                                      <span className="inline-block w-2 h-2 rounded-full bg-red-500" />
+                                      Hết hàng
+                                    </span>
+                                  ) : (
+                                    `${item.soLuong.toLocaleString('vi-VN', { maximumFractionDigits: 2 })} ${item.donViTinh}`
+                                  )}
                                 </td>
                                 <td className="px-3 py-2 border border-gray-200 text-right font-medium text-green-700">
                                   {item.giaThanh > 0
