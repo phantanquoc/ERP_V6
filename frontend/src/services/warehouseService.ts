@@ -146,6 +146,9 @@ const warehouseService = {
 
   // Lot Product APIs
   getAllLotProducts: () => apiClient.get('/lot-products'),
+  // Server-side fuzzy stock lookup for the supply-request modal (avoids
+  // pulling the entire lotProduct table to the browser).
+  checkStockByNames: (names: string[]) => apiClient.post('/lot-products/stock-check', { names }),
   addProductToLot: (data: AddProductToLotData) => apiClient.post('/lot-products', data),
   removeProductFromLot: (id: string) => apiClient.delete(`/lot-products/${id}`),
   moveProductBetweenLots: (data: MoveProductData) => apiClient.put('/lot-products/move', data),

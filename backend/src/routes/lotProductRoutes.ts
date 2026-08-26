@@ -10,6 +10,7 @@ const {
   updateProductQuantity,
   getLotsByProduct,
   getKienByProductAndLot,
+  checkStockByNames,
 } = lotProductController;
 import { authenticate, deviceOrJwtAuth } from '@middlewares/auth';
 import { requireRule } from '@middlewares/requireRule';
@@ -22,6 +23,7 @@ router.get('/kien', deviceOrJwtAuth('DATA_ENTRY'), getKienByProductAndLot);
 
 // Desktop-only endpoints — require JWT
 router.get('/', authenticate, requireRule('lot-products', 'READ'), getAllLotProducts);
+router.post('/stock-check', authenticate, requireRule('lot-products', 'READ'), checkStockByNames);
 router.post('/', authenticate, requireRule('lot-products', 'CREATE'), addProductToLot);
 router.put('/move', authenticate, requireRule('lot-products', 'UPDATE'), moveProductBetweenLots);
 router.get('/:lotProductId/receipt-history', authenticate, requireRule('lot-products', 'READ'), getLotProductReceiptHistory);
