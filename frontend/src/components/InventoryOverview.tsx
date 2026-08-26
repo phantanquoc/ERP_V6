@@ -9,7 +9,7 @@ import internationalProductService from '../services/internationalProductService
 const LOW_STOCK_THRESHOLD = 10;
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
-type SortField = 'maSanPham' | 'tenSanPham' | 'loaiSanPham' | 'tongTonKho';
+type SortField = 'maSanPham' | 'tenSanPham' | 'loaiSanPham' | 'tongTonKho' | 'giaThanhTB' | 'giaTriTon';
 
 const InventoryOverview: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
@@ -99,6 +99,8 @@ const InventoryOverview: React.FC = () => {
   };
 
   const formatNumber = (n: number) => new Intl.NumberFormat('vi-VN').format(n);
+  const formatMoney = (n: number | null | undefined) =>
+    n === null || n === undefined || !Number.isFinite(n) ? '—' : `${new Intl.NumberFormat('vi-VN').format(Math.round(n as number))} đ`;
 
   const getStockColor = (qty: number) => {
     if (qty <= 0) return 'text-gray-400';
@@ -113,17 +115,26 @@ const InventoryOverview: React.FC = () => {
 
   const totalProducts = pagination?.total ?? 0;
   const lowStockCount = items.filter((item) => item.tongTonKho > 0 && item.tongTonKho <= LOW_STOCK_THRESHOLD).length;
+  const tongGiaTriTon = useMemo(
+    () => items.reduce((s, it: any) => s + ((it.giaTriTon ?? 0) as number), 0),
+    [items],
+  );
 
   const handleExport = () => {
-    const headers = ['Mã hàng', 'Tên hàng', 'Loại', 'ĐVT', 'Tồn kho'];
-    const rows = items.map((item) => [
+    const headers = ['Mã hàng', 'Tên hàng', 'Loại', 'ĐVT', 'Tồn kho', 'Giá TB (đ)', 'Giá trị tồn (đ)'];
+    const rows = items.map((item: any) => [
       item.maSanPham, item.tenSanPham, item.loaiSanPham || '', item.donViTinh || '', String(item.tongTonKho),
+      item.giaThanhTB != null ? String(Math.round(item.giaThanhTB)) : '',
+      item.giaTriTon != null ? String(Math.round(item.giaTriTon)) : '',
     ]);
     const detailRows: string[][] = [];
     for (const item of items) {
       if (item.chiTietTheoKho.length > 1) {
         for (const d of item.chiTietTheoKho) {
-          detailRows.push(['', `  └ ${d.tenKho}`, '', '', String(d.soLuong)]);
+          detailRows.push(['', `  └ ${d.tenKho}`, '', '', String(d.soLuong),
+            (d as any).giaThanhTB != null ? String(Math.round((d as any).giaThanhTB)) : '',
+            (d as any).giaTriTon != null ? String(Math.round((d as any).giaTriTon)) : '',
+          ]);
         }
       }
     }
@@ -156,7 +167,7 @@ const InventoryOverview: React.FC = () => {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-3 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
         <div className="bg-white rounded-lg border border-gray-200 px-4 py-3">
           <div className="text-xs text-gray-500">Sản phẩm có tồn</div>
           <div className="text-xl font-bold text-gray-900">{totalProducts}</div>
@@ -167,6 +178,12 @@ const InventoryOverview: React.FC = () => {
             Sắp hết hàng (≤{LOW_STOCK_THRESHOLD})
           </div>
           <div className={`text-xl font-bold ${lowStockCount > 0 ? 'text-red-600' : 'text-gray-900'}`}>{lowStockCount}</div>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 px-4 py-3">
+          <div className="text-xs text-gray-500">Tổng giá trị tồn</div>
+          <div className="text-lg font-bold text-emerald-700" title={`${tongGiaTriTon.toLocaleString('vi-VN')} đ`}>
+            {formatMoney(tongGiaTriTon)}
+          </div>
         </div>
       </div>
 
@@ -198,7 +215,7 @@ const InventoryOverview: React.FC = () => {
       {!isLoading && (
         <div className="mt-4 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] border-collapse">
+            <table className="w-full min-w-[860px] border-collapse">
               <thead>
                 <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
                   <th scope="col" className="px-3 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200 w-8"></th>
@@ -212,15 +229,21 @@ const InventoryOverview: React.FC = () => {
                     Loại <SortIcon field="loaiSanPham" />
                   </th>
                   <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">ĐVT</th>
-                  <th scope="col" className="px-4 py-3 text-right text-sm font-semibold text-gray-900 cursor-pointer select-none" onClick={() => handleSort('tongTonKho')}>
+                  <th scope="col" className="px-4 py-3 text-right text-sm font-semibold text-gray-900 border-r border-gray-200 cursor-pointer select-none" onClick={() => handleSort('tongTonKho')}>
                     Tồn kho <SortIcon field="tongTonKho" />
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right text-sm font-semibold text-gray-900 border-r border-gray-200 cursor-pointer select-none" onClick={() => handleSort('giaThanhTB')}>
+                    Giá TB <SortIcon field="giaThanhTB" />
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right text-sm font-semibold text-gray-900 cursor-pointer select-none" onClick={() => handleSort('giaTriTon')}>
+                    Giá trị tồn <SortIcon field="giaTriTon" />
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
                       Không có sản phẩm nào có tồn kho
                     </td>
                   </tr>
@@ -257,24 +280,34 @@ const InventoryOverview: React.FC = () => {
                           <td className={`px-4 py-2.5 whitespace-nowrap text-sm text-right ${getStockColor(item.tongTonKho)}`}>
                             {formatNumber(item.tongTonKho)}
                           </td>
+                          <td className="px-4 py-2.5 whitespace-nowrap text-sm text-right tabular-nums text-gray-700">
+                            {formatMoney((item as any).giaThanhTB)}
+                          </td>
+                          <td className="px-4 py-2.5 whitespace-nowrap text-sm text-right tabular-nums font-medium text-emerald-700">
+                            {formatMoney((item as any).giaTriTon)}
+                          </td>
                         </tr>
                         {isExpanded && hasDetails && (
                           <tr>
-                            <td colSpan={6} className="px-3 py-0">
+                            <td colSpan={8} className="px-3 py-0">
                               <div className="bg-gray-50 rounded-lg border border-gray-200 my-1.5 overflow-hidden">
                                 <table className="w-full text-sm">
                                   <thead>
                                     <tr className="bg-gray-100">
                                       <th scope="col" className="px-4 py-1.5 text-left text-xs font-medium text-gray-600">Kho</th>
                                       <th scope="col" className="px-4 py-1.5 text-right text-xs font-medium text-gray-600">Số lượng</th>
+                                      <th scope="col" className="px-4 py-1.5 text-right text-xs font-medium text-gray-600">Giá trị tồn</th>
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {item.chiTietTheoKho.map((detail) => (
+                                    {item.chiTietTheoKho.map((detail: any) => (
                                       <tr key={detail.warehouseId} className="border-t border-gray-200">
                                         <td className="px-4 py-1.5 text-gray-700">{detail.tenKho}</td>
                                         <td className="px-4 py-1.5 text-right font-medium text-gray-900">
                                           {formatNumber(detail.soLuong)} {item.donViTinh || ''}
+                                        </td>
+                                        <td className="px-4 py-1.5 text-right tabular-nums text-emerald-700">
+                                          {formatMoney(detail.giaTriTon)}
                                         </td>
                                       </tr>
                                     ))}

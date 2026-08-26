@@ -105,7 +105,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
 
   // Edit lot product state
   const [editingLotProduct, setEditingLotProduct] = useState<LotProduct | null>(null);
-  const [editLotProductForm, setEditLotProductForm] = useState({ maKien: '', soLuong: '', donViTinh: '' });
+  const [editLotProductForm, setEditLotProductForm] = useState({ maKien: '', soLuong: '', donViTinh: '', giaThanh: '' });
 
   // Form states — create warehouse
   const [newWarehouseForm, setNewWarehouseForm] = useState({
@@ -381,6 +381,8 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
       maKien: product.maKien ?? '',
       soLuong: String(product.soLuong),
       donViTinh: product.donViTinh,
+      // Empty string = keep the current value untouched; a 0 is an explicit zero price.
+      giaThanh: product.giaThanh != null ? String(product.giaThanh) : '',
     });
     setShowEditLotProductModal(true);
   };
@@ -392,6 +394,16 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
       toast.error('Số lượng không hợp lệ');
       return;
     }
+    const giaThanhRaw = editLotProductForm.giaThanh.trim();
+    let giaThanhVal: number | undefined;
+    if (giaThanhRaw !== '') {
+      const parsed = parseFloat(giaThanhRaw);
+      if (isNaN(parsed) || parsed < 0) {
+        toast.error('Giá thành không hợp lệ');
+        return;
+      }
+      giaThanhVal = parsed;
+    }
     try {
       await updateLotProduct.mutateAsync({
         id: editingLotProduct.id,
@@ -399,6 +411,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
           maKien: editLotProductForm.maKien,
           soLuong: soLuongVal,
           donViTinh: editLotProductForm.donViTinh || undefined,
+          giaThanh: giaThanhVal,
         },
       });
       toast.success('Cập nhật kiện thành công');
@@ -1057,6 +1070,30 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
                   onChange={(val) => setEditLotProductForm(f => ({ ...f, donViTinh: val }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Giá thành <span className="text-gray-400 font-normal text-xs">(VND / đơn vị)</span>
+                </label>
+                <input
+                  type="number"
+                  value={editLotProductForm.giaThanh}
+                  onChange={(e) => setEditLotProductForm(f => ({ ...f, giaThanh: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                  placeholder="VD: 100000"
+                  min={0}
+                  step={1000}
+                />
+                <p className="mt-1 text-xs text-gray-400">
+                  {(() => {
+                    const q = parseFloat(editLotProductForm.soLuong);
+                    const g = parseFloat(editLotProductForm.giaThanh);
+                    if (!isNaN(q) && q > 0 && !isNaN(g) && g >= 0 && editLotProductForm.giaThanh.trim() !== '') {
+                      return `Thành tiền: ${(q * g).toLocaleString('vi-VN')} đ`;
+                    }
+                    return 'Để trống = giữ nguyên giá hiện tại.';
+                  })()}
+                </p>
               </div>
             </div>
             <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-200 shrink-0">

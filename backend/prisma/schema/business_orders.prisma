@@ -82,6 +82,7 @@ model InternationalProduct {
   updatedAt             DateTime               @updatedAt
   loaiSanPham           String?
   donViTinh             String?
+  giaThanh              Float?
   lotProducts           LotProduct[]
   orderItems            OrderItem[]
   quotationRequestItems QuotationRequestItem[]

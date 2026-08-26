@@ -72,6 +72,11 @@ class LotProductService {
       throw new ValidationError('Số lượng phải lớn hơn 0');
     }
 
+    // Two-tier pricing: new kiện inherit the product's standard cost when one is
+    // defined; otherwise the DB default applies (explicit target kiện keep whatever
+    // cost they already carry once it differs from nothing).
+    const defaultGiaThanh = product.giaThanh ?? null;
+
     // 1) Explicit target kiện (fixed pallet) — update it, keep its code & slot.
     if (input.lotProductId) {
       const existing = await prisma.lotProduct.findUnique({ where: { id: input.lotProductId } });
@@ -84,6 +89,7 @@ class LotProductService {
           internationalProductId: product.id,
           soLuong,
           donViTinh: input.donViTinh || existing.donViTinh,
+          ...(defaultGiaThanh !== null ? { giaThanh: defaultGiaThanh } : {}),
         },
         include: { internationalProduct: true, lot: true },
       });
@@ -100,7 +106,12 @@ class LotProductService {
       if (free) {
         return prisma.lotProduct.update({
           where: { id: free.id },
-          data: { internationalProductId: product.id, soLuong, donViTinh: input.donViTinh },
+          data: {
+            internationalProductId: product.id,
+            soLuong,
+            donViTinh: input.donViTinh,
+            ...(defaultGiaThanh !== null ? { giaThanh: defaultGiaThanh } : {}),
+          },
           include: { internationalProduct: true, lot: true },
         });
       }
@@ -123,6 +134,7 @@ class LotProductService {
         internationalProductId: product.id,
         soLuong,
         donViTinh: input.donViTinh,
+        ...(defaultGiaThanh !== null ? { giaThanh: defaultGiaThanh } : {}),
       },
       include: { internationalProduct: true, lot: true },
     });

@@ -8,7 +8,7 @@ export interface InventoryFilters {
   donViTinh?: string;
   hasStock?: boolean;
   stockStatus?: 'all' | 'low' | 'normal';
-  sortBy?: 'maSanPham' | 'tenSanPham' | 'loaiSanPham' | 'tongTonKho';
+  sortBy?: 'maSanPham' | 'tenSanPham' | 'loaiSanPham' | 'tongTonKho' | 'giaThanhTB' | 'giaTriTon';
   sortOrder?: 'asc' | 'desc';
   page?: number;
   limit?: number;
@@ -18,6 +18,10 @@ export interface WarehouseStockDetail {
   warehouseId: string;
   tenKho: string;
   soLuong: number;
+  /** Giá thành TB gia quyền của hàng trong kho này (VND/đơn vị); null nếu kiện nào cũng chưa có giá. */
+  giaThanhTB: number | null;
+  /** soLuong × giaThanhTB; null khi chưa có giá. */
+  giaTriTon: number | null;
 }
 
 export interface InventoryItem {
@@ -27,6 +31,11 @@ export interface InventoryItem {
   loaiSanPham: string | null;
   donViTinh: string | null;
   tongTonKho: number;
+  /** Giá thành TB gia quyền trên các kiện còn hàng (VND/đơn vị).
+   *  Fallback theo kiện: kiện.giaThanh → giá chuẩn hàng hóa → null. */
+  giaThanhTB: number | null;
+  /** tongTonKho × giaThanhTB; null khi chưa có giá. */
+  giaTriTon: number | null;
   chiTietTheoKho: WarehouseStockDetail[];
 }
 
@@ -96,10 +105,36 @@ export class InventoryService {
       stockRows.map((row) => [row.internationalProductId, row._sum.soLuong ?? 0]),
     );
 
+    // 3b. Weighted average price per product (over priced in-stock parcels).
+    // Fallback chain per parcel: parcel.giaThanh → product default giaThanh → unpriced.
+    const productDefaultPrice = new Map(allProducts.map((p) => [p.id, (p as any).giaThanh ?? null]));
+    const priceRows = await prisma.lotProduct.findMany({
+      where: stockWhere,
+      select: { internationalProductId: true, soLuong: true, giaThanh: true },
+    });
+    type PriceAgg = { pricedQty: number; qtyXPrice: number };
+    const priceByProduct = new Map<string, PriceAgg>();
+    for (const row of priceRows) {
+      const pid = row.internationalProductId;
+      if (!pid) continue;
+      const price = (row as any).giaThanh ?? productDefaultPrice.get(pid) ?? null;
+      if (price === null || !Number.isFinite(price as number)) continue;
+      const prev = priceByProduct.get(pid);
+      if (prev) {
+        prev.pricedQty += row.soLuong;
+        prev.qtyXPrice += row.soLuong * (price as number);
+      } else {
+        priceByProduct.set(pid, { pricedQty: row.soLuong, qtyXPrice: row.soLuong * (price as number) });
+      }
+    }
+
     // 4. Build inventory items for ALL products
     type ItemWithStock = InventoryItem & { _tongTonKho: number };
     let allItems: ItemWithStock[] = allProducts.map((product) => {
       const tongTonKho = stockByProduct.get(product.id) ?? 0;
+      const agg = priceByProduct.get(product.id);
+      const giaThanhTB = agg && agg.pricedQty > 0 ? agg.qtyXPrice / agg.pricedQty : null;
+      const giaTriTon = giaThanhTB !== null && tongTonKho > 0 ? tongTonKho * giaThanhTB : null;
       return {
         id: product.id,
         maSanPham: product.maSanPham,
@@ -107,6 +142,8 @@ export class InventoryService {
         loaiSanPham: product.loaiSanPham ?? null,
         donViTinh: product.donViTinh ?? null,
         tongTonKho,
+        giaThanhTB,
+        giaTriTon,
         chiTietTheoKho: [], // filled later for paginated subset
         _tongTonKho: tongTonKho,
       };
@@ -130,8 +167,16 @@ export class InventoryService {
       if (sortBy === 'tongTonKho') {
         return (a._tongTonKho - b._tongTonKho) * sortMultiplier;
       }
-      const aVal = (a[sortBy] ?? '') as string;
-      const bVal = (b[sortBy] ?? '') as string;
+      if ((sortBy as string) === 'giaThanhTB' || (sortBy as string) === 'giaTriTon') {
+        const av = (a as any)[sortBy] as number | null;
+        const bv = (b as any)[sortBy] as number | null;
+        if (av === null && bv === null) return 0;
+        if (av === null) return 1;  // null last regardless of direction
+        if (bv === null) return -1;
+        return (av - bv) * sortMultiplier;
+      }
+      const aVal = (a[sortBy as keyof ItemWithStock] ?? '') as string;
+      const bVal = (b[sortBy as keyof ItemWithStock] ?? '') as string;
       return aVal.localeCompare(bVal, 'vi') * sortMultiplier;
     });
 
@@ -151,6 +196,7 @@ export class InventoryService {
         select: {
           internationalProductId: true,
           soLuong: true,
+          giaThanh: true,
           lot: {
             select: {
               warehouseId: true,
@@ -160,7 +206,7 @@ export class InventoryService {
         },
       });
 
-      const warehouseBreakdown = new Map<string, Map<string, { tenKho: string; soLuong: number }>>();
+      const warehouseBreakdown = new Map<string, Map<string, { tenKho: string; soLuong: number; pricedQty: number; qtyXPrice: number }>>();
       for (const lp of lotProductRows) {
         const pid = lp.internationalProductId;
         if (!pid) continue;
@@ -168,22 +214,35 @@ export class InventoryService {
         const tenKho = lp.lot.warehouse.tenKho;
         if (!warehouseBreakdown.has(pid)) warehouseBreakdown.set(pid, new Map());
         const byWarehouse = warehouseBreakdown.get(pid)!;
+        const price = (lp as any).giaThanh ?? productDefaultPrice.get(pid) ?? null;
         const existing = byWarehouse.get(wid);
         if (existing) {
           existing.soLuong += lp.soLuong;
+          if (price !== null && Number.isFinite(price as number)) {
+            existing.pricedQty += lp.soLuong;
+            existing.qtyXPrice += lp.soLuong * (price as number);
+          }
         } else {
-          byWarehouse.set(wid, { tenKho, soLuong: lp.soLuong });
+          const pricedQty = price !== null && Number.isFinite(price as number) ? lp.soLuong : 0;
+          const qtyXPrice = price !== null && Number.isFinite(price as number) ? lp.soLuong * (price as number) : 0;
+          byWarehouse.set(wid, { tenKho, soLuong: lp.soLuong, pricedQty, qtyXPrice });
         }
       }
 
       for (const item of paginatedItems) {
         const byWarehouse = warehouseBreakdown.get(item.id);
         if (byWarehouse) {
-          item.chiTietTheoKho = Array.from(byWarehouse.entries()).map(([wid, detail]) => ({
-            warehouseId: wid,
-            tenKho: detail.tenKho,
-            soLuong: detail.soLuong,
-          }));
+          item.chiTietTheoKho = Array.from(byWarehouse.entries()).map(([wid, detail]) => {
+            const giaThanhTB = detail.pricedQty > 0 ? detail.qtyXPrice / detail.pricedQty : null;
+            const giaTriTon = giaThanhTB !== null ? detail.soLuong * giaThanhTB : null;
+            return {
+              warehouseId: wid,
+              tenKho: detail.tenKho,
+              soLuong: detail.soLuong,
+              giaThanhTB,
+              giaTriTon,
+            };
+          });
         }
       }
     }
