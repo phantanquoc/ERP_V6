@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, AlertTriangle, Package } from 'lucide-react';
 import supplyRequestService from '../services/supplyRequestService';
 import { useAuth } from '../contexts/AuthContext';
+import { getDepartmentDisplayName } from '../utils/permissions';
 import { parseNumberInput } from '../utils/numberInput';
 import { internationalProductService, InternationalProduct } from '../services/internationalProductService';
 import { ModalForm, ModalFooter, FormField, textareaCls, readonlyCls } from './ModalForm';
@@ -175,7 +176,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
         employeeId: user.employeeId,
         maNhanVien: user.employeeCode || '',
         tenNhanVien: `${user.lastName} ${user.firstName}`,
-        boPhan: user.department || '',
+        boPhan: user.departmentName || user.department || '',
         items: items.map(row => ({
           phanLoai: products.find(p => p.id === row.internationalProductId)?.loaiSanPham || '',
           tenGoi: row.tenGoi,
@@ -215,7 +216,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
             <input type="text" readOnly value={`${user?.lastName || ''} ${user?.firstName || ''}`} className={readonlyCls} />
           </FormField>
           <FormField label="Bộ phận">
-            <input type="text" readOnly value={user?.department || 'Chưa xác định'} className={readonlyCls} />
+            <input type="text" readOnly value={user?.departmentName || getDepartmentDisplayName(user?.department)} className={readonlyCls} />
           </FormField>
         </div>
 

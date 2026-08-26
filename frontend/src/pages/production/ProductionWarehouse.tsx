@@ -23,10 +23,10 @@ import warehouseIssueService from '../../services/warehouseIssueService';
 import supplyRequestService from '../../services/supplyRequestService';
 import { useWarehouses } from '../../hooks';
 
-type TabType = 'inbound' | 'outbound' | 'supplyRequest' | 'warehouseManagement' | 'products';
-const VALID_TABS: TabType[] = ['inbound', 'outbound', 'supplyRequest', 'warehouseManagement', 'products'];
+type TabType = 'inbound' | 'outbound' | 'supplyRequest' | 'warehouseManagement' | 'products' | 'inventory';
+const VALID_TABS: TabType[] = ['supplyRequest', 'inventory', 'inbound', 'outbound', 'products', 'warehouseManagement'];
 
-type WarehouseSubTab = 'overview' | 'management' | 'inventory';
+type WarehouseSubTab = 'overview' | 'management';
 
 const WarehouseManagementWithSubTabs: React.FC<{ initialWarehouseId?: string }> = ({ initialWarehouseId }) => {
   const [subTab, setSubTab] = useState<WarehouseSubTab>('overview');
@@ -57,16 +57,6 @@ const WarehouseManagementWithSubTabs: React.FC<{ initialWarehouseId?: string }> 
         >
           Quản lý & Bản đồ
         </button>
-        <button
-          onClick={() => setSubTab('inventory')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            subTab === 'inventory'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          Tồn kho
-        </button>
       </div>
       {subTab === 'overview' && (
         <FactoryOverview
@@ -79,7 +69,6 @@ const WarehouseManagementWithSubTabs: React.FC<{ initialWarehouseId?: string }> 
         />
       )}
       {subTab === 'management' && <WarehouseUnifiedView initialWarehouseId={pickedWarehouseId ?? initialWarehouseId} />}
-      {subTab === 'inventory' && <InventoryOverview />}
     </div>
   );
 };
@@ -88,7 +77,7 @@ const ProductionWarehouse = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     const tabParam = searchParams.get('tab');
-    return VALID_TABS.includes(tabParam as TabType) ? tabParam as TabType : 'warehouseManagement';
+    return VALID_TABS.includes(tabParam as TabType) ? tabParam as TabType : 'supplyRequest';
   });
 
   useEffect(() => {
@@ -295,7 +284,7 @@ const ProductionWarehouse = () => {
 
   const openWarehouse = (warehouseId: string) => {
     setInitialWarehouseId(warehouseId);
-    goToTab('warehouseManagement');
+    goToTab('inventory');
   };
 
   // State for modals
@@ -330,16 +319,17 @@ const ProductionWarehouse = () => {
   }, [receipts, issues]);
 
   const tabs = [
-    { id: 'warehouseManagement', name: 'Quản lý kho', icon: <Package className="w-4 h-4" /> },
-    { id: 'products', name: 'Danh sách hàng hóa', icon: <Package className="w-4 h-4" /> },
-    { id: 'inbound', name: 'Nhập kho', icon: <ArrowDown className="w-4 h-4" /> },
-    { id: 'outbound', name: 'Xuất kho', icon: <ArrowUp className="w-4 h-4" /> },
     {
       id: 'supplyRequest',
-      name: 'Yêu cầu cung cấp',
+      name: 'Danh sách yêu cầu cung cấp',
       icon: <FileText className="w-4 h-4" />,
       badge: pendingWarehouseCount > 0 ? pendingWarehouseCount : null,
-    }
+    },
+    { id: 'inventory', name: 'Danh sách tồn kho', icon: <ClipboardList className="w-4 h-4" /> },
+    { id: 'inbound', name: 'Danh sách nhập kho', icon: <ArrowDown className="w-4 h-4" /> },
+    { id: 'outbound', name: 'Danh sách xuất kho', icon: <ArrowUp className="w-4 h-4" /> },
+    { id: 'products', name: 'Danh sách hàng hóa', icon: <Package className="w-4 h-4" /> },
+    { id: 'warehouseManagement', name: 'Danh sách kho', icon: <Warehouse className="w-4 h-4" /> }
   ];
 
   const tabStripRef = useRef<HTMLDivElement>(null);
@@ -594,13 +584,14 @@ const ProductionWarehouse = () => {
       </div>
 
       {/* Content */}
+      {activeTab === 'supplyRequest' && <SupplyRequestManagement />}
+      {activeTab === 'inventory' && <InventoryOverview />}
       {activeTab === 'warehouseManagement' && (
         <WarehouseManagementWithSubTabs initialWarehouseId={initialWarehouseId} />
       )}
       {activeTab === 'products' && <InternationalProductManagement />}
       {activeTab === 'inbound' && <WarehouseReceiptTab month={filterMonth} year={filterYear} />}
       {activeTab === 'outbound' && <WarehouseIssueTab month={filterMonth} year={filterYear} />}
-      {activeTab === 'supplyRequest' && <SupplyRequestManagement />}
 
       {/* Detail Modal */}
       {isDetailModalOpen && selectedItem && (

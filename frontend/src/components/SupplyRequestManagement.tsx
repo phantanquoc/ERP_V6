@@ -103,6 +103,40 @@ const getDecisionColor = (decision: string) => {
   }
 };
 
+/**
+ * Chuẩn hoá giá trị `boPhan` về tên tiếng Việt để hiển thị.
+ *
+ * Lịch sử: form tạo YC từng lưu `user.department` (perm-code như 'technical',
+ * 'quality', 'admin') thay vì `user.departmentName`, nên DB lẫn lộn code và tên.
+ * Helper này map code → tên Việt, và giữ nguyên giá trị đã là tiếng Việt.
+ */
+const BO_PHAN_LABEL: Record<string, string> = {
+  // perm-code (user.department)
+  general: 'Bộ phận tổng hợp',
+  quality: 'Bộ phận chất lượng',
+  business: 'Bộ phận kinh doanh',
+  accounting: 'Bộ phận kế toán',
+  purchasing: 'Bộ phận thu mua',
+  production: 'Bộ phận sản xuất',
+  technical: 'Bộ phận kỹ thuật',
+  admin: 'Ban quản trị',
+  // raw backend code (user.departmentCode)
+  dept_general: 'Bộ phận tổng hợp',
+  dept_quality: 'Bộ phận chất lượng',
+  dept_business: 'Bộ phận kinh doanh',
+  dept_accounting: 'Bộ phận kế toán',
+  dept_purchasing: 'Bộ phận thu mua',
+  dept_production: 'Bộ phận sản xuất',
+  dept_technical: 'Bộ phận kỹ thuật',
+};
+
+const normalizeBoPhanLabel = (value?: string): string => {
+  if (!value || !value.trim()) return '—';
+  const trimmed = value.trim();
+  const mapped = BO_PHAN_LABEL[trimmed.toLowerCase()];
+  return mapped ?? trimmed;
+};
+
 const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
@@ -118,7 +152,16 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   const supplyFilterFields: FilterField[] = [
     { key: 'maYeuCau', label: 'Mã yêu cầu', type: 'text' },
     { key: 'tenNhanVien', label: 'Tên nhân viên', type: 'text' },
-    { key: 'boPhan', label: 'Bộ phận', type: 'text' },
+    { key: 'boPhan', label: 'Bộ phận', type: 'select', options: [
+      { value: 'Bộ phận tổng hợp', label: 'Bộ phận tổng hợp' },
+      { value: 'Bộ phận chất lượng', label: 'Bộ phận chất lượng' },
+      { value: 'Bộ phận kinh doanh', label: 'Bộ phận kinh doanh' },
+      { value: 'Bộ phận kế toán', label: 'Bộ phận kế toán' },
+      { value: 'Bộ phận thu mua', label: 'Bộ phận thu mua' },
+      { value: 'Bộ phận sản xuất', label: 'Bộ phận sản xuất' },
+      { value: 'Bộ phận kỹ thuật', label: 'Bộ phận kỹ thuật' },
+      { value: 'Ban quản trị', label: 'Ban quản trị' },
+    ] },
     { key: 'trangThai', label: 'Trạng thái', type: 'select', options: [
       { value: 'Chưa cung cấp', label: 'Chưa cung cấp' },
       { value: 'Đang xử lý', label: 'Đang xử lý' },
@@ -429,17 +472,17 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
       {/* Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         <div className="overflow-x-auto -mx-px">
-          <table className="w-full min-w-[720px] lg:min-w-[980px] table-auto">
+          <table className="w-full min-w-[840px] lg:min-w-[1120px] table-fixed">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th scope="col" className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 w-9">#</th>
-                <th scope="col" className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 w-24 lg:w-28">Ngày YC</th>
-                <th scope="col" className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 w-24">Mã YC</th>
-                <th scope="col" className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 hidden sm:table-cell">Nhân viên</th>
-                <th scope="col" className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 hidden md:table-cell">Bộ phận</th>
+                <th scope="col" className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 w-20 lg:w-24">Ngày YC</th>
+                <th scope="col" className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 w-28 lg:w-36">Mã YC</th>
+                <th scope="col" className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 hidden sm:table-cell w-32 lg:w-40">Nhân viên</th>
+                <th scope="col" className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 hidden md:table-cell w-28 lg:w-40">Bộ phận</th>
                 <th scope="col" className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200">Sản phẩm</th>
-                <th scope="col" className="px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-200 w-16 lg:w-20">Ưu tiên</th>
-                <th scope="col" className="px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-200 w-20 lg:w-28">Trạng thái</th>
+                <th scope="col" className="px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-200 w-20 lg:w-24">Ưu tiên</th>
+                <th scope="col" className="px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-200 w-24 lg:w-32">Trạng thái</th>
                 <th scope="col" className="px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-900 w-16 lg:w-20">
                   <span className="hidden sm:inline">Hành động</span>
                   <span className="sm:hidden">•••</span>
@@ -482,9 +525,9 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                     <td className="px-2 lg:px-4 py-2 sm:py-3 text-sm border-r border-gray-200 text-center">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                     <td className="px-2 lg:px-4 py-2 sm:py-3 text-xs sm:text-sm border-r border-gray-200 whitespace-nowrap">{formatDateVN(request.ngayYeuCau)}</td>
                     <td className="px-2 lg:px-4 py-2 sm:py-3 text-xs sm:text-sm font-medium text-indigo-600 border-r border-gray-200 whitespace-nowrap" title={request.maYeuCau}>{request.maYeuCau}</td>
-                    <td className="px-2 lg:px-4 py-2 sm:py-3 text-xs sm:text-sm border-r border-gray-200 hidden sm:table-cell truncate max-w-[120px] lg:max-w-[160px]" title={request.tenNhanVien}>{request.tenNhanVien}</td>
-                    <td className="px-2 lg:px-4 py-2 sm:py-3 text-xs sm:text-sm border-r border-gray-200 hidden md:table-cell truncate max-w-[110px] lg:max-w-[140px]" title={request.boPhan}>{request.boPhan}</td>
-                    <td className="px-2 lg:px-4 py-2 sm:py-3 text-xs sm:text-sm border-r border-gray-200 max-w-[140px] lg:max-w-[260px]">
+                    <td className="px-2 lg:px-4 py-2 sm:py-3 text-xs sm:text-sm border-r border-gray-200 hidden sm:table-cell truncate" title={request.tenNhanVien}>{request.tenNhanVien}</td>
+                    <td className="px-2 lg:px-4 py-2 sm:py-3 text-xs sm:text-sm border-r border-gray-200 hidden md:table-cell truncate" title={normalizeBoPhanLabel(request.boPhan)}>{normalizeBoPhanLabel(request.boPhan)}</td>
+                    <td className="px-2 lg:px-4 py-2 sm:py-3 text-xs sm:text-sm border-r border-gray-200 min-w-0">
                       {request.items && request.items.length > 0 ? (
                         <span className="text-gray-700 line-clamp-2 break-words" title={request.items.map((i: any) => i.tenGoi).join(', ')}>{request.items.map((i: any) => i.tenGoi).join(', ')}</span>
                       ) : (
@@ -627,7 +670,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                 <div><span className="font-medium text-gray-600">Mã yêu cầu:</span> <span className="text-indigo-600 font-medium">{selectedRequest.maYeuCau}</span></div>
                 <div><span className="font-medium text-gray-600">Ngày yêu cầu:</span> {formatDateVN(selectedRequest.ngayYeuCau)}</div>
                 <div><span className="font-medium text-gray-600">Nhân viên:</span> {selectedRequest.tenNhanVien}</div>
-                <div><span className="font-medium text-gray-600">Bộ phận:</span> {selectedRequest.boPhan}</div>
+                <div><span className="font-medium text-gray-600">Bộ phận:</span> {normalizeBoPhanLabel(selectedRequest.boPhan)}</div>
                 <div className="sm:col-span-2 flex items-center gap-2">
                   <span className="font-medium text-gray-600">Trạng thái:</span>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(selectedRequest.trangThai)}`}>
