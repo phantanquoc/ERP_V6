@@ -129,8 +129,6 @@ const PartialFulfillmentModal: React.FC<PartialFulfillmentModalProps> = ({
     return Math.max(0, remaining - (isNaN(val) ? 0 : val));
   }, [fulfilledQty, remaining]);
 
-  if (!item) return null;
-
   const qtyNum = parseFloat(fulfilledQty || '0');
   const needsWarehouseSelection = !isNaN(qtyNum) && qtyNum > 0;
 
@@ -145,6 +143,8 @@ const PartialFulfillmentModal: React.FC<PartialFulfillmentModalProps> = ({
     () => lotProducts.some((lp) => lp.soLuong > 0),
     [lotProducts]
   );
+
+  if (!item) return null;
 
   const handleSubmit = async () => {
     setError('');

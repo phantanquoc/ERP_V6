@@ -23,6 +23,75 @@ let savedBodyOverflow = '';
 let savedBodyPaddingRight = '';
 let savedHtmlOverflow = '';
 
+// Modal stack — tracks the order in which modals opened so that ESC and
+// focus-trap are handled by the TOPMOST modal only, and inert/aria-hidden is
+// coordinated centrally so nested modals don't leak inert state onto the page.
+interface OpenModalEntry {
+  id: number;
+  container: HTMLElement | null;
+}
+const openModals: OpenModalEntry[] = [];
+let nextModalId = 0;
+
+// Records each body child's ORIGINAL aria-hidden/inert the first time we
+// touch it, so nested modals never overwrite the true original. Restoring
+// always goes back to this baseline, regardless of open/close ordering.
+const inertOriginals = new Map<HTMLElement, { ariaHidden: string | null; inert: boolean }>();
+
+const isInertRelevant = (el: HTMLElement) =>
+  el.tagName !== 'SCRIPT' && el.tagName !== 'STYLE' && el.tagName !== 'LINK';
+
+// Idempotent: converges to the correct inert state for the current set of
+// open modals. Call after any open or close.
+function syncInert() {
+  if (openModals.length === 0) {
+    // No modal open — restore every element we ever touched.
+    inertOriginals.forEach((orig, el) => {
+      if (!document.body.contains(el)) return;
+      if (!isInertRelevant(el)) return;
+      if (orig.ariaHidden === null) el.removeAttribute('aria-hidden');
+      else el.setAttribute('aria-hidden', orig.ariaHidden);
+      try {
+        (el as unknown as { inert: boolean }).inert = orig.inert;
+      } catch {
+        // ignore
+      }
+    });
+    return;
+  }
+  const topmost = openModals[openModals.length - 1]?.container ?? null;
+  Array.from(document.body.children).forEach((child) => {
+    const el = child as HTMLElement;
+    if (!isInertRelevant(el)) return;
+    if (!inertOriginals.has(el)) {
+      inertOriginals.set(el, {
+        ariaHidden: el.getAttribute('aria-hidden'),
+        inert: (el as unknown as { inert?: boolean }).inert ?? false,
+      });
+    }
+    // Only the topmost modal's container stays interactive; everything else
+    // (including lower modals' containers) is inert while a modal is open.
+    const shouldInert = el !== topmost;
+    const orig = inertOriginals.get(el)!;
+    if (shouldInert) {
+      el.setAttribute('aria-hidden', 'true');
+      try {
+        (el as unknown as { inert: boolean }).inert = true;
+      } catch {
+        // ignore — aria-hidden still hides from AT
+      }
+    } else {
+      if (orig.ariaHidden === null) el.removeAttribute('aria-hidden');
+      else el.setAttribute('aria-hidden', orig.ariaHidden);
+      try {
+        (el as unknown as { inert: boolean }).inert = orig.inert;
+      } catch {
+        // ignore
+      }
+    }
+  });
+}
+
 const focusableSelector = [
   'button:not([disabled])',
   '[href]',
@@ -86,7 +155,14 @@ const Modal: React.FC<ModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
 
+    const id = ++nextModalId;
+    const entry: OpenModalEntry = { id, container: null };
+    openModals.push(entry);
+
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Only the topmost open modal reacts to ESC / Tab — otherwise a nested
+      // modal's ESC would close the parent underneath it.
+      if (openModals[openModals.length - 1]?.id !== id) return;
       if (e.key === 'Escape') {
         onClose();
         return;
@@ -138,51 +214,29 @@ const Modal: React.FC<ModalProps> = ({
     document.body.style.paddingRight = `${scrollBarWidth}px`;
     document.documentElement.style.overflow = 'hidden';
 
-    // Inert / aria-hidden siblings: hide everything in <body> except the
-    // portal's top-level container that holds this dialog. Use rAF to wait
-    // until Portal has mounted the container into document.body.
+    // Register this modal's portal container with the shared inert manager.
+    // Portal mounts its container in its own effect, so on the first pass it
+    // is not yet in the DOM — retry via rAF until it is.
     let inertFrame = 0;
-    const altered: Array<{ el: HTMLElement; prevAriaHidden: string | null; prevInert: boolean }> = [];
-    const applyInert = () => {
+    const registerContainer = () => {
       const topLevel = dialogRef.current?.parentElement as HTMLElement | null;
-      // If not yet mounted, retry once next frame
-      if (!topLevel || !document.body.contains(topLevel)) {
-        inertFrame = requestAnimationFrame(applyInert);
+      if (topLevel && document.body.contains(topLevel)) {
+        entry.container = topLevel;
+        syncInert();
         return;
       }
-      Array.from(document.body.children).forEach((child) => {
-        const el = child as HTMLElement;
-        if (el === topLevel) return;
-        // Skip non-visual nodes
-        if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || el.tagName === 'LINK') return;
-        const prevAriaHidden = el.getAttribute('aria-hidden');
-        const prevInert = (el as unknown as { inert?: boolean }).inert ?? false;
-        altered.push({ el, prevAriaHidden, prevInert });
-        el.setAttribute('aria-hidden', 'true');
-        // inert is widely supported; guard for older engines
-        try {
-          (el as unknown as { inert: boolean }).inert = true;
-        } catch {
-          // ignore — aria-hidden still hides from AT
-        }
-      });
+      inertFrame = requestAnimationFrame(registerContainer);
     };
-    // Delay one frame so Portal effect has run
-    inertFrame = requestAnimationFrame(applyInert);
+    inertFrame = requestAnimationFrame(registerContainer);
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       cancelAnimationFrame(inertFrame);
-      // Restore inert / aria-hidden
-      altered.forEach(({ el, prevAriaHidden, prevInert }) => {
-        if (prevAriaHidden === null) el.removeAttribute('aria-hidden');
-        else el.setAttribute('aria-hidden', prevAriaHidden);
-        try {
-          (el as unknown as { inert: boolean }).inert = prevInert;
-        } catch {
-          // ignore
-        }
-      });
+      const idx = openModals.findIndex((m) => m.id === id);
+      if (idx !== -1) openModals.splice(idx, 1);
+      // Re-converge inert for the remaining open modals — if none are left,
+      // every element is restored to its original (pre-modal) state.
+      syncInert();
       // Release scroll lock only when last modal closes
       scrollLockCount = Math.max(0, scrollLockCount - 1);
       if (scrollLockCount === 0) {
