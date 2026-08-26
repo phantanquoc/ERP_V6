@@ -10,13 +10,20 @@ class SupplyRequestController {
       const limit = parseInt(req.query.limit as string) || 10;
       const search = req.query.search as string;
       const phanLoai = (req.query.phanLoai as string) || undefined;
+      const filters = {
+        maYeuCau: (req.query.maYeuCau as string) || undefined,
+        tenNhanVien: (req.query.tenNhanVien as string) || undefined,
+        boPhan: (req.query.boPhan as string) || undefined,
+        trangThai: (req.query.trangThai as string) || undefined,
+        mucDoUuTien: (req.query.mucDoUuTien as string) || undefined,
+      };
       const departmentIds = (req as unknown as { userDepartmentIds?: string[] }).userDepartmentIds;
       const subDepartmentIds = (() => {
         const v = (req as unknown as { userSubDepartmentId?: string | null }).userSubDepartmentId;
         return v ? [v] : undefined;
       })();
 
-      const result = await supplyRequestService.getAllSupplyRequests(page, limit, search, departmentIds, subDepartmentIds, phanLoai);
+      const result = await supplyRequestService.getAllSupplyRequests(page, limit, search, departmentIds, subDepartmentIds, phanLoai, filters);
 
       return res.json({
         success: true,
@@ -114,9 +121,12 @@ class SupplyRequestController {
   async exportToExcel(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const filters: any = {};
-      if (req.query.search) {
-        filters.search = req.query.search as string;
-      }
+      if (req.query.search) filters.search = req.query.search as string;
+      if (req.query.maYeuCau) filters.maYeuCau = req.query.maYeuCau as string;
+      if (req.query.tenNhanVien) filters.tenNhanVien = req.query.tenNhanVien as string;
+      if (req.query.boPhan) filters.boPhan = req.query.boPhan as string;
+      if (req.query.trangThai) filters.trangThai = req.query.trangThai as string;
+      if (req.query.mucDoUuTien) filters.mucDoUuTien = req.query.mucDoUuTien as string;
 
       const buffer = await supplyRequestService.exportToExcel(filters);
 

@@ -95,6 +95,13 @@ class SupplyRequestService {
     departmentIds?: string[],
     subDepartmentIds?: string[],
     phanLoai?: string,
+    filters?: {
+      maYeuCau?: string;
+      tenNhanVien?: string;
+      boPhan?: string;
+      trangThai?: string;
+      mucDoUuTien?: string;
+    },
   ) {
     const { skip } = getPaginationParams(page, limit);
 
@@ -108,32 +115,49 @@ class SupplyRequestService {
         : {};
     const phanLoaiFilter = phanLoai ? { items: { some: { phanLoai: { contains: phanLoai, mode: 'insensitive' as const } } } } : {};
 
-    const where = search
-      ? {
-          AND: [
-            deptFilter,
-            subDeptFilter,
-            phanLoaiFilter,
-            {
-          OR: [
-            { maYeuCau: { contains: search, mode: 'insensitive' as const } },
-            { tenNhanVien: { contains: search, mode: 'insensitive' as const } },
-            { maNhanVien: { contains: search, mode: 'insensitive' as const } },
-            {
-              items: {
-                some: {
-                  OR: [
-                    { tenGoi: { contains: search, mode: 'insensitive' as const } },
-                    { phanLoai: { contains: search, mode: 'insensitive' as const } },
-                  ],
-                },
+    // Build the condition list; every entry is AND-ed together. Filtering is
+    // done server-side so pagination totals stay consistent with the visible rows.
+    const conditions: Record<string, unknown>[] = [deptFilter, subDeptFilter, phanLoaiFilter];
+
+    if (search) {
+      conditions.push({
+        OR: [
+          { maYeuCau: { contains: search, mode: 'insensitive' as const } },
+          { tenNhanVien: { contains: search, mode: 'insensitive' as const } },
+          { maNhanVien: { contains: search, mode: 'insensitive' as const } },
+          { boPhan: { contains: search, mode: 'insensitive' as const } },
+          { mucDichYeuCau: { contains: search, mode: 'insensitive' as const } },
+          {
+            items: {
+              some: {
+                OR: [
+                  { tenGoi: { contains: search, mode: 'insensitive' as const } },
+                  { phanLoai: { contains: search, mode: 'insensitive' as const } },
+                ],
               },
             },
-          ],
-        },
-          ],
-        }
-      : { AND: [deptFilter, subDeptFilter, phanLoaiFilter] };
+          },
+        ],
+      });
+    }
+
+    if (filters?.maYeuCau) {
+      conditions.push({ maYeuCau: { contains: filters.maYeuCau, mode: 'insensitive' as const } });
+    }
+    if (filters?.tenNhanVien) {
+      conditions.push({ tenNhanVien: { contains: filters.tenNhanVien, mode: 'insensitive' as const } });
+    }
+    if (filters?.boPhan) {
+      conditions.push({ boPhan: { contains: filters.boPhan, mode: 'insensitive' as const } });
+    }
+    if (filters?.trangThai) {
+      conditions.push({ trangThai: filters.trangThai });
+    }
+    if (filters?.mucDoUuTien) {
+      conditions.push({ mucDoUuTien: filters.mucDoUuTien });
+    }
+
+    const where = { AND: conditions };
 
     const [data, total] = await Promise.all([
       prisma.supplyRequest.findMany({
@@ -1230,25 +1254,46 @@ class SupplyRequestService {
   }
 
   async exportToExcel(filters?: any): Promise<Buffer> {
-    const where: any = {};
+    const conditions: Record<string, unknown>[] = [];
 
     if (filters?.search) {
-      where.OR = [
-        { maYeuCau: { contains: filters.search, mode: 'insensitive' as const } },
-        { tenNhanVien: { contains: filters.search, mode: 'insensitive' as const } },
-        { maNhanVien: { contains: filters.search, mode: 'insensitive' as const } },
-        {
-          items: {
-            some: {
-              OR: [
-                { tenGoi: { contains: filters.search, mode: 'insensitive' as const } },
-                { phanLoai: { contains: filters.search, mode: 'insensitive' as const } },
-              ],
+      conditions.push({
+        OR: [
+          { maYeuCau: { contains: filters.search, mode: 'insensitive' as const } },
+          { tenNhanVien: { contains: filters.search, mode: 'insensitive' as const } },
+          { maNhanVien: { contains: filters.search, mode: 'insensitive' as const } },
+          { boPhan: { contains: filters.search, mode: 'insensitive' as const } },
+          { mucDichYeuCau: { contains: filters.search, mode: 'insensitive' as const } },
+          {
+            items: {
+              some: {
+                OR: [
+                  { tenGoi: { contains: filters.search, mode: 'insensitive' as const } },
+                  { phanLoai: { contains: filters.search, mode: 'insensitive' as const } },
+                ],
+              },
             },
           },
-        },
-      ];
+        ],
+      });
     }
+    if (filters?.maYeuCau) {
+      conditions.push({ maYeuCau: { contains: filters.maYeuCau, mode: 'insensitive' as const } });
+    }
+    if (filters?.tenNhanVien) {
+      conditions.push({ tenNhanVien: { contains: filters.tenNhanVien, mode: 'insensitive' as const } });
+    }
+    if (filters?.boPhan) {
+      conditions.push({ boPhan: { contains: filters.boPhan, mode: 'insensitive' as const } });
+    }
+    if (filters?.trangThai) {
+      conditions.push({ trangThai: filters.trangThai });
+    }
+    if (filters?.mucDoUuTien) {
+      conditions.push({ mucDoUuTien: filters.mucDoUuTien });
+    }
+
+    const where: any = conditions.length > 0 ? { AND: conditions } : {};
 
     const data = await prisma.supplyRequest.findMany({
       where,

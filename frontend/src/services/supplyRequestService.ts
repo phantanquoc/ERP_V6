@@ -110,12 +110,24 @@ export interface BatchFulfillResult {
   createdPurchaseRequests: { id: string; maYeuCau: string; bucket: string }[];
 }
 
+export interface SupplyRequestListFilters {
+  search?: string;
+  maYeuCau?: string;
+  tenNhanVien?: string;
+  boPhan?: string;
+  trangThai?: string;
+  mucDoUuTien?: string;
+}
+
 class SupplyRequestService {
-  async getAllSupplyRequests(page: number = 1, limit: number = 10, search?: string) {
-    const params: any = { page, limit };
-    if (search) {
-      params.search = search;
-    }
+  async getAllSupplyRequests(page: number = 1, limit: number = 10, filters?: SupplyRequestListFilters) {
+    const params: Record<string, unknown> = { page, limit };
+    if (filters?.search) params.search = filters.search;
+    if (filters?.maYeuCau) params.maYeuCau = filters.maYeuCau;
+    if (filters?.tenNhanVien) params.tenNhanVien = filters.tenNhanVien;
+    if (filters?.boPhan) params.boPhan = filters.boPhan;
+    if (filters?.trangThai) params.trangThai = filters.trangThai;
+    if (filters?.mucDoUuTien) params.mucDoUuTien = filters.mucDoUuTien;
 
     const response = await apiClient.get('/supply-requests', { params });
     return response;
@@ -169,10 +181,15 @@ class SupplyRequestService {
     return response;
   }
 
-  async exportToExcel(filters?: { search?: string }): Promise<void> {
+  async exportToExcel(filters?: SupplyRequestListFilters): Promise<void> {
     const token = localStorage.getItem('accessToken');
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
+    if (filters?.maYeuCau) params.append('maYeuCau', filters.maYeuCau);
+    if (filters?.tenNhanVien) params.append('tenNhanVien', filters.tenNhanVien);
+    if (filters?.boPhan) params.append('boPhan', filters.boPhan);
+    if (filters?.trangThai) params.append('trangThai', filters.trangThai);
+    if (filters?.mucDoUuTien) params.append('mucDoUuTien', filters.mucDoUuTien);
 
     const url = `${API_BASE_URL}/supply-requests/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
     const response = await fetch(url, {
