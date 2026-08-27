@@ -184,10 +184,20 @@ const EditWarehouseIssueModal: React.FC<EditWarehouseIssueModalProps> = ({
     const removedCount = (issue.items ?? []).filter(
       (line) => !rows.some((row) => row.id === line.id)
     ).length;
+    const repointDetected = (issue.items ?? []).some((line) => {
+      const row = rows.find((r) => r.id === line.id);
+      return !!row && row.lotProductId !== line.lotProductId;
+    });
     if (removedCount > 0) {
       const ok = confirm(
         `Bạn đã xóa ${removedCount} dòng hàng khỏi phiếu. ` +
         'Số lượng của các dòng đó sẽ được hoàn lại tồn kho. Tiếp tục?'
+      );
+      if (!ok) return;
+    } else if (repointDetected) {
+      const ok = confirm(
+        'Một số dòng được chuyển sang kho/lô/kiện khác. ' +
+        'Số lượng sẽ được hoàn lại về kiện cũ và trừ vào kiện mới. Tiếp tục?'
       );
       if (!ok) return;
     }

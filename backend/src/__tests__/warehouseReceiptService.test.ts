@@ -8,6 +8,7 @@
  */
 
 const mockTx = {
+  $queryRaw: jest.fn().mockResolvedValue([{ id: 'r1' }]),
   warehouseReceipt: {
     findUnique: jest.fn(),
     create: jest.fn(),
@@ -135,10 +136,16 @@ function storedLine(overrides: Partial<Record<string, unknown>> = {}) {
   } as any;
 }
 
+/** Fake LotProduct row sufficient for the resolveLines cross-check (maKien + lot/wallet). */
+function fakeLotProductRow(lotProductId: string, overrides: Record<string, any> = {}) {
+  return { maKien: 'K1.1', lotId: 'l1', lot: { warehouseId: 'w1' }, ...overrides, id: lotProductId } as any;
+}
+
 describe('warehouseReceiptService.create', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (prismaMock.warehouseReceipt.findFirst as jest.Mock).mockResolvedValue(null);
+    mockTx.lotProduct.findUnique.mockImplementation((args: any) => Promise.resolve(fakeLotProductRow(args.where.id)));
     mockTx.warehouseReceipt.create.mockImplementation(({ data }: any) =>
       Promise.resolve({ id: 'r1', ...data, items: [] })
     );
@@ -246,13 +253,14 @@ describe('warehouseReceiptService.create', () => {
 describe('warehouseReceiptService.update', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockTx.lotProduct.findUnique.mockImplementation((args: any) => Promise.resolve(fakeLotProductRow(args.where.id)));
     mockTx.warehouseReceipt.update.mockImplementation(({ data }: any) =>
       Promise.resolve({ id: 'r1', supplyRequestId: null, ...data, items: [] })
     );
   });
 
   it('reverses the stored line and applies the incoming one on the same package', async () => {
-    (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
+    (mockTx.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
       id: 'r1', supplyRequestId: null, items: [storedLine({ soLuongThucTe: 10 })],
     });
     mockTx.lotProduct.findMany.mockResolvedValue(balanceRows([{ id: 'lp1', soLuong: 50 }]));
@@ -274,7 +282,7 @@ describe('warehouseReceiptService.update', () => {
   });
 
   it('removes a dropped line and settles its package at the reversed balance', async () => {
-    (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
+    (mockTx.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
       id: 'r1',
       supplyRequestId: null,
       items: [
@@ -303,7 +311,7 @@ describe('warehouseReceiptService.update', () => {
   });
 
   it('creates an added line and leaves the existing one intact', async () => {
-    (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
+    (mockTx.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
       id: 'r1', supplyRequestId: null, items: [storedLine({ soLuongThucTe: 10 })],
     });
     mockTx.lotProduct.findMany.mockResolvedValue(
@@ -327,7 +335,7 @@ describe('warehouseReceiptService.update', () => {
   });
 
   it('repoints a line to another package, reversing the original', async () => {
-    (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
+    (mockTx.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
       id: 'r1', supplyRequestId: null, items: [storedLine({ soLuongThucTe: 10 })],
     });
     mockTx.lotProduct.findMany.mockResolvedValue(
@@ -352,7 +360,7 @@ describe('warehouseReceiptService.update', () => {
   });
 
   it('writes nothing when reversing a line would drive stock negative', async () => {
-    (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
+    (mockTx.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
       id: 'r1', supplyRequestId: null, items: [storedLine({ soLuongThucTe: 50 })],
     });
     mockTx.lotProduct.findMany.mockResolvedValue(balanceRows([{ id: 'lp1', soLuong: 30 }]));
@@ -368,18 +376,17 @@ describe('warehouseReceiptService.update', () => {
   });
 
   it('throws ConflictError if the receipt is supply-request-linked', async () => {
-    (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
+    (mockTx.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
       id: 'r1', supplyRequestId: 'sr1', items: [storedLine()],
     });
 
     await expect(
       warehouseReceiptService.update('r1', { items: [line({ id: 'it1' })] })
     ).rejects.toThrow('Không thể sửa/xóa phiếu gắn với yêu cầu cung cấp');
-    expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 
   it('throws NotFoundError for an unknown receipt', async () => {
-    (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue(null);
+    (mockTx.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue(null);
 
     await expect(
       warehouseReceiptService.update('rX', { items: [line({ id: 'it1' })] })
@@ -394,7 +401,7 @@ describe('warehouseReceiptService.delete', () => {
   });
 
   it('reverses every line against its own package and deletes the slip', async () => {
-    (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
+    (mockTx.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
       id: 'r1',
       supplyRequestId: null,
       items: [
@@ -421,7 +428,7 @@ describe('warehouseReceiptService.delete', () => {
   });
 
   it('reverses two lines sharing one package by their aggregate', async () => {
-    (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
+    (mockTx.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
       id: 'r1',
       supplyRequestId: null,
       items: [
@@ -441,7 +448,7 @@ describe('warehouseReceiptService.delete', () => {
   });
 
   it('writes nothing when the aggregate reversal would go negative', async () => {
-    (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
+    (mockTx.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
       id: 'r1',
       supplyRequestId: null,
       items: [
@@ -460,12 +467,11 @@ describe('warehouseReceiptService.delete', () => {
   });
 
   it('throws ConflictError if the receipt is locked', async () => {
-    (prismaMock.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
+    (mockTx.warehouseReceipt.findUnique as jest.Mock).mockResolvedValue({
       id: 'r1', supplyRequestId: 'sr1', items: [storedLine()],
     });
 
     await expect(warehouseReceiptService.delete('r1')).rejects.toThrow('Không thể sửa/xóa phiếu gắn với yêu cầu cung cấp');
-    expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 });
 

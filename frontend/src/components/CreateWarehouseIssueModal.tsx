@@ -26,6 +26,8 @@ interface IssueRow {
   lotId: string;
   lotProductId: string;
   soLuongXuat: number;
+  /** Kế hoạch riêng — optional, mặc định = soLuongXuat (thực tế) khi bỏ trống */
+  soLuongYeuCau?: number;
   ghiChu: string;
   tinhTrang: string;
   tinhTrangCustom: string;
@@ -379,6 +381,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
           tenKho: warehouse?.tenKho || '',
           lotId: row.lotId,
           tenLo: lot?.tenLo || '',
+          soLuongYeuCau: row.soLuongYeuCau > 0 ? row.soLuongYeuCau : row.soLuongXuat,
           soLuongThucTe: row.soLuongXuat,
           donViTinh: lotProduct?.donViTinh || row.donViTinh || '',
           ghiChu: row.ghiChu,
@@ -660,10 +663,10 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-                    {/* Số lượng */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                    {/* Số lượng thực tế */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Số lượng xuất <span className="text-red-500">*</span></label>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Số lượng thực tế <span className="text-red-500">*</span></label>
                       <input type="number" value={row.soLuongXuat}
                         onChange={(e) => updateRow(index, { soLuongXuat: parseNumberInput(e.target.value) })}
                         required min="0" step="0.01"
@@ -680,6 +683,17 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
                           </p>
                         );
                       })()}
+                    </div>
+
+                    {/* Số lượng kế hoạch */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Số lượng kế hoạch</label>
+                      <input type="number" value={row.soLuongYeuCau > 0 ? row.soLuongYeuCau : ''}
+                        placeholder={row.soLuongXuat > 0 ? String(row.soLuongXuat) : ''}
+                        title="Bỏ trống thì mặc định bằng số lượng thực tế"
+                        onChange={(e) => updateRow(index, { soLuongYeuCau: parseNumberInput(e.target.value) > 0 ? parseNumberInput(e.target.value) : undefined })}
+                        min="0" step="0.01"
+                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500" />
                     </div>
 
                     {/* Ghi chú */}

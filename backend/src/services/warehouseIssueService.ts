@@ -175,7 +175,7 @@ class WarehouseIssueService {
   private async loadBalances(
     client: PrismaClientLike,
     lotProductIds: string[]
-  ): Promise<Map<string, PackageBalance & { internationalProductId: string; maKien: string | null }>> {
+  ): Promise<Map<string, PackageBalance & { internationalProductId: string; maKien: string | null; lotId: string; warehouseId: string | null }>> {
     const ids = [...new Set(lotProductIds)];
     if (ids.length === 0) return new Map();
 
@@ -186,12 +186,14 @@ class WarehouseIssueService {
         soLuong: true,
         donViTinh: true,
         maKien: true,
+        lotId: true,
+        lot: { select: { warehouseId: true } },
         internationalProductId: true,
         internationalProduct: { select: { tenSanPham: true } },
       },
     });
 
-    const balances = new Map<string, PackageBalance & { internationalProductId: string; maKien: string | null }>();
+    const balances = new Map<string, PackageBalance & { internationalProductId: string; maKien: string | null; lotId: string; warehouseId: string | null }>();
     for (const row of rows) {
       balances.set(row.id, {
         soLuong: row.soLuong,
@@ -199,9 +201,57 @@ class WarehouseIssueService {
         tenSanPham: row.internationalProduct?.tenSanPham ?? '',
         internationalProductId: row.internationalProductId ?? '',
         maKien: row.maKien,
+        lotId: row.lotId,
+        warehouseId: row.lot?.warehouseId ?? null,
       });
     }
     return balances;
+  }
+
+  /**
+   * Cross-check each line's declared lot/warehouse against the package's real
+   * location. A repointed line must not keep stale lot/warehouse values, and a
+   * forged payload must not draw from a package in a different lot/warehouse.
+   */
+  private assertLinesMatchPackages(
+    items: Array<{ lotProductId: string; lotId?: string; warehouseId?: string; tenSanPham?: string }>,
+    balances: Map<string, { lotId?: string; warehouseId?: string | null }>
+  ): void {
+    for (const line of items) {
+      const bal = balances.get(line.lotProductId);
+      if (!bal) {
+        throw new ValidationError(`Không tìm thấy kiện hàng của dòng "${line.tenSanPham ?? line.lotProductId}"`);
+      }
+      if (line.lotId && bal.lotId && bal.lotId !== line.lotId) {
+        throw new ValidationError(`Kiện hàng không thuộc lô đã chọn (dòng "${line.tenSanPham ?? ''}")`);
+      }
+      if (line.warehouseId && bal.warehouseId && bal.warehouseId !== line.warehouseId) {
+        throw new ValidationError(`Kiện hàng không thuộc kho đã chọn (dòng "${line.tenSanPham ?? ''}")`);
+      }
+    }
+  }
+
+  /**
+   * Preserve the informational plan fields from the stored line when the update
+   * payload omits them, so an actual-only edit does not wipe the plan columns.
+   * Only undefined fields are filled; a value the caller sent always wins.
+   */
+  private preserveStoredFields(items: IssueLineInput[], stored: Array<Record<string, any>>): void {
+    const byId = new Map(stored.map((l) => [l.id, l]));
+    for (const line of items) {
+      if (!line.id) continue;
+      const old = byId.get(line.id);
+      if (!old) continue;
+      if (line.soLuongYeuCau === undefined || line.soLuongYeuCau === null) {
+        line.soLuongYeuCau = old.soLuongYeuCau ?? undefined;
+      }
+      if (line.soLoKeHoach === undefined) line.soLoKeHoach = old.soLoKeHoach ?? undefined;
+      if (line.soKienKeHoach === undefined) line.soKienKeHoach = old.soKienKeHoach ?? undefined;
+      if (line.soLoThucTe === undefined) line.soLoThucTe = old.soLoThucTe ?? undefined;
+      if (line.soKienThucTe === undefined) line.soKienThucTe = old.soKienThucTe ?? undefined;
+      if (line.tinhTrang === undefined) line.tinhTrang = old.tinhTrang ?? undefined;
+      if (line.quyCach === undefined) line.quyCach = old.quyCach ?? undefined;
+    }
   }
 
   /** Sum actual quantity per package across a line set. */
@@ -230,7 +280,12 @@ class WarehouseIssueService {
       const kienArr = line.soKienThucTe;
       if (!line.soLoThucTe && kienArr && Array.isArray(kienArr) && (kienArr as string[]).length > 0) {
         try {
-          const kienRows = await client.lotProduct.findMany({ where: { maKien: { in: kienArr as string[] } }, select: { lot: { select: { tenLo: true } } } });
+          // Scope by lotId: maKien is only unique within a lot (@@unique([lotId, maKien])),
+          // baseline lots all reuse K1.1… so a global lookup can join the wrong lot's name.
+          const kienRows = await client.lotProduct.findMany({
+            where: { ...(line.lotId ? { lotId: line.lotId } : {}), maKien: { in: kienArr as string[] } },
+            select: { lot: { select: { tenLo: true } } },
+          });
           const lots = [...new Set(kienRows.map((r: any) => r.lot?.tenLo).filter(Boolean))];
           if (lots.length > 0) line.soLoThucTe = lots.join(', ');
         } catch {}
@@ -364,68 +419,86 @@ class WarehouseIssueService {
    */
   async create(input: CreateInput) {
     const normalized = normalizeInput(input);
-    const items = this.assertLinesPresent(normalized.items);
 
     // One code per slip — generated once, outside the per-line path.
     const maPhieuXuat = normalized.maPhieuXuat ?? (await this.generateCode());
 
-    const { issue, balances, lotProductIds } = await prisma.$transaction(async (tx) => {
-      await this.fillHeaderFromSupplyRequest(tx, normalized);
-      await this.deriveSoLoThucTeFromKien(tx, items);
-      const lotProductIds = items.map((line) => line.lotProductId);
-      const balances = await this.loadBalances(tx, lotProductIds);
-
-      // Aggregate-by-package guard across every group, before anything is written.
-      assertLinesFitStock(items, balances);
-
-      const { lines } = computeSequentialSnapshots(items, balances, 'OUT');
-      const totals = computeHeaderTotals(lines);
-      const withMaKien = lines.map((l) => ({ ...l, maKien: balances.get(l.lotProductId)?.maKien ?? undefined }));
-
-      const issue = await tx.warehouseIssue.create({
-        data: {
-          maPhieuXuat,
-          employeeId: normalized.employeeId,
-          maNhanVien: normalized.maNhanVien ?? '',
-          tenNhanVien: normalized.tenNhanVien ?? '',
-          ...(normalized.ngayXuat ? { ngayXuat: new Date(normalized.ngayXuat) } : {}),
-          ghiChu: normalized.ghiChu,
-          ...(normalized.supplyRequestId ? { supplyRequestId: normalized.supplyRequestId } : {}),
-          ...(normalized.nguoiDeNghi ? { nguoiDeNghi: normalized.nguoiDeNghi } : {}),
-          ...(normalized.maNguoiDeNghi ? { maNguoiDeNghi: normalized.maNguoiDeNghi } : {}),
-          ...(normalized.boPhan ? { boPhan: normalized.boPhan } : {}),
-          ...(normalized.boPhanId ? { boPhanId: normalized.boPhanId } : {}),
-          ...(normalized.lyDoXuatKho ? { lyDoXuatKho: normalized.lyDoXuatKho } : {}),
-          ...totals,
-          ...this.mirrorFirstLine(withMaKien[0]),
-          items: {
-            create: withMaKien.map((line, index) => this.lineData(line, index + 1)),
-          },
-        },
-        include: { items: { orderBy: { stt: 'asc' } } },
-      });
-
-      // 2.1 atomic decrement with affected-rows check; sequential snapshots remain second defence
-      const totalsByPackage = this.sumByPackage(items);
-      for (const [lotProductId, qty] of totalsByPackage) {
-        const res = await tx.lotProduct.updateMany({
-          where: { id: lotProductId, soLuong: { gte: qty } },
-          data: { soLuong: { decrement: qty } },
-        });
-        if (res.count === 0) {
-          const bal = balances.get(lotProductId);
-          throw new ValidationError(
-            `Số lượng tồn kho của ${bal?.tenSanPham ? `"${bal.tenSanPham}"` : `kiện ${lotProductId}`} không đủ. Cần ${qty}, tồn ${bal?.soLuong ?? 0}`
-          );
-        }
-      }
-
-      return { issue, balances, lotProductIds };
-    });
+    const { issue, balances, lotProductIds } = await prisma.$transaction(async (tx) =>
+      this.createWithClient(normalized, normalized.items, maPhieuXuat, tx)
+    );
 
     this.notifyReorderRules(lotProductIds, balances);
 
     return { ...issue, isLocked: !!issue.supplyRequestId };
+  }
+
+  /**
+   * Internal: create an issue slip inside an EXISTING transaction client, so callers
+   * (partialFulfill / batchFulfill) can make the stock decrement atomic with their own
+   * supply-request updates. If the stock check fails, the whole transaction rolls back.
+   */
+  async createWithClient(
+    normalized: CreateIssueInput & UpdateIssueInput & { employeeId: string },
+    rawItems: IssueLineInput[],
+    maPhieuXuat: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    const items = this.assertLinesPresent(rawItems);
+    await this.fillHeaderFromSupplyRequest(tx, normalized);
+    await this.deriveSoLoThucTeFromKien(tx, items);
+    const lotProductIds = items.map((line) => line.lotProductId);
+    const balances = await this.loadBalances(tx, lotProductIds);
+
+    // A line must draw from a package that actually lives in the declared lot/warehouse.
+    this.assertLinesMatchPackages(items, balances);
+
+    // Aggregate-by-package guard across every group, before anything is written.
+    assertLinesFitStock(items, balances);
+
+    const { lines } = computeSequentialSnapshots(items, balances, 'OUT');
+    const totals = computeHeaderTotals(lines);
+    const withMaKien = lines.map((l) => ({ ...l, maKien: balances.get(l.lotProductId)?.maKien ?? undefined }));
+
+    const issue = await tx.warehouseIssue.create({
+      data: {
+        maPhieuXuat,
+        employeeId: normalized.employeeId,
+        maNhanVien: normalized.maNhanVien ?? '',
+        tenNhanVien: normalized.tenNhanVien ?? '',
+        ...(normalized.ngayXuat ? { ngayXuat: new Date(normalized.ngayXuat) } : {}),
+        ghiChu: normalized.ghiChu,
+        ...(normalized.supplyRequestId ? { supplyRequestId: normalized.supplyRequestId } : {}),
+        ...(normalized.nguoiDeNghi ? { nguoiDeNghi: normalized.nguoiDeNghi } : {}),
+        ...(normalized.maNguoiDeNghi ? { maNguoiDeNghi: normalized.maNguoiDeNghi } : {}),
+        ...(normalized.boPhan ? { boPhan: normalized.boPhan } : {}),
+        ...(normalized.boPhanId ? { boPhanId: normalized.boPhanId } : {}),
+        ...(normalized.lyDoXuatKho ? { lyDoXuatKho: normalized.lyDoXuatKho } : {}),
+        ...totals,
+        ...this.mirrorFirstLine(withMaKien[0]),
+        items: {
+          create: withMaKien.map((line, index) => this.lineData(line, index + 1)),
+        },
+      },
+      include: { items: { orderBy: { stt: 'asc' } } },
+    });
+
+    // Atomic decrement with affected-rows check; sequential snapshots remain second defence.
+    // Throws (and thus rolls back the outer transaction) when stock is insufficient.
+    const totalsByPackage = this.sumByPackage(items);
+    for (const [lotProductId, qty] of totalsByPackage) {
+      const res = await tx.lotProduct.updateMany({
+        where: { id: lotProductId, soLuong: { gte: qty } },
+        data: { soLuong: { decrement: qty } },
+      });
+      if (res.count === 0) {
+        const bal = balances.get(lotProductId);
+        throw new ValidationError(
+          `Số lượng tồn kho của ${bal?.tenSanPham ? `"${bal.tenSanPham}"` : `kiện ${lotProductId}`} không đủ. Cần ${qty}, tồn ${bal?.soLuong ?? 0}`
+        );
+      }
+    }
+
+    return { issue, balances, lotProductIds };
   }
 
   /**
@@ -456,8 +529,18 @@ class WarehouseIssueService {
     }
 
     const normalized = normalizeInput(input);
-    const items = this.assertLinesPresent(normalized.items);
     const stored = existing.items ?? [];
+    // Preserve plan/BM fields when the client only edited actuals — an actual-only
+    // edit must not wipe the informational plan columns.
+    this.preserveStoredFields(normalized.items, stored);
+    const items = this.assertLinesPresent(normalized.items);
+
+    // Immutable maKien snapshot: a line that stays on the same package keeps the
+    // maKien recorded when it was written, even if the package was relabeled since.
+    // Only repointed lines (or rows with no stored snapshot) take the fresh code.
+    const storedMaKienById = new Map(
+      stored.map((l) => [l.id, { lotProductId: l.lotProductId, maKien: l.maKien } as { lotProductId: string; maKien: string | null }])
+    );
 
     const { updated, balances, lotProductIds } = await prisma.$transaction(async (tx) => {
       // `diff` classifies the change set; every stored line is reversed either way
@@ -470,6 +553,10 @@ class WarehouseIssueService {
         ...stored.map((line) => line.lotProductId),
         ...items.map((line) => line.lotProductId),
       ]);
+
+      // Cross-check declared lot/warehouse against the package's real location before
+      // any guard — a repointed line must not keep stale values.
+      this.assertLinesMatchPackages(items, balances);
 
       // Reversal credits stock back, so the available balance grows first.
       const afterReversal = new Map<string, PackageBalance & { internationalProductId: string; maKien: string | null }>();
@@ -485,7 +572,15 @@ class WarehouseIssueService {
 
       const { lines } = computeSequentialSnapshots(items, afterReversal, 'OUT');
       const totals = computeHeaderTotals(lines);
-      const withMaKien = lines.map((l) => ({ ...l, maKien: afterReversal.get(l.lotProductId)?.maKien ?? undefined }));
+      const withMaKien = lines.map((l) => {
+        if (l.id) {
+          const snap = storedMaKienById.get(l.id);
+          if (snap && snap.lotProductId === l.lotProductId && snap.maKien != null) {
+            return { ...l, maKien: snap.maKien };
+          }
+        }
+        return { ...l, maKien: afterReversal.get(l.lotProductId)?.maKien ?? undefined };
+      });
 
       if (diff.removed.length > 0) {
         await tx.warehouseIssueItem.deleteMany({

@@ -199,7 +199,9 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
     } else {
       perKienQty = ids.map(() => 0);
     }
-    updateRow(index, { selectedKienIds: ids, perKienQty });
+    // Keep lotProductId in sync with the picker so the single-kiem submit path
+    // never falls back to a stale kiện selected earlier through the combobox.
+    updateRow(index, { selectedKienIds: ids, perKienQty, lotProductId: ids.length === 1 ? ids[0] : '' });
   };
 
   const handleTotalChange = (index: number, total: number) => {
@@ -247,10 +249,35 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
     const removedCount = (receipt.items ?? []).filter(
       (line) => !rows.some((row) => row.id === line.id)
     ).length;
+
+    // Detect a repoint inside a surviving line (same row, different package).
+    // The second dialog warns the user that stored stock will be refunded to the
+    // old kiện and deducted from the new one — otherwise the silent net delta
+    // is invisible. Only fire on true lot/kien/lotProduct moves, not quantity edits.
+    const repointDetected = (receipt.items ?? []).some((line) => {
+      const row = rows.find((r) => r.id === line.id);
+      if (!row) return false;
+      const kienIds = row.selectedKienIds?.length
+        ? row.selectedKienIds
+        : row.lotProductId
+        ? [row.lotProductId]
+        : [];
+      if (kienIds.length === 1 && kienIds[0] !== line.lotProductId) return true;
+      if (kienIds.length !== 1 && kienIds.some((id) => id !== line.lotProductId)) return true;
+      if (row.lotId !== line.lotId) return true;
+      if (row.warehouseId !== line.warehouseId) return true;
+      return false;
+    });
     if (removedCount > 0) {
       const ok = confirm(
         `Bạn đã xóa ${removedCount} dòng hàng khỏi phiếu. ` +
         'Số lượng đã nhập của các dòng đó sẽ bị trừ khỏi tồn kho. Tiếp tục?'
+      );
+      if (!ok) return;
+    } else if (repointDetected) {
+      const ok = confirm(
+        'Một số dòng được chuyển sang kho/lô/kiện khác. ' +
+        'Số lượng sẽ được hoàn lại về kiện cũ và trừ vào kiện mới. Tiếp tục?'
       );
       if (!ok) return;
     }
@@ -271,8 +298,9 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
             return { ...(row.id && i===0 ? { id: row.id } : {}), lotProductId: kid, tenSanPham: lp?.internationalProduct?.tenSanPham || row.tenSanPham, warehouseId: row.warehouseId, tenKho: warehouse?.tenKho || '', lotId: lp?.lotId ?? row.lotId, tenLo: warehouses.find((w)=> w.id===row.warehouseId)?.lots?.find((l)=> l.id===(lp?.lotId ?? row.lotId))?.tenLo ?? lot?.tenLo ?? '', soLuongThucTe: perKien[i], donViTinh: lp?.donViTinh || row.donViTinh, ghiChu: row.ghiChu, tinhTrang: tinhTrangVal, quyCach: row.quyCach || undefined };
           });
         }
-        const lotProduct = row.lotProducts.find((lp) => lp.id === row.lotProductId);
-        return [{ ...(row.id ? { id: row.id } : {}), lotProductId: row.lotProductId, tenSanPham: lotProduct?.internationalProduct?.tenSanPham || row.tenSanPham, warehouseId: row.warehouseId, tenKho: warehouse?.tenKho || '', lotId: row.lotId, tenLo: lot?.tenLo || '', soLuongThucTe: row.soLuongNhap, donViTinh: lotProduct?.donViTinh || row.donViTinh, ghiChu: row.ghiChu, tinhTrang: tinhTrangVal, quyCach: row.quyCach || undefined }];
+        const singleKienId = kienIds.length === 1 ? kienIds[0] : row.lotProductId;
+        const lotProduct = row.lotProducts.find((lp) => lp.id === singleKienId);
+        return [{ ...(row.id ? { id: row.id } : {}), lotProductId: singleKienId ?? '', tenSanPham: lotProduct?.internationalProduct?.tenSanPham || row.tenSanPham, warehouseId: row.warehouseId, tenKho: warehouse?.tenKho || '', lotId: (lotProduct as any)?.lotId ?? row.lotId, tenLo: lot?.tenLo || '', soLuongThucTe: row.soLuongNhap, donViTinh: lotProduct?.donViTinh || row.donViTinh, ghiChu: row.ghiChu, tinhTrang: tinhTrangVal, quyCach: row.quyCach || undefined }];
       });
 
       await warehouseReceiptService.updateWarehouseReceipt(receipt.id, {

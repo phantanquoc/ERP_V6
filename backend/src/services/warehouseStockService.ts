@@ -161,28 +161,23 @@ async function receiveSplit(input: ReceiveSplitInput) {
           },
         });
       }
-      // Truyền tx client vào receiptService để cùng transaction (nếu service hỗ trợ, fallback là tạo trong tx hiện tại)
-      // Ở đây tự tạo receipt + items + cập nhật soLuong trong cùng tx để đảm bảo atomic
-      const receipt = await (warehouseReceiptService as any).createWithClient
-        ? await (warehouseReceiptService as any).createWithClient(
-            {
-              employeeId: input.employeeId,
-              maNhanVien: input.maNhanVien ?? '',
-              tenNhanVien: input.tenNhanVien ?? '',
-              mucDich: input.mucDich,
-              ghiChu: input.ghiChu,
-              items,
-            },
-            tx,
-          )
-        : await warehouseReceiptService.create({
-            employeeId: input.employeeId,
-            maNhanVien: input.maNhanVien ?? '',
-            tenNhanVien: input.tenNhanVien ?? '',
-            mucDich: input.mucDich,
-            ghiChu: input.ghiChu,
-            items,
-          });
+      // Tạo receipt + items + cập nhật soLuong trong CÙNG transaction để đảm bảo
+      // atomic (gán kiện và phiếu nhập luôn đi together). createWithClient yêu cầu
+      // 4 tham số (normalized, items, maPhieuNhap, tx) — sinh mã phiếu trước rồi truyền đủ.
+      const maPhieuNhap = await warehouseReceiptService.generateCode();
+      const receipt = await warehouseReceiptService.createWithClient(
+        {
+          employeeId: input.employeeId,
+          maNhanVien: input.maNhanVien ?? '',
+          tenNhanVien: input.tenNhanVien ?? '',
+          mucDich: input.mucDich,
+          ghiChu: input.ghiChu,
+          items,
+        },
+        items,
+        maPhieuNhap,
+        tx,
+      );
       return receipt;
     });
   }
