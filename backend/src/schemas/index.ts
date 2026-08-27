@@ -401,7 +401,12 @@ const warehouseLineBase = {
   lotId: z.string().min(1, 'Thiếu lô hàng'),
   tenLo: optionalString,
   soLuongThucTe: z.union([z.number(), z.string()]).transform(Number).pipe(z.number().positive('Số lượng phải lớn hơn 0')),
-  soLuongYeuCau: z.union([z.number(), z.string()]).transform(Number).optional().nullable(),
+  // Kế hoạch (soLuongYeuCau) phải dương khi được gửi; empty/null = không gửi
+  // (service sẽ default về soLuongThucTe). Chặn plan 0/âm làm méo báo cáo lệch.
+  soLuongYeuCau: z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? undefined : Number(v)),
+    z.number().positive('Số lượng yêu cầu phải lớn hơn 0').optional().nullable()
+  ),
   ghiChu: optionalString,
   loaiSanPham: optionalString,
   ...warehouseLineBM,
@@ -443,7 +448,12 @@ const issueLineBase = {
   lotId: z.string().min(1, 'Thiếu lô hàng'),
   tenLo: optionalString,
   soLuongThucTe: z.union([z.number(), z.string()]).transform(Number).pipe(z.number().positive('Số lượng phải lớn hơn 0')),
-  soLuongYeuCau: z.union([z.number(), z.string()]).transform(Number).optional().nullable(),
+  // Kế hoạch (soLuongYeuCau) phải dương khi được gửi; empty/null = không gửi
+  // (service sẽ default về soLuongThucTe). Chặn plan 0/âm làm méo báo cáo lệch.
+  soLuongYeuCau: z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? undefined : Number(v)),
+    z.number().positive('Số lượng yêu cầu phải lớn hơn 0').optional().nullable()
+  ),
   ghiChu: optionalString,
   ...warehouseLineBM,
 };

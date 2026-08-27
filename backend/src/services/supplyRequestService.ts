@@ -427,6 +427,11 @@ class SupplyRequestService {
     }
 
     // Transactionally: update item + decisions (+ per-bucket PRs) + status bridge
+    // + the automatic warehouse issue (stock decrement). Keeping the issue inside the
+    // same transaction means an insufficient-stock error rolls back fulfilledQty and the
+    // decision too — no "cấp đủ trên giấy nhưng kho không trừ" drift.
+    const warehouseIssueService = (await import('./warehouseIssueService')).default;
+    const warehouseReceiptService = (await import('./warehouseReceiptService')).default;
     let createdPRs: Array<{ id: string; maYeuCau: string; bucket: string }> = [];
     let shortagePRId: string | null = null;
     await prisma.$transaction(async (tx) => {
@@ -493,6 +498,49 @@ class SupplyRequestService {
           }
         }
       }
+
+      // Auto-create warehouse issue inside the SAME tx, so insufficient stock rolls
+      // back fulfilledQty / the decision as well. Let a stock error propagate.
+      if (req.fulfilledQty > 0 && req.warehouseId && req.lotId) {
+        let resolvedLotProductId = req.lotProductId;
+        if (!resolvedLotProductId && req.autoCreateProduct) {
+          const created = await warehouseReceiptService.resolveOrCreateLotProduct(
+            req.lotId,
+            item.tenGoi,
+            item.donViTinh,
+            item.phanLoai,
+            tx as unknown as typeof prisma
+          );
+          resolvedLotProductId = created.id;
+        }
+        if (resolvedLotProductId) {
+          const [employee, warehouse, lot] = await Promise.all([
+            tx.employee.findUnique({ where: { id: req.decidedByEmployeeId }, select: { employeeCode: true, user: { select: { firstName: true, lastName: true } } } }),
+            tx.warehouses.findUnique({ where: { id: req.warehouseId }, select: { tenKho: true } }),
+            tx.lot.findUnique({ where: { id: req.lotId }, select: { tenLo: true } }),
+          ]);
+          const maPhieuXuat = await warehouseIssueService.generateCode();
+          const normalized = {
+            employeeId: req.decidedByEmployeeId,
+            maNhanVien: employee?.employeeCode ?? '',
+            tenNhanVien: employee?.user ? `${employee.user.lastName} ${employee.user.firstName}` : '',
+            ghiChu: `Xuất kho tự động từ cấp phát YC ${item.supplyRequest.maYeuCau}`,
+            supplyRequestId: item.supplyRequestId,
+          } as any;
+          const issueItems = [{
+            lotProductId: resolvedLotProductId,
+            tenSanPham: item.tenGoi,
+            donViTinh: item.donViTinh,
+            warehouseId: req.warehouseId,
+            tenKho: warehouse?.tenKho ?? '',
+            lotId: req.lotId,
+            tenLo: lot?.tenLo ?? '',
+            soLuongThucTe: req.fulfilledQty,
+            ghiChu: `Xuất kho tự động từ cấp phát YC ${item.supplyRequest.maYeuCau}`,
+          }];
+          await warehouseIssueService.createWithClient(normalized, issueItems, maPhieuXuat, tx);
+        }
+      }
     });
 
     // Post-tx: notify purchasing per bucket with phanLoai metadata (4.2)
@@ -512,57 +560,6 @@ class SupplyRequestService {
         });
         // SR status already bridged to Chờ bổ sung inside tx; legacy hook is idempotent and runs outside tx if needed, but self-import is circular — skip here.
       } catch (e) { console.error('post-partialFulfill notify/PR hook failed', e); }
-    }
-
-    // Auto-create warehouse issue when qty > 0 and warehouse/lot are provided
-    // Task 8.3: use nested items shape for header+lines
-    if (req.fulfilledQty > 0 && req.warehouseId && req.lotId) {
-      try {
-        const warehouseIssueService = (await import('./warehouseIssueService')).default;
-
-        // Resolve lotProductId: prefer client-selected, else auto-create if flag set
-        let resolvedLotProductId = req.lotProductId;
-        if (!resolvedLotProductId && req.autoCreateProduct) {
-          const warehouseReceiptService = (await import('./warehouseReceiptService')).default;
-          const created = await warehouseReceiptService.resolveOrCreateLotProduct(
-            req.lotId,
-            item.tenGoi,
-            item.donViTinh,
-            item.phanLoai
-          );
-          resolvedLotProductId = created.id;
-        }
-
-        if (resolvedLotProductId) {
-          // Fetch employee, warehouse, lot info for complete issue record
-          const [employee, warehouse, lot] = await Promise.all([
-            prisma.employee.findUnique({ where: { id: req.decidedByEmployeeId }, select: { employeeCode: true, user: { select: { firstName: true, lastName: true } } } }),
-            prisma.warehouses.findUnique({ where: { id: req.warehouseId }, select: { tenKho: true } }),
-            prisma.lot.findUnique({ where: { id: req.lotId }, select: { tenLo: true } }),
-          ]);
-
-          await warehouseIssueService.create({
-            employeeId: req.decidedByEmployeeId,
-            maNhanVien: employee?.employeeCode ?? '',
-            tenNhanVien: employee?.user ? `${employee.user.lastName} ${employee.user.firstName}` : '',
-            ghiChu: `Xuất kho tự động từ cấp phát YC ${item.supplyRequest.maYeuCau}`,
-            supplyRequestId: item.supplyRequestId,
-            items: [{
-              lotProductId: resolvedLotProductId,
-              tenSanPham: item.tenGoi,
-              donViTinh: item.donViTinh,
-              warehouseId: req.warehouseId,
-              tenKho: warehouse?.tenKho ?? '',
-              lotId: req.lotId,
-              tenLo: lot?.tenLo ?? '',
-              soLuongThucTe: req.fulfilledQty,
-              ghiChu: `Xuất kho tự động từ cấp phát YC ${item.supplyRequest.maYeuCau}`,
-            }],
-          });
-        }
-      } catch (issueErr) {
-        console.error('Auto warehouse issue creation failed:', issueErr);
-      }
     }
 
     // Recompute parent SR aggregate status
@@ -649,88 +646,17 @@ class SupplyRequestService {
       }
     }
 
-    // 2. Resolve lot products for lines with fulfilledQty > 0 and warehouse info
+    // 2. Prepare issue lines for lines with fulfilledQty > 0 and warehouse info.
+    // Package resolution and the aggregate stock check happen INSIDE the main
+    // transaction below so an insufficient-stock error rolls back fulfilledQty,
+    // the decisions and the shortage PRs as well.
     const warehouseIssueService = (await import('./warehouseIssueService')).default;
     const warehouseReceiptService = (await import('./warehouseReceiptService')).default;
 
-    const issueLineInputs: Array<{
-      lotProductId: string;
-      tenSanPham: string;
-      donViTinh: string;
-      warehouseId: string;
-      tenKho: string;
-      lotId: string;
-      tenLo: string;
-      soLuongThucTe: number;
-      ghiChu: string;
-      supplyRequestId: string;
-    }> = [];
-
+    const issueLines: Array<{ line: any; item: any }> = [];
     for (const line of lines) {
       if (line.fulfilledQty <= 0 || !line.warehouseId || !line.lotId) continue;
-      const item = itemMap.get(line.itemId)!;
-
-      let resolvedLotProductId = line.lotProductId;
-      if (!resolvedLotProductId && line.autoCreateProduct) {
-        const created = await warehouseReceiptService.resolveOrCreateLotProduct(
-          line.lotId,
-          item.tenGoi,
-          item.donViTinh,
-          item.phanLoai,
-        );
-        resolvedLotProductId = created.id;
-      }
-      if (!resolvedLotProductId) continue;
-
-      const warehouse = await prisma.warehouses.findUnique({
-        where: { id: line.warehouseId },
-        select: { tenKho: true },
-      });
-      const lot = await prisma.lot.findUnique({
-        where: { id: line.lotId },
-        select: { tenLo: true },
-      });
-
-      issueLineInputs.push({
-        lotProductId: resolvedLotProductId,
-        tenSanPham: item.tenGoi,
-        donViTinh: item.donViTinh,
-        warehouseId: line.warehouseId,
-        tenKho: warehouse?.tenKho ?? '',
-        lotId: line.lotId,
-        tenLo: lot?.tenLo ?? '',
-        soLuongThucTe: line.fulfilledQty,
-        ghiChu: `Xuất kho từ cấp phát hàng loạt YC ${item.supplyRequest.maYeuCau}`,
-        supplyRequestId: item.supplyRequestId,
-      });
-    }
-
-    // 3. Task 8.2 — Aggregate stock validation BEFORE any write.
-    // Group by lotProductId and check each package's aggregate against balance.
-    if (issueLineInputs.length > 0) {
-      const aggregateByPackage = new Map<string, number>();
-      for (const line of issueLineInputs) {
-        aggregateByPackage.set(
-          line.lotProductId,
-          (aggregateByPackage.get(line.lotProductId) ?? 0) + line.soLuongThucTe,
-        );
-      }
-
-      const lotProductIds = [...aggregateByPackage.keys()];
-      const lotProducts = await prisma.lotProduct.findMany({
-        where: { id: { in: lotProductIds } },
-        select: { id: true, soLuong: true },
-      });
-
-      for (const lp of lotProducts) {
-        const required = aggregateByPackage.get(lp.id) ?? 0;
-        if (required > lp.soLuong) {
-          const firstLine = issueLineInputs.find((l) => l.lotProductId === lp.id);
-          throw new ValidationError(
-            `Tồn kho không đủ cho kiện hàng "${firstLine?.tenSanPham ?? lp.id}". Cần: ${required}, Tồn: ${lp.soLuong}`
-          );
-        }
-      }
+      issueLines.push({ line, item: itemMap.get(line.itemId)! });
     }
 
     // 4. — bucketed shortage PRs, one PR per phanLoai group (4.1/4.2)
@@ -830,6 +756,68 @@ class SupplyRequestService {
           if (tgtIdx > curIdx) await tx.supplyRequest.update({ where: { id: batchSupplyRequestId }, data: { trangThai: 'Chờ bổ sung' } });
         }
       }
+
+      // Create one multi-line issue slip for all lines with fulfilledQty > 0,
+      // INSIDE this transaction so an insufficient-stock error rolls back fulfilledQty
+      // and the decisions as well (no "cấp đủ trên giấy nhưng kho không trừ" drift).
+      if (issueLines.length > 0) {
+        const issueLineInputs: Array<{
+          lotProductId: string;
+          tenSanPham: string;
+          donViTinh: string;
+          warehouseId: string;
+          tenKho: string;
+          lotId: string;
+          tenLo: string;
+          soLuongThucTe: number;
+          ghiChu: string;
+        }> = [];
+        for (const { line, item } of issueLines as Array<{ line: (typeof lines)[number]; item: any }>) {
+          let resolvedLotProductId = (line as any).lotProductId;
+          if (!resolvedLotProductId && (line as any).autoCreateProduct) {
+            const created = await warehouseReceiptService.resolveOrCreateLotProduct(
+              (line as any).lotId, item.tenGoi, item.donViTinh, item.phanLoai, tx as unknown as typeof prisma
+            );
+            resolvedLotProductId = created.id;
+          }
+          if (!resolvedLotProductId) continue;
+          const warehouse = await tx.warehouses.findUnique({ where: { id: (line as any).warehouseId }, select: { tenKho: true } });
+          const lot = await tx.lot.findUnique({ where: { id: (line as any).lotId }, select: { tenLo: true } });
+          issueLineInputs.push({
+            lotProductId: resolvedLotProductId,
+            tenSanPham: item.tenGoi,
+            donViTinh: item.donViTinh,
+            warehouseId: (line as any).warehouseId,
+            tenKho: warehouse?.tenKho ?? '',
+            lotId: (line as any).lotId,
+            tenLo: lot?.tenLo ?? '',
+            soLuongThucTe: (line as any).fulfilledQty,
+            ghiChu: `Xuất kho từ cấp phát hàng loạt YC ${item.supplyRequest.maYeuCau}`,
+          });
+        }
+        if (issueLineInputs.length > 0) {
+          const maPhieuXuat = await warehouseIssueService.generateCode();
+          const firstEmployeeId =
+            lines.find((l: any) => itemMap.get(l.itemId)?.supplyRequestId === batchSupplyRequestId)?.decidedByEmployeeId ??
+            (lines[0] as any).decidedByEmployeeId;
+          const employee = await tx.employee.findUnique({
+            where: { id: firstEmployeeId },
+            select: { employeeCode: true, user: { select: { firstName: true, lastName: true } } },
+          });
+          await warehouseIssueService.createWithClient(
+            {
+              employeeId: firstEmployeeId,
+              maNhanVien: employee?.employeeCode ?? '',
+              tenNhanVien: employee?.user ? `${employee.user.lastName} ${employee.user.firstName}` : '',
+              ghiChu: `Xuất kho từ cấp phát hàng loạt YC ${(itemMap.get(lines[0].itemId) as any)?.supplyRequest.maYeuCau ?? ''}`,
+              supplyRequestId: batchSupplyRequestId ?? undefined,
+            } as any,
+            issueLineInputs,
+            maPhieuXuat,
+            tx,
+          );
+        }
+      }
     });
     for (const pr of batchCreatedPRMeta) {
       try {
@@ -847,46 +835,11 @@ class SupplyRequestService {
       } catch (e) { console.error('batchFulfill post-notify failed', e); }
     }
 
-    // 5. Create one multi-line issue slip for all lines with fulfilledQty > 0
-    if (issueLineInputs.length > 0) {
-      try {
-        const firstLine = issueLineInputs[0];
-        const supplyRequestId = firstLine.supplyRequestId;
-        const employeeId = lines.find((l) => {
-          const item = itemMap.get(l.itemId);
-          return item?.supplyRequestId === supplyRequestId;
-        })?.decidedByEmployeeId ?? lines[0].decidedByEmployeeId;
-
-        const employee = await prisma.employee.findUnique({
-          where: { id: employeeId },
-          select: { employeeCode: true, user: { select: { firstName: true, lastName: true } } },
-        });
-
-        // All lines belong to the same supply request (batch is per-SR)
-        const sr = itemMap.get(lines[0].itemId)?.supplyRequest;
-
-        await warehouseIssueService.create({
-          employeeId,
-          maNhanVien: employee?.employeeCode ?? '',
-          tenNhanVien: employee?.user ? `${employee.user.lastName} ${employee.user.firstName}` : '',
-          ghiChu: `Xuất kho từ cấp phát hàng loạt YC ${sr?.maYeuCau ?? ''}`,
-          supplyRequestId,
-          items: issueLineInputs.map((l) => ({
-            lotProductId: l.lotProductId,
-            tenSanPham: l.tenSanPham,
-            donViTinh: l.donViTinh,
-            warehouseId: l.warehouseId,
-            tenKho: l.tenKho,
-            lotId: l.lotId,
-            tenLo: l.tenLo,
-            soLuongThucTe: l.soLuongThucTe,
-            ghiChu: l.ghiChu,
-          })),
-        });
-      } catch (issueErr) {
-        console.error('Batch warehouse issue creation failed:', issueErr);
-      }
-    }
+    // 5. The warehouse-issue stock decrement for the batch now lives INSIDE the
+    // transaction above (createWithClient): an insufficient-stock error rolls back
+    // fulfilledQty, the decisions and the shortage PRs too. The old post-tx
+    // try/catch create is gone — fulfilling without deducting stock would leave
+    // tồn ảo and make remaining = soLuong - fulfilledQty permanently short.
 
     // 6. Task 8.4 — Recompute parent SR status
     const supplyRequestId = itemMap.get(lines[0].itemId)?.supplyRequestId;

@@ -27,6 +27,8 @@ interface CreateWarehouseReceiptModalProps {
 interface ReceiptRow {
   tenSanPham: string;
   soLuong: number;
+  /** Kế hoạch riêng — optional, mặc định = soLuong (thực tế) khi bỏ trống */
+  soLuongYeuCau?: number;
   donViTinh: string;
   phanLoai: string;
   warehouseId: string;
@@ -42,6 +44,7 @@ interface ReceiptRow {
   lotProducts: LotProduct[];
   selectedKienIds: string[];
   perKienQty: number[];
+  perKienYeuCau: number[];
 }
 
 const MUC_DICH_PRESETS = [
@@ -53,8 +56,8 @@ const MUC_DICH_PRESETS = [
 ];
 
 const emptyRow = (): ReceiptRow => ({
-  tenSanPham: '', soLuong: 0, donViTinh: '', phanLoai: '', warehouseId: '', lotId: '',
-  lotProductId: '', internationalProductId: '', ghiChu: '', tinhTrang: 'Bình thường', tinhTrangCustom: '', quyCach: '', selected: true, lots: [], lotProducts: [], selectedKienIds: [], perKienQty: [],
+  tenSanPham: '', soLuong: 0, soLuongYeuCau: undefined, donViTinh: '', phanLoai: '', warehouseId: '', lotId: '',
+  lotProductId: '', internationalProductId: '', ghiChu: '', tinhTrang: 'Bình thường', tinhTrangCustom: '', quyCach: '', selected: true, lots: [], lotProducts: [], selectedKienIds: [], perKienQty: [], perKienYeuCau: [],
 });
 
 const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = ({
@@ -146,9 +149,12 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
   };
 
   const handleKienMultiChange = (index: number, ids: string[]) => {
-    const total = rows[index]?.soLuong ?? 0;
+    const row = rows[index];
+    const total = row?.soLuong ?? 0;
+    const totalKH = row?.soLuongYeuCau ?? total;
     const n = ids.length;
     let perKienQty: number[] = [];
+    let perKienYeuCau: number[] = [];
     if (n > 0 && total > 0) {
       const base = Math.floor(total / n);
       const rem = total % n;
@@ -156,13 +162,21 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
     } else {
       perKienQty = ids.map(() => 0);
     }
-    updateRow(index, { selectedKienIds: ids, perKienQty });
+    if (n > 0 && totalKH > 0) {
+      const base = Math.floor(totalKH / n);
+      const rem = totalKH % n;
+      perKienYeuCau = ids.map((_, i) => i === n - 1 ? base + rem : base);
+    } else {
+      perKienYeuCau = ids.map(() => 0);
+    }
+    updateRow(index, { selectedKienIds: ids, perKienQty, perKienYeuCau });
   };
 
   const handleTotalChange = (index: number, total: number) => {
     const ids = rows[index]?.selectedKienIds ?? [];
     const n = ids.length;
     let perKienQty: number[] = [];
+    let perKienYeuCau: number[] = [];
     if (n > 0 && total > 0) {
       const base = Math.floor(total / n);
       const rem = total % n;
@@ -170,7 +184,35 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
     } else {
       perKienQty = ids.map(() => 0);
     }
-    updateRow(index, { soLuong: total, perKienQty });
+    const kh = rows[index]?.soLuongYeuCau ?? total;
+    if (n > 0 && kh > 0) {
+      const base = Math.floor(kh / n);
+      const rem = kh % n;
+      perKienYeuCau = ids.map((_, i) => i === n - 1 ? base + rem : base);
+    } else {
+      perKienYeuCau = ids.map(() => 0);
+    }
+    updateRow(index, { soLuong: total, perKienQty, perKienYeuCau });
+  };
+
+  const handleKeHoachChange = (index: number, kh: number) => {
+    const val = kh > 0 ? kh : undefined;
+    const ids = rows[index]?.selectedKienIds ?? [];
+    const n = ids.length;
+    if (n > 1) {
+      const totalKH = val ?? rows[index]?.soLuong ?? 0;
+      let perKienYeuCau: number[] = [];
+      if (totalKH > 0) {
+        const base = Math.floor(totalKH / n);
+        const rem = totalKH % n;
+        perKienYeuCau = ids.map((_, i) => i === n - 1 ? base + rem : base);
+      } else {
+        perKienYeuCau = ids.map(() => 0);
+      }
+      updateRow(index, { soLuongYeuCau: val, perKienYeuCau });
+    } else {
+      updateRow(index, { soLuongYeuCau: val });
+    }
   };
 
   const addRow = () => setRows((previous) => [...previous, emptyRow()]);
@@ -233,6 +275,16 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
               throw new Error(`Vượt sức chứa kiện (tối đa ${cap} ${row.donViTinh}/kiện) — dùng nhiều kiện hơn hoặc giảm số lượng`);
             }
           }
+          // KH riêng: mặc định = TT khi không nhập; chia đều theo kiện như TT
+          const hasCustomKH = row.soLuongYeuCau > 0;
+          const totalKH = hasCustomKH ? row.soLuongYeuCau : row.soLuong;
+          const perKienKH = (hasCustomKH && row.perKienYeuCau?.length === kienIds.length)
+            ? row.perKienYeuCau
+            : (() => {
+                const base = Math.floor(totalKH / kienIds.length);
+                const rem = totalKH % kienIds.length;
+                return kienIds.map((_, i) => i === kienIds.length - 1 ? base + rem : base);
+              })();
           return kienIds.map((kid, i) => {
             const lp = row.lotProducts.find((p) => p.id === kid);
             return {
@@ -240,7 +292,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
               tenSanPham: lp?.internationalProduct?.tenSanPham || row.tenSanPham,
               warehouseId: row.warehouseId, tenKho: warehouse?.tenKho || '', lotId: lp?.lotId ?? row.lotId,
               tenLo: (warehouses.find((w) => w.id === row.warehouseId)?.lots?.find((l) => l.id === (lp?.lotId ?? row.lotId))?.tenLo) ?? lot?.tenLo ?? '',
-              soLuongYeuCau: perKien[i], soLuongThucTe: perKien[i],
+              soLuongYeuCau: perKienKH[i], soLuongThucTe: perKien[i],
               donViTinh: lp?.donViTinh || row.donViTinh, ghiChu: row.ghiChu,
               tinhTrang: tinhTrangVal || undefined, quyCach: row.quyCach || undefined,
             };
@@ -251,7 +303,9 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
           lotProductId: row.lotProductId,
           tenSanPham: lotProduct?.internationalProduct?.tenSanPham || row.tenSanPham,
           warehouseId: row.warehouseId, tenKho: warehouse?.tenKho || '', lotId: row.lotId,
-          tenLo: lot?.tenLo || '', soLuongYeuCau: row.soLuong, soLuongThucTe: row.soLuong,
+          tenLo: lot?.tenLo || '',
+          soLuongYeuCau: row.soLuongYeuCau > 0 ? row.soLuongYeuCau : row.soLuong,
+          soLuongThucTe: row.soLuong,
           donViTinh: lotProduct?.donViTinh || row.donViTinh, ghiChu: row.ghiChu,
           tinhTrang: tinhTrangVal || undefined, quyCach: row.quyCach || undefined,
         }];
@@ -335,8 +389,9 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
                     )}
                   </div>
                 )}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
-                  <div><label className="block text-xs font-medium text-gray-600 mb-1">Tổng số lượng <span className="text-red-500">*</span></label><input type="number" value={row.soLuong === 0 ? '' : row.soLuong} placeholder="" onChange={(event) => handleTotalChange(index, parseNumberInput(event.target.value))} min="0.01" step="0.01" required disabled={isSupplyBatch && !row.selected} className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" /></div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
+                  <div><label className="block text-xs font-medium text-gray-600 mb-1">Số lượng thực tế <span className="text-red-500">*</span></label><input type="number" value={row.soLuong === 0 ? '' : row.soLuong} placeholder="" onChange={(event) => handleTotalChange(index, parseNumberInput(event.target.value))} min="0.01" step="0.01" required disabled={isSupplyBatch && !row.selected} className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" /></div>
+                  <div><label className="block text-xs font-medium text-gray-600 mb-1">Số lượng kế hoạch</label><input type="number" value={row.soLuongYeuCau > 0 ? row.soLuongYeuCau : ''} placeholder={row.soLuong > 0 ? String(row.soLuong) : ''} title="Bỏ trống thì mặc định bằng số lượng thực tế" onChange={(event) => handleKeHoachChange(index, parseNumberInput(event.target.value))} min="0.01" step="0.01" disabled={isSupplyBatch && !row.selected} className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" /></div>
                   <div><label className="block text-xs font-medium text-gray-600 mb-1">Đơn vị tính {!row.lotProductId && <span className="text-red-500">*</span>}</label>{row.lotProductId ? <input value={row.lotProducts.find((item) => item.id === row.lotProductId)?.donViTinh || row.donViTinh} readOnly className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-gray-100" /> : <UnitSelect value={row.donViTinh} onChange={(value) => updateRow(index, { donViTinh: value })} className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" />}</div>
                   <div><label className="block text-xs font-medium text-gray-600 mb-1">Ghi chú dòng</label><input value={row.ghiChu} onChange={(event) => updateRow(index, { ghiChu: event.target.value })} placeholder="" className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" /></div>
                 </div>

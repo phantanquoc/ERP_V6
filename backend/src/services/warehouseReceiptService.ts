@@ -188,8 +188,22 @@ class WarehouseReceiptService {
         lotProductId = target.id;
         maKien = target.maKien;
       } else {
-        const target = await client.lotProduct.findUnique({ where: { id: lotProductId }, select: { maKien: true } });
-        maKien = target?.maKien ?? null;
+        const target = await client.lotProduct.findUnique({
+          where: { id: lotProductId },
+          select: { maKien: true, lotId: true, lot: { select: { warehouseId: true } } },
+        });
+        if (!target) {
+          throw new ValidationError(`Không tìm thấy kiện hàng của dòng "${line.tenSanPham}"`);
+        }
+        // Cross-check the declared lot/warehouse against the package's real
+        // location — a repointed line must not keep stale lot/warehouse values.
+        if (line.lotId && target.lotId !== line.lotId) {
+          throw new ValidationError(`Kiện hàng không thuộc lô đã chọn (dòng "${line.tenSanPham}")`);
+        }
+        if (line.warehouseId && target.lot?.warehouseId && target.lot.warehouseId !== line.warehouseId) {
+          throw new ValidationError(`Kiện hàng không thuộc kho đã chọn (dòng "${line.tenSanPham}")`);
+        }
+        maKien = target.maKien ?? null;
       }
       resolved.push({
         ...line,
@@ -240,6 +254,42 @@ class WarehouseReceiptService {
     return totals;
   }
 
+  /**
+   * Preserve the informational PLAN fields (soLuongYeuCau, soLoKeHoach, soKienKeHoach)
+   * from the stored line when the update payload omits them. Kế hoạch is reference-only
+   * ("kế hoạch chỉ để nắm thông tin") — an actual-only edit must not wipe it. Only fills
+   * fields the caller left undefined; a value the caller explicitly sends always wins.
+   */
+  private preserveStoredFields(items: ReceiptLineInput[], stored: Array<Record<string, any>>): void {
+    const byId = new Map(stored.map((l) => [l.id, l]));
+    for (const line of items) {
+      if (!line.id) continue;
+      const old = byId.get(line.id);
+      if (!old) continue;
+      if (line.soLuongYeuCau === undefined) line.soLuongYeuCau = old.soLuongYeuCau ?? undefined;
+      if (line.soLoKeHoach === undefined) line.soLoKeHoach = old.soLoKeHoach ?? undefined;
+      if (line.soKienKeHoach === undefined) line.soKienKeHoach = old.soKienKeHoach ?? undefined;
+    }
+  }
+
+  /**
+   * `maKien` is a snapshot of `LotProduct.maKien` taken when the line was written.
+   * Re-resolving it from the package on every update would silently rewrite that
+   * history if the package was relabeled in the meantime. For lines that stay on
+   * the same package, keep the stored snapshot; only repointed lines (and rows
+   * that never had a snapshot) carry the freshly resolved code.
+   */
+  private preserveStoredMaKien(incoming: ResolvedLine[], stored: Array<Record<string, any>>): void {
+    const byId = new Map(stored.map((l) => [l.id, l]));
+    for (const line of incoming) {
+      if (!line.id) continue;
+      const old = byId.get(line.id);
+      if (!old) continue;
+      if (old.lotProductId !== line.lotProductId) continue;
+      if (old.maKien != null) line.maKien = old.maKien;
+    }
+  }
+
   private async fillHeaderFromSupplyRequest(client: PrismaClientLike, normalized: CreateReceiptInput & UpdateReceiptInput & { employeeId: string }) {
     if (!normalized.supplyRequestId) return;
     if (normalized.nguoiDeNghi && normalized.boPhan) return;
@@ -257,7 +307,12 @@ class WarehouseReceiptService {
       const kienArr = line.soKienThucTe;
       if (!line.soLoThucTe && kienArr && Array.isArray(kienArr) && kienArr.length > 0) {
         try {
-          const kienRows = await client.lotProduct.findMany({ where: { maKien: { in: kienArr } }, select: { lot: { select: { tenLo: true } } } });
+          // Scope by lotId: maKien is only unique within a lot (@@unique([lotId, maKien])),
+          // baseline lots all reuse K1.1… so a global lookup can join the wrong lot's name.
+          const kienRows = await client.lotProduct.findMany({
+            where: { ...(line.lotId ? { lotId: line.lotId } : {}), maKien: { in: kienArr } },
+            select: { lot: { select: { tenLo: true } } },
+          });
           const lots = [...new Set(kienRows.map((r: any) => r.lot?.tenLo).filter(Boolean))];
           if (lots.length > 0) line.soLoThucTe = lots.join(', ');
         } catch {}
@@ -269,26 +324,43 @@ class WarehouseReceiptService {
     const expanded: ReceiptLineInput[] = [];
     for (const line of items) {
       const kienThucTe = line.soKienThucTe;
-      if (Array.isArray(kienThucTe) && kienThucTe.length > 1 && line.lotProductId) {
-        // Already per-kien? skip grouping if lotProductId matches single kien
+      if (!Array.isArray(kienThucTe) || kienThucTe.length <= 1) {
+        expanded.push(line);
+        continue;
       }
-      if (Array.isArray(kienThucTe) && kienThucTe.length > 1) {
-        // Grouped payload: one logical row with many kien -> expand to per-kien rows
-        try {
-          const kienRows = await client.lotProduct.findMany({ where: { maKien: { in: kienThucTe } }, select: { id: true, maKien: true, lotId: true, lot: { select: { tenLo: true } }, donViTinh: true } });
-          const byMaKien = new Map(kienRows.map((r: any) => [r.maKien, r]));
-          const perKienQty = line.soLuongThucTe / kienThucTe.length;
-          for (const maKien of kienThucTe) {
-            const lp = byMaKien.get(maKien);
-            if (!lp) { expanded.push(line); break; }
-            expanded.push({ ...line, lotProductId: lp.id, lotId: lp.lotId, tenLo: lp.lot?.tenLo ?? line.tenLo, soKienThucTe: [maKien], soLuongThucTe: perKienQty });
-          }
-          continue;
-        } catch { /* fallthrough */ }
+      // Grouped payload: one logical row with many kien -> expand to per-kien rows.
+      // Kien lookup is scoped by lotId (maKien repeats across baseline lots).
+      const kienRows = await client.lotProduct.findMany({
+        where: { ...(line.lotId ? { lotId: line.lotId } : {}), maKien: { in: kienThucTe } },
+        select: { id: true, maKien: true, lotId: true, lot: { select: { tenLo: true } } },
+      });
+      const byMaKien = new Map(kienRows.map((r: any) => [r.maKien, r]));
+      const missing = kienThucTe.filter((m) => !byMaKien.has(m));
+      if (missing.length > 0) {
+        // Never fall back to pushing the original line here: mixing per-kien
+        // sub-lines with the full-quantity original double-counts stock.
+        throw new ValidationError(
+          `Không tìm thấy kiện "${missing.join(', ')}" trong lô — kiểm tra lại mã kiện`
+        );
       }
-      expanded.push(line);
+      const n = kienThucTe.length;
+      const perKienQty = line.soLuongThucTe / n;
+      // Split the plan quantity too, otherwise report totals multiply it by N.
+      const planQty = line.soLuongYeuCau != null ? Number(line.soLuongYeuCau) / n : undefined;
+      for (const maKien of kienThucTe) {
+        const lp = byMaKien.get(maKien)!;
+        expanded.push({
+          ...line,
+          lotProductId: lp.id,
+          lotId: lp.lotId,
+          tenLo: (lp as any).lot?.tenLo ?? line.tenLo,
+          soKienThucTe: [maKien],
+          soLuongThucTe: perKienQty,
+          ...(planQty !== undefined ? { soLuongYeuCau: planQty } : {}),
+        });
+      }
     }
-    return expanded.length > items.length ? expanded : items;
+    return expanded;
   }
 
   /**
@@ -492,25 +564,37 @@ class WarehouseReceiptService {
    * before the first write, then snapshots recompute sequentially.
    */
   async update(id: string, input: UpdateInput) {
-    const existing = await prisma.warehouseReceipt.findUnique({
-      where: { id },
-      include: { items: { orderBy: { stt: 'asc' } } },
-    });
-    if (!existing) {
-      throw new NotFoundError('Không tìm thấy phiếu nhập kho');
-    }
-
-    // Lock lives on the header: a supply-request-linked slip is immutable.
-    if (existing.supplyRequestId) {
-      throw new ConflictError('Không thể sửa/xóa phiếu gắn với yêu cầu cung cấp');
-    }
-
     const normalized = normalizeInput(input);
     const items = this.assertLinesPresent(normalized.items);
-    const stored = existing.items ?? [];
 
     return prisma.$transaction(async (tx) => {
+      // Serialize concurrent update/delete on this slip: the row lock stops a
+      // lost-update where two sessions both reverse the same stored lines from a
+      // stale snapshot. `existing` is re-read inside the transaction so reversals
+      // always reflect the latest committed state.
+      await tx.$queryRaw`SELECT id FROM business.warehouse_receipts WHERE id = ${id} FOR UPDATE`;
+      const existing = await tx.warehouseReceipt.findUnique({
+        where: { id },
+        include: { items: { orderBy: { stt: 'asc' } } },
+      });
+      if (!existing) {
+        throw new NotFoundError('Không tìm thấy phiếu nhập kho');
+      }
+
+      // Lock lives on the header: a supply-request-linked slip is immutable.
+      if (existing.supplyRequestId) {
+        throw new ConflictError('Không thể sửa/xóa phiếu gắn với yêu cầu cung cấp');
+      }
+
+      const stored = existing.items ?? [];
+      // An actual-only edit must not wipe the informational plan columns.
+      this.preserveStoredFields(items, stored);
+
       const incoming = await this.resolveLines(tx, items);
+      // Preserve the stored maKien snapshot: the same-lot re-resolve above may have
+      // refetched a changed master code, but the line's history must stay immutable
+      // unless the line was truly repointed to a different package.
+      this.preserveStoredMaKien(incoming, stored);
       const diff = diffLines(stored, incoming);
 
       // Every stored line is reversed: removed ones permanently, matched ones
@@ -521,8 +605,25 @@ class WarehouseReceiptService {
         ...incoming.map((line) => line.lotProductId),
       ]);
 
-      // Guard the whole resolved diff before writing anything.
-      assertSufficientStock(reversals, balances);
+      // Guard the NET delta before writing anything. A package only needs enough
+      // stock to cover a NET removal — part of the reversed stock may already have
+      // flowed out through later issues, so demanding the full reversal would reject
+      // a legitimate down-edit. The affected-rows check in the write loop below is
+      // the DB-level second defence.
+      const incomingByPackage = this.sumByPackage(incoming);
+      for (const [lotProductId, reversal] of reversals) {
+        const netIn = (incomingByPackage.get(lotProductId) ?? 0) - reversal;
+        if (netIn >= 0) continue;
+        const balance = balances.get(lotProductId);
+        if (!balance) {
+          throw new ValidationError(`Không tìm thấy kiện hàng ${lotProductId} trong kho`);
+        }
+        if (balance.soLuong + netIn < 0) {
+          throw new ValidationError(
+            `Số lượng tồn kho của ${balance.tenSanPham ? `"${balance.tenSanPham}"` : `kiện ${lotProductId}`} không đủ để điều chỉnh`
+          );
+        }
+      }
 
       const afterReversal = new Map<string, PackageBalance>();
       for (const [lotProductId, balance] of balances) {
@@ -552,9 +653,7 @@ class WarehouseReceiptService {
       }
 
       // Atomic net stock delta per package: incoming increments, reversals decrement.
-      // Guards above (assertSufficientStock + computeSequentialSnapshots) validate
-      // feasibility; the affected-rows check below is the DB-level second defence.
-      const incomingByPackage = this.sumByPackage(incoming);
+      // The net-delta guard above plus the affected-rows check below keep stock >= 0.
       for (const [lotProductId, balance] of afterReversal) {
         const incoming = incomingByPackage.get(lotProductId) ?? 0;
         const reversal = reversals.get(lotProductId) ?? 0;
@@ -611,21 +710,23 @@ class WarehouseReceiptService {
    * are reversed by their aggregate, and all guards run before any write.
    */
   async delete(id: string) {
-    const existing = await prisma.warehouseReceipt.findUnique({
-      where: { id },
-      include: { items: true },
-    });
-    if (!existing) {
-      throw new NotFoundError('Không tìm thấy phiếu nhập kho');
-    }
-
-    if (existing.supplyRequestId) {
-      throw new ConflictError('Không thể sửa/xóa phiếu gắn với yêu cầu cung cấp');
-    }
-
-    const stored = existing.items ?? [];
-
     return prisma.$transaction(async (tx) => {
+      // Serialize with concurrent update/delete on this slip (see update()).
+      await tx.$queryRaw`SELECT id FROM business.warehouse_receipts WHERE id = ${id} FOR UPDATE`;
+      const existing = await tx.warehouseReceipt.findUnique({
+        where: { id },
+        include: { items: true },
+      });
+      if (!existing) {
+        throw new NotFoundError('Không tìm thấy phiếu nhập kho');
+      }
+
+      if (existing.supplyRequestId) {
+        throw new ConflictError('Không thể sửa/xóa phiếu gắn với yêu cầu cung cấp');
+      }
+
+      const stored = existing.items ?? [];
+
       if (stored.length > 0) {
         const reversals = this.sumByPackage(stored);
         const balances = await this.loadBalances(

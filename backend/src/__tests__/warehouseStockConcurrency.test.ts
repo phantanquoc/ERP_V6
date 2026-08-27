@@ -126,8 +126,9 @@ describe('warehouse issue — atomic decrement with gte guard', () => {
 describe('warehouse receipt — increment', () => {
   it('increments lotProduct.soLuong on receipt create', async () => {
     mockTx.lotProduct.findMany.mockResolvedValue([packageRow('lp-1', 20)]);
-    mockTx.lotProduct.findUnique.mockResolvedValue({ maKien: 'K-lp-1' });
-    // resolveLines not needed when lotProductId is provided; receipt create increments
+    // resolveLines cross-checks the package's lot/warehouse against the line's
+    // declared lotId/warehouseId, so the mock must carry matching values.
+    mockTx.lotProduct.findUnique.mockResolvedValue({ maKien: 'K-lp-1', lotId: 'l1', lot: { warehouseId: 'w1' } });
     const res = await warehouseReceiptService.create({
       employeeId: 'emp-1',
       items: [{ lotProductId: 'lp-1', tenSanPham: 'SP lp-1', donViTinh: 'Kg', warehouseId: 'w1', lotId: 'l1', soLuongThucTe: 5 }],
