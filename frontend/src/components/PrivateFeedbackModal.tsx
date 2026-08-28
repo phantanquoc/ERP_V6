@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { FeedbackType } from '../services/privateFeedbackService';
 import { API_BASE_URL } from '../config/api';
 import FileUpload from './FileUpload';
@@ -110,12 +111,12 @@ const PrivateFeedbackModal: React.FC<PrivateFeedbackModalProps> = ({
         throw new Error(result.message || result.error || 'Lỗi khi gửi feedback');
       }
 
-      alert(`${title} đã được gửi thành công!`);
+      toast.success(`${title} đã được gửi`);
       onSuccess?.();
       onClose();
     } catch (error: any) {
       console.error('Error submitting feedback:', error);
-      alert(error.message || `Lỗi khi gửi ${title.toLowerCase()}`);
+      toast.error(error.message || `Lỗi khi gửi ${title.toLowerCase()}`);
     } finally {
       setIsSubmitting(false);
     }

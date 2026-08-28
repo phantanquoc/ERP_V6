@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, AlertTriangle, Package } from 'lucide-react';
+import toast from 'react-hot-toast';
 import supplyRequestService from '../services/supplyRequestService';
 import { useAuth } from '../contexts/AuthContext';
 import { getDepartmentDisplayName } from '../utils/permissions';
@@ -160,13 +161,13 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
     e.preventDefault();
 
     if (!user || !user.employeeId) {
-      alert('Không tìm thấy thông tin nhân viên');
+      toast.error('Không tìm thấy thông tin nhân viên');
       return;
     }
 
     const validationError = validateForm();
     if (validationError) {
-      alert(validationError);
+      toast.error(validationError);
       return;
     }
 
@@ -187,11 +188,11 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
         mucDoUuTien,
         ghiChu,
       });
-      alert('Tạo yêu cầu cung cấp thành công!');
+      toast.success('Đã tạo yêu cầu cung cấp');
       resetForm();
       onClose();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Lỗi khi tạo yêu cầu cung cấp');
+      toast.error(error.response?.data?.message || 'Lỗi khi tạo yêu cầu cung cấp');
     } finally {
       setLoading(false);
     }

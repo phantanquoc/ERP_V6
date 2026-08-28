@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import toast from 'react-hot-toast';
 import DatePicker from './DatePicker';
 import FileUpload from './FileUpload';
 import EmployeeSelectionModal from './EmployeeSelectionModal';
@@ -135,11 +136,14 @@ const CreateWorkPlanModal: React.FC<CreateWorkPlanModalProps> = ({ isOpen, onClo
         { id: initialData.id, data: updateData, files: newFiles.length > 0 ? newFiles : undefined },
         {
           onSuccess: () => {
+            toast.success('Đã cập nhật kế hoạch');
             onSuccess?.();
             handleClose();
           },
           onError: (err: any) => {
-            setError(err instanceof Error ? err.message : 'Có lỗi xảy ra khi cập nhật kế hoạch');
+            const msg = err instanceof Error ? err.message : 'Có lỗi xảy ra khi cập nhật kế hoạch';
+            setError(msg);
+            toast.error(msg);
           },
         },
       );
@@ -157,11 +161,14 @@ const CreateWorkPlanModal: React.FC<CreateWorkPlanModalProps> = ({ isOpen, onClo
 
       createMutation.mutate(createData, {
         onSuccess: () => {
+          toast.success('Đã tạo kế hoạch công việc');
           onSuccess?.();
           handleClose();
         },
         onError: (err: any) => {
-          setError(err instanceof Error ? err.message : 'Có lỗi xảy ra khi tạo kế hoạch công việc');
+          const msg = err instanceof Error ? err.message : 'Có lỗi xảy ra khi tạo kế hoạch công việc';
+          setError(msg);
+          toast.error(msg);
         },
       });
     }
