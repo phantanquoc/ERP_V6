@@ -29,7 +29,7 @@ class OvertimePlanController {
         mucDoUuTien: req.query.mucDoUuTien as string,
         trangThai: req.query.trangThai as any,
         department: req.query.department as string,
-      });
+      }, req.user?.id);
       res.json({ success: true, data: result.plans, pagination: { page: result.page, limit, total: result.total, totalPages: result.totalPages } } as ApiResponse<any>);
     } catch (error) { next(error); }
   }
@@ -47,7 +47,7 @@ class OvertimePlanController {
 
   async getById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const plan = await overtimePlanService.getById(req.params.id as string);
+      const plan = await overtimePlanService.getById(req.params.id as string, req.user?.id);
       res.json({ success: true, data: plan } as ApiResponse<any>);
     } catch (error) { next(error); }
   }

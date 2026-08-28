@@ -14,8 +14,8 @@ router.get('/my-plans', overtimePlanController.getMyPlans);
 router.get('/', overtimePlanController.getAll);
 router.get('/:id', overtimePlanController.getById);
 router.post('/', requireRule('overtime-plans', 'CREATE'), uploadOvertimePlans, overtimePlanController.create);
-router.put('/:id', uploadOvertimePlans, overtimePlanController.update);
-router.delete('/:id', overtimePlanController.delete);
+router.put('/:id', requireRule('overtime-plans', 'UPDATE'), uploadOvertimePlans, overtimePlanController.update);
+router.delete('/:id', requireRule('overtime-plans', 'DELETE'), overtimePlanController.delete);
 router.patch('/:id/accept', overtimePlanController.acceptPlan);
 router.patch('/:id/approve',
   requireRule('overtime-plans', 'CREATE'),

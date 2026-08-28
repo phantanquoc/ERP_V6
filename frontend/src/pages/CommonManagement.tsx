@@ -46,11 +46,23 @@ const CommonManagement = () => {
 
   if (!user) return <LoadingState message="Đang tải thông tin người dùng..." />;
 
+  // noDepartment is only used to gate overtime plan creation (TEAM_LEAD+ only).
+  // All Chung cards are visible to every authenticated user — backend requireRule denials are the source of truth.
+  const hasAnyDepartment =
+    !!user.department ||
+    !!user.departmentCode ||
+    !!user.departmentName ||
+    (user.secondaryDepartments?.length ?? 0) > 0;
+  const noDepartment = !hasAnyDepartment;
+
   // Rule Matrix: tasks/work-plans/approvals — fallback to legacy until loaded
   const _roleMgr = user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD;
   const isManagerOrAdmin = isCachedPermissionsLoaded() ? can('tasks', 'APPROVE', user?.role as string) || can('work-plans', 'APPROVE', user?.role as string) : _roleMgr;
 
-  const categories = [
+  const categories: Array<{
+    title: string;
+    items: Array<{ id: string; title: string; icon: React.ReactElement; color: string; description: string; create?: boolean }>;
+  }> = [
     {
       title: 'Đã ban hành',
       items: [
@@ -61,27 +73,30 @@ const CommonManagement = () => {
     {
       title: 'Tạo yêu cầu',
       items: [
-        { id: 'yeu_cau_sua_chua',   title: 'Tạo phiếu yêu cầu sửa chữa kiểm tra',    icon: <Settings   className="h-6 w-6" />, color: 'bg-blue-500',   description: 'Yêu cầu sửa chữa thiết bị, máy móc hoặc cơ sở vật chất' },
-        { id: 'yeu_cau_bo_sung',    title: 'Tạo yêu cầu cung cấp',                    icon: <Plus       className="h-6 w-6" />, color: 'bg-green-500',  description: 'Yêu cầu kho cung cấp vật tư, thiết bị hoặc nhân lực' },
-        { id: 'de_nghi_dieu_chinh', title: 'Tạo đề nghị điều chỉnh, bổ sung quy trình', icon: <FileText className="h-6 w-6" />, color: 'bg-purple-500', description: 'Đề xuất thay đổi hoặc cải tiến quy trình làm việc' },
+        { id: 'yeu_cau_sua_chua',   title: 'Tạo phiếu yêu cầu sửa chữa kiểm tra',    icon: <Settings   className="h-6 w-6" />, color: 'bg-blue-500',   description: 'Yêu cầu sửa chữa thiết bị, máy móc hoặc cơ sở vật chất', create: true },
+        { id: 'yeu_cau_bo_sung',    title: 'Tạo yêu cầu cung cấp',                    icon: <Plus       className="h-6 w-6" />, color: 'bg-green-500',  description: 'Yêu cầu kho cung cấp vật tư, thiết bị hoặc nhân lực', create: true },
+        { id: 'de_nghi_dieu_chinh', title: 'Tạo đề nghị điều chỉnh, bổ sung quy trình', icon: <FileText className="h-6 w-6" />, color: 'bg-purple-500', description: 'Đề xuất thay đổi hoặc cải tiến quy trình làm việc', create: true },
         { id: 'ke_hoach_tang_ca',   title: 'Danh sách kế hoạch tăng ca',               icon: <Briefcase className="h-6 w-6" />, color: 'bg-orange-500', description: 'Xem và quản lý kế hoạch tăng ca' },
       ],
     },
     {
       title: 'Tạo nhiệm vụ và kế hoạch công việc',
       items: [
-        { id: 'nhiem_vu', title: 'Tạo nhiệm vụ',          icon: <Users    className="h-6 w-6" />, color: 'bg-indigo-500', description: 'Tạo và phân công nhiệm vụ cho nhân viên' },
-        { id: 'ke_hoach', title: 'Tạo kế hoạch công việc', icon: <FileText className="h-6 w-6" />, color: 'bg-teal-500',   description: 'Lập kế hoạch công việc theo thời gian' },
+        { id: 'nhiem_vu', title: 'Tạo nhiệm vụ',          icon: <Users    className="h-6 w-6" />, color: 'bg-indigo-500', description: 'Tạo và phân công nhiệm vụ cho nhân viên', create: true },
+        { id: 'ke_hoach', title: 'Tạo kế hoạch công việc', icon: <FileText className="h-6 w-6" />, color: 'bg-teal-500',   description: 'Lập kế hoạch công việc theo thời gian', create: true },
       ],
     },
     {
       title: 'Góp ý riêng',
       items: [
-        { id: 'gop_y',       title: 'Góp ý riêng', icon: <MessageSquare className="h-6 w-6" />, color: 'bg-pink-500', description: 'Gửi góp ý, đề xuất cải tiến' },
-        { id: 'neu_kho_khan', title: 'Nêu khó khăn', icon: <AlertTriangle className="h-6 w-6" />, color: 'bg-red-500',  description: 'Báo cáo khó khăn trong công việc' },
+        { id: 'gop_y',       title: 'Góp ý riêng', icon: <MessageSquare className="h-6 w-6" />, color: 'bg-pink-500', description: 'Gửi góp ý, đề xuất cải tiến', create: true },
+        { id: 'neu_kho_khan', title: 'Nêu khó khăn', icon: <AlertTriangle className="h-6 w-6" />, color: 'bg-red-500',  description: 'Báo cáo khó khăn trong công việc', create: true },
       ],
     },
   ];
+
+  // Chung is visible to every authenticated user; only overtime creation is gated by department + role.
+  const visibleCategories = categories;
 
   const getCategoryTitle = (type: string) =>
     categories.flatMap(c => c.items).find(i => i.id === type)?.title || '';
@@ -123,7 +138,7 @@ const CommonManagement = () => {
 
       {/* Category grid */}
       <div className="space-y-5">
-        {categories.map((cat, i) => (
+        {visibleCategories.map((cat, i) => (
           <div key={i} className="space-y-2.5">
             <h2 className="text-sm font-semibold text-gray-700">{cat.title}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -211,7 +226,7 @@ const CommonManagement = () => {
         onClose={() => setIsOvertimePlanListOpen(false)}
         isAdmin={isCachedPermissionsLoaded() ? can('overtime-plans', 'APPROVE', user?.role as string) : user?.role === UserRole.ADMIN}
         canViewAll={isCachedPermissionsLoaded() ? can('overtime-plans', 'READ', user?.role as string) : (user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD || user?.department === 'general' || user?.department === 'quality')}
-        canCreate={isManagerOrAdmin}
+        canCreate={!noDepartment && isManagerOrAdmin}
       />
       <PrivateFeedbackModal
         isOpen={isFeedbackModalOpen}

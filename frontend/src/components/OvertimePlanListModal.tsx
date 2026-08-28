@@ -9,6 +9,7 @@ import { useOvertimePlans, useMyOvertimePlans, useApprovePlan, useDeleteOvertime
 import { ModalForm } from './ModalForm';
 import CreateOvertimePlanModal from './CreateOvertimePlanModal';
 import { getFileUrl } from '../config/api';
+import { useAuth } from '../contexts/AuthContext';
 
 interface OvertimePlanListModalProps {
   isOpen: boolean;
@@ -121,6 +122,21 @@ function FileCard({ file }: { file: string }) {
 const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
   isOpen, onClose, isAdmin = false, canViewAll = false, canCreate = false, embedded = false, highlightPlanId,
 }) => {
+  const { user } = useAuth();
+  // Display-only gate for no-department users (change no-dept-self-service-access):
+  // the backend already filters getAll/getById and denies CREATE/UPDATE/DELETE; this
+  // merely hides the affordances so the UI stays consistent.
+  const hasAnyDepartment =
+    !!user?.department ||
+    !!user?.departmentCode ||
+    !!user?.departmentName ||
+    (user?.secondaryDepartments?.length ?? 0) > 0;
+  const isNoDepartment = !hasAnyDepartment;
+
+  // No-department users never see create/approve/edit/delete regardless of canCreate/isAdmin
+  const effectiveCanCreate = canCreate && !isNoDepartment;
+  const effectiveIsAdmin = isAdmin && !isNoDepartment;
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editPlan, setEditPlan] = useState<OvertimePlan | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -291,7 +307,7 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-center">
                     <div className="flex items-center justify-center gap-2">
-                      {isAdmin && isPending && (
+                      {effectiveIsAdmin && isPending && (
                         <>
                           <button
                             onClick={(e) => { e.stopPropagation(); handleApprove(plan.id); }}
@@ -313,7 +329,7 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
                       )}
 
                       {/* Admin can delete any plan regardless of status */}
-                      {isAdmin && (
+                      {effectiveIsAdmin && (
                         <button
                           onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(plan.id); }}
                           className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors"
@@ -374,7 +390,7 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
               className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
               Đóng
             </button>
-            {isAdmin && viewPlan && isEditableStatus(viewPlan.trangThai) && (
+            {effectiveIsAdmin && viewPlan && isEditableStatus(viewPlan.trangThai) && (
               <button
                 onClick={() => { setViewPlan(null); setEditPlan(viewPlan); setShowCreateModal(true); }}
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
@@ -556,7 +572,7 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
   if (embedded) {
     return (
       <>
-        {canCreate && (
+        {effectiveCanCreate && (
           <div className="px-4 pt-3 flex justify-end">
             <button
               onClick={() => setShowCreateModal(true)}
@@ -578,10 +594,10 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
       <ModalForm
         isOpen={isOpen}
         onClose={onClose}
-        title={`Kế hoạch tăng ca${(isAdmin || canViewAll) ? ' (Quản lý)' : ''}`}
+        title={`Kế hoạch tăng ca${!isNoDepartment && (isAdmin || canViewAll) ? ' (Quản lý)' : ''}`}
         titleIcon={<Clock className="w-4 h-4" />}
         maxWidth="5xl"
-        footer={canCreate ? (
+        footer={effectiveCanCreate ? (
           <div className="flex justify-between items-center">
             <button
               onClick={() => setShowCreateModal(true)}

@@ -212,6 +212,36 @@ class OvertimePlanService {
     });
   }
 
+  // ─── No-department caller detection ──────────────────────────────────────
+  //
+  // Mirrors requireRule's departmentIds resolution: primary departmentId plus
+  // UserSecondaryDepartment rows. A caller with none of these is "no-department"
+  // and gets participant-scoped visibility for overtime plans (change
+  // no-dept-self-service-access, spec REQ no-dept-self-service).
+
+  private async callerHasDepartment(userId: string): Promise<boolean> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { departmentId: true },
+    });
+    if (user?.departmentId) return true;
+    const secondary = await prisma.userSecondaryDepartment.findMany({
+      where: { userId },
+      select: { departmentId: true },
+    });
+    return secondary.some((s) => !!s.departmentId);
+  }
+
+  /** Participant-or-creator scope applied to every query for no-department callers. */
+  private participantScope(userId: string) {
+    return {
+      OR: [
+        { nguoiTaoId: userId },
+        { items: { some: { nguoiThamGiaIds: { has: userId } } } },
+      ],
+    };
+  }
+
   // ─── Attendance materialization ───────────────────────────────────────────
 
   /**
@@ -388,7 +418,7 @@ class OvertimePlanService {
     return this.populateWithUsers(plan);
   }
 
-  async getAll(query: OvertimePlanListQuery): Promise<{ plans: any[]; total: number; page: number; totalPages: number }> {
+  async getAll(query: OvertimePlanListQuery, callerUserId?: string): Promise<{ plans: any[]; total: number; page: number; totalPages: number }> {
     const page = query.page || 1;
     const limit = query.limit || 10;
     const skip = (page - 1) * limit;
@@ -408,6 +438,19 @@ class OvertimePlanService {
         { items: { some: { nguoiThamGiaIds: { hasSome: ids } } } },
       ];
     }
+    // No-department callers: restrict to participant-or-creator visibility (change no-dept-self-service-access)
+    if (callerUserId && !(await this.callerHasDepartment(callerUserId))) {
+      const scope = this.participantScope(callerUserId);
+      // Intersect the participant scope with any existing where. Where may already have
+      // an OR from `query.department`; wrap both as AND conditions so neither is lost.
+      if (where.OR) {
+        const existingOR = where.OR;
+        delete where.OR;
+        where.AND = [{ OR: existingOR }, scope];
+      } else {
+        where.AND = [scope];
+      }
+    }
     const [total, plans] = await Promise.all([
       prisma.overtimePlan.count({ where }),
       prisma.overtimePlan.findMany({
@@ -421,9 +464,19 @@ class OvertimePlanService {
     return { plans: await this.batchPopulateWithUsers(plans), total, page, totalPages: Math.ceil(total / limit) };
   }
 
-  async getById(id: string): Promise<any> {
+  async getById(id: string, callerUserId?: string): Promise<any> {
     const plan = await this.findPlanWithItems(id);
     if (!plan) throw new NotFoundError('Không tìm thấy kế hoạch tăng ca');
+    // No-department callers: deny plans that don't include them as creator or participant
+    if (callerUserId && !(await this.callerHasDepartment(callerUserId))) {
+      const isCreator = plan.nguoiTaoId === callerUserId;
+      const isParticipant = (plan.items || []).some((item: any) =>
+        Array.isArray((item as any).nguoiThamGiaIds) && (item as any).nguoiThamGiaIds.includes(callerUserId)
+      );
+      if (!isCreator && !isParticipant) {
+        throw new NotFoundError('Không tìm thấy kế hoạch tăng ca');
+      }
+    }
     return this.populateWithUsers(plan);
   }
 

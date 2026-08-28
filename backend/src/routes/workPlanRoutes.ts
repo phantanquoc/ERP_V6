@@ -135,6 +135,7 @@ router.get('/:id', workPlanController.getWorkPlanById);
  */
 router.post(
   '/',
+  requireRule('work-plans', 'CREATE'),
   uploadWorkPlans,
   workPlanController.createWorkPlan
 );

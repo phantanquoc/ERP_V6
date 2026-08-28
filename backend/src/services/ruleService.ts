@@ -166,6 +166,24 @@ export async function deleteRule(id: string, actorId?: string | null) {
 // ─── Matrix & my-permissions ─────────────────────────────────────────────────
 const ACTIONS = ['CREATE', 'READ', 'UPDATE', 'DELETE', 'APPROVE', 'REJECT', 'EXPORT', 'IMPORT'] as const;
 
+/**
+ * Chung (Common) tab resources that are READ+CREATE accessible to every
+ * authenticated user, including those without a department assignment.
+ * 'lookups' is mandatory for module visibility in the frontend sidebar/route gate.
+ * The Chung resources below are fully usable (READ+CREATE) for no-dept users.
+ * 'overtime-plans' is intentionally NOT in this set — overtime creation stays
+ * TEAM_LEAD+ only and no-dept never creates overtime plans.
+ */
+const CHUNG_NO_DEPT_ALLOW = new Set([
+  'lookups',
+  'supply-requests',
+  'repair-requests',
+  'tasks',
+  'work-plans',
+  'private-feedbacks',
+  'processes',
+]);
+
 function delegationScopeMatches(
   delegation: { departmentId: string | null; subDepartmentId: string | null },
   departmentIds: string[],
@@ -268,7 +286,16 @@ export async function getMyPermissions(userId: string) {
         // For now, baseline applies if user has a department; otherwise deny
         const hasDept = departmentIds.length > 0;
         if (!hasDept) {
-          result.push({ resourceCode: res.code, action, allow: false, source: 'BASELINE_NO_DEPT' });
+          if (res.code === 'overtime-plans') {
+            // Overtime stays strictly blocked for no-dept on every action.
+            // Overtime visibility is handled by participant filter in overtimePlanService,
+            // not by getMyPermissions — keep getMyPermissions as deny here.
+            result.push({ resourceCode: res.code, action, allow: false, source: 'BASELINE_NO_DEPT' });
+          } else if ((action === 'READ' || action === 'CREATE') && CHUNG_NO_DEPT_ALLOW.has(res.code)) {
+            result.push({ resourceCode: res.code, action, allow: true, source: 'CHUNG_ALLOW' });
+          } else {
+            result.push({ resourceCode: res.code, action, allow: false, source: 'BASELINE_NO_DEPT' });
+          }
         } else {
           const allow = baselineAllow(action, effectiveRole);
           result.push({ resourceCode: res.code, action, allow, source: allow ? 'BASELINE_ALLOW' : 'BASELINE_DENY' });
