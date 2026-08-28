@@ -205,6 +205,38 @@ export function requireRule(resourceCode: string, action: string) {
         return;
       }
 
+      // Self-attendance READ bypass for no-department users (REQ no-dept-self-service)
+      // Narrow: attendances + READ + /employee/:employeeId own record only; fails closed.
+      if (departmentIds.length === 0 && resourceCode === 'attendances' && action === 'READ') {
+        const requestedEmployeeId = (req.params as Record<string, string>).employeeId;
+        if (requestedEmployeeId) {
+          try {
+            const ownEmployee = await prisma.employee.findUnique({
+              where: { userId },
+              select: { id: true },
+            });
+            if (ownEmployee && ownEmployee.id === requestedEmployeeId) {
+              next();
+              return;
+            }
+          } catch {
+            // fail closed — fall through to 403 below
+          }
+        }
+      }
+
+      // Chung tab full access for no-department users except overtime creation (REQ no-dept-self-service fix)
+      // READ and CREATE are allowed for Chung resources; UPDATE/DELETE remain blocked (or owner-scoped via later check).
+      // Overtime CREATE is intentionally excluded — no-dept never creates overtime plans (TEAM_LEAD+ only).
+      if (
+        departmentIds.length === 0 &&
+        (action === 'READ' || action === 'CREATE') &&
+        ['lookups', 'supply-requests', 'repair-requests', 'tasks', 'work-plans', 'private-feedbacks', 'processes'].includes(resourceCode)
+      ) {
+        next();
+        return;
+      }
+
       // Baseline fallback (REQ-RBAC-006)
       if (departmentIds.length === 0 && resourceCode !== 'auth') {
         res.status(403).json({ success: false, message: 'Truy cập bị từ chối: Không thuộc phòng ban nào' });
