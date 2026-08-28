@@ -55,6 +55,16 @@
 - **Risk:** `UserSecondaryDepartment` thiếu `positionId` → Mitigation: migration thêm cột nullable + backfill từ `Employee.positionId` khi có thể, fallback về `role` nếu null.
 - **Risk:** Rule matrix trống sau migration làm tê liệt — Mitigation: seed script chạy trong transaction, có dry-run mode in ra số Rule sẽ tạo trước khi ghi, có rollback script; baseline REQ-RBAC-006 đảm bảo ngay cả khi Rule trống, mọi nhân viên vẫn thao tác được (trừ DELETE) trong phòng ban của mình.
 
+## Sanctioned Self-Service Exceptions (do not regress)
+
+The archived change `no-dept-self-service-access` (archived 2026-08-28, spec: `openspec/specs/no-dept-self-service/`) defines a sanctioned REQ-RBAC-006 self-service exception for authenticated users with no department assignment. The future Rule Matrix MUST NOT regress these behaviors:
+
+1. **Self-attendance READ bypass** — `GET /api/attendances/employee/:ownEmployeeId` is allowed for no-dept users (narrow: one resource `attendances`, action `READ`, own `Employee.id` only); the service layer re-checks ownership as defense-in-depth.
+2. **Chung tab READ-only** — Chung read endpoints remain `authenticate`-only for no-dept users; all Chung writes remain denied (`POST /api/work-plans` RBAC hole was closed).
+3. **Overtime participant-scope** — no-dept users see only overtime plans where they are `nguoiTaoId` or appear in an item's `nguoiThamGiaIds`; participant self-actions (`accept`, `actual-time`) remain allowed; create/edit/delete/approve remain denied.
+
+When generating or auditing the Rule Matrix, treat these as explicit exceptions layered above the baseline no-department guard — never as rules to seed or gaps to close.
+
 ## Open Questions
 
 - Có cần hiệu lực theo thời gian (`effectiveFrom/effectiveUntil`) cho Rule hay chỉ `isActive` là đủ cho phase 1? Đề xuất: chỉ `isActive` ở phase 1, thêm window sau nếu nghiệp vụ yêu cầu.
