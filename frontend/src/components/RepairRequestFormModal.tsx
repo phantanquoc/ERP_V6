@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Link2, Plus, Trash2, X } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { getFileUrl } from '../config/api';
 import FileUpload from './FileUpload';
 import Modal from './Modal';
@@ -293,8 +294,11 @@ const RepairRequestFormModal = ({
         await createRequest.mutateAsync({ data: payload, file: selectedFile ?? undefined });
       }
       onSaved?.();
+      toast.success(mode === 'create' ? 'Đã tạo yêu cầu sửa chữa' : 'Đã cập nhật yêu cầu sửa chữa');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Không lưu được yêu cầu sửa chữa');
+      const msg = err instanceof Error ? err.message : 'Không lưu được yêu cầu sửa chữa';
+      setError(msg);
+      toast.error(msg);
     }
   };
 

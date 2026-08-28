@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Eye, ChevronLeft, ChevronRight, FileText, Printer, X } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { processService, Process } from '../services/processService';
 import { ModalForm } from './ModalForm';
 import Modal from './Modal';
@@ -78,7 +79,7 @@ const ProcessListModal: React.FC<ProcessListModalProps> = ({ isOpen, onClose }) 
       setTotalPages(response.pagination.totalPages);
     } catch (error) {
       console.error('Error fetching processes:', error);
-      alert('Lỗi khi tải danh sách quy trình');
+      toast.error('Lỗi khi tải danh sách quy trình');
     } finally {
       setLoading(false);
     }
@@ -96,7 +97,7 @@ const ProcessListModal: React.FC<ProcessListModalProps> = ({ isOpen, onClose }) 
       setSelectedProcess(response.data);
     } catch (error) {
       console.error('Error fetching process details:', error);
-      alert('Lỗi khi tải chi tiết quy trình');
+      toast.error('Lỗi khi tải chi tiết quy trình');
     }
   };
 

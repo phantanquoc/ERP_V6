@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import toast from 'react-hot-toast';
 import DatePicker from './DatePicker';
 import { taskService, TaskPriority, CreateTaskData } from '../services/taskService';
 import { Calendar, Users, FileText, AlertCircle } from 'lucide-react';
@@ -75,12 +76,14 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ isOpen, onClose, onSu
     try {
       setLoading(true);
       await taskService.createTask(formData);
-      alert('Tạo nhiệm vụ thành công!');
+      toast.success('Đã tạo nhiệm vụ');
       onSuccess?.();
       handleClose();
     } catch (err: any) {
       console.error('Error creating task:', err);
-      setError(err.response?.data?.message || 'Có lỗi xảy ra khi tạo nhiệm vụ');
+      const msg = err.response?.data?.message || 'Có lỗi xảy ra khi tạo nhiệm vụ';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
