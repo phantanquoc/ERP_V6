@@ -412,12 +412,12 @@ export const getDepartmentDisplayName = (department?: string): string => {
 };
 
 // ── Rule Matrix bridge ─────────────────────────────────────────────────────
-let cachedPermissions: Array<{ resourceCode: string; action: string; allow: boolean }> | null = null;
+let cachedPermissions: Array<{ resourceCode: string; action: string; allow: boolean; source?: string }> | null = null;
 // Track whether myPermissions have been loaded at least once so callers can
 // distinguish "not loaded yet" from "loaded but empty" for safe fallback.
 let cachedPermissionsLoaded = false;
 
-export function setCachedPermissions(perms: Array<{ resourceCode: string; action: string; allow: boolean }>): void {
+export function setCachedPermissions(perms: Array<{ resourceCode: string; action: string; allow: boolean; source?: string }>): void {
   cachedPermissions = perms;
   cachedPermissionsLoaded = true;
 }
@@ -431,7 +431,7 @@ export function isCachedPermissionsLoaded(): boolean {
   return cachedPermissionsLoaded;
 }
 
-export function getCachedPermissions(): Array<{ resourceCode: string; action: string; allow: boolean }> | null {
+export function getCachedPermissions(): Array<{ resourceCode: string; action: string; allow: boolean; source?: string }> | null {
   return cachedPermissions;
 }
 
@@ -450,15 +450,24 @@ export function can(resourceCode: string, action: string, role?: string): boolea
   return true;
 }
 
+const EXPLICIT_SOURCES = new Set(['RULE_ALLOW', 'RULE_DENY', 'DELEGATION', 'ADMIN_BYPASS']);
+
 /**
  * Like can() but returns null when no explicit Rule exists for the resource/action
  * (i.e. would fall back to baseline). Allows callers to keep hasModuleAccess as
  * primary gate and only override when an explicit Rule was configured.
+ * Only explicit Rule/Delegation/Admin sources override department-based visibility;
+ * baseline sources (CHUNG_ALLOW, BASELINE_*) fall back to hasModuleAccess so
+ * Chung-granted resources like supply-requests/repair-requests don't leak
+ * purchasing/technical to no-department users.
  */
 export function canIfConfigured(resourceCode: string, action: string): boolean | null {
   if (!cachedPermissions) return null;
   const entry = cachedPermissions.find(p => p.resourceCode === resourceCode && p.action === action);
   if (entry === undefined) return null;
+  // CHUNG_ALLOW / BASELINE_* are baseline, not explicit overrides — ignore for module visibility
+  if (entry.source && !EXPLICIT_SOURCES.has(entry.source)) return null;
+  // source undefined (legacy cache) → preserve old override for backward compat
   return entry.allow;
 }
 

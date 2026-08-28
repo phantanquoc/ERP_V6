@@ -124,9 +124,9 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
     quality: 'quality-evaluations',
     business: 'orders',
     accounting: 'invoices',
-    purchasing: 'supply-requests',
+    purchasing: 'purchase-requests',
     production: 'finished-products',
-    technical: 'repair-requests',
+    technical: 'fault-records',
   };
 
   function canReadModule(module: string): boolean | null {
@@ -172,9 +172,12 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
 
   const menuItems = allMenuItems.filter(item => {
     if (!user) return false;
+    // Common (Chung) must remain visible to every authenticated user per hasModuleAccess;
+    // never hide it via a lookups READ deny for no-dept users.
+    if (item.module === 'common' && hasModuleAccess('common', user.role as any, user.department, user.secondaryDepartments)) return true;
     const canRead = canReadModule(item.module);
     if (canRead !== null) return canRead;
-    return hasModuleAccess(item.module, user.role, user.department, user.secondaryDepartments);
+    return hasModuleAccess(item.module, user.role as any, user.department, user.secondaryDepartments);
   });
 
   const isActive = (path: string) =>

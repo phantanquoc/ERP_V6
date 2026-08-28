@@ -14,7 +14,7 @@ export function usePermissionSync(): void {
   const { data } = useMyPermissions({ enabled: isAuthenticated && !!user });
 
   useEffect(() => {
-    if (data) setCachedPermissions(data as unknown as Array<{ resourceCode: string; action: string; allow: boolean }>);
+    if (data) setCachedPermissions(data as unknown as Array<{ resourceCode: string; action: string; allow: boolean; source: string }>);
   }, [data]);
 
   useEffect(() => {
