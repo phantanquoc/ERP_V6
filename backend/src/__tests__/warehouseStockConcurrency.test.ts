@@ -128,7 +128,8 @@ describe('warehouse receipt — increment', () => {
     mockTx.lotProduct.findMany.mockResolvedValue([packageRow('lp-1', 20)]);
     // resolveLines cross-checks the package's lot/warehouse against the line's
     // declared lotId/warehouseId, so the mock must carry matching values.
-    mockTx.lotProduct.findUnique.mockResolvedValue({ maKien: 'K-lp-1', lotId: 'l1', lot: { warehouseId: 'w1' } });
+    // The kiện already holds a product — resolveLines must not attach a new one.
+    mockTx.lotProduct.findUnique.mockResolvedValue({ maKien: 'K-lp-1', lotId: 'l1', internationalProductId: 'ip-lp-1', donViTinh: 'Kg', lot: { warehouseId: 'w1' } });
     const res = await warehouseReceiptService.create({
       employeeId: 'emp-1',
       items: [{ lotProductId: 'lp-1', tenSanPham: 'SP lp-1', donViTinh: 'Kg', warehouseId: 'w1', lotId: 'l1', soLuongThucTe: 5 }],

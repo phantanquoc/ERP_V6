@@ -190,7 +190,13 @@ class WarehouseReceiptService {
       } else {
         const target = await client.lotProduct.findUnique({
           where: { id: lotProductId },
-          select: { maKien: true, lotId: true, lot: { select: { warehouseId: true } } },
+          select: {
+            maKien: true,
+            lotId: true,
+            internationalProductId: true,
+            donViTinh: true,
+            lot: { select: { warehouseId: true } },
+          },
         });
         if (!target) {
           throw new ValidationError(`Không tìm thấy kiện hàng của dòng "${line.tenSanPham}"`);
@@ -204,6 +210,14 @@ class WarehouseReceiptService {
           throw new ValidationError(`Kiện hàng không thuộc kho đã chọn (dòng "${line.tenSanPham}")`);
         }
         maKien = target.maKien ?? null;
+        // A pre-created fixed kiện (CAD layout) carries no product until goods
+        // land in it. When a line targets such a kiện by id, link the commodity
+        // now — otherwise the pallet holds stock while every view that joins
+        // through `internationalProduct` renders it as "?" and issue flows that
+        // select by product can never find it (PN-2026-021 regression).
+        if (target.internationalProductId == null && line.tenSanPham?.trim()) {
+          await this.attachProductToEmptyKien(client, lotProductId, target.donViTinh, line);
+        }
       }
       resolved.push({
         ...line,
@@ -831,36 +845,7 @@ class WarehouseReceiptService {
   ) {
     const db = client;
 
-    let product = await db.internationalProduct.findFirst({
-      where: { tenSanPham: { equals: tenSanPham, mode: 'insensitive' } },
-    });
-
-    if (!product) {
-      // Codes follow LOAI-STT-TENVIETTAT, and the prefix is derived from the category.
-      // Both callers pass one, but the parameter is optional — rather than invent a
-      // category that is not in the standard list (which is what produced the current
-      // Nguyên liệu / Nguyên vật liệu drift), mark it explicitly so it shows up as
-      // needing review instead of hiding inside a plausible-looking category.
-      const resolvedLoai = loaiSanPham || UNCLASSIFIED_CATEGORY;
-      const maSanPham = await suggestAvailableProductCodeFor(db, {
-        tenSanPham,
-        loaiSanPham: resolvedLoai,
-      });
-      try {
-        product = await db.internationalProduct.create({
-          data: { maSanPham, tenSanPham, donViTinh, loaiSanPham: resolvedLoai },
-        });
-      } catch (err) {
-        // P2002: a concurrent transaction inserted the same product first.
-        // Re-read — the winner's row is the canonical one.
-        if (isUniqueViolation(err)) {
-          product = await db.internationalProduct.findFirst({
-            where: { tenSanPham: { equals: tenSanPham, mode: 'insensitive' } },
-          });
-        }
-        if (!product) throw err;
-      }
-    }
+    const product = await this.resolveOrCreateProduct(db, tenSanPham, donViTinh, loaiSanPham);
 
     const lot = await db.lot.findUnique({ where: { id: lotId } });
 
@@ -922,6 +907,69 @@ class WarehouseReceiptService {
       }
       throw err;
     }
+  }
+
+  /**
+   * Find an `InternationalProduct` by name (case-insensitive) or create it with
+   * a generated code. Shared by `resolveOrCreateLotProduct` and the empty-kiện
+   * link so both commodity-attach paths resolve the catalog row identically.
+   */
+  private async resolveOrCreateProduct(
+    db: PrismaClientLike,
+    tenSanPham: string,
+    donViTinh?: string,
+    loaiSanPham?: string
+  ) {
+    const product = await db.internationalProduct.findFirst({
+      where: { tenSanPham: { equals: tenSanPham, mode: 'insensitive' } },
+    });
+    if (product) return product;
+
+    // Codes follow LOAI-STT-TENVIETTAT, and the prefix is derived from the category.
+    // Rather than invent a category that is not in the standard list (which is what
+    // produced the current Nguyên liệu / Nguyên vật liệu drift), mark it explicitly
+    // so it shows up as needing review instead of hiding inside a plausible one.
+    const resolvedLoai = loaiSanPham || UNCLASSIFIED_CATEGORY;
+    const maSanPham = await suggestAvailableProductCodeFor(db, { tenSanPham, loaiSanPham: resolvedLoai });
+    try {
+      return await db.internationalProduct.create({
+        data: { maSanPham, tenSanPham, donViTinh, loaiSanPham: resolvedLoai },
+      });
+    } catch (err) {
+      // P2002: a concurrent transaction inserted the same product first — re-read
+      // the winner's row, which is the canonical one.
+      if (isUniqueViolation(err)) {
+        const winner = await db.internationalProduct.findFirst({
+          where: { tenSanPham: { equals: tenSanPham, mode: 'insensitive' } },
+        });
+        if (winner) return winner;
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Link the line's commodity onto an empty fixed kiện the caller selected by id.
+   * Mirrors the fill step `resolveOrCreateLotProduct` runs when it picks a free
+   * kiện itself, so both entry points end with the pallet carrying its product,
+   * unit, and standard cost. Runs inside the caller's transaction.
+   */
+  private async attachProductToEmptyKien(
+    client: PrismaClientLike,
+    lotProductId: string,
+    kienDonViTinh: string,
+    line: ReceiptLineInput
+  ): Promise<void> {
+    const product = await this.resolveOrCreateProduct(client, line.tenSanPham, line.donViTinh, line.loaiSanPham);
+    await client.lotProduct.update({
+      where: { id: lotProductId },
+      data: {
+        internationalProductId: product.id,
+        donViTinh: line.donViTinh || product.donViTinh || kienDonViTinh || '',
+        // Kiện mới nhận giá chuẩn của hàng hóa thay vì giữ default DB (100000đ).
+        ...(product.giaThanh != null ? { giaThanh: product.giaThanh } : {}),
+      },
+    });
   }
 }
 

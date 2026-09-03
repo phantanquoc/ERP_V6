@@ -138,7 +138,7 @@ function storedLine(overrides: Partial<Record<string, unknown>> = {}) {
 
 /** Fake LotProduct row sufficient for the resolveLines cross-check (maKien + lot/wallet). */
 function fakeLotProductRow(lotProductId: string, overrides: Record<string, any> = {}) {
-  return { maKien: 'K1.1', lotId: 'l1', lot: { warehouseId: 'w1' }, ...overrides, id: lotProductId } as any;
+  return { maKien: 'K1.1', lotId: 'l1', internationalProductId: 'ip1', donViTinh: 'Kg', lot: { warehouseId: 'w1' }, ...overrides, id: lotProductId } as any;
 }
 
 describe('warehouseReceiptService.create', () => {
@@ -247,6 +247,45 @@ describe('warehouseReceiptService.create', () => {
     // Resolution used the transaction client, not the global prisma client.
     expect(mockTx.internationalProduct.findFirst).toHaveBeenCalled();
     expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lpNew' }, data: { soLuong: { increment: 3 } } });
+  });
+
+  it('links the commodity onto an empty pre-created kiện selected by id', async () => {
+    // PN-2026-021 regression: a fixed kiện from the CAD layout has no product
+    // until goods land. Targeting it by id must attach the product, or the
+    // pallet holds stock that every product-joined view renders as "?".
+    mockTx.lotProduct.findUnique.mockResolvedValue(
+      fakeLotProductRow('lp1', { internationalProductId: null, donViTinh: '' })
+    );
+    mockTx.internationalProduct.findFirst.mockResolvedValue({ id: 'ip-dam', donViTinh: 'Can', giaThanh: 120000 });
+    mockTx.lotProduct.findMany.mockResolvedValue(balanceRows([{ id: 'lp1', soLuong: 0 }]));
+
+    await warehouseReceiptService.create({
+      employeeId: 'e1',
+      items: [line({ tenSanPham: 'Dầu ăn Olein 25kg 1 can', donViTinh: 'Thùng', soLuongThucTe: 15 })],
+    });
+
+    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({
+      where: { id: 'lp1' },
+      data: { internationalProductId: 'ip-dam', donViTinh: 'Thùng', giaThanh: 120000 },
+    });
+    // The attach runs before the stock increment — both updates are present.
+    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp1' }, data: { soLuong: { increment: 15 } } });
+  });
+
+  it('never overwrites the product a kiện already carries', async () => {
+    mockTx.lotProduct.findUnique.mockResolvedValue(
+      fakeLotProductRow('lp1', { internationalProductId: 'ip-existing', donViTinh: 'Kg' })
+    );
+    mockTx.lotProduct.findMany.mockResolvedValue(balanceRows([{ id: 'lp1', soLuong: 5 }]));
+
+    await warehouseReceiptService.create({
+      employeeId: 'e1',
+      items: [line({ soLuongThucTe: 10 })],
+    });
+
+    expect(mockTx.internationalProduct.findFirst).not.toHaveBeenCalled();
+    expect(mockTx.lotProduct.update).toHaveBeenCalledTimes(1); // only the increment
+    expect(mockTx.lotProduct.update).toHaveBeenCalledWith({ where: { id: 'lp1' }, data: { soLuong: { increment: 10 } } });
   });
 });
 
