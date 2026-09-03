@@ -244,6 +244,17 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
         alert(`Dòng ${i + 1}: Số lượng nhập phải lớn hơn 0`);
         return;
       }
+      // Receiving into a pre-created empty kiện still needs a commodity name so the
+      // backend can link the product onto the pallet (otherwise it renders as "?").
+      const kienIds = row.selectedKienIds?.length ? row.selectedKienIds : (row.lotProductId ? [row.lotProductId] : []);
+      const targetsEmptyKien = kienIds.some((kid) => {
+        const lp = row.lotProducts.find((candidate) => candidate.id === kid);
+        return lp ? !lp.internationalProductId : false;
+      });
+      if (targetsEmptyKien && !row.tenSanPham.trim()) {
+        alert(`Dòng ${i + 1}: Kiện được chọn đang trống — hãy nhập tên hàng hóa để gắn sản phẩm vào kiện`);
+        return;
+      }
     }
 
     const removedCount = (receipt.items ?? []).filter(

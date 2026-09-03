@@ -381,7 +381,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
           tenKho: warehouse?.tenKho || '',
           lotId: row.lotId,
           tenLo: lot?.tenLo || '',
-          soLuongYeuCau: row.soLuongYeuCau > 0 ? row.soLuongYeuCau : row.soLuongXuat,
+          soLuongYeuCau: (row.soLuongYeuCau ?? 0) > 0 ? row.soLuongYeuCau : row.soLuongXuat,
           soLuongThucTe: row.soLuongXuat,
           donViTinh: lotProduct?.donViTinh || row.donViTinh || '',
           ghiChu: row.ghiChu,
@@ -688,7 +688,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
                     {/* Số lượng kế hoạch */}
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Số lượng kế hoạch</label>
-                      <input type="number" value={row.soLuongYeuCau > 0 ? row.soLuongYeuCau : ''}
+                      <input type="number" value={(row.soLuongYeuCau ?? 0) > 0 ? row.soLuongYeuCau : ''}
                         placeholder={row.soLuongXuat > 0 ? String(row.soLuongXuat) : ''}
                         title="Bỏ trống thì mặc định bằng số lượng thực tế"
                         onChange={(e) => updateRow(index, { soLuongYeuCau: parseNumberInput(e.target.value) > 0 ? parseNumberInput(e.target.value) : undefined })}
