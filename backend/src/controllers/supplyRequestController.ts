@@ -19,17 +19,37 @@ class SupplyRequestController {
       };
       // Warehouse (SUBDEPT_PRODUCTION_WAREHOUSE) is the fulfiller of EVERY supply
       // request across all departments — it must see the full list to process them.
+      // Check BOTH primary and secondary membership: a warehouse member may hold the
+      // warehouse as a secondary department (auth.user_secondary_departments), and
+      // requireRule only exposes the PRIMARY subDepartmentId on `userSubDepartmentId`.
       // ADMIN sees everything too. Everyone else stays scoped to their department.
       const isAdmin = req.user?.role === 'ADMIN';
       let isWarehouse = false;
-      if (!isAdmin) {
-        const subDeptId = (req as unknown as { userSubDepartmentId?: string | null }).userSubDepartmentId;
-        if (subDeptId) {
-          const subDept = await prisma.subDepartment.findUnique({
-            where: { id: subDeptId },
-            select: { code: true },
+      if (!isAdmin && req.user?.id) {
+        const userId = req.user.id;
+        const [employeeRow, secondaryRows] = await Promise.all([
+          prisma.employee.findUnique({
+            where: { userId },
+            select: { subDepartmentId: true, secondarySubDepartmentId: true },
+          }),
+          prisma.userSecondaryDepartment.findMany({
+            where: { userId },
+            select: { subDepartmentId: true },
+          }),
+        ]);
+        const candidateSubDeptIds = [
+          req.user.subDepartmentId,
+          employeeRow?.subDepartmentId,
+          employeeRow?.secondarySubDepartmentId,
+          ...secondaryRows.map((r) => r.subDepartmentId),
+        ].filter((v): v is string => !!v);
+
+        if (candidateSubDeptIds.length > 0) {
+          const warehouseMatch = await prisma.subDepartment.findFirst({
+            where: { id: { in: candidateSubDeptIds }, code: 'SUBDEPT_PRODUCTION_WAREHOUSE' },
+            select: { id: true },
           });
-          isWarehouse = subDept?.code === 'SUBDEPT_PRODUCTION_WAREHOUSE';
+          isWarehouse = !!warehouseMatch;
         }
       }
 
