@@ -17,11 +17,31 @@ class SupplyRequestController {
         trangThai: (req.query.trangThai as string) || undefined,
         mucDoUuTien: (req.query.mucDoUuTien as string) || undefined,
       };
-      const departmentIds = (req as unknown as { userDepartmentIds?: string[] }).userDepartmentIds;
-      const subDepartmentIds = (() => {
-        const v = (req as unknown as { userSubDepartmentId?: string | null }).userSubDepartmentId;
-        return v ? [v] : undefined;
-      })();
+      // Warehouse (SUBDEPT_PRODUCTION_WAREHOUSE) is the fulfiller of EVERY supply
+      // request across all departments — it must see the full list to process them.
+      // ADMIN sees everything too. Everyone else stays scoped to their department.
+      const isAdmin = req.user?.role === 'ADMIN';
+      let isWarehouse = false;
+      if (!isAdmin) {
+        const subDeptId = (req as unknown as { userSubDepartmentId?: string | null }).userSubDepartmentId;
+        if (subDeptId) {
+          const subDept = await prisma.subDepartment.findUnique({
+            where: { id: subDeptId },
+            select: { code: true },
+          });
+          isWarehouse = subDept?.code === 'SUBDEPT_PRODUCTION_WAREHOUSE';
+        }
+      }
+
+      const departmentIds = (isAdmin || isWarehouse)
+        ? undefined
+        : (req as unknown as { userDepartmentIds?: string[] }).userDepartmentIds;
+      const subDepartmentIds = (isAdmin || isWarehouse)
+        ? undefined
+        : (() => {
+            const v = (req as unknown as { userSubDepartmentId?: string | null }).userSubDepartmentId;
+            return v ? [v] : undefined;
+          })();
 
       const result = await supplyRequestService.getAllSupplyRequests(page, limit, search, departmentIds, subDepartmentIds, phanLoai, filters);
 
