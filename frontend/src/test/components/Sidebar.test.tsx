@@ -40,7 +40,7 @@ describe('Sidebar branding', () => {
 
     const logo = screen.getByAltText('An Binh Foods');
     expect(logo).toBeInTheDocument();
-    expect(logo).toHaveAttribute('src', '/abf-logo.png');
+    expect(logo.getAttribute('src')).toContain('abf-logo');
     expect(logo.className).toContain('h-8');
   });
 

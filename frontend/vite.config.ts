@@ -15,6 +15,7 @@ export default defineConfig({
       '@contexts': path.resolve(__dirname, './src/contexts'),
       '@hooks': path.resolve(__dirname, './src/hooks'),
       '@schemas': path.resolve(__dirname, './src/schemas'),
+      '@assets': path.resolve(__dirname, './src/assets'),
     }
   },
   optimizeDeps: {

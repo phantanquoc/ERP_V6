@@ -4,6 +4,8 @@ import { ShieldCheck, Sparkles, Users, LineChart, ArrowLeft, CheckCircle2, Alert
 import Input from '../components/Input';
 import Button from '../components/Button';
 import AuthService from '../services/authService';
+import abfLogo from '@assets/abf-logo.png';
+import koolaLogo from '@assets/koola-logo.png';
 
 const ForgotPassword: React.FC = () => {
   const [identifier, setIdentifier] = useState('');
@@ -39,7 +41,7 @@ const ForgotPassword: React.FC = () => {
         <div className="pointer-events-none absolute -bottom-32 -left-20 w-96 h-96 rounded-full bg-indigo-400/20 blur-3xl" aria-hidden="true" />
 
         <div className="lg:hidden flex items-center gap-3 px-5 py-5 relative z-10">
-          <img src="/abf-logo.png" alt="An Binh Foods" className="h-10 w-auto drop-shadow-md" />
+          <img src={abfLogo} alt="An Binh Foods" className="h-10 w-auto drop-shadow-md" />
           <div>
             <p className="text-base font-semibold leading-tight">ABF System</p>
             <p className="text-xs text-blue-100">Hệ thống quản lý doanh nghiệp</p>
@@ -48,7 +50,7 @@ const ForgotPassword: React.FC = () => {
 
         <div className="hidden lg:flex flex-col justify-between h-full min-h-screen p-12 xl:p-16 relative z-10">
           <div className="flex items-center gap-3">
-            <img src="/abf-logo.png" alt="An Binh Foods" className="h-16 w-auto drop-shadow-sm" />
+            <img src={abfLogo} alt="An Binh Foods" className="h-16 w-auto drop-shadow-sm" />
           </div>
 
           <div className="max-w-lg">
@@ -130,7 +132,7 @@ const ForgotPassword: React.FC = () => {
                   className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 transition-colors"
                 >
                   <span>Powered by</span>
-                  <img src="/koola-logo.png" alt="Koola" className="h-4 w-auto" />
+                  <img src={koolaLogo} alt="Koola" className="h-4 w-auto" />
                 </a>
                 <Link
                   to="/login"
@@ -194,7 +196,7 @@ const ForgotPassword: React.FC = () => {
                   className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 transition-colors"
                 >
                   <span>Powered by</span>
-                  <img src="/koola-logo.png" alt="Koola" className="h-4 w-auto" />
+                  <img src={koolaLogo} alt="Koola" className="h-4 w-auto" />
                 </a>
                 <Link
                   to="/login"
