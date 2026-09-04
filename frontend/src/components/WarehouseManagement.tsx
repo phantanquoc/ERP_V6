@@ -136,16 +136,22 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
     ? (selectedLot.lotProducts ?? []).filter((lp) => lp.slotId != null && !lp.internationalProduct && lp.soLuong <= 0).length
     : 0;
 
-  // Preselect warehouse when initialWarehouseId is provided
+  // Preselect warehouse when initialWarehouseId is provided.
+  // CHỈ áp dụng khi chưa có lựa chọn nào (effectiveSelectedId === null):
+  // prop initialWarehouseId là giá trị mount-time và không bao giờ bị xóa,
+  // nếu effect chạy lại mỗi lần warehouses refetch / component remount
+  // (unified view có 2 thể hiện WarehouseManagement — nhánh có map và nhánh
+  // không map) nó sẽ ghi đè lựa chọn hiện tại của người dùng, khiến bấm
+  // kho không có bản đồ trên tab strip bị kéo ngược về kho ban đầu.
   useEffect(() => {
     if (!initialWarehouseId || warehouses.length === 0) return;
-    if (selectedWarehouse?.id === initialWarehouseId) return;
+    if (effectiveSelectedId !== null) return;
     const target = warehouses.find((w: Warehouse) => w.id === initialWarehouseId);
     if (target) {
       setSelectedWarehouse(target);
       setCurrentPage(1);
     }
-  }, [warehouses, initialWarehouseId]);
+  }, [warehouses, initialWarehouseId, effectiveSelectedId]);
 
   const handleCreateWarehouse = async () => {
     if (!newWarehouseForm.tenKho.trim()) {
