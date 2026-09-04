@@ -3,6 +3,7 @@ import type { WarehouseReceiptLine } from '../services/warehouseReceiptService';
 import type { WarehouseIssueLine } from '../services/warehouseIssueService';
 import { totalsByUnit } from '../utils/warehouseSlipTotals';
 import { COMPANY_HEADER, BM_CODES } from '../constants/warehouseCatalogs';
+import abfLogo from '@assets/abf-logo.png';
 
 interface WarehouseSlipPrintViewProps {
   type: 'receipt' | 'issue';
@@ -53,7 +54,7 @@ const WarehouseSlipPrintView: React.FC<WarehouseSlipPrintViewProps> = ({
       <div className="print-page" style={{ background: 'white', margin: '0 auto', maxWidth: 1100, padding: 16 }}>
         {/* Company header + logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderBottom: '2px solid #1f2937', paddingBottom: 8, marginBottom: 8 }}>
-          <img src="/abf-logo.png" alt="ABF" style={{ height: 36, objectFit: 'contain' }} onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+          <img src={abfLogo} alt="ABF" style={{ height: 36, objectFit: 'contain' }} onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
           <div style={{ flex: 1, textAlign: 'center' }}>
             <div style={{ fontFamily: 'Times New Roman', fontWeight: 700, fontSize: 11 }}>{COMPANY_HEADER.name}</div>
             <div style={{ fontFamily: 'Times New Roman', fontSize: 8, color: '#4b5563' }}>{COMPANY_HEADER.address}  ĐT: {COMPANY_HEADER.phone}  Email: {COMPANY_HEADER.email}  Website: {COMPANY_HEADER.website}</div>

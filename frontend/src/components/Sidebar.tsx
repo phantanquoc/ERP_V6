@@ -6,6 +6,8 @@ import { hasModuleAccess, hasSubModuleAccess, isAdminUser, canIfConfigured } fro
 import { useQuery } from '@tanstack/react-query';
 import notificationService from '../services/notificationService';
 import { UserRole } from '../types/auth';
+import abfLogo from '@assets/abf-logo.png';
+import koolaLogo from '@assets/koola-logo.png';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -202,7 +204,7 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
         <div className={`p-3 border-b border-gray-200 flex items-center ${collapsed ? 'flex-col gap-2' : 'relative justify-center'}`}>
           <span className={`bg-white shadow-sm inline-flex items-center shrink-0 ${collapsed ? 'rounded-md p-1' : 'rounded-lg px-3 py-1.5'}`}>
             <img
-              src="/abf-logo.png"
+              src={abfLogo}
               alt="An Binh Foods"
               className={`w-auto object-contain shrink-0 ${collapsed ? 'h-6' : 'h-8'}`}
             />
@@ -431,11 +433,11 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
             title="Powered by Koola"
           >
             {collapsed ? (
-              <img src="/koola-logo.png" alt="Koola" className="w-5 h-5 object-contain" />
+              <img src={koolaLogo} alt="Koola" className="w-5 h-5 object-contain" />
             ) : (
               <>
                 <span className="text-[10px] text-gray-500">Powered by</span>
-                <img src="/koola-logo.png" alt="Koola" className="h-4 object-contain" />
+                <img src={koolaLogo} alt="Koola" className="h-4 object-contain" />
                 <span className="text-[10px] font-semibold text-gray-600">KOOLA</span>
               </>
             )}

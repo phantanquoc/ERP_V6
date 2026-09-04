@@ -40,6 +40,7 @@ import OperatorSelectionScreen from '../../components/production/OperatorSelecti
 import ShiftSelectionScreen from '../../components/production/ShiftSelectionScreen';
 import KioskFooter from '../../components/production/KioskFooter';
 import FieldFocusEditor from '../../components/production/FieldFocusEditor';
+import abfLogo from '@assets/abf-logo.png';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -678,7 +679,7 @@ const ProductionSystemOperationEntry: React.FC = () => {
         <div className={`max-w-4xl mx-auto px-4 ${keyboardOpen ? 'py-2' : 'py-3'}`}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <img src="/abf-logo.png" alt="An Bình Foods" className={`h-9 object-contain ${keyboardOpen ? 'hidden' : 'hidden sm:block'}`} />
+              <img src={abfLogo} alt="An Bình Foods" className={`h-9 object-contain ${keyboardOpen ? 'hidden' : 'hidden sm:block'}`} />
               <div className="min-w-0">
                 <h1 className="text-lg font-semibold text-gray-800 truncate flex items-center gap-2">
                   <Gauge className="w-5 h-5 text-blue-600" />

@@ -1,4 +1,5 @@
 import React from 'react';
+import koolaLogo from '@assets/koola-logo.png';
 
 /**
  * Chữ ký "Powered by Koola" dùng chung cho các trang nhập liệu tablet (kiosk).
@@ -14,7 +15,7 @@ const KioskFooter: React.FC = () => (
       title="Powered by Koola"
     >
       <span className="text-[11px] text-gray-500">Powered by</span>
-      <img src="/koola-logo.png" alt="Koola" className="h-4 object-contain" />
+      <img src={koolaLogo} alt="Koola" className="h-4 object-contain" />
       <span className="text-[11px] font-semibold text-gray-400">KOOLA</span>
     </a>
   </div>

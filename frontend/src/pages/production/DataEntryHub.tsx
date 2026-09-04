@@ -2,6 +2,8 @@ import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { markTab } from '../../utils/kioskSession';
 import { Package, Leaf, Gauge } from 'lucide-react';
+import abfLogo from '@assets/abf-logo.png';
+import koolaLogo from '@assets/koola-logo.png';
 
 const DataEntryHub: React.FC = () => {
   const navigate = useNavigate();
@@ -41,7 +43,7 @@ const DataEntryHub: React.FC = () => {
     <div className="h-screen w-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 sm:p-6 flex flex-col">
       {/* Logo ABF */}
       <div className="flex-shrink-0 flex items-center justify-center py-2">
-        <img src="/abf-logo.png" alt="An Binh Foods" className="h-12 sm:h-16 object-contain" />
+        <img src={abfLogo} alt="An Binh Foods" className="h-12 sm:h-16 object-contain" />
       </div>
 
       {/* Cards — chiếm phần lớn màn hình */}
@@ -79,7 +81,7 @@ const DataEntryHub: React.FC = () => {
       {/* Powered by Koola */}
       <div className="flex-shrink-0 flex items-center justify-center gap-2 py-2 opacity-60">
         <span className="text-xs text-gray-500">Powered by</span>
-        <img src="/koola-logo.png" alt="Koola" className="h-4 object-contain" />
+        <img src={koolaLogo} alt="Koola" className="h-4 object-contain" />
         <span className="text-xs font-semibold text-gray-400">KOOLA</span>
       </div>
     </div>

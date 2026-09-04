@@ -2,6 +2,8 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { CheckCircle, XCircle, AlertCircle, Clock } from 'lucide-react';
 import faceAttendanceService, { VerifyResult } from '../../services/faceAttendanceService';
 import { loadFaceMesh } from '../../utils/loadFaceMesh';
+import abfLogo from '@assets/abf-logo.png';
+import koolaLogo from '@assets/koola-logo.png';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type FaceMeshInstance = any;
@@ -519,7 +521,7 @@ const FaceKioskPageV3: React.FC = () => {
           paddingTop: 'max(0.75rem, env(safe-area-inset-top))',
         }}>
         <div className="flex items-center text-white drop-shadow min-w-0">
-          <img src="/abf-logo.png" alt="ABF"
+          <img src={abfLogo} alt="ABF"
             className="h-10 sm:h-12 md:h-14 w-auto object-contain shrink-0"
             style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.5))' }} />
           <span className="ml-3 px-2 py-0.5 rounded-md bg-cyan-500/25 border border-cyan-400/40 text-cyan-100 text-xs font-medium tracking-wider">
@@ -542,7 +544,7 @@ const FaceKioskPageV3: React.FC = () => {
           bottom: 'max(0.75rem, env(safe-area-inset-bottom))',
         }}>
         <span className="text-[10px] sm:text-[11px] font-light tracking-[0.25em] uppercase">Powered by</span>
-        <img src="/koola-logo.png" alt="Koola" className="h-3.5 sm:h-4 w-auto object-contain"
+        <img src={koolaLogo} alt="Koola" className="h-3.5 sm:h-4 w-auto object-contain"
           style={{ filter: 'brightness(0) invert(1) drop-shadow(0 1px 2px rgba(0,0,0,0.6))', opacity: 0.85 }} />
       </div>
 

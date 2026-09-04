@@ -3,6 +3,8 @@ import { ArrowLeft, Loader2, Search, User, X, UserPlus } from 'lucide-react';
 import { useProductionEmployees } from '../../hooks/useProductionEmployees';
 import { useDebounce } from '../../hooks/useDebounce';
 import { AttendedOperator } from '../../services/attendedOperatorsService';
+import abfLogo from '@assets/abf-logo.png';
+import koolaLogo from '@assets/koola-logo.png';
 
 interface OperatorSelectionScreenProps {
   onSelect: (selection: { id: string; name: string }) => void;
@@ -79,7 +81,7 @@ const OperatorSelectionScreen: React.FC<OperatorSelectionScreenProps> = ({
         ) : (
           <div className="w-[110px]" aria-hidden />
         )}
-        <img src="/abf-logo.png" alt="An Bình Foods" className="h-12 sm:h-16 object-contain mx-auto" />
+        <img src={abfLogo} alt="An Bình Foods" className="h-12 sm:h-16 object-contain mx-auto" />
         {/* Spacer cân đối để logo căn giữa */}
         <div className="w-[110px]" aria-hidden />
       </div>
@@ -168,7 +170,7 @@ const OperatorSelectionScreen: React.FC<OperatorSelectionScreenProps> = ({
       {/* Powered by Koola */}
       <div className="flex-shrink-0 flex items-center justify-center gap-2 py-2 opacity-60">
         <span className="text-xs text-gray-500">Powered by</span>
-        <img src="/koola-logo.png" alt="Koola" className="h-4 object-contain" />
+        <img src={koolaLogo} alt="Koola" className="h-4 object-contain" />
         <span className="text-xs font-semibold text-gray-400">KOOLA</span>
       </div>
     </div>

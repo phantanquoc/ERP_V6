@@ -53,6 +53,8 @@ import faceAttendanceService from '../../services/faceAttendanceService';
 import { useDailyFrySchedule, ScheduledBatch } from '../../hooks/useDailyFrySchedule';
 import { productionDayRange, getCurrentProductionDay } from '../../utils/productionDay';
 import { deriveThoiGianChien } from './deriveThoiGianChien';
+import abfLogo from '@assets/abf-logo.png';
+import koolaLogo from '@assets/koola-logo.png';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -941,7 +943,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
             <ArrowLeft className="w-6 h-6" />
             Quay lại
           </button>
-          <img src="/abf-logo.png" alt="An Bình Foods" className="h-12 sm:h-16 object-contain mx-auto" />
+          <img src={abfLogo} alt="An Bình Foods" className="h-12 sm:h-16 object-contain mx-auto" />
           <div className="w-[110px]" aria-hidden />
         </div>
 
@@ -1020,7 +1022,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
         {/* Powered by Koola */}
         <div className="flex-shrink-0 flex items-center justify-center gap-2 py-2 opacity-60">
           <span className="text-xs text-gray-500">Powered by</span>
-          <img src="/koola-logo.png" alt="Koola" className="h-4 object-contain" />
+          <img src={koolaLogo} alt="Koola" className="h-4 object-contain" />
           <span className="text-xs font-semibold text-gray-400">KOOLA</span>
         </div>
 
@@ -1041,7 +1043,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
       <div className="sticky top-0 z-10 bg-white border-b shadow-sm transition-all duration-150">
         <div className={`max-w-4xl mx-auto px-4 flex items-center justify-between gap-3 ${keyboardOpen ? 'py-2' : 'py-3'}`}>
           <div className="flex items-center gap-3 min-w-0">
-            <img src="/abf-logo.png" alt="An Bình Foods" className={`h-9 object-contain ${keyboardOpen ? 'hidden' : 'hidden sm:block'}`} />
+            <img src={abfLogo} alt="An Bình Foods" className={`h-9 object-contain ${keyboardOpen ? 'hidden' : 'hidden sm:block'}`} />
             <div className="min-w-0">
               <h1 className="text-lg font-semibold text-gray-800 truncate">
                 Nhập {selectedMaChien}
@@ -1563,7 +1565,6 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
 };
 
 export default ProductionMaterialEvaluationEntry;
-
 
 
 

@@ -27,6 +27,7 @@ import { isAdmin } from '../../utils/permissions';
 import faceAttendanceService from '../../services/faceAttendanceService';
 import { Loader2, Save, CheckCircle, AlertTriangle, Eye, ArrowLeft, User, CalendarClock } from 'lucide-react';
 import toast from 'react-hot-toast';
+import abfLogo from '@assets/abf-logo.png';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1122,7 +1123,7 @@ const ProductionDataEntry: React.FC = () => {
         <div className={`max-w-full mx-auto px-4 ${keyboardOpen ? 'py-2' : 'py-3'}`}>
           <div className={`flex items-center justify-between gap-3 ${keyboardOpen ? 'mb-0' : 'mb-3'}`}>
             <div className="flex items-center gap-3 min-w-0">
-              <img src="/abf-logo.png" alt="An Bình Foods" className={`h-9 object-contain ${keyboardOpen ? 'hidden' : 'hidden sm:block'}`} />
+              <img src={abfLogo} alt="An Bình Foods" className={`h-9 object-contain ${keyboardOpen ? 'hidden' : 'hidden sm:block'}`} />
               <div className="min-w-0">
                 <h1 className="text-lg font-semibold text-gray-800 truncate">Bảng sản lượng thành phẩm</h1>
                 <p className={`text-sm text-gray-600 truncate ${keyboardOpen ? 'hidden' : ''}`}>
