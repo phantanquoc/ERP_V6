@@ -5,31 +5,8 @@ import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import ExcelJS from 'exceljs';
 import { NotificationEvent } from '@types';
 import notificationService from '@services/notificationService';
+import { bucketPhanLoai } from '@utils/phanLoaiBucket';
 
-// 4.1 — shortage grouping helpers (family buckets for purchasing sub-teams)
-function stripDiacritics(input: string): string {
-  return (input ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\u0111/g, 'd')
-    .replace(/\u0110/g, 'D');
-}
-function bucketPhanLoai(phanLoai: string): 'MATERIALS' | 'EQUIPMENT' | 'OTHER' {
-  const raw = (phanLoai ?? '').trim();
-  if (!raw) return 'OTHER';
-  const n = stripDiacritics(raw).toLowerCase();
-  if (n.includes('thiet bi') || n.includes('cong cu') || n.includes('dung cu')) return 'EQUIPMENT';
-  if (
-    n.includes('nguyen') ||
-    n.includes('vat tu') ||
-    n.includes('vat lieu') ||
-    n.includes('phu lieu') ||
-    n.includes('bao bi') ||
-    n.includes('nhien lieu')
-  )
-    return 'MATERIALS';
-  return 'OTHER';
-}
 async function generatePurchaseRequestCodeTx(tx: any): Promise<string> {
   const year = new Date().getFullYear();
   const last = await tx.purchaseRequest.findFirst({
@@ -402,6 +379,11 @@ class SupplyRequestService {
     }
 
     const newFulfilled = alreadyFulfilled + req.fulfilledQty;
+    // When no warehouse package is supplied (e.g. capped purely to record an
+    // audit decision and/or a shortage PR), fulfilledQty is still advanced but
+    // no warehouse issue slip is created. Real stock is not decremented — the
+    // platform stock check in `warehouseIssueService.createWithClient` remains
+    // the source of truth, and shortage calculations use fulfilledQty.
     const shortage = Math.max(0, item.soLuong - newFulfilled);
     let fulfillmentStatus: string;
     let decision: string;
@@ -519,7 +501,7 @@ class SupplyRequestService {
             tx.warehouses.findUnique({ where: { id: req.warehouseId }, select: { tenKho: true } }),
             tx.lot.findUnique({ where: { id: req.lotId }, select: { tenLo: true } }),
           ]);
-          const maPhieuXuat = await warehouseIssueService.generateCode();
+          const maPhieuXuat = await warehouseIssueService.generateCode(tx);
           const normalized = {
             employeeId: req.decidedByEmployeeId,
             maNhanVien: employee?.employeeCode ?? '',
@@ -629,6 +611,16 @@ class SupplyRequestService {
     });
     const itemMap = new Map(items.map((i) => [i.id, i]));
 
+    // Every line must belong to the SAME supply request: the shortage PRs, the
+    // "Chờ bổ sung" status bridge and the single issue slip are all attributed to
+    // one parent SR, so a cross-SR batch would silently mis-own them.
+    const distinctSRs = new Set(items.map((i) => i.supplyRequestId));
+    if (distinctSRs.size > 1) {
+      throw new ValidationError(
+        'Các dòng cấp phát phải thuộc cùng một yêu cầu cung cấp. Vui lòng cấp phát từng yêu cầu riêng.'
+      );
+    }
+
     for (const line of lines) {
       const item = itemMap.get(line.itemId);
       if (!item) {
@@ -644,6 +636,7 @@ class SupplyRequestService {
           `Số lượng cấp (${line.fulfilledQty}) vượt phần còn lại (${remaining}) cho "${item.tenGoi}".`
         );
       }
+
     }
 
     // 2. Prepare issue lines for lines with fulfilledQty > 0 and warehouse info.
@@ -796,7 +789,7 @@ class SupplyRequestService {
           });
         }
         if (issueLineInputs.length > 0) {
-          const maPhieuXuat = await warehouseIssueService.generateCode();
+          const maPhieuXuat = await warehouseIssueService.generateCode(tx);
           const firstEmployeeId =
             lines.find((l: any) => itemMap.get(l.itemId)?.supplyRequestId === batchSupplyRequestId)?.decidedByEmployeeId ??
             (lines[0] as any).decidedByEmployeeId;

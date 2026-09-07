@@ -133,9 +133,10 @@ function normalizeInput(input: CreateInput | UpdateInput): CreateIssueInput & Up
 }
 
 class WarehouseIssueService {
-  async generateCode(): Promise<string> {
+  async generateCode(tx?: any): Promise<string> {
     const year = new Date().getFullYear();
-    const last = await prisma.warehouseIssue.findFirst({
+    const client = tx ?? prisma;
+    const last = await client.warehouseIssue.findFirst({
       where: { maPhieuXuat: yearlyCodeWhere('PX', year) },
       orderBy: { maPhieuXuat: 'desc' },
       select: { maPhieuXuat: true },

@@ -15,6 +15,7 @@ import {
   NotificationContext,
   NotificationType,
 } from '@types';
+import { bucketPhanLoai, subDeptCodeForBucket } from '@utils/phanLoaiBucket';
 
 /* ─── Recipient Resolver Helpers ───────────────────────────────────────────── */
 
@@ -80,6 +81,21 @@ async function getEmployeeIdsByDeptCode(code: string): Promise<string[]> {
 
 async function resolveDirectRecipients(ctx: NotificationContext): Promise<string[]> {
   return ctx.targetEmployeeIds ?? [];
+}
+
+/**
+ * Resolve purchasing recipients for a goods-class bucket.
+ * Prefers the owning sub-department, but falls back to the whole purchasing
+ * department when that sub-department has no active members — otherwise the
+ * notification silently reaches nobody and the replenishment request stalls
+ * with no one accountable for quoting it.
+ */
+async function getPurchasingRecipientsForBucket(subDeptCode: string | null): Promise<string[]> {
+  if (subDeptCode) {
+    const subRecipients = await getEmployeeIdsBySubDeptCode(subDeptCode);
+    if (subRecipients.length > 0) return subRecipients;
+  }
+  return getEmployeeIdsByDeptCode('DEPT_PURCHASING');
 }
 
 /* ─── Registry Entries ─────────────────────────────────────────────────────── */
@@ -414,27 +430,17 @@ const entries: NotificationEventDef[] = [
       }
       // Inspect phanLoaiGroup (bucket: MATERIALS/EQUIPMENT/OTHER) or items[].phanLoai heuristic
       const phanLoaiGroup = ctx.metadata?.phanLoaiGroup as string | undefined;
-      if (phanLoaiGroup === 'MATERIALS') return getEmployeeIdsBySubDeptCode('SUBDEPT_PURCHASING_MATERIALS');
-      if (phanLoaiGroup === 'EQUIPMENT') return getEmployeeIdsBySubDeptCode('SUBDEPT_PURCHASING_EQUIPMENT');
-      // Fallback: inspect items[].phanLoai with the same bucket heuristic as supplyRequestService
+      if (phanLoaiGroup === 'MATERIALS' || phanLoaiGroup === 'EQUIPMENT' || phanLoaiGroup === 'OTHER') {
+        return getPurchasingRecipientsForBucket(subDeptCodeForBucket(phanLoaiGroup));
+      }
+      // Fallback: inspect items[].phanLoai with the shared bucket heuristic
       const items = ctx.metadata?.items as Array<{ phanLoai?: string }> | undefined;
       if (items && items.length > 0) {
-        const stripDiacritics = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
-        const bucketFor = (phanLoai: string): 'MATERIALS' | 'EQUIPMENT' | 'OTHER' => {
-          const raw = (phanLoai ?? '').trim();
-          if (!raw) return 'OTHER';
-          const n = stripDiacritics(raw).toLowerCase();
-          if (n.includes('thiet bi') || n.includes('cong cu') || n.includes('dung cu')) return 'EQUIPMENT';
-          if (n.includes('nguyen') || n.includes('vat tu') || n.includes('vat lieu') || n.includes('phu lieu') || n.includes('bao bi') || n.includes('nhien lieu')) return 'MATERIALS';
-          return 'OTHER';
-        };
-        const buckets = new Set(items.map((it) => bucketFor(String(it.phanLoai ?? ''))));
+        const buckets = new Set(items.map((it) => bucketPhanLoai(String(it.phanLoai ?? ''))));
         if (buckets.size === 1) {
-          const sole = [...buckets][0];
-          if (sole === 'MATERIALS') return getEmployeeIdsBySubDeptCode('SUBDEPT_PURCHASING_MATERIALS');
-          if (sole === 'EQUIPMENT') return getEmployeeIdsBySubDeptCode('SUBDEPT_PURCHASING_EQUIPMENT');
+          return getPurchasingRecipientsForBucket(subDeptCodeForBucket([...buckets][0]));
         }
-        // Mixed or OTHER → broadcast fallback
+        // Mixed buckets → broadcast to the whole purchasing department
       }
       return getEmployeeIdsByDeptCode('DEPT_PURCHASING');
     },

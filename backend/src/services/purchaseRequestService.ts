@@ -88,21 +88,53 @@ class PurchaseRequestService {
         : {};
 
     // 5.3 — server-side phanLoai / phanLoaiNCC filter
-    const phanLoaiList = (() => {
+    // phanLoaiNCC=NVL → MATERIALS bucket, Thiết bị → EQUIPMENT bucket (shared heuristic).
+    // Supports paginated server-side filtering: builds a contains-OR that matches free-text variants.
+    const phanLoaiWhere = (() => {
       const fromPhanLoai = (() => {
         if (!phanLoaiFilter) return null as string[] | null;
         const raw = Array.isArray(phanLoaiFilter) ? phanLoaiFilter : String(phanLoaiFilter).split(',');
         const vals = raw.map((s) => String(s).trim()).filter(Boolean);
         return vals.length ? vals : null;
       })();
-      if (fromPhanLoai) return fromPhanLoai;
+      if (fromPhanLoai) {
+        return { items: { some: { phanLoai: { in: fromPhanLoai } } } } as Record<string, unknown>;
+      }
       const ncc = extra?.phanLoaiNCC ? String(extra.phanLoaiNCC).trim() : '';
-      if (!ncc) return null;
-      if (ncc.toUpperCase() === 'NVL') return ['Nguyên liệu', 'Bao bì', 'Nguyên vật liệu'];
-      if (ncc === 'Thiết bị' || ncc.toLowerCase() === 'thiet bi') return ['Thiết bị'];
-      return null;
+      if (!ncc) return {} as Record<string, unknown>;
+      const normalized = ncc.toLowerCase();
+      if (normalized === 'nvl') {
+        return {
+          items: {
+            some: {
+              OR: [
+                { phanLoai: { contains: 'nguyên', mode: 'insensitive' as const } },
+                { phanLoai: { contains: 'vật tư', mode: 'insensitive' as const } },
+                { phanLoai: { contains: 'vật liệu', mode: 'insensitive' as const } },
+                { phanLoai: { contains: 'phụ liệu', mode: 'insensitive' as const } },
+                { phanLoai: { contains: 'bao bì', mode: 'insensitive' as const } },
+                { phanLoai: { contains: 'nhiên liệu', mode: 'insensitive' as const } },
+                { phanLoai: { contains: 'thành phẩm', mode: 'insensitive' as const } },
+              ],
+            },
+          },
+        } as Record<string, unknown>;
+      }
+      if (normalized === 'thiết bị' || normalized === 'thiet bi') {
+        return {
+          items: {
+            some: {
+              OR: [
+                { phanLoai: { contains: 'thiết bị', mode: 'insensitive' as const } },
+                { phanLoai: { contains: 'công cụ', mode: 'insensitive' as const } },
+                { phanLoai: { contains: 'dụng cụ', mode: 'insensitive' as const } },
+              ],
+            },
+          },
+        } as Record<string, unknown>;
+      }
+      return {} as Record<string, unknown>;
     })();
-    const phanLoaiWhere = phanLoaiList ? { items: { some: { phanLoai: { in: phanLoaiList } } } } : {};
     const sourceTypeWhere = extra?.sourceType ? { sourceType: extra.sourceType } : {};
     const trangThaiWhere = extra?.trangThai ? { trangThai: extra.trangThai } : {};
     // SHORTAGE via phanLoaiNCC=SHORTAGE is handled as sourceType filter
@@ -618,6 +650,14 @@ class PurchaseRequestService {
     // 3.4 — block deletion of Đã duyệt / Hoàn thành (approved/completed) PRs
     if (existingRequest.trangThai === 'Đã duyệt' || existingRequest.trangThai === 'Hoàn thành') {
       throw new ValidationError('Không thể xóa yêu cầu đã duyệt hoặc đã hoàn thành');
+    }
+    // Deleting a SHORTAGE "Chờ báo giá" PR would orphan its parent SR at "Chờ bổ sung"
+    // with a nulled decision link (via SetNull), so treat it as a soft error that
+    // prompts the caller to fix the source shortage via fulfillment instead.
+    if (existingRequest.sourceType === 'SHORTAGE' && existingRequest.trangThai === 'Chờ báo giá') {
+      throw new ValidationError(
+        'Không thể xóa yêu cầu bổ sung đang chờ báo giá. Hãy xử lý yêu cầu qua cung cấp lại cho kho trước.'
+      );
     }
     if ((existingRequest as any).trangThai === 'Từ chối') {
       // Deleting a rejected PR is allowed, but keep the branch explicit for auditing

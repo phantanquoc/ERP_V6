@@ -246,9 +246,12 @@ export function resolveDeepLink(notification: NotificationForLink): string | nul
 
     case 'PURCHASE_REQUEST': {
       const prId = meta.purchaseRequestId as string | undefined;
-      return prId
-        ? `/purchasing/materials?purchaseRequestId=${prId}`
-        : '/purchasing/materials';
+      const group = (meta.phanLoaiGroup as string | undefined)?.toUpperCase();
+      const base =
+        group === 'EQUIPMENT'
+          ? '/purchasing/equipment'
+          : '/purchasing/materials';
+      return prId ? `${base}?purchaseRequestId=${prId}` : base;
     }
 
     case 'REPAIR_REQUEST': {

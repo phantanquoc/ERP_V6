@@ -23,7 +23,6 @@ import OrderManagement from '../../components/OrderManagement';
 import purchaseRequestService from '../../services/purchaseRequestService';
 import { supplierService, Supplier, CreateSupplierData, UpdateSupplierData } from '../../services/supplierService';
 import { parseNumberInput } from '../../utils/numberInput';
-import UnitSelect from '../../components/common/UnitSelect';
 import { can } from '../../utils/permissions';
 import { useAuth } from '../../contexts/AuthContext';
 import { labelForPurchaseRequest } from '../../utils/purchaseRequestLabel';
@@ -44,6 +43,7 @@ interface PurchaseRequest {
   mucDichYeuCau: string;
   mucDoUuTien: string;
   ghiChu?: string;
+  ghiChuMuaHang?: string;
   fileKemTheo?: string;
   trangThai: string;
   nguoiDuyet?: string;
@@ -280,8 +280,29 @@ const PurchasingEquipment = () => {
   const [selectedPurchaseRequest, setSelectedPurchaseRequest] = useState<PurchaseRequest | null>(null);
   const [editingPurchaseRequest, setEditingPurchaseRequest] = useState<PurchaseRequest | null>(null);
   const [editFormData, setEditFormData] = useState<Partial<PurchaseRequest>>({});
+  // Per-item pricing state — required so a "Chờ báo giá" replenishment PR can be
+  // quoted (NCC + đơn giá per line) and submitted for approval from this page.
+  const [editItems, setEditItems] = useState<Array<{
+    id?: string;
+    phanLoai: string;
+    tenHangHoa: string;
+    soLuong: number;
+    donViTinh: string;
+    nhaCungCapId: string | null;
+    giaDuKien: number | null;
+  }>>([]);
   const [editLoading, setEditLoading] = useState(false);
+  const [editFormErrors, setEditFormErrors] = useState<{ api?: string }>({});
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => Promise<void> | void;
+    variant?: 'primary' | 'warning' | 'danger' | 'info';
+    confirmLabel?: string;
+    hideCancel?: boolean;
+  } | null>(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
 
   const openDetailModal = useCallback((item: any) => { setSelectedItem(item); setIsDetailModalOpen(true); }, []);
   const closeDetailModal = useCallback(() => { setIsDetailModalOpen(false); setSelectedItem(null); }, []);
@@ -289,60 +310,191 @@ const PurchasingEquipment = () => {
   const closePurchaseRequestDetail = useCallback(() => { setSelectedPurchaseRequest(null); }, []);
 
   const openEditPurchaseRequest = useCallback((item: PurchaseRequest) => {
+    const currentUserName = user ? `${user.lastName} ${user.firstName}`.trim() : '';
+    const today = new Date().toISOString();
     setEditingPurchaseRequest(item);
     setSelectedFile(null);
+    setEditFormErrors({});
     setEditFormData({
-      phanLoai: item.phanLoai, tenHangHoa: item.tenHangHoa, soLuong: item.soLuong,
-      donViTinh: item.donViTinh, mucDichYeuCau: item.mucDichYeuCau, mucDoUuTien: item.mucDoUuTien,
-      ghiChu: item.ghiChu || '', trangThai: item.trangThai, nguoiDuyet: item.nguoiDuyet || '',
-      ngayDuyet: item.ngayDuyet || '', fileKemTheo: item.fileKemTheo || '',
+      trangThai: item.trangThai,
+      ghiChuMuaHang: (item as any).ghiChuMuaHang || '',
+      fileKemTheo: item.fileKemTheo || '',
+      nguoiDuyet: item.nguoiDuyet || currentUserName,
+      ngayDuyet: item.ngayDuyet || today,
     });
+    // Load per-item pricing state (fallback to legacy single-row if no items)
+    if (item.items && item.items.length > 0) {
+      setEditItems(item.items.map((it) => ({
+        id: it.id,
+        phanLoai: it.phanLoai,
+        tenHangHoa: it.tenHangHoa,
+        soLuong: it.soLuong,
+        donViTinh: it.donViTinh,
+        nhaCungCapId: it.nhaCungCapId || null,
+        giaDuKien: it.giaDuKien ?? null,
+      })));
+    } else {
+      setEditItems([{
+        phanLoai: item.phanLoai || '',
+        tenHangHoa: item.tenHangHoa || '',
+        soLuong: item.soLuong || 0,
+        donViTinh: item.donViTinh || '',
+        nhaCungCapId: null,
+        giaDuKien: null,
+      }]);
+    }
+  }, [user]);
+
+  const closeEditPurchaseRequest = useCallback(() => {
+    setEditingPurchaseRequest(null);
+    setEditFormData({});
+    setEditItems([]);
+    setSelectedFile(null);
+    setEditFormErrors({});
   }, []);
 
-  const closeEditPurchaseRequest = useCallback(() => { setEditingPurchaseRequest(null); setEditFormData({}); setSelectedFile(null); }, []);
+  const updateEditItem = useCallback((index: number, patch: Partial<typeof editItems[number]>) => {
+    setEditItems((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
+  }, []);
+
+  const tongTienEdit = useMemo(() => {
+    return editItems.reduce((sum, it) => {
+      const qty = typeof it.soLuong === 'number' ? it.soLuong : parseFloat(String(it.soLuong)) || 0;
+      const gia = typeof it.giaDuKien === 'number' ? it.giaDuKien : parseFloat(String(it.giaDuKien ?? 0)) || 0;
+      return sum + qty * gia;
+    }, 0);
+  }, [editItems]);
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPurchaseRequest) return;
+    setEditFormErrors({});
     setEditLoading(true);
     try {
-      await purchaseRequestService.updatePurchaseRequest(editingPurchaseRequest.id, { ...editFormData, file: selectedFile || undefined });
+      const cleanedItems = editItems.map((it) => ({
+        ...(it.id ? { id: it.id } : {}),
+        phanLoai: it.phanLoai,
+        tenHangHoa: it.tenHangHoa,
+        soLuong: typeof it.soLuong === 'number' ? it.soLuong : parseFloat(String(it.soLuong)) || 0,
+        donViTinh: it.donViTinh,
+        nhaCungCapId: it.nhaCungCapId || null,
+        giaDuKien:
+          it.giaDuKien === null || it.giaDuKien === undefined || String(it.giaDuKien).trim() === ''
+            ? null
+            : typeof it.giaDuKien === 'number'
+              ? it.giaDuKien
+              : parseFloat(String(it.giaDuKien)) || null,
+      }));
+      await purchaseRequestService.updatePurchaseRequest(editingPurchaseRequest.id, {
+        ...editFormData,
+        items: cleanedItems,
+        file: selectedFile || undefined,
+      } as any);
       alert('Cập nhật thành công!');
       closeEditPurchaseRequest();
       fetchPurchaseRequests();
     } catch (error: any) {
-      alert(error.message || 'Lỗi khi cập nhật');
+      const message = error.response?.data?.message || error.message || 'Lỗi hệ thống, vui lòng thử lại';
+      setEditFormErrors({ api: message });
     } finally {
       setEditLoading(false);
     }
   };
 
-  const handleDeletePurchaseRequest = useCallback(async (id: string) => {
-    if (!confirm('Bạn có chắc muốn xóa yêu cầu mua hàng này?')) return;
-    try {
-      await purchaseRequestService.deletePurchaseRequest(id);
-      alert('Xóa thành công!');
-      fetchPurchaseRequests();
-    } catch (error: any) {
-      alert(error.message || 'Lỗi khi xóa');
+  // Validate every line has NCC + đơn giá, then flip "Chờ báo giá" → "Chờ duyệt".
+  const handleSubmitForApproval = useCallback((item: any) => {
+    const missing = (item.items || []).filter(
+      (it: any) => !it.nhaCungCapId || it.giaDuKien === null || it.giaDuKien === undefined || Number(it.giaDuKien) <= 0
+    );
+    if (missing.length > 0) {
+      setConfirmAction({
+        title: 'Chưa thể gửi duyệt',
+        message:
+          `Còn ${missing.length} sản phẩm chưa có nhà cung cấp hoặc đơn giá:\n` +
+          missing.map((it: any) => `• ${it.tenHangHoa}`).join('\n') +
+          `\n\nVui lòng mở "Chỉnh sửa" để bổ sung.`,
+        hideCancel: true,
+        confirmLabel: 'Đã hiểu',
+        variant: 'warning',
+        onConfirm: () => setConfirmAction(null),
+      });
+      return;
     }
+    const tongTien = (item.items || []).reduce(
+      (sum: number, it: any) => sum + (Number(it.soLuong) || 0) * (Number(it.giaDuKien) || 0),
+      0
+    );
+    setConfirmAction({
+      title: 'Gửi duyệt yêu cầu mua hàng',
+      message: `Gửi yêu cầu ${item.maYeuCau} lên admin phê duyệt?\nTổng tiền dự kiến: ${tongTien.toLocaleString('vi-VN')}đ`,
+      variant: 'warning',
+      confirmLabel: 'Gửi duyệt',
+      onConfirm: async () => {
+        try {
+          setConfirmLoading(true);
+          await purchaseRequestService.submitForApproval(item.id);
+          setConfirmAction(null);
+          fetchPurchaseRequests();
+        } catch (error: any) {
+          alert(error.response?.data?.message || 'Lỗi khi gửi duyệt');
+        } finally {
+          setConfirmLoading(false);
+        }
+      },
+    });
   }, [purchaseRequestPage, purchaseRequestSearch]);
 
-  const handleCompletePurchaseRequest = useCallback(async (item: any) => {
+  const handleDeletePurchaseRequest = useCallback((id: string) => {
+    setConfirmAction({
+      title: 'Xóa yêu cầu mua hàng',
+      message: 'Bạn có chắc muốn xóa yêu cầu mua hàng này? Hành động không thể hoàn tác.',
+      variant: 'danger',
+      confirmLabel: 'Xóa',
+      onConfirm: async () => {
+        try {
+          setConfirmLoading(true);
+          await purchaseRequestService.deletePurchaseRequest(id);
+          setConfirmAction(null);
+          fetchPurchaseRequests();
+        } catch (error: any) {
+          alert(error.response?.data?.message || 'Lỗi khi xóa');
+        } finally {
+          setConfirmLoading(false);
+        }
+      },
+    });
+  }, [purchaseRequestPage, purchaseRequestSearch]);
+
+  const handleCompletePurchaseRequest = useCallback((item: any) => {
     if (item.trangThai === 'Hoàn thành') {
-      alert('Yêu cầu mua hàng này đã hoàn thành');
+      setConfirmAction({
+        title: 'Đã hoàn thành',
+        message: 'Yêu cầu mua hàng này đã hoàn thành.',
+        hideCancel: true,
+        confirmLabel: 'OK',
+        variant: 'info',
+        onConfirm: () => setConfirmAction(null),
+      });
       return;
     }
-    if (!window.confirm('Xác nhận đã mua hàng xong? Hệ thống sẽ thông báo cho kho chuẩn bị nhập hàng.')) {
-      return;
-    }
-    try {
-      await purchaseRequestService.updatePurchaseRequest(item.id, { trangThai: 'Hoàn thành' });
-      alert('Đã hoàn thành! Kho đã được thông báo chuẩn bị nhập hàng.');
-      fetchPurchaseRequests();
-    } catch (error: any) {
-      alert(error.response?.data?.message || 'Lỗi khi cập nhật trạng thái');
-    }
+    setConfirmAction({
+      title: 'Xác nhận đã mua xong',
+      message: 'Đã mua hàng xong? Hệ thống sẽ thông báo cho kho chuẩn bị nhập hàng.',
+      variant: 'primary',
+      confirmLabel: 'Xác nhận',
+      onConfirm: async () => {
+        try {
+          setConfirmLoading(true);
+          await purchaseRequestService.updatePurchaseRequest(item.id, { trangThai: 'Hoàn thành' });
+          setConfirmAction(null);
+          fetchPurchaseRequests();
+        } catch (error: any) {
+          alert(error.response?.data?.message || 'Lỗi khi cập nhật trạng thái');
+        } finally {
+          setConfirmLoading(false);
+        }
+      },
+    });
   }, [purchaseRequestPage, purchaseRequestSearch]);
 
   const tabs = useMemo(() => [
@@ -672,6 +824,16 @@ const PurchasingEquipment = () => {
                               {can('purchase-requests','DELETE', user?.role) && (
                                 <button onClick={() => handleDeletePurchaseRequest(item.id)} className="text-red-600 hover:text-red-800" title="Xóa"><Trash2 className="w-4 h-4" /></button>
                               )}
+                              {item.trangThai === 'Chờ báo giá' && (
+                                <button
+                                  onClick={() => handleSubmitForApproval(item)}
+                                  className="inline-flex items-center gap-1 px-2 py-1 bg-orange-50 text-orange-700 rounded hover:bg-orange-100 border border-orange-200 text-xs font-medium"
+                                  title="Gửi admin phê duyệt (phải điền NCC + đơn giá trước)"
+                                >
+                                  <CheckCircle className="w-3.5 h-3.5" />
+                                  Gửi duyệt
+                                </button>
+                              )}
                               {item.trangThai === 'Đã duyệt' && (
                                 <button
                                   onClick={() => handleCompletePurchaseRequest(item)}
@@ -841,69 +1003,164 @@ const PurchasingEquipment = () => {
                   <h2 className="text-2xl font-bold text-gray-800">Chỉnh sửa yêu cầu mua hàng</h2>
                   <button type="button" onClick={closeEditPurchaseRequest} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Mã yêu cầu</label>
-                    <input type="text" value={editingPurchaseRequest.maYeuCau} disabled className="w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-100" />
+                {/* API error banner */}
+                {editFormErrors.api && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-300 rounded-md flex items-start gap-2">
+                    <svg className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-sm text-red-700">{editFormErrors.api}</p>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Phân loại</label>
-                    <input type="text" value={editFormData.phanLoai || ''} onChange={(e) => setEditFormData({...editFormData, phanLoai: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                  </div>
-                  <div className="col-span-1 sm:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tên hàng hoá</label>
-                    <input type="text" value={editFormData.tenHangHoa || ''} onChange={(e) => setEditFormData({...editFormData, tenHangHoa: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Số lượng</label>
-                    <input type="number" value={editFormData.soLuong || ''} onChange={(e) => setEditFormData({...editFormData, soLuong: parseNumberInput(e.target.value)})} className="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Đơn vị tính</label>
-                    <UnitSelect
-                      value={editFormData.donViTinh || ''}
-                      onChange={(val) => setEditFormData({...editFormData, donViTinh: val})}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    />
-                  </div>
-                  <div className="col-span-1 sm:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Mục đích yêu cầu</label>
-                    <input type="text" value={editFormData.mucDichYeuCau || ''} onChange={(e) => setEditFormData({...editFormData, mucDichYeuCau: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Mức độ ưu tiên</label>
-                    <select value={editFormData.mucDoUuTien || ''} onChange={(e) => setEditFormData({...editFormData, mucDoUuTien: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
-                      <option value="Thấp">Thấp</option><option value="Trung bình">Trung bình</option><option value="Cao">Cao</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
-                    <select value={editFormData.trangThai || ''} onChange={(e) => setEditFormData({...editFormData, trangThai: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500">
-                      <option value="Chờ duyệt">Chờ duyệt</option><option value="Đã duyệt">Đã duyệt</option><option value="Từ chối">Từ chối</option><option value="Hoàn thành">Hoàn thành</option>
-                    </select>
-                  </div>
-                  <div className="col-span-1 sm:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-                    <textarea value={editFormData.ghiChu || ''} onChange={(e) => setEditFormData({...editFormData, ghiChu: e.target.value})} rows={3} className="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Người duyệt</label>
-                    <input type="text" value={editFormData.nguoiDuyet || ''} onChange={(e) => setEditFormData({...editFormData, nguoiDuyet: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Nhập tên người duyệt" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Ngày duyệt</label>
-                    <input type="date" value={editFormData.ngayDuyet ? new Date(editFormData.ngayDuyet).toISOString().split('T')[0] : ''} onChange={(e) => setEditFormData({...editFormData, ngayDuyet: e.target.value ? new Date(e.target.value).toISOString() : undefined})} className="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                  </div>
-                  <div className="col-span-1 sm:col-span-2">
-                    <FileUpload label="File đính kèm" files={selectedFile ? [selectedFile] : []} onChange={(files) => setSelectedFile(files[0] || null)} accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                      existingFileName={!selectedFile && editFormData.fileKemTheo ? editFormData.fileKemTheo : undefined}
-                      existingFileUrl={!selectedFile && editFormData.fileKemTheo ? editFormData.fileKemTheo : undefined}
-                      onRemoveExisting={() => setEditFormData({...editFormData, fileKemTheo: ''})} />
+                )}
+
+                {/* Section 1: Thông tin yêu cầu (read-only) */}
+                <div className="bg-gray-50 rounded-lg p-4 mb-5">
+                  <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Thông tin yêu cầu</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                    <div className="flex gap-2"><span className="text-gray-500 flex-shrink-0">Người yêu cầu:</span><span className="font-medium text-gray-800">{editingPurchaseRequest.tenNhanVien}{editingPurchaseRequest.maNhanVien && <span className="text-gray-400 ml-1">({editingPurchaseRequest.maNhanVien})</span>}</span></div>
+                    <div className="flex gap-2"><span className="text-gray-500 flex-shrink-0">Ngày yêu cầu:</span><span className="font-medium text-gray-800">{new Date(editingPurchaseRequest.ngayYeuCau).toLocaleDateString('vi-VN')}</span></div>
+                    <div className="flex gap-2"><span className="text-gray-500 flex-shrink-0">Mức độ ưu tiên:</span><span className={`font-medium ${editingPurchaseRequest.mucDoUuTien === 'Cao' ? 'text-red-600' : editingPurchaseRequest.mucDoUuTien === 'Trung bình' ? 'text-yellow-600' : 'text-green-600'}`}>{editingPurchaseRequest.mucDoUuTien}</span></div>
+                    <div className="flex gap-2"><span className="text-gray-500 flex-shrink-0">Phân loại:</span><span className="font-medium text-gray-800">{editingPurchaseRequest.phanLoai || '—'}</span></div>
+                    {editingPurchaseRequest.items && editingPurchaseRequest.items.length > 0 ? (
+                      <div className="col-span-1 sm:col-span-2"><span className="text-gray-500">Danh sách hàng hóa:</span><div className="mt-1 space-y-1">{editingPurchaseRequest.items.map((item: any, i: number) => (<div key={i} className="flex items-center gap-2 bg-white border border-gray-200 rounded px-3 py-1.5 text-xs"><span className="font-medium text-gray-800">{item.tenHangHoa}</span><span className="text-gray-400">·</span><span className="text-gray-600">{item.soLuong} {item.donViTinh}</span>{item.phanLoai && <><span className="text-gray-400">·</span><span className="text-gray-500">{item.phanLoai}</span></>}{item.giaDuKien && <><span className="text-gray-400">·</span><span className="text-green-700">{Number(item.giaDuKien).toLocaleString('vi-VN')}đ</span></>}</div>))}</div></div>
+                    ) : (<><div className="col-span-1 sm:col-span-2 flex gap-2"><span className="text-gray-500 flex-shrink-0">Hàng hóa:</span><span className="font-medium text-gray-800">{editingPurchaseRequest.tenHangHoa || '—'}</span></div>{(editingPurchaseRequest.soLuong || editingPurchaseRequest.donViTinh) && (<div className="flex gap-2"><span className="text-gray-500 flex-shrink-0">Số lượng:</span><span className="font-medium text-gray-800">{editingPurchaseRequest.soLuong} {editingPurchaseRequest.donViTinh}</span></div>)} </> )}
+                    {editingPurchaseRequest.mucDichYeuCau && (<div className="col-span-1 sm:col-span-2 flex gap-2"><span className="text-gray-500 flex-shrink-0">Mục đích:</span><span className="text-gray-700">{editingPurchaseRequest.mucDichYeuCau}</span></div>)}
+                    {editingPurchaseRequest.ghiChu && (<div className="col-span-1 sm:col-span-2 flex gap-2"><span className="text-gray-500 flex-shrink-0">Ghi chú YC:</span><span className="text-gray-700 italic">{editingPurchaseRequest.ghiChu}</span></div>)}
+                    {(editingPurchaseRequest as any).ghiChuMuaHang && (<div className="col-span-1 sm:col-span-2 flex gap-2"><span className="text-gray-500 flex-shrink-0">Ghi chú MH:</span><span className="text-gray-700 italic">{(editingPurchaseRequest as any).ghiChuMuaHang}</span></div>)}
+                    {editingPurchaseRequest.fileKemTheo && (<div className="col-span-1 sm:col-span-2 flex gap-2"><span className="text-gray-500 flex-shrink-0">File đính kèm:</span><a href={editingPurchaseRequest.fileKemTheo} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline truncate text-xs">{editingPurchaseRequest.fileKemTheo.split('/').pop()}</a></div>)}
                   </div>
                 </div>
-                <div className="flex justify-end gap-4 mt-6">
+
+                {/* Section 2: Xử lý thu mua (editable) */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Xử lý thu mua</h3>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
+                    <select
+                      value={editFormData.trangThai || ''}
+                      onChange={(e) => {
+                        const newStatus = e.target.value;
+                        const currentUserName = user ? `${user.lastName} ${user.firstName}`.trim() : '';
+                        setEditFormData((prev) => ({
+                          ...prev,
+                          trangThai: newStatus,
+                          nguoiDuyet: newStatus === 'Đã duyệt' ? prev.nguoiDuyet || currentUserName : prev.nguoiDuyet,
+                          ngayDuyet: newStatus === 'Đã duyệt' ? prev.ngayDuyet || new Date().toISOString() : prev.ngayDuyet,
+                        }));
+                      }}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    >
+                      <option value="Chờ duyệt">Chờ duyệt</option>
+                      <option value="Đã duyệt">Đã duyệt</option>
+                      <option value="Từ chối">Từ chối</option>
+                      <option value="Hoàn thành">Hoàn thành</option>
+                    </select>
+                  </div>
+
+                  {editFormData.trangThai === 'Đã duyệt' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-green-50 border border-green-200 rounded-md p-3">
+                      <div><label className="block text-xs font-medium text-green-800 mb-1">Người duyệt</label><input type="text" value={editFormData.nguoiDuyet || ''} readOnly className="w-full px-3 py-2 border border-green-200 rounded-md bg-white text-sm text-gray-700 cursor-default" /></div>
+                      <div><label className="block text-xs font-medium text-green-800 mb-1">Ngày duyệt</label><input type="date" value={editFormData.ngayDuyet ? new Date(editFormData.ngayDuyet).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]} onChange={(e) => setEditFormData((prev) => ({ ...prev, ngayDuyet: e.target.value ? new Date(e.target.value).toISOString() : new Date().toISOString() }))} className="w-full px-3 py-2 border border-green-200 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-green-400" /></div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Báo giá cho từng hàng hóa</label>
+                    <div className="border border-gray-200 rounded-md overflow-x-auto">
+                      <table className="w-full min-w-[720px] text-sm">
+                        <thead className="bg-gray-50">
+                          <tr><th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase w-8">#</th><th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Hàng hóa</th><th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase w-20">SL</th><th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase w-20">ĐVT</th><th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase w-52">Nhà cung cấp</th><th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase w-32">Đơn giá (đ)</th><th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase w-32">Thành tiền</th></tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {editItems.map((it, idx) => {
+                            const qty = typeof it.soLuong === 'number' ? it.soLuong : parseFloat(String(it.soLuong)) || 0;
+                            const gia = typeof it.giaDuKien === 'number' ? it.giaDuKien : parseFloat(String(it.giaDuKien ?? 0)) || 0;
+                            const thanhTien = qty * gia;
+                            return (
+                              <tr key={it.id ?? idx} className="align-top">
+                                <td className="px-2 py-2 text-gray-500 text-center">{idx + 1}</td>
+                                <td className="px-2 py-2"><div className="font-medium text-gray-800">{it.tenHangHoa}</div>{it.phanLoai && <div className="text-xs text-gray-500">{it.phanLoai}</div>}</td>
+                                <td className="px-2 py-2 text-right">{qty.toLocaleString('vi-VN')}</td>
+                                <td className="px-2 py-2">{it.donViTinh}</td>
+                                <td className="px-2 py-2"><select value={it.nhaCungCapId || ''} onChange={(e) => updateEditItem(idx, { nhaCungCapId: e.target.value || null })} className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"><option value="">— Chọn NCC —</option>{suppliers.map((s) => (<option key={s.id} value={s.id}>{s.tenNhaCungCap}</option>))}</select></td>
+                                <td className="px-2 py-2"><input type="number" min={0} step="any" value={it.giaDuKien ?? ''} onChange={(e) => updateEditItem(idx, { giaDuKien: e.target.value ? parseFloat(e.target.value) : null })} placeholder="0" className="w-full px-2 py-1 border border-gray-200 rounded text-sm text-right focus:outline-none focus:ring-1 focus:ring-purple-500" /></td>
+                                <td className="px-2 py-2 text-right font-medium text-green-700">{thanhTien > 0 ? thanhTien.toLocaleString('vi-VN') + 'đ' : '—'}</td>
+                              </tr>
+                            );
+                          })}
+                          {editItems.length === 0 && (<tr><td colSpan={7} className="px-3 py-4 text-center text-gray-400 italic">Không có hàng hóa</td></tr>)}
+                        </tbody>
+                        {editItems.length > 0 && (<tfoot className="bg-green-50"><tr><td colSpan={6} className="px-2 py-2 text-right font-semibold text-gray-700">Tổng cộng:</td><td className="px-2 py-2 text-right font-bold text-green-800">{tongTienEdit > 0 ? tongTienEdit.toLocaleString('vi-VN') + 'đ' : '—'}</td></tr></tfoot>)}
+                      </table>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">Chọn nhà cung cấp và đơn giá cho từng dòng. Thành tiền sẽ được tính tự động.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú mua hàng</label>
+                    <textarea value={(editFormData as any).ghiChuMuaHang || ''} onChange={(e) => setEditFormData({ ...editFormData, ghiChuMuaHang: e.target.value } as any)} rows={3} placeholder="Ghi chú nội bộ của phòng thu mua..." className="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                  </div>
+
+                  <FileUpload label="File đính kèm" files={selectedFile ? [selectedFile] : []} onChange={(files) => setSelectedFile(files[0] || null)} accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" existingFileName={!selectedFile && editFormData.fileKemTheo ? editFormData.fileKemTheo : undefined} existingFileUrl={!selectedFile && editFormData.fileKemTheo ? editFormData.fileKemTheo : undefined} onRemoveExisting={() => setEditFormData({ ...editFormData, fileKemTheo: '' })} />
+                </div>
+                <div className="flex flex-col sm:flex-row sm:justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
                   <button type="button" onClick={closeEditPurchaseRequest} className="px-4 py-2 border border-gray-200 rounded-md text-gray-700 hover:bg-gray-50">Hủy</button>
-                  <button type="submit" disabled={editLoading} className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50">{editLoading ? 'Đang lưu...' : 'Lưu thay đổi'}</button>
+                  <button type="submit" disabled={editLoading} className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50">{editLoading ? 'Đang lưu...' : 'Lưu cập nhật'}</button>
+                  {editingPurchaseRequest.trangThai === 'Chờ báo giá' && (
+                    <button
+                      type="button"
+                      disabled={editLoading}
+                      onClick={() => {
+                        const missing = editItems.filter((it) => !it.nhaCungCapId || it.giaDuKien === null || it.giaDuKien === undefined || Number(it.giaDuKien) <= 0);
+                        if (missing.length > 0) {
+                          setConfirmAction({
+                            title: 'Chưa thể gửi duyệt',
+                            message: `Còn ${missing.length} sản phẩm chưa có nhà cung cấp hoặc đơn giá:\n` + missing.map((it) => `• ${it.tenHangHoa}`).join('\n') + `\n\nVui lòng bổ sung trước khi gửi duyệt.`,
+                            hideCancel: true,
+                            confirmLabel: 'Đã hiểu',
+                            variant: 'warning',
+                            onConfirm: () => setConfirmAction(null),
+                          });
+                          return;
+                        }
+                        const editPrId = editingPurchaseRequest.id;
+                        const editPrCode = editingPurchaseRequest.maYeuCau;
+                        setConfirmAction({
+                          title: 'Lưu & gửi duyệt',
+                          message: `Lưu báo giá cho yêu cầu ${editPrCode} và gửi lên admin phê duyệt?\nTổng tiền dự kiến: ${tongTienEdit.toLocaleString('vi-VN')}đ`,
+                          variant: 'warning',
+                          confirmLabel: 'Gửi duyệt',
+                          onConfirm: async () => {
+                            try {
+                              setConfirmLoading(true);
+                              const cleanedItems = editItems.map((it) => ({
+                                ...(it.id ? { id: it.id } : {}),
+                                phanLoai: it.phanLoai,
+                                tenHangHoa: it.tenHangHoa,
+                                soLuong: typeof it.soLuong === 'number' ? it.soLuong : parseFloat(String(it.soLuong)) || 0,
+                                donViTinh: it.donViTinh,
+                                nhaCungCapId: it.nhaCungCapId || null,
+                                giaDuKien: typeof it.giaDuKien === 'number' ? it.giaDuKien : parseFloat(String(it.giaDuKien ?? 0)) || null,
+                              }));
+                              await purchaseRequestService.updatePurchaseRequest(editPrId, { ...editFormData, items: cleanedItems, file: selectedFile || undefined } as any);
+                              await purchaseRequestService.submitForApproval(editPrId);
+                              setConfirmAction(null);
+                              closeEditPurchaseRequest();
+                              fetchPurchaseRequests();
+                            } catch (error: any) {
+                              alert(error.response?.data?.message || 'Lỗi khi gửi duyệt');
+                            } finally {
+                              setConfirmLoading(false);
+                            }
+                          },
+                        });
+                      }}
+                      className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50 inline-flex items-center gap-1"
+                    >
+                      <CheckCircle className="w-4 h-4" /> Lưu & Gửi duyệt
+                    </button>
+                  )}
                 </div>
               </form>
             </div>
@@ -971,6 +1228,39 @@ const PurchasingEquipment = () => {
                   <button type="submit" disabled={supplierFormLoading} className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50">{supplierFormLoading ? 'Đang lưu...' : 'Lưu thay đổi'}</button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Generic confirm modal — replaces window.confirm across the page */}
+        {confirmAction && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-sm max-w-md w-full p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">{confirmAction.title}</h3>
+              <p className="text-sm text-gray-600 mb-6 whitespace-pre-line">{confirmAction.message}</p>
+              <div className="flex justify-end gap-3">
+                {!confirmAction.hideCancel && (
+                  <button
+                    onClick={() => { if (!confirmLoading) setConfirmAction(null); }}
+                    disabled={confirmLoading}
+                    className="px-4 py-2 border border-gray-200 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+                  >
+                    Hủy
+                  </button>
+                )}
+                <button
+                  onClick={() => confirmAction.onConfirm()}
+                  disabled={confirmLoading}
+                  className={`px-4 py-2 text-white rounded-md disabled:opacity-60 disabled:cursor-not-allowed ${
+                    confirmAction.variant === 'danger' ? 'bg-red-600 hover:bg-red-700' :
+                    confirmAction.variant === 'warning' ? 'bg-orange-600 hover:bg-orange-700' :
+                    confirmAction.variant === 'info' ? 'bg-blue-600 hover:bg-blue-700' :
+                    'bg-green-600 hover:bg-green-700'
+                  }`}
+                >
+                  {confirmLoading ? 'Đang xử lý...' : (confirmAction.confirmLabel ?? 'Xác nhận')}
+                </button>
+              </div>
             </div>
           </div>
         )}
