@@ -337,6 +337,20 @@ const entries: NotificationEventDef[] = [
     resolveRecipients: resolveDirectRecipients,
   },
   {
+    event: NotificationEvent.SUPPLY_REQUEST_RECEIVED,
+    notificationType: NotificationType.SUPPLY_REQUEST_RECEIVED,
+    buildMessage: (ctx) => ({
+      title: 'Hàng yêu cầu đã nhập kho',
+      message: `Yêu cầu cung cấp ${ctx.metadata?.maYeuCau ?? ''} đã được nhập kho. Vui lòng tạo phiếu xuất kho để cấp cho người yêu cầu.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      if (ctx.targetEmployeeIds?.length) return ctx.targetEmployeeIds;
+      const warehouse = await getEmployeeIdsBySubDeptCode('SUBDEPT_PRODUCTION_WAREHOUSE');
+      return warehouse;
+    },
+  },
+
+  {
     event: NotificationEvent.SUPPLY_REQUEST_CANCELLED,
     notificationType: NotificationType.SUPPLY_REQUEST_CANCELLED,
     buildMessage: (ctx) => ({

@@ -60,7 +60,7 @@ interface PartialFulfillRequest {
 
 // Status sequence for advancement checks
 // "Chờ bổ sung" bridges warehouse shortage → purchasing replenishment (SHORTAGE PR)
-const STATUS_SEQUENCE = ['Chưa cung cấp', 'Đang xử lý', 'Chờ bổ sung', 'Đã duyệt mua', 'Đã mua hàng', 'Đã cung cấp', 'Đã hủy'];
+const STATUS_SEQUENCE = ['Chưa cung cấp', 'Đang xử lý', 'Chờ bổ sung', 'Đã duyệt mua', 'Đã mua hàng', 'Đã nhập kho', 'Đã cung cấp', 'Đã hủy'];
 // Mua nhanh skips to Đã mua hàng directly (unchanged)
 const MUAN_HANH_STATUS_SEQUENCE = ['Chưa cung cấp', 'Đã mua hàng', 'Đã cung cấp'];
 
@@ -185,7 +185,7 @@ class SupplyRequestService {
           },
         },
         items: true,
-        purchaseRequests: true,
+        purchaseRequests: { include: { items: true } },
         warehouseReceipts: true,
       },
     });
@@ -555,7 +555,7 @@ class SupplyRequestService {
 
     try {
       if (allDone) {
-        await this.onWarehouseDocumentCreated(item.supplyRequestId);
+        await this.onWarehouseIssueCreated(item.supplyRequestId);
       } else if (anyFulfilled) {
         // Notify requester about partial fulfillment
         await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_PARTIAL_FULFILLED, {
@@ -846,7 +846,7 @@ class SupplyRequestService {
 
       try {
         if (allDone) {
-          await this.onWarehouseDocumentCreated(supplyRequestId);
+          await this.onWarehouseIssueCreated(supplyRequestId);
         } else if (anyFulfilled) {
           const sr = await prisma.supplyRequest.findUnique({
             where: { id: supplyRequestId },
@@ -1175,10 +1175,48 @@ class SupplyRequestService {
   }
 
   /**
-   * Called when a WarehouseReceipt or WarehouseIssue is created for this supply request.
-   * Advances status to "Đã cung cấp" and notifies the original requester.
+   * Called when a WarehouseReceipt (phiếu NHẬP kho) is created for this supply request.
+   *
+   * Goods have arrived at the warehouse but have NOT been handed to the requester yet,
+   * so the SR advances only to "Đã nhập kho". Marking it "Đã cung cấp" here (the old
+   * behaviour) hid the "Tạo xuất kho" action in the UI and stranded the goods in stock
+   * with no way to issue them against this request.
    */
-  async onWarehouseDocumentCreated(supplyRequestId: string): Promise<void> {
+  async onWarehouseReceiptCreated(supplyRequestId: string): Promise<void> {
+    try {
+      await this.advanceStatus(supplyRequestId, 'Đã nhập kho');
+
+      const request = await prisma.supplyRequest.findUnique({
+        where: { id: supplyRequestId },
+        select: { employeeId: true, maYeuCau: true },
+      });
+      if (!request) return;
+
+      // Tell the warehouse the goods landed and still need issuing to the requester.
+      const warehouseEmployees = await prisma.employee.findMany({
+        where: { subDepartment: { code: 'SUBDEPT_PRODUCTION_WAREHOUSE' } },
+        select: { id: true },
+      });
+      if (warehouseEmployees.length > 0) {
+        await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_RECEIVED, {
+          targetEmployeeIds: warehouseEmployees.map((emp) => emp.id),
+          entityId: supplyRequestId,
+          metadata: { maYeuCau: request.maYeuCau, supplyRequestId },
+        });
+      }
+    } catch (error) {
+      console.error('Error in onWarehouseReceiptCreated:', error);
+    }
+  }
+
+  /**
+   * Called when a WarehouseIssue (phiếu XUẤT kho) is created for this supply request.
+   * Advances status to "Đã cung cấp" and notifies the original requester.
+   *
+   * Callers that track per-line fulfillment (`partialFulfill` / `batchFulfill`) only
+   * invoke this once every line is fully issued, so "Đã cung cấp" is not reached early.
+   */
+  async onWarehouseIssueCreated(supplyRequestId: string): Promise<void> {
     try {
       await this.advanceStatus(supplyRequestId, 'Đã cung cấp');
 
@@ -1195,7 +1233,7 @@ class SupplyRequestService {
         });
       }
     } catch (error) {
-      console.error('Error in onWarehouseDocumentCreated notification:', error);
+      console.error('Error in onWarehouseIssueCreated notification:', error);
     }
   }
 

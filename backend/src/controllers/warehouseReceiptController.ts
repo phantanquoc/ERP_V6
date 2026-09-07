@@ -44,8 +44,8 @@ export const createWarehouseReceipt = async (req: Request, res: Response, next: 
     } catch {}
 
     if (supplyRequestId) {
-      supplyRequestService.onWarehouseDocumentCreated(supplyRequestId).catch((err) => {
-        console.error('Error in onWarehouseDocumentCreated:', err);
+      supplyRequestService.onWarehouseReceiptCreated(supplyRequestId).catch((err) => {
+        console.error('Error in onWarehouseReceiptCreated:', err);
       });
     }
   } catch (error) {

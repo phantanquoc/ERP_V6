@@ -115,10 +115,39 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
       setNguoiDeNghi(supplyRequest?.tenNhanVien ?? '');
       setBoPhan(supplyRequest?.boPhan ?? '');
       setMaNguoiDeNghi('');
+      // Prefill số lượng nhập: ưu tiên số THỰC MUA từ PR đã Hoàn thành (purchaseRequests
+      // gắn với SR và có item tenHangHoa khớp item.tenGoi), fallback về phần còn thiếu
+      // (soLuong - fulfilledQty) khi chưa có PR hoặc chưa có purchase history.
+      const remainingByItem: Record<string, number> = {};
+      const boughtByItem: Record<string, number> = {};
+      if (isSupplyBatch && (supplyRequest as any)?.purchaseRequests?.length) {
+        for (const pr of (supplyRequest as any).purchaseRequests as Array<{ trangThai: string; items?: Array<{ tenHangHoa?: string; soLuong?: number }> }>) {
+          if (pr.trangThai !== 'Hoàn thành' || !pr.items?.length) continue;
+          for (const it of pr.items) {
+            const name = String(it.tenHangHoa ?? '').trim().toLowerCase();
+            if (!name) continue;
+            boughtByItem[name] = (boughtByItem[name] ?? 0) + (Number(it.soLuong) || 0);
+          }
+        }
+      }
+      for (const item of (supplyRequest?.items ?? [])) {
+        const name = String((item as any).tenGoi ?? '').trim().toLowerCase();
+        remainingByItem[name] = Math.max(0, Number((item as any).soLuong || 0) - Number((item as any).fulfilledQty || 0));
+      }
+      const prefillQty = (item: { tenGoi: string; soLuong: number }): number => {
+        const name = String(item.tenGoi ?? '').trim().toLowerCase();
+        if (name && boughtByItem[name] !== undefined) return boughtByItem[name];
+        if (name && remainingByItem[name] !== undefined) return remainingByItem[name];
+        return item.soLuong;
+      };
       setRows(isSupplyBatch
         ? (supplyRequest?.items ?? []).map((item) => ({
-            ...emptyRow(), tenSanPham: item.tenGoi, soLuong: item.soLuong, donViTinh: item.donViTinh,
-            phanLoai: item.phanLoai || '', ghiChu: `Nhập kho cho ${supplyRequest?.maYeuCau} - ${item.tenGoi}`,
+            ...emptyRow(),
+            tenSanPham: item.tenGoi,
+            soLuong: prefillQty(item as { tenGoi: string; soLuong: number }),
+            donViTinh: item.donViTinh,
+            phanLoai: item.phanLoai || '',
+            ghiChu: `Nhập kho cho ${supplyRequest?.maYeuCau} - ${item.tenGoi}`,
           }))
         : [emptyRow()]);
     };
@@ -357,6 +386,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
         </div>
         <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
           {supplyRequest && <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm"><span className="text-gray-600">Mã YC: </span><strong className="text-blue-700">{supplyRequest.maYeuCau}</strong><span className="ml-4 text-gray-600">Người yêu cầu: </span><strong>{supplyRequest.tenNhanVien}</strong></div>}
+          {supplyRequest?.items?.length ? (() => { const yc = (supplyRequest.items ?? []).map((it: any) => `${it.tenGoi}: yêu cầu ${it.soLuong}, đã cấp ${it.fulfilledQty ?? 0}, còn thiếu ${Math.max(0, it.soLuong - (it.fulfilledQty ?? 0))}`).join(' · '); return <div className="p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">{yc} {supplyRequest.purchaseRequests?.some((pr: any) => pr.trangThai === 'Hoàn thành') ? ' · số nhập mặc định theo đơn mua đã hoàn thành' : ''}</div>; })() : null}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Mã phiếu nhập</label><input value={code} readOnly className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100" /></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Nhân viên lập phiếu</label><input value={`${user?.lastName || ''} ${user?.firstName || ''}`.trim()} readOnly className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100" /></div>

@@ -44,8 +44,8 @@ export const createWarehouseIssue = async (req: Request, res: Response, next: Ne
     } catch {}
 
     if (supplyRequestId) {
-      supplyRequestService.onWarehouseDocumentCreated(supplyRequestId)
-        .catch(err => console.error('Error in onWarehouseDocumentCreated:', err));
+      supplyRequestService.onWarehouseIssueCreated(supplyRequestId)
+        .catch(err => console.error('Error in onWarehouseIssueCreated:', err));
     }
   } catch (error: any) {
     if (error instanceof ValidationError) {

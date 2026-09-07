@@ -41,6 +41,8 @@ const getStatusColor = (status: string) => {
       return 'text-green-700 bg-green-100';
     case 'Đã mua hàng':
       return 'text-emerald-700 bg-emerald-100';
+    case 'Đã nhập kho':
+      return 'text-cyan-700 bg-cyan-100';
     case 'Đã duyệt mua':
       return 'text-blue-700 bg-blue-100';
     case 'Chờ bổ sung':
@@ -77,6 +79,7 @@ const getStatusLabel = (status: string) => {
     case 'Chờ bổ sung': return 'Chờ bổ sung';
     case 'Đã duyệt mua': return 'Đã duyệt';
     case 'Đã mua hàng': return 'Đã mua';
+    case 'Đã nhập kho': return 'Đã nhập';
     case 'Đã cung cấp': return 'Đã cấp';
     case 'Đã hủy': return 'Đã hủy';
     default: return status;
@@ -168,6 +171,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
       { value: 'Chờ bổ sung', label: 'Chờ bổ sung' },
       { value: 'Đã duyệt mua', label: 'Đã duyệt mua' },
       { value: 'Đã mua hàng', label: 'Đã mua hàng' },
+      { value: 'Đã nhập kho', label: 'Đã nhập kho' },
       { value: 'Đã cung cấp', label: 'Đã cung cấp' },
       { value: 'Đã hủy', label: 'Đã hủy' },
     ]},
@@ -209,6 +213,11 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
 
   const isCancelled = (status: string) => status === 'Đã hủy';
   const isCompleted = (status: string) => status === 'Đã cung cấp';
+  // Helpers for status-aware UI (e.g. nhập-kho but not yet cấp → still actionable)
+  void 'Đã nhập kho'; // keep STATUS literal in module scope for i18n hint
+  const isNhapKho = (status: string) => status === 'Đã nhập kho';
+  const isAnyDone = (status: string) => status === 'Đã cung cấp' || status === 'Đã nhập kho';
+  void isNhapKho; void isAnyDone;
   // Request has already entered the purchasing pipeline — creating another
   // purchase request from it is redundant.
   const isPurchasing = (status: string) => status === 'Đã duyệt mua' || status === 'Đã mua hàng';
@@ -571,30 +580,21 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                           </button>
                         )}
 
-                        {!isCancelled(request.trangThai) && request.purchaseRequests?.some((pr: any) => pr.trangThai === 'Đã duyệt' || pr.trangThai === 'Hoàn thành') && (() => {
-                          const daNhapKho = request.warehouseReceipts && request.warehouseReceipts.length > 0;
-                          return (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (!daNhapKho) {
-                                  setSelectedRequest(request);
-                                  setShowWarehouseReceiptModal(true);
-                                }
-                              }}
-                              onKeyDown={(e) => e.stopPropagation()}
-                              disabled={daNhapKho}
-                              className={daNhapKho
-                                ? "min-h-[32px] min-w-[32px] inline-flex items-center justify-center p-1 lg:p-1.5 rounded-md text-gray-400 cursor-not-allowed focus:outline-none"
-                                : "min-h-[32px] min-w-[32px] inline-flex items-center justify-center p-1 lg:p-1.5 rounded-md text-green-600 hover:bg-green-100 hover:text-green-800 transition-colors focus:outline-none focus:ring-1 focus:ring-green-400"
-                              }
-                              title={daNhapKho ? "Đã nhập kho" : "Nhập kho"}
-                              aria-label={daNhapKho ? `Đã nhập kho ${request.maYeuCau}` : `Nhập kho cho ${request.maYeuCau}`}
-                            >
-                              <PackagePlus className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
-                            </button>
-                          );
-                        })()}
+                        {['Đã duyệt mua', 'Đã mua hàng', 'Đã nhập kho'].includes(request.trangThai) && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedRequest(request);
+                              setShowWarehouseReceiptModal(true);
+                            }}
+                            onKeyDown={(e) => e.stopPropagation()}
+                            className="min-h-[32px] min-w-[32px] inline-flex items-center justify-center p-1 lg:p-1.5 rounded-md text-green-600 hover:bg-green-100 hover:text-green-800 transition-colors focus:outline-none focus:ring-1 focus:ring-green-400"
+                            title="Nhập kho"
+                            aria-label={`Nhập kho cho ${request.maYeuCau}`}
+                          >
+                            <PackagePlus className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
