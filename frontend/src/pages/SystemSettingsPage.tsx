@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Palette, Type, Save, Check, Server, ExternalLink, Terminal, Copy, User, AlertTriangle } from 'lucide-react';
+import { Settings, Palette, Type, Save, Check, Server, ExternalLink, Terminal, Copy, User, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSystemSettings } from '../contexts/SystemSettingsContext';
 import { isAdminUser } from '../utils/permissions';
@@ -7,6 +7,7 @@ import systemSettingsService from '../services/systemSettingsService';
 import NotificationPreferencesSection from '../components/NotificationPreferencesSection';
 import DeviceManagementSection from '../components/DeviceManagementSection';
 import CategoryManagementSection from '../components/CategoryManagementSection';
+import RuleManagement from './RuleManagement';
 
 const THEMES = [
   {
@@ -32,7 +33,7 @@ const THEMES = [
   },
 ];
 
-type ActiveTab = 'personal' | 'system';
+type ActiveTab = 'personal' | 'system' | 'rules';
 
 const SystemSettingsPage: React.FC = () => {
   const { user } = useAuth();
@@ -127,6 +128,18 @@ const SystemSettingsPage: React.FC = () => {
           >
             <Settings className="w-4 h-4" />
             Hệ thống
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('rules')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              activeTab === 'rules'
+                ? 'border-blue-600 text-blue-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4" />
+            Phân quyền
           </button>
         </div>
       )}
@@ -311,6 +324,10 @@ const SystemSettingsPage: React.FC = () => {
           <DeviceManagementSection />
         </>
       )}
+
+      {/* Phân quyền tab — admin only. Rule matrix cần bề ngang lớn nên container
+          được nới ra (max-w-7xl) khi tab này active. */}
+      {userIsAdmin && activeTab === 'rules' && <RuleManagement hideHeader />}
     </div>
   );
 };

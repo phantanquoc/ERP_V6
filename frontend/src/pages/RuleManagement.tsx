@@ -4,7 +4,7 @@ import { usePositions } from '../hooks/usePositions';
 import { useDepartments } from '../hooks/useDepartments';
 import { PageHeader } from '../design-system/PageHeader';
 
-const RuleManagement: React.FC = () => {
+const RuleManagement: React.FC<{ hideHeader?: boolean }> = ({ hideHeader = false }) => {
   const { data: rules } = useRules();
   const { data: resources } = useResources();
   const { data: myPerms } = useMyPermissions();
@@ -41,8 +41,15 @@ const RuleManagement: React.FC = () => {
   };
 
   return (
-    <div className="p-4 space-y-4">
-      <PageHeader title="Quản trị phân quyền (Rule Matrix)" description="CRUD rule theo phòng ban & chức vụ — baseline: CREATE/READ/UPDATE mọi nhân viên, APPROVE chỉ TEAM_LEAD+, DELETE chỉ Trưởng phòng" />
+    <div className={hideHeader ? 'space-y-4' : 'p-4 space-y-4'}>
+      {!hideHeader && (
+        <PageHeader title="Quản trị phân quyền (Rule Matrix)" description="CRUD rule theo phòng ban & chức vụ — baseline: CREATE/READ/UPDATE mọi nhân viên, APPROVE chỉ TEAM_LEAD+, DELETE chỉ Trưởng phòng" />
+      )}
+      {hideHeader && (
+        <p className="text-xs text-gray-500">
+          CRUD rule theo phòng ban &amp; chức vụ — baseline: CREATE/READ/UPDATE mọi nhân viên, APPROVE chỉ TEAM_LEAD+, DELETE chỉ Trưởng phòng.
+        </p>
+      )}
 
       <div className="flex gap-2 border-b">
         {(['rules', 'matrix', 'my-perms'] as const).map(tab => (
