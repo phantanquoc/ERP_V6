@@ -882,7 +882,7 @@ const PurchasingEquipment = () => {
         {/* Supplier Detail Modal */}
         {isDetailModalOpen && selectedItem && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-sm max-w-2xl w-full mx-2 sm:mx-4 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-lg shadow-sm w-full max-w-2xl md:max-w-4xl lg:max-w-6xl mx-2 sm:mx-4 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
               <div className="p-4 sm:p-6">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-2xl font-bold text-gray-800">Chi tiết nhà cung cấp</h2>
@@ -997,7 +997,7 @@ const PurchasingEquipment = () => {
         {/* Edit Purchase Request Modal */}
         {editingPurchaseRequest && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-sm max-w-2xl w-full mx-2 sm:mx-4 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-lg shadow-sm w-full max-w-2xl md:max-w-4xl lg:max-w-6xl mx-2 sm:mx-4 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
               <form onSubmit={handleEditSubmit} className="p-4 sm:p-6">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-2xl font-bold text-gray-800">Chỉnh sửa yêu cầu mua hàng</h2>
