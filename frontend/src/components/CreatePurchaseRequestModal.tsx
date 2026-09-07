@@ -202,7 +202,7 @@ const CreatePurchaseRequestModal: React.FC<CreatePurchaseRequestModalProps> = ({
     <Modal isOpen={isOpen} onClose={onClose} showBackdrop>
       <div className="bg-white rounded-lg shadow-xl w-full max-w-[950px] flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
-          <h2 className="text-xl font-bold text-gray-900">Tạo yêu cầu mua hàng</h2>
+          <h2 className="text-xl font-bold text-gray-900">{supplyRequest ? 'Tạo yêu cầu bổ sung' : 'Tạo yêu cầu mua hàng'}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="h-6 w-6" />
           </button>
@@ -400,7 +400,7 @@ const CreatePurchaseRequestModal: React.FC<CreatePurchaseRequestModalProps> = ({
             </button>
             <button type="submit" disabled={loading}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-              {loading ? 'Đang xử lý...' : 'Tạo yêu cầu mua hàng'}
+              {loading ? 'Đang xử lý...' : (supplyRequest ? 'Tạo yêu cầu bổ sung' : 'Tạo yêu cầu mua hàng')}
             </button>
           </div>
         </form>
