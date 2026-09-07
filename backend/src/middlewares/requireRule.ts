@@ -129,24 +129,45 @@ export function requireRule(resourceCode: string, action: string) {
 
       const userId = req.user.id;
 
-      // Resolve effective role + departments early (needed for delegation scope check)
+      // ─── Authorization identity comes from auth.users (the access-control record),
+      // NOT from the HR employee record. `common.employees.positionId` points at a job
+      // title whose `defaultRole` is an HR default; it used to OVERRIDE req.user.role
+      // unconditionally, which silently DOWNGRADED users whose HR position lagged behind
+      // their granted role — e.g. a purchasing TEAM_LEAD stored under "Nhân viên sản xuất"
+      // (defaultRole EMPLOYEE) lost APPROVE rights and could not submit a replenishment
+      // request for admin approval.
+      //
+      // Rule: a position may only RAISE the effective role, never lower it.
+      const ROLE_RANK: Record<string, number> = { EMPLOYEE: 0, TEAM_LEAD: 1, DEPARTMENT_HEAD: 2, ADMIN: 3 };
       let effectiveRole: string = req.user.role;
       const employee = await prisma.employee.findUnique({ where: { userId }, select: { positionId: true, subDepartmentId: true } });
       const positionId = employee?.positionId ?? null;
 
       if (positionId) {
         const pos = await prisma.position.findUnique({ where: { id: positionId }, select: { defaultRole: true } });
-        if (pos?.defaultRole) effectiveRole = pos.defaultRole as string;
+        const posRole = pos?.defaultRole as string | null | undefined;
+        if (posRole && (ROLE_RANK[posRole] ?? -1) > (ROLE_RANK[effectiveRole] ?? -1)) {
+          effectiveRole = posRole;
+        }
       }
 
       // Populate secondary department ids for downstream data filter
       const secondaryDeps = await prisma.userSecondaryDepartment.findMany({ where: { userId } });
       const departmentIds: string[] = [req.user.departmentId, ...secondaryDeps.map((s) => s.departmentId)].filter((v): v is string => !!v);
+      // Primary sub-department (User is authoritative, Employee only as last-resort fallback)
       const subDepartmentId: string | null = req.user.subDepartmentId ?? employee?.subDepartmentId ?? null;
+      // Every sub-department this user belongs to (primary + secondary) so that a rule
+      // scoped to a secondary sub-department still matches.
+      const subDepartmentIds: string[] = [
+        req.user.subDepartmentId,
+        employee?.subDepartmentId,
+        ...secondaryDeps.map((s) => s.subDepartmentId),
+      ].filter((v): v is string => !!v);
 
       // Attach for data-permission filter in services
       (req as unknown as Record<string, unknown>).userDepartmentIds = departmentIds;
       (req as unknown as Record<string, unknown>).userSubDepartmentId = subDepartmentId;
+      (req as unknown as Record<string, unknown>).userSubDepartmentIds = subDepartmentIds;
       (req as unknown as Record<string, unknown>).userPositionId = positionId;
       (req as unknown as Record<string, unknown>).effectiveRole = effectiveRole;
 
@@ -175,10 +196,12 @@ export function requireRule(resourceCode: string, action: string) {
 
       let matched: Rule | null = null;
 
-      // Position-specific: narrow scope first
+      // Position-specific: narrow scope first. A rule scoped to a sub-department matches
+      // if that sub-department is ANY of the user's (primary or secondary) — not just the
+      // primary one, otherwise a secondary assignment grants nothing.
       if (positionId) {
         matched =
-          (candidates.find((r) => r.positionId === positionId && r.subDepartmentId === subDepartmentId) as Rule | undefined) ??
+          (candidates.find((r) => r.positionId === positionId && r.subDepartmentId !== null && subDepartmentIds.includes(r.subDepartmentId)) as Rule | undefined) ??
           (candidates.find((r) => r.positionId === positionId && r.departmentId !== null && departmentIds.includes(r.departmentId)) as Rule | undefined) ??
           (candidates.find((r) => r.positionId === positionId && r.scope === 'GLOBAL') as Rule | undefined) ??
           null;
@@ -186,7 +209,7 @@ export function requireRule(resourceCode: string, action: string) {
       // Role-based fallback
       if (!matched) {
         matched =
-          (candidates.find((r) => r.role === (effectiveRole as never) && r.subDepartmentId === subDepartmentId) as Rule | undefined) ??
+          (candidates.find((r) => r.role === (effectiveRole as never) && r.subDepartmentId !== null && subDepartmentIds.includes(r.subDepartmentId)) as Rule | undefined) ??
           (candidates.find((r) => r.role === (effectiveRole as never) && r.departmentId !== null && departmentIds.includes(r.departmentId)) as Rule | undefined) ??
           (candidates.find((r) => r.role === (effectiveRole as never) && r.scope === 'GLOBAL') as Rule | undefined) ??
           null;

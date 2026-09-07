@@ -19,34 +19,23 @@ class SupplyRequestController {
       };
       // Warehouse (SUBDEPT_PRODUCTION_WAREHOUSE) is the fulfiller of EVERY supply
       // request across all departments — it must see the full list to process them.
-      // Check BOTH primary and secondary membership: a warehouse member may hold the
-      // warehouse as a secondary department (auth.user_secondary_departments), and
-      // requireRule only exposes the PRIMARY subDepartmentId on `userSubDepartmentId`.
-      // ADMIN sees everything too. Everyone else stays scoped to their department.
+      // requireRule already attached every sub-department the user holds (primary +
+      // secondary + employee fallback) as `userSubDepartmentIds`, so we reuse it
+      // without re-querying.
       const isAdmin = req.user?.role === 'ADMIN';
       let isWarehouse = false;
-      if (!isAdmin && req.user?.id) {
-        const userId = req.user.id;
-        const [employeeRow, secondaryRows] = await Promise.all([
-          prisma.employee.findUnique({
-            where: { userId },
-            select: { subDepartmentId: true, secondarySubDepartmentId: true },
-          }),
-          prisma.userSecondaryDepartment.findMany({
-            where: { userId },
-            select: { subDepartmentId: true },
-          }),
-        ]);
-        const candidateSubDeptIds = [
-          req.user.subDepartmentId,
-          employeeRow?.subDepartmentId,
-          employeeRow?.secondarySubDepartmentId,
-          ...secondaryRows.map((r) => r.subDepartmentId),
-        ].filter((v): v is string => !!v);
-
-        if (candidateSubDeptIds.length > 0) {
+      if (!isAdmin) {
+        const candidateIds = (req as unknown as {
+          userSubDepartmentIds?: string[];
+          userSubDepartmentId?: string | null;
+        }).userSubDepartmentIds
+          ?? (() => {
+            const v = (req as unknown as { userSubDepartmentId?: string | null }).userSubDepartmentId;
+            return v ? [v] : [];
+          })();
+        if (candidateIds.length > 0) {
           const warehouseMatch = await prisma.subDepartment.findFirst({
-            where: { id: { in: candidateSubDeptIds }, code: 'SUBDEPT_PRODUCTION_WAREHOUSE' },
+            where: { id: { in: candidateIds }, code: 'SUBDEPT_PRODUCTION_WAREHOUSE' },
             select: { id: true },
           });
           isWarehouse = !!warehouseMatch;
