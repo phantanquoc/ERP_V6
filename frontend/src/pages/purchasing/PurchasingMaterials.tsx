@@ -57,7 +57,7 @@ interface PurchaseRequest {
   items?: { id: string; tenHangHoa: string; soLuong: number; donViTinh: string; phanLoai: string; giaDuKien?: number; nhaCungCapId?: string | null }[];
 }
 
-const VALID_TABS = ['suppliers', 'orderList', 'purchaseRequestList', 'replenishment'] as const;
+const VALID_TABS = ['purchaseRequestList', 'replenishment', 'suppliers', 'orderList'] as const;
 type TabType = typeof VALID_TABS[number];
 
 const PurchasingMaterials = () => {
@@ -69,7 +69,7 @@ const PurchasingMaterials = () => {
   const canApprovePR = can('purchase-requests', 'APPROVE', user?.role);
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     const tabParam = searchParams.get('tab') as TabType;
-    return VALID_TABS.includes(tabParam) ? tabParam : 'suppliers';
+    return VALID_TABS.includes(tabParam) ? tabParam : 'purchaseRequestList';
   });
 
   useEffect(() => {
@@ -108,26 +108,37 @@ const PurchasingMaterials = () => {
     fetchSupplierStats();
   }, []);
 
-  // Fetch purchase request stats (server-filtered by NVL category + pagination.total)
+  // Year-aggregated stats + 12-month trend (one fetch per year, client-slice per month)
+  const [monthlyCounts, setMonthlyCounts] = useState<number[]>(Array(12).fill(0));
+  const [trendPct, setTrendPct] = useState<number | null>(null);
+
+  // Fetch purchase request stats (server-filtered by category + client-sliced by month/year)
   useEffect(() => {
     const fetchPRStats = async () => {
       try {
-        const nvlRes: any = await purchaseRequestService.getAllPurchaseRequests(1, 1, undefined, undefined, undefined, { phanLoaiNCC: 'NVL' });
-        const replRes: any = await purchaseRequestService.getAllPurchaseRequests(1, 1, undefined, undefined, undefined, { sourceType: 'SHORTAGE', trangThai: 'Chờ báo giá' });
-        const nvlTotal = nvlRes?.pagination?.total ?? (Array.isArray(nvlRes?.data) ? nvlRes.data.length : 0);
-        const replTotal = replRes?.pagination?.total ?? (Array.isArray(replRes?.data) ? replRes.data.length : 0);
-        // For breakdown within NVL, fetch one page and count locally (filtered set is small); fallback to totals
-        const nvlPage: any = await purchaseRequestService.getAllPurchaseRequests(1, 1000, undefined, selectedMonth, selectedYear, { phanLoaiNCC: 'NVL' });
-        const nvlList: any[] = nvlPage?.data ?? [];
+        // Full year slice for chart + KPI breakdown; 10k cap is well above yearly volume
+        const yearPage: any = await purchaseRequestService.getAllPurchaseRequests(1, 10000, undefined, undefined, selectedYear, { phanLoaiNCC: 'NVL' });
+        const yearList: any[] = yearPage?.data ?? [];
+        const counts = Array(12).fill(0);
+        for (const pr of yearList) {
+          const m = new Date((pr as any).ngayYeuCau ?? (pr as any).createdAt).getMonth();
+          if (m >= 0 && m < 12) counts[m]++;
+        }
+        setMonthlyCounts(counts);
+        const cur = counts[selectedMonth - 1] ?? 0;
+        const prev = counts[selectedMonth - 2] ?? 0;
+        if (prev > 0) setTrendPct(Math.round(((cur - prev) / prev) * 100));
+        else if (cur > 0) setTrendPct(null);
+        else setTrendPct(0);
+        const monthSlice = yearList.filter((pr: any) => new Date(pr.ngayYeuCau ?? pr.createdAt).getMonth() + 1 === selectedMonth);
         setCardPRStats({
-          total: typeof nvlTotal === 'number' ? nvlTotal : nvlList.length,
-          choBaoGia: nvlList.filter((pr: any) => pr.trangThai === 'Chờ báo giá').length,
-          choDuyet: nvlList.filter((pr: any) => pr.trangThai === 'Chờ duyệt').length,
-          daDuyet: nvlList.filter((pr: any) => pr.trangThai === 'Đã duyệt').length,
-          hoanThanh: nvlList.filter((pr: any) => pr.trangThai === 'Hoàn thành').length,
+          total: yearList.length,
+          choBaoGia: monthSlice.filter((pr: any) => pr.trangThai === 'Chờ báo giá').length,
+          choDuyet: monthSlice.filter((pr: any) => pr.trangThai === 'Chờ duyệt').length,
+          daDuyet: monthSlice.filter((pr: any) => pr.trangThai === 'Đã duyệt').length,
+          hoanThanh: monthSlice.filter((pr: any) => pr.trangThai === 'Hoàn thành').length,
           chuaPhanLoai: 0,
         });
-        void replTotal;
       } catch (error) {
         console.error('Error fetching PR stats:', error);
       }
@@ -565,11 +576,11 @@ const PurchasingMaterials = () => {
     });
   }, [purchaseRequestPage, purchaseRequestSearch]);
 
-  const tabs = useMemo(() => [
+    const tabs = useMemo(() => [
+    { id: 'purchaseRequestList', name: 'Danh sách mua hàng', icon: <List className="w-4 h-4" /> },
+    { id: 'replenishment', name: 'Yêu cầu bổ sung', icon: <ShoppingCart className="w-4 h-4" /> },
     { id: 'suppliers', name: 'Nhà cung cấp NVL', icon: <Users className="w-4 h-4" /> },
     { id: 'orderList', name: 'Danh sách đơn hàng', icon: <ClipboardList className="w-4 h-4" /> },
-    { id: 'purchaseRequestList', name: 'Danh sách mua hàng', icon: <List className="w-4 h-4" /> },
-    { id: 'replenishment', name: 'Yêu cầu bổ sung', icon: <ShoppingCart className="w-4 h-4" /> }
   ], []);
 
   return (
@@ -579,27 +590,14 @@ const PurchasingMaterials = () => {
         description="Quản lý nhà cung cấp, đơn hàng mua, hợp đồng và chi phí nguyên vật liệu"
         icon={<ShoppingCart className="w-6 h-6 text-blue-600" />}
         actions={
-          <>
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(Number(e.target.value))}
-              className="border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {Array.from({ length: 12 }, (_, i) => (
-                <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
-              ))}
+          <div className="flex items-center gap-2">
+            <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="border border-gray-200 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              {Array.from({ length: 12 }, (_, i) => (<option key={i + 1} value={i + 1}>T{i + 1}</option>))}
             </select>
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {Array.from({ length: 4 }, (_, i) => {
-                const y = 2023 + i;
-                return <option key={y} value={y}>{y}</option>;
-              })}
+            <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="border border-gray-200 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              {Array.from({ length: 4 }, (_, i) => { const y = 2023 + i; return (<option key={y} value={y}>{y}</option>); })}
             </select>
-          </>
+          </div>
         }
       />
 
