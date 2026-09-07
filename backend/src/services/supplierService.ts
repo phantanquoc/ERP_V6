@@ -1,5 +1,5 @@
 import prisma from '@config/database';
-import { NotFoundError } from '../utils/errors';
+import { NotFoundError, ValidationError } from '../utils/errors';
 import { nextStaticCode, staticCodeWhere } from '../utils/codeGenerator';
 import ExcelJS from 'exceljs';
 
@@ -107,18 +107,26 @@ export const supplierService = {
 
   // Create new supplier
   async createSupplier(data: CreateSupplierData) {
+    // Auto-generate the supplier code when the client did not supply one.
+    // Previously `findUnique({ where: { maNhaCungCap: undefined } })` threw a
+    // confusing PrismaClientValidationError (500) instead of a clean result.
+    const maNhaCungCap = data.maNhaCungCap?.trim()
+      ? data.maNhaCungCap.trim()
+      : await this.generateSupplierCode(data.phanLoaiNCC);
+
     // Check if maNhaCungCap already exists
     const existing = await prisma.supplier.findUnique({
-      where: { maNhaCungCap: data.maNhaCungCap },
+      where: { maNhaCungCap },
     });
 
     if (existing) {
-      throw new Error('Mã nhà cung cấp đã tồn tại');
+      throw new ValidationError('Mã nhà cung cấp đã tồn tại');
     }
 
     const supplier = await prisma.supplier.create({
       data: {
         ...data,
+        maNhaCungCap,
         trangThai: data.trangThai || 'Đang cung cấp',
       },
       include: {
