@@ -17,6 +17,8 @@ import {
   CheckCircle,
   HelpCircle
 } from 'lucide-react';
+// chuaPhanLoai badge reserved
+void (() => HelpCircle)();
 import PageHeader from '../../design-system/PageHeader';
 import FileUpload from '../../components/FileUpload';
 import OrderManagement from '../../components/OrderManagement';
@@ -27,6 +29,7 @@ import { can } from '../../utils/permissions';
 import { useAuth } from '../../contexts/AuthContext';
 import { labelForPurchaseRequest } from '../../utils/purchaseRequestLabel';
 import ReplenishmentList from '../../components/ReplenishmentList';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
 
 interface PurchaseRequest {
   id: string;
@@ -85,6 +88,7 @@ const PurchasingEquipment = () => {
   const [cardPRStats, setCardPRStats] = useState({ total: 0, choBaoGia: 0, choDuyet: 0, daDuyet: 0, hoanThanh: 0, chuaPhanLoai: 0 });
   const [monthlyCounts, setMonthlyCounts] = useState<number[]>(Array(12).fill(0));
   const [trendPct, setTrendPct] = useState<number | null>(null);
+  const [yearSpend, setYearSpend] = useState(0);
 
   // Fetch supplier stats (all-time, no month/year filter)
   useEffect(() => {
@@ -121,6 +125,7 @@ const PurchasingEquipment = () => {
         if (prev > 0) setTrendPct(Math.round(((cur - prev) / prev) * 100));
         else if (cur > 0) setTrendPct(null);
         else setTrendPct(0);
+        setYearSpend(yearList.reduce((s: number, pr: any) => { const items = (pr as any).items ?? []; return s + items.reduce((a: number, it: any) => a + (Number(it.soLuong) || 0) * (Number(it.giaDuKien) || 0), 0); }, 0));
         const nvlList = yearList.filter((pr: any) => new Date(pr.ngayYeuCau ?? pr.createdAt).getMonth() + 1 === selectedMonth);
         const nvlRes: any = await purchaseRequestService.getAllPurchaseRequests(1, 1, undefined, selectedMonth, selectedYear, { phanLoaiNCC: 'Thiết bị' });
         const nvlTotal = nvlRes?.pagination?.total;
@@ -569,50 +574,115 @@ const PurchasingEquipment = () => {
         }
       />
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      {/* ── Dashboard: 2-stat-row (NCC + Danh sách mua hàng KPI) + Bar chart 12 tháng ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Card NCC */}
         <div
           onClick={() => setActiveTab('suppliers')}
-          className="bg-white rounded-lg shadow-sm border border-transparent hover:border-blue-400 hover:shadow-sm transition-all cursor-pointer p-5"
+          className="bg-white rounded-xl shadow-sm border border-gray-100 hover:border-purple-200 hover:shadow-md transition-all cursor-pointer p-5"
         >
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Users className="w-5 h-5 text-blue-600" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-purple-50 rounded-xl">
+                <Users className="w-5 h-5 text-purple-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Nhà cung cấp · Thiết bị</h3>
+                <div className="text-2xl font-bold text-gray-900 tabular-nums">{cardSupplierStats.total}</div>
+              </div>
             </div>
-            <h3 className="font-semibold text-gray-800">Nhà cung cấp</h3>
-          </div>
-          <div className="text-2xl font-bold text-gray-900 mb-2">{cardSupplierStats.total}</div>
-          <div className="flex gap-4 text-sm">
-            <span className="text-green-600">Đang cung cấp: {cardSupplierStats.active}</span>
-            <span className="text-red-600">Ngừng: {cardSupplierStats.inactive}</span>
+            <div className="text-right text-xs space-y-0.5">
+              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 font-medium">Đang cung cấp {cardSupplierStats.active}</div>
+              <div className="text-gray-400">Ngừng {cardSupplierStats.inactive}</div>
+            </div>
           </div>
         </div>
 
-        {/* Card Yeu cau mua hang (Thiet bi) */}
+        {/* Card YC mua hàng — KPI bar (pending / completed / tổng) */}
         <div
           onClick={() => setActiveTab('purchaseRequestList')}
-          className="bg-white rounded-lg shadow-sm border border-transparent hover:border-green-400 hover:shadow-sm transition-all cursor-pointer p-5"
+          className="bg-white rounded-xl shadow-sm border border-gray-100 hover:border-purple-200 hover:shadow-md transition-all cursor-pointer p-5"
         >
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <List className="w-5 h-5 text-green-600" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-purple-50 rounded-xl">
+                <List className="w-5 h-5 text-purple-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+                  Yêu cầu mua hàng · Thiết bị · <span className="text-gray-900">{cardPRStats.total} trong năm {selectedYear}</span>
+                </h3>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 text-xs font-medium">Chờ báo giá {cardPRStats.choBaoGia}</span>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-xs font-medium">Chờ duyệt {cardPRStats.choDuyet}</span>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-xs font-medium">Đã duyệt {cardPRStats.daDuyet}</span>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium">Hoàn thành {cardPRStats.hoanThanh}</span>
+                </div>
+              </div>
             </div>
-            <h3 className="font-semibold text-gray-800">Yêu cầu mua hàng (Thiết bị)</h3>
+            <div className="text-right flex flex-col items-end gap-1">
+              <span className="text-xs text-gray-400">T{selectedMonth} so với T{selectedMonth - 1 || 12}</span>
+              {trendPct === null ? (
+                <span className="text-xs font-medium text-gray-500">Mới phát sinh</span>
+              ) : trendPct === 0 ? (
+                <span className="text-xs font-medium text-gray-500">— Không đổi</span>
+              ) : (
+                <span className={`inline-flex items-center gap-0.5 text-sm font-bold ${trendPct > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {trendPct > 0 ? '▲' : '▼'} {Math.abs(trendPct)}%
+                </span>
+              )}
+            </div>
           </div>
-          <div className="text-2xl font-bold text-gray-900 mb-2">{cardPRStats.total}</div>
-          <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
-            <span className="text-orange-600">Chờ báo giá: {cardPRStats.choBaoGia}</span>
-            <span className="text-yellow-600">Chờ duyệt: {cardPRStats.choDuyet}</span>
-            <span className="text-green-600">Đã duyệt: {cardPRStats.daDuyet}</span>
-            <span className="text-emerald-600">Hoàn thành: {cardPRStats.hoanThanh}</span>
-            {cardPRStats.chuaPhanLoai > 0 && (
-              <span className="text-gray-500 inline-flex items-center gap-0.5">
-                <HelpCircle className="w-3 h-3" />
-                Chưa phân loại: {cardPRStats.chuaPhanLoai}
-              </span>
-            )}
+        </div>
+      </div>
+
+      {/* Bar chart — số YC theo 12 tháng trong năm (một trục Y, một series) */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h4 className="text-sm font-semibold text-gray-800">Số yêu cầu theo tháng — {selectedYear} · Thiết bị</h4>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Tổng trong năm: <span className="font-semibold text-gray-700 tabular-nums">{cardPRStats.total}</span> YC
+              {yearSpend > 0 && (
+                <> · Tổng chi dự kiến: <span className="font-semibold text-gray-700 tabular-nums">{yearSpend.toLocaleString('vi-VN')}đ</span></>
+              )}
+              {' · '}Tháng đã chọn: <span className="font-semibold text-gray-700 tabular-nums">{monthlyCounts[selectedMonth - 1] ?? 0}</span> YC
+            </p>
           </div>
+          <span className="text-[11px] px-2 py-1 rounded-full bg-slate-50 text-slate-600 border border-slate-200">Một trục Y · Một series</span>
+        </div>
+        {cardPRStats.total === 0 && monthlyCounts.every((v) => v === 0) ? (
+          <div className="text-center py-8 text-sm text-gray-400 border border-dashed border-gray-200 rounded-lg">Chưa có yêu cầu mua hàng nào trong năm {selectedYear}.</div>
+        ) : (
+          <div style={{ width: '100%', height: 220 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={Array.from({ length: 12 }, (_, i) => ({ month: `T${i + 1}`, count: monthlyCounts[i] ?? 0 }))}
+                margin={{ top: 8, right: 8, left: -12, bottom: 0 }}
+                barCategoryGap="22%"
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} width={28} />
+                <RechartsTooltip
+                  cursor={{ fill: 'rgba(148,163,184,0.08)' }}
+                  contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.06)', fontSize: 12 }}
+                  formatter={(value: any) => [`${value} YC`, 'Số lượng']}
+                  labelFormatter={(label: string) => `${label}/${selectedYear}`}
+                />
+                <Bar dataKey="count" radius={[6, 6, 0, 0]} maxBarSize={36} isAnimationActive={false}>
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <Cell key={i} fill={i + 1 === selectedMonth ? '#7c3aed' : '#c4b5fd'} stroke={i + 1 === selectedMonth ? '#5b21b6' : 'transparent'} strokeWidth={i + 1 === selectedMonth ? 1 : 0} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+        <div className="mt-2 flex items-center justify-center gap-4 text-[11px] text-gray-500">
+          <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: '#7c3aed' }} /> Tháng đã chọn</span>
+          <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: '#c4b5fd' }} /> Tháng khác</span>
+          <span className="text-slate-400">· Màu theo thực thể (tháng), không theo thứ hạng</span>
         </div>
       </div>
 
