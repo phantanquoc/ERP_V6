@@ -580,7 +580,10 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                           </button>
                         )}
 
-                        {['Đã duyệt mua', 'Đã mua hàng', 'Đã nhập kho'].includes(request.trangThai) && (
+                        {/* Nhập kho chỉ hợp lệ khi thu mua đã thật sự mua hàng xong.
+                            "Đã duyệt mua" = admin mới duyệt, hàng chưa về → không cho nhập.
+                            "Đã nhập kho" giữ lại để nhập thêm đợt giao thứ 2. */}
+                        {['Đã mua hàng', 'Đã nhập kho'].includes(request.trangThai) && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
