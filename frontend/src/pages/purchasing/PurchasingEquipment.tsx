@@ -69,7 +69,10 @@ const PurchasingEquipment = () => {
   useEffect(() => {
     const currentTab = searchParams.get('tab');
     if (currentTab !== activeTab) {
-      setSearchParams({ tab: activeTab }, { replace: true });
+      const params: Record<string, string> = { tab: activeTab };
+      const prId = searchParams.get('purchaseRequestId');
+      if (prId) params.purchaseRequestId = prId;
+      setSearchParams(params as any, { replace: true });
     }
   }, [activeTab]);
 
@@ -157,7 +160,10 @@ const PurchasingEquipment = () => {
   const [isAddSupplierModalOpen, setIsAddSupplierModalOpen] = useState(false);
   const [isEditSupplierModalOpen, setIsEditSupplierModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
-  const [supplierFormData, setSupplierFormData] = useState<Partial<CreateSupplierData>>({});
+  // Two isolated form states so Add's temporary maNhaCungCap / phanLoaiNCC
+  // never leaks into an Edit PUT and trips a unique-constraint error.
+  const [addSupplierForm, setAddSupplierForm] = useState<Partial<CreateSupplierData>>({});
+  const [editSupplierForm, setEditSupplierForm] = useState<Partial<CreateSupplierData>>({});
   const [supplierFormLoading, setSupplierFormLoading] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
@@ -182,16 +188,20 @@ const PurchasingEquipment = () => {
 
   const handleSearchSuppliers = () => {
     setSupplierPage(1);
-    fetchSuppliers();
+    // fetchSuppliers runs via useEffect([activeTab, supplierPage]) — don't call directly to avoid double fetch
   };
 
   const openAddSupplierModal = async () => {
+    // Resolve the creator from AuthContext (single source of truth) — reading
+    // localStorage with the wrong path silently produced employeeId='' and a FK failure.
+    if (!user?.employeeId) {
+      alert('Không tìm thấy thông tin nhân viên. Vui lòng đăng nhập lại.');
+      return;
+    }
     try {
       const codeRes = await supplierService.generateCode('Thiết bị') as any;
       const code = codeRes.data?.code || codeRes.code;
-      const userStr = localStorage.getItem('user');
-      const user = userStr ? JSON.parse(userStr) : null;
-      setSupplierFormData({
+      setAddSupplierForm({
         maNhaCungCap: code,
         tenNhaCungCap: '',
         loaiCungCap: '',
@@ -206,7 +216,7 @@ const PurchasingEquipment = () => {
         trangThai: 'Đang cung cấp',
         phanLoaiNCC: 'Thiết bị',
         doanhChi: 0,
-        employeeId: user?.employee?.id || '',
+        employeeId: user.employeeId,
       });
       setIsAddSupplierModalOpen(true);
     } catch (error) {
@@ -216,7 +226,7 @@ const PurchasingEquipment = () => {
 
   const openEditSupplierModal = (supplier: Supplier) => {
     setEditingSupplier(supplier);
-    setSupplierFormData({
+    setAddSupplierForm({
       tenNhaCungCap: supplier.tenNhaCungCap,
       loaiCungCap: supplier.loaiCungCap,
       quocGia: supplier.quocGia,
@@ -236,12 +246,12 @@ const PurchasingEquipment = () => {
   const handleAddSupplier = async () => {
     try {
       setSupplierFormLoading(true);
-      await supplierService.createSupplier(supplierFormData as CreateSupplierData);
+      await supplierService.createSupplier(addSupplierForm as CreateSupplierData);
       setIsAddSupplierModalOpen(false);
       fetchSuppliers();
     } catch (error) {
       console.error('Error creating supplier:', error);
-      alert('Lỗi khi tạo nhà cung cấp');
+      alert((error as Error).message || 'Đã xảy ra lỗi');
     } finally {
       setSupplierFormLoading(false);
     }
@@ -251,13 +261,13 @@ const PurchasingEquipment = () => {
     if (!editingSupplier) return;
     try {
       setSupplierFormLoading(true);
-      await supplierService.updateSupplier(editingSupplier.id, supplierFormData as UpdateSupplierData);
+      await supplierService.updateSupplier(editingSupplier.id, editSupplierForm as UpdateSupplierData);
       setIsEditSupplierModalOpen(false);
       setEditingSupplier(null);
       fetchSuppliers();
     } catch (error) {
       console.error('Error updating supplier:', error);
-      alert('Lỗi khi cập nhật nhà cung cấp');
+      alert((error as Error).message || 'Đã xảy ra lỗi');
     } finally {
       setSupplierFormLoading(false);
     }
@@ -306,6 +316,28 @@ const PurchasingEquipment = () => {
 
   const openDetailModal = useCallback((item: any) => { setSelectedItem(item); setIsDetailModalOpen(true); }, []);
   const closeDetailModal = useCallback(() => { setIsDetailModalOpen(false); setSelectedItem(null); }, []);
+  // Per-supplier purchase history (loaded on detail open)
+  const [historyStats, setHistoryStats] = useState<{ totalOrders: number; totalSpend: number; pendingOrders: number; lastOrderAt: string | null } | null>(null);
+  const [historyOrders, setHistoryOrders] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyDetailTab, setHistoryDetailTab] = useState<'info' | 'history'>('info');
+
+  useEffect(() => {
+    if (isDetailModalOpen && selectedItem?.id) {
+      setHistoryDetailTab('info');
+      setHistoryLoading(true);
+      setHistoryStats(null);
+      setHistoryOrders([]);
+      Promise.all([
+        supplierService.getPurchaseStats(selectedItem.id).then((r: any) => r?.data ?? r).catch(() => null),
+        supplierService.getPurchaseRequestsBySupplier(selectedItem.id, 1, 5).then((r: any) => r?.data ?? r?.data ?? []).catch(() => []),
+      ]).then(([stats, orders]) => {
+        if (stats) setHistoryStats({ totalOrders: stats.totalOrders ?? 0, totalSpend: stats.totalSpend ?? 0, pendingOrders: stats.pendingOrders ?? 0, lastOrderAt: stats.lastOrderAt ?? null });
+        if (Array.isArray(orders)) setHistoryOrders(orders);
+      }).finally(() => setHistoryLoading(false));
+    }
+  }, [isDetailModalOpen, selectedItem?.id]);
+
   const openPurchaseRequestDetail = useCallback((item: PurchaseRequest) => { setSelectedPurchaseRequest(item); }, []);
   const closePurchaseRequestDetail = useCallback(() => { setSelectedPurchaseRequest(null); }, []);
 
@@ -609,19 +641,21 @@ const PurchasingEquipment = () => {
             <div>
               <div className="mb-6 flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 sm:items-center justify-between">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
-                  <div className="relative w-full sm:w-auto">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                    <input
-                      type="text"
-                      placeholder="Tìm kiếm nhà cung cấp..."
-                      value={supplierSearch}
-                      onChange={(e) => setSupplierSearch(e.target.value)}
-                      className="pl-10 pr-4 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 w-full sm:w-64"
-                    />
-                  </div>
-                  <button onClick={handleSearchSuppliers} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">
-                    <Search className="h-4 w-4" /> Tìm kiếm
-                  </button>
+                  <form onSubmit={(e) => { e.preventDefault(); handleSearchSuppliers(); }} className="relative w-full sm:w-auto flex items-center gap-2">
+                    <div className="relative w-full sm:w-auto">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                      <input
+                        type="text"
+                        placeholder="Tìm kiếm nhà cung cấp..."
+                        value={supplierSearch}
+                        onChange={(e) => setSupplierSearch(e.target.value)}
+                        className="pl-10 pr-4 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 w-full sm:w-64"
+                      />
+                    </div>
+                    <button type="submit" className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">
+                      <Search className="h-4 w-4" /> Tìm kiếm
+                    </button>
+                  </form>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                   <button
@@ -905,8 +939,59 @@ const PurchasingEquipment = () => {
                   {selectedItem.website && <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2"><label className="block text-sm font-medium text-gray-500 mb-1">Website</label><a href={selectedItem.website} target="_blank" rel="noopener noreferrer" className="text-sm text-purple-600 hover:underline">{selectedItem.website}</a></div>}
                   {selectedItem.khaNang && <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2"><label className="block text-sm font-medium text-gray-500 mb-1">Khả năng cung cấp</label><p className="text-sm text-gray-900">{selectedItem.khaNang}</p></div>}
                 </div>
+                {/* Audit trail */}
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-gray-600 flex flex-wrap gap-x-4 gap-y-1">
+                  <span>Người tạo: <span className="font-medium text-gray-800">{selectedItem.employee?.user ? `${selectedItem.employee.user.lastName} ${selectedItem.employee.user.firstName}`.trim() : selectedItem.employeeId ? `#${String(selectedItem.employeeId).slice(0,8)}` : '—'}</span></span>
+                  <span>Ngày tạo: <span className="font-medium text-gray-800">{selectedItem.createdAt ? new Date(selectedItem.createdAt).toLocaleDateString('vi-VN') : '—'}</span></span>
+                  <span>Cập nhật: <span className="font-medium text-gray-800">{selectedItem.updatedAt ? new Date(selectedItem.updatedAt).toLocaleDateString('vi-VN') : '—'}</span></span>
+                  <span>Phân loại NCC: <span className={`px-2 py-1 rounded-full text-[10px] font-medium ${selectedItem.phanLoaiNCC === 'Thiết bị' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'}`}>{selectedItem.phanLoaiNCC ?? 'NVL'}</span></span>
+                </div>
+
+                {/* Detail tab switch: Thông tin / Lịch sử mua hàng */}
+                <div className="mt-4 flex gap-2 border-b border-gray-200">
+                  <button onClick={() => setHistoryDetailTab('info' as const)} className={`px-3 py-1.5 text-sm font-medium border-b-2 -mb-px ${historyDetailTab === 'info' ? 'border-purple-600 text-purple-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Thông tin</button>
+                  <button onClick={() => setHistoryDetailTab('history' as const)} className={`px-3 py-1.5 text-sm font-medium border-b-2 -mb-px ${historyDetailTab === 'history' ? 'border-purple-600 text-purple-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Lịch sử mua hàng</button>
+                </div>
+
+                {historyDetailTab === 'history' && (
+                  <div className="mt-4 space-y-3">
+                    {historyLoading ? (
+                      <div className="text-center py-4 text-sm text-gray-500">Đang tải lịch sử...</div>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                          <div className="bg-gray-50 p-3 rounded-lg"><div className="text-xs text-gray-500">Tổng đơn hàng</div><div className="text-lg font-bold text-gray-800">{historyStats?.totalOrders ?? 0}</div></div>
+                          <div className="bg-gray-50 p-3 rounded-lg"><div className="text-xs text-gray-500">Tổng chi (dự toán)</div><div className="text-lg font-bold text-green-700">{historyStats?.totalSpend ? `${Number(historyStats.totalSpend).toLocaleString('vi-VN')}đ` : '0đ'}</div></div>
+                          <div className="bg-gray-50 p-3 rounded-lg"><div className="text-xs text-gray-500">Chưa xong</div><div className="text-lg font-bold text-orange-600">{historyStats?.pendingOrders ?? 0}</div></div>
+                          <div className="bg-gray-50 p-3 rounded-lg"><div className="text-xs text-gray-500">Đơn gần nhất</div><div className="text-xs font-medium text-gray-800">{historyStats?.lastOrderAt ? new Date(historyStats.lastOrderAt).toLocaleDateString('vi-VN') : '—'}</div></div>
+                        </div>
+                        {historyOrders.length > 0 ? (
+                          <div className="border border-gray-200 rounded-md overflow-x-auto">
+                            <table className="w-full min-w-[520px] text-sm">
+                              <thead><tr className="bg-gray-50 text-xs text-gray-500"><th className="px-3 py-1.5 text-left">Mã</th><th className="px-3 py-1.5 text-left">Ngày</th><th className="px-3 py-1.5 text-left">Trạng thái</th><th className="px-3 py-1.5 text-right">Mục đích</th></tr></thead>
+                              <tbody>
+                                {historyOrders.map((pr: any) => (
+                                  <tr key={pr.id} className="border-t border-gray-100 hover:bg-gray-50 text-xs">
+                                    <td className="px-3 py-2 font-medium text-purple-600">{pr.maYeuCau}</td>
+                                    <td className="px-3 py-2">{pr.ngayYeuCau ? new Date(pr.ngayYeuCau).toLocaleDateString('vi-VN') : '—'}</td>
+                                    <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${pr.trangThai === 'Hoàn thành' ? 'bg-green-100 text-green-800' : pr.trangThai === 'Đã duyệt' ? 'bg-green-100 text-green-800' : pr.trangThai === 'Chờ duyệt' ? 'bg-yellow-100 text-yellow-800' : 'bg-orange-100 text-orange-800'}`}>{pr.trangThai}</span></td>
+                                    <td className="px-3 py-2 text-right text-gray-600 truncate max-w-[180px]" title={pr.mucDichYeuCau}>{pr.mucDichYeuCau ?? '—'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <div className="text-center py-3 text-sm text-gray-400">Chưa có đơn hàng nào cho nhà cung cấp này.</div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex justify-end gap-4 mt-6">
                   <button onClick={closeDetailModal} className="px-4 py-2 border border-gray-200 rounded-md text-gray-700 hover:bg-gray-50">Đóng</button>
+                  <button onClick={() => { closeDetailModal(); openEditSupplierModal(selectedItem); }} className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">Chỉnh sửa</button>
                 </div>
               </div>
             </div>
@@ -958,7 +1043,7 @@ const PurchasingEquipment = () => {
                               <td className="py-2 px-2 font-medium">{item.tenHangHoa}</td>
                               <td className="py-2 px-2 text-right">{item.soLuong}</td>
                               <td className="py-2 px-2">{item.donViTinh}</td>
-                              <td className="py-2 px-2 text-purple-600">{item.supplier?.tenNCC || '-'}</td>
+                              <td className="py-2 px-2 text-purple-600">{item.supplier?.tenNhaCungCap || '-'}</td>
                               <td className="py-2 px-2 text-right">{item.giaDuKien ? Number(item.giaDuKien).toLocaleString('vi-VN') + 'đ' : '-'}</td>
                               <td className="py-2 px-2 text-right font-medium">{item.giaDuKien ? (Number(item.giaDuKien) * item.soLuong).toLocaleString('vi-VN') + 'đ' : '-'}</td>
                             </tr>
@@ -1177,19 +1262,19 @@ const PurchasingEquipment = () => {
               </div>
               <form onSubmit={(e) => { e.preventDefault(); handleAddSupplier(); }} className="p-4 sm:p-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Mã NCC</label><input type="text" value={supplierFormData.maNhaCungCap || ''} disabled className="w-full border rounded-md px-3 py-2 bg-gray-100" /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Tên nhà cung cấp *</label><input type="text" value={supplierFormData.tenNhaCungCap || ''} onChange={(e) => setSupplierFormData({...supplierFormData, tenNhaCungCap: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Loại cung cấp *</label><input type="text" placeholder="VD: Máy móc, Thiết bị điện..." value={supplierFormData.loaiCungCap || ''} onChange={(e) => setSupplierFormData({...supplierFormData, loaiCungCap: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Quốc gia *</label><input type="text" value={supplierFormData.quocGia || ''} onChange={(e) => setSupplierFormData({...supplierFormData, quocGia: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Website</label><input type="text" value={supplierFormData.website || ''} onChange={(e) => setSupplierFormData({...supplierFormData, website: e.target.value})} className="w-full border rounded-md px-3 py-2" /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Người liên hệ *</label><input type="text" value={supplierFormData.nguoiLienHe || ''} onChange={(e) => setSupplierFormData({...supplierFormData, nguoiLienHe: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Số điện thoại *</label><input type="text" value={supplierFormData.soDienThoai || ''} onChange={(e) => setSupplierFormData({...supplierFormData, soDienThoai: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Email liên hệ *</label><input type="email" value={supplierFormData.emailLienHe || ''} onChange={(e) => setSupplierFormData({...supplierFormData, emailLienHe: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
-                  <div className="col-span-1 sm:col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Địa chỉ *</label><input type="text" value={supplierFormData.diaChi || ''} onChange={(e) => setSupplierFormData({...supplierFormData, diaChi: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Khả năng cung cấp</label><input type="text" value={supplierFormData.khaNang || ''} onChange={(e) => setSupplierFormData({...supplierFormData, khaNang: e.target.value})} className="w-full border rounded-md px-3 py-2" /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Loại hình *</label><select value={supplierFormData.loaiHinh || 'Sản xuất'} onChange={(e) => setSupplierFormData({...supplierFormData, loaiHinh: e.target.value})} className="w-full border rounded-md px-3 py-2"><option value="Sản xuất">Sản xuất</option><option value="Thương mại">Thương mại</option></select></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label><select value={supplierFormData.trangThai || 'Đang cung cấp'} onChange={(e) => setSupplierFormData({...supplierFormData, trangThai: e.target.value})} className="w-full border rounded-md px-3 py-2"><option value="Đang cung cấp">Đang cung cấp</option><option value="Ngừng cung cấp">Ngừng cung cấp</option></select></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Doanh chi (VNĐ)</label><input type="number" value={supplierFormData.doanhChi || 0} onChange={(e) => setSupplierFormData({...supplierFormData, doanhChi: parseNumberInput(e.target.value)})} className="w-full border rounded-md px-3 py-2" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Mã NCC</label><input type="text" value={addSupplierForm.maNhaCungCap || ''} disabled className="w-full border rounded-md px-3 py-2 bg-gray-100" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Tên nhà cung cấp *</label><input type="text" value={addSupplierForm.tenNhaCungCap || ''} onChange={(e) => setAddSupplierForm({...addSupplierForm, tenNhaCungCap: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Loại cung cấp *</label><input type="text" placeholder="VD: Máy móc, Thiết bị điện..." value={addSupplierForm.loaiCungCap || ''} onChange={(e) => setAddSupplierForm({...addSupplierForm, loaiCungCap: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Quốc gia</label><input type="text" value={addSupplierForm.quocGia || 'Việt Nam'} onChange={(e) => setAddSupplierForm({...addSupplierForm, quocGia: e.target.value})} className="w-full border rounded-md px-3 py-2" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Website</label><input type="text" value={addSupplierForm.website || ''} onChange={(e) => setAddSupplierForm({...addSupplierForm, website: e.target.value})} className="w-full border rounded-md px-3 py-2" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Người liên hệ *</label><input type="text" value={addSupplierForm.nguoiLienHe || ''} onChange={(e) => setAddSupplierForm({...addSupplierForm, nguoiLienHe: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Số điện thoại *</label><input type="text" value={addSupplierForm.soDienThoai || ''} onChange={(e) => setAddSupplierForm({...addSupplierForm, soDienThoai: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Email liên hệ</label><input type="email" value={addSupplierForm.emailLienHe || ''} onChange={(e) => setAddSupplierForm({...addSupplierForm, emailLienHe: e.target.value})} className="w-full border rounded-md px-3 py-2" /></div>
+                  <div className="col-span-1 sm:col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Địa chỉ *</label><input type="text" value={addSupplierForm.diaChi || ''} onChange={(e) => setAddSupplierForm({...addSupplierForm, diaChi: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Khả năng cung cấp</label><input type="text" value={addSupplierForm.khaNang || ''} onChange={(e) => setAddSupplierForm({...addSupplierForm, khaNang: e.target.value})} className="w-full border rounded-md px-3 py-2" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Loại hình *</label><select value={addSupplierForm.loaiHinh || 'Sản xuất'} onChange={(e) => setAddSupplierForm({...addSupplierForm, loaiHinh: e.target.value})} className="w-full border rounded-md px-3 py-2"><option value="Sản xuất">Sản xuất</option><option value="Thương mại">Thương mại</option></select></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label><select value={addSupplierForm.trangThai || 'Đang cung cấp'} onChange={(e) => setAddSupplierForm({...addSupplierForm, trangThai: e.target.value})} className="w-full border rounded-md px-3 py-2"><option value="Đang cung cấp">Đang cung cấp</option><option value="Ngừng cung cấp">Ngừng cung cấp</option></select></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Doanh chi (VNĐ)</label><input type="number" value={addSupplierForm.doanhChi || 0} onChange={(e) => setAddSupplierForm({...addSupplierForm, doanhChi: parseNumberInput(e.target.value)})} className="w-full border rounded-md px-3 py-2" /></div>
                 </div>
                 <div className="flex justify-end gap-4 mt-6">
                   <button type="button" onClick={() => setIsAddSupplierModalOpen(false)} className="px-4 py-2 border border-gray-200 rounded-md text-gray-700 hover:bg-gray-50">Hủy</button>
@@ -1210,18 +1295,18 @@ const PurchasingEquipment = () => {
               </div>
               <form onSubmit={(e) => { e.preventDefault(); handleEditSupplier(); }} className="p-4 sm:p-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Tên nhà cung cấp *</label><input type="text" value={supplierFormData.tenNhaCungCap || ''} onChange={(e) => setSupplierFormData({...supplierFormData, tenNhaCungCap: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Loại cung cấp *</label><input type="text" value={supplierFormData.loaiCungCap || ''} onChange={(e) => setSupplierFormData({...supplierFormData, loaiCungCap: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Quốc gia *</label><input type="text" value={supplierFormData.quocGia || ''} onChange={(e) => setSupplierFormData({...supplierFormData, quocGia: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Website</label><input type="text" value={supplierFormData.website || ''} onChange={(e) => setSupplierFormData({...supplierFormData, website: e.target.value})} className="w-full border rounded-md px-3 py-2" /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Người liên hệ *</label><input type="text" value={supplierFormData.nguoiLienHe || ''} onChange={(e) => setSupplierFormData({...supplierFormData, nguoiLienHe: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Số điện thoại *</label><input type="text" value={supplierFormData.soDienThoai || ''} onChange={(e) => setSupplierFormData({...supplierFormData, soDienThoai: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Email liên hệ *</label><input type="email" value={supplierFormData.emailLienHe || ''} onChange={(e) => setSupplierFormData({...supplierFormData, emailLienHe: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Địa chỉ *</label><input type="text" value={supplierFormData.diaChi || ''} onChange={(e) => setSupplierFormData({...supplierFormData, diaChi: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Khả năng cung cấp</label><input type="text" value={supplierFormData.khaNang || ''} onChange={(e) => setSupplierFormData({...supplierFormData, khaNang: e.target.value})} className="w-full border rounded-md px-3 py-2" /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Loại hình *</label><select value={supplierFormData.loaiHinh || 'Sản xuất'} onChange={(e) => setSupplierFormData({...supplierFormData, loaiHinh: e.target.value})} className="w-full border rounded-md px-3 py-2"><option value="Sản xuất">Sản xuất</option><option value="Thương mại">Thương mại</option></select></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label><select value={supplierFormData.trangThai || 'Đang cung cấp'} onChange={(e) => setSupplierFormData({...supplierFormData, trangThai: e.target.value})} className="w-full border rounded-md px-3 py-2"><option value="Đang cung cấp">Đang cung cấp</option><option value="Ngừng cung cấp">Ngừng cung cấp</option></select></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Doanh chi (VNĐ)</label><input type="number" value={supplierFormData.doanhChi || 0} onChange={(e) => setSupplierFormData({...supplierFormData, doanhChi: parseNumberInput(e.target.value)})} className="w-full border rounded-md px-3 py-2" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Tên nhà cung cấp *</label><input type="text" value={editSupplierForm.tenNhaCungCap || ''} onChange={(e) => setEditSupplierForm({...editSupplierForm, tenNhaCungCap: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Loại cung cấp *</label><input type="text" value={editSupplierForm.loaiCungCap || ''} onChange={(e) => setEditSupplierForm({...editSupplierForm, loaiCungCap: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Quốc gia</label><input type="text" value={editSupplierForm.quocGia || 'Việt Nam'} onChange={(e) => setEditSupplierForm({...editSupplierForm, quocGia: e.target.value})} className="w-full border rounded-md px-3 py-2" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Website</label><input type="text" value={editSupplierForm.website || ''} onChange={(e) => setEditSupplierForm({...editSupplierForm, website: e.target.value})} className="w-full border rounded-md px-3 py-2" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Người liên hệ *</label><input type="text" value={editSupplierForm.nguoiLienHe || ''} onChange={(e) => setEditSupplierForm({...editSupplierForm, nguoiLienHe: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Số điện thoại *</label><input type="text" value={editSupplierForm.soDienThoai || ''} onChange={(e) => setEditSupplierForm({...editSupplierForm, soDienThoai: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Email liên hệ</label><input type="email" value={editSupplierForm.emailLienHe || ''} onChange={(e) => setEditSupplierForm({...editSupplierForm, emailLienHe: e.target.value})} className="w-full border rounded-md px-3 py-2" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Địa chỉ *</label><input type="text" value={editSupplierForm.diaChi || ''} onChange={(e) => setEditSupplierForm({...editSupplierForm, diaChi: e.target.value})} required className="w-full border rounded-md px-3 py-2" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Khả năng cung cấp</label><input type="text" value={editSupplierForm.khaNang || ''} onChange={(e) => setEditSupplierForm({...editSupplierForm, khaNang: e.target.value})} className="w-full border rounded-md px-3 py-2" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Loại hình *</label><select value={editSupplierForm.loaiHinh || 'Sản xuất'} onChange={(e) => setEditSupplierForm({...editSupplierForm, loaiHinh: e.target.value})} className="w-full border rounded-md px-3 py-2"><option value="Sản xuất">Sản xuất</option><option value="Thương mại">Thương mại</option></select></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label><select value={editSupplierForm.trangThai || 'Đang cung cấp'} onChange={(e) => setEditSupplierForm({...editSupplierForm, trangThai: e.target.value})} className="w-full border rounded-md px-3 py-2"><option value="Đang cung cấp">Đang cung cấp</option><option value="Ngừng cung cấp">Ngừng cung cấp</option></select></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Doanh chi (VNĐ)</label><input type="number" value={editSupplierForm.doanhChi || 0} onChange={(e) => setEditSupplierForm({...editSupplierForm, doanhChi: parseNumberInput(e.target.value)})} className="w-full border rounded-md px-3 py-2" /></div>
                 </div>
                 <div className="flex justify-end gap-4 mt-6">
                   <button type="button" onClick={() => { setIsEditSupplierModalOpen(false); setEditingSupplier(null); }} className="px-4 py-2 border border-gray-200 rounded-md text-gray-700 hover:bg-gray-50">Hủy</button>

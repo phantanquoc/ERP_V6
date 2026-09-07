@@ -2,6 +2,8 @@ import { requireRule } from '@middlewares/requireRule';
 import { Router } from 'express';
 import supplierController from '../controllers/supplierController';
 import { authenticate } from '../middlewares/auth';
+import { zodValidate } from '../middlewares/zodValidation';
+import { createSupplierSchema, updateSupplierSchema } from '../schemas';
 const router = Router();
 
 router.use(authenticate);
@@ -81,6 +83,8 @@ router.get('/export/excel', requireRule('suppliers', 'EXPORT'), supplierControll
  *       404:
  *         description: Không tìm thấy nhà cung cấp
  */
+router.get('/:id/purchase-stats', requireRule('suppliers', 'READ'), supplierController.getPurchaseStats);
+router.get('/:id/purchase-requests', requireRule('suppliers', 'READ'), supplierController.getPurchaseRequests);
 router.get('/:id', requireRule('suppliers', 'READ'), supplierController.getSupplierById);
 
 /**
@@ -102,7 +106,7 @@ router.get('/:id', requireRule('suppliers', 'READ'), supplierController.getSuppl
  *       400:
  *         description: Dữ liệu không hợp lệ
  */
-router.post('/', requireRule('suppliers', 'CREATE'), supplierController.createSupplier);
+router.post('/', requireRule('suppliers', 'CREATE'), zodValidate(createSupplierSchema), supplierController.createSupplier);
 
 /**
  * @swagger
@@ -130,7 +134,7 @@ router.post('/', requireRule('suppliers', 'CREATE'), supplierController.createSu
  *       404:
  *         description: Không tìm thấy nhà cung cấp
  */
-router.put('/:id', requireRule('suppliers', 'UPDATE'), supplierController.updateSupplier);
+router.put('/:id', requireRule('suppliers', 'UPDATE'), zodValidate(updateSupplierSchema), supplierController.updateSupplier);
 
 /**
  * @swagger

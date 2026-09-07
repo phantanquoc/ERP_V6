@@ -168,11 +168,11 @@ model Supplier {
   maNhaCungCap         String                @unique
   tenNhaCungCap        String
   loaiCungCap          String // Loại cung cấp (VD: Thủy sản, Rau củ, Gia vị...)
-  quocGia              String
+  quocGia              String?   // Không bắt buộc — mặc định 'Việt Nam' ở UI/API
   website              String?
   nguoiLienHe          String
   soDienThoai          String
-  emailLienHe          String
+  emailLienHe          String?   // Tùy chọn — nhiều nhà cung cấp nhỏ không có email
   diaChi               String
   khaNang              String? // Khả năng cung cấp
   loaiHinh             String // Sản xuất, Thương mại

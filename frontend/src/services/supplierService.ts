@@ -6,12 +6,13 @@ export interface Supplier {
   maNhaCungCap: string;
   tenNhaCungCap: string;
   loaiCungCap: string;
-  quocGia: string;
-  website?: string;
+  quocGia?: string | null;
+  website?: string | null;
   nguoiLienHe: string;
   soDienThoai: string;
-  emailLienHe: string;
+  emailLienHe?: string | null;
   diaChi: string;
+  phanLoaiNCC?: string;
   khaNang?: string;
   loaiHinh: string;
   trangThai: string;
@@ -29,14 +30,14 @@ export interface Supplier {
 }
 
 export interface CreateSupplierData {
-  maNhaCungCap: string;
+  maNhaCungCap?: string;
   tenNhaCungCap: string;
   loaiCungCap: string;
-  quocGia: string;
-  website?: string;
+  quocGia?: string | null;
+  website?: string | null;
   nguoiLienHe: string;
   soDienThoai: string;
-  emailLienHe: string;
+  emailLienHe?: string | null;
   diaChi: string;
   khaNang?: string;
   loaiHinh: string;
@@ -105,6 +106,18 @@ export const supplierService = {
     return response;
   },
 
+  // Per-supplier purchase history stats (totals + last order date)
+  async getPurchaseStats(id: string) {
+    const response = await apiClient.get(`/suppliers/${id}/purchase-stats`);
+    return response;
+  },
+
+  // Paginated purchase requests linked to a supplier
+  async getPurchaseRequestsBySupplier(id: string, page = 1, limit = 5) {
+    const response = await apiClient.get(`/suppliers/${id}/purchase-requests`, { params: { page, limit } });
+    return response;
+  },
+
   // Export suppliers to Excel
   async exportToExcel(filters?: { search?: string; phanLoaiNCC?: string }): Promise<void> {
     const token = localStorage.getItem('accessToken');
@@ -130,3 +143,19 @@ export const supplierService = {
 };
 
 export default supplierService;
+
+export interface SupplierPurchaseStats {
+  totalOrders: number;
+  totalSpend: number;
+  pendingOrders: number;
+  lastOrderAt: string | null;
+  recentOrders: Array<{
+    id: string;
+    maYeuCau: string;
+    trangThai: string;
+    ngayYeuCau: string;
+    mucDoUuTien: string;
+    sourceType: string;
+    supplyRequestId: string | null;
+  }>;
+}

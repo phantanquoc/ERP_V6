@@ -62,6 +62,30 @@ export class SupplierController {
     }
   }
 
+  // Per-supplier purchase history stats (totals + recent orders)
+  async getPurchaseStats(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = req.params.id as string;
+      const stats = await supplierService.getPurchaseStats(id);
+      res.json({ success: true, data: stats });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // Paginated purchase requests linked to a supplier
+  async getPurchaseRequests(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = req.params.id as string;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const result = await supplierService.getPurchaseRequestsBySupplier(id, page, limit);
+      res.json({ success: true, data: result.data, pagination: { page, limit, total: result.total, totalPages: result.totalPages } });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // Generate next supplier code
   async generateCode(req: Request, res: Response, next: NextFunction) {
     try {

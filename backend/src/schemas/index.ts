@@ -505,3 +505,51 @@ export type CreateIssueInput = z.infer<typeof createIssueSchema>;
 export type UpdateIssueInput = z.infer<typeof updateIssueSchema>;
 export type BatchFulfillInput = z.infer<typeof batchFulfillSchema>;
 
+// ==================== SUPPLIER SCHEMAS (Zod, used by supplierRoutes) ====================
+// Phone: Vietnamese carriers 02x/03x/05x/07x/08x/09x + landline, 9-11 digits after 0
+const phoneRegex = /^0[235789]\d{8,9}$/;
+const supplierBase = {
+  tenNhaCungCap: z.string().min(1, 'Tên nhà cung cấp là bắt buộc').max(200, 'Tên quá dài (tối đa 200 ký tự)').trim(),
+  loaiCungCap: z.string().min(1, 'Loại cung cấp là bắt buộc').max(100, 'Loại cung cấp quá dài (tối đa 100 ký tự)').trim(),
+  quocGia: z.string().optional().nullable().transform((v) => (v && String(v).trim() ? String(v).trim() : 'Việt Nam')),
+  website: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (v && String(v).trim() ? String(v).trim() : null))
+    .refine((v) => !v || /^https?:\/\//.test(v), 'Website phải bắt đầu bằng http:// hoặc https://'),
+  nguoiLienHe: z.string().min(1, 'Người liên hệ là bắt buộc').max(100, 'Tên liên hệ quá dài (tối đa 100 ký tự)').trim(),
+  soDienThoai: z
+    .string()
+    .min(1, 'Số điện thoại là bắt buộc')
+    .transform((v) => String(v).replace(/[\s\-]/g, '').trim())
+    .refine((v) => phoneRegex.test(v), 'Số điện thoại không hợp lệ (ví dụ: 0901234567, 02838221234)'),
+  emailLienHe: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (v && String(v).trim() ? String(v).trim() : null))
+    .refine((v) => !v || z.string().email('Email không hợp lệ').safeParse(v).success, 'Email không hợp lệ'),
+  diaChi: z.string().min(1, 'Địa chỉ là bắt buộc').max(500, 'Địa chỉ quá dài (tối đa 500 ký tự)').trim(),
+  khaNang: z.string().optional().nullable().transform((v) => (v && String(v).trim() ? String(v).trim() : null)),
+  loaiHinh: z.enum(['Sản xuất', 'Thương mại'], { message: 'Loại hình phải là Sản xuất hoặc Thương mại' }),
+  trangThai: z.enum(['Đang cung cấp', 'Ngừng cung cấp']).optional(),
+  phanLoaiNCC: z.string().optional().nullable(),
+  doanhChi: z.union([z.number(), z.string().transform(Number)]).pipe(z.number().nonnegative('Doanh chi không thể âm')).optional().nullable(),
+  employeeId: z.string().min(1, 'Thiếu thông tin người tạo').optional(),
+};
+
+export const createSupplierSchema = z.object({
+  maNhaCungCap: z.string().optional(), // auto-gen if absent
+  ...supplierBase,
+});
+
+export const updateSupplierSchema = z.object({
+  maNhaCungCap: z.string().optional(),
+  ...supplierBase,
+  employeeId: z.string().optional(),
+}).partial().refine((v) => Object.keys(v).length > 0, 'Không có dữ liệu cập nhật');
+
+export type CreateSupplierInput = z.infer<typeof createSupplierSchema>;
+export type UpdateSupplierInput = z.infer<typeof updateSupplierSchema>;
+

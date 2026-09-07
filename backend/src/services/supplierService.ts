@@ -140,7 +140,9 @@ export const supplierService = {
       throw new NotFoundError('Không tìm thấy nhà cung cấp');
     }
 
-    const updateData: any = { ...data };
+    // Drop immutable/system fields that must never be overwritten by an update payload
+    const { maNhaCungCap: _dropCode, phanLoaiNCC: _dropClass, employeeId: _dropOwner, ...rawUpdate } = data as any;
+    const updateData: any = { ...rawUpdate };
     if (updateData.doanhChi !== undefined) {
       updateData.doanhChi = parseFloat(updateData.doanhChi.toString());
     }
@@ -180,6 +182,43 @@ export const supplierService = {
       select: { maNhaCungCap: true },
     });
     return nextStaticCode(last?.maNhaCungCap ?? null, prefix);
+  },
+
+  // Per-supplier purchase history (stats + recent PRs that reference this supplier)
+  async getPurchaseStats(id: string) {
+    const supplier = await prisma.supplier.findUnique({ where: { id }, select: { id: true } });
+    if (!supplier) throw new NotFoundError('Không tìm thấy nhà cung cấp');
+    const prs = await prisma.purchaseRequest.findMany({
+      where: { OR: [{ nhaCungCapId: id }, { items: { some: { nhaCungCapId: id } } }] },
+      select: {
+        id: true, maYeuCau: true, trangThai: true, ngayYeuCau: true, mucDoUuTien: true, supplyRequestId: true, sourceType: true,
+        items: { select: { nhaCungCapId: true, giaDuKien: true, soLuong: true } },
+      },
+      orderBy: { ngayYeuCau: 'desc' },
+      take: 50,
+    });
+    const totalOrders = prs.length;
+    const totalSpend = prs.reduce((sum, pr) => sum + pr.items.reduce((s, it) => s + (it.giaDuKien ?? 0) * it.soLuong, 0), 0);
+    const pendingOrders = prs.filter((pr) => pr.trangThai !== 'Hoàn thành' && pr.trangThai !== 'Từ chối').length;
+    const lastOrderAt = prs[0]?.ngayYeuCau ?? null;
+    return { totalOrders, totalSpend, pendingOrders, lastOrderAt, recentOrders: prs.slice(0, 10) };
+  },
+
+  async getPurchaseRequestsBySupplier(id: string, page = 1, limit = 10) {
+    const supplier = await prisma.supplier.findUnique({ where: { id }, select: { id: true } });
+    if (!supplier) throw new NotFoundError('Không tìm thấy nhà cung cấp');
+    const skip = (page - 1) * limit;
+    const where = { OR: [{ nhaCungCapId: id }, { items: { some: { nhaCungCapId: id } } }] };
+    const [data, total] = await Promise.all([
+      prisma.purchaseRequest.findMany({
+        where,
+        skip, take: limit,
+        orderBy: { ngayYeuCau: 'desc' },
+        include: { items: { include: { supplier: true } }, supplyRequest: { select: { maYeuCau: true, id: true } } },
+      }),
+      prisma.purchaseRequest.count({ where }),
+    ]);
+    return { data, total, page, totalPages: Math.ceil(total / limit) };
   },
 
   // Export suppliers to Excel
