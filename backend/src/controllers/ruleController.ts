@@ -3,12 +3,14 @@ import type { AuthenticatedRequest } from '@types';
 import * as ruleService from '@services/ruleService';
 
 export const listRules = async (req: AuthenticatedRequest, res: Response) => {
-  const { resourceCode, action, scope, departmentId, subDepartmentId, positionId, role, isActive } = req.query as Record<string, string>;
-  const data = await ruleService.listRules({
-    resourceCode, action, scope, departmentId, subDepartmentId, positionId, role,
+  const { resourceCode, action, scope, departmentId, subDepartmentId, positionId, role, isActive, q, page, limit } = req.query as Record<string, string>;
+  const result = await ruleService.listRules({
+    resourceCode, action, scope, departmentId, subDepartmentId, positionId, role, q,
     isActive: isActive !== undefined ? isActive === 'true' : undefined,
+    page: page ? parseInt(page, 10) : undefined,
+    limit: limit ? parseInt(limit, 10) : undefined,
   });
-  res.json({ success: true, data });
+  res.json({ success: true, data: result.data, pagination: result.pagination });
 };
 
 export const getRuleById = async (req: AuthenticatedRequest, res: Response) => {
@@ -39,6 +41,18 @@ export const getMatrix = async (req: AuthenticatedRequest, res: Response) => {
 
 export const getMyPermissions = async (req: AuthenticatedRequest, res: Response) => {
   const data = await ruleService.getMyPermissions(req.user!.id);
+  res.json({ success: true, data });
+};
+
+/**
+ * Effective permission grid for a specific user OR a hypothetical
+ * role/department/sub-department/position combination.
+ * Uses the same resolver as requireRule, so what the UI shows is what the
+ * server will actually enforce.
+ */
+export const getEffectivePermissions = async (req: AuthenticatedRequest, res: Response) => {
+  const { userId, role, departmentId, subDepartmentId, positionId } = req.query as Record<string, string>;
+  const data = await ruleService.getEffectivePermissions({ userId, role, departmentId, subDepartmentId, positionId });
   res.json({ success: true, data });
 };
 

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate, authorize } from '@middlewares/auth';
 import * as ruleController from '@controllers/ruleController';
 import { z } from 'zod';
-import { zodValidate } from '@middlewares/zodValidation';
+import { zodValidate, zodValidateQuery } from '@middlewares/zodValidation';
 
 const router = Router();
 
@@ -47,6 +47,22 @@ router.get('/my-permissions', ruleController.getMyPermissions);
 
 // Matrix
 router.get('/matrix', authorize('ADMIN', 'DEPARTMENT_HEAD'), ruleController.getMatrix);
+
+// Effective permissions for a user OR a hypothetical role/dept/sub-dept/position combo.
+// Must be registered before '/:id' so it is not captured as an id.
+const effectivePermissionsSchema = z.object({
+  userId: z.string().optional(),
+  role: z.enum(['ADMIN', 'DEPARTMENT_HEAD', 'TEAM_LEAD', 'EMPLOYEE']).optional(),
+  departmentId: z.string().optional(),
+  subDepartmentId: z.string().optional(),
+  positionId: z.string().optional(),
+});
+router.get(
+  '/effective-permissions',
+  authorize('ADMIN', 'DEPARTMENT_HEAD'),
+  zodValidateQuery(effectivePermissionsSchema),
+  ruleController.getEffectivePermissions,
+);
 
 // Audit log
 router.get('/audit-log', authorize('ADMIN'), ruleController.listRuleAuditLogs);

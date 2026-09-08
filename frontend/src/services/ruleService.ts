@@ -26,12 +26,51 @@ export interface MyPermission {
   action: string;
   allow: boolean;
   source: string;
+  resourceLabel?: string;
+  group?: string;
+  endpoints?: string[];
+}
+
+export interface EffectivePermissionsResult {
+  identity: {
+    userId?: string;
+    name?: string;
+    role: string;
+    effectiveRole: string;
+    roleRaised: boolean;
+    positionName: string | null;
+    positionDefaultRole: string | null;
+    departments: Array<{ id: string; name: string }>;
+    subDepartments: Array<{ id: string; name: string }>;
+  };
+  actions: string[];
+  groups: Array<{
+    group: string;
+    groupName: string;
+    resources: Array<{
+      code: string;
+      label: string;
+      endpoints: string[];
+      actions: Record<string, { allow: boolean; source: string }>;
+    }>;
+  }>;
+  groupLabels: Record<string, string>;
 }
 
 class RuleService {
   async listRules(params?: Record<string, string>): Promise<Rule[]> {
-    const res = await apiClient.get('/rules', { params });
+    const res: any = await apiClient.get('/rules', { params });
+    // Controller now returns { success, data, pagination } so res.data is the data array
+    if (Array.isArray(res.data)) return res.data as Rule[];
+    // Paginated envelope (future callers may pass page/limit)
+    if (res.data?.data && Array.isArray(res.data.data)) return res.data.data as Rule[];
     return res.data as Rule[];
+  }
+
+  async listRulesPaginated(params?: Record<string, string>): Promise<{ data: Rule[]; pagination?: { page: number; limit: number; total: number; totalPages: number } }> {
+    const res: any = await apiClient.get('/rules', { params });
+    if (res.data?.data && Array.isArray(res.data.data)) return res.data as { data: Rule[]; pagination?: { page: number; limit: number; total: number; totalPages: number } };
+    return { data: (res.data as Rule[]) ?? [], pagination: (res as any).pagination };
   }
 
   async getRuleById(id: string): Promise<Rule> {
@@ -61,6 +100,11 @@ class RuleService {
   async getMyPermissions(): Promise<MyPermission[]> {
     const res = await apiClient.get('/rules/my-permissions');
     return res.data as MyPermission[];
+  }
+
+  async getEffectivePermissions(params?: Record<string, string>): Promise<EffectivePermissionsResult> {
+    const res = await apiClient.get('/rules/effective-permissions', { params });
+    return (res as any).data as EffectivePermissionsResult;
   }
 
   async listResources(): Promise<Resource[]> {

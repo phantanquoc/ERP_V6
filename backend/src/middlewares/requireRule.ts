@@ -2,8 +2,8 @@ import type { Response, NextFunction } from 'express';
 import prisma from '@config/database';
 import type { AuthenticatedRequest } from '@types';
 import { baselineAllow } from '@utils/baselineAllow';
+import { raiseRole, matchRule, delegationScopeMatches } from '@utils/permissionResolution';
 import logger from '@config/logger';
-import type { Rule } from '@prisma/client';
 
 /**
  * Maps a resourceCode to the Prisma model used for owner lookups.
@@ -43,24 +43,6 @@ const RESOURCE_TO_MODEL: Record<string, { delegate: string; ownerField: string }
   'leave-requests': { delegate: 'leaveRequest', ownerField: 'employeeId' },
   // orders / quotations use employeeId link — owner check via employee.userId would require join; deny fallback
 };
-
-/**
- * Check whether a delegation's scope matches the user's departments.
- * GLOBAL (both ids null) matches any user; otherwise the user's department/subDepartment must match.
- */
-function delegationScopeMatches(
-  delegation: { departmentId: string | null; subDepartmentId: string | null },
-  departmentIds: string[],
-  subDepartmentId: string | null,
-): boolean {
-  // GLOBAL delegation
-  if (!delegation.departmentId && !delegation.subDepartmentId) return true;
-  // Sub-department scoped: must match exact subDepartment
-  if (delegation.subDepartmentId) return delegation.subDepartmentId === subDepartmentId;
-  // Department scoped: must be in user's department list
-  if (delegation.departmentId) return departmentIds.includes(delegation.departmentId);
-  return false;
-}
 
 /**
  * Try to load the owner of a record identified by :id for the given resourceCode.
@@ -138,18 +120,14 @@ export function requireRule(resourceCode: string, action: string) {
       // request for admin approval.
       //
       // Rule: a position may only RAISE the effective role, never lower it.
-      const ROLE_RANK: Record<string, number> = { EMPLOYEE: 0, TEAM_LEAD: 1, DEPARTMENT_HEAD: 2, ADMIN: 3 };
-      let effectiveRole: string = req.user.role;
       const employee = await prisma.employee.findUnique({ where: { userId }, select: { positionId: true, subDepartmentId: true } });
       const positionId = employee?.positionId ?? null;
-
+      let positionDefaultRole: string | null = null;
       if (positionId) {
         const pos = await prisma.position.findUnique({ where: { id: positionId }, select: { defaultRole: true } });
-        const posRole = pos?.defaultRole as string | null | undefined;
-        if (posRole && (ROLE_RANK[posRole] ?? -1) > (ROLE_RANK[effectiveRole] ?? -1)) {
-          effectiveRole = posRole;
-        }
+        positionDefaultRole = (pos?.defaultRole as string | null) ?? null;
       }
+      const effectiveRole: string = raiseRole(req.user.role, positionDefaultRole);
 
       // Populate secondary department ids for downstream data filter
       const secondaryDeps = await prisma.userSecondaryDepartment.findMany({ where: { userId } });
@@ -189,35 +167,11 @@ export function requireRule(resourceCode: string, action: string) {
         return;
       }
 
-      // Find matching explicit Rule
+      // Find matching explicit Rule (shared resolver — keeps preview and enforcement identical)
       const candidates = await prisma.rule.findMany({
         where: { resourceCode, action: action as never, isActive: true },
       });
-
-      let matched: Rule | null = null;
-
-      // Position-specific: narrow scope first. A rule scoped to a sub-department matches
-      // if that sub-department is ANY of the user's (primary or secondary) — not just the
-      // primary one, otherwise a secondary assignment grants nothing.
-      if (positionId) {
-        matched =
-          (candidates.find((r) => r.positionId === positionId && r.subDepartmentId !== null && subDepartmentIds.includes(r.subDepartmentId)) as Rule | undefined) ??
-          (candidates.find((r) => r.positionId === positionId && r.departmentId !== null && departmentIds.includes(r.departmentId)) as Rule | undefined) ??
-          (candidates.find((r) => r.positionId === positionId && r.scope === 'GLOBAL') as Rule | undefined) ??
-          null;
-      }
-      // Role-based fallback
-      if (!matched) {
-        matched =
-          (candidates.find((r) => r.role === (effectiveRole as never) && r.subDepartmentId !== null && subDepartmentIds.includes(r.subDepartmentId)) as Rule | undefined) ??
-          (candidates.find((r) => r.role === (effectiveRole as never) && r.departmentId !== null && departmentIds.includes(r.departmentId)) as Rule | undefined) ??
-          (candidates.find((r) => r.role === (effectiveRole as never) && r.scope === 'GLOBAL') as Rule | undefined) ??
-          null;
-      }
-      // Generic global rule
-      if (!matched) {
-        matched = (candidates.find((r) => !r.positionId && !r.role && r.scope === 'GLOBAL') as Rule | undefined) ?? null;
-      }
+      const matched = matchRule(candidates, { positionId, effectiveRole, departmentIds, subDepartmentIds });
 
       if (matched) {
         if (!matched.allow) {

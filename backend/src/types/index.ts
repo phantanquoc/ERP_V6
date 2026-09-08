@@ -127,6 +127,9 @@ export interface AuthenticatedRequest extends Request {
   userDepartmentId?: string | null;
   userDepartmentIds?: string[];   // primary + secondary department IDs
   userSubDepartmentId?: string | null;
+  userSubDepartmentIds?: string[]; // every sub-department (primary + secondary + employee fallback)
+  userPositionId?: string | null;
+  effectiveRole?: string;          // user.role, possibly raised by Position.defaultRole
   isKioskDevice?: boolean;
   kioskOperatorId?: string;
 }

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import ruleService from '../services/ruleService';
+import ruleService, { type EffectivePermissionsResult } from '../services/ruleService';
 
 export const ruleKeys = {
   all: ['rules'] as const,
@@ -8,6 +8,7 @@ export const ruleKeys = {
   detail: (id: string) => [...ruleKeys.all, 'detail', id] as const,
   matrix: (positionId?: string, departmentId?: string) => [...ruleKeys.all, 'matrix', positionId ?? '', departmentId ?? ''] as const,
   myPermissions: () => [...ruleKeys.all, 'my-permissions'] as const,
+  effectivePermissions: (params: Record<string, string>) => [...ruleKeys.all, 'effective-permissions', params] as const,
   auditLog: (ruleId?: string) => [...ruleKeys.all, 'audit-log', ruleId ?? ''] as const,
 };
 
@@ -34,6 +35,15 @@ export function useMyPermissions(options?: { enabled?: boolean }) {
     queryFn: () => ruleService.getMyPermissions(),
     staleTime: 60_000,
     enabled: options?.enabled ?? true,
+  });
+}
+
+export function useEffectivePermissions(params: Record<string, string>, options?: { enabled?: boolean }) {
+  return useQuery<EffectivePermissionsResult>({
+    queryKey: ruleKeys.effectivePermissions(params),
+    queryFn: () => ruleService.getEffectivePermissions(params),
+    staleTime: 60_000,
+    enabled: (options?.enabled ?? true) && Object.keys(params).length > 0,
   });
 }
 

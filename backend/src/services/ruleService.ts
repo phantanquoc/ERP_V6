@@ -2,7 +2,6 @@ import prisma from '@config/database';
 import { cacheGet, cacheSet, cacheDel } from '@utils/cache';
 import { ConflictError, NotFoundError, ValidationError } from '@utils/errors';
 import { baselineAllow } from '@utils/baselineAllow';
-import type { Rule } from '@prisma/client';
 
 const RESOURCE_CACHE_KEY = 'cache:resources:all';
 const RESOURCE_CACHE_TTL = 3600;
@@ -32,7 +31,7 @@ export interface RuleFilters {
   isActive?: boolean;
 }
 
-export async function listRules(filters: RuleFilters = {}) {
+export async function listRules(filters: RuleFilters & { q?: string; page?: number; limit?: number } = {}) {
   const where: Record<string, unknown> = {};
   if (filters.resourceCode) where.resourceCode = filters.resourceCode;
   if (filters.action) where.action = filters.action as never;
@@ -42,7 +41,55 @@ export async function listRules(filters: RuleFilters = {}) {
   if (filters.positionId) where.positionId = filters.positionId;
   if (filters.role) where.role = filters.role as never;
   if (filters.isActive !== undefined) where.isActive = filters.isActive;
-  return prisma.rule.findMany({ where: where as never, orderBy: [{ resourceCode: 'asc' }, { action: 'asc' }], include: { resource: true } });
+  // Free-text search over the resource label (so admins can type "thu mua"
+  // instead of remembering the resource code).
+  if (filters.q) {
+    const hit = await prisma.resource.findMany({
+      where: { OR: [{ label: { contains: filters.q, mode: 'insensitive' } }, { code: { contains: filters.q, mode: 'insensitive' } }] },
+      select: { code: true },
+    });
+    where.resourceCode = { in: hit.map((r) => r.code) };
+  }
+
+  const page = Math.max(1, filters.page ?? 1);
+  const limit = Math.min(200, Math.max(1, filters.limit ?? 100));
+  const skip = (page - 1) * limit;
+
+  const [rows, total] = await Promise.all([
+    prisma.rule.findMany({
+      where: where as never,
+      orderBy: [{ resourceCode: 'asc' }, { action: 'asc' }],
+      include: { resource: true },
+      skip,
+      take: limit,
+    }),
+    prisma.rule.count({ where: where as never }),
+  ]);
+
+  // Resolve human-readable names in bulk (no N+1, no CUID fragments in the UI)
+  const deptIds = [...new Set(rows.map((r) => r.departmentId).filter((v): v is string => !!v))];
+  const subIds = [...new Set(rows.map((r) => r.subDepartmentId).filter((v): v is string => !!v))];
+  const posIds = [...new Set(rows.map((r) => r.positionId).filter((v): v is string => !!v))];
+  const [depts, subs, positions] = await Promise.all([
+    deptIds.length ? prisma.department.findMany({ where: { id: { in: deptIds } }, select: { id: true, name: true, code: true } }) : [],
+    subIds.length ? prisma.subDepartment.findMany({ where: { id: { in: subIds } }, select: { id: true, name: true, code: true } }) : [],
+    posIds.length ? prisma.position.findMany({ where: { id: { in: posIds } }, select: { id: true, name: true, code: true } }) : [],
+  ]);
+  const deptName = new Map(depts.map((d) => [d.id, d.name]));
+  const subName = new Map(subs.map((d) => [d.id, d.name]));
+  const posName = new Map(positions.map((d) => [d.id, d.name]));
+
+  const data = rows.map((r) => ({
+    ...r,
+    resourceLabel: r.resource?.label ?? r.resourceCode,
+    resourceGroup: r.resource?.group ?? '',
+    departmentName: r.departmentId ? deptName.get(r.departmentId) ?? null : null,
+    subDepartmentName: r.subDepartmentId ? subName.get(r.subDepartmentId) ?? null : null,
+    positionName: r.positionId ? posName.get(r.positionId) ?? null : null,
+    endpoints: endpointsFor(r.resourceCode),
+  }));
+
+  return { data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
 }
 
 export async function getRuleById(id: string) {
@@ -163,36 +210,74 @@ export async function deleteRule(id: string, actorId?: string | null) {
   });
 }
 
-// ─── Matrix & my-permissions ─────────────────────────────────────────────────
-const ACTIONS = ['CREATE', 'READ', 'UPDATE', 'DELETE', 'APPROVE', 'REJECT', 'EXPORT', 'IMPORT'] as const;
+// ─── Matrix & permissions ────────────────────────────────────────────────────
+// All permission reasoning lives in @utils/permissionResolution so that what the
+// UI previews is byte-for-byte what requireRule enforces. This file only loads
+// data and shapes responses.
+import {
+  ACTIONS,
+  raiseRole,
+  resolveOne,
+  type PermissionContext,
+} from '@utils/permissionResolution';
+import { endpointsFor, GROUP_LABELS } from '@routes/endpointMap';
 
 /**
- * Chung (Common) tab resources that are READ+CREATE accessible to every
- * authenticated user, including those without a department assignment.
- * 'lookups' is mandatory for module visibility in the frontend sidebar/route gate.
- * The Chung resources below are fully usable (READ+CREATE) for no-dept users.
- * 'overtime-plans' is intentionally NOT in this set — overtime creation stays
- * TEAM_LEAD+ only and no-dept never creates overtime plans.
+ * Load everything needed to evaluate permissions for one user.
+ * Identity comes from auth.users (the access-control record); the HR employee
+ * row contributes only `positionId` (for position-scoped rules) and acts as a
+ * last-resort fallback for subDepartmentId.
  */
-const CHUNG_NO_DEPT_ALLOW = new Set([
-  'lookups',
-  'supply-requests',
-  'repair-requests',
-  'tasks',
-  'work-plans',
-  'private-feedbacks',
-  'processes',
-]);
+export async function buildPermissionContext(userId: string): Promise<PermissionContext> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new NotFoundError('Không tìm thấy người dùng');
 
-function delegationScopeMatches(
-  delegation: { departmentId: string | null; subDepartmentId: string | null },
-  departmentIds: string[],
-  subDepartmentId: string | null,
-): boolean {
-  if (!delegation.departmentId && !delegation.subDepartmentId) return true;
-  if (delegation.subDepartmentId) return delegation.subDepartmentId === subDepartmentId;
-  if (delegation.departmentId) return departmentIds.includes(delegation.departmentId);
-  return false;
+  const employee = await prisma.employee.findUnique({
+    where: { userId },
+    select: { positionId: true, subDepartmentId: true },
+  });
+  const positionId = employee?.positionId ?? null;
+
+  let positionDefaultRole: string | null = null;
+  if (positionId) {
+    const pos = await prisma.position.findUnique({ where: { id: positionId }, select: { defaultRole: true } });
+    positionDefaultRole = (pos?.defaultRole as string | null) ?? null;
+  }
+  // A position may only RAISE the effective role, never lower it.
+  const effectiveRole = raiseRole(user.role, positionDefaultRole);
+
+  const secondaryDeps = await prisma.userSecondaryDepartment.findMany({ where: { userId } });
+  const departmentIds: string[] = [user.departmentId, ...secondaryDeps.map((s) => s.departmentId)].filter((v): v is string => !!v);
+  const subDepartmentId: string | null = (user.subDepartmentId ?? employee?.subDepartmentId ?? null) as string | null;
+  const subDepartmentIds: string[] = [
+    user.subDepartmentId,
+    employee?.subDepartmentId,
+    ...secondaryDeps.map((s) => s.subDepartmentId),
+  ].filter((v): v is string => !!v);
+
+  const now = new Date();
+  const delegations = await prisma.delegation.findMany({
+    where: { toUserId: userId, isActive: true, from: { lte: now }, to: { gte: now } },
+    select: { resourceCode: true, action: true, departmentId: true, subDepartmentId: true },
+  });
+  const allRules = await prisma.rule.findMany({ where: { isActive: true } });
+
+  return {
+    userId,
+    role: user.role,
+    effectiveRole,
+    positionId,
+    departmentIds,
+    subDepartmentId,
+    subDepartmentIds,
+    delegations: delegations.map((d) => ({
+      resourceCode: d.resourceCode,
+      action: d.action as string,
+      departmentId: d.departmentId,
+      subDepartmentId: d.subDepartmentId,
+    })),
+    allRules,
+  };
 }
 
 export async function getMatrix(params: { positionId?: string; departmentId?: string; subDepartmentId?: string }) {
@@ -204,106 +289,133 @@ export async function getMatrix(params: { positionId?: string; departmentId?: st
       ...(params.departmentId ? { departmentId: params.departmentId } : {}),
       ...(params.subDepartmentId ? { subDepartmentId: params.subDepartmentId } : {}),
     },
+    include: { resource: true },
   });
-
-  const ruleMap = new Map<string, Rule>();
-  for (const r of rules) ruleMap.set(`${r.resourceCode}:${r.action}:${r.scope}:${r.departmentId ?? ''}:${r.subDepartmentId ?? ''}:${r.positionId ?? ''}:${r.role ?? ''}`, r);
-
-  // For now, matrix is informational — enforcement is in requireRule middleware
   return { resources, rules, actions: ACTIONS };
 }
 
+/** Flat list form (kept for backwards compatibility with the existing "Quyền của tôi" tab). */
 export async function getMyPermissions(userId: string) {
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user) throw new NotFoundError('Không tìm thấy người dùng');
-  if (user.role === 'ADMIN') {
-    const resources = await prisma.resource.findMany({ where: { isActive: true } });
-    return resources.flatMap((r) => ACTIONS.map((a) => ({ resourceCode: r.code, action: a, allow: true, source: 'ADMIN_BYPASS' })));
-  }
+  const ctx = await buildPermissionContext(userId);
+  const resources = await prisma.resource.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } });
 
-  const employee = await prisma.employee.findUnique({ where: { userId } });
-  const positionId = employee?.positionId ?? null;
-
-  // Resolve position defaultRole
-  let effectiveRole: string = user.role;
-  if (positionId) {
-    const pos = await prisma.position.findUnique({ where: { id: positionId }, select: { defaultRole: true } });
-    if (pos?.defaultRole) effectiveRole = pos.defaultRole as string;
-  }
-
-  const secondaryDeps = await prisma.userSecondaryDepartment.findMany({ where: { userId } });
-  const departmentIds: string[] = [user.departmentId, ...secondaryDeps.map((s) => s.departmentId)].filter((v): v is string => !!v);
-  const subDepartmentId: string | null = (user.subDepartmentId ?? employee?.subDepartmentId ?? null) as string | null;
-
-  const resources = await prisma.resource.findMany({ where: { isActive: true } });
-
-  // Check delegations active now — scope-aware
-  const now = new Date();
-  const delegations = await prisma.delegation.findMany({
-    where: { toUserId: userId, isActive: true, from: { lte: now }, to: { gte: now } },
-  });
-
-  // Load relevant rules
-  const allRules: Rule[] = await prisma.rule.findMany({ where: { isActive: true } });
-
-  const result: Array<{ resourceCode: string; action: string; allow: boolean; source: string }> = [];
+  const out: Array<{
+    resourceCode: string; resourceLabel: string; group: string;
+    action: string; allow: boolean; source: string; endpoints: string[];
+  }> = [];
   for (const res of resources) {
     for (const action of ACTIONS) {
-      // Priority: delegation → explicit Rule → baseline — delegation only if scope matches
-      const hasDelegation = delegations.some(
-        (d) => d.resourceCode === res.code && d.action === action && delegationScopeMatches(d, departmentIds, subDepartmentId),
-      );
-      if (hasDelegation) {
-        result.push({ resourceCode: res.code, action, allow: true, source: 'DELEGATION' });
-        continue;
-      }
-
-      // Find matching Rule (most specific wins: position > role, subDept > dept > global)
-      const candidates: Rule[] = allRules.filter((r) => r.resourceCode === res.code && r.action === action);
-      let matched: Rule | null = null;
-
-      // Position-specific first
-      if (positionId) {
-        matched = (candidates.find((r) => r.positionId === positionId && r.subDepartmentId === subDepartmentId) as Rule | undefined) ?? null;
-        if (!matched) matched = (candidates.find((r) => r.positionId === positionId && r.departmentId !== null && departmentIds.includes(r.departmentId)) as Rule | undefined) ?? null;
-        if (!matched) matched = (candidates.find((r) => r.positionId === positionId && r.scope === 'GLOBAL') as Rule | undefined) ?? null;
-      }
-      // Fallback to role-based
-      if (!matched) {
-        matched = (candidates.find((r) => r.role === (effectiveRole as never) && r.subDepartmentId === subDepartmentId) as Rule | undefined) ?? null;
-        if (!matched) matched = (candidates.find((r) => r.role === (effectiveRole as never) && r.departmentId !== null && departmentIds.includes(r.departmentId)) as Rule | undefined) ?? null;
-        if (!matched) matched = (candidates.find((r) => r.role === (effectiveRole as never) && r.scope === 'GLOBAL') as Rule | undefined) ?? null;
-      }
-      // Generic global rule without position/role
-      if (!matched) {
-        matched = (candidates.find((r) => !r.positionId && !r.role && r.scope === 'GLOBAL') as Rule | undefined) ?? null;
-      }
-
-      if (matched) {
-        result.push({ resourceCode: res.code, action, allow: matched.allow, source: matched.allow ? 'RULE_ALLOW' : 'RULE_DENY' });
-      } else {
-        // Baseline fallback: check if resource belongs to user's department via Resource.group heuristic or allow all in-dept
-        // For now, baseline applies if user has a department; otherwise deny
-        const hasDept = departmentIds.length > 0;
-        if (!hasDept) {
-          if (res.code === 'overtime-plans') {
-            // Overtime stays strictly blocked for no-dept on every action.
-            // Overtime visibility is handled by participant filter in overtimePlanService,
-            // not by getMyPermissions — keep getMyPermissions as deny here.
-            result.push({ resourceCode: res.code, action, allow: false, source: 'BASELINE_NO_DEPT' });
-          } else if ((action === 'READ' || action === 'CREATE') && CHUNG_NO_DEPT_ALLOW.has(res.code)) {
-            result.push({ resourceCode: res.code, action, allow: true, source: 'CHUNG_ALLOW' });
-          } else {
-            result.push({ resourceCode: res.code, action, allow: false, source: 'BASELINE_NO_DEPT' });
-          }
-        } else {
-          const allow = baselineAllow(action, effectiveRole);
-          result.push({ resourceCode: res.code, action, allow, source: allow ? 'BASELINE_ALLOW' : 'BASELINE_DENY' });
-        }
-      }
+      const r = resolveOne(res.code, action, ctx);
+      out.push({
+        resourceCode: res.code,
+        resourceLabel: res.label,
+        group: res.group,
+        action,
+        allow: r.allow,
+        source: r.source,
+        endpoints: endpointsFor(res.code),
+      });
     }
   }
-  return result;
+  return out;
+}
+
+export interface EffectivePermissionQuery {
+  userId?: string;
+  role?: string;
+  departmentId?: string;
+  subDepartmentId?: string;
+  positionId?: string;
+}
+
+/**
+ * Compute the effective permission grid for EITHER a real user (?userId) or a
+ * hypothetical role/department/sub-department/position combination. Returns the
+ * data already grouped by resource group so the client renders a grid instead
+ * of 624 flat rows.
+ */
+export async function getEffectivePermissions(q: EffectivePermissionQuery) {
+  let ctx: PermissionContext;
+  let identityName = '';
+
+  if (q.userId) {
+    ctx = await buildPermissionContext(q.userId);
+    const u = await prisma.user.findUnique({ where: { id: q.userId }, select: { firstName: true, lastName: true, email: true } });
+    identityName = u ? `${u.lastName} ${u.firstName} (${u.email})`.trim() : q.userId;
+  } else {
+    // Synthetic context — no user, no delegations. Lets an admin answer
+    // "what would a TEAM_LEAD in Bộ phận thu mua be able to do?".
+    const role = (q.role ?? 'EMPLOYEE') as string;
+    let positionDefaultRole: string | null = null;
+    if (q.positionId) {
+      const pos = await prisma.position.findUnique({ where: { id: q.positionId }, select: { defaultRole: true } });
+      positionDefaultRole = (pos?.defaultRole as string | null) ?? null;
+    }
+    const departmentIds = q.departmentId ? [q.departmentId] : [];
+    const subDepartmentIds = q.subDepartmentId ? [q.subDepartmentId] : [];
+    ctx = {
+      userId: '',
+      role,
+      effectiveRole: raiseRole(role, positionDefaultRole),
+      positionId: q.positionId ?? null,
+      departmentIds,
+      subDepartmentId: q.subDepartmentId ?? null,
+      subDepartmentIds,
+      delegations: [],
+      allRules: await prisma.rule.findMany({ where: { isActive: true } }),
+    };
+  }
+
+  const resources = await prisma.resource.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } });
+
+  // Resolve human-readable names for the identity header (no CUID fragments in UI)
+  const deptIds = [...new Set(ctx.departmentIds)];
+  const subIds = [...new Set(ctx.subDepartmentIds)];
+  const [depts, subDepts, position] = await Promise.all([
+    deptIds.length ? prisma.department.findMany({ where: { id: { in: deptIds } }, select: { id: true, name: true, code: true } }) : [],
+    subIds.length ? prisma.subDepartment.findMany({ where: { id: { in: subIds } }, select: { id: true, name: true, code: true } }) : [],
+    ctx.positionId ? prisma.position.findUnique({ where: { id: ctx.positionId }, select: { id: true, name: true, code: true, defaultRole: true } }) : null,
+  ]);
+  const deptNameById = new Map(depts.map((d) => [d.id, d.name]));
+  const subNameById = new Map(subDepts.map((s) => [s.id, s.name]));
+
+  // Build grouped grid
+  const byGroup = new Map<string, Array<{
+    code: string; label: string; endpoints: string[];
+    actions: Record<string, { allow: boolean; source: string }>;
+  }>>();
+  for (const res of resources) {
+    const actions: Record<string, { allow: boolean; source: string }> = {};
+    for (const action of ACTIONS) {
+      actions[action] = resolveOne(res.code, action, ctx);
+    }
+    const arr = byGroup.get(res.group) ?? [];
+    arr.push({ code: res.code, label: res.label, endpoints: endpointsFor(res.code), actions });
+    byGroup.set(res.group, arr);
+  }
+
+  const groups = [...byGroup.entries()].map(([group, resList]) => ({
+    group,
+    groupName: GROUP_LABELS[group] ?? group,
+    resources: resList,
+  }));
+
+  return {
+    identity: {
+      userId: ctx.userId || undefined,
+      name: identityName || undefined,
+      role: ctx.role,
+      effectiveRole: ctx.effectiveRole,
+      roleRaised: ctx.effectiveRole !== ctx.role,
+      positionName: position?.name ?? null,
+      positionDefaultRole: position?.defaultRole ?? null,
+      departments: ctx.departmentIds.map((id) => ({ id, name: deptNameById.get(id) ?? id })),
+      subDepartments: ctx.subDepartmentIds.map((id) => ({ id, name: subNameById.get(id) ?? id })),
+    },
+    actions: ACTIONS,
+    groups,
+    groupLabels: GROUP_LABELS,
+  };
 }
 
 // ─── Audit log ───────────────────────────────────────────────────────────────
