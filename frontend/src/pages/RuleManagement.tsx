@@ -3,6 +3,7 @@ import { useRules, useResources, useCreateRule, useUpdateRule, useDeleteRule, us
 import { usePositions } from '../hooks/usePositions';
 import { useDepartments } from '../hooks/useDepartments';
 import { useUsers } from '../hooks/useUsers';
+import { useUrlTab } from '../hooks/useUrlState';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 const SOURCE_BADGE: Record<string, { label: string; cls: string }> = {
@@ -92,7 +93,8 @@ function PermissionGrid({
 type TabKey = 'lookup' | 'users' | 'rules' | 'my-perms';
 
 const RuleManagement: React.FC<{ hideHeader?: boolean }> = ({ hideHeader = false }) => {
-  const [activeTab, setActiveTab] = useState<TabKey>('lookup');
+  // Inner tab lives in ?permTab= so it does not collide with SystemSettingsPage's ?tab=
+  const { value: activeTab, set: setActiveTab } = useUrlTab<TabKey>('permTab', (v): v is TabKey => v === 'lookup' || v === 'users' || v === 'rules' || v === 'my-perms', 'lookup');
 
   // Lookup tab — hypothetical role/dept combo
   const ROLES = ['EMPLOYEE', 'TEAM_LEAD', 'DEPARTMENT_HEAD', 'ADMIN'] as const;

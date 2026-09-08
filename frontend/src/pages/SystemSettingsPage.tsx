@@ -7,6 +7,7 @@ import systemSettingsService from '../services/systemSettingsService';
 import NotificationPreferencesSection from '../components/NotificationPreferencesSection';
 import DeviceManagementSection from '../components/DeviceManagementSection';
 import CategoryManagementSection from '../components/CategoryManagementSection';
+import { useUrlTab } from '../hooks/useUrlState';
 import RuleManagement from './RuleManagement';
 
 const THEMES = [
@@ -43,7 +44,7 @@ const SystemSettingsPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [copiedTunnel, setCopiedTunnel] = useState(false);
-  const [activeTab, setActiveTab] = useState<ActiveTab>('personal');
+  const { value: activeTab, set: setActiveTab } = useUrlTab<ActiveTab>('tab', (v: string | null): v is ActiveTab => v === 'personal' || v === 'system' || v === 'rules', 'personal');
 
   const userIsAdmin = user ? isAdminUser(user as any) : false;
 

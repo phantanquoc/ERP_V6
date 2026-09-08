@@ -24,11 +24,11 @@ import purchaseRequestService from '../../services/purchaseRequestService';
 import { supplierService, Supplier, CreateSupplierData, UpdateSupplierData } from '../../services/supplierService';
 import { parseNumberInput } from '../../utils/numberInput';
 import { useAuth } from '../../contexts/AuthContext';
-import { useSearchParams } from 'react-router-dom';
 import PageHeader from '../../design-system/PageHeader';
 import { can } from '../../utils/permissions';
 import { labelForPurchaseRequest } from '../../utils/purchaseRequestLabel';
 import ReplenishmentList from '../../components/ReplenishmentList';
+import { useUrlTab, useUrlDetailId } from '../../hooks/useUrlState';
 import {
   BarChart,
   Bar,
@@ -74,25 +74,21 @@ type TabType = typeof VALID_TABS[number];
 
 const PurchasingMaterials = () => {
   const { user } = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
+  // ?purchaseRequestId= — written when a row is opened, cleared when closed, so a
+  // reload or a shared link reopens the same record instead of losing it.
+  const { id: urlPrId, open: pushPrId, close: popPrId, syncingRef: prSyncing } = useUrlDetailId('purchaseRequestId');
   // 6.4 — RBAC gates via Rule Matrix with baseline fallback inside can()
   const canEditPR = can('purchase-requests', 'UPDATE', user?.role);
   const canDeletePR = can('purchase-requests', 'DELETE', user?.role);
   const canApprovePR = can('purchase-requests', 'APPROVE', user?.role);
-  const [activeTab, setActiveTab] = useState<TabType>(() => {
-    const tabParam = searchParams.get('tab') as TabType;
-    return VALID_TABS.includes(tabParam) ? tabParam : 'purchaseRequestList';
-  });
-
-  useEffect(() => {
-    const currentTab = searchParams.get('tab');
-    if (currentTab !== activeTab) {
-      const params: Record<string, string> = { tab: activeTab };
-      const prId = searchParams.get('purchaseRequestId');
-      if (prId) params.purchaseRequestId = prId;
-      setSearchParams(params, { replace: true });
-    }
-  }, [activeTab]);
+  // Tab lives in ?tab= so reload / Back / shared links land on the same tab.
+  // The previous writer only synced state→URL, so pasted ?tab= and the Back
+  // button were ignored, and it rebuilt the query from scratch (dropping params).
+  const { value: activeTab, set: setActiveTab } = useUrlTab<TabType>(
+    'tab',
+    (v): v is TabType => !!v && (VALID_TABS as readonly string[]).includes(v),
+    'purchaseRequestList',
+  );
 
   // Month/Year filter for stat cards
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -181,20 +177,21 @@ const PurchasingMaterials = () => {
     }
   }, [activeTab, purchaseRequestPage, purchaseRequestSearch]);
 
-  // Open specific purchase request detail from URL param (e.g. from notification)
+  // Open specific purchase request detail from URL param (notification link, reload,
+  // or an in-app click that pushed the id). Skips the echo of our own close().
   useEffect(() => {
-    const prId = searchParams.get('purchaseRequestId');
-    if (prId) {
-      setActiveTab('purchaseRequestList');
-      purchaseRequestService.getPurchaseRequestById(prId).then((res) => {
-        if (res.data) {
-          setSelectedPurchaseRequest(res.data as PurchaseRequest);
-        }
-      }).catch((err) => {
-        console.error('Error loading purchase request from URL:', err);
-      });
-    }
-  }, [searchParams]);
+    if (prSyncing.current) { prSyncing.current = false; return; }
+    if (!urlPrId) return;
+    let cancelled = false;
+    setActiveTab('purchaseRequestList');
+    purchaseRequestService.getPurchaseRequestById(urlPrId).then((res) => {
+      if (!cancelled && res.data) setSelectedPurchaseRequest(res.data as PurchaseRequest);
+    }).catch((err) => {
+      console.error('Error loading purchase request from URL:', err);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlPrId]);
 
   const fetchPurchaseRequests = async () => {
     try {
@@ -401,12 +398,14 @@ const PurchasingMaterials = () => {
   }, [isDetailModalOpen, selectedItem?.id]);
 
   const openPurchaseRequestDetail = useCallback((item: PurchaseRequest) => {
+    pushPrId(item.id);
     setSelectedPurchaseRequest(item);
-  }, []);
+  }, [pushPrId]);
 
   const closePurchaseRequestDetail = useCallback(() => {
     setSelectedPurchaseRequest(null);
-  }, []);
+    popPrId();
+  }, [popPrId]);
 
   const openEditPurchaseRequest = useCallback((item: PurchaseRequest) => {
     const currentUserName = user ? `${user.lastName} ${user.firstName}`.trim() : '';

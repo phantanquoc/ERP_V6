@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Trash2, Package, ShoppingCart, Download, X, ClipboardCheck, PackagePlus, Plus, PackageCheck, AlertTriangle, XCircle } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+// useSearchParams is used via ../hooks/useUrlState — no direct import needed here
+import { useUrlDetailId } from '../hooks/useUrlState';
 import supplyRequestService, { SupplyRequest } from '../services/supplyRequestService';
 import { useAuth } from '../contexts/AuthContext';
 import { can, isCachedPermissionsLoaded } from '../utils/permissions';
@@ -142,7 +143,8 @@ const normalizeBoPhanLabel = (value?: string): string => {
 
 const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   const { user } = useAuth();
-  const [searchParams] = useSearchParams();
+  // (useUrlDetailId internally uses useSearchParams)
+  const { id: urlDetailId, open: pushDetailId, close: popDetailId, syncingRef } = useUrlDetailId('supplyRequestId');
   // Rule Matrix: fallback to role check until my-permissions loaded
   const _roleEdit = user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD || user?.role === UserRole.TEAM_LEAD;
   const _roleAdmin = user?.role === UserRole.ADMIN;
@@ -254,20 +256,30 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
     fetchRequests();
   }, [currentPage, serverFilters]);
 
+  // Deep-link reader: keeps ?supplyRequestId= in sync even though close deletes it
   useEffect(() => {
-    const srId = searchParams.get('supplyRequestId');
-    if (srId) {
-      supplyRequestService.getSupplyRequestById(srId).then((res) => {
-        if (res.data) {
-          setSelectedRequest(res.data as SupplyRequest);
-          setModalMode('view');
-          setShowModal(true);
-        }
-      }).catch((err) => {
-        console.error('Error loading supply request from URL:', err);
-      });
+    const srId = urlDetailId;
+    // When the user just closed the modal we pushed a replace that deleted the id; the
+    // companion effect that syncs detailUrlId→searchParams will echo back through the
+    // shared searchParams object for one tick — skip that echo so the modal does not
+    // snap back open.
+    if (syncingRef.current) {
+      syncingRef.current = false;
+      return;
     }
-  }, [searchParams]);
+    if (!srId) return;
+    let cancelled = false;
+    supplyRequestService.getSupplyRequestById(srId).then((res) => {
+      if (!cancelled && res.data) {
+        setSelectedRequest(res.data as SupplyRequest);
+        setModalMode('view');
+        setShowModal(true);
+      }
+    }).catch((err) => {
+      console.error('Error loading supply request from URL:', err);
+    });
+    return () => { cancelled = true; };
+  }, [urlDetailId]);
 
   // Load decision history whenever the detail modal opens in view mode.
   useEffect(() => {
@@ -303,6 +315,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   };
 
   const handleEdit = (item: SupplyRequest) => {
+    pushDetailId(item.id);
     setModalMode('edit');
     setSelectedRequest(item);
     const rows: EditItemRow[] = (item.items && item.items.length > 0)
@@ -316,6 +329,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   };
 
   const handleView = (item: SupplyRequest) => {
+    pushDetailId(item.id);
     setModalMode('view');
     setSelectedRequest(item);
     setShowModal(true);
@@ -652,7 +666,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
       {/* Modal Edit/View */}
       <Modal
         isOpen={showModal && !!selectedRequest}
-        onClose={() => setShowModal(false)}
+        onClose={() => { setShowModal(false); popDetailId(); }}
         showBackdrop
         closeOnBackdrop={modalMode === 'view'}
       >
