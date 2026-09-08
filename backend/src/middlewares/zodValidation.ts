@@ -39,7 +39,7 @@ export const zodValidate = <T>(schema: z.ZodType<T>) => {
 };
 
 /**
- * Zod validation for query parameters
+ * Zod validation for query parameters (Express 5: req.query is getter-only)
  */
 export const zodValidateQuery = <T>(schema: z.ZodType<T>) => {
   return (req: Request, res: Response, next: NextFunction): void => {
@@ -56,7 +56,9 @@ export const zodValidateQuery = <T>(schema: z.ZodType<T>) => {
       return;
     }
 
-    req.query = result.data as any;
+    // Express 5 defines req.query as a getter; reassigning it throws. Merge
+    // the validated fields back onto the same object instead.
+    Object.assign(req.query as Record<string, unknown>, result.data as Record<string, unknown>);
     next();
   };
 };
