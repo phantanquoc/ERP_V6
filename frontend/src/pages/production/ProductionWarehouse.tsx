@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useUrlTab, useUrlDetailId } from '../../hooks/useUrlState';
 import {
   Package,
   ArrowUp,
@@ -30,9 +30,27 @@ type WarehouseSubTab = 'overview' | 'management';
 
 const WarehouseManagementWithSubTabs: React.FC<{ initialWarehouseId?: string }> = ({ initialWarehouseId }) => {
   const [subTab, setSubTab] = useState<WarehouseSubTab>('overview');
-  const [pickedWarehouseId, setPickedWarehouseId] = useState<string | undefined>(initialWarehouseId);
+  const { id: urlWarehouseId, open: openWarehouse, close: closeWarehouse, syncingRef } = useUrlDetailId('warehouseId');
+  const [pickedWarehouseId, setPickedWarehouseId] = useState<string | undefined>(urlWarehouseId ?? initialWarehouseId);
   const { data: warehousesData } = useWarehouses();
   const warehouses = (warehousesData as WarehouseType[] | undefined) ?? [];
+
+  // Restore from URL on mount (?warehouseId=)
+  useEffect(() => {
+    if (syncingRef.current) {
+      syncingRef.current = false;
+      return;
+    }
+    if (urlWarehouseId && !pickedWarehouseId) {
+      setPickedWarehouseId(urlWarehouseId);
+    }
+  }, [urlWarehouseId, pickedWarehouseId]);
+
+  const handleSelectWarehouse = (id: string) => {
+    setPickedWarehouseId(id);
+    openWarehouse(id);
+    setSubTab('management');
+  };
 
   return (
     <div>
@@ -62,10 +80,7 @@ const WarehouseManagementWithSubTabs: React.FC<{ initialWarehouseId?: string }> 
         <FactoryOverview
           warehouses={warehouses}
           selectedWarehouseId={pickedWarehouseId ?? null}
-          onSelectWarehouse={(id) => {
-            setPickedWarehouseId(id);
-            setSubTab('management');
-          }}
+          onSelectWarehouse={handleSelectWarehouse}
         />
       )}
       {subTab === 'management' && <WarehouseUnifiedView initialWarehouseId={pickedWarehouseId ?? initialWarehouseId} />}
@@ -74,18 +89,7 @@ const WarehouseManagementWithSubTabs: React.FC<{ initialWarehouseId?: string }> 
 };
 
 const ProductionWarehouse = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<TabType>(() => {
-    const tabParam = searchParams.get('tab');
-    return VALID_TABS.includes(tabParam as TabType) ? tabParam as TabType : 'supplyRequest';
-  });
-
-  useEffect(() => {
-    const currentTab = searchParams.get('tab');
-    if (currentTab !== activeTab) {
-      setSearchParams({ tab: activeTab }, { replace: true });
-    }
-  }, [activeTab]);
+  const { value: activeTab, set: setActiveTab, searchParams, setSearchParams } = useUrlTab<TabType>('tab', (v): v is TabType => VALID_TABS.includes(v as TabType), 'supplyRequest');
 
   // Overview data states
   const [warehouses, setWarehouses] = useState<WarehouseType[]>([]);
@@ -94,9 +98,55 @@ const ProductionWarehouse = () => {
   const [supplyRequests, setSupplyRequests] = useState<any[]>([]);
   const [loadingOverview, setLoadingOverview] = useState(true);
 
-  // Period filter state
-  const [filterMonth, setFilterMonth] = useState<number | undefined>(undefined);
-  const [filterYear, setFilterYear] = useState<number | undefined>(undefined);
+  // Period filter — URL-backed (?warehouseMonth / ?warehouseYear) so reload, Back and
+  // shared links keep the same reporting period instead of resetting to "all".
+  // Absent/invalid param means "no filter", exactly like the old useState(undefined).
+  const parseMonthParam = (raw: string | null): number | undefined => {
+    const n = Number(raw);
+    return Number.isInteger(n) && n >= 1 && n <= 12 ? n : undefined;
+  };
+  const parseYearParam = (raw: string | null): number | undefined => {
+    const n = Number(raw);
+    // wide band so a pasted/shared year is honoured rather than silently dropped
+    return Number.isInteger(n) && n >= 1990 && n <= 2100 ? n : undefined;
+  };
+
+  const [filterMonth, setFilterMonthRaw] = useState<number | undefined>(
+    () => parseMonthParam(searchParams.get('warehouseMonth')),
+  );
+  const [filterYear, setFilterYearRaw] = useState<number | undefined>(
+    () => parseYearParam(searchParams.get('warehouseYear')),
+  );
+  // Guard so our own state→URL writes don't echo back through the URL→state effect
+  const syncingPeriodRef = useRef(false);
+
+  // state → URL. Copies the live params first so ?tab / ?warehouseDetailId survive.
+  const setPeriodFilter = (patch: { month?: number | undefined; year?: number | undefined }) => {
+    const nextMonth = 'month' in patch ? patch.month : filterMonth;
+    const nextYear = 'year' in patch ? patch.year : filterYear;
+    setFilterMonthRaw(nextMonth);
+    setFilterYearRaw(nextYear);
+    const params = new URLSearchParams(searchParams);
+    if (nextMonth) params.set('warehouseMonth', String(nextMonth));
+    else params.delete('warehouseMonth');
+    if (nextYear) params.set('warehouseYear', String(nextYear));
+    else params.delete('warehouseYear');
+    syncingPeriodRef.current = true;
+    setSearchParams(params, { replace: true });
+  };
+
+  // URL → state: back/forward, pasted links
+  useEffect(() => {
+    if (syncingPeriodRef.current) {
+      syncingPeriodRef.current = false;
+      return;
+    }
+    const m = parseMonthParam(searchParams.get('warehouseMonth'));
+    if (m !== filterMonth) setFilterMonthRaw(m);
+    const y = parseYearParam(searchParams.get('warehouseYear'));
+    if (y !== filterYear) setFilterYearRaw(y);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // Fetch overview data — resilient: each call independent via Promise.allSettled
   useEffect(() => {
@@ -287,13 +337,47 @@ const ProductionWarehouse = () => {
     goToTab('inventory');
   };
 
-  // State for modals
+  // State for modals — URL-backed so reload / back button / shared link
+  // reopens the same record instead of losing it.
+  // useUrlDetailId internally uses useSearchParams
+  const { id: urlDetailId, open: pushDetailId, close: popDetailId, syncingRef } = useUrlDetailId('warehouseDetailId');
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
 
+  // This page's detail modal is record-agnostic (renders Object.entries(selectedItem))
+  // and has no row-level opener today — every overview tile jumps to a tab instead.
+  // `openDetail` below is the single place a future opener must call so the URL and the
+  // modal never drift apart.
+  const openDetail = (item: any) => {
+    if (item?.id) pushDetailId(item.id);
+    setSelectedItem(item);
+    setIsDetailModalOpen(true);
+  };
+  void openDetail;
 
+  // Deep-link reader: resolve ?warehouseDetailId= against the overview data this page
+  // already fetches on mount (no extra round-trip), then open the modal.
+  useEffect(() => {
+    // Skip the echo from our own URL write when the modal closes.
+    if (syncingRef.current) {
+      syncingRef.current = false;
+      return;
+    }
+    if (!urlDetailId) return;
+    const match =
+      warehouses.find((w) => w?.id === urlDetailId) ??
+      (receipts as any[]).find((r) => r?.id === urlDetailId) ??
+      (issues as any[]).find((i) => i?.id === urlDetailId) ??
+      (supplyRequests as any[]).find((s) => s?.id === urlDetailId);
+    if (match) {
+      setSelectedItem(match);
+      setIsDetailModalOpen(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlDetailId, warehouses, receipts, issues, supplyRequests]);
 
   const closeDetailModal = () => {
+    popDetailId();
     setIsDetailModalOpen(false);
     setSelectedItem(null);
   };
@@ -362,7 +446,7 @@ const ProductionWarehouse = () => {
             <Calendar className="w-4 h-4 text-gray-500" />
             <select
               value={filterMonth ?? ''}
-              onChange={(e) => setFilterMonth(e.target.value ? Number(e.target.value) : undefined)}
+              onChange={(e) => setPeriodFilter({ month: e.target.value ? Number(e.target.value) : undefined })}
               className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Tất cả tháng</option>
@@ -372,7 +456,7 @@ const ProductionWarehouse = () => {
             </select>
             <select
               value={filterYear ?? ''}
-              onChange={(e) => setFilterYear(e.target.value ? Number(e.target.value) : undefined)}
+              onChange={(e) => setPeriodFilter({ year: e.target.value ? Number(e.target.value) : undefined })}
               className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Tất cả năm</option>
