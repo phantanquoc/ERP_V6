@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Warehouse as WarehouseIcon, MapPinOff } from 'lucide-react';
 import type { Warehouse as WarehouseType } from '../services/warehouseService';
 import { useWarehouses } from '../hooks';
+import { useUrlDetailId } from '../hooks/useUrlState';
 import { hasWarehouseLayout } from '../constants/warehouseLayouts';
 import WarehouseManagement from './WarehouseManagement';
 import WarehouseMap from './WarehouseMap';
@@ -43,8 +44,24 @@ interface WarehouseUnifiedViewProps {
  * Kho không có CAD layout: management full-width như cũ
  */
 const WarehouseUnifiedView: React.FC<WarehouseUnifiedViewProps> = ({ initialWarehouseId }) => {
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(initialWarehouseId ?? null);
+  const { id: urlWarehouseId, open: openUrlWarehouse } = useUrlDetailId('warehouseId');
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(
+    urlWarehouseId ?? initialWarehouseId ?? null
+  );
   const { data: warehousesData } = useWarehouses();
+
+  // Restore from URL on mount (e.g. shared link or reload after overview deep-link)
+  useEffect(() => {
+    if (urlWarehouseId && urlWarehouseId !== selectedWarehouseId) {
+      setSelectedWarehouseId(urlWarehouseId);
+    }
+  }, [urlWarehouseId]);
+
+  // Sync selection to URL so reload/share keeps the same warehouse
+  const setWarehouseWithUrl = (id: string | null) => {
+    setSelectedWarehouseId(id);
+    if (id) openUrlWarehouse(id);
+  };
 
   const warehouses = (warehousesData as WarehouseType[] | undefined) ?? [];
   const sortWarehouses = (list: WarehouseType[]) =>
@@ -73,7 +90,7 @@ const WarehouseUnifiedView: React.FC<WarehouseUnifiedViewProps> = ({ initialWare
             {sortedWarehouses.map((warehouse) => (
               <button
                 key={warehouse.id}
-                onClick={() => setSelectedWarehouseId(warehouse.id)}
+                onClick={() => setWarehouseWithUrl(warehouse.id)}
                 className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2 ${
                   selectedWarehouseId === warehouse.id
                     ? 'border-blue-500 text-blue-600 bg-blue-50/50'
@@ -108,7 +125,7 @@ const WarehouseUnifiedView: React.FC<WarehouseUnifiedViewProps> = ({ initialWare
             <div className="w-full xl:flex-1 xl:min-w-0 space-y-4">
               <WarehouseMap
                 warehouseId={selectedWarehouseId}
-                onWarehouseChange={setSelectedWarehouseId}
+                onWarehouseChange={setWarehouseWithUrl}
                 hideSidePanel
               />
             </div>
