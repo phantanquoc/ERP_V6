@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useUrlTab } from '../../hooks/useUrlState';
 import {
   Globe,
   Users,
@@ -21,25 +21,30 @@ import customerFeedbackService from '../../services/customerFeedbackService';
 
 const VALID_TABS = ['orders', 'quotations', 'quotationRequests', 'customers', 'feedback'] as const;
 type TabType = typeof VALID_TABS[number];
+/**
+ * Detail params OWNED by each tab — dropped on tab switch by useUrlTab.
+ *
+ * Not listed = page-level and left alone: the month/year period filters above
+ * the tabs.
+ */
+const TAB_SCOPED_PARAMS: Record<TabType, readonly string[]> = {
+  orders: ['orderId'],
+  quotations: ['quotationId'],
+  quotationRequests: ['quotationRequestId'],
+  customers: ['customerId'],
+  feedback: ['feedbackId'],
+};
 
 const BusinessInternational = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<TabType>(() => {
-    const tabParam = searchParams.get('tab') as TabType;
-    return VALID_TABS.includes(tabParam) ? tabParam : 'quotationRequests';
-  });
+  const { value: activeTab, set: setActiveTab } = useUrlTab<TabType>(
+    'tab',
+    (v): v is TabType => (VALID_TABS as readonly string[]).includes(v as string),
+    'quotationRequests',
+    TAB_SCOPED_PARAMS,
+  );
 
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-
-  useEffect(() => {
-    const currentTab = searchParams.get('tab');
-    if (currentTab !== activeTab) {
-      const next = new URLSearchParams(searchParams);
-      next.set('tab', activeTab);
-      setSearchParams(next, { replace: true });
-    }
-  }, [activeTab]);
 
   // Overview stats
   const [quotationRequestStats, setQuotationRequestStats] = useState({
@@ -326,7 +331,7 @@ const BusinessInternational = () => {
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => setActiveTab(tab.id as TabType)}
                   className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
                     activeTab === tab.id
                       ? 'border-blue-500 text-blue-600'

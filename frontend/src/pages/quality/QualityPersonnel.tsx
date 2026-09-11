@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useUrlTab } from '../../hooks/useUrlState';
 import {
   Users,
   FileText,
@@ -44,8 +44,6 @@ interface Employee {
 
 const QualityPersonnel = () => {
   const { user } = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const positionIdParam = searchParams.get('positionId') || undefined;
   // /api/employees now allows EMPLOYEE (read-only) + ADMIN | DEPARTMENT_HEAD | TEAM_LEAD
   const canViewEmployees = user?.role === UserRole.ADMIN
     || user?.role === UserRole.DEPARTMENT_HEAD
@@ -57,28 +55,45 @@ const QualityPersonnel = () => {
     || user?.role === UserRole.TEAM_LEAD
     || user?.role === UserRole.EMPLOYEE;
 
-  const VALID_TABS = ['employees', 'positions', 'responsibilities', 'levels', 'evaluations', 'payroll', 'attendance', 'monthly-timesheet', 'holidays', 'attendance-codes', 'leave-requests', 'users'];
-  const [activeTab, setActiveTab] = useState<'employees' | 'positions' | 'responsibilities' | 'levels' | 'evaluations' | 'payroll' | 'attendance' | 'monthly-timesheet' | 'holidays' | 'attendance-codes' | 'leave-requests' | 'users'>(() => {
-    const tabParam = searchParams.get('tab');
-    if (tabParam && VALID_TABS.includes(tabParam)) return tabParam as any;
-    if (!user?.role) return 'attendance';
-    if (user.role === UserRole.EMPLOYEE && canViewEmployees) return 'employees';
-    return 'employees';
-  });
-
-  useEffect(() => {
-    const currentTab = searchParams.get('tab');
-    const currentPosId = searchParams.get('positionId');
-    if (currentTab !== activeTab) {
-      // Keep positionId if the new tab was triggered by a cross-link (positionId present)
-      // but clear it when the user manually clicks a tab (no positionId in current params)
-      const params: Record<string, string> = { tab: activeTab };
-      if (currentPosId && currentTab !== activeTab) {
-        // Don't carry positionId across manual tab switches
-      }
-      setSearchParams(params, { replace: true });
-    }
-  }, [activeTab]);
+  const VALID_TABS = ['employees', 'positions', 'responsibilities', 'levels', 'evaluations', 'payroll', 'attendance', 'monthly-timesheet', 'holidays', 'attendance-codes', 'leave-requests', 'users'] as const;
+  type TabType = typeof VALID_TABS[number];
+  /**
+   * Detail params OWNED by each tab — dropped on tab switch by useUrlTab so an
+   * orphan like `?tab=users&employeeId=…` cannot re-select that record when the
+   * user later returns to the tab that reads it.
+   *
+   * Not listed = page-level and left alone. This page currently has no other
+   * URL-backed filter (month/year and the attendance date live in component
+   * state), so the table only covers the detail ids above.
+   */
+  const TAB_SCOPED_PARAMS: Record<TabType, readonly string[]> = {
+    employees: ['employeeId'],
+    positions: ['positionId'],
+    responsibilities: [],
+    levels: [],
+    evaluations: [],
+    payroll: ['payrollId'],
+    attendance: ['attendanceId'],
+    'monthly-timesheet': [],
+    holidays: [],
+    'attendance-codes': [],
+    'leave-requests': [],
+    users: ['userId'],
+  };
+  // Role-dependent default: before the auth context resolves there is no role,
+  // and an unauthenticated-looking visitor lands on the attendance board rather
+  // than the employee list. Same rule the previous useState initializer used.
+  const fallbackTab: TabType = user?.role ? 'employees' : 'attendance';
+  const { value: activeTab, set: setActiveTab, searchParams } = useUrlTab<TabType>(
+    'tab',
+    (v): v is TabType => (VALID_TABS as readonly string[]).includes(v as string),
+    fallbackTab,
+    TAB_SCOPED_PARAMS,
+  );
+  // Page-level read of a tab-owned param: `positions` owns it, and the two tabs
+  // below accept it as a cross-link seed on first render (deep-link lands
+  // directly on ?tab=levels&positionId=…, which scoping never touches).
+  const positionIdParam = searchParams.get('positionId') || undefined;
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [evaluations, setEvaluations] = useState<EmployeeEvaluation[]>([]);
   const [attendances, setAttendances] = useState<AttendanceRecord[]>([]);
@@ -330,9 +345,8 @@ const QualityPersonnel = () => {
                 <button
                   key={tab.id}
                   onClick={() => {
-                    setActiveTab(tab.id as any);
-                    // Clear positionId when user manually clicks a tab
-                    setSearchParams({ tab: tab.id }, { replace: true });
+                    // TAB_SCOPED_PARAMS now drops every tab-owned detail id instead of just positionId
+                    setActiveTab(tab.id as TabType);
                   }}
                   className={`min-h-[44px] py-2.5 px-1 border-b-2 font-medium text-sm flex items-center gap-2 whitespace-nowrap ${
                     activeTab === tab.id

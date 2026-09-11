@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useUrlTab } from '../../hooks/useUrlState';
 import {
   Factory,
   Calendar,
@@ -24,13 +24,34 @@ import ProductionReportList from '../../components/ProductionDepartment/Producti
 import { orderService } from '../../services/orderService';
 import PageHeader from '../../design-system/PageHeader';
 
+const VALID_TABS = ['processList', 'productionOrders', 'orderList', 'standards', 'materialEvaluation', 'systemOperation', 'finishedProduct', 'qualityEvaluation', 'productionReport'] as const;
+type TabType = typeof VALID_TABS[number];
+/**
+ * Detail params OWNED by each tab — dropped on tab switch by useUrlTab.
+ *
+ * Not listed = page-level or cross-tab handoff and left alone:
+ * `maChien`/`thoiGianChien` carry state into the "Thông số vận hành" tab and
+ * must survive a tab switch, so they are deliberately not scoped.
+ */
+const TAB_SCOPED_PARAMS: Record<TabType, readonly string[]> = {
+  processList: [],
+  productionOrders: [],
+  orderList: ['orderId'],
+  standards: [],
+  materialEvaluation: [],
+  systemOperation: [],
+  finishedProduct: [],
+  qualityEvaluation: [],
+  productionReport: ['reportId'],
+};
+
 const ProductionDepartment = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'processList' | 'productionOrders' | 'orderList' | 'standards' | 'materialEvaluation' | 'systemOperation' | 'finishedProduct' | 'qualityEvaluation' | 'productionReport'>(() => {
-    const tabParam = searchParams.get('tab');
-    const validTabs = ['processList', 'productionOrders', 'orderList', 'standards', 'materialEvaluation', 'systemOperation', 'finishedProduct', 'qualityEvaluation', 'productionReport'];
-    return validTabs.includes(tabParam || '') ? tabParam as any : 'processList';
-  });
+  const { value: activeTab, set: setActiveTab } = useUrlTab<TabType>(
+    'tab',
+    (v): v is TabType => (VALID_TABS as readonly string[]).includes(v as string),
+    'processList',
+    TAB_SCOPED_PARAMS,
+  );
   const [selectedMaChien, setSelectedMaChien] = useState<string>('');
   const [selectedThoiGianChien, setSelectedThoiGianChien] = useState<string>('');
 
@@ -49,16 +70,6 @@ const ProductionDepartment = () => {
   useEffect(() => {
     loadOrderStats();
   }, [selectedMonth, selectedYear]);
-
-  // Sync tab to URL when changed
-  useEffect(() => {
-    const currentTab = searchParams.get('tab');
-    if (currentTab !== activeTab) {
-      const next = new URLSearchParams(searchParams);
-      next.set('tab', activeTab);
-      setSearchParams(next, { replace: true });
-    }
-  }, [activeTab]);
 
   const loadOrderStats = async () => {
     try {
@@ -174,7 +185,7 @@ const ProductionDepartment = () => {
           {tabs.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => setActiveTab(tab.id as TabType)}
               className={`whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
                 activeTab === tab.id
                   ? 'border-blue-600 text-blue-600'

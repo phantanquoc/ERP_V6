@@ -22,29 +22,71 @@ import warehouseReceiptService from '../../services/warehouseReceiptService';
 import warehouseIssueService from '../../services/warehouseIssueService';
 import supplyRequestService from '../../services/supplyRequestService';
 import { useWarehouses } from '../../hooks';
+import { resolveWarehouseParam } from '../../utils/warehouseParam';
 
 type TabType = 'inbound' | 'outbound' | 'supplyRequest' | 'warehouseManagement' | 'products' | 'inventory';
 const VALID_TABS: TabType[] = ['supplyRequest', 'inventory', 'inbound', 'outbound', 'products', 'warehouseManagement'];
 
+/**
+ * Query params OWNED by each tab.
+ *
+ * Every tab body below renders conditionally, so when the user switches away the
+ * component holding a detail param unmounts and nothing is left to clean it up.
+ * Declaring the owner here lets `useUrlTab` drop the param on the way out instead
+ * of leaking it across tabs (`?tab=products&warehouseId=…`, which then silently
+ * re-selects that warehouse when the user comes back to the warehouse tab).
+ *
+ * Params NOT listed are page-level and must survive a tab switch:
+ * `warehouseMonth`/`warehouseYear` (period filter) and `warehouseDetailId`
+ * (overview modal opened from the cards above the tabs).
+ */
+const TAB_SCOPED_PARAMS: Record<TabType, readonly string[]> = {
+  supplyRequest: ['supplyRequestId'],
+  inventory: [],
+  inbound: ['receiptId'],
+  outbound: ['issueId'],
+  products: ['internationalProductId'],
+  warehouseManagement: ['warehouseId', 'lotProductId'],
+};
+
 type WarehouseSubTab = 'overview' | 'management';
 
-const WarehouseManagementWithSubTabs: React.FC<{ initialWarehouseId?: string }> = ({ initialWarehouseId }) => {
+const WarehouseManagementWithSubTabs: React.FC = () => {
   const [subTab, setSubTab] = useState<WarehouseSubTab>('overview');
   const { id: urlWarehouseId, open: openWarehouse, close: closeWarehouse, syncingRef } = useUrlDetailId('warehouseId');
-  const [pickedWarehouseId, setPickedWarehouseId] = useState<string | undefined>(urlWarehouseId ?? initialWarehouseId);
+  const [pickedWarehouseId, setPickedWarehouseId] = useState<string | undefined>(urlWarehouseId ?? undefined);
   const { data: warehousesData } = useWarehouses();
-  const warehouses = (warehousesData as WarehouseType[] | undefined) ?? [];
+  // Memoized: the deep-link effect below depends on this array, and a bare `?? []`
+  // would hand it a fresh reference on every render while the query is loading.
+  const warehouses = useMemo(
+    () => (warehousesData as WarehouseType[] | undefined) ?? [],
+    [warehousesData],
+  );
 
-  // Restore from URL on mount (?warehouseId=)
+  // Restore from URL on mount (?warehouseId=).
+  // The param may carry a cuid (what the UI writes) or a `maKho` (what people
+  // paste, e.g. ?warehouseId=KHOHH). Resolve either, rewrite the URL to the cuid
+  // so every consumer downstream sees one canonical form, and drop the param when
+  // it matches no warehouse — a dead param otherwise survives forever and
+  // re-selects a stale warehouse the next time this tab is opened.
   useEffect(() => {
     if (syncingRef.current) {
       syncingRef.current = false;
       return;
     }
-    if (urlWarehouseId && !pickedWarehouseId) {
-      setPickedWarehouseId(urlWarehouseId);
+    // Empty list = not loaded yet, not "no match"; leave the param alone.
+    if (!urlWarehouseId || warehouses.length === 0) return;
+    const resolved = resolveWarehouseParam(warehouses, urlWarehouseId);
+    if (!resolved.warehouse || !resolved.canonicalId) {
+      closeWarehouse();
+      return;
     }
-  }, [urlWarehouseId, pickedWarehouseId]);
+    if (resolved.needsNormalize) openWarehouse(resolved.canonicalId, { replace: true });
+    setPickedWarehouseId(resolved.canonicalId);
+    // open/close depend on searchParams, so listing them here would re-run this
+    // effect on the very URL write it performs. syncingRef is a stable ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlWarehouseId, warehouses]);
 
   const handleSelectWarehouse = (id: string) => {
     setPickedWarehouseId(id);
@@ -83,13 +125,13 @@ const WarehouseManagementWithSubTabs: React.FC<{ initialWarehouseId?: string }> 
           onSelectWarehouse={handleSelectWarehouse}
         />
       )}
-      {subTab === 'management' && <WarehouseUnifiedView initialWarehouseId={pickedWarehouseId ?? initialWarehouseId} />}
+      {subTab === 'management' && <WarehouseUnifiedView initialWarehouseId={pickedWarehouseId} />}
     </div>
   );
 };
 
 const ProductionWarehouse = () => {
-  const { value: activeTab, set: setActiveTab, searchParams, setSearchParams } = useUrlTab<TabType>('tab', (v): v is TabType => VALID_TABS.includes(v as TabType), 'supplyRequest');
+  const { value: activeTab, set: setActiveTab, searchParams, setSearchParams } = useUrlTab<TabType>('tab', (v): v is TabType => VALID_TABS.includes(v as TabType), 'supplyRequest', TAB_SCOPED_PARAMS);
 
   // Overview data states
   const [warehouses, setWarehouses] = useState<WarehouseType[]>([]);
@@ -329,12 +371,14 @@ const ProductionWarehouse = () => {
       .slice(0, 5);
   }, [warehouses]);
 
-  // State for navigating to a specific warehouse in WarehouseManagement
-  const [initialWarehouseId, setInitialWarehouseId] = useState<string | undefined>(undefined);
-
+  // Card "Hàng hóa còn tồn" jumps straight to the warehouse that holds the item.
+  // Previously this set an `initialWarehouseId` state and went to `inventory`, but
+  // that tab renders InventoryOverview, which never read the prop — so the click
+  // only changed tabs and the warehouse id was dead code. Writing the id into the
+  // URL and switching to the tab that OWNS it (`warehouseManagement`) makes the
+  // deep-link real: FactoryOverview highlights that warehouse.
   const openWarehouse = (warehouseId: string) => {
-    setInitialWarehouseId(warehouseId);
-    goToTab('inventory');
+    goToTab('warehouseManagement', { warehouseId });
   };
 
   // State for modals — URL-backed so reload / back button / shared link
@@ -418,8 +462,11 @@ const ProductionWarehouse = () => {
 
   const tabStripRef = useRef<HTMLDivElement>(null);
 
-  const goToTab = (tab: TabType) => {
-    setActiveTab(tab);
+  // `extraParams` forwards to useUrlTab.set so a caller can switch tab AND seed a
+  // detail param in ONE URL write — two separate writes race on the same stale
+  // searchParams snapshot and the second silently reverts the first.
+  const goToTab = (tab: TabType, extraParams?: Record<string, string | null>) => {
+    setActiveTab(tab, extraParams);
     requestAnimationFrame(() => tabStripRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   };
 
@@ -670,9 +717,7 @@ const ProductionWarehouse = () => {
       {/* Content */}
       {activeTab === 'supplyRequest' && <SupplyRequestManagement />}
       {activeTab === 'inventory' && <InventoryOverview />}
-      {activeTab === 'warehouseManagement' && (
-        <WarehouseManagementWithSubTabs initialWarehouseId={initialWarehouseId} />
-      )}
+      {activeTab === 'warehouseManagement' && <WarehouseManagementWithSubTabs />}
       {activeTab === 'products' && <InternationalProductManagement />}
       {activeTab === 'inbound' && <WarehouseReceiptTab month={filterMonth} year={filterYear} />}
       {activeTab === 'outbound' && <WarehouseIssueTab month={filterMonth} year={filterYear} />}

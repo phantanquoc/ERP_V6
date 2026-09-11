@@ -72,6 +72,29 @@ interface PurchaseRequest {
 const VALID_TABS = ['purchaseRequestList', 'replenishment', 'suppliers', 'orderList'] as const;
 type TabType = typeof VALID_TABS[number];
 
+/**
+ * Query params OWNED by each tab.
+ *
+ * Every tab body below renders conditionally, so when the user switches away the
+ * component holding a detail param unmounts and nothing is left to clean it up.
+ * Declaring the owner here lets `useUrlTab` drop the param on the way out instead
+ * of leaking it across tabs (`?tab=suppliers&purchaseRequestId=…`, which then
+ * silently reopens that request when the user comes back to the list tab).
+ *
+ * `replenishmentRequestId` and `orderId` are declared up front: those lists are not
+ * deep-linked yet, but the cleanup has to already cover them the moment they are,
+ * and an undeclared key is never touched.
+ *
+ * Params NOT listed are page-level and must survive a tab switch — the month/year
+ * period filter that drives the stat cards and chart above the tabs.
+ */
+const TAB_SCOPED_PARAMS: Record<TabType, readonly string[]> = {
+  purchaseRequestList: ['purchaseRequestId'],
+  replenishment: ['replenishmentRequestId'],
+  suppliers: [],
+  orderList: ['orderId'],
+};
+
 const PurchasingMaterials = () => {
   const { user } = useAuth();
   // ?purchaseRequestId= — written when a row is opened, cleared when closed, so a
@@ -88,6 +111,7 @@ const PurchasingMaterials = () => {
     'tab',
     (v): v is TabType => !!v && (VALID_TABS as readonly string[]).includes(v),
     'purchaseRequestList',
+    TAB_SCOPED_PARAMS,
   );
 
   // Month/Year filter for stat cards

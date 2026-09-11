@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { useUrlTab } from '../../hooks/useUrlState';
 import {
   Settings,
   FileText,
@@ -52,18 +53,31 @@ interface ProcessDetail {
 
 const VALID_TABS = ['processList', 'productionProcess', 'orderList', 'inspection'] as const;
 type TabType = typeof VALID_TABS[number];
+/**
+ * Detail params OWNED by each tab — dropped on tab switch by useUrlTab.
+ *
+ * Not listed = page-level and left alone: the month/year period selects
+ * rendered above the tabs.
+ */
+const TAB_SCOPED_PARAMS: Record<TabType, readonly string[]> = {
+  processList: [],
+  productionProcess: [],
+  orderList: ['orderId'],
+  inspection: [],
+};
 
 const QualityProcess = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const { value: activeTab, set: setActiveTab, searchParams } = useUrlTab<TabType>(
+    'tab',
+    (v): v is TabType => (VALID_TABS as readonly string[]).includes(v as string),
+    'processList',
+    TAB_SCOPED_PARAMS,
+  );
   const navigate = useNavigate();
   const { user } = useAuth();
   const canManageProcessTypes =
     user?.role === UserRole.ADMIN ||
     (user?.role === UserRole.DEPARTMENT_HEAD && user?.departmentCode === 'DEPT_QUALITY');
-  const [activeTab, setActiveTab] = useState<TabType>(() => {
-    const tabParam = searchParams.get('tab') as TabType;
-    return VALID_TABS.includes(tabParam) ? tabParam : 'processList';
-  });
 
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const m = parseInt(searchParams.get('month') || '', 10);
@@ -74,17 +88,12 @@ const QualityProcess = () => {
     return y >= 2000 && y <= 2100 ? y : new Date().getFullYear();
   });
 
-  useEffect(() => {
-    const currentTab = searchParams.get('tab');
-    if (currentTab !== activeTab) {
-      const next = new URLSearchParams(searchParams);
-      next.set('tab', activeTab);
-      // preserve month/year when switching tabs
-      next.set('month', String(selectedMonth));
-      next.set('year', String(selectedYear));
-      setSearchParams(next, { replace: true });
-    }
-  }, [activeTab, selectedMonth, selectedYear]);
+  // month/year are page-level URL-backed params, not tab-scoped: re-persist them
+  // in the same write as the tab switch (useUrlTab's `extraParams`) so the old
+  // single-write behaviour — and its "preserve month/year across tabs" intent —
+  // survives without a second, racy setSearchParams call.
+  const switchTab = (tab: TabType) =>
+    setActiveTab(tab, { month: String(selectedMonth), year: String(selectedYear) });
 
   // State for Process List
   const [processDetails, setProcessDetails] = useState<ProcessDetail[]>([]);
@@ -335,7 +344,7 @@ const QualityProcess = () => {
         {/* Overview Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-5">
           {/* Tổng quan danh sách quy trình */}
-          <div onClick={() => setActiveTab('processList')} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 hover:border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer">
+          <div onClick={() => switchTab('processList')} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 hover:border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer">
             <div className="flex items-center gap-2 mb-3">
               <FileText className="w-4 h-4 text-violet-500" />
               <h3 className="text-sm font-semibold text-gray-700">Tổng quan danh sách quy trình
@@ -389,7 +398,7 @@ const QualityProcess = () => {
           </div>
 
           {/* Tổng quan danh sách sản phẩm */}
-          <div onClick={() => setActiveTab('productionProcess')} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 hover:border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer">
+          <div onClick={() => switchTab('productionProcess')} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 hover:border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer">
             <div className="flex items-center gap-2 mb-3">
               <Package className="w-4 h-4 text-emerald-500" />
               <h3 className="text-sm font-semibold text-gray-700">Tổng quan danh sách sản phẩm
@@ -445,7 +454,7 @@ const QualityProcess = () => {
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => switchTab(tab.id as TabType)}
                   className={`shrink-0 py-2.5 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
                     activeTab === tab.id
                       ? 'border-violet-500 text-violet-600'

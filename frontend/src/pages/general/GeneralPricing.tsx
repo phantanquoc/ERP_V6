@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useState } from 'react';
+import { useUrlTab } from '../../hooks/useUrlState';
 import {
   Calculator,
   FileText,
@@ -22,6 +22,20 @@ import PageHeader from '../../design-system/PageHeader';
 
 const VALID_TABS = ['requests', 'quotes', 'orders', 'costs', 'overtime-review', 'purchase-review'] as const;
 type TabType = typeof VALID_TABS[number];
+/**
+ * Detail params OWNED by each tab — dropped on tab switch by useUrlTab.
+ *
+ * Not listed = page-level and left alone: the month/year period selects
+ * rendered above the tabs.
+ */
+const TAB_SCOPED_PARAMS: Record<TabType, readonly string[]> = {
+  requests: ['quotationRequestId'],
+  quotes: ['quotationId'],
+  orders: ['orderId'],
+  costs: [],
+  'overtime-review': [],
+  'purchase-review': [],
+};
 
 const fmtInt = (n: number) => n.toLocaleString('vi-VN');
 const fmtVND = (n: number) => `${n.toLocaleString('vi-VN')} VND`;
@@ -32,23 +46,15 @@ function sumKeys(map: Record<string, number> | undefined, keys: string[]): numbe
 }
 
 const GeneralPricing = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<TabType>(() => {
-    const tabParam = searchParams.get('tab') as TabType;
-    return VALID_TABS.includes(tabParam) ? tabParam : 'requests';
-  });
+  const { value: activeTab, set: setActiveTab } = useUrlTab<TabType>(
+    'tab',
+    (v): v is TabType => (VALID_TABS as readonly string[]).includes(v as string),
+    'requests',
+    TAB_SCOPED_PARAMS,
+  );
 
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-
-  useEffect(() => {
-    const currentTab = searchParams.get('tab');
-    if (currentTab !== activeTab) {
-      const next = new URLSearchParams(searchParams);
-      next.set('tab', activeTab);
-      setSearchParams(next, { replace: true });
-    }
-  }, [activeTab]);
 
   const { data: overview, isLoading, isError, refetch, isFetching } = usePricingOverview(selectedMonth, selectedYear);
 
@@ -470,7 +476,7 @@ const GeneralPricing = () => {
             {tabs.map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id as TabType)}
                 className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'

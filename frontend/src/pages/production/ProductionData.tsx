@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useState, useMemo } from 'react';
+import { useUrlTab } from '../../hooks/useUrlState';
 import {
   ClipboardCheck,
   TrendingUp,
@@ -34,26 +34,36 @@ const tabs: { key: Tab; label: string; icon: JSX.Element }[] = [
   { key: 'qualityEvaluation', label: 'Đánh giá chất lượng', icon: <Star className="w-4 h-4" /> },
 ];
 
+/**
+ * Detail params OWNED by each tab — dropped on tab switch by useUrlTab.
+ *
+ * Empty across the board: none of the four tab bodies below reads a detail id
+ * from the URL. The table stays as the single place to declare one the moment a
+ * child gains a deep link.
+ *
+ * Params NOT listed are page-level and survive a tab switch — `productionDay`
+ * is held in component state here, so nothing URL-backed needs protecting.
+ */
+const TAB_SCOPED_PARAMS: Record<Tab, readonly string[]> = {
+  materialEvaluation: [],
+  systemOperation: [],
+  finishedProduct: [],
+  qualityEvaluation: [],
+};
+
 const ProductionData = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<Tab>(() => {
-    const tabParam = searchParams.get('tab');
-    return VALID_TABS.includes(tabParam as Tab) ? (tabParam as Tab) : 'materialEvaluation';
-  });
+  const { value: activeTab, set: setActiveTab } = useUrlTab<Tab>(
+    'tab',
+    (v): v is Tab => v !== null && VALID_TABS.includes(v as Tab),
+    'materialEvaluation',
+    TAB_SCOPED_PARAMS,
+  );
   const [selectedMaChien, setSelectedMaChien] = useState('');
   const [selectedThoiGianChien, setSelectedThoiGianChien] = useState('');
 
   // Production day filter — defaults to current production day (respects 06:30 boundary)
   const defaultProductionDay = useMemo(() => getCurrentProductionDay(), []);
   const [productionDay, setProductionDay] = useState<string>(defaultProductionDay);
-
-  useEffect(() => {
-    const currentTab = searchParams.get('tab');
-    if (currentTab !== activeTab) {
-      setSearchParams({ tab: activeTab }, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
 
   const handleCreateSystemOperation = (maChien: string, thoiGianChien: string) => {
     setSelectedMaChien(maChien);

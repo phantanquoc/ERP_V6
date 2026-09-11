@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useUrlTab } from '../../hooks/useUrlState';
 import {
   Calculator,
   Receipt,
@@ -47,26 +47,34 @@ interface OrderOverview {
 }
 
 
+const VALID_TABS = ['invoices', 'assets', 'orders', 'debts'] as const;
+type TabType = typeof VALID_TABS[number];
+/**
+ * Detail params OWNED by each tab — dropped on tab switch by useUrlTab so
+ * an orphan `?tab=assets&invoiceId=…` cannot re-select that record when the
+ * user returns to the invoices tab.
+ *
+ * Not listed = page-level and left alone: the month/year period selects
+ * rendered above the tabs.
+ */
+const TAB_SCOPED_PARAMS: Record<TabType, readonly string[]> = {
+  invoices: ['invoiceId'],
+  assets: [],
+  debts: ['debtId'],
+  orders: ['orderId'],
+};
+
 const AccountingAdmin = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'invoices' | 'assets' | 'orders' | 'debts'>(() => {
-    const tabParam = searchParams.get('tab');
-    const validTabs = ['invoices', 'assets', 'orders', 'debts'];
-    return validTabs.includes(tabParam || '') ? tabParam as any : 'invoices';
-  });
+  const { value: activeTab, set: setActiveTab } = useUrlTab<TabType>(
+    'tab',
+    (v): v is TabType => (VALID_TABS as readonly string[]).includes(v as string),
+    'invoices',
+    TAB_SCOPED_PARAMS,
+  );
 
   // Month/Year filter state
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-
-  useEffect(() => {
-    const currentTab = searchParams.get('tab');
-    if (currentTab !== activeTab) {
-      const next = new URLSearchParams(searchParams);
-      next.set('tab', activeTab);
-      setSearchParams(next, { replace: true });
-    }
-  }, [activeTab]);
 
   // Overview states
   const [assetOverview, setAssetOverview] = useState<AssetOverview>({
@@ -377,7 +385,7 @@ const AccountingAdmin = () => {
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => setActiveTab(tab.id as TabType)}
                   className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
                     activeTab === tab.id
                       ? 'border-orange-500 text-orange-600'
