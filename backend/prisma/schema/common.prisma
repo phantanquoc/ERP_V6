@@ -136,6 +136,7 @@ model Employee {
   dailyWorkReports          DailyWorkReport[]
   leaveRequests             LeaveRequest[]
   purchaseRequests          PurchaseRequest[]
+  replenishmentRequests     ReplenishmentRequest[]
   suppliers                 Supplier[]                 @relation("SupplierCreatedBy")
   faceProfile               FaceProfile?
   lastFaceScanAt            DateTime?

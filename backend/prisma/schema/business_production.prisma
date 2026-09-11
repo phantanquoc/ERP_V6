@@ -38,9 +38,10 @@ model SupplyRequest {
   updatedAt         DateTime            @updatedAt
   employee          Employee            @relation(fields: [employeeId], references: [id])
   items             SupplyRequestItem[]
-  purchaseRequests  PurchaseRequest[]
-  warehouseReceipts WarehouseReceipt[]
-  warehouseIssues   WarehouseIssue[]
+  purchaseRequests         PurchaseRequest[]
+  replenishmentRequests  ReplenishmentRequest[]
+  warehouseReceipts      WarehouseReceipt[]
+  warehouseIssues        WarehouseIssue[]
 
   @@map("supply_requests")
   @@schema("business")
@@ -82,16 +83,80 @@ model SupplyRequestDecision {
   decidedByEmployeeId        String
   decidedAt                  DateTime          @default(now())
   // Optional link to auto-created purchase request when decision routes shortage to procurement
+  // (legacy SHORTAGE path — the YCBS path uses triggeredReplenishmentRequestId)
   triggeredPurchaseRequestId String?
-  triggeredPurchaseRequest   PurchaseRequest?  @relation(fields: [triggeredPurchaseRequestId], references: [id], onDelete: SetNull)
-  createdAt                  DateTime          @default(now())
-  updatedAt                  DateTime          @updatedAt
-  supplyRequestItem          SupplyRequestItem @relation(fields: [supplyRequestItemId], references: [id], onDelete: Cascade)
+  triggeredPurchaseRequest   PurchaseRequest?          @relation(fields: [triggeredPurchaseRequestId], references: [id], onDelete: SetNull)
+  // YCBS link — replenishment request created for this shortage
+  triggeredReplenishmentRequestId String?
+  triggeredReplenishmentRequest   ReplenishmentRequest? @relation(fields: [triggeredReplenishmentRequestId], references: [id], onDelete: SetNull)
+  createdAt                  DateTime                  @default(now())
+  updatedAt                  DateTime                  @updatedAt
+  supplyRequestItem          SupplyRequestItem         @relation(fields: [supplyRequestItemId], references: [id], onDelete: Cascade)
 
   @@index([supplyRequestItemId])
   @@index([decidedByEmployeeId])
   @@index([triggeredPurchaseRequestId])
+  @@index([triggeredReplenishmentRequestId])
   @@map("supply_request_decisions")
+  @@schema("business")
+}
+
+// ─── YCBS — Yêu cầu bổ sung (replenishment request) ─────────────────────────
+//
+// Created by warehouse when a SupplyRequest line cannot be fulfilled from stock.
+// Distinct from PurchaseRequest (YCMH): a YCBS has no price/supplier at creation;
+// purchasing fills those, then converts it into a YCMH in one atomic step.
+model ReplenishmentRequest {
+  id              String                    @id @default(cuid())
+  stt             Int                       @default(autoincrement())
+  ngayYeuCau      DateTime                  @default(now())
+  maYeuCau        String                    @unique // YC-BS-YYYY-NNN
+  employeeId      String // = SupplyRequest.employeeId (owner = original requester)
+  maNhanVien      String
+  tenNhanVien     String
+  mucDichYeuCau   String
+  mucDoUuTien     String
+  ghiChu          String?
+  fileKemTheo     String?
+  // "Chờ báo giá" → "Đã chuyển mua hàng" (and "Đã hủy" via cancel)
+  trangThai       String                    @default("Chờ báo giá")
+  supplyRequestId String?
+  phanLoaiGroup   String? // MATERIALS | EQUIPMENT | OTHER (from bucketPhanLoai)
+  convertedPurchaseRequestId String?        @unique
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  employee        Employee                  @relation(fields: [employeeId], references: [id])
+  supplyRequest   SupplyRequest?            @relation(fields: [supplyRequestId], references: [id])
+  convertedPurchaseRequest PurchaseRequest? @relation("ReplenishmentToPurchase", fields: [convertedPurchaseRequestId], references: [id], onDelete: SetNull)
+  items           ReplenishmentRequestItem[]
+  decisions       SupplyRequestDecision[]
+
+  @@index([supplyRequestId])
+  @@index([trangThai])
+  @@index([phanLoaiGroup])
+  @@index([convertedPurchaseRequestId])
+  @@map("replenishment_requests")
+  @@schema("business")
+}
+
+model ReplenishmentRequestItem {
+  id                     String               @id @default(cuid())
+  replenishmentRequestId String
+  phanLoai               String
+  tenGoi                 String
+  soLuong                Float
+  donViTinh              String
+  // Filled by purchasing on the YCBS before convert — null at creation.
+  nhaCungCapId           String?
+  giaDuKien              Float?
+  supplier               Supplier?            @relation("ReplenishmentRequestItemSupplier", fields: [nhaCungCapId], references: [id])
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  replenishmentRequest   ReplenishmentRequest @relation(fields: [replenishmentRequestId], references: [id], onDelete: Cascade)
+
+  @@index([replenishmentRequestId])
+  @@index([nhaCungCapId])
+  @@map("replenishment_request_items")
   @@schema("business")
 }
 
@@ -133,6 +198,9 @@ model PurchaseRequest {
   supplier        Supplier?             @relation(fields: [nhaCungCapId], references: [id])
   items           PurchaseRequestItem[]
   supplyDecisions SupplyRequestDecision[]
+  // Back-reference to the YCBS that was converted into this YCMH.
+  replenishmentRequest ReplenishmentRequest? @relation("ReplenishmentToPurchase")
+  warehouseReceipts    WarehouseReceipt[]
 
   @@index([employeeId])
   @@index([supplyRequestId])
@@ -183,6 +251,7 @@ model Supplier {
   employee             Employee              @relation("SupplierCreatedBy", fields: [employeeId], references: [id])
   purchaseRequests     PurchaseRequest[]
   purchaseRequestItems PurchaseRequestItem[] @relation("PurchaseRequestItemSupplier")
+  replenishmentRequestItems ReplenishmentRequestItem[] @relation("ReplenishmentRequestItemSupplier")
   debts                Debt[]
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
@@ -305,6 +374,8 @@ model WarehouseReceipt {
   ghiChu            String?
   supplyRequestId   String?
   supplyRequest     SupplyRequest?         @relation(fields: [supplyRequestId], references: [id])
+  purchaseRequestId String?
+  purchaseRequest   PurchaseRequest?       @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
   // Derived totals across items — recomputed inside the same transaction as any item mutation
   tongSoLuongThucTe Float                  @default(0)
   soDongHang        Int                    @default(0)
@@ -320,6 +391,7 @@ model WarehouseReceipt {
   updatedAt         DateTime               @updatedAt
 
   @@index([supplyRequestId])
+  @@index([purchaseRequestId])
   @@map("warehouse_receipts")
   @@schema("business")
 }
