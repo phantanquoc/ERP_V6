@@ -27,6 +27,7 @@ const RESOURCE_TO_MODEL: Record<string, { delegate: string; ownerField: string }
   'acceptance-handovers': { delegate: 'acceptanceHandover', ownerField: 'createdById' },
   'supply-requests': { delegate: 'supplyRequest', ownerField: 'employeeId' },
   'purchase-requests': { delegate: 'purchaseRequest', ownerField: 'employeeId' },
+  'replenishment-requests': { delegate: 'replenishmentRequest', ownerField: 'employeeId' },
   'general-costs': { delegate: 'generalCost', ownerField: 'createdById' },
   'export-costs': { delegate: 'exportCost', ownerField: 'createdById' },
   // business: creator stored under different column names
@@ -50,7 +51,7 @@ const RESOURCE_TO_MODEL: Record<string, { delegate: string; ownerField: string }
  */
 // Resources whose ownerField stores an Employee.id (not auth.User.id) —
 // loadRecordOwner must join via employee.userId to compare against req.user.id.
-const EMPLOYEE_OWNER_RESOURCES = new Set(['supply-requests', 'purchase-requests', 'leave-requests', 'daily-work-reports']);
+const EMPLOYEE_OWNER_RESOURCES = new Set(['supply-requests', 'purchase-requests', 'replenishment-requests', 'leave-requests', 'daily-work-reports']);
 
 async function loadRecordOwner(resourceCode: string, recordId: string): Promise<string | null | undefined> {
   const mapping = RESOURCE_TO_MODEL[resourceCode];

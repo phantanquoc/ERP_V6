@@ -57,6 +57,7 @@ const ROUTE_MAP: Record<string, string> = {
   customerFeedback: '/api/customer-feedbacks',
   invoice: '/api/invoices',
   purchaseRequest: '/api/purchase-requests',
+  replenishmentRequest: '/api/replenishment-requests',
   supplier: '/api/suppliers',
   acceptanceHandover: '/api/acceptance-handovers',
   faultTemplate: '/api/fault-templates',

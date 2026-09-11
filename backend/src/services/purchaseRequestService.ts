@@ -229,6 +229,12 @@ class PurchaseRequestService {
   }
 
   async createPurchaseRequest(data: CreatePurchaseRequestRequest) {
+    // Shortage replenishment now goes through YCBS (ReplenishmentRequest) created
+    // by the warehouse and converted by purchasing; direct SHORTAGE PR creation is rejected.
+    // REORDER from reorderRuleService is still allowed.
+    if (data.sourceType === 'SHORTAGE') {
+      throw new ValidationError('Thiếu tồn kho nay đi qua YCBS (YC-BS) — kho tạo yêu cầu bổ sung, thu mua chuyển thành YCMH. Không tạo trực tiếp YCMH SHORTAGE.');
+    }
     if (!data.items || data.items.length === 0) {
       throw new ValidationError('Vui lòng thêm ít nhất một sản phẩm');
     }

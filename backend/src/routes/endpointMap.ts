@@ -69,6 +69,7 @@ export const RESOURCE_ENDPOINTS: Record<string, string[]> = {
   // purchasing
   'supply-requests': ['/api/supply-requests'],
   'purchase-requests': ['/api/purchase-requests'],
+  'replenishment-requests': ['/api/replenishment-requests'],
   'suppliers': ['/api/suppliers'],
   // warehouse
   'warehouses': ['/api/warehouses'],

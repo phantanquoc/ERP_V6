@@ -7,7 +7,18 @@ import { NotificationEvent } from '@types';
 import notificationService from '@services/notificationService';
 import { bucketPhanLoai } from '@utils/phanLoaiBucket';
 
-async function generatePurchaseRequestCodeTx(tx: any): Promise<string> {
+async function generateReplenishmentRequestCodeTx(tx: any): Promise<string> {
+  const year = new Date().getFullYear();
+  const last = await tx.replenishmentRequest.findFirst({
+    where: { maYeuCau: yearlyCodeWhere('YC-BS', year) },
+    orderBy: { maYeuCau: 'desc' },
+    select: { maYeuCau: true },
+  });
+  return nextYearlyCode(last?.maYeuCau ?? null, 'YC-BS', year);
+}
+
+// Legacy-only: kept exported so tsc's noUnusedLocals does not flag it now that shortage no longer calls it
+export async function generatePurchaseRequestCodeTx(tx: any): Promise<string> {
   const year = new Date().getFullYear();
   const last = await tx.purchaseRequest.findFirst({
     where: { maYeuCau: yearlyCodeWhere('YC-MH', year) },
@@ -156,8 +167,27 @@ class SupplyRequestService {
             },
           },
           items: true,
-          purchaseRequests: { select: { id: true, maYeuCau: true, trangThai: true } },
-          warehouseReceipts: { select: { id: true, maPhieuNhap: true } },
+          // sourceType + items are needed so the receipt modal can prefill purchased
+          // quantities when opened from a list row (no extra fetch).
+          purchaseRequests: {
+            select: {
+              id: true,
+              maYeuCau: true,
+              trangThai: true,
+              sourceType: true,
+              items: { select: { tenHangHoa: true, soLuong: true, donViTinh: true } },
+            },
+          },
+          replenishmentRequests: {
+            select: {
+              id: true,
+              maYeuCau: true,
+              trangThai: true,
+              phanLoaiGroup: true,
+              convertedPurchaseRequest: { select: { id: true, maYeuCau: true } },
+            },
+          },
+          warehouseReceipts: { select: { id: true, maPhieuNhap: true, purchaseRequestId: true } },
         },
       }),
       prisma.supplyRequest.count({ where }),
@@ -186,7 +216,16 @@ class SupplyRequestService {
         },
         items: true,
         purchaseRequests: { include: { items: true } },
-        warehouseReceipts: true,
+        replenishmentRequests: {
+          select: {
+            id: true,
+            maYeuCau: true,
+            trangThai: true,
+            phanLoaiGroup: true,
+            convertedPurchaseRequest: { select: { id: true, maYeuCau: true } },
+          },
+        },
+        warehouseReceipts: { select: { id: true, maPhieuNhap: true, purchaseRequestId: true } },
       },
     });
 
@@ -414,20 +453,20 @@ class SupplyRequestService {
     // decision too — no "cấp đủ trên giấy nhưng kho không trừ" drift.
     const warehouseIssueService = (await import('./warehouseIssueService')).default;
     const warehouseReceiptService = (await import('./warehouseReceiptService')).default;
-    let createdPRs: Array<{ id: string; maYeuCau: string; bucket: string }> = [];
-    let shortagePRId: string | null = null;
+    let createdReqs: Array<{ id: string; maYeuCau: string; bucket: string }> = [];
+    let shortageReqId: string | null = null;
     await prisma.$transaction(async (tx) => {
       await tx.supplyRequestItem.update({
         where: { id: itemId },
         data: { fulfilledQty: newFulfilled, fulfillmentStatus },
       });
 
-      // Create shortage PRs from SR ownership (4.2), one per bucket
+      // Create shortage YCBS (ReplenishmentRequest) from SR ownership (4.2), one per bucket
       if (buckets && buckets.size > 0) {
         const sr = item.supplyRequest as any;
         for (const [bucket, shortageItems] of buckets) {
-          const maYeuCau = await generatePurchaseRequestCodeTx(tx);
-          const pr = await tx.purchaseRequest.create({
+          const maYeuCau = await generateReplenishmentRequestCodeTx(tx);
+          const ybs = await tx.replenishmentRequest.create({
             data: {
               maYeuCau,
               employeeId: sr.employeeId,
@@ -437,35 +476,34 @@ class SupplyRequestService {
               mucDoUuTien: sr.mucDoUuTien,
               ghiChu: req.reason ?? undefined,
               supplyRequestId: item.supplyRequestId,
-              sourceType: 'SHORTAGE',
-              isQuickPurchase: false,
+              phanLoaiGroup: bucket,
               trangThai: 'Chờ báo giá',
             },
           });
-          await tx.purchaseRequestItem.createMany({
+          await tx.replenishmentRequestItem.createMany({
             data: shortageItems.map((si) => ({
-              purchaseRequestId: pr.id,
+              replenishmentRequestId: ybs.id,
               phanLoai: si.phanLoai,
-              tenHangHoa: si.tenHangHoa,
+              tenGoi: si.tenHangHoa,
               soLuong: si.soLuong,
               donViTinh: si.donViTinh,
             })),
           });
-          createdPRs.push({ id: pr.id, maYeuCau: pr.maYeuCau, bucket });
+          createdReqs.push({ id: ybs.id, maYeuCau: ybs.maYeuCau, bucket });
         }
-        shortagePRId = createdPRs[0]?.id ?? null; // single-line path has at most one bucket
+        shortageReqId = createdReqs[0]?.id ?? null; // single-line path has at most one bucket
       }
 
-      const decisionPRId = shortagePRId;
+      const decisionReqId = shortageReqId;
       await tx.supplyRequestDecision.create({
         data: {
           supplyRequestItemId: itemId,
-          decision: decisionPRId ? 'Chuyển thu mua' : decision,
+          decision: decisionReqId ? 'Chuyển thu mua' : decision,
           fulfilledQty: req.fulfilledQty,
           shortageQty: shortage,
           reason: req.reason,
           decidedByEmployeeId: req.decidedByEmployeeId,
-          triggeredPurchaseRequestId: decisionPRId,
+          triggeredReplenishmentRequestId: decisionReqId,
         },
       });
 
@@ -526,18 +564,18 @@ class SupplyRequestService {
     });
 
     // Post-tx: notify purchasing per bucket with phanLoai metadata (4.2)
-    for (const pr of createdPRs) {
+    for (const req of createdReqs) {
       try {
-        const si = [...(buckets?.get(pr.bucket) ?? [])];
-        await notificationService.notify(NotificationEvent.PURCHASE_REQUEST_CREATED, {
+        const si = [...(buckets?.get(req.bucket) ?? [])];
+        await notificationService.notify(NotificationEvent.REPLENISHMENT_REQUEST_CREATED, {
           metadata: {
-            maYeuCau: pr.maYeuCau,
-            purchaseRequestId: pr.id,
+            maYeuCau: req.maYeuCau,
+            maYeuCauCC: item.supplyRequest.maYeuCau,
+            replenishmentRequestId: req.id,
             supplyRequestId: item.supplyRequestId,
-            sourceType: 'SHORTAGE',
-            employeeName: (item.supplyRequest as any).tenNhanVien ?? '',
+            tenGoi: si[0]?.tenHangHoa ?? item.tenGoi,
             items: si.map((x) => ({ phanLoai: x.phanLoai })),
-            phanLoaiGroup: pr.bucket,
+            phanLoaiGroup: req.bucket,
           },
         });
         // SR status already bridged to Chờ bổ sung inside tx; legacy hook is idempotent and runs outside tx if needed, but self-import is circular — skip here.
@@ -652,7 +690,7 @@ class SupplyRequestService {
       issueLines.push({ line, item: itemMap.get(line.itemId)! });
     }
 
-    // 4. — bucketed shortage PRs, one PR per phanLoai group (4.1/4.2)
+    // 4. — bucketed shortage YCBS, one YCBS per phanLoai group (4.1/4.2)
     type ShortageEntry = { itemId: string; phanLoai: string; tenHangHoa: string; soLuong: number; donViTinh: string };
     const shortageBuckets = new Map<string, ShortageEntry[]>();
     const lineShortage = new Map<string, number>();
@@ -679,8 +717,8 @@ class SupplyRequestService {
     }
     const batchSupplyRequestId = itemMap.get(lines[0].itemId)?.supplyRequestId ?? null;
     const batchSRMeta = itemMap.get(lines[0].itemId)?.supplyRequest as any;
-    let bucketPRIdByItem = new Map<string, string>();
-    let batchCreatedPRMeta: Array<{ id: string; maYeuCau: string; bucket: string; items: ShortageEntry[] }> = [];
+    let bucketReqIdByItem = new Map<string, string>();
+    let batchCreatedReqMeta: Array<{ id: string; maYeuCau: string; bucket: string; items: ShortageEntry[] }> = [];
     await prisma.$transaction(async (tx) => {
       for (const line of lines) {
         const item = itemMap.get(line.itemId)!;
@@ -697,8 +735,8 @@ class SupplyRequestService {
         });
       }
       for (const [bucket, entries] of shortageBuckets) {
-        const maYeuCau = await generatePurchaseRequestCodeTx(tx);
-        const pr = await tx.purchaseRequest.create({
+        const maYeuCau = await generateReplenishmentRequestCodeTx(tx);
+        const ybs = await tx.replenishmentRequest.create({
           data: {
             maYeuCau,
             employeeId: batchSRMeta?.employeeId ?? '',
@@ -708,36 +746,35 @@ class SupplyRequestService {
             mucDoUuTien: batchSRMeta?.mucDoUuTien ?? 'Trung bình',
             ghiChu: undefined,
             supplyRequestId: batchSupplyRequestId ?? undefined,
-            sourceType: 'SHORTAGE',
-            isQuickPurchase: false,
+            phanLoaiGroup: bucket,
             trangThai: 'Chờ báo giá',
           },
         });
-        await tx.purchaseRequestItem.createMany({
+        await tx.replenishmentRequestItem.createMany({
           data: entries.map((e) => ({
-            purchaseRequestId: pr.id,
+            replenishmentRequestId: ybs.id,
             phanLoai: e.phanLoai,
-            tenHangHoa: e.tenHangHoa,
+            tenGoi: e.tenHangHoa,
             soLuong: e.soLuong,
             donViTinh: e.donViTinh,
           })),
         });
-        for (const e of entries) bucketPRIdByItem.set(e.itemId, pr.id);
-        batchCreatedPRMeta.push({ id: pr.id, maYeuCau, bucket, items: entries });
+        for (const e of entries) bucketReqIdByItem.set(e.itemId, ybs.id);
+        batchCreatedReqMeta.push({ id: ybs.id, maYeuCau, bucket, items: entries });
       }
       for (const line of lines) {
         const shortage = lineShortage.get(line.itemId) ?? 0;
         const label = lineDecisionLabel.get(line.itemId) ?? 'Không cấp';
-        const prIdForItem = bucketPRIdByItem.get(line.itemId) ?? null;
+        const reqIdForItem = bucketReqIdByItem.get(line.itemId) ?? null;
         await tx.supplyRequestDecision.create({
           data: {
             supplyRequestItemId: line.itemId,
-            decision: prIdForItem ? 'Chuyển thu mua' : label,
+            decision: reqIdForItem ? 'Chuyển thu mua' : label,
             fulfilledQty: line.fulfilledQty,
             shortageQty: shortage,
             reason: line.reason,
             decidedByEmployeeId: line.decidedByEmployeeId ?? '',
-            triggeredPurchaseRequestId: prIdForItem,
+            triggeredReplenishmentRequestId: reqIdForItem,
           },
         });
       }
@@ -812,17 +849,17 @@ class SupplyRequestService {
         }
       }
     });
-    for (const pr of batchCreatedPRMeta) {
+    for (const ybs of batchCreatedReqMeta) {
       try {
-        await notificationService.notify(NotificationEvent.PURCHASE_REQUEST_CREATED, {
+        await notificationService.notify(NotificationEvent.REPLENISHMENT_REQUEST_CREATED, {
           metadata: {
-            maYeuCau: pr.maYeuCau,
-            purchaseRequestId: pr.id,
+            maYeuCau: ybs.maYeuCau,
+            maYeuCauCC: batchSRMeta?.maYeuCau ?? '',
+            replenishmentRequestId: ybs.id,
             supplyRequestId: batchSupplyRequestId ?? undefined,
-            sourceType: 'SHORTAGE',
-            employeeName: batchSRMeta?.tenNhanVien ?? '',
-            items: pr.items.map((x) => ({ phanLoai: x.phanLoai })),
-            phanLoaiGroup: pr.bucket,
+            tenGoi: ybs.items[0]?.tenHangHoa ?? '',
+            items: ybs.items.map((x) => ({ phanLoai: x.phanLoai })),
+            phanLoaiGroup: ybs.bucket,
           },
         });
       } catch (e) { console.error('batchFulfill post-notify failed', e); }
@@ -872,10 +909,10 @@ class SupplyRequestService {
     return {
       success: true,
       decisionsCount: lines.length,
-      createdPurchaseRequests: batchCreatedPRMeta.map((pr) => ({
-        id: pr.id,
-        maYeuCau: pr.maYeuCau,
-        bucket: pr.bucket,
+      createdPurchaseRequests: batchCreatedReqMeta.map((ybs) => ({
+        id: ybs.id,
+        maYeuCau: ybs.maYeuCau,
+        bucket: ybs.bucket,
       })),
     };
   }
@@ -898,6 +935,16 @@ class SupplyRequestService {
         supplyRequestItem: {
           select: { id: true, tenGoi: true, phanLoai: true, soLuong: true, donViTinh: true },
         },
+        triggeredPurchaseRequest: { select: { id: true, maYeuCau: true, trangThai: true, sourceType: true } },
+        triggeredReplenishmentRequest: {
+          select: {
+            id: true,
+            maYeuCau: true,
+            trangThai: true,
+            phanLoaiGroup: true,
+            convertedPurchaseRequest: { select: { id: true, maYeuCau: true, trangThai: true } },
+          },
+        },
       },
     });
   }
@@ -914,19 +961,94 @@ class SupplyRequestService {
     delete headerData.trangThai;
 
     if (items && Array.isArray(items)) {
+      // Load the stored lines first. The old delete-then-createMany path only wrote
+      // phanLoai/tenGoi/soLuong/donViTinh, which silently ERASED fulfilledQty /
+      // fulfillmentStatus / isNewProduct on every header edit — a request that had
+      // already been partially issued came back looking untouched.
+      const withItems = await prisma.supplyRequest.findUnique({
+        where: { id },
+        select: {
+          trangThai: true,
+          items: {
+            select: {
+              id: true,
+              phanLoai: true,
+              tenGoi: true,
+              donViTinh: true,
+              soLuong: true,
+              isNewProduct: true,
+              fulfilledQty: true,
+              fulfillmentStatus: true,
+            },
+          },
+        },
+      });
+      const originals = withItems?.items ?? [];
+      const originalById = new Map(originals.map((o) => [o.id, o]));
+
+      // Once purchasing/warehouse have acted on the request the goods list is frozen.
+      const frozenStatuses = ['Đã duyệt mua', 'Đã mua hàng', 'Đã nhập kho', 'Đã cung cấp', 'Chờ bổ sung'];
+      if (frozenStatuses.includes(existing.trangThai)) {
+        throw new ValidationError(
+          `Không thể sửa hàng hóa khi yêu cầu ở trạng thái "${existing.trangThai}"`
+        );
+      }
+
+      const EPS = 1e-9;
+      const incomingIds = new Set<string>();
+      for (const incoming of items as Array<SupplyRequestItemInput & { id?: string }>) {
+        if (!incoming.id) continue;
+        incomingIds.add(incoming.id);
+        const orig = originalById.get(incoming.id);
+        if (!orig) {
+          throw new ValidationError(`Không tìm thấy dòng hàng hóa "${incoming.tenGoi}" trong yêu cầu này`);
+        }
+        const nextQty = Number(incoming.soLuong);
+        const issued = Number(orig.fulfilledQty ?? 0);
+        if (issued - nextQty > EPS) {
+          throw new ValidationError(
+            `Số lượng của "${orig.tenGoi}" không thể nhỏ hơn số đã cấp (${issued} ${orig.donViTinh})`
+          );
+        }
+        if (
+          issued > 0 &&
+          (incoming.phanLoai !== orig.phanLoai ||
+            incoming.tenGoi !== orig.tenGoi ||
+            incoming.donViTinh !== orig.donViTinh)
+        ) {
+          throw new ValidationError(
+            `Không thể đổi phân loại/tên/đơn vị tính của dòng "${orig.tenGoi}" vì đã được cấp phát`
+          );
+        }
+      }
+      // Dropping an already-issued line would orphan its warehouse issue + decision audit.
+      for (const orig of originals) {
+        if ((orig.fulfilledQty ?? 0) > 0 && !incomingIds.has(orig.id)) {
+          throw new ValidationError(
+            `Không thể xóa dòng "${orig.tenGoi}" vì đã được cấp phát`
+          );
+        }
+      }
+
       // Replace items within a transaction
       await prisma.$transaction(async (tx) => {
         // Delete existing items
         await tx.supplyRequestItem.deleteMany({ where: { supplyRequestId: id } });
-        // Create new items
+        // Create new items, carrying over the fulfillment state of the stored line
         await tx.supplyRequestItem.createMany({
-          data: items.map((item: SupplyRequestItemInput) => ({
-            supplyRequestId: id,
-            phanLoai: item.phanLoai,
-            tenGoi: item.tenGoi,
-            soLuong: item.soLuong,
-            donViTinh: item.donViTinh,
-          })),
+          data: items.map((item: SupplyRequestItemInput & { id?: string }) => {
+            const orig = item.id ? originalById.get(item.id) : undefined;
+            return {
+              supplyRequestId: id,
+              phanLoai: item.phanLoai,
+              tenGoi: item.tenGoi,
+              soLuong: item.soLuong,
+              donViTinh: item.donViTinh,
+              isNewProduct: item.isNewProduct ?? orig?.isNewProduct ?? false,
+              fulfilledQty: orig?.fulfilledQty ?? 0,
+              fulfillmentStatus: orig?.fulfillmentStatus ?? 'Chờ xử lý',
+            };
+          }),
         });
         // Update header
         if (Object.keys(headerData).length > 0) {
@@ -1058,6 +1180,34 @@ class SupplyRequestService {
   }
 
   /**
+   * Transactional variant of `advanceStatus`.
+   *
+   * Callers that must move the SR status inside the SAME transaction as the record
+   * that triggered it (e.g. creating a YCBS and bridging the parent SR to
+   * "Chờ bổ sung") use this so the two can never disagree: a post-commit follow-up
+   * call wrapped in try/catch would leave the SR reading its old status behind a
+   * real YCBS whenever that call threw.
+   */
+  async advanceStatusTx(tx: any, supplyRequestId: string, newStatus: string): Promise<void> {
+    const request = await tx.supplyRequest.findUnique({
+      where: { id: supplyRequestId },
+      select: { trangThai: true },
+    });
+
+    if (!request) return;
+
+    const currentIndex = STATUS_SEQUENCE.indexOf(request.trangThai);
+    const newIndex = STATUS_SEQUENCE.indexOf(newStatus);
+
+    if (newIndex > currentIndex) {
+      await tx.supplyRequest.update({
+        where: { id: supplyRequestId },
+        data: { trangThai: newStatus },
+      });
+    }
+  }
+
+  /**
    * Called when a PurchaseRequest is created for this supply request.
    * Advances status to "Đang xử lý" and notifies original requester.
    */
@@ -1079,6 +1229,20 @@ class SupplyRequestService {
       }
     } catch (error) {
       console.error('Error in onPurchaseRequestCreated notification:', error);
+    }
+  }
+
+  /**
+   * Called when a ReplenishmentRequest (YCBS) is created for this supply request.
+   * Mirrors `onPurchaseRequestCreated`: bridges the parent SR to "Chờ bổ sung" so the
+   * list reflects that part of the request is now with purchasing. Best-effort —
+   * a status-bridge failure must never reject the YCBS the warehouse just filed.
+   */
+  async onReplenishmentRequestCreated(supplyRequestId: string): Promise<void> {
+    try {
+      await this.advanceStatus(supplyRequestId, 'Chờ bổ sung');
+    } catch (error) {
+      console.error('Error in onReplenishmentRequestCreated:', error);
     }
   }
 

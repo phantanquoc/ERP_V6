@@ -50,6 +50,12 @@ export interface CreateReceiptInput {
   mucDich?: string;
   ghiChu?: string;
   supplyRequestId?: string;
+  /**
+   * Links the slip to the YCMH (PurchaseRequest) being received, so the received
+   * quantities can be reconciled against what was actually purchased (and the SR
+   * handoff can be inherited from the PR when the caller only knows the YCMH).
+   */
+  purchaseRequestId?: string;
   nguoiDeNghi?: string;
   maNguoiDeNghi?: string;
   boPhan?: string;
@@ -89,6 +95,7 @@ export interface LegacyFlatReceiptInput {
   ghiChu?: string;
   mucDich?: string;
   supplyRequestId?: string;
+  purchaseRequestId?: string;
   loaiSanPham?: string;
 }
 
@@ -120,6 +127,7 @@ function normalizeInput(input: CreateInput | UpdateInput): CreateReceiptInput & 
     mucDich: flat.mucDich,
     ghiChu: flat.ghiChu,
     supplyRequestId: flat.supplyRequestId,
+    purchaseRequestId: flat.purchaseRequestId,
     items: [
       {
         lotProductId: flat.lotProductId,
@@ -520,6 +528,85 @@ class WarehouseReceiptService {
     });
   }
 
+  /**
+   * Reconcile a receipt against the YCMH (PurchaseRequest) it is receiving.
+   *
+   * Without this, a slip could book in goods nobody ever approved for purchase, or
+   * more of a line than was bought — both silently inflate tồn kho. Comparison is by
+   * normalized commodity name because PR lines store `tenHangHoa` while receipt lines
+   * store `tenSanPham`, and neither is keyed to a catalog id at input time.
+   */
+  private async assertMatchesPurchaseRequest(
+    client: PrismaClientLike,
+    purchaseRequestId: string,
+    normalized: CreateReceiptInput,
+    effectiveItems: ReceiptLineInput[],
+  ): Promise<void> {
+    const pr = await client.purchaseRequest.findUnique({
+      where: { id: purchaseRequestId },
+      select: {
+        id: true,
+        maYeuCau: true,
+        trangThai: true,
+        supplyRequestId: true,
+        items: { select: { tenHangHoa: true, soLuong: true, donViTinh: true } },
+      },
+    });
+    if (!pr) throw new NotFoundError('Không tìm thấy yêu cầu mua hàng để nhập');
+    if (pr.trangThai !== 'Hoàn thành') {
+      throw new ValidationError(
+        `Chỉ được nhập kho cho yêu cầu mua hàng ở trạng thái "Hoàn thành" (hiện tại: ${pr.trangThai})`
+      );
+    }
+    if (normalized.supplyRequestId && pr.supplyRequestId && normalized.supplyRequestId !== pr.supplyRequestId) {
+      throw new ValidationError(
+        'Yêu cầu cung cấp trên phiếu không khớp với yêu cầu cung cấp của yêu cầu mua hàng'
+      );
+    }
+
+    const norm = (s: string | null | undefined): string => (s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+    const purchased = new Map<string, { qty: number; tenHangHoa: string; donViTinh: string }>();
+    for (const line of pr.items ?? []) {
+      const key = norm(line.tenHangHoa);
+      if (!key) continue;
+      const prev = purchased.get(key);
+      purchased.set(key, {
+        qty: (prev?.qty ?? 0) + Number(line.soLuong ?? 0),
+        tenHangHoa: line.tenHangHoa,
+        donViTinh: line.donViTinh ?? prev?.donViTinh ?? '',
+      });
+    }
+
+    const received = new Map<string, number>();
+    for (const line of effectiveItems) {
+      const key = norm(line.tenSanPham);
+      if (!key) continue;
+      received.set(key, (received.get(key) ?? 0) + Number(line.soLuongThucTe ?? 0));
+    }
+
+    const unknown = [...received.keys()].filter((k) => !purchased.has(k));
+    if (unknown.length > 0) {
+      throw new ValidationError(
+        `Hàng hóa không có trong yêu cầu mua hàng ${pr.maYeuCau}: ${unknown.join(', ')}`
+      );
+    }
+
+    const exceeded: string[] = [];
+    for (const [key, qty] of received) {
+      const bought = purchased.get(key);
+      if (!bought) continue;
+      if (qty - bought.qty > 1e-9) {
+        exceeded.push(`${bought.tenHangHoa} (nhập ${qty} ${bought.donViTinh}, mua ${bought.qty} ${bought.donViTinh})`);
+      }
+    }
+    if (exceeded.length > 0) {
+      throw new ValidationError(
+        `Số lượng nhập vượt số lượng đã mua của yêu cầu mua hàng ${pr.maYeuCau}: ${exceeded.join('; ')}`
+      );
+    }
+  }
+
   /** Internal: create using an existing transaction client (for atomic receiveSplit). */
   async createWithClient(
     normalized: CreateReceiptInput & UpdateReceiptInput & { employeeId: string },
@@ -531,6 +618,26 @@ class WarehouseReceiptService {
     await this.deriveSoLoThucTeFromKien(tx, items);
     const expandedItems = await this.expandGroupedLines(tx, items);
     const effective = expandedItems.length !== items.length ? expandedItems : items;
+
+    // Reconcile against the YCMH before any write, and BEFORE resolveLines: package
+    // resolution can create catalog rows and kiện, so a slip that fails the quantity
+    // guard must not leave that scaffolding behind. The supplyRequestId backfill runs
+    // after the guard so an over-receipt can never inherit the SR linkage it was rejected for.
+    if (normalized.purchaseRequestId) {
+      await this.assertMatchesPurchaseRequest(tx, normalized.purchaseRequestId, normalized, effective);
+      if (!normalized.supplyRequestId) {
+        try {
+          const pr = await tx.purchaseRequest.findUnique({
+            where: { id: normalized.purchaseRequestId },
+            select: { supplyRequestId: true },
+          });
+          if (pr?.supplyRequestId) normalized.supplyRequestId = pr.supplyRequestId;
+        } catch (err) {
+          console.error('Error inheriting supplyRequestId from purchaseRequest:', err);
+        }
+      }
+    }
+
     const resolved = await this.resolveLines(tx, effective);
     const balances = await this.loadBalances(
       tx,
@@ -550,6 +657,7 @@ class WarehouseReceiptService {
         mucDich: normalized.mucDich,
         ghiChu: normalized.ghiChu,
         ...(normalized.supplyRequestId ? { supplyRequestId: normalized.supplyRequestId } : {}),
+        ...((normalized as CreateReceiptInput).purchaseRequestId ? { purchaseRequestId: (normalized as CreateReceiptInput).purchaseRequestId } : {}),
         ...(normalized.nguoiDeNghi ? { nguoiDeNghi: normalized.nguoiDeNghi } : {}),
         ...(normalized.maNguoiDeNghi ? { maNguoiDeNghi: normalized.maNguoiDeNghi } : {}),
         ...(normalized.boPhan ? { boPhan: normalized.boPhan } : {}),

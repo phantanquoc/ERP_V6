@@ -17,7 +17,7 @@ export const generateReceiptCode = async (_req: Request, res: Response, next: Ne
 
 export const createWarehouseReceipt = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { maPhieuNhap, employeeId, maNhanVien, tenNhanVien, ngayNhap, mucDich, ghiChu, supplyRequestId, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, items } = req.body;
+    const { maPhieuNhap, employeeId, maNhanVien, tenNhanVien, ngayNhap, mucDich, ghiChu, supplyRequestId, purchaseRequestId, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, items } = req.body;
 
     if (!employeeId) {
       res.status(400).json({ success: false, message: 'Thiếu mã nhân viên' });
@@ -29,7 +29,7 @@ export const createWarehouseReceipt = async (req: Request, res: Response, next: 
     }
 
     const receipt = await warehouseReceiptService.create({
-      maPhieuNhap, employeeId, maNhanVien, tenNhanVien, ngayNhap, mucDich, ghiChu, supplyRequestId, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, items,
+      maPhieuNhap, employeeId, maNhanVien, tenNhanVien, ngayNhap, mucDich, ghiChu, supplyRequestId, purchaseRequestId, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, items,
     });
 
     res.status(201).json({ success: true, data: receipt, message: 'Tạo phiếu nhập kho thành công' });
@@ -43,8 +43,12 @@ export const createWarehouseReceipt = async (req: Request, res: Response, next: 
       });
     } catch {}
 
-    if (supplyRequestId) {
-      supplyRequestService.onWarehouseReceiptCreated(supplyRequestId).catch((err) => {
+    // A receipt opened from a YCMH carries only purchaseRequestId; the service inherits
+    // the SR from that PR. Read the persisted value back so the inherited SR still
+    // advances to "Đã nhập kho" instead of being stranded at its pre-receipt status.
+    const effectiveSupplyRequestId = receipt.supplyRequestId ?? supplyRequestId;
+    if (effectiveSupplyRequestId) {
+      supplyRequestService.onWarehouseReceiptCreated(effectiveSupplyRequestId).catch((err) => {
         console.error('Error in onWarehouseReceiptCreated:', err);
       });
     }

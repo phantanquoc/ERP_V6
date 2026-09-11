@@ -500,6 +500,43 @@ const entries: NotificationEventDef[] = [
     resolveRecipients: resolveDirectRecipients,
   },
 
+  // ── Replenishment Request (YCBS) ──
+  {
+    event: NotificationEvent.REPLENISHMENT_REQUEST_CREATED,
+    notificationType: NotificationType.REPLENISHMENT_REQUEST,
+    buildMessage: (ctx) => ({
+      title: 'Yêu cầu bổ sung mới',
+      message: `Yêu cầu bổ sung ${ctx.metadata?.maYeuCau ?? ''} từ yêu cầu cung cấp ${ctx.metadata?.maYeuCauCC ?? ''} cần báo giá. Vui lòng bổ sung nhà cung cấp, đơn giá và chuyển thành yêu cầu mua hàng.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const phanLoaiGroup = ctx.metadata?.phanLoaiGroup as string | undefined;
+      if (phanLoaiGroup === 'MATERIALS' || phanLoaiGroup === 'EQUIPMENT' || phanLoaiGroup === 'OTHER') {
+        return getPurchasingRecipientsForBucket(subDeptCodeForBucket(phanLoaiGroup as never));
+      }
+      const items = ctx.metadata?.items as Array<{ phanLoai?: string }> | undefined;
+      if (items && items.length > 0) {
+        const buckets = new Set(items.map((it) => bucketPhanLoai(String(it.phanLoai ?? ''))));
+        if (buckets.size === 1) {
+          return getPurchasingRecipientsForBucket(subDeptCodeForBucket([...buckets][0] as never));
+        }
+      }
+      return getEmployeeIdsByDeptCode('DEPT_PURCHASING');
+    },
+  },
+  {
+    event: NotificationEvent.REPLENISHMENT_REQUEST_CONVERTED,
+    notificationType: NotificationType.REPLENISHMENT_REQUEST,
+    buildMessage: (ctx) => ({
+      title: 'Yêu cầu bổ sung đã chuyển thành YCMH',
+      message: `Yêu cầu bổ sung ${ctx.metadata?.maYeuCauBS ?? ctx.metadata?.maYeuCau ?? ''} đã được chuyển thành yêu cầu mua hàng ${ctx.metadata?.maYeuCauMH ?? ''}.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      const direct = ctx.targetEmployeeIds ?? [];
+      return [...new Set([...admins, ...direct])];
+    },
+  },
+
   // ── Repair Request ──
   {
     event: NotificationEvent.REPAIR_REQUEST_CREATED,
