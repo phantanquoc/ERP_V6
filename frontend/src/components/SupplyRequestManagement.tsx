@@ -1,39 +1,50 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, Package, ShoppingCart, Download, X, ClipboardCheck, PackagePlus, Plus, PackageCheck, AlertTriangle, XCircle } from 'lucide-react';
-// useSearchParams is used via ../hooks/useUrlState — no direct import needed here
+import { Trash2, Package, PackageOpen, ShoppingCart, Download, X, ClipboardCheck, PackagePlus, Plus, PackageCheck, AlertTriangle, XCircle } from 'lucide-react';
 import { useUrlDetailId } from '../hooks/useUrlState';
 import supplyRequestService, { SupplyRequest } from '../services/supplyRequestService';
 import { useAuth } from '../contexts/AuthContext';
 import { can, isCachedPermissionsLoaded } from '../utils/permissions';
 import { UserRole } from '../types/auth';
 import CreateWarehouseIssueModal from './CreateWarehouseIssueModal';
-import CreatePurchaseRequestModal from './CreatePurchaseRequestModal';
+import CreateReplenishmentRequestModal from './CreateReplenishmentRequestModal';
 import CreateWarehouseReceiptModal from './CreateWarehouseReceiptModal';
 import PartialFulfillmentModal from './PartialFulfillmentModal';
 import type { SupplyRequestItem } from '../services/supplyRequestService';
+import { internationalProductService, type InternationalProduct } from '../services/internationalProductService';
 import { parseNumberInput } from '../utils/numberInput';
 import warehouseService from '../services/warehouseService';
 import TableFilter, { FilterField } from './TableFilter';
 import Modal from './Modal';
 import ConfirmDialog from './common/ConfirmDialog';
 import UnitSelect from './common/UnitSelect';
+import ProductCombobox from './common/ProductCombobox';
+import { FormField, inputCls, readonlyCls, textareaCls } from './ModalForm';
 
 interface SupplyRequestManagementProps {
   onClose?: () => void;
 }
 
 interface EditItemRow {
+  /** `id` ties this row to its SupplyRequestItem so fulfilledQty/fulfillmentStatus survive an edit. */
+  id?: string;
+  internationalProductId: string | null;
   phanLoai: string;
   tenGoi: string;
   soLuong: number;
   donViTinh: string;
+  /** Null = line is new / never had a fulfilment; dropping it is safe. */
+  fulfilledQty: number | null;
+  isNewProduct?: boolean;
+  stockInfo?: { totalQuantity: number; unit: string };
 }
 
 const emptyEditRow = (): EditItemRow => ({
+  internationalProductId: null,
   phanLoai: '',
   tenGoi: '',
   soLuong: 0,
   donViTinh: 'Kg',
+  fulfilledQty: null,
 });
 
 const getStatusColor = (status: string) => {
@@ -190,7 +201,8 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   const [modalMode, setModalMode] = useState<'edit' | 'view'>('view');
   const [selectedRequest, setSelectedRequest] = useState<SupplyRequest | null>(null);
   const [showWarehouseIssueModal, setShowWarehouseIssueModal] = useState(false);
-  const [showPurchaseRequestModal, setShowPurchaseRequestModal] = useState(false);
+  // YCBS (YC-BS-…) — the warehouse→purchasing handoff, not a YCMH.
+  const [showReplenishmentModal, setShowReplenishmentModal] = useState(false);
   const [showWarehouseReceiptModal, setShowWarehouseReceiptModal] = useState(false);
   const [partialFulfillItem, setPartialFulfillItem] = useState<SupplyRequestItem | null>(null);
   const [inventoryCheckResult, setInventoryCheckResult] = useState<{
@@ -251,6 +263,68 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   const [editMucDich, setEditMucDich] = useState('');
   const [editMucDoUuTien, setEditMucDoUuTien] = useState('Trung bình');
   const [editGhiChu, setEditGhiChu] = useState('');
+  // Product catalogue + stock for the edit form, so goods are picked like in the
+  // create form (ProductCombobox) instead of free-text typing.
+  const [editProducts, setEditProducts] = useState<InternationalProduct[]>([]);
+  const [editStockCache, setEditStockCache] = useState<Map<string, { totalQuantity: number; unit: string }>>(new Map());
+
+  useEffect(() => {
+    if (showModal && modalMode === 'edit' && editProducts.length === 0) {
+      internationalProductService.getAllProducts(1, 10000)
+        .then((res) => setEditProducts(res.data || []))
+        .catch((err) => console.error('Error fetching products for edit:', err));
+    }
+  }, [showModal, modalMode, editProducts.length]);
+
+  const fetchEditStock = async (productId: string) => {
+    if (editStockCache.has(productId)) return editStockCache.get(productId)!;
+    try {
+      const response = await internationalProductService.getStockSummary(productId);
+      const stockInfo = { totalQuantity: response.data.totalQuantity, unit: response.data.unit || 'Kg' };
+      setEditStockCache((prev) => new Map(prev).set(productId, stockInfo));
+      return stockInfo;
+    } catch (error) {
+      console.error('Error fetching stock:', error);
+      return null;
+    }
+  };
+
+  const updateEditItem = (index: number, updates: Partial<EditItemRow>) =>
+    setEditItems((prev) => prev.map((row, i) => (i === index ? { ...row, ...updates } : row)));
+
+  const handleEditProductSelect = async (index: number, _productId: string | null, product: InternationalProduct | null) => {
+    const row = editItems[index];
+    // A line the warehouse already (partly) issued keeps its identity — changing it
+    // would orphan the fulfilment decisions recorded against it.
+    if (row?.fulfilledQty && row.fulfilledQty > 0) return;
+    if (!product) {
+      updateEditItem(index, { internationalProductId: null, tenGoi: '', phanLoai: '', donViTinh: 'Kg', stockInfo: undefined });
+      return;
+    }
+    const stockInfo = await fetchEditStock(product.id);
+    updateEditItem(index, {
+      internationalProductId: product.id,
+      tenGoi: product.tenSanPham,
+      phanLoai: product.loaiSanPham || '',
+      donViTinh: product.donViTinh || 'Kg',
+      isNewProduct: false,
+      stockInfo: stockInfo || undefined,
+    });
+  };
+
+  const handleEditCreateNew = (index: number, tenSanPham: string) => {
+    const row = editItems[index];
+    if (row?.fulfilledQty && row.fulfilledQty > 0) return;
+    updateEditItem(index, { internationalProductId: null, tenGoi: tenSanPham, phanLoai: '', donViTinh: 'Kg', isNewProduct: true, stockInfo: undefined });
+  };
+
+  const removeEditRow = (index: number) => {
+    const row = editItems[index];
+    // A partially issued line cannot be dropped — the audit trail and stock
+    // movements behind it would dangle. Enforced again server-side.
+    if (row?.fulfilledQty && row.fulfilledQty > 0) return;
+    setEditItems((prev) => prev.filter((_, i) => i !== index));
+  };
 
   useEffect(() => {
     fetchRequests();
@@ -318,13 +392,25 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
     pushDetailId(item.id);
     setModalMode('edit');
     setSelectedRequest(item);
+    // Carry each line's id + fulfilledQty: the server matches on id to preserve the
+    // fulfilment audit (delete-then-recreate would otherwise reset it to 0).
     const rows: EditItemRow[] = (item.items && item.items.length > 0)
-      ? item.items.map(i => ({ phanLoai: i.phanLoai, tenGoi: i.tenGoi, soLuong: i.soLuong, donViTinh: i.donViTinh }))
+      ? item.items.map((i) => ({
+          id: i.id,
+          internationalProductId: null,
+          phanLoai: i.phanLoai,
+          tenGoi: i.tenGoi,
+          soLuong: i.soLuong,
+          donViTinh: i.donViTinh,
+          fulfilledQty: i.fulfilledQty ?? null,
+          isNewProduct: i.isNewProduct,
+        }))
       : [emptyEditRow()];
     setEditItems(rows);
     setEditMucDich(item.mucDichYeuCau);
     setEditMucDoUuTien(item.mucDoUuTien);
     setEditGhiChu(item.ghiChu || '');
+    setEditStockCache(new Map());
     setShowModal(true);
   };
 
@@ -333,6 +419,19 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
     setModalMode('view');
     setSelectedRequest(item);
     setShowModal(true);
+  };
+
+  /**
+   * Single exit for the detail modal. Every close path must go through this —
+   * the header X and the "Đóng"/"Hủy" buttons previously called
+   * `setShowModal(false)` alone, leaving `?supplyRequestId=` on the URL. That
+   * param is deep-link-readable, so the next reload — or a tab switch away and
+   * back — silently reopened a record the user had already dismissed, and Back
+   * needed two presses to leave the page.
+   */
+  const closeDetailModal = () => {
+    setShowModal(false);
+    popDetailId();
   };
 
   const handleDelete = (id: string) => {
@@ -385,22 +484,32 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
 
     // Validate rows
     for (let i = 0; i < editItems.length; i++) {
-      if (!editItems[i].phanLoai || !editItems[i].phanLoai.trim()) {
-        alert(`Dòng ${i + 1}: Vui lòng nhập phân loại`);
+      const row = editItems[i];
+      if (!row.tenGoi || !row.tenGoi.trim()) {
+        alert(`Dòng ${i + 1}: Vui lòng chọn hàng hóa`);
         return;
       }
-      if (!editItems[i].tenGoi || !editItems[i].tenGoi.trim()) {
-        alert(`Dòng ${i + 1}: Vui lòng nhập tên gọi`);
-        return;
-      }
-      if (!editItems[i].donViTinh || !editItems[i].donViTinh.trim()) {
+      if (!row.donViTinh || !row.donViTinh.trim()) {
         alert(`Dòng ${i + 1}: Vui lòng chọn đơn vị tính`);
         return;
       }
-      if (editItems[i].soLuong <= 0) {
+      if (row.soLuong <= 0) {
         alert(`Dòng ${i + 1}: Số lượng phải lớn hơn 0`);
         return;
       }
+      // Cannot un-deliver: quantity may only stay at or rise above what the
+      // warehouse already handed out (the server enforces the same rule).
+      if (row.fulfilledQty && row.soLuong < row.fulfilledQty - 1e-9) {
+        alert(`Dòng ${i + 1}: Số lượng không thể thấp hơn mức đã cấp (${row.fulfilledQty})`);
+        return;
+      }
+    }
+
+    const names = editItems.map((r) => (r.tenGoi || '').trim().toLowerCase()).filter(Boolean);
+    const dup = names.find((name, idx) => names.indexOf(name) !== idx);
+    if (dup) {
+      alert(`Hàng hóa "${editItems.find((r) => r.tenGoi.trim().toLowerCase() === dup)?.tenGoi}" bị trùng lặp`);
+      return;
     }
 
     if (!editMucDich || !editMucDich.trim()) {
@@ -411,13 +520,21 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
     setLoading(true);
     try {
       await supplyRequestService.updateSupplyRequest(selectedRequest.id, {
-        items: editItems,
+        items: editItems.map((row) => ({
+          // id lets the server carry over fulfilledQty / fulfillmentStatus.
+          ...(row.id ? { id: row.id } : {}),
+          phanLoai: row.phanLoai || 'Khác',
+          tenGoi: row.tenGoi,
+          soLuong: row.soLuong,
+          donViTinh: row.donViTinh,
+          isNewProduct: row.isNewProduct ?? false,
+        })),
         mucDichYeuCau: editMucDich,
         mucDoUuTien: editMucDoUuTien,
         ghiChu: editGhiChu,
       });
       alert('Cập nhật yêu cầu cung cấp thành công!');
-      setShowModal(false);
+      closeDetailModal();
       fetchRequests();
     } catch (error: any) {
       alert(error.response?.data?.message || 'Lỗi khi cập nhật yêu cầu cung cấp');
@@ -666,7 +783,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
       {/* Modal Edit/View */}
       <Modal
         isOpen={showModal && !!selectedRequest}
-        onClose={() => { setShowModal(false); popDetailId(); }}
+        onClose={closeDetailModal}
         showBackdrop
         closeOnBackdrop={modalMode === 'view'}
       >
@@ -677,7 +794,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
               <h2 className="text-xl font-semibold">
                 {modalMode === 'edit' ? 'Chỉnh sửa yêu cầu' : 'Chi tiết yêu cầu'}
               </h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={closeDetailModal} aria-label="Đóng" className="text-gray-400 hover:text-gray-600">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -806,28 +923,101 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                   </div>
 
                   {/* Linked purchasing / warehouse docs */}
-                  {(selectedRequest.purchaseRequests?.length || selectedRequest.warehouseReceipts?.length) ? (
+                  {(selectedRequest.replenishmentRequests?.length || selectedRequest.purchaseRequests?.length || selectedRequest.warehouseReceipts?.length) ? (
                     <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm">
                       <div className="font-medium text-gray-700 mb-2">Liên kết</div>
+                      {selectedRequest.replenishmentRequests && selectedRequest.replenishmentRequests.length > 0 && (
+                        <div className="mb-2">
+                          <div className="text-xs text-gray-500 mb-1">Yêu cầu bổ sung</div>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedRequest.replenishmentRequests.map((rr) => (
+                              <span key={rr.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-white border border-amber-200">
+                                <PackageOpen className="h-3 w-3 text-amber-600" />
+                                <span className="font-medium text-gray-800">{rr.maYeuCau}</span>
+                                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${rr.trangThai === 'Đã chuyển mua hàng' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{rr.trangThai}</span>
+                                {rr.convertedPurchaseRequest ? (
+                                  <span className="text-[11px] text-blue-600">→ {rr.convertedPurchaseRequest.maYeuCau}</span>
+                                ) : null}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       {selectedRequest.purchaseRequests && selectedRequest.purchaseRequests.length > 0 && (
                         <div className="mb-2">
                           <div className="text-xs text-gray-500 mb-1">Yêu cầu mua hàng</div>
                           <div className="flex flex-wrap gap-2">
-                            {selectedRequest.purchaseRequests.map((pr: any) => (
-                              <span key={pr.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-white border border-gray-200">
-                                <ShoppingCart className="h-3 w-3 text-blue-600" />
-                                <span className="font-medium text-gray-800">{pr.maYeuCau}</span>
-                                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${pr.trangThai === 'Hoàn thành' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{pr.trangThai}</span>
-                              </span>
-                            ))}
+                            {selectedRequest.purchaseRequests.map((pr) => {
+                              const itemCount = pr.items?.length ?? 0;
+                              // Which of these purchases the warehouse already received —
+                              // the receipt carries purchaseRequestId since the YCBS split.
+                              const receivedBy = (selectedRequest.warehouseReceipts ?? []).filter((wr) => wr.purchaseRequestId === pr.id);
+                              return (
+                                <span key={pr.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-white border border-gray-200">
+                                  <ShoppingCart className="h-3 w-3 text-blue-600" />
+                                  <span className="font-medium text-gray-800">{pr.maYeuCau}</span>
+                                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${pr.trangThai === 'Hoàn thành' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{pr.trangThai}</span>
+                                  {itemCount > 0 && (
+                                    <span
+                                      className="text-[10px] text-gray-500"
+                                      title={pr.items!.map((it) => `${it.tenHangHoa}: ${it.soLuong}${it.donViTinh ? ` ${it.donViTinh}` : ''}`).join(' · ')}
+                                    >
+                                      · {itemCount} dòng
+                                    </span>
+                                  )}
+                                  {receivedBy.length > 0 && (
+                                    <span className="text-[10px] text-green-700">· đã nhập {receivedBy.map((wr) => wr.maPhieuNhap).join(', ')}</span>
+                                  )}
+                                </span>
+                              );
+                            })}
                           </div>
+                          {/* Per-line purchased quantities, so the warehouse knows what to receive. */}
+                          {selectedRequest.purchaseRequests
+                            .filter((pr) => pr.trangThai === 'Hoàn thành' && (pr.items?.length ?? 0) > 0)
+                            .map((pr) => (
+                              <table key={`items-${pr.id}`} className="mt-2 w-full text-xs border border-gray-200 rounded overflow-hidden">
+                                <thead className="bg-gray-50 text-gray-500">
+                                  <tr>
+                                    <th className="px-2 py-1 text-left font-medium">Đã mua theo {pr.maYeuCau}</th>
+                                    <th className="px-2 py-1 text-right font-medium w-24">Số lượng</th>
+                                    <th className="px-2 py-1 text-left font-medium w-20">ĐVT</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                  {(pr.items ?? []).map((it, i) => {
+                                    // A line the warehouse added by hand on the YCBS was never
+                                    // part of this request — flag it so the receiver knows.
+                                    const onSr = (selectedRequest.items ?? []).some((sr) =>
+                                      sr.tenGoi.trim().toLowerCase() === it.tenHangHoa.trim().toLowerCase());
+                                    return (
+                                      <tr key={`${pr.id}-${i}`}>
+                                        <td className="px-2 py-1">
+                                          {it.tenHangHoa}
+                                          {!onSr && (
+                                            <span
+                                              className="ml-1 px-1 py-0.5 rounded text-[9px] bg-violet-100 text-violet-700"
+                                              title="Không nằm trong yêu cầu cung cấp gốc — do kho thêm vào yêu cầu bổ sung"
+                                            >
+                                              ngoài YC
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className="px-2 py-1 text-right font-medium text-blue-700">{Number(it.soLuong).toLocaleString('vi-VN')}</td>
+                                        <td className="px-2 py-1 text-gray-500">{it.donViTinh || '—'}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            ))}
                         </div>
                       )}
                       {selectedRequest.warehouseReceipts && selectedRequest.warehouseReceipts.length > 0 && (
                         <div>
                           <div className="text-xs text-gray-500 mb-1">Phiếu nhập kho</div>
                           <div className="flex flex-wrap gap-2">
-                            {selectedRequest.warehouseReceipts.map((wr: any) => (
+                            {selectedRequest.warehouseReceipts.map((wr) => (
                               <span key={wr.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-white border border-gray-200">
                                 <PackagePlus className="h-3 w-3 text-green-600" />
                                 <span className="font-medium text-gray-800">{wr.maPhieuNhap}</span>
@@ -861,7 +1051,19 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                               </div>
                               <div className="text-[11px] text-gray-400 whitespace-nowrap">
                                 {d.decidedAt ? new Date(d.decidedAt).toLocaleString('vi-VN') : ''}
-                                {d.triggeredPurchaseRequestId ? <span className="ml-2 text-blue-600">→ YC mua hàng #{d.triggeredPurchaseRequestId.slice(0, 8)}</span> : null}
+                                {/* New path: decision → YCBS (which may already be → YCMH). */}
+                                {d.triggeredReplenishmentRequest ? (
+                                  <span className="ml-2 text-amber-700">
+                                    → {d.triggeredReplenishmentRequest.maYeuCau}
+                                    {d.triggeredReplenishmentRequest.trangThai === 'Đã chuyển mua hàng' && d.triggeredReplenishmentRequest.convertedPurchaseRequest
+                                      ? <span className="text-blue-600"> → {d.triggeredReplenishmentRequest.convertedPurchaseRequest.maYeuCau}</span>
+                                      : null}
+                                  </span>
+                                ) : null}
+                                {/* Legacy: decision created a SHORTAGE PurchaseRequest directly. */}
+                                {!d.triggeredReplenishmentRequest && d.triggeredPurchaseRequest ? (
+                                  <span className="ml-2 text-blue-600">→ {d.triggeredPurchaseRequest.maYeuCau}</span>
+                                ) : null}
                                 {d.reason ? <span className="ml-2 text-gray-500">— {d.reason}</span> : null}
                               </div>
                             </div>
@@ -893,7 +1095,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                       <button
                         type="button"
                         onClick={() => {
-                          setShowModal(false);
+                          closeDetailModal();
                           setShowWarehouseIssueModal(true);
                         }}
                         className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center justify-center gap-1.5"
@@ -901,14 +1103,18 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                         <Package className="h-3.5 w-3.5" />
                         Tạo xuất kho
                       </button>
-                      {!isPurchasing(selectedRequest.trangThai) && !(selectedRequest.purchaseRequests && selectedRequest.purchaseRequests.length > 0) && (
+                      {/* Manual YCBS: warehouse routes the remaining shortage to purchasing by
+                          hand. Hidden once this SR already has a YCBS or a YCMH (purchasing is on it). */}
+                      {!(selectedRequest.replenishmentRequests?.length)
+                        && !(selectedRequest.purchaseRequests?.length)
+                        && !isPurchasing(selectedRequest.trangThai) && (
                       <button
                         type="button"
                         onClick={() => {
-                          setShowModal(false);
-                          setShowPurchaseRequestModal(true);
+                          closeDetailModal();
+                          setShowReplenishmentModal(true);
                         }}
-                        className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center gap-1.5"
+                        className="px-3 py-1.5 text-xs bg-amber-600 text-white rounded-md hover:bg-amber-700 flex items-center justify-center gap-1.5"
                       >
                         <ShoppingCart className="h-3.5 w-3.5" />
                         Tạo yêu cầu bổ sung
@@ -919,7 +1125,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                     <div className="flex gap-3">
                       <button
                         type="button"
-                        onClick={() => setShowModal(false)}
+                        onClick={closeDetailModal}
                         className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
                       >
                         Đóng
@@ -928,7 +1134,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                         <button
                           type="button"
                           onClick={() => {
-                            setShowModal(false);
+                            closeDetailModal();
                             handleCancel(selectedRequest.id);
                           }}
                           className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 flex items-center gap-1.5"
@@ -939,10 +1145,9 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                       )}
                       <button
                         type="button"
-                        onClick={() => {
-                          setShowModal(false);
-                          handleEdit(selectedRequest);
-                        }}
+                        // handleEdit re-opens the same modal in edit mode (and re-pushes
+                        // the id), so there is no close here to reconcile.
+                        onClick={() => handleEdit(selectedRequest)}
                         disabled={!canEdit || isCompleted(selectedRequest.trangThai)}
                         title={isCompleted(selectedRequest.trangThai) ? "Yêu cầu đã hoàn thành, không thể chỉnh sửa" : (!canEdit ? "Bạn không có quyền chỉnh sửa" : "")}
                         className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
@@ -956,130 +1161,214 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
               ) : (
                 /* Edit mode */
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  {/* Items edit table */}
+                  {/* Header fields the user must not type — derived from the record. */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField label="Người tạo">
+                      <input type="text" readOnly value={selectedRequest.tenNhanVien || '—'} className={readonlyCls} />
+                    </FormField>
+                    <FormField label="Mã nhân viên">
+                      <input type="text" readOnly value={selectedRequest.maNhanVien || '—'} className={readonlyCls} />
+                    </FormField>
+                    <FormField label="Bộ phận">
+                      <input type="text" readOnly value={normalizeBoPhanLabel(selectedRequest.boPhan)} className={readonlyCls} />
+                    </FormField>
+                    <FormField label="Mã yêu cầu">
+                      <input type="text" readOnly value={selectedRequest.maYeuCau} className={readonlyCls} />
+                    </FormField>
+                    <FormField label="Thời gian tạo">
+                      <input
+                        type="text"
+                        readOnly
+                        value={new Date(selectedRequest.createdAt).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' })}
+                        className={readonlyCls}
+                      />
+                    </FormField>
+                    <FormField label="Cập nhật lúc">
+                      <input
+                        type="text"
+                        readOnly
+                        value={new Date(selectedRequest.updatedAt).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' })}
+                        className={readonlyCls}
+                      />
+                    </FormField>
+                  </div>
+
+                  {/* Danh sách hàng hóa — card layout mirroring the create form: goods are
+                      picked from the catalogue, and a line the warehouse already issued
+                      keeps its identity locked (only the quantity may rise). */}
                   <div>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
-                      <label className="text-sm font-medium text-gray-700">Danh sách sản phẩm <span className="text-red-500">*</span></label>
+                      <label className="text-sm font-medium text-gray-700">
+                        Danh sách hàng hóa <span className="text-red-500">*</span>
+                      </label>
                       <button
                         type="button"
                         onClick={() => setEditItems(prev => [...prev, emptyEditRow()])}
-                        className="flex items-center justify-center gap-1 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                       >
-                        <Plus className="h-3 w-3" />
-                        Thêm dòng
+                        <Plus className="h-4 w-4" />
+                        Thêm hàng hóa
                       </button>
                     </div>
-                    <div className="border border-gray-200 rounded-md overflow-x-auto">
-                      <table className="w-full min-w-[720px] text-sm">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase w-6">#</th>
-                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Phân loại</th>
-                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tên gọi</th>
-                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase w-24">Số lượng</th>
-                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase w-24">Đơn vị</th>
-                            <th className="px-2 py-2 w-8"></th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {editItems.map((row, idx) => (
-                            <tr key={idx}>
-                              <td className="px-2 py-2 text-gray-500 text-center">{idx + 1}</td>
-                              <td className="px-2 py-2">
-                                <input
-                                  type="text"
-                                  value={row.phanLoai}
-                                  onChange={(e) => setEditItems(prev => prev.map((r, i) => i === idx ? { ...r, phanLoai: e.target.value } : r))}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                  placeholder="Phân loại"
-                                />
-                              </td>
-                              <td className="px-2 py-2">
-                                <input
-                                  type="text"
-                                  value={row.tenGoi}
-                                  onChange={(e) => setEditItems(prev => prev.map((r, i) => i === idx ? { ...r, tenGoi: e.target.value } : r))}
-                                  required
-                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                  placeholder="Tên gọi"
-                                />
-                              </td>
-                              <td className="px-2 py-2">
-                                <input
-                                  type="number"
-                                  value={row.soLuong}
-                                  onChange={(e) => setEditItems(prev => prev.map((r, i) => i === idx ? { ...r, soLuong: parseNumberInput(e.target.value) } : r))}
-                                  required
-                                  min="0.01"
-                                  step="0.01"
-                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                />
-                              </td>
-                              <td className="px-2 py-2">
-                                <UnitSelect
-                                  value={row.donViTinh}
-                                  onChange={(val) => setEditItems(prev => prev.map((r, i) => i === idx ? { ...r, donViTinh: val } : r))}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                />
-                              </td>
-                              <td className="px-2 py-2 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => setEditItems(prev => prev.filter((_, i) => i !== idx))}
-                                  disabled={editItems.length === 1}
-                                  className="text-red-500 hover:text-red-700 disabled:text-gray-300"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+
+                    <div className="space-y-3">
+                      {editItems.map((row, idx) => {
+                        const locked = (row.fulfilledQty ?? 0) > 0;
+                        const belowFulfilled = locked && row.soLuong < (row.fulfilledQty ?? 0) - 1e-9;
+                        const hasStockWarning = !locked && row.stockInfo && row.soLuong > row.stockInfo.totalQuantity;
+                        return (
+                          <div
+                            key={row.id ?? `new-${idx}`}
+                            className={`p-4 border rounded-lg transition-all ${
+                              belowFulfilled || hasStockWarning ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200 bg-gray-50/50'
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-semibold text-sm shrink-0 mt-1">
+                                {idx + 1}
+                              </div>
+
+                              <div className="flex-1 space-y-3">
+                                {locked ? (
+                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <FormField label="Phân loại">
+                                      <input type="text" readOnly value={row.phanLoai} className={readonlyCls} />
+                                    </FormField>
+                                    <FormField label="Tên hàng hóa">
+                                      <input type="text" readOnly value={row.tenGoi} className={readonlyCls} />
+                                    </FormField>
+                                    <FormField label="Đơn vị">
+                                      <input type="text" readOnly value={row.donViTinh} className={readonlyCls} />
+                                    </FormField>
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <FormField label="Hàng hóa" required>
+                                      <ProductCombobox
+                                        products={editProducts}
+                                        value={row.internationalProductId}
+                                        onChange={(productId, product) => handleEditProductSelect(idx, productId, product)}
+                                        onCreateNew={(name) => handleEditCreateNew(idx, name)}
+                                        allowCreate
+                                        placeholder="Tìm theo mã, tên hoặc loại hàng hóa, hoặc nhập tên mới..."
+                                      />
+                                    </FormField>
+                                    {!row.internationalProductId && row.tenGoi && (
+                                      <p className="mt-1.5 text-xs text-amber-700 flex items-center gap-1">
+                                        <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+                                        Chưa có trong danh mục hàng hóa — kho sẽ xem xét khi xử lý
+                                      </p>
+                                    )}
+                                    {row.stockInfo && (
+                                      <div className={`mt-1.5 flex items-center gap-1.5 text-xs ${hasStockWarning ? 'text-amber-700' : 'text-green-700'}`}>
+                                        <Package className="h-3.5 w-3.5" />
+                                        <span>
+                                          Tồn kho: <strong>{row.stockInfo.totalQuantity} {row.stockInfo.unit}</strong>
+                                        </span>
+                                        {hasStockWarning && <span className="text-amber-600 font-medium ml-1">(Yêu cầu vượt tồn!)</span>}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  <FormField label="Số lượng" required>
+                                    <input
+                                      type="number"
+                                      value={row.soLuong || ''}
+                                      onChange={(e) => updateEditItem(idx, { soLuong: parseNumberInput(e.target.value) })}
+                                      required
+                                      min={locked ? String(row.fulfilledQty) : '0.01'}
+                                      step="0.01"
+                                      className={inputCls(belowFulfilled)}
+                                      placeholder="0.00"
+                                    />
+                                  </FormField>
+                                  {locked ? (
+                                    <div className="flex items-end">
+                                      <p className="text-xs text-gray-500 pb-2">
+                                        Đã cấp: <strong className="text-blue-700">{row.fulfilledQty} {row.donViTinh}</strong>
+                                        {' '}— không thể giảm xuống dưới mức này
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    <FormField label="Đơn vị" required>
+                                      <UnitSelect
+                                        value={row.donViTinh}
+                                        onChange={(val) => updateEditItem(idx, { donViTinh: val })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                      />
+                                    </FormField>
+                                  )}
+                                </div>
+
+                                {belowFulfilled && (
+                                  <p className="text-xs text-amber-700 flex items-center gap-1">
+                                    <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+                                    Số lượng thấp hơn mức đã cấp ({row.fulfilledQty} {row.donViTinh})
+                                  </p>
+                                )}
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => removeEditRow(idx)}
+                                disabled={locked || editItems.length === 1}
+                                title={locked ? 'Dòng này đã được cấp phát — không thể xóa' : 'Xóa dòng'}
+                                className="p-2 text-red-500 hover:bg-red-50 rounded-lg disabled:opacity-25 disabled:cursor-not-allowed shrink-0"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
 
                   {/* Other edit fields */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Mục đích yêu cầu <span className="text-red-500">*</span></label>
+                  <FormField label="Mục đích yêu cầu" required>
                     <textarea
                       value={editMucDich}
                       onChange={(e) => setEditMucDich(e.target.value)}
                       required
                       rows={2}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                      className={textareaCls()}
                     />
-                  </div>
+                  </FormField>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Mức độ ưu tiên <span className="text-red-500">*</span></label>
-                    <select
-                      value={editMucDoUuTien}
-                      onChange={(e) => setEditMucDoUuTien(e.target.value)}
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                    >
-                      <option value="Cao">Cao</option>
-                      <option value="Trung bình">Trung bình</option>
-                      <option value="Thấp">Thấp</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-                    <textarea
-                      value={editGhiChu}
-                      onChange={(e) => setEditGhiChu(e.target.value)}
-                      rows={2}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                    />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField label="Mức độ ưu tiên" required>
+                      <select
+                        value={editMucDoUuTien}
+                        onChange={(e) => setEditMucDoUuTien(e.target.value)}
+                        required
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      >
+                        <option value="Cao">Cao</option>
+                        <option value="Trung bình">Trung bình</option>
+                        <option value="Thấp">Thấp</option>
+                      </select>
+                    </FormField>
+                    <FormField label="Ghi chú">
+                      <textarea
+                        value={editGhiChu}
+                        onChange={(e) => setEditGhiChu(e.target.value)}
+                        rows={2}
+                        className={textareaCls()}
+                      />
+                    </FormField>
                   </div>
 
                   <div className="flex flex-col sm:flex-row sm:justify-end gap-3 pt-2">
-                    <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                    <button type="button" onClick={closeDetailModal} className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
                       Hủy
                     </button>
-                    <button type="submit" disabled={loading} className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50">
+                    <button
+                      type="submit"
+                      disabled={loading || editItems.some((row) => (row.fulfilledQty ?? 0) > 0 && row.soLuong < (row.fulfilledQty ?? 0) - 1e-9)}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
                       {loading ? 'Đang xử lý...' : 'Cập nhật'}
                     </button>
                   </div>
@@ -1099,13 +1388,20 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
         }}
       />
 
-      {/* Purchase Request Modal */}
-      <CreatePurchaseRequestModal
-        isOpen={showPurchaseRequestModal}
-        onClose={() => setShowPurchaseRequestModal(false)}
+      {/* Replenishment Request Modal — manual YCBS from the detail, not a YCMH */}
+      <CreateReplenishmentRequestModal
+        isOpen={showReplenishmentModal}
+        onClose={() => setShowReplenishmentModal(false)}
         supplyRequest={selectedRequest}
         onSuccess={() => {
           fetchRequests();
+          // Pull the clicked SR fresh so the new YCBS chip is visible without a full
+          // list refresh (and so "Tạo yêu cầu bổ sung" hides itself correctly).
+          if (selectedRequest?.id) {
+            supplyRequestService.getSupplyRequestById(selectedRequest.id).then((res) => {
+              if (res.data) setSelectedRequest(res.data as SupplyRequest);
+            }).catch(() => {});
+          }
         }}
       />
 

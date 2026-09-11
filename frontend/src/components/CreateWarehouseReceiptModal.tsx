@@ -78,6 +78,17 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
   const [nguoiDeNghi, setNguoiDeNghi] = useState('');
   const [boPhan, setBoPhan] = useState('');
   const [maNguoiDeNghi, setMaNguoiDeNghi] = useState('');
+  /**
+   * The YCMH this slip receives against. One slip = one YCMH, because the backend
+   * reconciles quantities against a single `purchaseRequestId`. When a supply
+   * request was bought in several completed batches, the warehouse picks which
+   * batch this slip receives instead of the modal silently using only the first.
+   */
+  const [linkedPurchaseRequestId, setLinkedPurchaseRequestId] = useState<string | null>(null);
+  /** Every `Hoàn thành` YCMH on this supply request that carries line items. */
+  const [completedPurchaseRequests, setCompletedPurchaseRequests] = useState<NonNullable<SupplyRequest['purchaseRequests']>>([]);
+  /** Purchased quantity keyed by normalized product name — drives the "đã mua" hint + client-side cap. */
+  const [purchasedByItem, setPurchasedByItem] = useState<Record<string, number>>({});
 
   const handleNguoiDeNghiChange = (name: string) => {
     setNguoiDeNghi(name);
@@ -98,6 +109,41 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
   const getLotsForWarehouse = (warehouseId: string): Lot[] =>
     warehouses.find((warehouse) => warehouse.id === warehouseId)?.lots ?? [];
 
+  const nameKeyOf = (v: unknown) => String(v ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+  /** Rebuild rows from one `Hoàn thành` YCMH (the batch being received). */
+  const applyPurchasePr = (prId: string | null) => {
+    const pr = (supplyRequest?.purchaseRequests ?? []).find((p) => p.id === prId);
+    const bought: Record<string, number> = {};
+    for (const it of (pr?.items ?? [])) {
+      const key = nameKeyOf(it.tenHangHoa);
+      if (!key) continue;
+      bought[key] = (bought[key] ?? 0) + (Number(it.soLuong) || 0);
+    }
+    setPurchasedByItem(bought);
+    setRows(
+      (pr?.items ?? []).map((it) => {
+        const key = nameKeyOf(it.tenHangHoa);
+        const srItem = (supplyRequest?.items ?? []).find((i) => nameKeyOf(i.tenGoi) === key);
+        return {
+          ...emptyRow(),
+          tenSanPham: it.tenHangHoa,
+          soLuong: Number(it.soLuong) || 0,
+          soLuongYeuCau: srItem ? Number(srItem.soLuong) || 0 : Number(it.soLuong) || 0,
+          donViTinh: it.donViTinh || srItem?.donViTinh || '',
+          phanLoai: srItem?.phanLoai || '',
+          ghiChu: `Nhập kho theo ${pr?.maYeuCau ?? ''} - ${it.tenHangHoa}`,
+        };
+      }),
+    );
+  };
+
+  /** Switching batch rebuilds the lines, so previously picked lots no longer apply. */
+  const handlePurchasePrChange = (prId: string) => {
+    setLinkedPurchaseRequestId(prId || null);
+    applyPurchasePr(prId || null);
+  };
+
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
@@ -115,36 +161,43 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
       setNguoiDeNghi(supplyRequest?.tenNhanVien ?? '');
       setBoPhan(supplyRequest?.boPhan ?? '');
       setMaNguoiDeNghi('');
-      // Prefill số lượng nhập: ưu tiên số THỰC MUA từ PR đã Hoàn thành (purchaseRequests
-      // gắn với SR và có item tenHangHoa khớp item.tenGoi), fallback về phần còn thiếu
-      // (soLuong - fulfilledQty) khi chưa có PR hoặc chưa có purchase history.
-      const remainingByItem: Record<string, number> = {};
-      const boughtByItem: Record<string, number> = {};
-      if (isSupplyBatch && (supplyRequest as any)?.purchaseRequests?.length) {
-        for (const pr of (supplyRequest as any).purchaseRequests as Array<{ trangThai: string; items?: Array<{ tenHangHoa?: string; soLuong?: number }> }>) {
-          if (pr.trangThai !== 'Hoàn thành' || !pr.items?.length) continue;
-          for (const it of pr.items) {
-            const name = String(it.tenHangHoa ?? '').trim().toLowerCase();
-            if (!name) continue;
-            boughtByItem[name] = (boughtByItem[name] ?? 0) + (Number(it.soLuong) || 0);
-          }
-        }
+
+      // ── What to receive ────────────────────────────────────────────────────
+      // When one or more YCMH are `Hoàn thành` they are the AUTHORITY on what was
+      // bought, not the supply request:
+      //  - purchasing may have bought a different quantity than was requested;
+      //  - the warehouse added hand-added lines to the YCBS that the supply request
+      //    never mentioned (those exist only on the PR).
+      // So we build the line list from a PR when one is available. When a supply
+      // request was purchased in several completed batches the warehouse picks which
+      // batch this slip receives instead of silently using only the first and then
+      // rejecting the other products as "không có trong YCMH".
+      const prs = supplyRequest?.purchaseRequests ?? [];
+      const completedPrs = prs.filter((pr) => pr.trangThai === 'Hoàn thành' && pr.items?.length);
+      setCompletedPurchaseRequests(completedPrs);
+      const primary = completedPrs[0] as (typeof prs)[number] | undefined;
+      let completedPr = primary;
+      if (linkedPurchaseRequestId) {
+        const keep = completedPrs.find((pr) => pr.id === linkedPurchaseRequestId);
+        if (keep) completedPr = keep;
+        else setLinkedPurchaseRequestId(primary?.id ?? null);
+      } else {
+        setLinkedPurchaseRequestId(primary?.id ?? null);
       }
-      for (const item of (supplyRequest?.items ?? [])) {
-        const name = String((item as any).tenGoi ?? '').trim().toLowerCase();
-        remainingByItem[name] = Math.max(0, Number((item as any).soLuong || 0) - Number((item as any).fulfilledQty || 0));
+      if (completedPr) {
+        // Receive exactly what was bought on the selected batch. Hand-added lines
+        // that the supply request never mentioned are covered because the PR has them.
+        applyPurchasePr(completedPr.id);
+        return;
       }
-      const prefillQty = (item: { tenGoi: string; soLuong: number }): number => {
-        const name = String(item.tenGoi ?? '').trim().toLowerCase();
-        if (name && boughtByItem[name] !== undefined) return boughtByItem[name];
-        if (name && remainingByItem[name] !== undefined) return remainingByItem[name];
-        return item.soLuong;
-      };
+      setPurchasedByItem({});
+      // No completed purchase: prefill each line's remaining shortage (the quantity
+      // the warehouse still owes the requester).
       setRows(isSupplyBatch
         ? (supplyRequest?.items ?? []).map((item) => ({
             ...emptyRow(),
             tenSanPham: item.tenGoi,
-            soLuong: prefillQty(item as { tenGoi: string; soLuong: number }),
+            soLuong: Math.max(0, Number(item.soLuong || 0) - Number(item.fulfilledQty || 0)),
             donViTinh: item.donViTinh,
             phanLoai: item.phanLoai || '',
             ghiChu: `Nhập kho cho ${supplyRequest?.maYeuCau} - ${item.tenGoi}`,
@@ -153,6 +206,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
     };
     initialize().catch((error) => console.error('Error initializing receipt modal:', error));
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, supplyRequest, isSupplyBatch]);
 
   const updateRow = (index: number, updates: Partial<ReceiptRow>) => {
@@ -299,6 +353,32 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
       return;
     }
 
+    // Client-side mirror of the backend reconciliation, so the operator sees which
+    // line overflows instead of a generic 400. Only applies when receiving against
+    // a specific YCMH — the server validates against that single purchaseRequestId.
+    if (linkedPurchaseRequestId && Object.keys(purchasedByItem).length > 0) {
+      const receivedByItem: Record<string, { label: string; qty: number }> = {};
+      for (const row of submittedRows) {
+        // Resolve the name exactly like the payload does, so this matches what the
+        // server will compare.
+        const lotProduct = row.lotProducts.find((candidate) => candidate.id === row.lotProductId);
+        const label = lotProduct?.internationalProduct?.tenSanPham || row.tenSanPham;
+        const key = nameKeyOf(label);
+        if (!key) continue;
+        receivedByItem[key] = { label, qty: (receivedByItem[key]?.qty ?? 0) + (Number(row.soLuong) || 0) };
+      }
+      const problems: string[] = [];
+      for (const [key, { label, qty }] of Object.entries(receivedByItem)) {
+        const bought = purchasedByItem[key];
+        if (bought === undefined) problems.push(`"${label}" không có trong yêu cầu mua hàng`);
+        else if (qty > bought + 1e-9) problems.push(`"${label}": nhập ${qty}, chỉ mua ${bought}`);
+      }
+      if (problems.length > 0) {
+        alert(`Không khớp với yêu cầu mua hàng đã hoàn thành:\n- ${problems.join('\n- ')}`);
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       const items = submittedRows.flatMap((row) => {
@@ -359,6 +439,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
         maPhieuNhap: code, employeeId: user?.employeeId || '', maNhanVien: user?.employeeCode || '',
         tenNhanVien: `${user?.lastName || ''} ${user?.firstName || ''}`.trim(), mucDich: mucDich || undefined,
         ghiChu: ghiChu || undefined, supplyRequestId: supplyRequest?.id,
+        purchaseRequestId: linkedPurchaseRequestId ?? undefined,
         nguoiDeNghi: nguoiDeNghi || undefined, maNguoiDeNghi: maNguoiDeNghi || undefined, boPhan: boPhan || undefined,
         items,
       });
@@ -386,7 +467,53 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
         </div>
         <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
           {supplyRequest && <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm"><span className="text-gray-600">Mã YC: </span><strong className="text-blue-700">{supplyRequest.maYeuCau}</strong><span className="ml-4 text-gray-600">Người yêu cầu: </span><strong>{supplyRequest.tenNhanVien}</strong></div>}
-          {supplyRequest?.items?.length ? (() => { const yc = (supplyRequest.items ?? []).map((it: any) => `${it.tenGoi}: yêu cầu ${it.soLuong}, đã cấp ${it.fulfilledQty ?? 0}, còn thiếu ${Math.max(0, it.soLuong - (it.fulfilledQty ?? 0))}`).join(' · '); return <div className="p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">{yc} {supplyRequest.purchaseRequests?.some((pr: any) => pr.trangThai === 'Hoàn thành') ? ' · số nhập mặc định theo đơn mua đã hoàn thành' : ''}</div>; })() : null}
+          {/* Purchased in several completed batches → the warehouse picks which one this
+              slip receives. One slip per YCMH, because the backend reconciles the slip
+              against a single purchaseRequestId. */}
+          {(completedPurchaseRequests?.length ?? 0) > 1 && (
+            <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+              <label htmlFor="receipt-pr-batch" className="block text-xs font-medium text-gray-700 mb-1">
+                Nhập theo yêu cầu mua hàng <span className="text-red-500">*</span>
+              </label>
+              <select
+                id="receipt-pr-batch"
+                value={linkedPurchaseRequestId ?? ''}
+                onChange={(event) => handlePurchasePrChange(event.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white"
+              >
+                {(completedPurchaseRequests ?? []).map((pr) => (
+                  <option key={pr.id} value={pr.id}>{pr.maYeuCau} — {pr.items?.length ?? 0} dòng</option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-indigo-800">
+                Yêu cầu này được mua thành {completedPurchaseRequests?.length} đợt đã hoàn thành — mỗi phiếu nhập tương ứng một yêu cầu mua hàng. Đổi đợt sẽ nạp lại danh sách dòng.
+              </p>
+            </div>
+          )}
+          {/* What purchasing actually bought — the authority for this slip when a YCMH is completed. */}
+          {linkedPurchaseRequestId ? (
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-xs text-green-900">
+              <div className="font-semibold mb-1">
+                Nhập theo yêu cầu mua hàng đã hoàn thành — số lượng mặc định bằng số đã mua
+                {(() => {
+                  const pr = (supplyRequest?.purchaseRequests ?? []).find((p) => p.id === linkedPurchaseRequestId);
+                  return pr ? ` (${pr.maYeuCau})` : '';
+                })()}
+              </div>
+              <ul className="list-disc pl-5 space-y-0.5">
+                {Object.entries(purchasedByItem).map(([key, qty]) => (
+                  <li key={key}>
+                    {rows.find((r) => nameKeyOf(r.tenSanPham) === key)?.tenSanPham ?? key}: <strong>{qty}</strong>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1 text-green-800">Có thể giảm nếu hàng thiếu/hư, nhưng không được nhập vượt số đã mua.</p>
+            </div>
+          ) : supplyRequest?.items?.length ? (
+            <div className="p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
+              {supplyRequest.items.map((it) => `${it.tenGoi}: yêu cầu ${it.soLuong}, đã cấp ${it.fulfilledQty ?? 0}, còn thiếu ${Math.max(0, it.soLuong - (it.fulfilledQty ?? 0))}`).join(' · ')}
+            </div>
+          ) : null}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Mã phiếu nhập</label><input value={code} readOnly className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100" /></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Nhân viên lập phiếu</label><input value={`${user?.lastName || ''} ${user?.firstName || ''}`.trim()} readOnly className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100" /></div>
