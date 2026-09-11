@@ -28,6 +28,9 @@ import { can } from '../../utils/permissions';
 import { useAuth } from '../../contexts/AuthContext';
 import { labelForPurchaseRequest } from '../../utils/purchaseRequestLabel';
 import ReplenishmentList from '../../components/ReplenishmentList';
+import ReplenishmentDetailModal from '../../components/ReplenishmentDetailModal';
+import type { ReplenishmentRequest } from '../../services/replenishmentRequestService';
+import replenishmentRequestService from '../../services/replenishmentRequestService';
 import { useUrlTab, useUrlDetailId } from '../../hooks/useUrlState';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -89,6 +92,10 @@ const PurchasingEquipment = () => {
   // ?purchaseRequestId= — written when a row is opened, cleared when closed, so a
   // reload or a shared link reopens the same record instead of losing it.
   const { id: urlPrId, open: pushPrId, close: popPrId, syncingRef: prSyncing } = useUrlDetailId('purchaseRequestId');
+  // ?replenishmentRequestId= — the YCBS queue (YC-BS-…) that replaced the old SHORTAGE-PR list.
+  const { id: urlYbsId, open: pushYbsId, close: popYbsId, syncingRef: ybsSyncing } = useUrlDetailId('replenishmentRequestId');
+  const [selectedYbs, setSelectedYbs] = useState<ReplenishmentRequest | null>(null);
+  const [ybsModalOpen, setYbsModalOpen] = useState(false);
   const { value: activeTab, set: setActiveTab } = useUrlTab<TabType>(
     'tab',
     (v): v is TabType => !!v && (VALID_TABS as readonly string[]).includes(v),
@@ -172,6 +179,23 @@ const PurchasingEquipment = () => {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlPrId]);
+
+  // Open a specific YCBS from ?replenishmentRequestId= (notification deep-link or
+  // reload). Lands on the replenishment tab and opens the pricing/convert modal.
+  useEffect(() => {
+    if (ybsSyncing.current) { ybsSyncing.current = false; return; }
+    if (!urlYbsId) return;
+    let cancelled = false;
+    setActiveTab('replenishment');
+    replenishmentRequestService.getReplenishmentRequestById(urlYbsId).then((res: any) => {
+      const row = (res?.data?.data ?? res?.data) as ReplenishmentRequest | undefined;
+      if (!cancelled && row) { setSelectedYbs(row); setYbsModalOpen(true); }
+    }).catch((err) => {
+      console.error('Error loading replenishment request from URL:', err);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlYbsId]);
 
   // State for purchase requests
   const [purchaseRequests, setPurchaseRequests] = useState<PurchaseRequest[]>([]);
@@ -1015,10 +1039,22 @@ const PurchasingEquipment = () => {
 
           {activeTab === 'replenishment' && (
             <ReplenishmentList
-              onOpenDetail={(pr) => setSelectedPurchaseRequest(pr)}
+              onOpenDetail={(ybs) => { setSelectedYbs(ybs); pushYbsId(ybs.id); setYbsModalOpen(true); }}
               onOpenSupplyRequest={(id) => window.open(`/supply-requests?supplyRequestId=${id}`, '_blank')}
             />
           )}
+
+        {/* YCBS detail — purchasing fills giá/NCC then converts to YCMH */}
+        <ReplenishmentDetailModal
+          isOpen={ybsModalOpen}
+          onClose={() => { setYbsModalOpen(false); setSelectedYbs(null); popYbsId(); }}
+          ybs={selectedYbs}
+          onConverted={() => {
+            popYbsId();
+            // The new YCMH belongs to the purchase-request list; refresh it when visible.
+            if (activeTab === 'purchaseRequestList') fetchPurchaseRequests();
+          }}
+        />
 
         {/* Supplier Detail Modal */}
         {isDetailModalOpen && selectedItem && (
