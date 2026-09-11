@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import WarehouseReceiptTab from '../../components/WarehouseReceiptTab';
@@ -55,7 +56,14 @@ function renderWithQuery(ui: ReactElement) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+  // WarehouseReceiptTab/WarehouseIssueTab go through useUrlDetailId → useSearchParams,
+  // so they must render inside a Router or they throw
+  // "useLocation() may be used only in the context of a <Router>".
+  return render(
+    <MemoryRouter>
+      <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
+    </MemoryRouter>,
+  );
 }
 
 const receipt = (overrides: Partial<WarehouseReceipt> = {}): WarehouseReceipt => ({
