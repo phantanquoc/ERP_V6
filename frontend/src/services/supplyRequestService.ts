@@ -66,8 +66,22 @@ export interface SupplyRequest {
   createdAt: string;
   updatedAt: string;
   items: SupplyRequestItem[];
-  purchaseRequests?: { id: string; trangThai: string; maYeuCau: string }[];
-  warehouseReceipts?: { id: string; maPhieuNhap: string }[];
+  /**
+   * YCMH attached to this request. `items` carries what purchasing actually bought
+   * (quantity per line), which is what the receipt modal prefills from — the supply
+   * request's own quantities can legitimately differ (over-ordering, and lines the
+   * warehouse added by hand to the YCBS that the request never mentioned).
+   * Legacy `sourceType='SHORTAGE'` rows are pre-YCBS shortages; both render as chips.
+   */
+  purchaseRequests?: Array<{
+    id: string; trangThai: string; maYeuCau: string; sourceType?: string;
+    items?: Array<{ tenHangHoa: string; soLuong: number; donViTinh?: string | null }>;
+  }>;
+  replenishmentRequests?: Array<{
+    id: string; maYeuCau: string; trangThai: string; phanLoaiGroup?: string | null;
+    convertedPurchaseRequest?: { id: string; maYeuCau: string } | null;
+  }>;
+  warehouseReceipts?: Array<{ id: string; maPhieuNhap: string; purchaseRequestId?: string | null }>;
 }
 
 export interface CreateSupplyRequestRequest {
@@ -85,7 +99,13 @@ export interface CreateSupplyRequestRequest {
 }
 
 export interface UpdateSupplyRequestRequest {
-  items?: { phanLoai: string; tenGoi: string; soLuong: number; donViTinh: string }[];
+  /**
+   * `id` ties each line back to its existing SupplyRequestItem so the server can
+   * preserve `fulfilledQty` / `fulfillmentStatus`; lines without an `id` are new.
+   * The server rejects edits that would erase fulfilment audit (dropping a line
+   * already issued, or lowering quantity below what was delivered).
+   */
+  items?: { id?: string; phanLoai: string; tenGoi: string; soLuong: number; donViTinh: string; isNewProduct?: boolean }[];
   mucDichYeuCau?: string;
   mucDoUuTien?: string;
   ghiChu?: string;

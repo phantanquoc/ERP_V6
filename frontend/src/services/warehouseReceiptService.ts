@@ -67,6 +67,11 @@ export interface CreateWarehouseReceiptData {
   mucDich?: string;
   ghiChu?: string;
   supplyRequestId?: string;
+  /**
+   * The YCMH this slip receives against. The server reconciles each received
+   * quantity against that single purchase request and rejects over-receipt.
+   */
+  purchaseRequestId?: string;
   nguoiDeNghi?: string;
   maNguoiDeNghi?: string;
   boPhan?: string;

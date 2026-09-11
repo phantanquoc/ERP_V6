@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Warehouse as WarehouseIcon, MapPinOff } from 'lucide-react';
 import type { Warehouse as WarehouseType } from '../services/warehouseService';
 import { useWarehouses } from '../hooks';
 import { useUrlDetailId } from '../hooks/useUrlState';
+import { resolveWarehouseParam } from '../utils/warehouseParam';
 import { hasWarehouseLayout } from '../constants/warehouseLayouts';
 import WarehouseManagement from './WarehouseManagement';
 import WarehouseMap from './WarehouseMap';
@@ -44,18 +45,46 @@ interface WarehouseUnifiedViewProps {
  * Kho không có CAD layout: management full-width như cũ
  */
 const WarehouseUnifiedView: React.FC<WarehouseUnifiedViewProps> = ({ initialWarehouseId }) => {
-  const { id: urlWarehouseId, open: openUrlWarehouse } = useUrlDetailId('warehouseId');
+  const { id: urlWarehouseId, open: openUrlWarehouse, close: closeUrlWarehouse, syncingRef } =
+    useUrlDetailId('warehouseId');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(
     urlWarehouseId ?? initialWarehouseId ?? null
   );
   const { data: warehousesData } = useWarehouses();
 
-  // Restore from URL on mount (e.g. shared link or reload after overview deep-link)
+  // Memoized: the deep-link effect below depends on this array, and a bare `?? []`
+  // would hand it a fresh reference on every render while the query is loading.
+  const warehouses = useMemo(
+    () => (warehousesData as WarehouseType[] | undefined) ?? [],
+    [warehousesData],
+  );
+
+  // Restore from URL on mount (e.g. shared link or reload after overview deep-link).
+  // The param may carry a cuid (what the UI writes) or a maKho (what people paste,
+  // e.g. ?warehouseId=KHOHH). Resolve either, rewrite the URL to the cuid so every
+  // consumer downstream sees one canonical form, and drop the param when it matches
+  // no warehouse — a dead param otherwise survives forever and re-selects a stale
+  // warehouse the next time this tab is opened.
   useEffect(() => {
-    if (urlWarehouseId && urlWarehouseId !== selectedWarehouseId) {
-      setSelectedWarehouseId(urlWarehouseId);
+    if (syncingRef.current) {
+      syncingRef.current = false;
+      return;
     }
-  }, [urlWarehouseId]);
+    // Empty list = not loaded yet, not "no match"; leave the param alone so a slow
+    // first fetch cannot erase a valid deep-link.
+    if (!urlWarehouseId || warehouses.length === 0) return;
+    const resolved = resolveWarehouseParam(warehouses, urlWarehouseId);
+    if (!resolved.warehouse || !resolved.canonicalId) {
+      closeUrlWarehouse();
+      return;
+    }
+    if (resolved.needsNormalize) openUrlWarehouse(resolved.canonicalId, { replace: true });
+    setSelectedWarehouseId(resolved.canonicalId);
+    // openUrlWarehouse/closeUrlWarehouse depend on searchParams, so listing them
+    // here would re-run this effect on the very URL write it performs. syncingRef
+    // is a stable ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlWarehouseId, warehouses]);
 
   // Sync selection to URL so reload/share keeps the same warehouse
   const setWarehouseWithUrl = (id: string | null) => {
@@ -63,7 +92,6 @@ const WarehouseUnifiedView: React.FC<WarehouseUnifiedViewProps> = ({ initialWare
     if (id) openUrlWarehouse(id);
   };
 
-  const warehouses = (warehousesData as WarehouseType[] | undefined) ?? [];
   const sortWarehouses = (list: WarehouseType[]) =>
     [...list].sort((a, b) => {
       const numA = parseInt(a.tenKho.replace(/\D/g, '')) || 0;

@@ -15,6 +15,7 @@ import {
 } from '../hooks';
 import { useProducts } from '../hooks';
 import { parseNumberInputStr } from '../utils/numberInput';
+import { resolveWarehouseParam } from '../utils/warehouseParam';
 import Modal from './Modal';
 import ProductCombobox from './common/ProductCombobox';
 import UnitSelect from './common/UnitSelect';
@@ -143,10 +144,17 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
   // (unified view có 2 thể hiện WarehouseManagement — nhánh có map và nhánh
   // không map) nó sẽ ghi đè lựa chọn hiện tại của người dùng, khiến bấm
   // kho không có bản đồ trên tab strip bị kéo ngược về kho ban đầu.
+  //
+  // Resolved through resolveWarehouseParam rather than a bare `w.id` compare so a
+  // maKho (what people read off the screen and paste, e.g. KHOHH) also selects the
+  // warehouse instead of silently matching nothing. The empty-list guard above
+  // already covers "not loaded yet"; a maKho that matches nothing simply leaves the
+  // selection untouched — this component owns no URL, so there is no param to
+  // normalize or delete here (the parent that wrote the prop does that).
   useEffect(() => {
     if (!initialWarehouseId || warehouses.length === 0) return;
     if (effectiveSelectedId !== null) return;
-    const target = warehouses.find((w: Warehouse) => w.id === initialWarehouseId);
+    const target = resolveWarehouseParam(warehouses, initialWarehouseId).warehouse;
     if (target) {
       setSelectedWarehouse(target);
       setCurrentPage(1);
