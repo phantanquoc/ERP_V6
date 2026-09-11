@@ -995,12 +995,9 @@ Phase 4: Smoke test (health endpoints + login + critical flows)
 Phase 5: Verify + Keep backup (giữ backup 7 ngày, log checksums)
 ```
 
-**Thông tin hạ tầng:**
+**Thông tin hạ tầng:** không lưu trong repo. Chi tiết (IP VPS, cổng SSH, project dir, backup dir) nằm trong `DEPLOY_PROD_PLAYBOOK.md` — file này **không track git** và chỉ được giữ trên máy dev/VPS nội bộ.
 
-- **VPS:** `erp@VPS_IP_REDACTED -p 2223`
-- **Project dir:** `/home/erp/ERP_V6`
-- **Backup dir:** `/backup/erp-backups/pre-deploy/`
-- **DB:** `erp_user` / `erp_database`
+- **DB:** `erp_user` / `erp_database` (mật khẩu set qua `.env` prod, xem `.env.production.example`)
 
 **Nguyên tắc:**
 

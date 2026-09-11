@@ -71,3 +71,6 @@ backups/
 
 # Local reports (weekly summaries, screenshot checks)
 reports/
+
+# Production deploy playbook — chứa IP/đường dẫn nội bộ, không push lên GitHub
+DEPLOY_PROD_PLAYBOOK.md

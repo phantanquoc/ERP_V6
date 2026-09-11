@@ -1,4 +1,7 @@
-# 🚀 Playbook Deploy Production — ERP_V6
+# Playbook Deploy Production — ERP_V6 (template)
+
+> Template public cho quy trình deploy prod. Bản chi tiết chứa IP/đường dẫn nội bộ **không push lên GitHub**.
+> Copy file này thành `DEPLOY_PROD_PLAYBOOK.md` trên máy local/VPS và thay placeholder bằng giá trị thật.
 
 Quy trình deploy prod an toàn, ưu tiên **KHÔNG BAO GIỜ MẤT DỮ LIỆU**.
 Áp dụng cho VPS Linux (Docker Compose). Chạy tuần tự Phase 0 → 5.
@@ -8,13 +11,13 @@ Quy trình deploy prod an toàn, ưu tiên **KHÔNG BAO GIỜ MẤT DỮ LIỆU*
 
 ---
 
-## Thông tin hạ tầng
+## Thông tin hạ tầng (điền trên máy local — không commit)
 
-- **VPS**: `erp@VPS_IP_REDACTED -p 2223`
-- **Project dir**: `/home/erp/ERP_V6`
-- **Backup dir**: `/backup/erp-backups/pre-deploy/`
+- **VPS**: `<user>@<VPS_IP> -p <SSH_PORT>`
+- **Project dir**: `<path>/ERP_V6` (ví dụ `/home/erp/ERP_V6` trên prod)
+- **Backup dir**: `<path>/erp-backups/pre-deploy/`
 - **Containers**: erp_backend, erp_frontend, erp_postgres, erp_redis, erp_ai, erp_nginx (+ portainer, netdata)
-- **DB**: postgres user `erp_user`, db `erp_database`
+- **DB**: user `erp_user`, db `erp_database`
 
 ---
 
@@ -22,15 +25,15 @@ Quy trình deploy prod an toàn, ưu tiên **KHÔNG BAO GIỜ MẤT DỮ LIỆU*
 
 ### 0.1 Pre-flight check
 ```bash
-cd /home/erp/ERP_V6
+cd <PROJECT_DIR>
 git status --short                    # phải sạch, không uncommitted trên prod
 git log --oneline -1                  # HEAD hiện tại (ghi lại để rollback)
 git fetch origin
 git log --oneline HEAD..origin/main   # xem sẽ pull bao nhiêu commit
-df -h /backup /                       # disk phải đủ (> tổng size backup dưới)
+df -h <BACKUP_DIR> /                  # disk phải đủ (> tổng size backup dưới)
 docker ps --format '{{.Names}}\t{{.Status}}'  # container đang healthy
 ```
-**GATE**: nếu working tree bẩn → DỪNG, hỏi user. Nếu disk `/backup` < 5GB trống → DỪNG.
+**GATE**: nếu working tree bẩn → DỪNG, hỏi user. Nếu disk backup < 5GB trống → DỪNG.
 
 ### 0.2 Kiểm tra migration destructive (nếu pull có migration mới)
 ```bash
@@ -43,7 +46,7 @@ git show origin/main:backend/prisma/migrations/<dir>/migration.sql
 ### 0.3 Backup 3 lớp
 ```bash
 TS=$(date +%Y%m%d_%H%M%S)
-BK=/backup/erp-backups/pre-deploy
+BK=<BACKUP_DIR>
 mkdir -p $BK
 # Lớp 1: pg_dump custom format
 docker compose exec -T postgres pg_dump -U erp_user -Fc erp_database > $BK/pre_deploy_$TS.dump
@@ -68,7 +71,7 @@ sha256sum $BK/*_$TS.* >> $BK/checksums.log
 ## Phase 1 — PULL (fast-forward only)
 
 ```bash
-cd /home/erp/ERP_V6
+cd <PROJECT_DIR>
 git fetch origin
 git merge --ff-only origin/main       # KHÔNG tạo merge commit; fail nếu diverged
 git log --oneline -1                  # xác nhận HEAD mới
@@ -132,14 +135,14 @@ docker compose logs --tail 30 backend | grep -iE 'error|exception' || echo "log 
 
 **Mode A — chỉ code, KHÔNG migration** (nhanh, đa số trường hợp):
 ```bash
-cd /home/erp/ERP_V6 && git reset --hard <OLD_HEAD>
+cd <PROJECT_DIR> && git reset --hard <OLD_HEAD>
 docker compose build backend frontend && docker compose up -d --no-deps backend frontend
 ```
 
 **Mode B — có migration (nhất là destructive)** — phải restore DB:
 ```bash
-cd /home/erp/ERP_V6 && git reset --hard <OLD_HEAD>
-docker compose exec -T postgres pg_restore -U erp_user -d erp_database --clean --if-exists < /backup/erp-backups/pre-deploy/pre_deploy_<TS>.dump
+cd <PROJECT_DIR> && git reset --hard <OLD_HEAD>
+docker compose exec -T postgres pg_restore -U erp_user -d erp_database --clean --if-exists < <BACKUP_DIR>/pre_deploy_<TS>.dump
 docker compose build backend frontend && docker compose up -d --no-deps backend frontend
 ```
 > Migration additive (chỉ CREATE) + rollback code: bảng mới còn lại nhưng vô hại, thường KHÔNG cần restore DB.
@@ -151,7 +154,6 @@ docker compose build backend frontend && docker compose up -d --no-deps backend 
 - **Downtime**: rebuild recreate backend/frontend ngắt ~8-15s. Chọn giờ vắng hoặc báo trước cho người đang nhập liệu.
 - **Retention backup**: giữ 7 bản pre-deploy gần nhất, dọn cũ hơn:
   ```bash
-  ls -t /backup/erp-backups/pre-deploy/pre_deploy_*.dump | tail -n +8 | xargs -r rm
+  ls -t <BACKUP_DIR>/pre_deploy_*.dump | tail -n +8 | xargs -r rm
   ```
 - **KHÔNG dùng** `docker compose down -v` (xóa volume = mất DB). KHÔNG `git push --force` lên prod.
-
