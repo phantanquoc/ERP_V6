@@ -337,9 +337,10 @@ class ReplenishmentRequestService {
 
   // ── Convert YCBS → YCMH — the split point ────────────────────────────────
   //
-  // Validates every line has NCC+price, then inside one tx:
-  //   - creates PurchaseRequest { sourceType=MANUAL, trangThai=Chờ duyệt, YC-MH-… }
-  //     with items copied from YCBS
+  // Inside one tx:
+  //   - creates PurchaseRequest { sourceType=MANUAL, trangThai=Chờ báo giá, YC-MH-… }
+  //     with items copied from YCBS (NCC/giaDuKien carried over as a prefill only —
+  //     quoting is YCMH's own step, done via purchaseRequest submitForApproval)
   //   - marks YCBS trangThai='Đã chuyển mua hàng', convertedPurchaseRequestId = new PR id
 
   async convertToPurchaseRequest(id: string, actorEmployeeId?: string) {
@@ -355,12 +356,6 @@ class ReplenishmentRequestService {
       throw new ValidationError(`YCBS ở trạng thái "${ybs.trangThai}" không thể chuyển thành YCMH`);
     if (ybs.convertedPurchaseRequestId)
       throw new ValidationError('YCBS này đã được chuyển thành YCMH trước đó');
-
-    for (const it of ybs.items) {
-      if (!it.nhaCungCapId) throw new ValidationError(`Chưa chọn nhà cung cấp cho "${it.tenGoi}"`);
-      if (it.giaDuKien == null || !Number.isFinite(Number(it.giaDuKien)) || Number(it.giaDuKien) <= 0)
-        throw new ValidationError(`Chưa có giá dự kiến hợp lệ cho "${it.tenGoi}"`);
-    }
 
     const result = await prisma.$transaction(async (tx) => {
       // Atomic claim: even if two requests both pass the checks above, only one
@@ -381,11 +376,6 @@ class ReplenishmentRequestService {
         include: { items: true },
       });
       const useItems = ybsFresh?.items?.length ? ybsFresh.items : ybs.items;
-      for (const it of useItems) {
-        if (!it.nhaCungCapId) throw new ValidationError(`Chưa chọn nhà cung cấp cho "${it.tenGoi}"`);
-        if (it.giaDuKien == null || !Number.isFinite(Number(it.giaDuKien)) || Number(it.giaDuKien) <= 0)
-          throw new ValidationError(`Chưa có giá dự kiến hợp lệ cho "${it.tenGoi}"`);
-      }
 
       // Generate PR code inside tx
       const year = new Date().getFullYear();
@@ -406,12 +396,14 @@ class ReplenishmentRequestService {
           mucDoUuTien: ybs.mucDoUuTien,
           ghiChu: ybs.ghiChu,
           supplyRequestId: ybs.supplyRequestId,
-          trangThai: 'Chờ duyệt',
+          trangThai: 'Chờ báo giá',
           sourceType: 'MANUAL',
           fileKemTheo: ybs.fileKemTheo,
         },
       });
 
+      // Prefill only: YCMH's own submitForApproval enforces NCC+giaDuKien per line,
+      // so anything the YCBS didn't price stays null here and must be quoted there.
       await tx.purchaseRequestItem.createMany({
         data: useItems.map((it) => ({
           purchaseRequestId: pr.id,
@@ -438,11 +430,11 @@ class ReplenishmentRequestService {
         where: { id: result.prId },
         include: { items: true },
       });
-      // Notify purchasing (YCMH Chờ duyệt needs approval) + requester
+      // Notify purchasing that a fresh YCMH needs quoting (it lands in Chờ báo giá).
+      // The YCBS notification (REPLENISHMENT_REQUEST_CREATED) already reached purchasing
+      // at creation time; this one tracks the new YCMH id for the deep-link. Best-effort —
+      // a notification failure never fails an already-committed convert.
       if (prRow) {
-        // Best-effort legacy reuse: notify that a YCMH now needs approval. The
-        // YCBS notification (REPLENISHMENT_REQUEST_CREATED) already reached purchasing
-        // at creation time; this second one reaches approvers. Never fails the convert.
         notificationService
           .notify(NotificationEvent.PURCHASE_REQUEST_CREATED, {
             actorUserId: actorEmployeeId,

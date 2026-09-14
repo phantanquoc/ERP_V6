@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { X, ShoppingCart, AlertTriangle } from 'lucide-react';
 import type { ReplenishmentRequest, ReplenishmentRequestItem } from '../services/replenishmentRequestService';
-import replenishmentRequestService, { isReadyToConvert } from '../services/replenishmentRequestService';
+import replenishmentRequestService from '../services/replenishmentRequestService';
 import { useSupplierOptions } from '../hooks/useSuppliers';
 
 interface ReplenishmentDetailModalProps {
@@ -82,9 +82,9 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
     };
   }, [detail, rows]);
 
-  const readyToConvert = !!liveDetail && isReadyToConvert(liveDetail as ReplenishmentRequest);
-
-  const missingForConvert = useMemo(() => {
+  // Convert no longer requires full pricing: the YCBS quote is a prefill, and
+  // YCMH's own "gửi duyệt" re-enforces NCC+price per line (submitForApproval).
+  const missingPricing = useMemo(() => {
     if (!liveDetail) return [];
     return liveDetail.items
       .filter((it) => !it.nhaCungCapId || it.giaDuKien == null || Number(it.giaDuKien) <= 0)
@@ -124,7 +124,7 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
   };
 
   const handleConvert = async () => {
-    if (!detail || !readyToConvert) return;
+    if (!detail) return;
     // Persist any unsaved edits first so convert sees the latest NCC/price
     if (JSON.stringify(rows.map((r) => ({ n: r.nhaCungCapId, g: r.giaDuKien }))) !==
         JSON.stringify((detail.items ?? []).map((it) => ({ n: it.nhaCungCapId ?? '', g: it.giaDuKien != null ? String(it.giaDuKien) : '' })))) {
@@ -183,10 +183,10 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
               {detail.convertedPurchaseRequest ? <> — đã chuyển thành <span className="font-mono">{detail.convertedPurchaseRequest.maYeuCau}</span>.</> : '.'}
               {' '}Không thể sửa giá/NCC nữa.
             </div>
-          ) : missingForConvert.length > 0 ? (
+          ) : missingPricing.length > 0 ? (
             <div className="rounded border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0" />
-              Chưa đủ điều kiện chuyển thành YCMH — thiếu NCC/giá: {missingForConvert.join(', ')}
+              Chưa báo giá đủ — thiếu NCC/giá: {missingPricing.join(', ')}. Vẫn có thể chuyển thành YCMH, thu mua sẽ báo giá tiếp ở đó.
             </div>
           ) : null}
 
@@ -258,9 +258,9 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
             {!readOnly && (
               <button
                 onClick={handleConvert}
-                disabled={!readyToConvert || saving || converting}
+                disabled={saving || converting}
                 className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-40"
-                title={!readyToConvert ? `Thiếu: ${missingForConvert.join(', ')}` : 'Chuyển thành YCMH'}
+                title="Chuyển thành YCMH (báo giá tiếp ở YCMH)"
               >
                 {converting ? 'Đang chuyển…' : 'Chuyển thành YCMH'}
               </button>

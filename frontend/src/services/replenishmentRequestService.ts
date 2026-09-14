@@ -75,12 +75,10 @@ export interface ReplenishmentFilters {
   supplyRequestId?: string;
 }
 
-/** True when purchasing has finished pricing every line and conversion is allowed. */
+/** True when the YCBS is still convertible (not yet converted/cancelled). Pricing is a prefill — YCMH enforces it at submit. */
 export function isReadyToConvert(ybs: Pick<ReplenishmentRequest, 'items' | 'trangThai'>): boolean {
   if (ybs.trangThai !== 'Chờ báo giá') return false;
-  return ybs.items.length > 0 && ybs.items.every(
-    (it) => !!it.nhaCungCapId && it.giaDuKien != null && Number(it.giaDuKien) > 0,
-  );
+  return ybs.items.length > 0;
 }
 
 class ReplenishmentRequestService {
