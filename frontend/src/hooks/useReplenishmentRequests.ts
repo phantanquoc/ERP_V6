@@ -29,16 +29,18 @@ export const useReplenishmentRequests = (
 ) =>
   useQuery({
     queryKey: replenishmentRequestKeys.list(page, limit, search, filters),
-    queryFn: async () =>
-      (await replenishmentRequestService.getAllReplenishmentRequests(page, limit, search, month, year, filters))
-        .data,
+    // Return the full ApiResponse ({ data, pagination }): apiClient does NOT unwrap
+    // the JSON body, so `.data` here is the row array. (An earlier revision returned
+    // `.data` early, which made ReplenishmentList read `rows.data` as rows — the
+    // queue rendered empty despite the API returning rows.)
+    queryFn: () =>
+      replenishmentRequestService.getAllReplenishmentRequests(page, limit, search, month, year, filters),
   });
 
 export const useReplenishmentRequestDetail = (id: string | undefined) =>
   useQuery({
     queryKey: replenishmentRequestKeys.detail(id ?? ''),
-    queryFn: async () =>
-      (await replenishmentRequestService.getReplenishmentRequestById(id!)).data,
+    queryFn: () => replenishmentRequestService.getReplenishmentRequestById(id!),
     enabled: !!id,
   });
 

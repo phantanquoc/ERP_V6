@@ -49,12 +49,11 @@ const ReplenishmentList: React.FC<ReplenishmentListProps> = ({
     return <div className="text-center py-8 text-sm text-red-600">Không tải được danh sách yêu cầu bổ sung.</div>;
   }
 
-  // The endpoint answers `{ success, data, pagination }`; apiClient already unwraps
-  // one level, so the rows may sit on either `data.data` or `data`.
-  const payload = (data as { data?: { data?: ReplenishmentRequest[]; pagination?: { total?: number; totalPages?: number } } } | undefined)?.data
-    ?? (data as { data?: ReplenishmentRequest[]; pagination?: { total?: number; totalPages?: number } } | undefined);
-  const rows = (payload?.data ?? []) as ReplenishmentRequest[];
-  const pagination = payload?.pagination ?? {};
+  // apiClient returns the JSON body as-is: `{ success, data: rows, pagination }`.
+  // So `data.data` is the row array — do NOT unwrap an extra level, or the queue
+  // renders empty despite the API returning rows.
+  const rows = ((data as { data?: ReplenishmentRequest[] } | undefined)?.data ?? []) as ReplenishmentRequest[];
+  const pagination = (data as { pagination?: { total?: number; totalPages?: number } } | undefined)?.pagination ?? {};
   const total = pagination.total ?? rows.length;
   const totalPages = pagination.totalPages ?? (Math.ceil(total / PAGE_SIZE) || 1);
 
