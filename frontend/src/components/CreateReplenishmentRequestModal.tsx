@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, AlertTriangle, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import replenishmentRequestService from '../services/replenishmentRequestService';
 import { useAuth } from '../contexts/AuthContext';
@@ -185,8 +185,9 @@ const CreateReplenishmentRequestModal: React.FC<CreateReplenishmentRequestModalP
       const row = items[i];
       if (!row.tenGoi?.trim()) return `Dòng ${i + 1}: Vui lòng chọn hàng hóa`;
       if (!row.soLuong || row.soLuong <= 0) return `Dòng ${i + 1}: Số lượng phải lớn hơn 0`;
-      if (exceedsRemaining(row) && !ackOverQuota) {
-        return `Dòng ${i + 1}: Số lượng vượt phần còn thiếu (${row.remaining} ${row.donViTinh}) — tích "Xác nhận mua ngoài kế hoạch" nếu cố ý đặt vượt`;
+      if (exceedsRemaining(row)) {
+        if (!ackOverQuota) return `Dòng ${i + 1}: Số lượng vượt phần còn thiếu (${row.remaining} ${row.donViTinh}) — tích "Xác nhận mua ngoài kế hoạch" nếu cố ý đặt vượt`;
+        if (!ghiChu.trim()) return `Dòng ${i + 1}: Mua vượt cần ghi rõ lý do ở Ghi chú`;
       }
     }
     const names = items.map((r) => r.tenGoi.trim().toLowerCase());
@@ -279,7 +280,7 @@ const CreateReplenishmentRequestModal: React.FC<CreateReplenishmentRequestModalP
         </div>
 
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          Không nhập giá hay nhà cung cấp tại đây — thu mua sẽ điền trên YCBS trước khi chuyển thành yêu cầu mua hàng.
+          Không nhập giá hay nhà cung cấp tại đây — thu mua sẽ báo giá trên yêu cầu mua hàng (YCMH) sau khi YCBS được chuyển qua.
         </div>
 
         {/* Hàng hóa cần bổ sung */}
@@ -323,13 +324,22 @@ const CreateReplenishmentRequestModal: React.FC<CreateReplenishmentRequestModalP
                           /* Identity comes from the supply-request line — locked, quantity only */
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <FormField label="Phân loại">
-                              <input type="text" readOnly value={row.phanLoai} className={readonlyCls} />
+                              <div className="relative">
+                                <input type="text" readOnly value={row.phanLoai} className={`${readonlyCls} pr-8`} title="Khóa theo yêu cầu cung cấp nguồn" />
+                                <Lock className="h-3.5 w-3.5 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                              </div>
                             </FormField>
                             <FormField label="Tên hàng hóa">
-                              <input type="text" readOnly value={row.tenGoi} className={readonlyCls} />
+                              <div className="relative">
+                                <input type="text" readOnly value={row.tenGoi} className={`${readonlyCls} pr-8`} title="Khóa theo yêu cầu cung cấp nguồn" />
+                                <Lock className="h-3.5 w-3.5 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                              </div>
                             </FormField>
                             <FormField label="Đơn vị">
-                              <input type="text" readOnly value={row.donViTinh} className={readonlyCls} />
+                              <div className="relative">
+                                <input type="text" readOnly value={row.donViTinh} className={`${readonlyCls} pr-8`} title="Khóa theo yêu cầu cung cấp nguồn" />
+                                <Lock className="h-3.5 w-3.5 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                              </div>
                             </FormField>
                           </div>
                         ) : (
@@ -355,7 +365,7 @@ const CreateReplenishmentRequestModal: React.FC<CreateReplenishmentRequestModalP
                         )}
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <FormField label="Số lượng" required>
+                          <FormField label="Số lượng" required hint={row.fromSupplyRequest ? `Còn thiếu: ${row.remaining} ${row.donViTinh}` : undefined}>
                             <input
                               type="number"
                               value={row.soLuong || ''}
@@ -364,17 +374,12 @@ const CreateReplenishmentRequestModal: React.FC<CreateReplenishmentRequestModalP
                               min="0.01"
                               step="0.01"
                               max={undefined}
-                              className={inputCls(exceeds)}
+                              className={`${inputCls()} ${exceeds ? '!border-amber-400 !bg-amber-50 focus:!ring-amber-500 focus:!border-amber-500' : ''}`}
                               placeholder="0.00"
+                              aria-describedby={exceeds ? `overquota-${row.id}` : undefined}
                             />
                           </FormField>
-                          {row.fromSupplyRequest ? (
-                            <div className="flex items-end">
-                              <p className="text-xs text-gray-500 pb-2">
-                                Còn thiếu: <strong className="text-gray-700">{row.remaining} {row.donViTinh}</strong>
-                              </p>
-                            </div>
-                          ) : (
+                          {row.fromSupplyRequest ? null : (
                             <FormField label="Đơn vị" required>
                               <UnitSelect
                                 value={row.donViTinh}
@@ -386,9 +391,11 @@ const CreateReplenishmentRequestModal: React.FC<CreateReplenishmentRequestModalP
                         </div>
 
                         {exceeds && (
-                          <p className="text-xs text-amber-700 flex items-center gap-1">
+                          <p id={`overquota-${row.id}`} className="text-xs text-amber-700 flex items-center gap-1">
                             <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-                            Số lượng vượt phần còn thiếu ({row.remaining} {row.donViTinh}){ackOverQuota ? ' — đã xác nhận mua ngoài kế hoạch' : ''}
+                            {ackOverQuota
+                              ? <>Đã xác nhận mua ngoài kế hoạch — đặt {row.soLuong} {row.donViTinh} thay vì {row.remaining} {row.donViTinh} còn thiếu.</>
+                              : <>Số lượng vượt phần còn thiếu ({row.remaining} {row.donViTinh}) — tích "Xác nhận mua ngoài kế hoạch" bên dưới nếu cố ý đặt vượt, cần ghi rõ lý do ở Ghi chú.</>}
                           </p>
                         )}
                       </div>
