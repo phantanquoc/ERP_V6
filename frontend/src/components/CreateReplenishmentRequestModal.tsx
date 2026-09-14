@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, AlertTriangle, Lock } from 'lucide-react';
+import { Plus, Trash2, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import replenishmentRequestService from '../services/replenishmentRequestService';
 import { useAuth } from '../contexts/AuthContext';
@@ -77,7 +77,6 @@ const CreateReplenishmentRequestModal: React.FC<CreateReplenishmentRequestModalP
   const [mucDichYeuCau, setMucDichYeuCau] = useState('');
   const [mucDoUuTien, setMucDoUuTien] = useState('Trung bình');
   const [ghiChu, setGhiChu] = useState('');
-  const [ackOverQuota, setAckOverQuota] = useState(false);
 
   const creatorName = `${user?.lastName ?? ''} ${user?.firstName ?? ''}`.trim();
   const departmentName = user?.departmentName || getDepartmentDisplayName(user?.department);
@@ -174,21 +173,12 @@ const CreateReplenishmentRequestModal: React.FC<CreateReplenishmentRequestModalP
     setItems((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const exceedsRemaining = (row: ItemRow) =>
-    row.remaining != null && row.soLuong > row.remaining + 1e-9;
-
-  const overQuota = items.some(exceedsRemaining);
-
   const validateForm = (): string | null => {
     if (items.length === 0) return 'Vui lòng thêm ít nhất một hàng hóa cần bổ sung';
     for (let i = 0; i < items.length; i++) {
       const row = items[i];
       if (!row.tenGoi?.trim()) return `Dòng ${i + 1}: Vui lòng chọn hàng hóa`;
       if (!row.soLuong || row.soLuong <= 0) return `Dòng ${i + 1}: Số lượng phải lớn hơn 0`;
-      if (exceedsRemaining(row)) {
-        if (!ackOverQuota) return `Dòng ${i + 1}: Số lượng vượt phần còn thiếu (${row.remaining} ${row.donViTinh}) — tích "Xác nhận mua ngoài kế hoạch" nếu cố ý đặt vượt`;
-        if (!ghiChu.trim()) return `Dòng ${i + 1}: Mua vượt cần ghi rõ lý do ở Ghi chú`;
-      }
     }
     const names = items.map((r) => r.tenGoi.trim().toLowerCase());
     const dup = names.find((name, idx) => names.indexOf(name) !== idx);
@@ -223,7 +213,6 @@ const CreateReplenishmentRequestModal: React.FC<CreateReplenishmentRequestModalP
         mucDoUuTien,
         ghiChu: ghiChu || undefined,
         supplyRequestId: supplyRequest?.id ?? '',
-        ackOverQuota: overQuota && ackOverQuota,
       });
       toast.success('Đã tạo yêu cầu bổ sung');
       onSuccess?.();
@@ -247,7 +236,7 @@ const CreateReplenishmentRequestModal: React.FC<CreateReplenishmentRequestModalP
           onSubmit={handleSubmit as any}
           submitLabel="Tạo yêu cầu"
           isLoading={loading}
-          submitDisabled={!canCreate || (overQuota && !ackOverQuota) || items.length === 0}
+          submitDisabled={!canCreate || items.length === 0}
         />
       }
     >
@@ -279,10 +268,6 @@ const CreateReplenishmentRequestModal: React.FC<CreateReplenishmentRequestModalP
           </FormField>
         </div>
 
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          Không nhập giá hay nhà cung cấp tại đây — thu mua sẽ báo giá trên yêu cầu mua hàng (YCMH) sau khi YCBS được chuyển qua.
-        </div>
-
         {/* Hàng hóa cần bổ sung */}
         <div>
           <div className="flex items-center justify-between mb-2">
@@ -306,13 +291,10 @@ const CreateReplenishmentRequestModal: React.FC<CreateReplenishmentRequestModalP
           ) : (
             <div className="space-y-3">
               {items.map((row, index) => {
-                const exceeds = exceedsRemaining(row);
                 return (
                   <div
                     key={row.id}
-                    className={`p-4 border rounded-lg transition-all ${
-                      exceeds ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200 bg-gray-50/50'
-                    }`}
+                    className="p-4 border rounded-lg transition-all border-gray-200 bg-gray-50/50"
                   >
                     <div className="flex items-start gap-3">
                       <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-semibold text-sm shrink-0 mt-1">
@@ -355,12 +337,6 @@ const CreateReplenishmentRequestModal: React.FC<CreateReplenishmentRequestModalP
                                 placeholder="Tìm theo mã, tên hoặc loại hàng hóa, hoặc nhập tên mới..."
                               />
                             </FormField>
-                            {!row.internationalProductId && row.tenGoi && (
-                              <p className="mt-1.5 text-xs text-amber-700 flex items-center gap-1">
-                                <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-                                Chưa có trong danh mục hàng hóa — thu mua sẽ xem xét khi báo giá
-                              </p>
-                            )}
                           </div>
                         )}
 
@@ -374,9 +350,8 @@ const CreateReplenishmentRequestModal: React.FC<CreateReplenishmentRequestModalP
                               min="0.01"
                               step="0.01"
                               max={undefined}
-                              className={`${inputCls()} ${exceeds ? '!border-amber-400 !bg-amber-50 focus:!ring-amber-500 focus:!border-amber-500' : ''}`}
+                              className={inputCls()}
                               placeholder="0.00"
-                              aria-describedby={exceeds ? `overquota-${row.id}` : undefined}
                             />
                           </FormField>
                           {row.fromSupplyRequest ? null : (
@@ -389,15 +364,6 @@ const CreateReplenishmentRequestModal: React.FC<CreateReplenishmentRequestModalP
                             </FormField>
                           )}
                         </div>
-
-                        {exceeds && (
-                          <p id={`overquota-${row.id}`} className="text-xs text-amber-700 flex items-center gap-1">
-                            <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-                            {ackOverQuota
-                              ? <>Đã xác nhận mua ngoài kế hoạch — đặt {row.soLuong} {row.donViTinh} thay vì {row.remaining} {row.donViTinh} còn thiếu.</>
-                              : <>Số lượng vượt phần còn thiếu ({row.remaining} {row.donViTinh}) — tích "Xác nhận mua ngoài kế hoạch" bên dưới nếu cố ý đặt vượt, cần ghi rõ lý do ở Ghi chú.</>}
-                          </p>
-                        )}
                       </div>
 
                       {/* Only hand-added lines can be removed */}
@@ -417,13 +383,6 @@ const CreateReplenishmentRequestModal: React.FC<CreateReplenishmentRequestModalP
             </div>
           )}
         </div>
-
-        {overQuota && (
-          <label className="flex items-center gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 cursor-pointer">
-            <input type="checkbox" checked={ackOverQuota} onChange={(e) => setAckOverQuota(e.target.checked)} className="rounded" />
-            Xác nhận mua ngoài kế hoạch — số lượng vượt phần còn thiếu của yêu cầu cung cấp nguồn
-          </label>
-        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField label="Mục đích yêu cầu" required>
