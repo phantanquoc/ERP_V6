@@ -101,16 +101,16 @@ model MachineSystem {
 }
 
 model MachineStatusLog {
-  id             String        @id @default(cuid())
+  id              String        @id @default(cuid())
   machineSystemId String
-  trangThaiCu    MachineStatus
-  trangThaiMoi   MachineStatus
-  nguyenNhan     String        @db.Text
-  nguoiCapNhat   String
-  ghiChu         String?       @db.Text
-  thoiDiem       DateTime      @default(now())
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  trangThaiCu     MachineStatus
+  trangThaiMoi    MachineStatus
+  nguyenNhan      String        @db.Text
+  nguoiCapNhat    String
+  ghiChu          String?       @db.Text
+  thoiDiem        DateTime      @default(now())
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   machineSystem MachineSystem @relation(fields: [machineSystemId], references: [id], onDelete: Cascade)
 
@@ -190,15 +190,15 @@ model FaultTemplate {
 }
 
 model RepairStep {
-  id                String   @id @default(cuid())
-  faultTemplateId   String
-  stepNumber        Int
-  moTa              String   @db.Text
-  thoiGianUocTinh   Int?
-  dungCu            String?
-  ghiChu            String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id              String   @id @default(cuid())
+  faultTemplateId String
+  stepNumber      Int
+  moTa            String   @db.Text
+  thoiGianUocTinh Int?
+  dungCu          String?
+  ghiChu          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   faultTemplate FaultTemplate @relation(fields: [faultTemplateId], references: [id], onDelete: Cascade)
 
@@ -209,27 +209,27 @@ model RepairStep {
 }
 
 model FaultRecord {
-  id                    String             @id @default(cuid())
-  maLoi                 String             @unique // VD: LI-2026-001
+  id                    String            @id @default(cuid())
+  maLoi                 String            @unique // VD: LI-2026-001
   tenLoi                String
-  moTa                  String             @db.Text
+  moTa                  String            @db.Text
   maHeThong             String? // soft ref tới MachineSystem.maHeThong
   machineSystemId       String?
   machineSystemDetailId String?
   faultTemplateId       String?
   mucDo                 String // Nghiêm trọng / Trung bình / Nhẹ
-  trangThai             FaultRecordStatus  @default(DANG_THEO_DOI)
+  trangThai             FaultRecordStatus @default(DANG_THEO_DOI)
   nguoiPhatHien         String
-  ngayPhatHien          DateTime           @default(now())
+  ngayPhatHien          DateTime          @default(now())
   ngayXuLy              DateTime?
   fileDinhKem           String?
   createdById           String? // soft ref to auth.User.id — no FK constraint
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
 
-  machineSystem       MachineSystem?       @relation(fields: [machineSystemId], references: [id], onDelete: SetNull)
-  machineSystemDetail MachineSystemDetail? @relation(fields: [machineSystemDetailId], references: [id], onDelete: SetNull)
-  faultTemplate       FaultTemplate?       @relation(fields: [faultTemplateId], references: [id], onDelete: SetNull)
+  machineSystem       MachineSystem?         @relation(fields: [machineSystemId], references: [id], onDelete: SetNull)
+  machineSystemDetail MachineSystemDetail?   @relation(fields: [machineSystemDetailId], references: [id], onDelete: SetNull)
+  faultTemplate       FaultTemplate?         @relation(fields: [faultTemplateId], references: [id], onDelete: SetNull)
   repairRequestItems  RepairRequestItem[]
   statusLogs          FaultRecordStatusLog[]
 
@@ -319,7 +319,7 @@ model MaintenancePlanItem {
   tanSuat               MaintenanceFrequency @default(BA_THANG)
   toThucHien            MaintenanceTeam      @default(CO_KHI)
   soLuong               Int                  @default(1)
-  thangBatDau           Int                  @default(1)  // Tháng bắt đầu chu kỳ (1-12)
+  thangBatDau           Int                  @default(1) // Tháng bắt đầu chu kỳ (1-12)
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
 
@@ -335,17 +335,17 @@ model MaintenancePlanItem {
 }
 
 model MaintenancePlanItemLog {
-  id                      String    @id @default(cuid())
-  maintenancePlanItemId   String
-  thang                   Int       // 1-12
-  lanThu                  Int       // which occurrence in that month, starting from 1
-  hoanThanh               Boolean   @default(false)
-  ghiChu                  String?   @db.Text
-  ngayThucHien            DateTime?
-  nguoiThucHien           String?
-  nguoiPhu                String[]  @default([])
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
+  id                    String    @id @default(cuid())
+  maintenancePlanItemId String
+  thang                 Int // 1-12
+  lanThu                Int // which occurrence in that month, starting from 1
+  hoanThanh             Boolean   @default(false)
+  ghiChu                String?   @db.Text
+  ngayThucHien          DateTime?
+  nguoiThucHien         String?
+  nguoiPhu              String[]  @default([])
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   maintenancePlanItem MaintenancePlanItem @relation(fields: [maintenancePlanItemId], references: [id], onDelete: Cascade)
 
@@ -434,7 +434,7 @@ model ProjectPhase {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  project    Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project    Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks      ProjectTask[]
   taskGroups ProjectTaskGroup[]
   updates    ProjectUpdate[]
@@ -608,8 +608,8 @@ model RepairRequestStatusLog {
 
 enum FaultRecordStatus {
   DANG_THEO_DOI // Đang theo dõi
-  DA_XU_LY      // Đã xử lý
-  TAI_PHAT      // Tái phát
+  DA_XU_LY // Đã xử lý
+  TAI_PHAT // Tái phát
 
   @@schema("business")
 }
@@ -617,15 +617,15 @@ enum FaultRecordStatus {
 // ─── FaultRecord Status Log ───────────────────────────────────────────────────
 
 model FaultRecordStatusLog {
-  id            String            @id @default(cuid()) @db.VarChar(30)
+  id            String             @id @default(cuid()) @db.VarChar(30)
   faultRecordId String
-  faultRecord   FaultRecord       @relation(fields: [faultRecordId], references: [id], onDelete: Cascade)
+  faultRecord   FaultRecord        @relation(fields: [faultRecordId], references: [id], onDelete: Cascade)
   oldStatus     FaultRecordStatus?
   newStatus     FaultRecordStatus
   actorId       String?
-  reason        String?           @db.Text
-  source        String            @default("manual") @db.VarChar(64)
-  createdAt     DateTime          @default(now())
+  reason        String?            @db.Text
+  source        String             @default("manual") @db.VarChar(64)
+  createdAt     DateTime           @default(now())
 
   @@index([faultRecordId, createdAt(sort: Desc)])
   @@map("fault_record_status_logs")

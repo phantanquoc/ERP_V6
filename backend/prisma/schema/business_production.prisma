@@ -11,37 +11,37 @@ enum SystemOperationStatus {
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model SupplyRequest {
-  id                String              @id @default(cuid())
-  stt               Int                 @default(autoincrement())
-  ngayYeuCau        DateTime            @default(now())
-  maYeuCau          String              @unique
-  employeeId        String
-  maNhanVien        String
-  tenNhanVien       String
-  boPhan            String
+  id                    String                 @id @default(cuid())
+  stt                   Int                    @default(autoincrement())
+  ngayYeuCau            DateTime               @default(now())
+  maYeuCau              String                 @unique
+  employeeId            String
+  maNhanVien            String
+  tenNhanVien           String
+  boPhan                String
   // @deprecated — kept for backward compatibility, use items relation instead
-  phanLoai          String?
+  phanLoai              String?
   // @deprecated — kept for backward compatibility, use items relation instead
-  tenGoi            String?
+  tenGoi                String?
   // @deprecated — kept for backward compatibility, use items relation instead
-  soLuong           Float?
+  soLuong               Float?
   // @deprecated — kept for backward compatibility, use items relation instead
-  donViTinh         String?
-  mucDichYeuCau     String
-  mucDoUuTien       String
-  ghiChu            String?
-  trangThai         String              @default("Chưa cung cấp")
-  fileKemTheo       String?
-  loaiYeuCau        String?             @default("Thường") // "Thường" | "Mua nhanh"
-  soTien            Float? // Số tiền thực tế (dùng cho Mua nhanh)
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  employee          Employee            @relation(fields: [employeeId], references: [id])
-  items             SupplyRequestItem[]
-  purchaseRequests         PurchaseRequest[]
-  replenishmentRequests  ReplenishmentRequest[]
-  warehouseReceipts      WarehouseReceipt[]
-  warehouseIssues        WarehouseIssue[]
+  donViTinh             String?
+  mucDichYeuCau         String
+  mucDoUuTien           String
+  ghiChu                String?
+  trangThai             String                 @default("Chưa cung cấp")
+  fileKemTheo           String?
+  loaiYeuCau            String?                @default("Thường") // "Thường" | "Mua nhanh"
+  soTien                Float? // Số tiền thực tế (dùng cho Mua nhanh)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  employee              Employee               @relation(fields: [employeeId], references: [id])
+  items                 SupplyRequestItem[]
+  purchaseRequests      PurchaseRequest[]
+  replenishmentRequests ReplenishmentRequest[]
+  warehouseReceipts     WarehouseReceipt[]
+  warehouseIssues       WarehouseIssue[]
 
   @@map("supply_requests")
   @@schema("business")
@@ -72,26 +72,26 @@ model SupplyRequestItem {
 
 // Audit trail — every warehouse decision on an internal supply request item
 model SupplyRequestDecision {
-  id                         String            @id @default(cuid())
-  supplyRequestItemId        String
+  id                              String                @id @default(cuid())
+  supplyRequestItemId             String
   // "Cấp đủ" | "Cấp một phần" | "Không cấp" | "Chuyển thu mua"
-  decision                   String
-  fulfilledQty               Float             @default(0)
-  shortageQty                Float             @default(0)
-  reason                     String?
+  decision                        String
+  fulfilledQty                    Float                 @default(0)
+  shortageQty                     Float                 @default(0)
+  reason                          String?
   // Employee (warehouse staff) who made the decision
-  decidedByEmployeeId        String
-  decidedAt                  DateTime          @default(now())
+  decidedByEmployeeId             String
+  decidedAt                       DateTime              @default(now())
   // Optional link to auto-created purchase request when decision routes shortage to procurement
   // (legacy SHORTAGE path — the YCBS path uses triggeredReplenishmentRequestId)
-  triggeredPurchaseRequestId String?
-  triggeredPurchaseRequest   PurchaseRequest?          @relation(fields: [triggeredPurchaseRequestId], references: [id], onDelete: SetNull)
+  triggeredPurchaseRequestId      String?
+  triggeredPurchaseRequest        PurchaseRequest?      @relation(fields: [triggeredPurchaseRequestId], references: [id], onDelete: SetNull)
   // YCBS link — replenishment request created for this shortage
   triggeredReplenishmentRequestId String?
   triggeredReplenishmentRequest   ReplenishmentRequest? @relation(fields: [triggeredReplenishmentRequestId], references: [id], onDelete: SetNull)
-  createdAt                  DateTime                  @default(now())
-  updatedAt                  DateTime                  @updatedAt
-  supplyRequestItem          SupplyRequestItem         @relation(fields: [supplyRequestItemId], references: [id], onDelete: Cascade)
+  createdAt                       DateTime              @default(now())
+  updatedAt                       DateTime              @updatedAt
+  supplyRequestItem               SupplyRequestItem     @relation(fields: [supplyRequestItemId], references: [id], onDelete: Cascade)
 
   @@index([supplyRequestItemId])
   @@index([decidedByEmployeeId])
@@ -107,29 +107,29 @@ model SupplyRequestDecision {
 // Distinct from PurchaseRequest (YCMH): a YCBS has no price/supplier at creation;
 // purchasing fills those, then converts it into a YCMH in one atomic step.
 model ReplenishmentRequest {
-  id              String                    @id @default(cuid())
-  stt             Int                       @default(autoincrement())
-  ngayYeuCau      DateTime                  @default(now())
-  maYeuCau        String                    @unique // YC-BS-YYYY-NNN
-  employeeId      String // = SupplyRequest.employeeId (owner = original requester)
-  maNhanVien      String
-  tenNhanVien     String
-  mucDichYeuCau   String
-  mucDoUuTien     String
-  ghiChu          String?
-  fileKemTheo     String?
+  id                         String                     @id @default(cuid())
+  stt                        Int                        @default(autoincrement())
+  ngayYeuCau                 DateTime                   @default(now())
+  maYeuCau                   String                     @unique // YC-BS-YYYY-NNN
+  employeeId                 String // = SupplyRequest.employeeId (owner = original requester)
+  maNhanVien                 String
+  tenNhanVien                String
+  mucDichYeuCau              String
+  mucDoUuTien                String
+  ghiChu                     String?
+  fileKemTheo                String?
   // "Chờ báo giá" → "Đã chuyển mua hàng" (and "Đã hủy" via cancel)
-  trangThai       String                    @default("Chờ báo giá")
-  supplyRequestId String?
-  phanLoaiGroup   String? // MATERIALS | EQUIPMENT | OTHER (from bucketPhanLoai)
-  convertedPurchaseRequestId String?        @unique
-  createdAt       DateTime                  @default(now())
-  updatedAt       DateTime                  @updatedAt
-  employee        Employee                  @relation(fields: [employeeId], references: [id])
-  supplyRequest   SupplyRequest?            @relation(fields: [supplyRequestId], references: [id])
-  convertedPurchaseRequest PurchaseRequest? @relation("ReplenishmentToPurchase", fields: [convertedPurchaseRequestId], references: [id], onDelete: SetNull)
-  items           ReplenishmentRequestItem[]
-  decisions       SupplyRequestDecision[]
+  trangThai                  String                     @default("Chờ báo giá")
+  supplyRequestId            String?
+  phanLoaiGroup              String? // MATERIALS | EQUIPMENT | OTHER (from bucketPhanLoai)
+  convertedPurchaseRequestId String?                    @unique
+  createdAt                  DateTime                   @default(now())
+  updatedAt                  DateTime                   @updatedAt
+  employee                   Employee                   @relation(fields: [employeeId], references: [id])
+  supplyRequest              SupplyRequest?             @relation(fields: [supplyRequestId], references: [id])
+  convertedPurchaseRequest   PurchaseRequest?           @relation("ReplenishmentToPurchase", fields: [convertedPurchaseRequestId], references: [id], onDelete: SetNull)
+  items                      ReplenishmentRequestItem[]
+  decisions                  SupplyRequestDecision[]
 
   @@index([supplyRequestId])
   @@index([trangThai])
@@ -161,45 +161,45 @@ model ReplenishmentRequestItem {
 }
 
 model PurchaseRequest {
-  id              String                @id @default(cuid())
-  stt             Int                   @default(autoincrement())
-  ngayYeuCau      DateTime              @default(now())
-  maYeuCau        String                @unique
-  employeeId      String
-  maNhanVien      String
-  tenNhanVien     String
+  id                   String                  @id @default(cuid())
+  stt                  Int                     @default(autoincrement())
+  ngayYeuCau           DateTime                @default(now())
+  maYeuCau             String                  @unique
+  employeeId           String
+  maNhanVien           String
+  tenNhanVien          String
   // @deprecated — kept for backward compatibility, use items relation instead
-  phanLoai        String?
+  phanLoai             String?
   // @deprecated — kept for backward compatibility, use items relation instead
-  tenHangHoa      String?
+  tenHangHoa           String?
   // @deprecated — kept for backward compatibility, use items relation instead
-  soLuong         Float?
+  soLuong              Float?
   // @deprecated — kept for backward compatibility, use items relation instead
-  donViTinh       String?
-  mucDichYeuCau   String
-  mucDoUuTien     String
-  ghiChu          String?
-  fileKemTheo     String?
-  trangThai       String                @default("Chờ duyệt")
-  nguoiDuyet      String?
-  ngayDuyet       DateTime?
-  supplyRequestId String?
-  nhaCungCapId    String?
-  giaDuKien       Float?
-  ghiChuMuaHang   String?
+  donViTinh            String?
+  mucDichYeuCau        String
+  mucDoUuTien          String
+  ghiChu               String?
+  fileKemTheo          String?
+  trangThai            String                  @default("Chờ duyệt")
+  nguoiDuyet           String?
+  ngayDuyet            DateTime?
+  supplyRequestId      String?
+  nhaCungCapId         String?
+  giaDuKien            Float?
+  ghiChuMuaHang        String?
   // Quick purchase = auto-generated or urgent procurement, skips normal approval workflow
-  isQuickPurchase Boolean               @default(false)
+  isQuickPurchase      Boolean                 @default(false)
   // Source of this PR: "MANUAL" | "SHORTAGE" (from SR partial fulfill) | "REORDER" (from low-stock alert) | "QUICK" (Mua nhanh SR)
-  sourceType      String                @default("MANUAL")
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
-  employee        Employee              @relation(fields: [employeeId], references: [id])
-  supplyRequest   SupplyRequest?        @relation(fields: [supplyRequestId], references: [id])
-  supplier        Supplier?             @relation(fields: [nhaCungCapId], references: [id])
-  items           PurchaseRequestItem[]
-  supplyDecisions SupplyRequestDecision[]
+  sourceType           String                  @default("MANUAL")
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  employee             Employee                @relation(fields: [employeeId], references: [id])
+  supplyRequest        SupplyRequest?          @relation(fields: [supplyRequestId], references: [id])
+  supplier             Supplier?               @relation(fields: [nhaCungCapId], references: [id])
+  items                PurchaseRequestItem[]
+  supplyDecisions      SupplyRequestDecision[]
   // Back-reference to the YCBS that was converted into this YCMH.
-  replenishmentRequest ReplenishmentRequest? @relation("ReplenishmentToPurchase")
+  replenishmentRequest ReplenishmentRequest?   @relation("ReplenishmentToPurchase")
   warehouseReceipts    WarehouseReceipt[]
 
   @@index([employeeId])
@@ -219,7 +219,16 @@ model PurchaseRequestItem {
   soLuong           Float
   donViTinh         String
   nhaCungCapId      String?
+  /**
+   * Giá dự kiến / kế hoạch: báo trên YCBS, sao y khi YCBS→YCMH.
+   */
   giaDuKien         Float?
+  /**
+   * Giá thực tế: thu mua xác nhận khi hàng về (POST :id/confirm-actual-price),
+   * mặc định = giaDuKien nếu người dùng không sửa. Khi xác nhận thì
+   * InternationalProduct.giaThanh được cập nhật bằng bình quân gia quyền.
+   */
+  giaThucTe         Float?
   supplier          Supplier?       @relation("PurchaseRequestItemSupplier", fields: [nhaCungCapId], references: [id])
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
@@ -232,29 +241,29 @@ model PurchaseRequestItem {
 }
 
 model Supplier {
-  id                   String                @id @default(cuid())
-  maNhaCungCap         String                @unique
-  tenNhaCungCap        String
-  loaiCungCap          String // Loại cung cấp (VD: Thủy sản, Rau củ, Gia vị...)
-  quocGia              String?   // Không bắt buộc — mặc định 'Việt Nam' ở UI/API
-  website              String?
-  nguoiLienHe          String
-  soDienThoai          String
-  emailLienHe          String?   // Tùy chọn — nhiều nhà cung cấp nhỏ không có email
-  diaChi               String
-  khaNang              String? // Khả năng cung cấp
-  loaiHinh             String // Sản xuất, Thương mại
-  trangThai            String                @default("Đang cung cấp") // Đang cung cấp, Ngừng cung cấp
-  phanLoaiNCC          String                @default("NVL") // NVL, Thiết bị
-  doanhChi             Float? // Doanh chi
-  employeeId           String
-  employee             Employee              @relation("SupplierCreatedBy", fields: [employeeId], references: [id])
-  purchaseRequests     PurchaseRequest[]
-  purchaseRequestItems PurchaseRequestItem[] @relation("PurchaseRequestItemSupplier")
+  id                        String                     @id @default(cuid())
+  maNhaCungCap              String                     @unique
+  tenNhaCungCap             String
+  loaiCungCap               String // Loại cung cấp (VD: Thủy sản, Rau củ, Gia vị...)
+  quocGia                   String? // Không bắt buộc — mặc định 'Việt Nam' ở UI/API
+  website                   String?
+  nguoiLienHe               String
+  soDienThoai               String
+  emailLienHe               String? // Tùy chọn — nhiều nhà cung cấp nhỏ không có email
+  diaChi                    String
+  khaNang                   String? // Khả năng cung cấp
+  loaiHinh                  String // Sản xuất, Thương mại
+  trangThai                 String                     @default("Đang cung cấp") // Đang cung cấp, Ngừng cung cấp
+  phanLoaiNCC               String                     @default("NVL") // NVL, Thiết bị
+  doanhChi                  Float? // Doanh chi
+  employeeId                String
+  employee                  Employee                   @relation("SupplierCreatedBy", fields: [employeeId], references: [id])
+  purchaseRequests          PurchaseRequest[]
+  purchaseRequestItems      PurchaseRequestItem[]      @relation("PurchaseRequestItemSupplier")
   replenishmentRequestItems ReplenishmentRequestItem[] @relation("ReplenishmentRequestItemSupplier")
-  debts                Debt[]
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
+  debts                     Debt[]
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
 
   @@index([phanLoaiNCC])
   @@map("suppliers")
@@ -262,20 +271,20 @@ model Supplier {
 }
 
 model warehouses {
-  id          String   @id
-  maKho       String   @unique
-  tenKho      String
-  loaiKho     String?
-  diaChi      String?
-  dienTich    Float?
-  sucChua     Float?
-  nguoiQuanLy String?
-  soDienThoai String?
-  trangThai   String   @default("active")
-  ghiChu      String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  lots        Lot[]
+  id             String          @id
+  maKho          String          @unique
+  tenKho         String
+  loaiKho        String?
+  diaChi         String?
+  dienTich       Float?
+  sucChua        Float?
+  nguoiQuanLy    String?
+  soDienThoai    String?
+  trangThai      String          @default("active")
+  ghiChu         String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  lots           Lot[]
   warehouseSlots WarehouseSlot[]
 
   @@schema("business")

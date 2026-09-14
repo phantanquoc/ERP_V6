@@ -9,7 +9,13 @@ export interface PurchaseRequestItem {
   soLuong: number;
   donViTinh: string;
   nhaCungCapId?: string;
+  /** Giá dự kiến — báo trên YCBS, sao y khi convert → YCMH. UI hiển thị "Giá kế hoạch" khi Đã duyệt. */
   giaDuKien?: number;
+  /**
+   * Giá thực tế thu mua xác nhận khi hàng về (mặc định lấy giaDuKien). Null = chưa
+   * xác nhận; phiếu nhập sau đó dùng nó làm đơn giá, fallback về giaDuKien.
+   */
+  giaThucTe?: number | null;
   supplier?: { id: string; tenNhaCungCap: string; maNhaCungCap: string };
   createdAt: string;
   updatedAt: string;
@@ -162,6 +168,18 @@ class PurchaseRequestService {
 
   async submitForApproval(id: string) {
     const response = await apiClient.post(`/purchase-requests/${id}/submit-approval`, {});
+    return response;
+  }
+
+  /**
+   * Purchasing confirms the actual paid price per line once the YCMH is `Đã duyệt`.
+   * A line omitted from `items` keeps its existing actual price; a line sent with
+   * `giaThucTe: null` falls back to its estimate server-side. Confirming also
+   * reprices the commodity in the catalogue (weighted average) — it does not change
+   * `trangThai`, so `Hoàn thành` stays a separate action and is not gated on this.
+   */
+  async confirmActualPrice(id: string, items: Array<{ id: string; giaThucTe?: number | null }>) {
+    const response = await apiClient.post(`/purchase-requests/${id}/confirm-actual-price`, { items });
     return response;
   }
 

@@ -178,14 +178,14 @@ enum RuleScope {
 }
 
 model Resource {
-  code      String @id
-  label     String
+  code        String       @id
+  label       String
   /// Allowed groups: system, hr, quality, production, finance, business, purchasing, warehouse, technical, project
-  group     String
-  sortOrder Int      @default(0)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  group       String
+  sortOrder   Int          @default(0)
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
   rules       Rule[]
   delegations Delegation[]
 

@@ -215,5 +215,17 @@ router.post(
   purchaseRequestController.submitForApproval
 );
 
+/**
+ * Purchasing confirms the actual paid price per line once the YCMH is 'Đã duyệt'
+ * and the goods are known. Lines the request omits keep their existing actual price;
+ * a line with neither gets the estimate (giaDuKien) as the default so the common case
+ * is a single click. Also reprices InternationalProduct.giaThanh as a weighted average.
+ */
+router.post(
+  '/:id/confirm-actual-price',
+  requireRule('purchase-requests', 'APPROVE'),
+  purchaseRequestController.confirmActualPrice
+);
+
 export default router;
 

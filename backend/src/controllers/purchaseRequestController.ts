@@ -163,6 +163,18 @@ class PurchaseRequestController {
     }
   }
 
+  async confirmActualPrice(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = req.params.id as string;
+      const items = ((req.body as { items?: Array<{ id: string; giaThucTe?: number | null }> }).items ?? []) as Array<{ id: string; giaThucTe?: number | null }>;
+      const actorUserId = (req as unknown as { user?: { id?: string } }).user?.id;
+      const updated = await purchaseRequestService.confirmActualPrice(id, items, actorUserId);
+      return res.json({ success: true, data: updated, message: 'Đã xác nhận giá thực tế' });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
   async deletePurchaseRequest(req: Request, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;

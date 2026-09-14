@@ -837,6 +837,113 @@ class PurchaseRequestService {
 
     return updated;
   }
+
+  /**
+   * Purchasing confirms what was actually paid per line, once the YCMH is approved
+   * (`Đã duyệt`) and the goods are known. Each line defaults to its estimate
+   * (`giaDuKien`) when the client omits it, so the common case is one click, not
+   * re-keying the whole table.
+   *
+   * Confirming also writes the price into the commodity catalog:
+   * InternationalProduct.giaThanh becomes the weighted average of what is on hand
+   * and what was just bought — not a blind overwrite — so a small buffer purchase
+   * cannot wipe the cost basis of existing stock, and `InventoryOverview` (which
+   * prices tồn by `LotProduct.giaThanh`, falling back to the catalog) reflects a
+   * realistic value immediately.
+   *
+   * Does NOT change `trangThai`: Hoàn thành stays a separate, later action and is
+   * deliberately not gated on this step (an already-approved YCMH can be completed
+   * without a price re-confirmation).
+   */
+  async confirmActualPrice(
+    id: string,
+    items: Array<{ id: string; giaThucTe?: number | null }>,
+    actorUserId?: string,
+  ) {
+    await this.assertCanApprovePurchase(actorUserId);
+
+    const request = await prisma.purchaseRequest.findUnique({
+      where: { id },
+      include: { items: true },
+    });
+    if (!request) throw new NotFoundError('Không tìm thấy yêu cầu mua hàng');
+    if (request.trangThai !== 'Đã duyệt') {
+      throw new ValidationError(
+        `Chỉ xác nhận giá thực tế khi yêu cầu ở trạng thái "Đã duyệt" (hiện tại: ${request.trangThai})`,
+      );
+    }
+
+    // Client may send a subset; a line it omits keeps its existing actual price
+    // (so "confirm everything at once" and "re-confirm one corrected line" both work).
+    const submitted = new Map((items ?? []).map((it) => [String(it.id), it.giaThucTe]));
+    const plan: Array<{ item: { id: string; tenHangHoa: string; soLuong: number }; giaThucTe: number }> = [];
+    for (const line of request.items) {
+      const provided = submitted.get(line.id);
+      const chosen = provided === undefined || provided === null ? line.giaThucTe ?? line.giaDuKien : provided;
+      if (chosen === null || chosen === undefined) {
+        throw new ValidationError(`Dòng "${line.tenHangHoa}" chưa có giá thực tế và không có giá dự kiến để lấy làm mặc định`);
+      }
+      const n = Number(chosen);
+      if (!Number.isFinite(n) || n <= 0) {
+        throw new ValidationError(`Giá thực tế của "${line.tenHangHoa}" phải lớn hơn 0`);
+      }
+      plan.push({ item: line, giaThucTe: n });
+    }
+
+    return prisma.$transaction(async (tx) => {
+      // Sequential per line: two lines can name the same commodity, and the average
+      // for the second must see the stock/price the first already wrote. Doing them
+      // in one batched read would price both against the stale opening balance.
+      const avgByCatalogId = new Map<string, number>();
+      for (const entry of plan) {
+        await tx.purchaseRequestItem.update({
+          where: { id: entry.item.id },
+          data: { giaThucTe: entry.giaThucTe },
+        });
+
+        const product = await tx.internationalProduct.findFirst({
+          where: { tenSanPham: { equals: entry.item.tenHangHoa, mode: 'insensitive' } },
+          select: { id: true, giaThanh: true },
+        });
+        if (!product) continue; // unknown commodity: catalog has nothing to reprice
+
+        const onHand = await tx.lotProduct.aggregate({
+          where: { internationalProductId: product.id },
+          _sum: { soLuong: true },
+        });
+        const stockBefore = onHand._sum.soLuong ?? 0;
+        const priceBefore = avgByCatalogId.get(product.id) ?? product.giaThanh ?? 0;
+
+        const boughtQty = Number(entry.item.soLuong ?? 0);
+        // Nothing on hand yet, or no prior basis: the purchase IS the price.
+        const nextPrice = stockBefore > 0 && priceBefore > 0
+          ? (priceBefore * stockBefore + entry.giaThucTe * boughtQty) / (stockBefore + boughtQty)
+          : entry.giaThucTe;
+        avgByCatalogId.set(product.id, nextPrice);
+        await tx.internationalProduct.update({
+          where: { id: product.id },
+          data: { giaThanh: Number(nextPrice.toFixed(2)) },
+        });
+      }
+
+      // Same TOCTOU shape as submitForApproval: a concurrent status flip loses.
+      // Touch updatedAt only — the header's legacy `giaDuKien` stays the estimate,
+      // overwriting it with the actual total would silently destroy the baseline
+      // that the estimate-vs-actual comparison depends on.
+      const marked = await tx.purchaseRequest.updateMany({
+        where: { id, trangThai: 'Đã duyệt' },
+        data: { updatedAt: new Date() },
+      });
+      if (marked.count === 0) {
+        throw new ValidationError('Yêu cầu đã rời trạng thái "Đã duyệt" trong lúc xác nhận, vui lòng thử lại');
+      }
+
+      return tx.purchaseRequest.findUnique({
+        where: { id },
+        include: { items: { include: { supplier: true } } },
+      });
+    });
+  }
 }
 
 export default new PurchaseRequestService();

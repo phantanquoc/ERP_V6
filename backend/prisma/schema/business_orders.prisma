@@ -74,20 +74,20 @@ model ProductCategory {
 }
 
 model InternationalProduct {
-  id                    String                 @id @default(cuid())
-  maSanPham             String                 @unique
-  tenSanPham            String
-  moTaSanPham           String?
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  loaiSanPham           String?
-  donViTinh             String?
-  giaThanh              Float?
-  lotProducts           LotProduct[]
-  orderItems            OrderItem[]
-  quotationRequestItems QuotationRequestItem[]
-  finishedProducts      FinishedProduct[]
-  reorderRule           ProductReorderRule?
+  id                         String                      @id @default(cuid())
+  maSanPham                  String                      @unique
+  tenSanPham                 String
+  moTaSanPham                String?
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+  loaiSanPham                String?
+  donViTinh                  String?
+  giaThanh                   Float?
+  lotProducts                LotProduct[]
+  orderItems                 OrderItem[]
+  quotationRequestItems      QuotationRequestItem[]
+  finishedProducts           FinishedProduct[]
+  reorderRule                ProductReorderRule?
   materialStandardItems      MaterialStandardItem[]
   materialStandardInputItems MaterialStandardInputItem[]
 
@@ -547,12 +547,12 @@ model TaxReport {
 }
 
 model QuotationRevision {
-  id             String    @id @default(cuid())
+  id             String   @id @default(cuid())
   quotationId    String
   revisionNumber Int
   snapshot       Json
   createdBy      String
-  createdAt      DateTime  @default(now())
+  createdAt      DateTime @default(now())
   note           String?
 
   quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
@@ -593,26 +593,26 @@ model Invoice {
 }
 
 model Debt {
-  id                    String    @id @default(cuid())
-  ngayPhatSinh          DateTime
-  loaiChiPhi            String? // "Đơn hàng", "Sửa chữa", "Đầu tư", "Văn phòng phẩm", "Khác"
-  supplierId            String
-  maNhaCungCap          String
-  tenNhaCungCap         String
-  loaiCungCap           String?
-  cungCap               String?
-  noiDungChiCho         String?
-  loaiHinh              String? // "Tổ chức", "Hộ gia đình", "Cá nhân"
-  soTienPhaiTra         Float?
-  soTienDaThanhToan     Float?    @default(0)
-  ngayHoachToan         DateTime?
-  ngayDenHan            DateTime?
-  soTaiKhoan            String?
-  ghiChu                String?
-  files                 String[]  @default([])
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-  supplier              Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  id                String    @id @default(cuid())
+  ngayPhatSinh      DateTime
+  loaiChiPhi        String? // "Đơn hàng", "Sửa chữa", "Đầu tư", "Văn phòng phẩm", "Khác"
+  supplierId        String
+  maNhaCungCap      String
+  tenNhaCungCap     String
+  loaiCungCap       String?
+  cungCap           String?
+  noiDungChiCho     String?
+  loaiHinh          String? // "Tổ chức", "Hộ gia đình", "Cá nhân"
+  soTienPhaiTra     Float?
+  soTienDaThanhToan Float?    @default(0)
+  ngayHoachToan     DateTime?
+  ngayDenHan        DateTime?
+  soTaiKhoan        String?
+  ghiChu            String?
+  files             String[]  @default([])
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  supplier          Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
 
   @@index([supplierId])
   @@index([ngayPhatSinh])

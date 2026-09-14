@@ -578,11 +578,17 @@ class WarehouseReceiptService {
       });
     }
 
-    const received = new Map<string, number>();
+    const received = new Map<string, { qty: number; donViTinh: string }>();
     for (const line of effectiveItems) {
       const key = norm(line.tenSanPham);
       if (!key) continue;
-      received.set(key, (received.get(key) ?? 0) + Number(line.soLuongThucTe ?? 0));
+      const prev = received.get(key);
+      received.set(key, {
+        qty: (prev?.qty ?? 0) + Number(line.soLuongThucTe ?? 0),
+        // Keep the first unit seen and detect a mismatch across lines of the same
+        // commodity below — summing 10 Kg + 10 Tấn as "20" would be meaningless.
+        donViTinh: prev?.donViTinh || line.donViTinh || '',
+      });
     }
 
     const unknown = [...received.keys()].filter((k) => !purchased.has(k));
@@ -592,12 +598,29 @@ class WarehouseReceiptService {
       );
     }
 
-    const exceeded: string[] = [];
-    for (const [key, qty] of received) {
+    // Unit reconciliation — quantity is only comparable in the same unit. A slip that
+    // books 10 "Tấn" against a purchase of 10 "Kg" would inflate tồn kho ~1000x while
+    // passing a quantity-only check, so an unknown name and a wrong unit are both fatal.
+    const unitMismatch: string[] = [];
+    for (const [key, rec] of received) {
       const bought = purchased.get(key);
       if (!bought) continue;
-      if (qty - bought.qty > 1e-9) {
-        exceeded.push(`${bought.tenHangHoa} (nhập ${qty} ${bought.donViTinh}, mua ${bought.qty} ${bought.donViTinh})`);
+      if (rec.donViTinh && bought.donViTinh && norm(rec.donViTinh) !== norm(bought.donViTinh)) {
+        unitMismatch.push(`${bought.tenHangHoa} (nhập ${rec.donViTinh}, mua ${bought.donViTinh})`);
+      }
+    }
+    if (unitMismatch.length > 0) {
+      throw new ValidationError(
+        `Đơn vị tính không khớp yêu cầu mua hàng ${pr.maYeuCau}: ${unitMismatch.join('; ')}`
+      );
+    }
+
+    const exceeded: string[] = [];
+    for (const [key, rec] of received) {
+      const bought = purchased.get(key);
+      if (!bought) continue;
+      if (rec.qty - bought.qty > 1e-9) {
+        exceeded.push(`${bought.tenHangHoa} (nhập ${rec.qty} ${bought.donViTinh}, mua ${bought.qty} ${bought.donViTinh})`);
       }
     }
     if (exceeded.length > 0) {
@@ -677,7 +700,97 @@ class WarehouseReceiptService {
       await tx.lotProduct.update({ where: { id: lotProductId }, data: { soLuong: { increment: qty } } });
     }
 
+    // Goods that arrived from a purchase must carry their cost, otherwise the slip
+    // books stock at no value and tồn kho keeps pricing itself off the old catalog
+    // price. Runs after the increment so the receipt lines exist.
+    if (normalized.purchaseRequestId) {
+      await this.applyPurchaseUnitCost(
+        tx,
+        normalized.purchaseRequestId,
+        receipt.items.map((item) => ({
+          id: item.id,
+          tenSanPham: item.tenSanPham,
+          lotProductId: item.lotProductId,
+          soLuongThucTe: item.soLuongThucTe,
+        })),
+      );
+    }
+
     return { ...receipt, isLocked: !!receipt.supplyRequestId };
+  }
+
+  /**
+   * Stamp the purchase cost onto the receipt lines that received it, and onto the
+   * kiện that took the stock.
+   *
+   * Unit cost per commodity is the quantity-weighted average of the YCMH lines that
+   * name it (a purchase can carry two lines of the same goods at different prices);
+   * the confirmed actual price wins and the estimate is the fallback, so a slip is
+   * never priced at zero just because purchasing skipped the confirmation step.
+   *
+   * LotProduct.giaThanh takes the incoming cost of the goods that landed in that kiện
+   * — deliberately not averaged per kiện. InventoryOverview already blends across
+   * kiện when it computes giaThanhTB, so keeping each kiện at its own acquisition
+   * cost preserves the audit trail of which lot cost what.
+   */
+  private async applyPurchaseUnitCost(
+    tx: Prisma.TransactionClient,
+    purchaseRequestId: string,
+    lines: Array<{ id: string; tenSanPham: string; lotProductId: string; soLuongThucTe: number }>,
+  ): Promise<void> {
+    if (lines.length === 0) return;
+
+    const pr = await tx.purchaseRequest.findUnique({
+      where: { id: purchaseRequestId },
+      select: { items: { select: { tenHangHoa: true, soLuong: true, giaDuKien: true, giaThucTe: true } } },
+    });
+    if (!pr) return;
+
+    const norm = (s: string | null | undefined): string => (s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const qtyByCommodity = new Map<string, number>();
+    const valueByCommodity = new Map<string, number>();
+    for (const item of pr.items ?? []) {
+      const key = norm(item.tenHangHoa);
+      const qty = Number(item.soLuong ?? 0);
+      const price = item.giaThucTe ?? item.giaDuKien ?? 0;
+      if (!key || qty <= 0 || price <= 0) continue;
+      qtyByCommodity.set(key, (qtyByCommodity.get(key) ?? 0) + qty);
+      valueByCommodity.set(key, (valueByCommodity.get(key) ?? 0) + price * qty);
+    }
+
+    const costOf = (tenSanPham: string): number | null => {
+      const key = norm(tenSanPham);
+      const qty = qtyByCommodity.get(key);
+      const value = valueByCommodity.get(key);
+      if (!qty || !value) return null;
+      return Number((value / qty).toFixed(2));
+    };
+
+    // Accumulate per kiện so several receipt lines landing on one package agree on a
+    // single unit cost instead of the last write silently winning.
+    const packageQty = new Map<string, number>();
+    const packageValue = new Map<string, number>();
+
+    for (const line of lines) {
+      const donGia = costOf(line.tenSanPham);
+      if (!donGia) continue;
+      const thanhTien = Number((donGia * line.soLuongThucTe).toFixed(2));
+      await tx.warehouseReceiptItem.update({
+        where: { id: line.id },
+        data: { donGia, thanhTien },
+      });
+      packageQty.set(line.lotProductId, (packageQty.get(line.lotProductId) ?? 0) + line.soLuongThucTe);
+      packageValue.set(line.lotProductId, (packageValue.get(line.lotProductId) ?? 0) + thanhTien);
+    }
+
+    for (const [lotProductId, qty] of packageQty) {
+      const value = packageValue.get(lotProductId) ?? 0;
+      if (qty <= 0 || value <= 0) continue;
+      await tx.lotProduct.update({
+        where: { id: lotProductId },
+        data: { giaThanh: Number((value / qty).toFixed(2)) },
+      });
+    }
   }
 
   /**
@@ -706,6 +819,19 @@ class WarehouseReceiptService {
       // Lock lives on the header: a supply-request-linked slip is immutable.
       if (existing.supplyRequestId) {
         throw new ConflictError('Không thể sửa/xóa phiếu gắn với yêu cầu cung cấp');
+      }
+
+      // A slip linked only to a YCMH (no supply request) reaches here, and editing
+      // its lines could raise a received quantity above what was bought — the exact
+      // over-receipt the create path guards against. Re-apply the same reconciliation
+      // against the stored purchaseRequestId before any write.
+      if (existing.purchaseRequestId) {
+        await this.assertMatchesPurchaseRequest(
+          tx,
+          existing.purchaseRequestId,
+          { employeeId: existing.employeeId, items } as CreateReceiptInput,
+          items,
+        );
       }
 
       const stored = existing.items ?? [];

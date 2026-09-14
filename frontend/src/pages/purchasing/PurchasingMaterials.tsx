@@ -14,6 +14,7 @@ import {
   X,
   Globe,
   CheckCircle,
+  BadgeCheck,
   HelpCircle
 } from 'lucide-react';
 // chuaPhanLoai badge reserved
@@ -29,6 +30,7 @@ import { can } from '../../utils/permissions';
 import { labelForPurchaseRequest } from '../../utils/purchaseRequestLabel';
 import ReplenishmentList from '../../components/ReplenishmentList';
 import ReplenishmentDetailModal from '../../components/ReplenishmentDetailModal';
+import ConfirmActualPriceModal from '../../components/ConfirmActualPriceModal';
 import type { ReplenishmentRequest } from '../../services/replenishmentRequestService';
 import replenishmentRequestService from '../../services/replenishmentRequestService';
 import { useUrlTab, useUrlDetailId } from '../../hooks/useUrlState';
@@ -389,6 +391,9 @@ const PurchasingMaterials = () => {
   // State for modals
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  // Giá thực tế: mở từ chi tiết YCMH ở trạng thái Đã duyệt.
+  const [showConfirmActualPrice, setShowConfirmActualPrice] = useState(false);
+  const [confirmActualPriceTarget, setConfirmActualPriceTarget] = useState<import('../../components/ConfirmActualPriceModal').ConfirmPriceTarget | null>(null);
   const [selectedPurchaseRequest, setSelectedPurchaseRequest] = useState<PurchaseRequest | null>(null);
   const [editingPurchaseRequest, setEditingPurchaseRequest] = useState<PurchaseRequest | null>(null);
   const [editFormData, setEditFormData] = useState<Partial<PurchaseRequest>>({});
@@ -601,6 +606,16 @@ const PurchasingMaterials = () => {
       },
     });
   }, [purchaseRequestPage, purchaseRequestSearch]);
+
+  /**
+   * True when every line of an approved YCMH already carries an actual price.
+   * Drives the "chưa chốt giá" hint so purchasing can see which arrivals still need
+   * a confirmation, and the green/red tint of the Đã duyệt badge.
+   */
+  const isActualPriceConfirmed = (item: any): boolean => {
+    const lines = (item?.items ?? []) as Array<{ giaThucTe?: number | null }>;
+    return lines.length > 0 && lines.every((l) => l.giaThucTe != null && Number(l.giaThucTe) > 0);
+  };
 
   const handleSubmitForApproval = useCallback((item: any) => {
     const missing = (item.items || []).filter((it: any) =>
@@ -1369,12 +1384,17 @@ const PurchasingMaterials = () => {
                             <th className="text-right py-2 px-2 font-medium text-gray-600">Số lượng</th>
                             <th className="text-left py-2 px-2 font-medium text-gray-600">ĐVT</th>
                             <th className="text-left py-2 px-2 font-medium text-gray-600">Nhà cung cấp</th>
-                            <th className="text-right py-2 px-2 font-medium text-gray-600">Giá dự kiến</th>
+                            <th className="text-right py-2 px-2 font-medium text-gray-600">Giá kế hoạch</th>
+                            <th className="text-right py-2 px-2 font-medium text-gray-600">Giá thực tế</th>
                             <th className="text-right py-2 px-2 font-medium text-gray-600">Thành tiền</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {selectedPurchaseRequest.items.map((item: any, i: number) => (
+                          {selectedPurchaseRequest.items.map((item: any, i: number) => {
+                            // Thành tiền follows the confirmed actual price when there is
+                            // one, so the slip's cost matches what purchasing really paid.
+                            const price = item.giaThucTe ?? item.giaDuKien;
+                            return (
                             <tr key={i} className="border-b border-gray-100">
                               <td className="py-2 px-2">{i + 1}</td>
                               <td className="py-2 px-2">{item.phanLoai}</td>
@@ -1382,14 +1402,18 @@ const PurchasingMaterials = () => {
                               <td className="py-2 px-2 text-right">{item.soLuong}</td>
                               <td className="py-2 px-2">{item.donViTinh}</td>
                               <td className="py-2 px-2 text-blue-600">{item.supplier?.tenNhaCungCap || '-'}</td>
-                              <td className="py-2 px-2 text-right">{item.giaDuKien ? Number(item.giaDuKien).toLocaleString('vi-VN') + 'đ' : '-'}</td>
-                              <td className="py-2 px-2 text-right font-medium">{item.giaDuKien ? (Number(item.giaDuKien) * item.soLuong).toLocaleString('vi-VN') + 'đ' : '-'}</td>
+                              <td className="py-2 px-2 text-right text-gray-500">{item.giaDuKien ? Number(item.giaDuKien).toLocaleString('vi-VN') + 'đ' : '-'}</td>
+                              <td className={`py-2 px-2 text-right ${item.giaThucTe ? 'font-medium text-green-700' : 'text-gray-400 italic'}`}>
+                                {item.giaThucTe ? Number(item.giaThucTe).toLocaleString('vi-VN') + 'đ' : 'chưa chốt'}
+                              </td>
+                              <td className="py-2 px-2 text-right font-medium">{price ? (Number(price) * item.soLuong).toLocaleString('vi-VN') + 'đ' : '-'}</td>
                             </tr>
-                          ))}
+                            );
+                          })}
                           <tr className="bg-gray-100 font-bold">
-                            <td colSpan={7} className="py-2 px-2 text-right">Tổng cộng:</td>
+                            <td colSpan={8} className="py-2 px-2 text-right">Tổng cộng:</td>
                             <td className="py-2 px-2 text-right text-green-700">
-                              {selectedPurchaseRequest.items.reduce((sum: number, item: any) => sum + (item.giaDuKien ? Number(item.giaDuKien) * item.soLuong : 0), 0).toLocaleString('vi-VN')}đ
+                              {selectedPurchaseRequest.items.reduce((sum: number, item: any) => sum + ((item.giaThucTe ?? item.giaDuKien) ? Number(item.giaThucTe ?? item.giaDuKien) * item.soLuong : 0), 0).toLocaleString('vi-VN')}đ
                             </td>
                           </tr>
                         </tbody>
@@ -1450,6 +1474,19 @@ const PurchasingMaterials = () => {
                 </div>
 
                 <div className="flex justify-end gap-4 mt-6">
+                  {selectedPurchaseRequest.trangThai === 'Đã duyệt' && canApprovePR && (
+                    <button
+                      type="button"
+                      onClick={() => { setConfirmActualPriceTarget(selectedPurchaseRequest); setShowConfirmActualPrice(true); }}
+                      className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 flex items-center gap-2"
+                    >
+                      <BadgeCheck className="w-4 h-4" />
+                      Xác nhận giá thực tế
+                      {!isActualPriceConfirmed(selectedPurchaseRequest) && (
+                        <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-white text-amber-700">chưa chốt</span>
+                      )}
+                    </button>
+                  )}
                   <button
                     onClick={closePurchaseRequestDetail}
                     className="px-4 py-2 border border-gray-200 rounded-md text-gray-700 hover:bg-gray-50"
@@ -1461,6 +1498,14 @@ const PurchasingMaterials = () => {
             </div>
           </div>
         )}
+
+        {/* Xác nhận giá thực tế cho YCMH đã duyệt (hàng về) */}
+        <ConfirmActualPriceModal
+          isOpen={showConfirmActualPrice}
+          onClose={() => { setShowConfirmActualPrice(false); setConfirmActualPriceTarget(null); }}
+          purchaseRequest={confirmActualPriceTarget}
+          onSuccess={() => { fetchPurchaseRequests(); closePurchaseRequestDetail(); }}
+        />
 
         {/* Xử lý yêu cầu mua hàng Modal */}
         {editingPurchaseRequest && (
