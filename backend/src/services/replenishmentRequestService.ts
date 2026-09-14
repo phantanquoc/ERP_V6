@@ -28,6 +28,14 @@ export interface CreateReplenishmentRequestRequest {
   ghiChu?: string;
   supplyRequestId?: string;
   phanLoaiGroup?: string;
+  /**
+   * Set true when the warehouse deliberately asks purchasing to buy MORE of a
+   * line than the supply request is still short (buffer stock, price break, etc.).
+   * Without it, a line whose quantity exceeds the source request's remaining is
+   * rejected — the over-order must be an explicit, checked decision rather than a
+   * silent typo that later inflates inventory nobody reconciled against the request.
+   */
+  ackOverQuota?: boolean;
 }
 
 // ─── Allowed transitions (YCBS is thin: Chờ báo giá → Đã chuyển mua hàng / Đã hủy) ───
@@ -76,8 +84,37 @@ class ReplenishmentRequestService {
     }
 
     if (data.supplyRequestId) {
-      const sr = await tx.supplyRequest.findUnique({ where: { id: data.supplyRequestId }, select: { id: true } });
+      const sr = await tx.supplyRequest.findUnique({
+        where: { id: data.supplyRequestId },
+        select: { id: true, items: { select: { tenGoi: true, soLuong: true, fulfilledQty: true, fulfillmentStatus: true } } },
+      });
       if (!sr) throw new ValidationError('Yêu cầu cung cấp nguồn không tồn tại');
+
+      // Lines that still owe something — the only ones the SR considers "short".
+      // Null means "no ceiling": the warehouse added the line by hand and it never
+      // belonged to this supply request, so there is no remaining to compare against.
+      const normalizeKey = (v: unknown) => String(v ?? '').trim().toLowerCase();
+      const remainingByKey = new Map<string, number>();
+      for (const it of sr.items ?? []) {
+        const s = it.fulfillmentStatus;
+        if (s === 'Đã cấp đủ' || s === 'Chuyển thu mua') continue;
+        const remaining = Math.max(0, (it.soLuong ?? 0) - (it.fulfilledQty ?? 0));
+        if (remaining > 1e-9) remainingByKey.set(normalizeKey(it.tenGoi), remaining);
+      }
+      for (const req of data.items) {
+        const key = normalizeKey(req.tenGoi);
+        const cap = remainingByKey.get(key);
+        // Name appears on the SR but is not among the still-short lines (e.g. a line
+        // already fully issued) — do not fail, it is simply ignored for surplus.
+        // The warehouse already obtains no "remaining" for lines they add by hand.
+        if (cap === undefined) continue;
+        if (req.soLuong > cap + 1e-9 && !data.ackOverQuota) {
+          throw new ValidationError(
+            `Số lượng "${req.tenGoi}" vượt phần còn thiếu (${cap} ${req.donViTinh}) so với yêu cầu cung cấp nguồn ` +
+            `— tích "Xác nhận mua ngoài kế hoạch" nếu cố ý đặt vượt, hoặc chỉnh về ≤ ${cap}.`,
+          );
+        }
+      }
     }
 
     // Compute phanLoaiGroup from bucket if not supplied

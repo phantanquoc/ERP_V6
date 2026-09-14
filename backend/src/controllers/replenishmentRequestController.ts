@@ -98,7 +98,10 @@ class ReplenishmentRequestController {
         items: (data.items as { phanLoai: string; tenGoi: string; soLuong: number; donViTinh: string }[]) ?? [],
         supplyRequestId: data.supplyRequestId as string | undefined,
         phanLoaiGroup: data.phanLoaiGroup as string | undefined,
-      } as any);
+        // FormData sends booleans as the strings "true"/"1"; accept both so the
+        // deliberate over-order signal survives multipart.
+        ackOverQuota: data.ackOverQuota === true || data.ackOverQuota === 'true' || data.ackOverQuota === '1',
+      });
 
       return res.status(201).json({ success: true, message: 'Tạo yêu cầu bổ sung thành công', data: created });
     } catch (error) {

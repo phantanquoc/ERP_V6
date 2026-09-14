@@ -126,6 +126,8 @@ class ReplenishmentRequestService {
       ghiChu?: string;
       supplyRequestId: string;
       phanLoaiGroup?: string;
+      /** Checked in the source-modal when the warehouse deliberately buys more than remaining. */
+      ackOverQuota?: boolean;
     },
     file?: File,
   ) {

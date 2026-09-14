@@ -77,6 +77,7 @@ const CreateReplenishmentRequestModal: React.FC<CreateReplenishmentRequestModalP
   const [mucDichYeuCau, setMucDichYeuCau] = useState('');
   const [mucDoUuTien, setMucDoUuTien] = useState('Trung bình');
   const [ghiChu, setGhiChu] = useState('');
+  const [ackOverQuota, setAckOverQuota] = useState(false);
 
   const creatorName = `${user?.lastName ?? ''} ${user?.firstName ?? ''}`.trim();
   const departmentName = user?.departmentName || getDepartmentDisplayName(user?.department);
@@ -184,8 +185,8 @@ const CreateReplenishmentRequestModal: React.FC<CreateReplenishmentRequestModalP
       const row = items[i];
       if (!row.tenGoi?.trim()) return `Dòng ${i + 1}: Vui lòng chọn hàng hóa`;
       if (!row.soLuong || row.soLuong <= 0) return `Dòng ${i + 1}: Số lượng phải lớn hơn 0`;
-      if (exceedsRemaining(row)) {
-        return `Dòng ${i + 1}: Số lượng vượt phần còn thiếu (${row.remaining} ${row.donViTinh})`;
+      if (exceedsRemaining(row) && !ackOverQuota) {
+        return `Dòng ${i + 1}: Số lượng vượt phần còn thiếu (${row.remaining} ${row.donViTinh}) — tích "Xác nhận mua ngoài kế hoạch" nếu cố ý đặt vượt`;
       }
     }
     const names = items.map((r) => r.tenGoi.trim().toLowerCase());
@@ -221,6 +222,7 @@ const CreateReplenishmentRequestModal: React.FC<CreateReplenishmentRequestModalP
         mucDoUuTien,
         ghiChu: ghiChu || undefined,
         supplyRequestId: supplyRequest?.id ?? '',
+        ackOverQuota: overQuota && ackOverQuota,
       });
       toast.success('Đã tạo yêu cầu bổ sung');
       onSuccess?.();
@@ -244,7 +246,7 @@ const CreateReplenishmentRequestModal: React.FC<CreateReplenishmentRequestModalP
           onSubmit={handleSubmit as any}
           submitLabel="Tạo yêu cầu"
           isLoading={loading}
-          submitDisabled={!canCreate || overQuota || items.length === 0}
+          submitDisabled={!canCreate || (overQuota && !ackOverQuota) || items.length === 0}
         />
       }
     >
@@ -361,7 +363,7 @@ const CreateReplenishmentRequestModal: React.FC<CreateReplenishmentRequestModalP
                               required
                               min="0.01"
                               step="0.01"
-                              max={row.remaining ?? undefined}
+                              max={undefined}
                               className={inputCls(exceeds)}
                               placeholder="0.00"
                             />
@@ -386,7 +388,7 @@ const CreateReplenishmentRequestModal: React.FC<CreateReplenishmentRequestModalP
                         {exceeds && (
                           <p className="text-xs text-amber-700 flex items-center gap-1">
                             <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-                            Số lượng vượt phần còn thiếu ({row.remaining} {row.donViTinh})
+                            Số lượng vượt phần còn thiếu ({row.remaining} {row.donViTinh}){ackOverQuota ? ' — đã xác nhận mua ngoài kế hoạch' : ''}
                           </p>
                         )}
                       </div>
@@ -408,6 +410,13 @@ const CreateReplenishmentRequestModal: React.FC<CreateReplenishmentRequestModalP
             </div>
           )}
         </div>
+
+        {overQuota && (
+          <label className="flex items-center gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 cursor-pointer">
+            <input type="checkbox" checked={ackOverQuota} onChange={(e) => setAckOverQuota(e.target.checked)} className="rounded" />
+            Xác nhận mua ngoài kế hoạch — số lượng vượt phần còn thiếu của yêu cầu cung cấp nguồn
+          </label>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField label="Mục đích yêu cầu" required>
