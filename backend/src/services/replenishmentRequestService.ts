@@ -308,9 +308,11 @@ class ReplenishmentRequestService {
   // ── Convert YCBS → YCMH — the split point ────────────────────────────────
   //
   // Inside one tx:
-  //   - creates PurchaseRequest { sourceType=MANUAL, trangThai=Chờ báo giá, YC-MH-… }
-  //     with items copied from YCBS (NCC/giaDuKien carried over as a prefill only —
-  //     quoting is YCMH's own step, done via purchaseRequest submitForApproval)
+  //   - creates PurchaseRequest { sourceType=MANUAL, YC-MH-… } with items copied
+  //     from YCBS (NCC/giaDuKien always carried over — never dropped).
+  //   - fully quoted → trangThai=Chờ duyệt (convert doubles as submit-for-approval)
+  //   - partially quoted → trangThai=Chờ báo giá (finish quoting on the YCMH via
+  //     purchaseRequest update + submitForApproval)
   //   - marks YCBS trangThai='Đã chuyển mua hàng', convertedPurchaseRequestId = new PR id
 
   async convertToPurchaseRequest(id: string, actorEmployeeId?: string) {
@@ -356,6 +358,15 @@ class ReplenishmentRequestService {
       });
       const maYeuCau = nextYearlyCode(last?.maYeuCau ?? null, 'YC-MH', year);
 
+      // NCC + price are copied from YCBS. If purchasing already quoted every line
+      // here, the YCMH skips its own Chờ báo giá stage and lands at Chờ duyệt —
+      // one click converts AND submits for approval, so purchasing does not have to
+      // open the purchase-request list and press "Gửi duyệt" a second time. Partial
+      // pricing keeps the old shape: Chờ báo giá, finish quoting on the YCMH.
+      const allPriced = useItems.length > 0 && useItems.every(
+        (it) => !!it.nhaCungCapId && it.giaDuKien != null && Number(it.giaDuKien) > 0,
+      );
+
       const pr = await tx.purchaseRequest.create({
         data: {
           maYeuCau,
@@ -366,7 +377,7 @@ class ReplenishmentRequestService {
           mucDoUuTien: ybs.mucDoUuTien,
           ghiChu: ybs.ghiChu,
           supplyRequestId: ybs.supplyRequestId,
-          trangThai: 'Chờ báo giá',
+          trangThai: allPriced ? 'Chờ duyệt' : 'Chờ báo giá',
           sourceType: 'MANUAL',
           fileKemTheo: ybs.fileKemTheo,
         },
@@ -391,7 +402,7 @@ class ReplenishmentRequestService {
         data: { convertedPurchaseRequestId: pr.id },
       });
 
-      return { prId: pr.id, maYeuCau };
+      return { prId: pr.id, maYeuCau, submitted: allPriced };
     });
 
     // Notifications — best-effort, never fail the tx
@@ -400,25 +411,46 @@ class ReplenishmentRequestService {
         where: { id: result.prId },
         include: { items: true },
       });
-      // Notify purchasing that a fresh YCMH needs quoting (it lands in Chờ báo giá).
-      // The YCBS notification (REPLENISHMENT_REQUEST_CREATED) already reached purchasing
-      // at creation time; this one tracks the new YCMH id for the deep-link. Best-effort —
-      // a notification failure never fails an already-committed convert.
       if (prRow) {
-        notificationService
-          .notify(NotificationEvent.PURCHASE_REQUEST_CREATED, {
-            actorUserId: actorEmployeeId,
-            entityId: prRow.id,
-            metadata: {
-              maYeuCau: prRow.maYeuCau,
-              purchaseRequestId: prRow.id,
-              sourceType: prRow.sourceType,
-              replenishmentRequestId: id,
-              phanLoaiGroup: ybs.phanLoaiGroup,
-              items: prRow.items.map((it) => ({ phanLoai: it.phanLoai })),
-            },
-          })
-          .catch(() => { /* best-effort */ });
+        if (result.submitted) {
+          // Fully quoted at convert time: skip the quoting notification. The YCMH is
+          // already Chờ duyệt, so tell approvers directly (same event submitForApproval
+          // would have sent) instead of asking purchasing to quote it again.
+          const tongTien = prRow.items.reduce(
+            (sum, it) => sum + Number(it.soLuong ?? 0) * Number(it.giaDuKien ?? 0),
+            0,
+          );
+          notificationService
+            .notify(NotificationEvent.PURCHASE_REQUEST_SUBMITTED_FOR_APPROVAL, {
+              actorUserId: actorEmployeeId,
+              entityId: prRow.id,
+              metadata: {
+                maYeuCau: prRow.maYeuCau,
+                purchaseRequestId: prRow.id,
+                tongTien: tongTien.toLocaleString('vi-VN') + ' đ',
+              },
+            })
+            .catch(() => { /* best-effort */ });
+        } else {
+          // Partial pricing: a fresh YCMH needs quoting (it lands in Chờ báo giá).
+          // The YCBS notification (REPLENISHMENT_REQUEST_CREATED) already reached
+          // purchasing at creation time; this one tracks the new YCMH id for the
+          // deep-link. Best-effort — a failure never fails an already-committed convert.
+          notificationService
+            .notify(NotificationEvent.PURCHASE_REQUEST_CREATED, {
+              actorUserId: actorEmployeeId,
+              entityId: prRow.id,
+              metadata: {
+                maYeuCau: prRow.maYeuCau,
+                purchaseRequestId: prRow.id,
+                sourceType: prRow.sourceType,
+                replenishmentRequestId: id,
+                phanLoaiGroup: ybs.phanLoaiGroup,
+                items: prRow.items.map((it) => ({ phanLoai: it.phanLoai })),
+              },
+            })
+            .catch(() => { /* best-effort */ });
+        }
       }
     } catch { /* reload after successful convert; notification failure must not reject the flow */ }
 

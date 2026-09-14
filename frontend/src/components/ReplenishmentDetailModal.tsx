@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
-import { X, ShoppingCart, AlertTriangle } from 'lucide-react';
+import { X, ShoppingCart, AlertTriangle, Plus } from 'lucide-react';
 import type { ReplenishmentRequest, ReplenishmentRequestItem } from '../services/replenishmentRequestService';
 import replenishmentRequestService from '../services/replenishmentRequestService';
 import { useSupplierOptions } from '../hooks/useSuppliers';
+import QuickCreateSupplierModal from './QuickCreateSupplierModal';
 
 interface ReplenishmentDetailModalProps {
   isOpen: boolean;
@@ -18,9 +19,10 @@ interface ReplenishmentDetailModalProps {
  *
  * Warehouse created the YCBS without price or supplier. Purchasing fills those
  * here (`PUT /:id`), then converts it into a real YCMH (`POST /:id/convert`) in
- * one atomic transaction. After conversion the YCBS is `Đã chuyển mua hàng` and
- * leaves the replenishment queue — the new YCMH (`Chờ duyệt`) appears in the
- * purchase-request list for approval.
+ * one atomic transaction. If every line is quoted, the convert also submits for
+ * approval — the YCMH lands at `Chờ duyệt` directly; otherwise it lands at
+ * `Chờ báo giá` to finish quoting. Either way the YCBS is `Đã chuyển mua hàng`
+ * and leaves the replenishment queue.
  */
 const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
   isOpen,
@@ -33,6 +35,9 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
   const [saving, setSaving] = useState(false);
   const [converting, setConverting] = useState(false);
   const [rows, setRows] = useState<Array<{ id: string; phanLoai: string; tenGoi: string; soLuong: number; donViTinh: string; nhaCungCapId: string; giaDuKien: string }>>([]);
+  // Inline "create supplier" from the NCC dropdown — idx is the row the button
+  // was clicked on, so the new supplier lands as that row's nhaCungCapId.
+  const [quickCreateRowIdx, setQuickCreateRowIdx] = useState<number | null>(null);
 
   const { data: suppliersData } = useSupplierOptions();
   const suppliers = (suppliersData?.data ?? suppliersData ?? []) as Array<{ id: string; tenNhaCungCap: string; maNhaCungCap: string }>;
@@ -125,30 +130,33 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
 
   const handleConvert = async () => {
     if (!detail) return;
-    // Persist any unsaved edits first so convert sees the latest NCC/price
-    if (JSON.stringify(rows.map((r) => ({ n: r.nhaCungCapId, g: r.giaDuKien }))) !==
-        JSON.stringify((detail.items ?? []).map((it) => ({ n: it.nhaCungCapId ?? '', g: it.giaDuKien != null ? String(it.giaDuKien) : '' })))) {
-      setSaving(true);
-      try {
-        await replenishmentRequestService.updateReplenishmentRequest(detail.id, {
-          items: rows.map((r) => ({
-            phanLoai: r.phanLoai, tenGoi: r.tenGoi, soLuong: r.soLuong, donViTinh: r.donViTinh,
-            nhaCungCapId: r.nhaCungCapId || null, giaDuKien: r.giaDuKien ? Number(r.giaDuKien) : null,
-          })),
-        } as any);
-      } catch (e: any) {
-        setSaving(false);
-        toast.error(e?.response?.data?.message ?? 'Lưu trước khi chuyển thất bại');
-        return;
-      }
+    // Always persist current edits first. The previous code only saved when a
+    // JSON.stringify diff matched — but giaDuKien arrives as a number and `rows`
+    // holds a string, so e.g. `50000` vs `"50000"` matched and a genuinely-edited
+    // NCC/price was silently skipped: convert then built a YCMH from stale rows.
+    // Saving unconditionally is one extra idempotent PUT and guarantees the
+    // server sees exactly what the purchasing agent left in the table.
+    setSaving(true);
+    try {
+      await replenishmentRequestService.updateReplenishmentRequest(detail.id, {
+        items: rows.map((r) => ({
+          phanLoai: r.phanLoai, tenGoi: r.tenGoi, soLuong: r.soLuong, donViTinh: r.donViTinh,
+          nhaCungCapId: r.nhaCungCapId || null, giaDuKien: r.giaDuKien ? Number(r.giaDuKien) : null,
+        })),
+      } as any);
+    } catch (e: any) {
       setSaving(false);
+      toast.error(e?.response?.data?.message ?? 'Lưu trước khi chuyển thất bại');
+      return;
     }
+    setSaving(false);
     setConverting(true);
     try {
       const res: any = await replenishmentRequestService.convertToPurchaseRequest(detail.id);
       const row = (res?.data?.data ?? res?.data) as ReplenishmentRequest | undefined;
-      const ycmh = row?.convertedPurchaseRequest as { id?: string; maYeuCau?: string } | undefined;
-      toast.success(`Đã chuyển YCBS ${detail.maYeuCau} thành YCMH ${ycmh?.maYeuCau ?? ''}`);
+      const ycmh = row?.convertedPurchaseRequest as { id?: string; maYeuCau?: string; trangThai?: string } | undefined;
+      const statusNote = ycmh?.trangThai === 'Chờ duyệt' ? ' (đã gửi duyệt)' : '';
+      toast.success(`Đã chuyển YCBS ${detail.maYeuCau} thành YCMH ${ycmh?.maYeuCau ?? ''}${statusNote}`);
       onConverted?.(detail.id, ycmh?.id ?? '');
       onClose();
     } catch (e: any) {
@@ -186,9 +194,13 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
           ) : missingPricing.length > 0 ? (
             <div className="rounded border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0" />
-              Chưa báo giá đủ — thiếu NCC/giá: {missingPricing.join(', ')}. Vẫn có thể chuyển thành YCMH, thu mua sẽ báo giá tiếp ở đó.
+              Chưa báo giá đủ — thiếu NCC/giá: {missingPricing.join(', ')}. Chuyển ngay thì YCMH ở Chờ báo giá và báo giá tiếp ở đó; điền đủ thì YCMH gửi duyệt luôn.
             </div>
-          ) : null}
+          ) : (
+            <div className="rounded border border-green-200 bg-green-50 px-4 py-2 text-xs text-green-800">
+              Đã đủ NCC và giá — "Chuyển thành YCMH" sẽ gửi duyệt luôn, không cần qua danh sách YCMH.
+            </div>
+          )}
 
           {!loading && (
             <div className="overflow-x-auto border border-gray-200 rounded">
@@ -216,17 +228,29 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
                         <td className="px-3 py-2 text-right">{r.soLuong}</td>
                         <td className="px-3 py-2">{r.donViTinh}</td>
                         <td className="px-3 py-2 min-w-[180px]">
-                          <select
-                            value={r.nhaCungCapId}
-                            onChange={(e) => setRowField(idx, { nhaCungCapId: e.target.value })}
-                            disabled={readOnly}
-                            className="w-full px-2 py-1 text-sm border border-gray-200 rounded disabled:bg-gray-50"
-                          >
-                            <option value="">— Chọn NCC —</option>
-                            {suppliers.map((s) => (
-                              <option key={s.id} value={s.id}>{s.tenNhaCungCap} ({s.maNhaCungCap})</option>
-                            ))}
-                          </select>
+                          <div className="flex items-center gap-1">
+                            <select
+                              value={r.nhaCungCapId}
+                              onChange={(e) => setRowField(idx, { nhaCungCapId: e.target.value })}
+                              disabled={readOnly}
+                              className="w-full px-2 py-1 text-sm border border-gray-200 rounded disabled:bg-gray-50"
+                            >
+                              <option value="">— Chọn NCC —</option>
+                              {suppliers.map((s) => (
+                                <option key={s.id} value={s.id}>{s.tenNhaCungCap} ({s.maNhaCungCap})</option>
+                              ))}
+                            </select>
+                            {!readOnly && (
+                              <button
+                                type="button"
+                                onClick={() => setQuickCreateRowIdx(idx)}
+                                title="Thêm nhà cung cấp mới"
+                                className="p-1.5 shrink-0 text-green-700 hover:bg-green-50 rounded"
+                              >
+                                <Plus className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="px-3 py-2">
                           <input
@@ -260,7 +284,7 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
                 onClick={handleConvert}
                 disabled={saving || converting}
                 className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-40"
-                title="Chuyển thành YCMH (báo giá tiếp ở YCMH)"
+                title="Chuyển thành YCMH (đủ giá/NCC thì gửi duyệt luôn)"
               >
                 {converting ? 'Đang chuyển…' : 'Chuyển thành YCMH'}
               </button>
@@ -268,6 +292,16 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
           </div>
         </div>
       </div>
+
+      {quickCreateRowIdx !== null && (
+        <QuickCreateSupplierModal
+          key={quickCreateRowIdx}
+          isOpen
+          onClose={() => setQuickCreateRowIdx(null)}
+          defaultLoaiCungCap={rows[quickCreateRowIdx]?.phanLoai || undefined}
+          onCreated={(s) => setRowField(quickCreateRowIdx, { nhaCungCapId: s.id })}
+        />
+      )}
     </div>
   );
 };
