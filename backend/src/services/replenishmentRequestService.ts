@@ -449,7 +449,9 @@ class ReplenishmentRequestService {
             entityId: prRow.id,
             metadata: {
               maYeuCau: prRow.maYeuCau,
+              purchaseRequestId: prRow.id,
               sourceType: prRow.sourceType,
+              replenishmentRequestId: id,
               phanLoaiGroup: ybs.phanLoaiGroup,
               items: prRow.items.map((it) => ({ phanLoai: it.phanLoai })),
             },

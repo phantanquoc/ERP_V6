@@ -42,6 +42,7 @@ export const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   SUPPLY_REQUEST_PROCESSING: 'Xử lý yêu cầu vật tư',
   SUPPLY_REQUEST_APPROVED: 'Duyệt yêu cầu vật tư',
   SUPPLY_REQUEST_FULFILLED: 'Hoàn thành yêu cầu vật tư',
+  REPLENISHMENT_REQUEST: 'Yêu cầu bổ sung',
   PURCHASE_REQUEST: 'Yêu cầu mua hàng',
   PAYROLL: 'Bảng lương',
   ACCEPTANCE_HANDOVER: 'Nghiệm thu bàn giao',
@@ -97,6 +98,7 @@ export const NOTIFICATION_TYPE_GROUPS: NotificationGroup[] = [
       'SUPPLY_REQUEST_PROCESSING',
       'SUPPLY_REQUEST_APPROVED',
       'SUPPLY_REQUEST_FULFILLED',
+      'REPLENISHMENT_REQUEST',
       'PURCHASE_REQUEST',
     ],
   },
@@ -152,6 +154,8 @@ export function getNotificationIcon(type: string): React.ReactNode {
       return React.createElement(Truck, { className: 'w-4 h-4 text-blue-600' });
     case 'SUPPLY_REQUEST_FULFILLED':
       return React.createElement(PackageOpen, { className: 'w-4 h-4 text-green-600' });
+    case 'REPLENISHMENT_REQUEST':
+      return React.createElement(PackageOpen, { className: 'w-4 h-4 text-amber-600' });
     case 'PURCHASE_REQUEST':
       return React.createElement(ShoppingCart, { className: 'w-4 h-4 text-cyan-600' });
     case 'PASSWORD_RESET':
@@ -244,8 +248,21 @@ export function resolveDeepLink(notification: NotificationForLink): string | nul
         : '/production/warehouse?tab=supplyRequest';
     }
 
+    case 'REPLENISHMENT_REQUEST': {
+      const ybsId = meta.replenishmentRequestId as string | undefined;
+      const group = (meta.phanLoaiGroup as string | undefined)?.toUpperCase();
+      const base =
+        group === 'EQUIPMENT'
+          ? '/purchasing/equipment'
+          : '/purchasing/materials';
+      // Both pages own ?replenishmentRequestId= on their `replenishment` tab
+      // (TAB_SCOPED_PARAMS + useUrlDetailId): the link lands on the YCBS queue
+      // and auto-opens ReplenishmentDetailModal.
+      return ybsId ? `${base}?tab=replenishment&replenishmentRequestId=${ybsId}` : `${base}?tab=replenishment`;
+    }
+
     case 'PURCHASE_REQUEST': {
-      const prId = meta.purchaseRequestId as string | undefined;
+      const prId = (meta.purchaseRequestId as string | undefined) ?? (meta.entityId as string | undefined);
       const group = (meta.phanLoaiGroup as string | undefined)?.toUpperCase();
       const base =
         group === 'EQUIPMENT'
