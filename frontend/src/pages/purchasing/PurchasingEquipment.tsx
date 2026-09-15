@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import toast from 'react-hot-toast';
 import {
   Settings,
   Users,
@@ -377,8 +378,10 @@ const PurchasingEquipment = () => {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [selectedPurchaseRequest, setSelectedPurchaseRequest] = useState<PurchaseRequest | null>(null);
   const [editingPurchaseRequest, setEditingPurchaseRequest] = useState<PurchaseRequest | null>(null);
-  // Giá thực tế: mở từ chi tiết YCMH ở trạng thái Đã duyệt (mirror NVL page).
+  // Giá thực tế: mở từ chi tiết YCMH ở trạng thái Đã duyệt, hoặc từ nút
+  // "Đã mua xong" khi còn dòng chưa chốt (setCompleteAfterPriceConfirm=true).
   const [showConfirmActualPrice, setShowConfirmActualPrice] = useState(false);
+  const [completeAfterPriceConfirm, setCompleteAfterPriceConfirm] = useState(false);
   const [confirmActualPriceTarget, setConfirmActualPriceTarget] = useState<import('../../components/ConfirmActualPriceModal').ConfirmPriceTarget | null>(null);
   const [editFormData, setEditFormData] = useState<Partial<PurchaseRequest>>({});
   // Per-item pricing state — required so a "Chờ báo giá" replenishment PR can be
@@ -614,16 +617,21 @@ const PurchasingEquipment = () => {
       });
       return;
     }
-    // Soft guard (không chặn cứng): nếu chưa chốt giá thực tế, nhắc rõ hệ quả để
-    // mua hàng bấm "Hủy" rồi vào chi tiết xác nhận giá TRƯỚC khi hoàn thành. Vì
-    // hết "Đã duyệt" thì backend từ chối xác nhận giá (chỉ nhận trạng thái đó).
+    // "Đã mua xong" IS the actual-price confirmation now: when any line still
+    // lacks giaThucTe, open ConfirmActualPriceModal and flip to Hoàn thành only
+    // inside its onSuccess (after the price write succeeds). When every line
+    // already carries a price, keep the plain one-click completion.
     const priceReady = isActualPriceConfirmed(item);
+    if (!priceReady) {
+      setConfirmActualPriceTarget(item);
+      setShowConfirmActualPrice(true);
+      setCompleteAfterPriceConfirm(true);
+      return;
+    }
     setConfirmAction({
       title: 'Xác nhận đã mua xong',
-      message: priceReady
-        ? 'Đã mua hàng xong? Hệ thống sẽ thông báo cho kho chuẩn bị nhập hàng.'
-        : 'Yêu cầu này CHƯA xác nhận giá thực tế cho toàn bộ dòng.\n\nBấm "Đã mua xong" sẽ chuyển sang Hoàn thành và KHÔNG còn chốt được giá thực tế nữa (chỉ chốt khi ở "Đã duyệt") — giá vốn hàng hóa sẽ giữ nguyên giá kế hoạch.\n\nKhuyên: bấm Hủy, mở chi tiết → "Xác nhận giá thực tế" trước.',
-      variant: priceReady ? 'primary' : 'warning',
+      message: 'Giá thực tế đã chốt đủ. Đóng phiếu (Hoàn thành) và thông báo cho kho chuẩn bị nhập hàng?',
+      variant: 'primary',
       confirmLabel: 'Đã mua xong',
       onConfirm: async () => {
         try {
@@ -1180,13 +1188,13 @@ const PurchasingEquipment = () => {
         {/* Purchase Request Detail Modal */}
         {selectedPurchaseRequest && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-sm max-w-4xl w-full mx-2 sm:mx-4 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
-              <div className="p-4 sm:p-6">
-                <div className="flex justify-between items-center mb-6">
+            <div className="bg-white rounded-lg shadow-sm max-w-4xl w-full mx-2 sm:mx-4 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] flex flex-col overflow-hidden">
+              <div className="p-4 sm:p-6 flex flex-col flex-1 min-h-0">
+                <div className="flex justify-between items-center mb-6 shrink-0">
                   <h2 className="text-2xl font-bold text-gray-800">Chi tiết {labelForPurchaseRequest(selectedPurchaseRequest)}</h2>
                   <button onClick={closePurchaseRequestDetail} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto flex-1 min-h-0 pr-1">
                   <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Mã yêu cầu</label><p className="text-sm font-semibold text-purple-600">{selectedPurchaseRequest.maYeuCau}</p></div>
                   <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Ngày yêu cầu</label><p className="text-sm text-gray-900">{new Date(selectedPurchaseRequest.ngayYeuCau).toLocaleDateString('vi-VN')}</p></div>
                   <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Nhân viên yêu cầu</label><p className="text-sm text-gray-900">{selectedPurchaseRequest.tenNhanVien}</p></div>
@@ -1259,7 +1267,7 @@ const PurchasingEquipment = () => {
                     {selectedPurchaseRequest.fileKemTheo ? <a href={selectedPurchaseRequest.fileKemTheo} target="_blank" rel="noopener noreferrer" className="text-sm text-purple-600 hover:underline">{selectedPurchaseRequest.fileKemTheo}</a> : <p className="text-sm text-gray-400 italic">Không có file đính kèm</p>}
                   </div>
                 </div>
-                <div className="flex justify-end gap-4 mt-6">
+                <div className="flex flex-wrap justify-end gap-4 mt-4 pt-4 border-t border-gray-100 bg-white shrink-0">
                   {selectedPurchaseRequest.trangThai === 'Đã duyệt' && canApprovePR && (
                     <button
                       type="button"
@@ -1290,23 +1298,41 @@ const PurchasingEquipment = () => {
           </div>
         )}
 
-        {/* Xác nhận giá thực tế cho YCMH đã duyệt (hàng về) */}
+        {/* Xác nhận giá thực tế cho YCMH đã duyệt (hàng về). Khi bật từ nút
+            "Đã mua xong" (completeAfterPriceConfirm), đóng phiếu sau khi giá được lưu. */}
         <ConfirmActualPriceModal
           isOpen={showConfirmActualPrice}
-          onClose={() => { setShowConfirmActualPrice(false); setConfirmActualPriceTarget(null); }}
+          thenComplete={completeAfterPriceConfirm}
+          onClose={() => { setShowConfirmActualPrice(false); setConfirmActualPriceTarget(null); setCompleteAfterPriceConfirm(false); }}
           purchaseRequest={confirmActualPriceTarget}
-          onSuccess={() => { fetchPurchaseRequests(); closePurchaseRequestDetail(); }}
+          onSuccess={async () => {
+            if (completeAfterPriceConfirm && confirmActualPriceTarget) {
+              try {
+                await purchaseRequestService.updatePurchaseRequest(confirmActualPriceTarget.id, { trangThai: 'Hoàn thành' });
+                toast.success('Đã chốt giá thực tế và đóng phiếu — đã báo kho nhập hàng');
+              } catch (e: any) {
+                toast.error(e?.response?.data?.message || 'Đã lưu giá nhưng đóng phiếu thất bại');
+              }
+            }
+            setCompleteAfterPriceConfirm(false);
+            setConfirmActualPriceTarget(null);
+            setShowConfirmActualPrice(false);
+            fetchPurchaseRequests();
+            closePurchaseRequestDetail();
+          }}
         />
 
         {/* Edit Purchase Request Modal */}
         {editingPurchaseRequest && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-sm w-full max-w-2xl md:max-w-4xl lg:max-w-6xl mx-2 sm:mx-4 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto">
-              <form onSubmit={handleEditSubmit} className="p-4 sm:p-6">
-                <div className="flex justify-between items-center mb-6">
+            <div className="bg-white rounded-lg shadow-sm w-full max-w-2xl md:max-w-4xl lg:max-w-6xl mx-2 sm:mx-4 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] flex flex-col overflow-hidden">
+              <form onSubmit={handleEditSubmit} className="p-4 sm:p-6 flex flex-col flex-1 min-h-0">
+                <div className="flex justify-between items-center mb-6 shrink-0">
                   <h2 className="text-2xl font-bold text-gray-800">Chỉnh sửa yêu cầu mua hàng</h2>
                   <button type="button" onClick={closeEditPurchaseRequest} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
                 </div>
+                {/* Scrollable body — header + footer stay pinned. */}
+                <div className="flex-1 min-h-0 overflow-y-auto">
                 {/* API error banner */}
                 {editFormErrors.api && (
                   <div className="mb-4 p-3 bg-red-50 border border-red-300 rounded-md flex items-start gap-2">
@@ -1418,7 +1444,8 @@ const PurchasingEquipment = () => {
 
                   <FileUpload label="File đính kèm" files={selectedFile ? [selectedFile] : []} onChange={(files) => setSelectedFile(files[0] || null)} accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" existingFileName={!selectedFile && editFormData.fileKemTheo ? editFormData.fileKemTheo : undefined} existingFileUrl={!selectedFile && editFormData.fileKemTheo ? editFormData.fileKemTheo : undefined} onRemoveExisting={() => setEditFormData({ ...editFormData, fileKemTheo: '' })} />
                 </div>
-                <div className="flex flex-col sm:flex-row sm:justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
+                </div>{/* /scrollable body */}
+                <div className="flex flex-col sm:flex-row sm:justify-end gap-3 mt-6 pt-4 border-t border-gray-100 bg-white shrink-0">
                   <button type="button" onClick={closeEditPurchaseRequest} className="px-4 py-2 border border-gray-200 rounded-md text-gray-700 hover:bg-gray-50">Hủy</button>
                   <button type="submit" disabled={editLoading} className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50">{editLoading ? 'Đang lưu...' : 'Lưu cập nhật'}</button>
                   {editingPurchaseRequest.trangThai === 'Chờ báo giá' && (

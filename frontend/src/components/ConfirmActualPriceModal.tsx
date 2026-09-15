@@ -26,6 +26,13 @@ interface ConfirmActualPriceModalProps {
   /** YCMH ở trạng thái `Đã duyệt`. */
   purchaseRequest: ConfirmPriceTarget | null;
   onSuccess?: () => void;
+  /**
+   * When true this modal is the "Đã mua xong" action: the primary button reads
+   * "Xác nhận & Đã mua xong" and the parent completes the request (Hoàn thành)
+   * in onSuccess, right after the price write succeeds. Keeps the two steps in
+   * one flow so an arrival can never be closed without its actual price.
+   */
+  thenComplete?: boolean;
 }
 
 interface PriceRow {
@@ -57,6 +64,7 @@ const ConfirmActualPriceModal: React.FC<ConfirmActualPriceModalProps> = ({
   onClose,
   purchaseRequest,
   onSuccess,
+  thenComplete = false,
 }) => {
   const [rows, setRows] = useState<PriceRow[]>([]);
   const [saving, setSaving] = useState(false);
@@ -124,6 +132,7 @@ const ConfirmActualPriceModal: React.FC<ConfirmActualPriceModalProps> = ({
             </h2>
             <p className="text-sm text-gray-500 mt-0.5">
               {purchaseRequest.maYeuCau} · hàng đã về, cần chốt số tiền thực trả cho từng mặt hàng
+              {thenComplete && ' — xác nhận sẽ đóng phiếu (Hoàn thành) và báo kho nhập hàng luôn'}
             </p>
           </div>
           <button type="button" onClick={onClose} aria-label="Đóng" className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded">
@@ -224,7 +233,7 @@ const ConfirmActualPriceModal: React.FC<ConfirmActualPriceModalProps> = ({
             className="px-4 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             <BadgeCheck className="w-4 h-4" />
-            {saving ? 'Đang lưu…' : 'Xác nhận giá thực tế'}
+            {saving ? 'Đang lưu…' : thenComplete ? 'Xác nhận & Đã mua xong' : 'Xác nhận giá thực tế'}
           </button>
         </div>
       </div>
