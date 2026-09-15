@@ -5,7 +5,7 @@
  */
 
 const mockTxItems = {
-  purchaseRequestItem: { createMany: jest.fn().mockResolvedValue({ count: 1 }), deleteMany: jest.fn().mockResolvedValue({}) },
+  purchaseRequestItem: { createMany: jest.fn().mockResolvedValue({ count: 1 }), deleteMany: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]) },
   purchaseRequest: {
     create: jest.fn(),
     findFirst: jest.fn(),
@@ -153,24 +153,40 @@ describe('ALLOWED_TRANSITIONS matrix', () => {
   });
 });
 
-describe('locked items after Đã duyệt / Hoàn thành', () => {
-  it.each(['Đã duyệt', 'Hoàn thành'] as const)('rejects items mutation when status is %s', async (status) => {
+describe('item/pricing lock — only Hoàn thành locks, Đã duyệt is editable', () => {
+  it.each(['Hoàn thành'] as const)('rejects items mutation when status is %s', async (status) => {
     (prismaMock.purchaseRequest.findUnique as jest.Mock).mockResolvedValue(prRow(status));
     await expect(
       purchaseRequestService.updatePurchaseRequest('pr-1', { items: [{ phanLoai: 'Nguyên liệu', tenHangHoa: 'X', soLuong: 1, donViTinh: 'Kg' }] } as any)
     ).rejects.toMatchObject({ name: 'ValidationError' });
   });
 
-  it.each(['Đã duyệt', 'Hoàn thành'] as const)('rejects pricing field mutation when status is %s', async (status) => {
-    (prismaMock.purchaseRequest.findUnique as jest.Mock).mockResolvedValue(prRow(status));
+  it('rejects pricing field mutation when status is Hoàn thành', async () => {
+    (prismaMock.purchaseRequest.findUnique as jest.Mock).mockResolvedValue(prRow('Hoàn thành'));
     await expect(
       purchaseRequestService.updatePurchaseRequest('pr-1', { giaDuKien: 999 } as any)
     ).rejects.toMatchObject({ name: 'ValidationError' });
   });
 
-  it('rejects phanLoai/tenHangHoa mutation when already approved', async () => {
+  it('allows items + pricing mutation when status is Đã duyệt (post-approval correction)', async () => {
     (prismaMock.purchaseRequest.findUnique as jest.Mock).mockResolvedValue(prRow('Đã duyệt'));
-    await expect(purchaseRequestService.updatePurchaseRequest('pr-1', { phanLoai: 'Thiết bị' } as any)).rejects.toMatchObject({ name: 'ValidationError' });
+    await expect(
+      purchaseRequestService.updatePurchaseRequest('pr-1', {
+        items: [{ id: 'pri-1', phanLoai: 'Nguyên liệu', tenHangHoa: 'Xoai', soLuong: 10, donViTinh: 'Kg', giaDuKien: 1200, nhaCungCapId: 'sup-1' }],
+      } as any)
+    ).resolves.toBeDefined();
+  });
+
+  it('preserves confirmed giaThucTe across an item re-write after Đã duyệt', async () => {
+    (prismaMock.purchaseRequest.findUnique as jest.Mock).mockResolvedValue(
+      prRow('Đã duyệt', { items: [{ id: 'pri-1', nhaCungCapId: 'sup-1', giaDuKien: 1000, giaThucTe: 9000, soLuong: 10, phanLoai: 'Nguyên liệu', tenHangHoa: 'Xoai', donViTinh: 'Kg', supplier: { id: 'sup-1' } }] } as any)
+    );
+    mockTxItems.purchaseRequestItem.findMany.mockResolvedValue([{ id: 'pri-1', tenHangHoa: 'Xoai', giaThucTe: 9000 }] as any);
+    await purchaseRequestService.updatePurchaseRequest('pr-1', {
+      items: [{ id: 'pri-1', phanLoai: 'Nguyên liệu', tenHangHoa: 'Xoai', soLuong: 10, donViTinh: 'Kg', giaDuKien: 1200, nhaCungCapId: 'sup-1' }],
+    } as any);
+    const created = (mockTxItems.purchaseRequestItem.createMany as jest.Mock).mock.calls[0][0].data;
+    expect(created[0]).toMatchObject({ giaThucTe: 9000 });
   });
 });
 

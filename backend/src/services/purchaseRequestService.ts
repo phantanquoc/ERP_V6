@@ -442,8 +442,13 @@ class PurchaseRequestService {
     if (data.trangThai === 'Hoàn thành' && existingRequest.trangThai !== 'Đã duyệt') {
       throw new ValidationError('Chỉ có thể chuyển sang Hoàn thành khi đang ở Đã duyệt');
     }
-    // 3.1 — lock items and pricing fields after Đã duyệt / Hoàn thành (and optionally Từ chối)
-    const lockedStatuses = new Set(['Đã duyệt', 'Hoàn thành']);
+    // 3.1 — lock items and pricing after Hoàn thành ONLY. Đã duyệt is deliberately
+    // editable now: purchasing must be able to correct giá dự kiến / NCC after
+    // approval (e.g. supplier renegotiated before goods arrived). The actual-price
+    // confirmation (confirmActualPrice) still gates on Đã duyệt, and the per-line
+    // giaThucTe is preserved across an item re-write below so a post-approval edit
+    // never wipes a cost basis that was already booked into the catalog.
+    const lockedStatuses = new Set(['Hoàn thành']);
     if (lockedStatuses.has(existingRequest.trangThai)) {
       const touchesItems = data.items !== undefined;
       const touchesPricing =
@@ -500,6 +505,16 @@ class PurchaseRequestService {
 
     if (items && Array.isArray(items)) {
       purchaseRequest = await prisma.$transaction(async (tx) => {
+        // Preserve confirmed actual price across the delete-then-recreate: an
+        // edit after Đã duyệt must never wipe a giaThucTe that already fed the
+        // catalog cost basis. Keyed by the incoming item's id (the row being
+        // replaced); name is the fallback for legacy single-row edits without id.
+        const prior = await tx.purchaseRequestItem.findMany({
+          where: { purchaseRequestId: id },
+          select: { id: true, tenHangHoa: true, giaThucTe: true },
+        });
+        const giaThucTeById = new Map(prior.map((p) => [p.id, p.giaThucTe]));
+        const giaThucTeByName = new Map(prior.map((p) => [p.tenHangHoa.toLowerCase(), p.giaThucTe]));
         await tx.purchaseRequestItem.deleteMany({ where: { purchaseRequestId: id } });
         await tx.purchaseRequestItem.createMany({
           data: items.map((item: PurchaseRequestItemInput) => {
@@ -510,6 +525,11 @@ class PurchaseRequestService {
                 : typeof rawGia === 'string'
                 ? parseFloat(rawGia) || null
                 : rawGia;
+            const itemId = (item as any).id as string | undefined;
+            const carriedGiaThucTe =
+              (itemId ? giaThucTeById.get(itemId) : undefined) ??
+              giaThucTeByName.get(item.tenHangHoa.toLowerCase()) ??
+              null;
             return {
               purchaseRequestId: id,
               phanLoai: item.phanLoai,
@@ -518,6 +538,7 @@ class PurchaseRequestService {
               donViTinh: item.donViTinh,
               nhaCungCapId: item.nhaCungCapId || null,
               giaDuKien,
+              giaThucTe: carriedGiaThucTe,
             };
           }),
         });
