@@ -31,6 +31,8 @@ import { labelForPurchaseRequest } from '../../utils/purchaseRequestLabel';
 import ReplenishmentList from '../../components/ReplenishmentList';
 import ReplenishmentDetailModal from '../../components/ReplenishmentDetailModal';
 import ConfirmActualPriceModal from '../../components/ConfirmActualPriceModal';
+import SupplierCombobox from '../../components/common/SupplierCombobox';
+import { useSupplierOptions } from '../../hooks/useSuppliers';
 import type { ReplenishmentRequest } from '../../services/replenishmentRequestService';
 import replenishmentRequestService from '../../services/replenishmentRequestService';
 import { useUrlTab, useUrlDetailId } from '../../hooks/useUrlState';
@@ -102,6 +104,14 @@ const PurchasingEquipment = () => {
   const canEditPR = can('purchase-requests', 'UPDATE', user?.role);
   const canDeletePR = can('purchase-requests', 'DELETE', user?.role);
   const canApprovePR = can('purchase-requests', 'APPROVE', user?.role);
+  // Same fix as the NVL page: pricing table must load NCC independently of the
+  // suppliers tab (the page-level `suppliers` is empty while on the PR list).
+  const {
+    data: pricingSuppliers,
+    isLoading: pricingSuppliersLoading,
+    isError: pricingSuppliersError,
+    refetch: refetchPricingSuppliers,
+  } = useSupplierOptions('Thiết bị');
   const { value: activeTab, set: setActiveTab } = useUrlTab<TabType>(
     'tab',
     (v): v is TabType => !!v && (VALID_TABS as readonly string[]).includes(v),
@@ -1377,7 +1387,17 @@ const PurchasingEquipment = () => {
                                 <td className="px-2 py-2"><div className="font-medium text-gray-800">{it.tenHangHoa}</div>{it.phanLoai && <div className="text-xs text-gray-500">{it.phanLoai}</div>}</td>
                                 <td className="px-2 py-2 text-right">{qty.toLocaleString('vi-VN')}</td>
                                 <td className="px-2 py-2">{it.donViTinh}</td>
-                                <td className="px-2 py-2"><select value={it.nhaCungCapId || ''} onChange={(e) => updateEditItem(idx, { nhaCungCapId: e.target.value || null })} className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"><option value="">— Chọn NCC —</option>{suppliers.map((s) => (<option key={s.id} value={s.id}>{s.tenNhaCungCap}</option>))}</select></td>
+                                <td className="px-2 py-2 min-w-[180px]">
+                                  <SupplierCombobox
+                                    suppliers={(pricingSuppliers ?? []) as Array<{ id: string; tenNhaCungCap: string; maNhaCungCap?: string; loaiCungCap?: string }>}
+                                    value={it.nhaCungCapId || ''}
+                                    onChange={(id) => updateEditItem(idx, { nhaCungCapId: id || null })}
+                                    loading={pricingSuppliersLoading}
+                                    error={pricingSuppliersError}
+                                    onRetry={() => refetchPricingSuppliers()}
+                                    placeholder="Tìm NCC…"
+                                  />
+                                </td>
                                 <td className="px-2 py-2"><input type="number" min={0} step="any" value={it.giaDuKien ?? ''} onChange={(e) => updateEditItem(idx, { giaDuKien: e.target.value ? parseFloat(e.target.value) : null })} placeholder="0" className="w-full px-2 py-1 border border-gray-200 rounded text-sm text-right focus:outline-none focus:ring-1 focus:ring-purple-500" /></td>
                                 <td className="px-2 py-2 text-right font-medium text-green-700">{thanhTien > 0 ? thanhTien.toLocaleString('vi-VN') + 'đ' : '—'}</td>
                               </tr>

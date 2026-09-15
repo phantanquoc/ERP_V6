@@ -31,6 +31,8 @@ import { labelForPurchaseRequest } from '../../utils/purchaseRequestLabel';
 import ReplenishmentList from '../../components/ReplenishmentList';
 import ReplenishmentDetailModal from '../../components/ReplenishmentDetailModal';
 import ConfirmActualPriceModal from '../../components/ConfirmActualPriceModal';
+import SupplierCombobox from '../../components/common/SupplierCombobox';
+import { useSupplierOptions } from '../../hooks/useSuppliers';
 import type { ReplenishmentRequest } from '../../services/replenishmentRequestService';
 import replenishmentRequestService from '../../services/replenishmentRequestService';
 import { useUrlTab, useUrlDetailId } from '../../hooks/useUrlState';
@@ -113,6 +115,17 @@ const PurchasingMaterials = () => {
   const canEditPR = can('purchase-requests', 'UPDATE', user?.role);
   const canDeletePR = can('purchase-requests', 'DELETE', user?.role);
   const canApprovePR = can('purchase-requests', 'APPROVE', user?.role);
+  // Pricing table in the edit modal must work from ANY tab. The page-level
+  // `suppliers` state is only fetched while the "Nhà cung cấp" tab is active,
+  // so opening "Chỉnh sửa" from the purchase list used to show an EMPTY NCC
+  // dropdown. This hook fetches independently (TanStack Query cache) and
+  // refetches on window focus, so a newly-created supplier lands right away.
+  const {
+    data: pricingSuppliers,
+    isLoading: pricingSuppliersLoading,
+    isError: pricingSuppliersError,
+    refetch: refetchPricingSuppliers,
+  } = useSupplierOptions('NVL');
   // Tab lives in ?tab= so reload / Back / shared links land on the same tab.
   // The previous writer only synced state→URL, so pasted ?tab= and the Back
   // button were ignored, and it rebuilt the query from scratch (dropping params).
@@ -1744,17 +1757,16 @@ const PurchasingMaterials = () => {
                                 </td>
                                 <td className="px-2 py-2 text-right">{qty.toLocaleString('vi-VN')}</td>
                                 <td className="px-2 py-2">{it.donViTinh}</td>
-                                <td className="px-2 py-2">
-                                  <select
+                                <td className="px-2 py-2 min-w-[180px]">
+                                  <SupplierCombobox
+                                    suppliers={(pricingSuppliers ?? []) as Array<{ id: string; tenNhaCungCap: string; maNhaCungCap?: string; loaiCungCap?: string }>}
                                     value={it.nhaCungCapId || ''}
-                                    onChange={(e) => updateEditItem(idx, { nhaCungCapId: e.target.value || null })}
-                                    className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
-                                  >
-                                    <option value="">— Chọn NCC —</option>
-                                    {suppliers.map((s) => (
-                                      <option key={s.id} value={s.id}>{s.tenNhaCungCap}</option>
-                                    ))}
-                                  </select>
+                                    onChange={(id) => updateEditItem(idx, { nhaCungCapId: id || null })}
+                                    loading={pricingSuppliersLoading}
+                                    error={pricingSuppliersError}
+                                    onRetry={() => refetchPricingSuppliers()}
+                                    placeholder="Tìm NCC…"
+                                  />
                                 </td>
                                 <td className="px-2 py-2">
                                   <input

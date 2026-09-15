@@ -7,6 +7,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { replenishmentRequestKeys } from '../hooks/useReplenishmentRequests';
 import { useSupplierOptions } from '../hooks/useSuppliers';
 import QuickCreateSupplierModal from './QuickCreateSupplierModal';
+import SupplierCombobox from './common/SupplierCombobox';
 
 interface ReplenishmentDetailModalProps {
   isOpen: boolean;
@@ -46,8 +47,13 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
   // was clicked on, so the new supplier lands as that row's nhaCungCapId.
   const [quickCreateRowIdx, setQuickCreateRowIdx] = useState<number | null>(null);
 
-  const { data: suppliersData } = useSupplierOptions();
-  const suppliers = (suppliersData?.data ?? suppliersData ?? []) as Array<{ id: string; tenNhaCungCap: string; maNhaCungCap: string }>;
+  const {
+    data: suppliers,
+    isLoading: suppliersLoading,
+    isError: suppliersError,
+    refetch: refetchSuppliers,
+  } = useSupplierOptions();
+  const supplierList = (suppliers ?? []) as Array<{ id: string; tenNhaCungCap: string; maNhaCungCap: string }>;
 
   useEffect(() => {
     if (!isOpen || !ybs?.id) return;
@@ -262,27 +268,28 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
                         <td className="px-3 py-2">{r.donViTinh}</td>
                         <td className="px-3 py-2 min-w-[180px]">
                           <div className="flex items-center gap-1">
-                            <select
+                            <SupplierCombobox
+                              suppliers={supplierList}
                               value={r.nhaCungCapId}
-                              onChange={(e) => setRowField(idx, { nhaCungCapId: e.target.value })}
+                              onChange={(id) => setRowField(idx, { nhaCungCapId: id })}
                               disabled={readOnly}
-                              className="w-full px-2 py-1 text-sm border border-gray-200 rounded disabled:bg-gray-50"
-                            >
-                              <option value="">— Chọn NCC —</option>
-                              {suppliers.map((s) => (
-                                <option key={s.id} value={s.id}>{s.tenNhaCungCap} ({s.maNhaCungCap})</option>
-                              ))}
-                            </select>
-                            {!readOnly && (
-                              <button
-                                type="button"
-                                onClick={() => setQuickCreateRowIdx(idx)}
-                                title="Thêm nhà cung cấp mới"
-                                className="p-1.5 shrink-0 text-green-700 hover:bg-green-50 rounded"
-                              >
-                                <Plus className="w-4 h-4" />
-                              </button>
-                            )}
+                              loading={suppliersLoading}
+                              error={suppliersError}
+                              onRetry={() => refetchSuppliers()}
+                              placeholder="— Chọn NCC —"
+                              accessory={
+                                !readOnly ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setQuickCreateRowIdx(idx)}
+                                    title="Thêm nhà cung cấp mới"
+                                    className="p-1 shrink-0 text-green-700 hover:bg-green-50 rounded"
+                                  >
+                                    <Plus className="w-4 h-4" />
+                                  </button>
+                                ) : undefined
+                              }
+                            />
                           </div>
                         </td>
                         <td className="px-3 py-2">
