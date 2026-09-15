@@ -14,6 +14,7 @@ import {
   X,
   Globe,
   CheckCircle,
+  BadgeCheck,
   HelpCircle
 } from 'lucide-react';
 // chuaPhanLoai badge reserved
@@ -29,6 +30,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { labelForPurchaseRequest } from '../../utils/purchaseRequestLabel';
 import ReplenishmentList from '../../components/ReplenishmentList';
 import ReplenishmentDetailModal from '../../components/ReplenishmentDetailModal';
+import ConfirmActualPriceModal from '../../components/ConfirmActualPriceModal';
 import type { ReplenishmentRequest } from '../../services/replenishmentRequestService';
 import replenishmentRequestService from '../../services/replenishmentRequestService';
 import { useUrlTab, useUrlDetailId } from '../../hooks/useUrlState';
@@ -58,7 +60,7 @@ interface PurchaseRequest {
   sourceType?: string;
   createdAt: string;
   updatedAt: string;
-  items?: { id: string; tenHangHoa: string; soLuong: number; donViTinh: string; phanLoai: string; giaDuKien?: number; nhaCungCapId?: string | null }[];
+  items?: { id: string; tenHangHoa: string; soLuong: number; donViTinh: string; phanLoai: string; giaDuKien?: number; giaThucTe?: number | null; nhaCungCapId?: string | null }[];
 }
 
 const VALID_TABS = ['purchaseRequestList', 'replenishment', 'suppliers', 'orderList'] as const;
@@ -96,6 +98,10 @@ const PurchasingEquipment = () => {
   const { id: urlYbsId, open: pushYbsId, close: popYbsId, syncingRef: ybsSyncing } = useUrlDetailId('replenishmentRequestId');
   const [selectedYbs, setSelectedYbs] = useState<ReplenishmentRequest | null>(null);
   const [ybsModalOpen, setYbsModalOpen] = useState(false);
+  // RBAC gates via Rule Matrix with baseline fallback inside can() (mirror NVL page).
+  const canEditPR = can('purchase-requests', 'UPDATE', user?.role);
+  const canDeletePR = can('purchase-requests', 'DELETE', user?.role);
+  const canApprovePR = can('purchase-requests', 'APPROVE', user?.role);
   const { value: activeTab, set: setActiveTab } = useUrlTab<TabType>(
     'tab',
     (v): v is TabType => !!v && (VALID_TABS as readonly string[]).includes(v),
@@ -361,6 +367,9 @@ const PurchasingEquipment = () => {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [selectedPurchaseRequest, setSelectedPurchaseRequest] = useState<PurchaseRequest | null>(null);
   const [editingPurchaseRequest, setEditingPurchaseRequest] = useState<PurchaseRequest | null>(null);
+  // Giá thực tế: mở từ chi tiết YCMH ở trạng thái Đã duyệt (mirror NVL page).
+  const [showConfirmActualPrice, setShowConfirmActualPrice] = useState(false);
+  const [confirmActualPriceTarget, setConfirmActualPriceTarget] = useState<import('../../components/ConfirmActualPriceModal').ConfirmPriceTarget | null>(null);
   const [editFormData, setEditFormData] = useState<Partial<PurchaseRequest>>({});
   // Per-item pricing state — required so a "Chờ báo giá" replenishment PR can be
   // quoted (NCC + đơn giá per line) and submitted for approval from this page.
@@ -419,6 +428,13 @@ const PurchasingEquipment = () => {
     setSelectedPurchaseRequest(null);
     popPrId();
   }, [popPrId]);
+
+  // True when every line of an approved YCMH already carries an actual price.
+  // Mirror of the NVL page — drives the "chưa chốt giá" hint.
+  const isActualPriceConfirmed = (item: any): boolean => {
+    const lines = (item?.items ?? []) as Array<{ giaThucTe?: number | null }>;
+    return lines.length > 0 && lines.every((l) => l.giaThucTe != null && Number(l.giaThucTe) > 0);
+  };
 
   const openEditPurchaseRequest = useCallback((item: PurchaseRequest) => {
     const currentUserName = user ? `${user.lastName} ${user.firstName}`.trim() : '';
@@ -588,11 +604,17 @@ const PurchasingEquipment = () => {
       });
       return;
     }
+    // Soft guard (không chặn cứng): nếu chưa chốt giá thực tế, nhắc rõ hệ quả để
+    // mua hàng bấm "Hủy" rồi vào chi tiết xác nhận giá TRƯỚC khi hoàn thành. Vì
+    // hết "Đã duyệt" thì backend từ chối xác nhận giá (chỉ nhận trạng thái đó).
+    const priceReady = isActualPriceConfirmed(item);
     setConfirmAction({
       title: 'Xác nhận đã mua xong',
-      message: 'Đã mua hàng xong? Hệ thống sẽ thông báo cho kho chuẩn bị nhập hàng.',
-      variant: 'primary',
-      confirmLabel: 'Xác nhận',
+      message: priceReady
+        ? 'Đã mua hàng xong? Hệ thống sẽ thông báo cho kho chuẩn bị nhập hàng.'
+        : 'Yêu cầu này CHƯA xác nhận giá thực tế cho toàn bộ dòng.\n\nBấm "Đã mua xong" sẽ chuyển sang Hoàn thành và KHÔNG còn chốt được giá thực tế nữa (chỉ chốt khi ở "Đã duyệt") — giá vốn hàng hóa sẽ giữ nguyên giá kế hoạch.\n\nKhuyên: bấm Hủy, mở chi tiết → "Xác nhận giá thực tế" trước.',
+      variant: priceReady ? 'primary' : 'warning',
+      confirmLabel: 'Đã mua xong',
       onConfirm: async () => {
         try {
           setConfirmLoading(true);
@@ -940,7 +962,11 @@ const PurchasingEquipment = () => {
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {purchaseRequests.map((item, index) => (
-                        <tr key={item.id} className="hover:bg-gray-50">
+                        <tr
+                          key={item.id}
+                          onClick={() => openPurchaseRequestDetail(item)}
+                          className="hover:bg-gray-50 cursor-pointer"
+                        >
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{(purchaseRequestPage - 1) * 10 + index + 1}</td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-purple-600">
                             {item.maYeuCau}
@@ -980,16 +1006,16 @@ const PurchasingEquipment = () => {
                               item.trangThai === 'Từ chối' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
                             }`}>{item.trangThai}</span>
                           </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900" onClick={(e) => e.stopPropagation()}>
                             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                               <button onClick={() => openPurchaseRequestDetail(item)} className="text-purple-600 hover:text-purple-800" title="Xem chi tiết"><Eye className="w-4 h-4" /></button>
-                              {can('purchase-requests','UPDATE', user?.role) && (
+                              {canEditPR && (
                                 <button onClick={() => openEditPurchaseRequest(item)} className="text-green-600 hover:text-green-800" title="Chỉnh sửa"><Edit className="w-4 h-4" /></button>
                               )}
-                              {can('purchase-requests','DELETE', user?.role) && (
+                              {canDeletePR && (
                                 <button onClick={() => handleDeletePurchaseRequest(item.id)} className="text-red-600 hover:text-red-800" title="Xóa"><Trash2 className="w-4 h-4" /></button>
                               )}
-                              {item.trangThai === 'Chờ báo giá' && (
+                              {canApprovePR && item.trangThai === 'Chờ báo giá' && (
                                 <button
                                   onClick={() => handleSubmitForApproval(item)}
                                   className="inline-flex items-center gap-1 px-2 py-1 bg-orange-50 text-orange-700 rounded hover:bg-orange-100 border border-orange-200 text-xs font-medium"
@@ -1174,12 +1200,17 @@ const PurchasingEquipment = () => {
                             <th className="text-right py-2 px-2 font-medium text-gray-600">Số lượng</th>
                             <th className="text-left py-2 px-2 font-medium text-gray-600">ĐVT</th>
                             <th className="text-left py-2 px-2 font-medium text-gray-600">Nhà cung cấp</th>
-                            <th className="text-right py-2 px-2 font-medium text-gray-600">Giá dự kiến</th>
+                            <th className="text-right py-2 px-2 font-medium text-gray-600">Giá kế hoạch</th>
+                            <th className="text-right py-2 px-2 font-medium text-gray-600">Giá thực tế</th>
                             <th className="text-right py-2 px-2 font-medium text-gray-600">Thành tiền</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {selectedPurchaseRequest.items.map((item: any, i: number) => (
+                          {selectedPurchaseRequest.items.map((item: any, i: number) => {
+                            // Thành tiền follows the confirmed actual price when there is
+                            // one, so the slip's cost matches what purchasing really paid.
+                            const price = item.giaThucTe ?? item.giaDuKien;
+                            return (
                             <tr key={i} className="border-b border-gray-100">
                               <td className="py-2 px-2">{i + 1}</td>
                               <td className="py-2 px-2">{item.phanLoai}</td>
@@ -1187,14 +1218,18 @@ const PurchasingEquipment = () => {
                               <td className="py-2 px-2 text-right">{item.soLuong}</td>
                               <td className="py-2 px-2">{item.donViTinh}</td>
                               <td className="py-2 px-2 text-purple-600">{item.supplier?.tenNhaCungCap || '-'}</td>
-                              <td className="py-2 px-2 text-right">{item.giaDuKien ? Number(item.giaDuKien).toLocaleString('vi-VN') + 'đ' : '-'}</td>
-                              <td className="py-2 px-2 text-right font-medium">{item.giaDuKien ? (Number(item.giaDuKien) * item.soLuong).toLocaleString('vi-VN') + 'đ' : '-'}</td>
+                              <td className="py-2 px-2 text-right text-gray-500">{item.giaDuKien ? Number(item.giaDuKien).toLocaleString('vi-VN') + 'đ' : '-'}</td>
+                              <td className={`py-2 px-2 text-right ${item.giaThucTe ? 'font-medium text-green-700' : 'text-gray-400 italic'}`}>
+                                {item.giaThucTe ? Number(item.giaThucTe).toLocaleString('vi-VN') + 'đ' : 'chưa chốt'}
+                              </td>
+                              <td className="py-2 px-2 text-right font-medium">{price ? (Number(price) * item.soLuong).toLocaleString('vi-VN') + 'đ' : '-'}</td>
                             </tr>
-                          ))}
+                            );
+                          })}
                           <tr className="bg-gray-100 font-bold">
-                            <td colSpan={7} className="py-2 px-2 text-right">Tổng cộng:</td>
+                            <td colSpan={8} className="py-2 px-2 text-right">Tổng cộng:</td>
                             <td className="py-2 px-2 text-right text-green-700">
-                              {selectedPurchaseRequest.items.reduce((sum: number, item: any) => sum + (item.giaDuKien ? Number(item.giaDuKien) * item.soLuong : 0), 0).toLocaleString('vi-VN')}đ
+                              {selectedPurchaseRequest.items.reduce((sum: number, item: any) => sum + ((item.giaThucTe ?? item.giaDuKien) ? Number(item.giaThucTe ?? item.giaDuKien) * item.soLuong : 0), 0).toLocaleString('vi-VN')}đ
                             </td>
                           </tr>
                         </tbody>
@@ -1215,12 +1250,43 @@ const PurchasingEquipment = () => {
                   </div>
                 </div>
                 <div className="flex justify-end gap-4 mt-6">
+                  {selectedPurchaseRequest.trangThai === 'Đã duyệt' && canApprovePR && (
+                    <button
+                      type="button"
+                      onClick={() => { setConfirmActualPriceTarget(selectedPurchaseRequest); setShowConfirmActualPrice(true); }}
+                      className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 flex items-center gap-2"
+                    >
+                      <BadgeCheck className="w-4 h-4" />
+                      Xác nhận giá thực tế
+                      {!isActualPriceConfirmed(selectedPurchaseRequest) && (
+                        <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-white text-amber-700">chưa chốt</span>
+                      )}
+                    </button>
+                  )}
+                  {canEditPR && (
+                    <button
+                      type="button"
+                      onClick={() => { openEditPurchaseRequest(selectedPurchaseRequest); }}
+                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2"
+                    >
+                      <Edit className="w-4 h-4" />
+                      Chỉnh sửa
+                    </button>
+                  )}
                   <button onClick={closePurchaseRequestDetail} className="px-4 py-2 border border-gray-200 rounded-md text-gray-700 hover:bg-gray-50">Đóng</button>
                 </div>
               </div>
             </div>
           </div>
         )}
+
+        {/* Xác nhận giá thực tế cho YCMH đã duyệt (hàng về) */}
+        <ConfirmActualPriceModal
+          isOpen={showConfirmActualPrice}
+          onClose={() => { setShowConfirmActualPrice(false); setConfirmActualPriceTarget(null); }}
+          purchaseRequest={confirmActualPriceTarget}
+          onSuccess={() => { fetchPurchaseRequests(); closePurchaseRequestDetail(); }}
+        />
 
         {/* Edit Purchase Request Modal */}
         {editingPurchaseRequest && (

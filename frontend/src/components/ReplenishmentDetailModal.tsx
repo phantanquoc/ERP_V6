@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
-import { X, ShoppingCart, AlertTriangle, Plus } from 'lucide-react';
+import { X, ShoppingCart, AlertTriangle, Plus, Ban } from 'lucide-react';
 import type { ReplenishmentRequest, ReplenishmentRequestItem } from '../services/replenishmentRequestService';
 import replenishmentRequestService from '../services/replenishmentRequestService';
+import { useQueryClient } from '@tanstack/react-query';
+import { replenishmentRequestKeys } from '../hooks/useReplenishmentRequests';
 import { useSupplierOptions } from '../hooks/useSuppliers';
 import QuickCreateSupplierModal from './QuickCreateSupplierModal';
 
@@ -12,6 +14,7 @@ interface ReplenishmentDetailModalProps {
   /** The YCBS row that was clicked. Refetched inside the modal so stale pricing is not submitted. */
   ybs: ReplenishmentRequest | null;
   onConverted?: (ycbsId: string, ycmhId: string) => void;
+  onCancelled?: (ycbsId: string) => void;
 }
 
 /**
@@ -29,11 +32,15 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
   onClose,
   ybs,
   onConverted,
+  onCancelled,
 }) => {
+  const queryClient = useQueryClient();
   const [detail, setDetail] = useState<ReplenishmentRequest | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [converting, setConverting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const [rows, setRows] = useState<Array<{ id: string; phanLoai: string; tenGoi: string; soLuong: number; donViTinh: string; nhaCungCapId: string; giaDuKien: string }>>([]);
   // Inline "create supplier" from the NCC dropdown — idx is the row the button
   // was clicked on, so the new supplier lands as that row's nhaCungCapId.
@@ -157,12 +164,38 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
       const ycmh = row?.convertedPurchaseRequest as { id?: string; maYeuCau?: string; trangThai?: string } | undefined;
       const statusNote = ycmh?.trangThai === 'Chờ duyệt' ? ' (đã gửi duyệt)' : '';
       toast.success(`Đã chuyển YCBS ${detail.maYeuCau} thành YCMH ${ycmh?.maYeuCau ?? ''}${statusNote}`);
+      // Refresh both queues: the converted YCBS leaves the replenishment list
+      // and the new YCMH appears in the purchase-request list. This is what
+      // useConvertReplenishmentRequest.onSuccess does — the modal bypasses the
+      // hook (direct service call), so it must invalidate manually.
+      queryClient.invalidateQueries({ queryKey: replenishmentRequestKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: replenishmentRequestKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['purchase-requests'] });
       onConverted?.(detail.id, ycmh?.id ?? '');
       onClose();
     } catch (e: any) {
       toast.error(e?.response?.data?.message ?? 'Chuyển thành YCMH thất bại');
     } finally {
       setConverting(false);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!detail) return;
+    if (!confirmCancel) { setConfirmCancel(true); return; }
+    setCancelling(true);
+    try {
+      await replenishmentRequestService.cancelReplenishmentRequest(detail.id);
+      toast.success(`Đã hủy YCBS ${detail.maYeuCau}`);
+      queryClient.invalidateQueries({ queryKey: replenishmentRequestKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: replenishmentRequestKeys.detail(detail.id) });
+      onCancelled?.(detail.id);
+      onClose();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message ?? 'Hủy YCBS thất bại');
+    } finally {
+      setCancelling(false);
+      setConfirmCancel(false);
     }
   };
 
@@ -272,8 +305,24 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-2 pt-2">
-            <button onClick={onClose} className="px-4 py-2 text-sm border border-gray-200 rounded hover:bg-gray-50">Đóng</button>
+          <div className="flex items-center justify-between gap-2 pt-2">
+            {!readOnly && (
+              <button
+                onClick={handleCancel}
+                disabled={saving || converting || cancelling}
+                className={`px-4 py-2 text-sm border rounded disabled:opacity-50 inline-flex items-center gap-1.5 ${
+                  confirmCancel
+                    ? 'border-red-400 text-red-700 bg-red-50 hover:bg-red-100'
+                    : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                }`}
+                title="Hủy YCBS nhập sai — rời khỏi hàng chờ, không tạo YCMH"
+              >
+                <Ban className="w-4 h-4" />
+                {cancelling ? 'Đang hủy…' : confirmCancel ? 'Bấm lại để xác nhận hủy' : 'Hủy YCBS'}
+              </button>
+            )}
+            <div className="flex items-center gap-2 ml-auto">
+            <button onClick={() => { setConfirmCancel(false); onClose(); }} className="px-4 py-2 text-sm border border-gray-200 rounded hover:bg-gray-50">Đóng</button>
             {!readOnly && (
               <button onClick={handleSave} disabled={saving || converting} className="px-4 py-2 text-sm bg-white border border-amber-300 text-amber-700 rounded hover:bg-amber-50 disabled:opacity-50">
                 {saving ? 'Đang lưu…' : 'Lưu giá & NCC'}
@@ -289,6 +338,7 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
                 {converting ? 'Đang chuyển…' : 'Chuyển thành YCMH'}
               </button>
             )}
+            </div>
           </div>
         </div>
       </div>

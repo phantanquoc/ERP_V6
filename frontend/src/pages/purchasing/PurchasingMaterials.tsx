@@ -587,11 +587,17 @@ const PurchasingMaterials = () => {
       });
       return;
     }
+    // Soft guard (không chặn cứng): nếu chưa chốt giá thực tế, nhắc rõ hệ quả để
+    // mua hàng bấm "Hủy" rồi vào chi tiết xác nhận giá TRƯỚC khi hoàn thành. Vì
+    // hết "Đã duyệt" thì backend từ chối xác nhận giá (chỉ nhận trạng thái đó).
+    const priceReady = isActualPriceConfirmed(item);
     setConfirmAction({
       title: 'Xác nhận đã mua xong',
-      message: 'Đã mua hàng xong? Hệ thống sẽ thông báo cho kho chuẩn bị nhập hàng.',
-      variant: 'primary',
-      confirmLabel: 'Xác nhận',
+      message: priceReady
+        ? 'Đã mua hàng xong? Hệ thống sẽ thông báo cho kho chuẩn bị nhập hàng.'
+        : 'Yêu cầu này CHƯA xác nhận giá thực tế cho toàn bộ dòng.\n\nBấm "Đã mua xong" sẽ chuyển sang Hoàn thành và KHÔNG còn chốt được giá thực tế nữa (chỉ chốt khi ở "Đã duyệt") — giá vốn hàng hóa sẽ giữ nguyên giá kế hoạch.\n\nKhuyên: bấm Hủy, mở chi tiết → "Xác nhận giá thực tế" trước.',
+      variant: priceReady ? 'primary' : 'warning',
+      confirmLabel: 'Đã mua xong',
       onConfirm: async () => {
         try {
           setConfirmLoading(true);
@@ -1071,7 +1077,11 @@ const PurchasingMaterials = () => {
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {purchaseRequests.map((item, index) => (
-                        <tr key={item.id} className="hover:bg-gray-50">
+                        <tr
+                          key={item.id}
+                          onClick={() => openPurchaseRequestDetail(item)}
+                          className="hover:bg-gray-50 cursor-pointer"
+                        >
                           <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
                             {item.maYeuCau}
@@ -1121,7 +1131,7 @@ const PurchasingMaterials = () => {
                               {item.trangThai}
                             </span>
                           </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900" onClick={(e) => e.stopPropagation()}>
                             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                               <button
                                 onClick={() => openPurchaseRequestDetail(item)}
@@ -1485,6 +1495,16 @@ const PurchasingMaterials = () => {
                       {!isActualPriceConfirmed(selectedPurchaseRequest) && (
                         <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-white text-amber-700">chưa chốt</span>
                       )}
+                    </button>
+                  )}
+                  {canEditPR && (
+                    <button
+                      type="button"
+                      onClick={() => { openEditPurchaseRequest(selectedPurchaseRequest); }}
+                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2"
+                    >
+                      <Edit className="w-4 h-4" />
+                      Chỉnh sửa
                     </button>
                   )}
                   <button

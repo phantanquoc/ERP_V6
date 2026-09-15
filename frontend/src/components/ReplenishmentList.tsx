@@ -96,7 +96,11 @@ const ReplenishmentList: React.FC<ReplenishmentListProps> = ({
             {rows.map((r) => {
               const itemNames = (r.items ?? []).map((it) => it.tenGoi).join(', ');
               return (
-                <tr key={r.id} className="hover:bg-amber-50/60">
+                <tr
+                  key={r.id}
+                  onClick={() => onOpenDetail?.(r)}
+                  className="hover:bg-amber-50/60 cursor-pointer"
+                >
                   <td className="px-3 py-2 font-medium text-blue-600">{r.maYeuCau}</td>
                   <td className="px-3 py-2">
                     {r.trangThai === 'Đã chuyển mua hàng' ? (
@@ -117,7 +121,7 @@ const ReplenishmentList: React.FC<ReplenishmentListProps> = ({
                   <td className="px-3 py-2">
                     {r.supplyRequestId ? (
                       <button
-                        onClick={() => onOpenSupplyRequest?.(r.supplyRequestId!)}
+                        onClick={(e) => { e.stopPropagation(); onOpenSupplyRequest?.(r.supplyRequestId!); }}
                         className="text-xs text-indigo-600 hover:underline"
                         title={r.supplyRequestId}
                       >
@@ -128,7 +132,7 @@ const ReplenishmentList: React.FC<ReplenishmentListProps> = ({
                     )}
                   </td>
                   <td className="px-3 py-2 text-center">
-                    <button onClick={() => onOpenDetail?.(r)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Xem / điền giá và chuyển YCMH">
+                    <button onClick={(e) => { e.stopPropagation(); onOpenDetail?.(r); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Xem / điền giá và chuyển YCMH">
                       <Eye className="w-4 h-4" />
                     </button>
                   </td>
