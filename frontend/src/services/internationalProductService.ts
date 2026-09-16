@@ -35,6 +35,10 @@ export interface CreateProductData {
   loaiSanPham?: string;
   donViTinh?: string;
   giaThanh?: number | null;
+  /** Optional link back to the provisional YCCB line this goods was created from.
+   *  Lets the server update THAT line even when the official name differs from what
+   *  was typed on the request. Ignored by every other create path. */
+  supplyRequestItemId?: string;
 }
 
 export interface UpdateProductData {

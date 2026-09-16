@@ -209,6 +209,51 @@ export class InternationalProductService {
         tenSanPham: data.tenSanPham,
         maSanPham,
       },
+    }).then(async (row) => {
+      // A YCCB line flagged "Mới" (isNewProduct=true) is a provisional entry: the goods
+      // only became official once it exists in the catalogue. Reconcile so the line stops
+      // claiming to be new AND adopts the authoritative name/category/unit.
+      //
+      // The line must be matched by ITS OWN ID when the caller knows it (the detail view
+      // created this product from a specific "Mới" line). Matching by name alone is not
+      // enough: the form lets the user correct the name into its official spelling, and
+      // then tenGoi no longer equals what was typed, so a name-only sweep silently
+      // updates nothing and the tag survives a reload. The name sweep is still run for
+      // other tickets that happen to carry the same provisional line.
+      //
+      // Best-effort — a reconcile failure must never fail a creation the user confirmed.
+      try {
+        const created = await prisma.internationalProduct.findUnique({
+          where: { id: row.id },
+          select: { tenSanPham: true, loaiSanPham: true, donViTinh: true },
+        });
+        const patch: Record<string, unknown> = { isNewProduct: false };
+        if (created?.tenSanPham?.trim()) patch.tenGoi = created.tenSanPham.trim();
+        if (created?.loaiSanPham?.trim()) patch.phanLoai = created.loaiSanPham.trim();
+        if (created?.donViTinh?.trim()) patch.donViTinh = created.donViTinh.trim();
+
+        const linkedItemId = typeof data.supplyRequestItemId === 'string' ? data.supplyRequestItemId.trim() : '';
+        if (linkedItemId) {
+          await prisma.supplyRequestItem.update({
+            where: { id: linkedItemId },
+            data: patch,
+          });
+        }
+
+        const canonical = String(data.tenSanPham).trim();
+        if (canonical) {
+          await prisma.supplyRequestItem.updateMany({
+            where: {
+              tenGoi: { equals: canonical, mode: 'insensitive' },
+              ...(linkedItemId ? { id: { not: linkedItemId } } : {}),
+            },
+            data: patch,
+          });
+        }
+      } catch (e) {
+        logger.warn('Failed to reconcile isNewProduct after createProduct', e as Error);
+      }
+      return row;
     });
   }
 

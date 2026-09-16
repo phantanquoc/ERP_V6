@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Trash2, Package, PackageOpen, ShoppingCart, Download, X, ClipboardCheck, PackagePlus, Plus, PackageCheck, AlertTriangle, XCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useUrlDetailId } from '../hooks/useUrlState';
 import supplyRequestService, { SupplyRequest } from '../services/supplyRequestService';
 import { useAuth } from '../contexts/AuthContext';
@@ -16,8 +17,10 @@ import warehouseService from '../services/warehouseService';
 import TableFilter, { FilterField } from './TableFilter';
 import Modal from './Modal';
 import ConfirmDialog from './common/ConfirmDialog';
+import CancelWithReasonModal from './common/CancelWithReasonModal';
 import UnitSelect from './common/UnitSelect';
 import ProductCombobox from './common/ProductCombobox';
+import ProductFormModal from './products/ProductFormModal';
 import { FormField, inputCls, readonlyCls, textareaCls } from './ModalForm';
 
 interface SupplyRequestManagementProps {
@@ -224,6 +227,160 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   // Decision history for the detail modal (audit trail of fulfilment)
   const [decisions, setDecisions] = useState<any[]>([]);
   const [loadingDecisions, setLoadingDecisions] = useState(false);
+
+  // Cancel-with-reason: id of the YCCB pending cancellation (null = modal closed).
+  const [cancelTargetId, setCancelTargetId] = useState<string | null>(null);
+  const [cancelTargetCode, setCancelTargetCode] = useState<string>('');
+  const [cancelling, setCancelling] = useState(false);
+
+  // ── "Mới" tag → product-creation form ─────────────────────────────────────
+  // A line whose goods never existed in the catalogue (isNewProduct) shows an amber
+  // "Mới" tag in the detail view. Clicking it opens the SAME ProductFormModal as the
+  // products page, prefilled with the line's name/category/unit, so the warehouse can
+  // register the goods without leaving the request. Gated on the same roles the
+  // catalogue itself uses — EMPLOYEE cannot create catalogue products (server-enforced).
+  const canCreateProduct = user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD || user?.role === UserRole.TEAM_LEAD;
+  const [productFormOpen, setProductFormOpen] = useState(false);
+  const [productFormData, setProductFormData] = useState({ maSanPham: '', tenSanPham: '', moTaSanPham: '', loaiSanPham: '', donViTinh: '', giaThanh: '' });
+  const [productCategories, setProductCategories] = useState<string[]>([]);
+  const [generatingProductCode, setGeneratingProductCode] = useState(false);
+  const [productCodeTouched, setProductCodeTouched] = useState(false);
+  // The exact line the tag was clicked on. The creation form lets the user correct the
+  // name into its official spelling, so the new product's name need not equal the line's
+  // tenGoi — matching by name would then miss the line (both here and on the server).
+  const [pendingCreateItemId, setPendingCreateItemId] = useState<string | null>(null);
+
+  const openCreateProductFromItem = (item: SupplyRequestItem) => {
+    setPendingCreateItemId(item.id);
+    setProductFormData({
+      maSanPham: '',
+      tenSanPham: item.tenGoi,
+      moTaSanPham: '',
+      loaiSanPham: item.phanLoai && item.phanLoai !== 'Khác' ? item.phanLoai : '',
+      donViTinh: item.donViTinh || '',
+      giaThanh: '',
+    });
+    setProductCodeTouched(false);
+    internationalProductService.getCategories()
+      .then((res) => setProductCategories(res.data || []))
+      .catch(() => setProductCategories([]));
+    setProductFormOpen(true);
+  };
+
+  const suggestProductCode = async (force: boolean) => {
+    if (!productFormData.loaiSanPham) return;
+    if (!force && productCodeTouched) return;
+    setGeneratingProductCode(true);
+    try {
+      const res = await internationalProductService.generateProductCode(productFormData.tenSanPham, productFormData.loaiSanPham);
+      const code = res.data?.code ?? '';
+      if (code) {
+        setProductFormData((prev) => ({ ...prev, maSanPham: code }));
+        if (force) setProductCodeTouched(false);
+      }
+    } catch {
+      // Suggestion is best-effort — the code can always be typed by hand.
+    } finally {
+      setGeneratingProductCode(false);
+    }
+  };
+
+  // Auto-suggest a code once name + category are known (same debounce as the products page).
+  useEffect(() => {
+    if (!productFormOpen || productCodeTouched) return;
+    if (!productFormData.tenSanPham.trim() || !productFormData.loaiSanPham) return;
+    const timer = setTimeout(() => { void suggestProductCode(false); }, 500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productFormOpen, productCodeTouched, productFormData.tenSanPham, productFormData.loaiSanPham]);
+
+  const handleCreateProductFromYccb = async () => {
+    if (!productFormData.tenSanPham.trim()) {
+      toast.error('Vui lòng nhập tên hàng hóa');
+      return;
+    }
+    const parsedGiaThanh = productFormData.giaThanh.trim() === '' ? null : Number(productFormData.giaThanh);
+    if (parsedGiaThanh !== null && (!Number.isFinite(parsedGiaThanh) || parsedGiaThanh < 0)) {
+      toast.error('Giá thành phải là số không âm');
+      return;
+    }
+    const createdFromItemId = pendingCreateItemId;
+    let newProduct: InternationalProduct | null = null;
+    try {
+      const res = await internationalProductService.createProduct({
+        maSanPham: productFormData.maSanPham.trim(),
+        tenSanPham: productFormData.tenSanPham,
+        moTaSanPham: productFormData.moTaSanPham,
+        loaiSanPham: productFormData.loaiSanPham,
+        donViTinh: productFormData.donViTinh,
+        ...(parsedGiaThanh !== null ? { giaThanh: parsedGiaThanh } : {}),
+        ...(createdFromItemId ? { supplyRequestItemId: createdFromItemId } : {}),
+      });
+      newProduct = (res as any)?.data ?? null;
+      toast.success('Tạo hàng hóa thành công');
+      setProductFormOpen(false);
+      setPendingCreateItemId(null);
+      // Refresh the catalogue used by the edit form so the new goods is pickable at once.
+      internationalProductService.getAllProducts(1, 10000)
+        .then((res2) => setEditProducts(res2.data || []))
+        .catch(() => { /* next modal open refetches anyway */ });
+
+      // createProduct đã reconcile phía server (clear isNewProduct + đồng bộ
+      // tenGoi/phanLoai/donViTinh). Tuy nhiên nếu người dùng sửa tên cho chính thức
+      // trong form, dòng cũ không khớp tên mới nên chỉ reconcile theo id mới trúng:
+      // server patch dòng createdFromItemId = tenGoi mới; sweep còn lại theo tên để
+      // dọn các phiếu khác trùng tên cũ. Để list trong modal chi tiết phản ánh NGAY mà
+      // không chờ fetch, patch optimistic local trước rồi mới refetch làm nguồn sự thật.
+      if (selectedRequest) {
+        const canonical = (newProduct?.tenSanPham || productFormData.tenSanPham).trim().toLowerCase();
+        // Optimistic: applied on the current snapshot so the table flickers once at most.
+        setSelectedRequest((prev) => (prev ? {
+          ...prev,
+          items: (prev.items as SupplyRequestItem[]).map((it) => {
+            const byId = !!createdFromItemId && it.id === createdFromItemId;
+            const byName = !createdFromItemId && it.isNewProduct && (it.tenGoi || '').trim().toLowerCase() === canonical;
+            if (!(byId || byName)) return it;
+            return {
+              ...it,
+              isNewProduct: false,
+              tenGoi: newProduct?.tenSanPham?.trim() || it.tenGoi,
+              phanLoai: newProduct?.loaiSanPham?.trim() || it.phanLoai,
+              donViTinh: newProduct?.donViTinh?.trim() || it.donViTinh,
+            };
+          }),
+        } : prev));
+        // Pull the server's reconciled row so the goods table — and a later reopen of
+        // the edit form — show the authoritative name/category/unit, not the local guess.
+        supplyRequestService.getSupplyRequestById(selectedRequest.id)
+          .then((fresh: any) => {
+            const freshData = (fresh?.data ?? fresh) as SupplyRequest;
+            if (!freshData?.id) return;
+            setSelectedRequest(freshData);
+            setRequests((prev: any) =>
+              Array.isArray(prev)
+                ? prev.map((r: SupplyRequest) => (r.id === freshData.id ? freshData : r))
+                : prev
+            );
+            // Keep the edit form consistent with the freshly-linked lines. Supply
+            // request items carry no FK to the catalogue (only tenGoi text), so the
+            // combobox stays unlinked — initialText keeps the name visible.
+            setEditItems((freshData.items ?? []).map((i) => ({
+              id: i.id,
+              internationalProductId: null,
+              phanLoai: i.phanLoai,
+              tenGoi: i.tenGoi,
+              soLuong: i.soLuong,
+              donViTinh: i.donViTinh,
+              fulfilledQty: i.fulfilledQty ?? null,
+              isNewProduct: i.isNewProduct,
+            })));
+          })
+          .catch(() => { /* optimistic patch above already covers this session */ });
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Lỗi khi tạo hàng hóa');
+    }
+  };
 
   const isCancelled = (status: string) => status === 'Đã hủy';
   const isCompleted = (status: string) => status === 'Đã cung cấp';
@@ -454,24 +611,23 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
     });
   };
 
-  const handleCancel = (id: string) => {
-    setConfirmDialog({
-      isOpen: true,
-      title: 'Xác nhận hủy',
-      message: 'Bạn có chắc chắn muốn hủy yêu cầu cung cấp này?',
-      onConfirm: async () => {
-        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-        setLoading(true);
-        try {
-          await supplyRequestService.cancelSupplyRequest(id);
-          fetchRequests();
-        } catch (error: any) {
-          alert(error.response?.data?.message || 'Lỗi khi hủy yêu cầu cung cấp');
-        } finally {
-          setLoading(false);
-        }
-      },
-    });
+  const handleCancel = (id: string, maYeuCau: string) => {
+    setCancelTargetId(id);
+    setCancelTargetCode(maYeuCau);
+  };
+
+  const confirmCancelSupplyRequest = async (lyDoHuy: string) => {
+    if (!cancelTargetId) return;
+    setCancelling(true);
+    try {
+      await supplyRequestService.cancelSupplyRequest(cancelTargetId, lyDoHuy);
+      setCancelTargetId(null);
+      fetchRequests();
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Lỗi khi hủy yêu cầu cung cấp');
+    } finally {
+      setCancelling(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -558,7 +714,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
 
   const handleCheckInventory = async (productNames: string[]) => {
     if (!productNames || productNames.length === 0) {
-      alert('Không có tên sản phẩm để kiểm tra tồn kho');
+      alert('Không có tên hàng hóa để kiểm tra tồn kho');
       return;
     }
 
@@ -605,7 +761,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
           filters={supplyFilterFields}
           values={filterValues}
           onChange={handleFilterChange}
-          searchPlaceholder="Tìm kiếm theo mã, tên nhân viên, bộ phận, sản phẩm..."
+          searchPlaceholder="Tìm kiếm theo mã, tên nhân viên, bộ phận, hàng hóa..."
         />
       </div>
 
@@ -620,7 +776,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                 <th scope="col" className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 w-28 lg:w-36">Mã YC</th>
                 <th scope="col" className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 hidden sm:table-cell w-32 lg:w-40">Nhân viên</th>
                 <th scope="col" className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200 hidden md:table-cell w-28 lg:w-40">Bộ phận</th>
-                <th scope="col" className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200">Sản phẩm</th>
+                <th scope="col" className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200">Hàng hóa</th>
                 <th scope="col" className="px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-200 w-20 lg:w-24">Ưu tiên</th>
                 <th scope="col" className="px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-200 w-24 lg:w-32">Trạng thái</th>
                 <th scope="col" className="px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-900 w-16 lg:w-20">
@@ -701,7 +857,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
 
                         {!isCancelled(request.trangThai) && canCancel && (request.trangThai === 'Chưa cung cấp' || request.trangThai === 'Đang xử lý') && (
                           <button
-                            onClick={(e) => { e.stopPropagation(); handleCancel(request.id); }}
+                            onClick={(e) => { e.stopPropagation(); handleCancel(request.id, request.maYeuCau); }}
                             onKeyDown={(e) => e.stopPropagation()}
                             className="min-h-[32px] min-w-[32px] inline-flex items-center justify-center p-1 lg:p-1.5 rounded-md text-orange-600 hover:bg-orange-100 hover:text-orange-800 transition-colors focus:outline-none focus:ring-1 focus:ring-orange-400"
                             title="Hủy yêu cầu"
@@ -787,17 +943,20 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
         showBackdrop
         closeOnBackdrop={modalMode === 'view'}
       >
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl md:max-w-5xl lg:max-w-6xl flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl md:max-w-5xl lg:max-w-6xl flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
+          {/* Header — ghim cố định (đồng bộ ModalForm của form tạo). */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+            <h2 className="text-base font-semibold text-gray-900">
+              {modalMode === 'edit' ? 'Chỉnh sửa yêu cầu' : 'Chi tiết yêu cầu'}
+              {selectedRequest && <span className="ml-2 text-sm font-normal text-gray-500">{selectedRequest.maYeuCau}</span>}
+            </h2>
+            <button onClick={closeDetailModal} aria-label="Đóng" className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          {/* Body — chỉ phần nội dung cuộn được. */}
           <div className="p-4 md:p-6 overflow-y-auto flex-1">
             {selectedRequest && (<>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">
-                {modalMode === 'edit' ? 'Chỉnh sửa yêu cầu' : 'Chi tiết yêu cầu'}
-              </h2>
-              <button onClick={closeDetailModal} aria-label="Đóng" className="text-gray-400 hover:text-gray-600">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
 
               {/* Request header info (always shown) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 text-sm bg-gray-50 p-3 rounded-md">
@@ -817,7 +976,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                 <div className="space-y-4">
                   {/* Items sub-table */}
                   <div>
-                    <h3 className="text-sm font-medium text-gray-700 mb-2">Danh sách sản phẩm</h3>
+                    <h3 className="text-sm font-medium text-gray-700 mb-2">Danh sách hàng hóa</h3>
                     <div className="border border-gray-200 rounded-md overflow-x-auto -mx-px">
                       <table className="w-full min-w-[520px] lg:min-w-[640px] text-xs sm:text-sm">
                         <thead className="bg-gray-50">
@@ -847,12 +1006,24 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                                   <td className="px-3 py-2 hidden lg:table-cell">{item.phanLoai}</td>
                                   <td className="px-3 py-2 font-medium">
                                     <span>{item.tenGoi}</span>
-                                    {item.isNewProduct && (
-                                      <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200 align-middle whitespace-nowrap">
-                                        <AlertTriangle className="h-3 w-3" />
-                                        Mới
-                                      </span>
-                                    )}
+                                    {item.isNewProduct ? (
+                                      canCreateProduct ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => openCreateProductFromItem(item)}
+                                          title="Tạo hàng hóa này trong danh mục"
+                                          className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200 align-middle whitespace-nowrap hover:bg-amber-200 hover:border-amber-300 transition-colors"
+                                        >
+                                          <AlertTriangle className="h-3 w-3" />
+                                          Mới
+                                        </button>
+                                      ) : (
+                                        <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200 align-middle whitespace-nowrap">
+                                          <AlertTriangle className="h-3 w-3" />
+                                          Mới
+                                        </span>
+                                      )
+                                    ) : null}
                                   </td>
                                   <td className="px-3 py-2 text-right whitespace-nowrap">{item.soLuong.toLocaleString('vi-VN')}</td>
                                   <td className="px-3 py-2 text-right text-blue-700 font-medium whitespace-nowrap">
@@ -894,7 +1065,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                             })
                           ) : (
                             <tr>
-                              <td colSpan={canEdit ? 9 : 8} className="px-3 py-4 text-center text-gray-400 italic">Không có sản phẩm</td>
+                              <td colSpan={canEdit ? 9 : 8} className="px-3 py-4 text-center text-gray-400 italic">Không có hàng hóa</td>
                             </tr>
                           )}
                         </tbody>
@@ -908,6 +1079,18 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                     <div><span className="font-medium text-gray-600">Mục đích:</span> <span className="text-gray-700">{selectedRequest.mucDichYeuCau}</span></div>
                     {selectedRequest.ghiChu && (
                       <div className="sm:col-span-2"><span className="font-medium text-gray-600">Ghi chú:</span> <span className="text-gray-700">{selectedRequest.ghiChu}</span></div>
+                    )}
+                    {isCancelled(selectedRequest.trangThai) && (
+                      <div className="sm:col-span-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+                        <span className="font-medium text-red-800">Lý do hủy:</span>{' '}
+                        <span className="text-red-900">{selectedRequest.lyDoHuy || 'Không có lý do (hủy trước khi tính năng này có)'}</span>
+                        {selectedRequest.nguoiHuy && (
+                          <span className="text-red-700 text-xs"> · bởi {selectedRequest.nguoiHuy}</span>
+                        )}
+                        {selectedRequest.ngayHuy && (
+                          <span className="text-red-700 text-xs"> · {new Date(selectedRequest.ngayHuy).toLocaleString('vi-VN')}</span>
+                        )}
+                      </div>
                     )}
                     {selectedRequest.loaiYeuCau && (
                       <div><span className="font-medium text-gray-600">Loại yêu cầu:</span> <span className="text-gray-700">{selectedRequest.loaiYeuCau}</span></div>
@@ -931,10 +1114,14 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                           <div className="text-xs text-gray-500 mb-1">Yêu cầu bổ sung</div>
                           <div className="flex flex-wrap gap-2">
                             {selectedRequest.replenishmentRequests.map((rr) => (
-                              <span key={rr.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-white border border-amber-200">
-                                <PackageOpen className="h-3 w-3 text-amber-600" />
-                                <span className="font-medium text-gray-800">{rr.maYeuCau}</span>
-                                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${rr.trangThai === 'Đã chuyển mua hàng' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{rr.trangThai}</span>
+                              <span
+                                key={rr.id}
+                                title={rr.trangThai === 'Đã hủy' ? `Lý do hủy: ${rr.lyDoHuy || 'không có'}${rr.ngayHuy ? ` · ${new Date(rr.ngayHuy).toLocaleDateString('vi-VN')}` : ''}` : undefined}
+                                className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-white border ${rr.trangThai === 'Đã hủy' ? 'border-red-200' : 'border-amber-200'}`}
+                              >
+                                <PackageOpen className={`h-3 w-3 ${rr.trangThai === 'Đã hủy' ? 'text-red-500' : 'text-amber-600'}`} />
+                                <span className={`font-medium ${rr.trangThai === 'Đã hủy' ? 'text-gray-500 line-through' : 'text-gray-800'}`}>{rr.maYeuCau}</span>
+                                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${rr.trangThai === 'Đã chuyển mua hàng' ? 'bg-green-100 text-green-700' : rr.trangThai === 'Đã hủy' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{rr.trangThai}</span>
                                 {rr.convertedPurchaseRequest ? (
                                   <span className="text-[11px] text-blue-600">→ {rr.convertedPurchaseRequest.maYeuCau}</span>
                                 ) : null}
@@ -1072,95 +1259,10 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                       )}
                     </div>
                   </div>
-
-                  {/* Action buttons — hidden when cancelled */}
-                  {!isCancelled(selectedRequest.trangThai) && (
-                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 pt-2 border-t border-gray-100">
-                    {/* Chức năng cấp/mua chỉ còn ý nghĩa khi yêu cầu chưa hoàn thành */}
-                    {!isCompleted(selectedRequest.trangThai) && (
-                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                      {selectedRequest.items && selectedRequest.items.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const names = selectedRequest.items.map(i => i.tenGoi).filter(Boolean);
-                            handleCheckInventory(names);
-                          }}
-                          className="px-3 py-1.5 text-xs bg-teal-600 text-white rounded-md hover:bg-teal-700 flex items-center justify-center gap-1.5"
-                        >
-                          <ClipboardCheck className="h-3.5 w-3.5" />
-                          Kiểm tra tồn kho
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          closeDetailModal();
-                          setShowWarehouseIssueModal(true);
-                        }}
-                        className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center justify-center gap-1.5"
-                      >
-                        <Package className="h-3.5 w-3.5" />
-                        Tạo xuất kho
-                      </button>
-                      {/* Manual YCBS: warehouse routes the remaining shortage to purchasing by
-                          hand. Hidden once this SR already has a YCBS or a YCMH (purchasing is on it). */}
-                      {!(selectedRequest.replenishmentRequests?.length)
-                        && !(selectedRequest.purchaseRequests?.length)
-                        && !isPurchasing(selectedRequest.trangThai) && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          closeDetailModal();
-                          setShowReplenishmentModal(true);
-                        }}
-                        className="px-3 py-1.5 text-xs bg-amber-600 text-white rounded-md hover:bg-amber-700 flex items-center justify-center gap-1.5"
-                      >
-                        <ShoppingCart className="h-3.5 w-3.5" />
-                        Tạo yêu cầu bổ sung
-                      </button>
-                      )}
-                    </div>
-                    )}
-                    <div className="flex gap-3">
-                      <button
-                        type="button"
-                        onClick={closeDetailModal}
-                        className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                      >
-                        Đóng
-                      </button>
-                      {canCancel && (selectedRequest.trangThai === 'Chưa cung cấp' || selectedRequest.trangThai === 'Đang xử lý') && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            closeDetailModal();
-                            handleCancel(selectedRequest.id);
-                          }}
-                          className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 flex items-center gap-1.5"
-                        >
-                          <XCircle className="h-4 w-4" />
-                          Hủy yêu cầu
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        // handleEdit re-opens the same modal in edit mode (and re-pushes
-                        // the id), so there is no close here to reconcile.
-                        onClick={() => handleEdit(selectedRequest)}
-                        disabled={!canEdit || isCompleted(selectedRequest.trangThai)}
-                        title={isCompleted(selectedRequest.trangThai) ? "Yêu cầu đã hoàn thành, không thể chỉnh sửa" : (!canEdit ? "Bạn không có quyền chỉnh sửa" : "")}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                      >
-                        Chỉnh sửa
-                      </button>
-                    </div>
-                  </div>
-                  )}
                 </div>
               ) : (
                 /* Edit mode */
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form id="yccb-edit-form" onSubmit={handleSubmit} className="space-y-4">
                   {/* Header fields the user must not type — derived from the record. */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField label="Người tạo">
@@ -1211,6 +1313,15 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                       </button>
                     </div>
 
+                    {editItems.some(row => row.stockInfo && row.soLuong > row.stockInfo.totalQuantity) && (
+                      <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                        <p className="text-sm text-amber-800">
+                          Một số hàng hóa có số lượng yêu cầu <strong>lớn hơn tồn kho hiện tại</strong>. Vui lòng kiểm tra lại.
+                        </p>
+                      </div>
+                    )}
+
                     <div className="space-y-3">
                       {editItems.map((row, idx) => {
                         const locked = (row.fulfilledQty ?? 0) > 0;
@@ -1250,6 +1361,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                                         onChange={(productId, product) => handleEditProductSelect(idx, productId, product)}
                                         onCreateNew={(name) => handleEditCreateNew(idx, name)}
                                         allowCreate
+                                        initialText={row.tenGoi}
                                         placeholder="Tìm theo mã, tên hoặc loại hàng hóa, hoặc nhập tên mới..."
                                       />
                                     </FormField>
@@ -1359,23 +1471,111 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                       />
                     </FormField>
                   </div>
-
-                  <div className="flex flex-col sm:flex-row sm:justify-end gap-3 pt-2">
-                    <button type="button" onClick={closeDetailModal} className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
-                      Hủy
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={loading || editItems.some((row) => (row.fulfilledQty ?? 0) > 0 && row.soLuong < (row.fulfilledQty ?? 0) - 1e-9)}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {loading ? 'Đang xử lý...' : 'Cập nhật'}
-                    </button>
-                  </div>
                 </form>
               )}
             </>)}
           </div>
+          {/* Footer — pinned  (đồng bộ ModalForm: border-t, bg-gray-50, rounded-b, nội dung ngoài body). */}
+          {selectedRequest && (
+          <div className="px-6 py-4 border-t border-gray-200 shrink-0 bg-gray-50 rounded-b-xl">
+            {modalMode === 'view' ? (
+              !isCancelled(selectedRequest.trangThai) ? (
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                {!isCompleted(selectedRequest.trangThai) ? (
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  {selectedRequest.items && selectedRequest.items.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const names = selectedRequest.items.map(i => i.tenGoi).filter(Boolean);
+                        handleCheckInventory(names);
+                      }}
+                      className="px-3 py-1.5 text-xs bg-teal-600 text-white rounded-md hover:bg-teal-700 flex items-center justify-center gap-1.5"
+                    >
+                      <ClipboardCheck className="h-3.5 w-3.5" />
+                      Kiểm tra tồn kho
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      closeDetailModal();
+                      setShowWarehouseIssueModal(true);
+                    }}
+                    className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center justify-center gap-1.5"
+                  >
+                    <Package className="h-3.5 w-3.5" />
+                    Tạo xuất kho
+                  </button>
+                  {!(selectedRequest.replenishmentRequests?.some((rr) => rr.trangThai !== 'Đã hủy'))
+                    && !(selectedRequest.purchaseRequests?.length)
+                    && !isPurchasing(selectedRequest.trangThai) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      closeDetailModal();
+                      setShowReplenishmentModal(true);
+                    }}
+                    className="px-3 py-1.5 text-xs bg-amber-600 text-white rounded-md hover:bg-amber-700 flex items-center justify-center gap-1.5"
+                  >
+                    <ShoppingCart className="h-3.5 w-3.5" />
+                    Tạo yêu cầu bổ sung
+                  </button>
+                  )}
+                </div>
+                ) : <div />}
+                <div className="flex gap-3 shrink-0">
+                  <button type="button" onClick={closeDetailModal} className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    Đóng
+                  </button>
+                  {canCancel && (selectedRequest.trangThai === 'Chưa cung cấp' || selectedRequest.trangThai === 'Đang xử lý') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeDetailModal();
+                        handleCancel(selectedRequest.id, selectedRequest.maYeuCau);
+                      }}
+                      className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 flex items-center gap-1.5"
+                    >
+                      <XCircle className="h-4 w-4" />
+                      Hủy yêu cầu
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleEdit(selectedRequest)}
+                    disabled={!canEdit || isCompleted(selectedRequest.trangThai)}
+                    title={isCompleted(selectedRequest.trangThai) ? "Yêu cầu đã hoàn thành, không thể chỉnh sửa" : (!canEdit ? "Bạn không có quyền chỉnh sửa" : "")}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  >
+                    Chỉnh sửa
+                  </button>
+                </div>
+              </div>
+              ) : (
+                <div className="flex justify-end">
+                  <button type="button" onClick={closeDetailModal} className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    Đóng
+                  </button>
+                </div>
+              )
+            ) : (
+              <div className="flex flex-col sm:flex-row sm:justify-end gap-3">
+                <button type="button" onClick={closeDetailModal} className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  form="yccb-edit-form"
+                  disabled={loading || editItems.some((row) => (row.fulfilledQty ?? 0) > 0 && row.soLuong < (row.fulfilledQty ?? 0) - 1e-9)}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? 'Đang xử lý...' : 'Cập nhật'}
+                </button>
+              </div>
+            )}
+          </div>
+          )}
         </div>
       </Modal>
 
@@ -1455,18 +1655,18 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
               inventoryCheckResult.allResults.map((result, rIdx) => (
                     <div key={rIdx} className="mb-4">
                       <div className="bg-gray-50 rounded-lg p-3 mb-2">
-                        <span className="text-xs text-gray-500">Sản phẩm {rIdx + 1}</span>
+                        <span className="text-xs text-gray-500">Hàng hóa {rIdx + 1}</span>
                         <p className="text-sm font-medium text-gray-800">{result.productName}</p>
                       </div>
                       {result.items.length === 0 ? (
-                        <p className="text-sm text-orange-600 text-center py-2">Không tìm thấy tồn kho cho sản phẩm này</p>
+                        <p className="text-sm text-orange-600 text-center py-2">Không tìm thấy tồn kho cho hàng hóa này</p>
                       ) : (
                         <div className="overflow-x-auto">
                           {(() => {
                             const totalStock = result.items.reduce((s, i) => s + i.soLuong, 0);
                             return totalStock === 0 ? (
                               <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 mb-2">
-                                Hết hàng toàn kho — sản phẩm "{result.productName}" có 0 tồn. Cần tạo <span className="font-semibold">Yêu cầu bổ sung</span> để thu mua.
+                                Hết hàng toàn kho — hàng hóa "{result.productName}" có 0 tồn. Cần tạo <span className="font-semibold">Yêu cầu bổ sung</span> để thu mua.
                               </div>
                             ) : null;
                           })()}
@@ -1535,6 +1735,37 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
         message={confirmDialog.message}
         onConfirm={confirmDialog.onConfirm}
         onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+      />
+
+      <CancelWithReasonModal
+        isOpen={!!cancelTargetId}
+        onClose={() => { if (!cancelling) setCancelTargetId(null); }}
+        onConfirm={confirmCancelSupplyRequest}
+        loading={cancelling}
+        ticketLabel={`yêu cầu cung cấp ${cancelTargetCode}`}
+        description="Người tạo sẽ nhận được thông báo kèm lý do bạn nhập."
+        details={[
+          'Các dòng chưa cấp sẽ chuyển sang "Đã hủy"; dòng đã cấp một phần/đủ giữ nguyên lịch sử.',
+          'Yêu cầu đã hủy không khôi phục được — vẫn hiển thị trong danh sách kèm lý do.',
+        ]}
+      />
+
+      {/* Form tạo hàng hóa mở từ tag "Mới" trong chi tiết YCCB. Modal hỗ trợ stack nên
+          lớp này nằm trên modal chi tiết mà không phá ESC/inert. */}
+      <ProductFormModal
+        isOpen={productFormOpen}
+        isEditing={false}
+        formData={productFormData}
+        categories={productCategories}
+        generatingCode={generatingProductCode}
+        onClose={() => setProductFormOpen(false)}
+        onChange={(e) => {
+          const { name, value } = e.target;
+          if (name === 'maSanPham') setProductCodeTouched(true);
+          setProductFormData((prev) => ({ ...prev, [name]: value }));
+        }}
+        onSubmit={handleCreateProductFromYccb}
+        onSuggestCode={() => { void suggestProductCode(true); }}
       />
     </div>
   );

@@ -13,6 +13,13 @@ interface ProductComboboxProps {
   allowCreate?: boolean;
   /** Called when the user picks "Tạo mới «text»" (only relevant when allowCreate is true). */
   onCreateNew?: (tenSanPham: string) => void;
+  /**
+   * Seed text for a line that carries a free-text product name but no catalogue id —
+   * the `isNewProduct` case. Without it the input starts empty on reopen, because the
+   * combobox derives its text from `value` (an id) and a new product has none. The name
+   * lives in the parent row, so the parent passes it here to keep it visible.
+   */
+  initialText?: string;
   /** Kiện already in the target lot. When given, those products are grouped first
    *  and annotated with their current stock, so the user can see what the lot holds. */
   lotProducts?: LotProduct[];
@@ -37,11 +44,14 @@ const ProductCombobox: React.FC<ProductComboboxProps> = ({
   allowCreate = false,
   onCreateNew,
   lotProducts,
+  initialText,
 }) => {
   const selectedProduct = value ? (products.find((p) => p.id === value) ?? null) : null;
 
   const [inputText, setInputText] = useState(
-    selectedProduct ? displayText(selectedProduct) : ''
+    selectedProduct
+      ? displayText(selectedProduct)
+      : (initialText ?? '').trim() ? (initialText as string).trim() : ''
   );
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
@@ -52,6 +62,10 @@ const ProductCombobox: React.FC<ProductComboboxProps> = ({
 
   // Sync inputText when value changes externally (e.g., form reset)
   useEffect(() => {
+    if (!value && initialText && !selectedProduct) {
+      setInputText((initialText as string).trim());
+      return;
+    }
     if (value === null || value === '') {
       setInputText('');
     } else if (selectedProduct) {
