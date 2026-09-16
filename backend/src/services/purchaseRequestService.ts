@@ -403,6 +403,40 @@ class PurchaseRequestService {
     throw new AuthorizationError('Không có quyền duyệt yêu cầu mua hàng');
   }
 
+  /**
+   * Confirm actual price — operational update, not approval.
+   * Passes for ADMIN, any role in DEPT_PURCHASING (DB lookup by code), or GENERAL/pricing via isPricingApprover.
+   */
+  private async assertCanConfirmActualPrice(actorUserId?: string): Promise<void> {
+    if (!actorUserId) throw new ValidationError('Thiếu thông tin người xác nhận');
+    const user = await prisma.user.findUnique({ where: { id: actorUserId } });
+    if (!user) throw new ValidationError('Người xác nhận không tồn tại');
+    if (user.role === 'ADMIN') return;
+    const secondary = await prisma.userSecondaryDepartment.findMany({
+      where: { userId: user.id },
+    }).then((rows: any[]) => rows.map((r) => ({ departmentId: r.departmentId, subDepartmentId: r.subDepartmentId, role: r.role })));
+    // Check DEPT_PURCHASING membership (any role)
+    const deptIds = [
+      user.departmentId,
+      ...secondary.map((s: any) => s.departmentId),
+    ].filter(Boolean) as string[];
+    if (deptIds.length > 0) {
+      const depts = await prisma.department.findMany({ where: { id: { in: deptIds } }, select: { code: true } });
+      if (depts.some((d) => d.code === 'DEPT_PURCHASING')) return;
+    }
+    // Backward-compat: GENERAL/pricing via isPricingApprover
+    const { isPricingApprover } = await import('@utils/isPricingApprover');
+    const payload: any = {
+      id: user.id,
+      role: user.role,
+      departmentId: user.departmentId,
+      subDepartmentId: user.subDepartmentId,
+      secondaryDepartments: secondary,
+    };
+    if (await isPricingApprover(payload)) return;
+    throw new AuthorizationError('Không có quyền xác nhận giá thực tế');
+  }
+
   async updatePurchaseRequest(id: string, data: {
     phanLoai?: string;
     tenHangHoa?: string;
@@ -994,7 +1028,7 @@ class PurchaseRequestService {
     items: Array<{ id: string; giaThucTe?: number | null }>,
     actorUserId?: string,
   ) {
-    await this.assertCanApprovePurchase(actorUserId);
+    await this.assertCanConfirmActualPrice(actorUserId);
 
     const request = await prisma.purchaseRequest.findUnique({
       where: { id },

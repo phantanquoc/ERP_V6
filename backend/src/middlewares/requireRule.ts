@@ -2,7 +2,7 @@ import type { Response, NextFunction } from 'express';
 import prisma from '@config/database';
 import type { AuthenticatedRequest } from '@types';
 import { baselineAllow } from '@utils/baselineAllow';
-import { raiseRole, matchRule, delegationScopeMatches } from '@utils/permissionResolution';
+import { raiseRole, matchRule, delegationScopeMatches, isCommonGrant, CHUNG_NO_DEPT_ALLOW } from '@utils/permissionResolution';
 import logger from '@config/logger';
 
 /**
@@ -162,7 +162,7 @@ export function requireRule(resourceCode: string, action: string) {
           to: { gte: now },
         },
       });
-      const hasMatchingDelegation = delegations.some((d) => delegationScopeMatches(d, departmentIds, subDepartmentId));
+      const hasMatchingDelegation = delegations.some((d) => delegationScopeMatches(d, departmentIds, subDepartmentIds));
       if (hasMatchingDelegation) {
         next();
         return;
@@ -209,8 +209,16 @@ export function requireRule(resourceCode: string, action: string) {
       if (
         departmentIds.length === 0 &&
         (action === 'READ' || action === 'CREATE') &&
-        ['lookups', 'supply-requests', 'repair-requests', 'tasks', 'work-plans', 'private-feedbacks', 'processes'].includes(resourceCode)
+        CHUNG_NO_DEPT_ALLOW.has(resourceCode)
       ) {
+        next();
+        return;
+      }
+
+      // In-department: preview allows Chung's "common" reads even when no explicit Rule
+      // exists and baseline would deny. Keep enforcement identical so the Rule Matrix
+      // preview matches reality.
+      if (departmentIds.length !== 0 && isCommonGrant(resourceCode, action)) {
         next();
         return;
       }

@@ -37,6 +37,6 @@ router.get('/:id', authenticate, lookupController.getById);
 router.post('/', authenticate, requireRule('lookups', 'CREATE'), lookupController.create);
 router.put('/:id', authenticate, requireRule('lookups', 'UPDATE'), lookupController.update);
 // Soft delete only — sets isActive=false, never removes the row.
-router.delete('/:id', authenticate, requireRule('lookups', 'CREATE'), lookupController.remove);
+router.delete('/:id', authenticate, requireRule('lookups', 'DELETE'), lookupController.remove);
 
 export default router;

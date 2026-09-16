@@ -43,7 +43,7 @@ router.use(authenticate);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/', workPlanController.getAllWorkPlans);
+router.get('/', requireRule('work-plans', 'READ'), workPlanController.getAllWorkPlans);
 
 /**
  * @swagger
@@ -76,7 +76,7 @@ router.get('/', workPlanController.getAllWorkPlans);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/my-work-plans', workPlanController.getMyWorkPlans);
+router.get('/my-work-plans', requireRule('work-plans', 'READ'), workPlanController.getMyWorkPlans);
 
 /**
  * @swagger
@@ -102,7 +102,7 @@ router.get('/my-work-plans', workPlanController.getMyWorkPlans);
  *       404:
  *         description: Không tìm thấy kế hoạch
  */
-router.get('/:id', workPlanController.getWorkPlanById);
+router.get('/:id', requireRule('work-plans', 'READ'), workPlanController.getWorkPlanById);
 
 /**
  * @swagger
@@ -213,6 +213,7 @@ router.put(
  */
 router.delete(
   '/:id',
+  requireRule('work-plans', 'DELETE'),
   workPlanController.deleteWorkPlan
 );
 

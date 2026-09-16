@@ -233,7 +233,7 @@ router.delete(
 // Cancel action — POST /:id/cancel
 router.post(
   '/:id/cancel',
-  requireRule('quotation-requests', 'CREATE'),
+  requireRule('quotation-requests', 'UPDATE'),
   quotationRequestController.cancelQuotationRequest
 );
 
@@ -241,14 +241,14 @@ router.post(
 // Advances CHO_XU_LY → DANG_BAO_GIA when user opens the create-quotation popup
 router.post(
   '/:id/mark-in-progress',
-  requireRule('quotation-requests', 'CREATE'),
+  requireRule('quotation-requests', 'UPDATE'),
   quotationRequestController.markInProgress
 );
 
 // Pricing room review — approve CHO_XU_LY → DANG_BAO_GIA
 router.post(
   '/:id/approve',
-  requireRule('quotation-requests', 'CREATE'),
+  requireRule('quotation-requests', 'APPROVE'),
   async (req: any, res: any, next: any) => {
     const { isPricingApprover } = await import('@utils/isPricingApprover');
     if (await isPricingApprover(req.user)) return next();
@@ -260,7 +260,7 @@ router.post(
 // Pricing room review — reject CHO_XU_LY → HUY
 router.post(
   '/:id/reject',
-  requireRule('quotation-requests', 'CREATE'),
+  requireRule('quotation-requests', 'REJECT'),
   async (req: any, res: any, next: any) => {
     const { isPricingApprover } = await import('@utils/isPricingApprover');
     if (await isPricingApprover(req.user)) return next();

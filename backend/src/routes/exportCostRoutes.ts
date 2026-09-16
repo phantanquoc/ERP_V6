@@ -18,15 +18,15 @@ router.get('/export/excel', requireRule('export-costs', 'EXPORT'), exportCostCon
 router.get('/:id', requireRule('export-costs', 'EXPORT'), exportCostController.getExportCostById);
 
 // POST create — ADMIN and DEPARTMENT_HEAD only
-router.post('/', requireRule('export-costs', 'EXPORT'), exportCostController.createExportCost);
+router.post('/', requireRule('export-costs', 'CREATE'), exportCostController.createExportCost);
 
 // PATCH update — ADMIN and DEPARTMENT_HEAD only
-router.patch('/:id', requireRule('export-costs', 'CREATE'), exportCostController.updateExportCost);
+router.patch('/:id', requireRule('export-costs', 'UPDATE'), exportCostController.updateExportCost);
 
 // PUT update (legacy support) — ADMIN and DEPARTMENT_HEAD only
 router.put('/:id', requireRule('export-costs', 'UPDATE'), exportCostController.updateExportCost);
 
 // DELETE — ADMIN only
-router.delete('/:id', requireRule('export-costs', 'UPDATE'), exportCostController.deleteExportCost);
+router.delete('/:id', requireRule('export-costs', 'DELETE'), exportCostController.deleteExportCost);
 
 export default router;

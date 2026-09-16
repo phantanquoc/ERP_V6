@@ -75,10 +75,13 @@ export interface PermissionContext {
 
 export function delegationScopeMatches(
   delegation: { departmentId: string | null; subDepartmentId: string | null },
-  departmentIds: string[], subDepartmentId: string | null,
+  departmentIds: string[], subDepartmentIds: string[] | string | null,
 ): boolean {
   if (!delegation.departmentId && !delegation.subDepartmentId) return true;
-  if (delegation.subDepartmentId) return delegation.subDepartmentId === subDepartmentId;
+  if (delegation.subDepartmentId) {
+    const ids = Array.isArray(subDepartmentIds) ? subDepartmentIds : (subDepartmentIds ? [subDepartmentIds] : []);
+    return ids.includes(delegation.subDepartmentId);
+  }
   if (delegation.departmentId) return departmentIds.includes(delegation.departmentId);
   return false;
 }
@@ -107,7 +110,7 @@ export function resolveOne(
   ctx: PermissionContext,
 ): { allow: boolean; source: PermissionSource } {
   if (ctx.role === 'ADMIN') return { allow: true, source: 'ADMIN_BYPASS' };
-  const hasDel = ctx.delegations.some((d) => d.resourceCode === resourceCode && d.action === action && delegationScopeMatches(d, ctx.departmentIds, ctx.subDepartmentId));
+  const hasDel = ctx.delegations.some((d) => d.resourceCode === resourceCode && d.action === action && delegationScopeMatches(d, ctx.departmentIds, ctx.subDepartmentIds));
   if (hasDel) return { allow: true, source: 'DELEGATION' };
   const cands = ctx.allRules.filter((r) => r.resourceCode === resourceCode && r.action === action);
   const matched = matchRule(cands, { positionId: ctx.positionId, effectiveRole: ctx.effectiveRole, departmentIds: ctx.departmentIds, subDepartmentIds: ctx.subDepartmentIds });

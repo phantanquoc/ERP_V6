@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import productionReportController from '@controllers/productionReportController';
 import { authenticate } from '@middlewares/auth';
+import { requireRule } from '@middlewares/requireRule';
 import { createSingleUploadMiddleware } from '@middlewares/upload';
 
 const router = Router();
@@ -23,7 +24,7 @@ router.use(authenticate);
  *       200:
  *         description: Danh sách báo cáo sản xuất
  */
-router.get('/', productionReportController.getAllProductionReports);
+router.get('/', requireRule('production-reports', 'READ'), productionReportController.getAllProductionReports);
 
 /**
  * @swagger
@@ -46,7 +47,7 @@ router.get('/', productionReportController.getAllProductionReports);
  *       404:
  *         description: Không tìm thấy báo cáo sản xuất
  */
-router.get('/:id', productionReportController.getProductionReportById);
+router.get('/:id', requireRule('production-reports', 'READ'), productionReportController.getProductionReportById);
 
 /**
  * @swagger
@@ -71,7 +72,7 @@ router.get('/:id', productionReportController.getProductionReportById);
  *       201:
  *         description: Tạo báo cáo sản xuất thành công
  */
-router.post('/', uploadProductionReport, productionReportController.createProductionReport);
+router.post('/', requireRule('production-reports', 'CREATE'), uploadProductionReport, productionReportController.createProductionReport);
 
 /**
  * @swagger
@@ -104,7 +105,7 @@ router.post('/', uploadProductionReport, productionReportController.createProduc
  *       404:
  *         description: Không tìm thấy báo cáo sản xuất
  */
-router.put('/:id', uploadProductionReport, productionReportController.updateProductionReport);
+router.put('/:id', requireRule('production-reports', 'UPDATE'), uploadProductionReport, productionReportController.updateProductionReport);
 
 /**
  * @swagger
@@ -127,7 +128,7 @@ router.put('/:id', uploadProductionReport, productionReportController.updateProd
  *       404:
  *         description: Không tìm thấy báo cáo sản xuất
  */
-router.delete('/:id', productionReportController.deleteProductionReport);
+router.delete('/:id', requireRule('production-reports', 'DELETE'), productionReportController.deleteProductionReport);
 
 export default router;
 

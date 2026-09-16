@@ -211,7 +211,7 @@ router.delete('/:id', requireRule('purchase-requests', 'DELETE'), purchaseReques
  */
 router.post(
   '/:id/submit-approval',
-  requireRule('purchase-requests', 'APPROVE'),
+  requireRule('purchase-requests', 'UPDATE'),
   purchaseRequestController.submitForApproval
 );
 
@@ -223,7 +223,7 @@ router.post(
  */
 router.post(
   '/:id/confirm-actual-price',
-  requireRule('purchase-requests', 'APPROVE'),
+  requireRule('purchase-requests', 'UPDATE'),
   purchaseRequestController.confirmActualPrice
 );
 
