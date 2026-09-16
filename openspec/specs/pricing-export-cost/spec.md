@@ -1,27 +1,31 @@
-## ADDED Requirements
+# pricing-export-cost Specification
 
+## Purpose
+
+Define the export-cost CRUD API contract: route authorization, the standard response envelope, server-driven pagination, and audit logging of create/update/delete operations.
+## Requirements
 ### Requirement: Role-based authorization on export-cost routes
 
-All `/api/export-costs` routes SHALL require authentication and SHALL enforce role-based authorization. Read operations (`GET` list and detail) SHALL be available to `ADMIN`, `DEPARTMENT_HEAD`, `TEAM_LEAD`, and `EMPLOYEE`. Create and update operations (`POST`, `PATCH`) SHALL be restricted to `ADMIN` and `DEPARTMENT_HEAD`. Delete operations (`DELETE`) SHALL be restricted to `ADMIN`.
+All `/api/export-costs` routes SHALL require authentication and SHALL enforce authorization through `requireRule` with the action matching the operation's true semantics. Read operations (`GET` list and detail) SHALL use `EXPORT` and be available to `ADMIN`, `DEPARTMENT_HEAD`, `TEAM_LEAD`, and `EMPLOYEE`. Create (`POST`) SHALL use `CREATE`; update (`PATCH`/`PUT`) SHALL use `UPDATE`; both follow the baseline that any authenticated in-department user (including `EMPLOYEE`) may perform them. Delete (`DELETE`) SHALL use `DELETE` and remain restricted to `DEPARTMENT_HEAD` and `ADMIN` by baseline.
 
 #### Scenario: Employee can list export costs
 
 - **WHEN** an `EMPLOYEE` calls `GET /api/export-costs`
 - **THEN** the server responds with HTTP 200 and a paginated list
 
-#### Scenario: Employee cannot create an export cost
+#### Scenario: In-department employee can create an export cost
 
-- **WHEN** an `EMPLOYEE` calls `POST /api/export-costs`
-- **THEN** the server responds with HTTP 403 and no row is inserted
+- **WHEN** an authenticated `EMPLOYEE` in a department granted `export-costs/CREATE` calls `POST /api/export-costs` with valid data
+- **THEN** the server responds with HTTP 201 and the row is inserted
 
-#### Scenario: Team lead cannot delete an export cost
+#### Scenario: Employee cannot delete an export cost
 
-- **WHEN** a `TEAM_LEAD` calls `DELETE /api/export-costs/:id`
+- **WHEN** an `EMPLOYEE` calls `DELETE /api/export-costs/:id`
 - **THEN** the server responds with HTTP 403 and the row remains
 
-#### Scenario: Admin can delete an export cost
+#### Scenario: Department head can delete an export cost
 
-- **WHEN** an `ADMIN` calls `DELETE /api/export-costs/:id`
+- **WHEN** a `DEPARTMENT_HEAD` calls `DELETE /api/export-costs/:id` for an existing row
 - **THEN** the server responds with HTTP 200 and the row is removed
 
 ### Requirement: Standard response envelope for export-cost endpoints
@@ -75,3 +79,4 @@ ExportCost create, update, and delete operations SHALL invoke `recordAudit` via 
 
 - **WHEN** `recordAudit` throws while persisting the audit row for an ExportCost update
 - **THEN** the ExportCost update HTTP response still resolves successfully
+
