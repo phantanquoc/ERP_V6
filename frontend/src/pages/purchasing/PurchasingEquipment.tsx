@@ -27,8 +27,9 @@ import OrderManagement from '../../components/OrderManagement';
 import purchaseRequestService from '../../services/purchaseRequestService';
 import { supplierService, Supplier, CreateSupplierData, UpdateSupplierData } from '../../services/supplierService';
 import { parseNumberInput } from '../../utils/numberInput';
-import { can } from '../../utils/permissions';
+import { can, isCachedPermissionsLoaded } from '../../utils/permissions';
 import { useAuth } from '../../contexts/AuthContext';
+import { UserRole } from '../../types/auth';
 import { labelForPurchaseRequest } from '../../utils/purchaseRequestLabel';
 import ReplenishmentList from '../../components/ReplenishmentList';
 import ReplenishmentDetailModal from '../../components/ReplenishmentDetailModal';
@@ -111,9 +112,10 @@ const PurchasingEquipment = () => {
   const [selectedYbs, setSelectedYbs] = useState<ReplenishmentRequest | null>(null);
   const [ybsModalOpen, setYbsModalOpen] = useState(false);
   // RBAC gates via Rule Matrix with baseline fallback inside can() (mirror NVL page).
-  const canEditPR = can('purchase-requests', 'UPDATE', user?.role);
-  const canDeletePR = can('purchase-requests', 'DELETE', user?.role);
-  const canApprovePR = can('purchase-requests', 'APPROVE', user?.role);
+  const _roleEditBase = (user?.role as string) === UserRole.ADMIN || (user?.role as string) === UserRole.DEPARTMENT_HEAD || (user?.role as string) === UserRole.TEAM_LEAD;
+  const canEditPR = isCachedPermissionsLoaded() ? can('purchase-requests', 'UPDATE', user?.role as string) : _roleEditBase;
+  const canDeletePR = isCachedPermissionsLoaded() ? can('purchase-requests', 'DELETE', user?.role as string) : (user?.role as string) === UserRole.ADMIN;
+  const canUpdatePR = isCachedPermissionsLoaded() ? can('purchase-requests', 'UPDATE', user?.role as string) : _roleEditBase;
   // Same fix as the NVL page: pricing table must load NCC independently of the
   // suppliers tab (the page-level `suppliers` is empty while on the PR list).
   const {
@@ -1074,7 +1076,7 @@ const PurchasingEquipment = () => {
                               {canDeletePR && (
                                 <button onClick={() => handleDeletePurchaseRequest(item.id)} className="text-red-600 hover:text-red-800" title="Xóa"><Trash2 className="w-4 h-4" /></button>
                               )}
-                              {canApprovePR && item.trangThai === 'Chờ báo giá' && (
+                              {canUpdatePR && item.trangThai === 'Chờ báo giá' && (
                                 <button
                                   onClick={() => handleSubmitForApproval(item)}
                                   className="inline-flex items-center gap-1 px-2 py-1 bg-orange-50 text-orange-700 rounded hover:bg-orange-100 border border-orange-200 text-xs font-medium"
@@ -1084,7 +1086,7 @@ const PurchasingEquipment = () => {
                                   Gửi duyệt
                                 </button>
                               )}
-                              {item.trangThai === 'Đã duyệt' && (
+                              {canUpdatePR && item.trangThai === 'Đã duyệt' && (
                                 <button
                                   onClick={() => handleCompletePurchaseRequest(item)}
                                   className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 rounded hover:bg-emerald-100 border border-emerald-200 text-xs font-medium"
@@ -1328,7 +1330,7 @@ const PurchasingEquipment = () => {
                       Hủy phiếu
                     </button>
                   )}
-                  {selectedPurchaseRequest.trangThai === 'Đã duyệt' && canApprovePR && (
+                  {selectedPurchaseRequest.trangThai === 'Đã duyệt' && canUpdatePR && (
                     <button
                       type="button"
                       onClick={() => { setConfirmActualPriceTarget(selectedPurchaseRequest); setShowConfirmActualPrice(true); }}

@@ -28,7 +28,8 @@ import { supplierService, Supplier, CreateSupplierData, UpdateSupplierData } fro
 import { parseNumberInput } from '../../utils/numberInput';
 import { useAuth } from '../../contexts/AuthContext';
 import PageHeader from '../../design-system/PageHeader';
-import { can } from '../../utils/permissions';
+import { can, isCachedPermissionsLoaded } from '../../utils/permissions';
+import { UserRole } from '../../types/auth';
 import { labelForPurchaseRequest } from '../../utils/purchaseRequestLabel';
 import ReplenishmentList from '../../components/ReplenishmentList';
 import ReplenishmentDetailModal from '../../components/ReplenishmentDetailModal';
@@ -122,9 +123,11 @@ const PurchasingMaterials = () => {
   const [selectedYbs, setSelectedYbs] = useState<ReplenishmentRequest | null>(null);
   const [ybsModalOpen, setYbsModalOpen] = useState(false);
   // 6.4 — RBAC gates via Rule Matrix with baseline fallback inside can()
-  const canEditPR = can('purchase-requests', 'UPDATE', user?.role);
-  const canDeletePR = can('purchase-requests', 'DELETE', user?.role);
-  const canApprovePR = can('purchase-requests', 'APPROVE', user?.role);
+  // Before my-permissions loads, guard so EMPLOYEE never sees Sửa/Gửi duyệt briefly ring-to-internal-call-blocking
+  const _roleEditBase = user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD || user?.role === UserRole.TEAM_LEAD;
+  const canEditPR = isCachedPermissionsLoaded() ? can('purchase-requests', 'UPDATE', user?.role) : _roleEditBase;
+  const canDeletePR = isCachedPermissionsLoaded() ? can('purchase-requests', 'DELETE', user?.role) : user?.role === UserRole.ADMIN;
+  const canUpdatePR = isCachedPermissionsLoaded() ? can('purchase-requests', 'UPDATE', user?.role) : _roleEditBase;
   // Pricing table in the edit modal must work from ANY tab. The page-level
   // `suppliers` state is only fetched while the "Nhà cung cấp" tab is active,
   // so opening "Chỉnh sửa" from the purchase list used to show an EMPTY NCC
@@ -1224,7 +1227,7 @@ const PurchasingMaterials = () => {
                                   <Trash2 className="w-4 h-4" />
                                 </button>
                               )}
-                              {canApprovePR && item.trangThai === 'Chờ báo giá' && (
+                              {canUpdatePR && item.trangThai === 'Chờ báo giá' && (
                                 <button
                                   onClick={() => handleSubmitForApproval(item)}
                                   className="inline-flex items-center gap-1 px-2 py-1 bg-orange-50 text-orange-700 rounded hover:bg-orange-100 border border-orange-200 text-xs font-medium"
@@ -1234,7 +1237,7 @@ const PurchasingMaterials = () => {
                                   Gửi duyệt
                                 </button>
                               )}
-                              {item.trangThai === 'Đã duyệt' && (
+                              {canUpdatePR && item.trangThai === 'Đã duyệt' && (
                                 <button
                                   onClick={() => handleCompletePurchaseRequest(item)}
                                   className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 rounded hover:bg-emerald-100 border border-emerald-200 text-xs font-medium"
@@ -1560,7 +1563,7 @@ const PurchasingMaterials = () => {
                 </div>
 
                 <div className="flex flex-wrap justify-end gap-4 mt-4 pt-4 border-t border-gray-100 bg-white shrink-0">
-                  {selectedPurchaseRequest.trangThai === 'Đã duyệt' && canApprovePR && (
+                  {selectedPurchaseRequest.trangThai === 'Đã duyệt' && canUpdatePR && (
                     <button
                       type="button"
                       onClick={() => { setConfirmActualPriceTarget(selectedPurchaseRequest); setShowConfirmActualPrice(true); }}
