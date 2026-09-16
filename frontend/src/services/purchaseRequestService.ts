@@ -34,6 +34,10 @@ export interface PurchaseRequest {
   ghiChu?: string;
   fileKemTheo?: string;
   trangThai: string;
+  /** Cancel audit — set when trangThai === 'Đã hủy' */
+  lyDoHuy?: string;
+  ngayHuy?: string;
+  nguoiHuy?: string;
   supplyRequestId?: string;
   nhaCungCapId?: string;
   giaDuKien?: number;
@@ -164,6 +168,11 @@ class PurchaseRequestService {
   async deletePurchaseRequest(id: string) {
      const response = await apiClient.delete(`/purchase-requests/${id}`);
      return response;
+  }
+
+  async cancelPurchaseRequest(id: string, lyDoHuy: string) {
+    const response = await apiClient.post(`/purchase-requests/${id}/cancel`, { lyDoHuy });
+    return response;
   }
 
   async submitForApproval(id: string) {

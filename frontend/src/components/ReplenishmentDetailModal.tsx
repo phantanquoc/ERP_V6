@@ -8,6 +8,7 @@ import { replenishmentRequestKeys } from '../hooks/useReplenishmentRequests';
 import { useSupplierOptions } from '../hooks/useSuppliers';
 import QuickCreateSupplierModal from './QuickCreateSupplierModal';
 import SupplierCombobox from './common/SupplierCombobox';
+import CancelWithReasonModal from './common/CancelWithReasonModal';
 
 interface ReplenishmentDetailModalProps {
   isOpen: boolean;
@@ -41,7 +42,7 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
   const [saving, setSaving] = useState(false);
   const [converting, setConverting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
-  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
   const [rows, setRows] = useState<Array<{ id: string; phanLoai: string; tenGoi: string; soLuong: number; donViTinh: string; nhaCungCapId: string; giaDuKien: string }>>([]);
   // Inline "create supplier" from the NCC dropdown — idx is the row the button
   // was clicked on, so the new supplier lands as that row's nhaCungCapId.
@@ -186,22 +187,21 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
     }
   };
 
-  const handleCancel = async () => {
+  const handleCancel = async (lyDoHuy: string) => {
     if (!detail) return;
-    if (!confirmCancel) { setConfirmCancel(true); return; }
     setCancelling(true);
     try {
-      await replenishmentRequestService.cancelReplenishmentRequest(detail.id);
+      await replenishmentRequestService.cancelReplenishmentRequest(detail.id, lyDoHuy);
       toast.success(`Đã hủy YCBS ${detail.maYeuCau}`);
       queryClient.invalidateQueries({ queryKey: replenishmentRequestKeys.lists() });
       queryClient.invalidateQueries({ queryKey: replenishmentRequestKeys.detail(detail.id) });
       onCancelled?.(detail.id);
+      setShowCancelModal(false);
       onClose();
     } catch (e: any) {
       toast.error(e?.response?.data?.message ?? 'Hủy YCBS thất bại');
     } finally {
       setCancelling(false);
-      setConfirmCancel(false);
     }
   };
 
@@ -225,10 +225,17 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
           {loading ? (
             <div className="text-center py-8 text-sm text-gray-500">Đang tải…</div>
           ) : readOnly && detail ? (
-            <div className="rounded border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+            <div className={`rounded border px-4 py-3 text-sm ${detail.trangThai === 'Đã hủy' ? 'border-red-200 bg-red-50 text-red-800' : 'border-green-200 bg-green-50 text-green-800'}`}>
               YCBS này đã <strong>{detail.trangThai}</strong>
               {detail.convertedPurchaseRequest ? <> — đã chuyển thành <span className="font-mono">{detail.convertedPurchaseRequest.maYeuCau}</span>.</> : '.'}
               {' '}Không thể sửa giá/NCC nữa.
+              {detail.trangThai === 'Đã hủy' && (
+                <div className="mt-1 text-red-900">
+                  <span className="font-medium">Lý do hủy:</span> {detail.lyDoHuy || 'Không có lý do (hủy trước khi tính năng này có)'}
+                  {detail.nguoiHuy && <span className="text-xs"> · bởi {detail.nguoiHuy}</span>}
+                  {detail.ngayHuy && <span className="text-xs"> · {new Date(detail.ngayHuy).toLocaleString('vi-VN')}</span>}
+                </div>
+              )}
             </div>
           ) : missingPricing.length > 0 ? (
             <div className="rounded border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 flex items-center gap-2">
@@ -317,21 +324,17 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
         <div className="flex items-center justify-between gap-2 px-6 py-4 border-t border-gray-200 bg-gray-50 shrink-0 rounded-b-lg">
             {!readOnly && (
               <button
-                onClick={handleCancel}
+                onClick={() => setShowCancelModal(true)}
                 disabled={saving || converting || cancelling}
-                className={`px-4 py-2 text-sm border rounded disabled:opacity-50 inline-flex items-center gap-1.5 ${
-                  confirmCancel
-                    ? 'border-red-400 text-red-700 bg-red-50 hover:bg-red-100'
-                    : 'border-gray-200 text-gray-500 hover:bg-gray-50'
-                }`}
-                title="Hủy YCBS nhập sai — rời khỏi hàng chờ, không tạo YCMH"
+                className="px-4 py-2 text-sm border border-gray-200 text-gray-500 rounded hover:bg-gray-50 disabled:opacity-50 inline-flex items-center gap-1.5"
+                title="Hủy YCBS nhập sai — rời khỏi hàng chờ, không tạo YCMH. YCCB nguồn sẽ quay lại Đang xử lý."
               >
                 <Ban className="w-4 h-4" />
-                {cancelling ? 'Đang hủy…' : confirmCancel ? 'Bấm lại để xác nhận hủy' : 'Hủy YCBS'}
+                Hủy YCBS
               </button>
             )}
             <div className="flex items-center gap-2 ml-auto">
-              <button onClick={() => { setConfirmCancel(false); onClose(); }} className="px-4 py-2 text-sm border border-gray-200 rounded hover:bg-gray-50">Đóng</button>
+              <button onClick={() => { onClose(); }} className="px-4 py-2 text-sm border border-gray-200 rounded hover:bg-gray-50">Đóng</button>
               {!readOnly && (
                 <button onClick={handleSave} disabled={saving || converting} className="px-4 py-2 text-sm bg-white border border-amber-300 text-amber-700 rounded hover:bg-amber-50 disabled:opacity-50">
                   {saving ? 'Đang lưu…' : 'Lưu giá & NCC'}
@@ -360,6 +363,19 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
           onCreated={(s) => setRowField(quickCreateRowIdx, { nhaCungCapId: s.id })}
         />
       )}
+
+      <CancelWithReasonModal
+        isOpen={showCancelModal}
+        onClose={() => { if (!cancelling) setShowCancelModal(false); }}
+        onConfirm={handleCancel}
+        loading={cancelling}
+        ticketLabel={`YCBS ${detail?.maYeuCau ?? ybs?.maYeuCau ?? ''}`}
+        description="Phiếu rời khỏi hàng chờ báo giá và không tạo YCMH."
+        details={[
+          'Người tạo YCCB nguồn nhận thông báo kèm lý do.',
+          'Nếu YCCB không còn YCBS nào đang chờ, nó quay lại "Đang xử lý" để kho tạo yêu cầu bổ sung lại.',
+        ]}
+      />
     </div>
   );
 };

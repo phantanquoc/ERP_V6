@@ -355,7 +355,7 @@ const entries: NotificationEventDef[] = [
     notificationType: NotificationType.SUPPLY_REQUEST_CANCELLED,
     buildMessage: (ctx) => ({
       title: 'Yêu cầu cung cấp đã bị hủy',
-      message: `Yêu cầu cung cấp ${ctx.metadata?.maYeuCau ?? ''} đã bị hủy.`,
+      message: `Yêu cầu cung cấp ${ctx.metadata?.maYeuCau ?? ''} đã bị hủy${ctx.metadata?.lyDo ? ': ' + ctx.metadata.lyDo : ''}.`,
     }),
     resolveRecipients: resolveDirectRecipients,
   },
@@ -499,6 +499,15 @@ const entries: NotificationEventDef[] = [
     }),
     resolveRecipients: resolveDirectRecipients,
   },
+  {
+    event: NotificationEvent.PURCHASE_REQUEST_CANCELLED,
+    notificationType: NotificationType.PURCHASE_REQUEST,
+    buildMessage: (ctx) => ({
+      title: 'Yêu cầu mua hàng đã bị hủy',
+      message: `Yêu cầu mua hàng ${ctx.metadata?.maYeuCau ?? ''} của bạn đã bị hủy${ctx.metadata?.lyDo ? ': ' + ctx.metadata.lyDo : ''}.`,
+    }),
+    resolveRecipients: resolveDirectRecipients,
+  },
 
   // ── Replenishment Request (YCBS) ──
   {
@@ -535,6 +544,16 @@ const entries: NotificationEventDef[] = [
       const direct = ctx.targetEmployeeIds ?? [];
       return [...new Set([...admins, ...direct])];
     },
+  },
+
+  {
+    event: NotificationEvent.REPLENISHMENT_REQUEST_CANCELLED,
+    notificationType: NotificationType.REPLENISHMENT_REQUEST,
+    buildMessage: (ctx) => ({
+      title: 'Yêu cầu bổ sung đã bị hủy',
+      message: `Yêu cầu bổ sung ${ctx.metadata?.maYeuCau ?? ''} đã bị hủy${ctx.metadata?.lyDo ? ': ' + ctx.metadata.lyDo : ''}. Yêu cầu cung cấp nguồn quay lại trạng thái đang xử lý.`,
+    }),
+    resolveRecipients: resolveDirectRecipients,
   },
 
   // ── Repair Request ──

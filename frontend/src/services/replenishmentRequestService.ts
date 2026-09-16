@@ -42,6 +42,10 @@ export interface ReplenishmentRequest {
   fileKemTheo?: string | null;
   /** 'Chờ báo giá' | 'Đã chuyển mua hàng' | 'Đã hủy' */
   trangThai: string;
+  /** Audit trail of a cancelled ticket — null unless trangThai === 'Đã hủy' */
+  lyDoHuy?: string | null;
+  ngayHuy?: string | null;
+  nguoiHuy?: string | null;
   supplyRequestId?: string | null;
   /** MATERIALS | EQUIPMENT | OTHER — routes to the right purchasing sub-department */
   phanLoaiGroup?: string | null;
@@ -159,8 +163,8 @@ class ReplenishmentRequestService {
     return apiClient.post(`/replenishment-requests/${id}/convert`, {});
   }
 
-  async cancelReplenishmentRequest(id: string) {
-    return apiClient.post(`/replenishment-requests/${id}/cancel`, {});
+  async cancelReplenishmentRequest(id: string, lyDoHuy: string) {
+    return apiClient.post(`/replenishment-requests/${id}/cancel`, { lyDoHuy });
   }
 
   async deleteReplenishmentRequest(id: string) {

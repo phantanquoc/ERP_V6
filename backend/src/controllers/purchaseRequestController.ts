@@ -189,6 +189,28 @@ class PurchaseRequestController {
     }
   }
 
+  async cancelPurchaseRequest(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = req.params.id as string;
+      // Actor from JWT — never trust a client-declared name. Display-name storage
+      // matches nguoiDuyet on the same model.
+      let nguoiHuy: string | undefined;
+      const actorUserId = (req as unknown as { user?: { id?: string } }).user?.id;
+      if (actorUserId) {
+        const user = await prisma.user.findUnique({
+          where: { id: actorUserId },
+          select: { firstName: true, lastName: true },
+        });
+        if (user) nguoiHuy = `${user.lastName ?? ''} ${user.firstName ?? ''}`.trim() || undefined;
+      }
+      const lyDoHuy = (req.body as { lyDoHuy?: string } | undefined)?.lyDoHuy;
+      const updated = await purchaseRequestService.cancelPurchaseRequest(id, { lyDoHuy, nguoiHuy });
+      return res.json({ success: true, message: 'Đã hủy yêu cầu mua hàng', data: updated });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
   async exportToExcel(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const filters: any = {};

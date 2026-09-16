@@ -60,6 +60,10 @@ export interface SupplyRequest {
   mucDoUuTien: string;
   ghiChu?: string;
   trangThai: string;
+  /** Set by the cancel action; the ticket stays in the list so nothing silently vanishes. */
+  lyDoHuy?: string | null;
+  ngayHuy?: string | null;
+  nguoiHuy?: string | null;
   fileKemTheo?: string;
   loaiYeuCau?: string;
   soTien?: number;
@@ -79,6 +83,7 @@ export interface SupplyRequest {
   }>;
   replenishmentRequests?: Array<{
     id: string; maYeuCau: string; trangThai: string; phanLoaiGroup?: string | null;
+    lyDoHuy?: string | null; ngayHuy?: string | null;
     convertedPurchaseRequest?: { id: string; maYeuCau: string } | null;
   }>;
   warehouseReceipts?: Array<{ id: string; maPhieuNhap: string; purchaseRequestId?: string | null }>;
@@ -173,8 +178,8 @@ class SupplyRequestService {
     return response;
   }
 
-  async cancelSupplyRequest(id: string) {
-    const response = await apiClient.post(`/supply-requests/${id}/cancel`);
+  async cancelSupplyRequest(id: string, lyDoHuy: string) {
+    const response = await apiClient.post(`/supply-requests/${id}/cancel`, { lyDoHuy });
     return response;
   }
 

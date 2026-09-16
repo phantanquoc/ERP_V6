@@ -16,7 +16,8 @@ import {
   Globe,
   CheckCircle,
   BadgeCheck,
-  HelpCircle
+  HelpCircle,
+  Ban
 } from 'lucide-react';
 // chuaPhanLoai badge reserved
 void (() => HelpCircle)();
@@ -37,6 +38,7 @@ import { useSupplierOptions } from '../../hooks/useSuppliers';
 import type { ReplenishmentRequest } from '../../services/replenishmentRequestService';
 import replenishmentRequestService from '../../services/replenishmentRequestService';
 import { useUrlTab, useUrlDetailId } from '../../hooks/useUrlState';
+import CancelWithReasonModal from '../../components/common/CancelWithReasonModal';
 import {
   BarChart,
   Bar,
@@ -75,6 +77,9 @@ interface PurchaseRequest {
   createdAt: string;
   updatedAt: string;
   items?: { id: string; tenHangHoa: string; soLuong: number; donViTinh: string; phanLoai: string; giaDuKien?: number; nhaCungCapId?: string | null }[];
+  lyDoHuy?: string;
+  ngayHuy?: string;
+  nguoiHuy?: string;
 }
 
 const VALID_TABS = ['purchaseRequestList', 'replenishment', 'suppliers', 'orderList'] as const;
@@ -434,6 +439,8 @@ const PurchasingMaterials = () => {
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [editFormErrors, setEditFormErrors] = useState<{ nguoiDuyet?: string; ngayDuyet?: string; api?: string }>({});
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [cancelPrTarget, setCancelPrTarget] = useState<PurchaseRequest | null>(null);
+  const [showCancelPrModal, setShowCancelPrModal] = useState(false);
 
   const openDetailModal = useCallback((item: any) => {
     setSelectedItem(item);
@@ -685,6 +692,28 @@ const PurchasingMaterials = () => {
       },
     });
   }, [purchaseRequestPage, purchaseRequestSearch]);
+
+  const handleCancelPurchaseRequest = useCallback((item: PurchaseRequest) => {
+    setCancelPrTarget(item);
+    setShowCancelPrModal(true);
+  }, []);
+
+  const confirmCancelPurchaseRequest = useCallback(async (lyDoHuy: string) => {
+    if (!cancelPrTarget) return;
+    try {
+      await purchaseRequestService.cancelPurchaseRequest(cancelPrTarget.id, lyDoHuy);
+      toast.success('Đã hủy yêu cầu mua hàng');
+      setShowCancelPrModal(false);
+      setCancelPrTarget(null);
+      fetchPurchaseRequests();
+      if (selectedPurchaseRequest?.id === cancelPrTarget.id) {
+        setSelectedPurchaseRequest(null);
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Lỗi khi hủy yêu cầu mua hàng');
+      throw error;
+    }
+  }, [cancelPrTarget, selectedPurchaseRequest, fetchPurchaseRequests]);
 
     const tabs = useMemo(() => [
     { id: 'purchaseRequestList', name: 'Danh sách mua hàng', icon: <List className="w-4 h-4" /> },
@@ -1146,6 +1175,7 @@ const PurchasingMaterials = () => {
                               item.trangThai === 'Chờ duyệt' ? 'bg-yellow-100 text-yellow-800' :
                               item.trangThai === 'Đã duyệt' ? 'bg-green-100 text-green-800' :
                               item.trangThai === 'Từ chối' ? 'bg-red-100 text-red-800' :
+                              item.trangThai === 'Đã hủy' ? 'bg-gray-100 text-gray-800' :
                               item.trangThai === 'Hoàn thành' ? 'bg-emerald-100 text-emerald-800' :
                               'bg-gray-100 text-gray-800'
                             }`}>
@@ -1462,6 +1492,7 @@ const PurchasingMaterials = () => {
                       selectedPurchaseRequest.trangThai === 'Chờ duyệt' ? 'bg-yellow-100 text-yellow-800' :
                       selectedPurchaseRequest.trangThai === 'Đã duyệt' ? 'bg-green-100 text-green-800' :
                       selectedPurchaseRequest.trangThai === 'Từ chối' ? 'bg-red-100 text-red-800' :
+                      selectedPurchaseRequest.trangThai === 'Đã hủy' ? 'bg-gray-100 text-gray-800' :
                       'bg-gray-100 text-gray-800'
                     }`}>
                       {selectedPurchaseRequest.trangThai}
@@ -1471,6 +1502,15 @@ const PurchasingMaterials = () => {
                     <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2">
                       <label className="block text-sm font-medium text-gray-500 mb-1">Ghi chú</label>
                       <p className="text-sm text-gray-900">{selectedPurchaseRequest.ghiChu}</p>
+                    </div>
+                  )}
+                  {selectedPurchaseRequest.lyDoHuy && (
+                    <div className="bg-red-50 p-4 rounded-lg col-span-1 sm:col-span-2 border border-red-200">
+                      <label className="block text-sm font-medium text-red-600 mb-1">Lý do hủy</label>
+                      <p className="text-sm text-gray-900">{selectedPurchaseRequest.lyDoHuy}</p>
+                      {selectedPurchaseRequest.ngayHuy && (
+                        <p className="text-xs text-gray-500 mt-1">Ngày hủy: {new Date(selectedPurchaseRequest.ngayHuy).toLocaleDateString('vi-VN')}</p>
+                      )}
                     </div>
                   )}
                   <div className="bg-gray-50 p-4 rounded-lg">
@@ -1516,6 +1556,16 @@ const PurchasingMaterials = () => {
                       {!isActualPriceConfirmed(selectedPurchaseRequest) && (
                         <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-white text-amber-700">chưa chốt</span>
                       )}
+                    </button>
+                  )}
+                  {(selectedPurchaseRequest.trangThai === 'Chờ báo giá' || selectedPurchaseRequest.trangThai === 'Chờ duyệt') && canEditPR && (
+                    <button
+                      type="button"
+                      onClick={() => { handleCancelPurchaseRequest(selectedPurchaseRequest); }}
+                      className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center gap-2"
+                    >
+                      <Ban className="w-4 h-4" />
+                      Hủy phiếu
                     </button>
                   )}
                   {canEditPR && (
@@ -2152,6 +2202,15 @@ const PurchasingMaterials = () => {
             </div>
           </div>
         )}
+
+        {/* Cancel purchase request modal */}
+        <CancelWithReasonModal
+          isOpen={showCancelPrModal}
+          onClose={() => { setShowCancelPrModal(false); setCancelPrTarget(null); }}
+          onConfirm={confirmCancelPurchaseRequest}
+          ticketLabel={cancelPrTarget?.maYeuCau ?? ''}
+          description="Hủy yêu cầu mua hàng này sẽ chuyển trạng thái sang Đã hủy và thông báo tới người tạo."
+        />
     </div>
   );
 };

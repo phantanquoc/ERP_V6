@@ -31,6 +31,10 @@ model SupplyRequest {
   mucDoUuTien           String
   ghiChu                String?
   trangThai             String                 @default("Chưa cung cấp")
+  // Cancel audit — set by cancelSupplyRequest (lyDoHuy required)
+  lyDoHuy               String?
+  ngayHuy               DateTime?
+  nguoiHuy              String?
   fileKemTheo           String?
   loaiYeuCau            String?                @default("Thường") // "Thường" | "Mua nhanh"
   soTien                Float? // Số tiền thực tế (dùng cho Mua nhanh)
@@ -120,6 +124,10 @@ model ReplenishmentRequest {
   fileKemTheo                String?
   // "Chờ báo giá" → "Đã chuyển mua hàng" (and "Đã hủy" via cancel)
   trangThai                  String                     @default("Chờ báo giá")
+  // Cancel audit — set by cancelReplenishmentRequest (lyDoHuy required)
+  lyDoHuy                    String?
+  ngayHuy                    DateTime?
+  nguoiHuy                   String?
   supplyRequestId            String?
   phanLoaiGroup              String? // MATERIALS | EQUIPMENT | OTHER (from bucketPhanLoai)
   convertedPurchaseRequestId String?                    @unique
@@ -183,6 +191,10 @@ model PurchaseRequest {
   trangThai            String                  @default("Chờ duyệt")
   nguoiDuyet           String?
   ngayDuyet            DateTime?
+  // Cancel audit — set by cancelPurchaseRequest (lyDoHuy required)
+  lyDoHuy              String?
+  ngayHuy              DateTime?
+  nguoiHuy             String?
   supplyRequestId      String?
   nhaCungCapId         String?
   giaDuKien            Float?

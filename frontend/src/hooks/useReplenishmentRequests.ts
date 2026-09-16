@@ -73,8 +73,9 @@ export const useConvertReplenishmentRequest = () => {
 export const useCancelReplenishmentRequest = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => replenishmentRequestService.cancelReplenishmentRequest(id),
-    onSuccess: (_data, id) => {
+    mutationFn: ({ id, lyDoHuy }: { id: string; lyDoHuy: string }) =>
+      replenishmentRequestService.cancelReplenishmentRequest(id, lyDoHuy),
+    onSuccess: (_data, { id }) => {
       queryClient.invalidateQueries({ queryKey: replenishmentRequestKeys.lists() });
       queryClient.invalidateQueries({ queryKey: replenishmentRequestKeys.detail(id) });
     },

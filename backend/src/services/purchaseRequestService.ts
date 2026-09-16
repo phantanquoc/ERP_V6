@@ -49,6 +49,8 @@ export const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   'Đã duyệt': ['Hoàn thành'],
   // completed is terminal
   'Hoàn thành': [],
+  // cancelled by cancelPurchaseRequest — terminal, and never reachable via PUT {trangThai}
+  'Đã hủy': [],
 };
 
 class PurchaseRequestService {
@@ -695,6 +697,91 @@ class PurchaseRequestService {
     });
 
     return { message: 'Xóa yêu cầu mua hàng thành công' };
+  }
+
+  /**
+   * Cancel a YCMH before it has been approved. Deliberately narrower than "Từ chối":
+   * rejection is the approver's decision on a ticket that reached Chờ duyệt, while
+   * cancel is the requester/purchasing withdrawing a ticket that has not produced any
+   * supplier commitment yet — once Đã duyệt, the quote is settled and the ticket must
+   * go through "Đã mua xong" (Hoàn thành) instead.
+   *
+   * Does not run through `updatePurchaseRequest`/ALLOWED_TRANSITIONS: a cancel carries
+   * its own required reason + audit columns and must not be reachable by a plain
+   * `PUT {trangThai}` (the same reason cancelSupplyRequest is its own method).
+   */
+  async cancelPurchaseRequest(
+    id: string,
+    opts?: { lyDoHuy?: string; nguoiHuy?: string },
+  ) {
+    const existing = await prisma.purchaseRequest.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        maYeuCau: true,
+        trangThai: true,
+        employeeId: true,
+        supplyRequestId: true,
+        replenishmentRequest: { select: { id: true, maYeuCau: true, trangThai: true } },
+      },
+    });
+    if (!existing) throw new NotFoundError('Không tìm thấy yêu cầu mua hàng');
+
+    const cancellable = ['Chờ báo giá', 'Chờ duyệt'];
+    if (!cancellable.includes(existing.trangThai)) {
+      throw new ValidationError(
+        `Không thể hủy YCMH ở trạng thái "${existing.trangThai}" — đã duyệt rồi thì dùng "Đã mua xong", hoặc người duyệt "Từ chối"`,
+      );
+    }
+
+    const lyDoHuy = opts?.lyDoHuy?.trim();
+    if (!lyDoHuy) throw new ValidationError('Vui lòng nhập lý do hủy');
+
+    const updated = await prisma.purchaseRequest.update({
+      where: { id },
+      data: {
+        trangThai: 'Đã hủy',
+        lyDoHuy,
+        ngayHuy: new Date(),
+        ...(opts?.nguoiHuy ? { nguoiHuy: opts.nguoiHuy } : {}),
+      },
+      include: { items: true },
+    });
+
+    // A YCMH born from a YCBS must hand the shortage back to purchasing's queue:
+    // "Đã chuyển mua hàng" is terminal on the YCBS, so without this revert the parent
+    // would stay dead while its only child YCMH is now cancelled. The link itself uses
+    // onDelete:SetNull, so leaving it non-null while pointing at a cancelled YCMH would
+    // mislead the UI into rendering a live chain.
+    const parentYbs = await prisma.replenishmentRequest.findFirst({
+      where: { convertedPurchaseRequestId: id },
+      select: { id: true, supplyRequestId: true },
+    });
+    if (parentYbs) {
+      await prisma.replenishmentRequest.update({
+        where: { id: parentYbs.id },
+        data: { trangThai: 'Chờ báo giá', convertedPurchaseRequestId: null },
+      });
+    }
+
+    // Notify the requester. The YCBS revert is silent on purpose: purchasing sees it
+    // reappear in their own queue, and the YCCB stays at "Chờ bổ sung".
+    try {
+      await notificationService.notify(NotificationEvent.PURCHASE_REQUEST_CANCELLED, {
+        targetEmployeeIds: [existing.employeeId],
+        entityId: id,
+        metadata: {
+          maYeuCau: existing.maYeuCau,
+          purchaseRequestId: id,
+          replenishmentRequestId: parentYbs?.id ?? '',
+          lyDo: lyDoHuy,
+        },
+      });
+    } catch (notifError) {
+      console.error('Error sending cancel notification:', notifError);
+    }
+
+    return updated;
   }
 
   async exportToExcel(filters?: any): Promise<Buffer> {

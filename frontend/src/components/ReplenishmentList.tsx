@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, CheckCircle, PackageOpen } from 'lucide-react';
+import { Eye, CheckCircle, PackageOpen, XCircle } from 'lucide-react';
 import { useReplenishmentRequests } from '../hooks/useReplenishmentRequests';
 import type { ReplenishmentRequest } from '../services/replenishmentRequestService';
 
@@ -8,9 +8,11 @@ interface ReplenishmentListProps {
   onOpenDetail?: (row: ReplenishmentRequest) => void;
   onOpenSupplyRequest?: (supplyRequestId: string) => void;
   /**
-   * Show converted/cancelled YCBS too. Default false: the queue shows only
-   * "Chờ báo giá" — once purchasing converts one it leaves the queue and the
-   * resulting YCMH appears in the purchase-request list instead.
+   * Show converted/cancelled YCBS too. Default false: the queue hides only
+   * "Đã chuyển mua hàng" (once purchasing converts one it leaves the queue and the
+   * resulting YCMH appears in the purchase-request list instead). A cancelled YCBS
+   * deliberately STAYS in the default view — it must not silently vanish; it drops
+   * out of the actionable set but keeps showing with its cancel reason.
    */
   showConverted?: boolean;
 }
@@ -38,7 +40,10 @@ const ReplenishmentList: React.FC<ReplenishmentListProps> = ({
     undefined,
     undefined,
     undefined,
-    showConverted ? undefined : { trangThai: 'Chờ báo giá' },
+    // Default: only "Chờ báo giá" + "Đã hủy" (actionable + recently cancelled).
+    // Converted YCBS leave the queue so the resulting YCMH appears in the purchase-
+    // request list instead; a cancelled YCBS stays so its reason is visible.
+    showConverted ? undefined : { trangThai: 'Chờ báo giá,Đã hủy' },
   );
 
   if (isFetching) {
@@ -108,10 +113,15 @@ const ReplenishmentList: React.FC<ReplenishmentListProps> = ({
                         <CheckCircle className="w-3 h-3" />
                         Đã chuyển → {r.convertedPurchaseRequest?.maYeuCau ?? 'YCMH'}
                       </span>
+                    ) : r.trangThai === 'Đã hủy' ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-300">
+                        <XCircle className="w-3 h-3" />
+                        Đã hủy
+                      </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
                         <PackageOpen className="w-3 h-3" />
-                        Yêu cầu bổ sung
+                        Chờ báo giá
                       </span>
                     )}
                   </td>

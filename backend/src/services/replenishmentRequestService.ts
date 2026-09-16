@@ -180,7 +180,7 @@ class ReplenishmentRequestService {
     departmentIds?: string[],
     month?: number,
     year?: number,
-    extra?: { phanLoaiGroup?: string; trangThai?: string; supplyRequestId?: string },
+    extra?: { phanLoaiGroup?: string; trangThai?: string | string[]; supplyRequestId?: string },
   ) {
     const { skip } = getPaginationParams(page, limit);
 
@@ -203,7 +203,11 @@ class ReplenishmentRequestService {
       ];
     }
     if (extra?.phanLoaiGroup) where.phanLoaiGroup = extra.phanLoaiGroup;
-    if (extra?.trangThai) where.trangThai = extra.trangThai;
+    // A single status filters by equality; an array uses `in` — the purchasing queue
+    // passes ['Chờ báo giá','Đã hủy'] so a cancelled YCBS stays visible (carrying its
+    // reason) instead of vanishing the moment it is cancelled.
+    if (Array.isArray(extra?.trangThai)) where.trangThai = { in: extra.trangThai };
+    else if (extra?.trangThai) where.trangThai = extra.trangThai;
     if (extra?.supplyRequestId) where.supplyRequestId = extra.supplyRequestId;
 
     const [data, total] = await Promise.all([
@@ -462,12 +466,61 @@ class ReplenishmentRequestService {
 
   // ── Cancel / Delete ───────────────────────────────────────────────────────
 
-  async cancelReplenishmentRequest(id: string) {
+  async cancelReplenishmentRequest(
+    id: string,
+    opts?: { lyDoHuy?: string; nguoiHuy?: string },
+  ) {
     const ybs = await prisma.replenishmentRequest.findUnique({ where: { id } });
     if (!ybs) throw new NotFoundError('Không tìm thấy yêu cầu bổ sung');
     if (ybs.trangThai !== 'Chờ báo giá')
       throw new ValidationError(`Không thể hủy YCBS ở trạng thái "${ybs.trangThai}"`);
-    return prisma.replenishmentRequest.update({ where: { id }, data: { trangThai: 'Đã hủy' } });
+
+    const lyDoHuy = opts?.lyDoHuy?.trim();
+    if (!lyDoHuy) throw new ValidationError('Vui lòng nhập lý do hủy');
+
+    const updated = await prisma.replenishmentRequest.update({
+      where: { id },
+      data: {
+        trangThai: 'Đã hủy',
+        lyDoHuy,
+        ngayHuy: new Date(),
+        ...(opts?.nguoiHuy ? { nguoiHuy: opts.nguoiHuy } : {}),
+      },
+    });
+
+    // The parent YCCB was bridged to "Chờ bổ sung" when this YCBS was filed. If it
+    // is the last live replenishment request on that ticket, pull the YCCB back to
+    // "Đang xử lý" so the warehouse sees the shortage is open again and can re-file.
+    // Deliberately a direct write (not advanceStatusTx): that helper is forward-only
+    // and cannot express a regression. Guarded on the YCCB still being at
+    // "Chờ bổ sung" so a ticket already past that point is never rewound.
+    if (ybs.supplyRequestId) {
+      try {
+        const supplyRequestService = (await import('./supplyRequestService')).default;
+        await supplyRequestService.onReplenishmentRequestCancelled(ybs.supplyRequestId);
+      } catch (e) {
+        console.error('[replenishment] failed to reopen parent supply request:', e);
+      }
+    }
+
+    // Notify the original requester — a cancelled YCBS otherwise vanishes from the
+    // purchasing queue in silence, which reads to the warehouse as "lost paperwork".
+    try {
+      await notificationService.notify(NotificationEvent.REPLENISHMENT_REQUEST_CANCELLED, {
+        targetEmployeeIds: [ybs.employeeId],
+        entityId: id,
+        metadata: {
+          maYeuCau: ybs.maYeuCau,
+          replenishmentRequestId: id,
+          supplyRequestId: ybs.supplyRequestId ?? '',
+          lyDo: lyDoHuy,
+        },
+      });
+    } catch (e) {
+      console.error('[replenishment] failed to send cancel notification:', e);
+    }
+
+    return updated;
   }
 
   async deleteReplenishmentRequest(id: string) {
@@ -489,7 +542,7 @@ class ReplenishmentRequestService {
     departmentIds?: string[],
     month?: number,
     year?: number,
-    extra?: { phanLoaiGroup?: string; trangThai?: string; supplyRequestId?: string },
+    extra?: { phanLoaiGroup?: string; trangThai?: string | string[]; supplyRequestId?: string },
   ) {
     // Same filters as getAllReplenishmentRequests so the export matches the on-screen list.
     const where: Record<string, unknown> = {};
@@ -508,7 +561,8 @@ class ReplenishmentRequestService {
       ];
     }
     if (extra?.phanLoaiGroup) where.phanLoaiGroup = extra.phanLoaiGroup;
-    if (extra?.trangThai) where.trangThai = extra.trangThai;
+    if (Array.isArray(extra?.trangThai)) where.trangThai = { in: extra.trangThai };
+    else if (extra?.trangThai) where.trangThai = extra.trangThai;
     if (extra?.supplyRequestId) where.supplyRequestId = extra.supplyRequestId;
 
     const rows = await prisma.replenishmentRequest.findMany({

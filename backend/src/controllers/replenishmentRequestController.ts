@@ -13,7 +13,13 @@ class ReplenishmentRequestController {
       const month = req.query.month ? parseInt(req.query.month as string) : undefined;
       const year = req.query.year ? parseInt(req.query.year as string) : undefined;
       const phanLoaiGroup = req.query.phanLoaiGroup as string | undefined;
-      const trangThai = req.query.trangThai as string | undefined;
+      // Comma-separated statuses filter by `in` (no status name contains a comma), so
+      // the purchasing queue can ask for "Chờ báo giá,Đã hủy" in a single call and a
+      // cancelled YCBS keeps showing up — with its reason — instead of vanishing.
+      const trangThaiRaw = req.query.trangThai as string | undefined;
+      const trangThai: string | string[] | undefined = trangThaiRaw?.includes(',')
+        ? trangThaiRaw.split(',').map((s) => s.trim()).filter(Boolean)
+        : trangThaiRaw;
       const supplyRequestId = req.query.supplyRequestId as string | undefined;
 
       const isAdmin = req.user?.role === 'ADMIN';
@@ -140,9 +146,22 @@ class ReplenishmentRequestController {
     }
   }
 
-  async cancelReplenishmentRequest(req: Request, res: Response, next: NextFunction) {
+  async cancelReplenishmentRequest(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const row = await replenishmentRequestService.cancelReplenishmentRequest(req.params.id as string);
+      // Actor resolved from JWT — never trust client-provided identity.
+      // nguoiHuy stores the display name (same convention as PurchaseRequest.nguoiDuyet).
+      let nguoiHuy: string | undefined;
+      if (req.user?.id) {
+        const user = await prisma.user.findUnique({
+          where: { id: req.user.id },
+          select: { firstName: true, lastName: true },
+        });
+        if (user) nguoiHuy = `${user.lastName ?? ''} ${user.firstName ?? ''}`.trim() || undefined;
+      }
+      const row = await replenishmentRequestService.cancelReplenishmentRequest(req.params.id as string, {
+        lyDoHuy: req.body?.lyDoHuy,
+        nguoiHuy,
+      });
       return res.json({ success: true, message: 'Đã hủy yêu cầu bổ sung', data: row });
     } catch (error) {
       return next(error);

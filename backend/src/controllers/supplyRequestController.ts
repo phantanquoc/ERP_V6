@@ -133,10 +133,23 @@ class SupplyRequestController {
     }
   }
 
-  async cancelSupplyRequest(req: Request, res: Response, next: NextFunction) {
+  async cancelSupplyRequest(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      const result = await supplyRequestService.cancelSupplyRequest(id);
+      // Actor resolved from JWT — never trust client-provided identity.
+      // nguoiHuy stores the display name (same convention as PurchaseRequest.nguoiDuyet).
+      let nguoiHuy: string | undefined;
+      if (req.user?.id) {
+        const user = await prisma.user.findUnique({
+          where: { id: req.user.id },
+          select: { firstName: true, lastName: true },
+        });
+        if (user) nguoiHuy = `${user.lastName ?? ''} ${user.firstName ?? ''}`.trim() || undefined;
+      }
+      const result = await supplyRequestService.cancelSupplyRequest(id, {
+        lyDoHuy: req.body?.lyDoHuy,
+        nguoiHuy,
+      });
       return res.json({
         success: true,
         message: 'Đã hủy yêu cầu cung cấp',

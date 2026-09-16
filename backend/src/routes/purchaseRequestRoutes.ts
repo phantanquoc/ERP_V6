@@ -227,5 +227,16 @@ router.post(
   purchaseRequestController.confirmActualPrice
 );
 
+/**
+ * Cancel a YCMH before approval. Requires a reason (lyDoHuy) and, for a ticket that
+ * came from a YCBS, reverts that parent back into the purchasing queue.
+ * Body: { lyDoHuy: string }
+ */
+router.post(
+  '/:id/cancel',
+  requireRule('purchase-requests', 'UPDATE'),
+  purchaseRequestController.cancelPurchaseRequest
+);
+
 export default router;
 

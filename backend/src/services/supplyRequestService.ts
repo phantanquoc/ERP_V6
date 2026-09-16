@@ -184,6 +184,8 @@ class SupplyRequestService {
               maYeuCau: true,
               trangThai: true,
               phanLoaiGroup: true,
+              lyDoHuy: true,
+              ngayHuy: true,
               convertedPurchaseRequest: { select: { id: true, maYeuCau: true } },
             },
           },
@@ -222,6 +224,8 @@ class SupplyRequestService {
             maYeuCau: true,
             trangThai: true,
             phanLoaiGroup: true,
+            lyDoHuy: true,
+            ngayHuy: true,
             convertedPurchaseRequest: { select: { id: true, maYeuCau: true } },
           },
         },
@@ -1085,7 +1089,7 @@ class SupplyRequestService {
     });
   }
 
-  async cancelSupplyRequest(id: string): Promise<any> {
+  async cancelSupplyRequest(id: string, opts?: { lyDoHuy?: string; nguoiHuy?: string }): Promise<any> {
     const request = await this.getSupplyRequestById(id);
 
     // Only allow cancellation from initial states
@@ -1094,11 +1098,19 @@ class SupplyRequestService {
       throw new ValidationError(`Không thể hủy yêu cầu ở trạng thái "${request.trangThai}"`);
     }
 
+    const lyDoHuy = opts?.lyDoHuy?.trim();
+    if (!lyDoHuy) {
+      throw new ValidationError('Vui lòng nhập lý do hủy');
+    }
+
     // Update status to "Đã hủy" and cancel unfulfilled items
     const updated = await prisma.supplyRequest.update({
       where: { id },
       data: {
         trangThai: 'Đã hủy',
+        lyDoHuy,
+        ngayHuy: new Date(),
+        ...(opts?.nguoiHuy ? { nguoiHuy: opts.nguoiHuy } : {}),
         items: {
           updateMany: {
             where: { fulfillmentStatus: { notIn: ['Đã cấp đủ', 'Đã cấp một phần'] } },
@@ -1117,6 +1129,7 @@ class SupplyRequestService {
         metadata: {
           maYeuCau: request.maYeuCau,
           supplyRequestId: id,
+          lyDo: lyDoHuy,
         },
       });
     } catch (e) {
@@ -1244,6 +1257,36 @@ class SupplyRequestService {
     } catch (error) {
       console.error('Error in onReplenishmentRequestCreated:', error);
     }
+  }
+
+  /**
+   * Counterpart of `onReplenishmentRequestCreated`: when purchasing cancels the last
+   * live YCBS on a ticket, the shortage it was raised for is no longer with them, so
+   * the YCCB must stop claiming "Chờ bổ sung" — otherwise the warehouse sees a status
+   * that promises replenishment nobody is working on, and the "Tạo yêu cầu bổ sung"
+   * button stays hidden behind the existing-YCBS check.
+   *
+   * `advanceStatus` is forward-only by design and cannot express this regression, so
+   * this is a guarded direct write: it only fires while the ticket still sits exactly
+   * at "Chờ bổ sung" (anything further along has real purchasing progress behind it)
+   * and only when no other YCBS is still awaiting a quote.
+   */
+  async onReplenishmentRequestCancelled(supplyRequestId: string): Promise<void> {
+    const sr = await prisma.supplyRequest.findUnique({
+      where: { id: supplyRequestId },
+      select: { trangThai: true },
+    });
+    if (!sr || sr.trangThai !== 'Chờ bổ sung') return;
+
+    const stillPending = await prisma.replenishmentRequest.count({
+      where: { supplyRequestId, trangThai: 'Chờ báo giá' },
+    });
+    if (stillPending > 0) return;
+
+    await prisma.supplyRequest.update({
+      where: { id: supplyRequestId },
+      data: { trangThai: 'Đang xử lý' },
+    });
   }
 
   /**
