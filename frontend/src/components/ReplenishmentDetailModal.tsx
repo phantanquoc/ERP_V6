@@ -209,10 +209,20 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
     if (!detail) return;
     setCancelling(true);
     try {
-      await replenishmentRequestService.cancelReplenishmentRequest(detail.id, lyDoHuy);
+      const res: any = await replenishmentRequestService.cancelReplenishmentRequest(detail.id, lyDoHuy);
       toast.success(`Đã hủy YCBS ${detail.maYeuCau}`);
       queryClient.invalidateQueries({ queryKey: replenishmentRequestKeys.lists() });
       queryClient.invalidateQueries({ queryKey: replenishmentRequestKeys.detail(detail.id) });
+      queryClient.invalidateQueries({ queryKey: ['supply-requests'] });
+      const supplyRequestId: string | null =
+        res?.data?.data?.supplyRequestId ??
+        res?.data?.supplyRequestId ??
+        detail.supplyRequestId ??
+        detail.supplyRequest?.id ??
+        null;
+      if (supplyRequestId) {
+        queryClient.invalidateQueries({ queryKey: ['supply-requests', 'detail', supplyRequestId] });
+      }
       onCancelled?.(detail.id);
       setShowCancelModal(false);
       onClose();
@@ -242,18 +252,31 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
           {loading ? (
             <div className="text-center py-8 text-sm text-gray-500">Đang tải…</div>
           ) : readOnly && detail ? (
-            <div className={`rounded border px-4 py-3 text-sm ${detail.trangThai === 'Đã hủy' ? 'border-red-200 bg-red-50 text-red-800' : 'border-green-200 bg-green-50 text-green-800'}`}>
+            (() => {
+              const cancelled = detail.trangThai === 'Đã hủy';
+              const reopened = detail.cancelledYcmh as { maYeuCau: string; lyDoHuy?: string | null; ngayHuy?: string | null } | null | undefined;
+              return (
+            <div className={`rounded border px-4 py-3 text-sm ${cancelled ? 'border-red-200 bg-red-50 text-red-800' : reopened ? 'border-blue-200 bg-blue-50 text-blue-800' : 'border-green-200 bg-green-50 text-green-800'}`}>
               YCBS này đã <strong>{detail.trangThai}</strong>
               {detail.convertedPurchaseRequest ? <> — đã chuyển thành <span className="font-mono">{detail.convertedPurchaseRequest.maYeuCau}</span>.</> : '.'}
               {' '}Không thể sửa giá/NCC nữa.
-              {detail.trangThai === 'Đã hủy' && (
+              {cancelled && (
                 <div className="mt-1 text-red-900">
                   <span className="font-medium">Lý do hủy:</span> {detail.lyDoHuy || 'Không có lý do (hủy trước khi tính năng này có)'}
                   {detail.nguoiHuy && <span className="text-xs"> · bởi {detail.nguoiHuy}</span>}
                   {detail.ngayHuy && <span className="text-xs"> · {new Date(detail.ngayHuy).toLocaleString('vi-VN')}</span>}
                 </div>
               )}
+              {!cancelled && reopened && (
+                <div className="mt-1 text-blue-900">
+                  Đã mở lại vì <span className="font-mono">{reopened.maYeuCau}</span> đã hủy
+                  {reopened.lyDoHuy ? <> — lý do: {reopened.lyDoHuy}</> : null}
+                  {reopened.ngayHuy ? <span className="text-xs"> · {new Date(reopened.ngayHuy).toLocaleDateString('vi-VN')}</span> : null}
+                </div>
+              )}
             </div>
+              );
+            })()
           ) : missingPricing.length > 0 ? (
             <div className="rounded border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0" />

@@ -55,6 +55,8 @@ export interface ReplenishmentRequest {
   items: ReplenishmentRequestItem[];
   supplyRequest?: { id: string; maYeuCau: string; trangThai: string } | null;
   convertedPurchaseRequest?: { id: string; maYeuCau: string; trangThai: string } | null;
+  /** Reopening provenance: when set, this YCBS was reopened by a cancelled YCMH. */
+  cancelledYcmh?: { maYeuCau: string; lyDoHuy: string | null; ngayHuy: string | null } | null;
 }
 
 /** Payload for `PUT /:id` — purchasing fills price/NCC. Quantity/identity are immutable. */

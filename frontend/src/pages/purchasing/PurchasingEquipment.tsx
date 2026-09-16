@@ -16,6 +16,7 @@ import {
   Globe,
   CheckCircle,
   BadgeCheck,
+  Ban,
   HelpCircle
 } from 'lucide-react';
 // chuaPhanLoai badge reserved
@@ -33,6 +34,10 @@ import ReplenishmentList from '../../components/ReplenishmentList';
 import ReplenishmentDetailModal from '../../components/ReplenishmentDetailModal';
 import ConfirmActualPriceModal from '../../components/ConfirmActualPriceModal';
 import SupplierCombobox from '../../components/common/SupplierCombobox';
+import { useQueryClient } from '@tanstack/react-query';
+import { replenishmentRequestKeys } from '../../hooks/useReplenishmentRequests';
+import { supplyRequestKeys } from '../../hooks/useSupplyRequests';
+import CancelWithReasonModal from '../../components/common/CancelWithReasonModal';
 import { useSupplierOptions } from '../../hooks/useSuppliers';
 import type { ReplenishmentRequest } from '../../services/replenishmentRequestService';
 import replenishmentRequestService from '../../services/replenishmentRequestService';
@@ -59,6 +64,9 @@ interface PurchaseRequest {
   trangThai: string;
   nguoiDuyet?: string;
   ngayDuyet?: string;
+  lyDoHuy?: string;
+  ngayHuy?: string;
+  nguoiHuy?: string;
   supplyRequestId?: string;
   sourceType?: string;
   createdAt: string;
@@ -94,6 +102,7 @@ const TAB_SCOPED_PARAMS: Record<TabType, readonly string[]> = {
 
 const PurchasingEquipment = () => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   // ?purchaseRequestId= — written when a row is opened, cleared when closed, so a
   // reload or a shared link reopens the same record instead of losing it.
   const { id: urlPrId, open: pushPrId, close: popPrId, syncingRef: prSyncing } = useUrlDetailId('purchaseRequestId');
@@ -377,6 +386,9 @@ const PurchasingEquipment = () => {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [selectedPurchaseRequest, setSelectedPurchaseRequest] = useState<PurchaseRequest | null>(null);
+  const [cancelPrTarget, setCancelPrTarget] = useState<PurchaseRequest | null>(null);
+  const [showCancelPrModal, setShowCancelPrModal] = useState(false);
+  const [cancellingPr, setCancellingPr] = useState(false);
   const [editingPurchaseRequest, setEditingPurchaseRequest] = useState<PurchaseRequest | null>(null);
   // Giá thực tế: mở từ chi tiết YCMH ở trạng thái Đã duyệt, hoặc từ nút
   // "Đã mua xong" khi còn dòng chưa chốt (setCompleteAfterPriceConfirm=true).
@@ -441,6 +453,35 @@ const PurchasingEquipment = () => {
     setSelectedPurchaseRequest(null);
     popPrId();
   }, [popPrId]);
+
+  const handleCancelPurchaseRequest = useCallback((item: PurchaseRequest) => {
+    setCancelPrTarget(item);
+    setShowCancelPrModal(true);
+  }, []);
+
+  const confirmCancelPurchaseRequest = useCallback(async (lyDoHuy: string) => {
+    if (!cancelPrTarget) return;
+    setCancellingPr(true);
+    try {
+      await purchaseRequestService.cancelPurchaseRequest(cancelPrTarget.id, lyDoHuy);
+      toast.success('Đã hủy yêu cầu mua hàng');
+      setShowCancelPrModal(false);
+      setCancelPrTarget(null);
+      fetchPurchaseRequests();
+      // A cancelled YCMH was born from a YCBS (and that one from a YCCB shortage):
+      // the upstream queues still show the ticket as pending until their caches drop.
+      queryClient.invalidateQueries({ queryKey: replenishmentRequestKeys.all });
+      queryClient.invalidateQueries({ queryKey: supplyRequestKeys.all });
+      if (selectedPurchaseRequest?.id === cancelPrTarget.id) {
+        setSelectedPurchaseRequest(null);
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Lỗi khi hủy yêu cầu mua hàng');
+      throw error;
+    } finally {
+      setCancellingPr(false);
+    }
+  }, [cancelPrTarget, selectedPurchaseRequest, fetchPurchaseRequests, queryClient]);
 
   // True when every line of an approved YCMH already carries an actual price.
   // Mirror of the NVL page — drives the "chưa chốt giá" hint.
@@ -1258,9 +1299,18 @@ const PurchasingEquipment = () => {
 
                   <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2"><label className="block text-sm font-medium text-gray-500 mb-1">Mục đích yêu cầu</label><p className="text-sm text-gray-900">{selectedPurchaseRequest.mucDichYeuCau}</p></div>
                   <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Trạng thái</label>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${selectedPurchaseRequest.trangThai === 'Chờ duyệt' ? 'bg-yellow-100 text-yellow-800' : selectedPurchaseRequest.trangThai === 'Đã duyệt' ? 'bg-green-100 text-green-800' : selectedPurchaseRequest.trangThai === 'Từ chối' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}`}>{selectedPurchaseRequest.trangThai}</span>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${selectedPurchaseRequest.trangThai === 'Chờ duyệt' ? 'bg-yellow-100 text-yellow-800' : selectedPurchaseRequest.trangThai === 'Đã duyệt' ? 'bg-green-100 text-green-800' : selectedPurchaseRequest.trangThai === 'Từ chối' ? 'bg-red-100 text-red-800' : selectedPurchaseRequest.trangThai === 'Đã hủy' ? 'bg-gray-100 text-gray-800' : 'bg-gray-100 text-gray-800'}`}>{selectedPurchaseRequest.trangThai}</span>
                   </div>
                   {selectedPurchaseRequest.ghiChu && <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2"><label className="block text-sm font-medium text-gray-500 mb-1">Ghi chú</label><p className="text-sm text-gray-900">{selectedPurchaseRequest.ghiChu}</p></div>}
+                  {selectedPurchaseRequest.lyDoHuy && (
+                    <div className="bg-red-50 p-4 rounded-lg col-span-1 sm:col-span-2 border border-red-200">
+                      <label className="block text-sm font-medium text-red-600 mb-1">Lý do hủy</label>
+                      <p className="text-sm text-gray-900">{selectedPurchaseRequest.lyDoHuy}</p>
+                      {selectedPurchaseRequest.ngayHuy && (
+                        <p className="text-xs text-gray-500 mt-1">Ngày hủy: {new Date(selectedPurchaseRequest.ngayHuy).toLocaleDateString('vi-VN')}</p>
+                      )}
+                    </div>
+                  )}
                   <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Người duyệt</label><p className="text-sm text-gray-900">{selectedPurchaseRequest.nguoiDuyet || <span className="text-gray-400 italic">Chưa có</span>}</p></div>
                   <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Ngày duyệt</label><p className="text-sm text-gray-900">{selectedPurchaseRequest.ngayDuyet ? new Date(selectedPurchaseRequest.ngayDuyet).toLocaleDateString('vi-VN') : <span className="text-gray-400 italic">Chưa duyệt</span>}</p></div>
                   <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2"><label className="block text-sm font-medium text-gray-500 mb-1">File đính kèm</label>
@@ -1268,6 +1318,16 @@ const PurchasingEquipment = () => {
                   </div>
                 </div>
                 <div className="flex flex-wrap justify-end gap-4 mt-4 pt-4 border-t border-gray-100 bg-white shrink-0">
+                  {(selectedPurchaseRequest.trangThai === 'Chờ báo giá' || selectedPurchaseRequest.trangThai === 'Chờ duyệt') && canEditPR && (
+                    <button
+                      type="button"
+                      onClick={() => { handleCancelPurchaseRequest(selectedPurchaseRequest); }}
+                      className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center gap-2"
+                    >
+                      <Ban className="w-4 h-4" />
+                      Hủy phiếu
+                    </button>
+                  )}
                   {selectedPurchaseRequest.trangThai === 'Đã duyệt' && canApprovePR && (
                     <button
                       type="button"
@@ -1320,6 +1380,15 @@ const PurchasingEquipment = () => {
             fetchPurchaseRequests();
             closePurchaseRequestDetail();
           }}
+        />
+
+        <CancelWithReasonModal
+          isOpen={showCancelPrModal}
+          onClose={() => { if (!cancellingPr) { setShowCancelPrModal(false); setCancelPrTarget(null); } }}
+          onConfirm={confirmCancelPurchaseRequest}
+          loading={cancellingPr}
+          ticketLabel={cancelPrTarget?.maYeuCau ?? ''}
+          description="Hủy yêu cầu mua hàng này sẽ chuyển trạng thái sang Đã hủy và thông báo tới người tạo. Nếu phiếu sinh từ YCBS, YCBS cha sẽ quay lại Chờ báo giá."
         />
 
         {/* Edit Purchase Request Modal */}

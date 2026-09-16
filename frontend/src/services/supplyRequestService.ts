@@ -79,11 +79,13 @@ export interface SupplyRequest {
    */
   purchaseRequests?: Array<{
     id: string; trangThai: string; maYeuCau: string; sourceType?: string;
+    /** Cancel metadata — the backend selects these on both the list and the detail. */
+    lyDoHuy?: string | null; ngayHuy?: string | null; nguoiHuy?: string | null;
     items?: Array<{ tenHangHoa: string; soLuong: number; donViTinh?: string | null }>;
   }>;
   replenishmentRequests?: Array<{
     id: string; maYeuCau: string; trangThai: string; phanLoaiGroup?: string | null;
-    lyDoHuy?: string | null; ngayHuy?: string | null;
+    lyDoHuy?: string | null; ngayHuy?: string | null; nguoiHuy?: string | null;
     convertedPurchaseRequest?: { id: string; maYeuCau: string } | null;
   }>;
   warehouseReceipts?: Array<{ id: string; maPhieuNhap: string; purchaseRequestId?: string | null }>;

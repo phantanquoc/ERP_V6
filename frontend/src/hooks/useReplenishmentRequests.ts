@@ -75,9 +75,20 @@ export const useCancelReplenishmentRequest = () => {
   return useMutation({
     mutationFn: ({ id, lyDoHuy }: { id: string; lyDoHuy: string }) =>
       replenishmentRequestService.cancelReplenishmentRequest(id, lyDoHuy),
-    onSuccess: (_data, { id }) => {
+    onSuccess: (_data: any, { id }) => {
       queryClient.invalidateQueries({ queryKey: replenishmentRequestKeys.lists() });
       queryClient.invalidateQueries({ queryKey: replenishmentRequestKeys.detail(id) });
+      // YCBS cancel may roll the parent YCCB back to "Đang xử lý" — the supply-request
+      // list/detail (YCCB) holds that status, so it must be invalidated too.
+      queryClient.invalidateQueries({ queryKey: ['supply-requests'] });
+      const supplyRequestId: string | null =
+        _data?.data?.data?.supplyRequestId ??
+        _data?.data?.supplyRequestId ??
+        _data?.supplyRequestId ??
+        null;
+      if (supplyRequestId) {
+        queryClient.invalidateQueries({ queryKey: ['supply-requests', 'detail', supplyRequestId] });
+      }
     },
   });
 };

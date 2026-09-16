@@ -1113,37 +1113,76 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                         <div className="mb-2">
                           <div className="text-xs text-gray-500 mb-1">Yêu cầu bổ sung</div>
                           <div className="flex flex-wrap gap-2">
-                            {selectedRequest.replenishmentRequests.map((rr) => (
-                              <span
-                                key={rr.id}
-                                title={rr.trangThai === 'Đã hủy' ? `Lý do hủy: ${rr.lyDoHuy || 'không có'}${rr.ngayHuy ? ` · ${new Date(rr.ngayHuy).toLocaleDateString('vi-VN')}` : ''}` : undefined}
-                                className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-white border ${rr.trangThai === 'Đã hủy' ? 'border-red-200' : 'border-amber-200'}`}
-                              >
-                                <PackageOpen className={`h-3 w-3 ${rr.trangThai === 'Đã hủy' ? 'text-red-500' : 'text-amber-600'}`} />
-                                <span className={`font-medium ${rr.trangThai === 'Đã hủy' ? 'text-gray-500 line-through' : 'text-gray-800'}`}>{rr.maYeuCau}</span>
-                                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${rr.trangThai === 'Đã chuyển mua hàng' ? 'bg-green-100 text-green-700' : rr.trangThai === 'Đã hủy' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{rr.trangThai}</span>
-                                {rr.convertedPurchaseRequest ? (
-                                  <span className="text-[11px] text-blue-600">→ {rr.convertedPurchaseRequest.maYeuCau}</span>
-                                ) : null}
-                              </span>
-                            ))}
+                            {selectedRequest.replenishmentRequests.map((rr) => {
+                              const cancelled = rr.trangThai === 'Đã hủy';
+                              // Decision 3-B: a YCBS sitting at Chờ báo giá whose sibling YCMH
+                              // was cancelled was re-opened by the warehouse — surface why.
+                              const reopenedFromCancelledYcmh = rr.trangThai === 'Chờ báo giá'
+                                && (selectedRequest.purchaseRequests ?? []).some((pr) => pr.trangThai === 'Đã hủy');
+                              return (
+                                <div key={rr.id} className="flex flex-col">
+                                  <span
+                                    title={cancelled ? `Lý do hủy: ${rr.lyDoHuy || 'không có'}${rr.ngayHuy ? ` · ${new Date(rr.ngayHuy).toLocaleDateString('vi-VN')}` : ''}` : undefined}
+                                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-white border ${cancelled ? 'border-red-200' : 'border-amber-200'}`}
+                                  >
+                                    <PackageOpen className={`h-3 w-3 ${cancelled ? 'text-red-500' : 'text-amber-600'}`} />
+                                    <span className={`font-medium ${cancelled ? 'text-gray-500 line-through' : 'text-gray-800'}`}>{rr.maYeuCau}</span>
+                                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${rr.trangThai === 'Đã chuyển mua hàng' ? 'bg-green-100 text-green-700' : cancelled ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{rr.trangThai}</span>
+                                    {rr.convertedPurchaseRequest ? (
+                                      <span className="text-[11px] text-blue-600">→ {rr.convertedPurchaseRequest.maYeuCau}</span>
+                                    ) : null}
+                                  </span>
+                                  {cancelled && (
+                                    <div className="text-[11px] text-red-600 mt-0.5">
+                                      Lý do: {rr.lyDoHuy || 'không có'}
+                                      {rr.ngayHuy ? ` · ${new Date(rr.ngayHuy).toLocaleDateString('vi-VN')}` : ''}
+                                      {rr.nguoiHuy ? ` · bởi ${rr.nguoiHuy}` : ''}
+                                    </div>
+                                  )}
+                                  {!cancelled && reopenedFromCancelledYcmh && (
+                                    <div className="text-[11px] text-blue-600 mt-0.5">Đã mở lại vì YCMH đã hủy — xem Lịch sử hủy</div>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       )}
+                      {/* Decision 2-B: every YCBS cancelled but the request is still open —
+                          the warehouse can raise a fresh one, so point at the action. */}
+                      {(() => {
+                        const rrList = selectedRequest.replenishmentRequests ?? [];
+                        const allCancelled = rrList.length > 0 && rrList.every((rr) => rr.trangThai === 'Đã hủy');
+                        if (!allCancelled || selectedRequest.trangThai !== 'Đang xử lý') return null;
+                        return (
+                          <div className="mb-2 space-y-1">
+                            {rrList.map((rr) => (
+                              <div key={`reopen-${rr.id}`} className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                YCBS {rr.maYeuCau} đã hủy — lý do: {rr.lyDoHuy || 'không có'} — bạn có thể tạo lại yêu cầu bổ sung.
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
                       {selectedRequest.purchaseRequests && selectedRequest.purchaseRequests.length > 0 && (
                         <div className="mb-2">
                           <div className="text-xs text-gray-500 mb-1">Yêu cầu mua hàng</div>
                           <div className="flex flex-wrap gap-2">
                             {selectedRequest.purchaseRequests.map((pr) => {
                               const itemCount = pr.items?.length ?? 0;
+                              const prCancelled = pr.trangThai === 'Đã hủy';
                               // Which of these purchases the warehouse already received —
                               // the receipt carries purchaseRequestId since the YCBS split.
                               const receivedBy = (selectedRequest.warehouseReceipts ?? []).filter((wr) => wr.purchaseRequestId === pr.id);
                               return (
-                                <span key={pr.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-white border border-gray-200">
-                                  <ShoppingCart className="h-3 w-3 text-blue-600" />
-                                  <span className="font-medium text-gray-800">{pr.maYeuCau}</span>
-                                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${pr.trangThai === 'Hoàn thành' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{pr.trangThai}</span>
+                                <span
+                                  key={pr.id}
+                                  title={prCancelled ? `Lý do hủy: ${pr.lyDoHuy || 'không có'}${pr.ngayHuy ? ` · ${new Date(pr.ngayHuy).toLocaleDateString('vi-VN')}` : ''}` : undefined}
+                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-white border ${prCancelled ? 'border-red-200' : 'border-gray-200'}`}
+                                >
+                                  <ShoppingCart className={`h-3 w-3 ${prCancelled ? 'text-red-500' : 'text-blue-600'}`} />
+                                  <span className={`font-medium ${prCancelled ? 'text-gray-500 line-through' : 'text-gray-800'}`}>{pr.maYeuCau}</span>
+                                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${pr.trangThai === 'Hoàn thành' ? 'bg-green-100 text-green-700' : prCancelled ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>{pr.trangThai}</span>
                                   {itemCount > 0 && (
                                     <span
                                       className="text-[10px] text-gray-500"
@@ -1213,6 +1252,31 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                           </div>
                         </div>
                       )}
+                      {/* Decision 1-C: consolidated cancel trail for both linked doc types. */}
+                      {(() => {
+                        const cancelledRR = (selectedRequest.replenishmentRequests ?? []).filter((rr) => rr.trangThai === 'Đã hủy');
+                        const cancelledPR = (selectedRequest.purchaseRequests ?? []).filter((pr) => pr.trangThai === 'Đã hủy');
+                        if (cancelledRR.length === 0 && cancelledPR.length === 0) return null;
+                        return (
+                          <div className="mt-2 rounded border border-red-200 bg-red-50 p-3 text-xs">
+                            <div className="font-medium text-red-800 mb-1">Lịch sử hủy</div>
+                            {cancelledRR.map((rr) => (
+                              <div key={`h-rr-${rr.id}`} className="text-red-700">
+                                YCBS {rr.maYeuCau} — Đã hủy — Lý do: {rr.lyDoHuy || 'không có'}
+                                {rr.ngayHuy ? ` · ${new Date(rr.ngayHuy).toLocaleDateString('vi-VN')}` : ''}
+                                {rr.nguoiHuy ? ` · bởi ${rr.nguoiHuy}` : ''}
+                              </div>
+                            ))}
+                            {cancelledPR.map((pr) => (
+                              <div key={`h-pr-${pr.id}`} className="text-red-700">
+                                YCMH {pr.maYeuCau} — Đã hủy — Lý do: {pr.lyDoHuy || 'không có'}
+                                {pr.ngayHuy ? ` · ${new Date(pr.ngayHuy).toLocaleDateString('vi-VN')}` : ''}
+                                {pr.nguoiHuy ? ` · bởi ${pr.nguoiHuy}` : ''}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
                   ) : null}
 

@@ -35,6 +35,9 @@ import ReplenishmentDetailModal from '../../components/ReplenishmentDetailModal'
 import ConfirmActualPriceModal from '../../components/ConfirmActualPriceModal';
 import SupplierCombobox from '../../components/common/SupplierCombobox';
 import { useSupplierOptions } from '../../hooks/useSuppliers';
+import { useQueryClient } from '@tanstack/react-query';
+import { replenishmentRequestKeys } from '../../hooks/useReplenishmentRequests';
+import { supplyRequestKeys } from '../../hooks/useSupplyRequests';
 import type { ReplenishmentRequest } from '../../services/replenishmentRequestService';
 import replenishmentRequestService from '../../services/replenishmentRequestService';
 import { useUrlTab, useUrlDetailId } from '../../hooks/useUrlState';
@@ -110,6 +113,7 @@ const TAB_SCOPED_PARAMS: Record<TabType, readonly string[]> = {
 
 const PurchasingMaterials = () => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   // ?purchaseRequestId= — written when a row is opened, cleared when closed, so a
   // reload or a shared link reopens the same record instead of losing it.
   const { id: urlPrId, open: pushPrId, close: popPrId, syncingRef: prSyncing } = useUrlDetailId('purchaseRequestId');
@@ -711,6 +715,10 @@ const PurchasingMaterials = () => {
       setShowCancelPrModal(false);
       setCancelPrTarget(null);
       fetchPurchaseRequests();
+      // A cancelled YCMH was born from a YCBS (and that one from a YCMH-supply chain):
+      // the upstream queues still show the ticket as pending until their caches drop.
+      queryClient.invalidateQueries({ queryKey: replenishmentRequestKeys.all });
+      queryClient.invalidateQueries({ queryKey: supplyRequestKeys.all });
       if (selectedPurchaseRequest?.id === cancelPrTarget.id) {
         setSelectedPurchaseRequest(null);
       }
@@ -720,7 +728,7 @@ const PurchasingMaterials = () => {
     } finally {
       setCancellingPr(false);
     }
-  }, [cancelPrTarget, selectedPurchaseRequest, fetchPurchaseRequests]);
+  }, [cancelPrTarget, selectedPurchaseRequest, fetchPurchaseRequests, queryClient]);
 
     const tabs = useMemo(() => [
     { id: 'purchaseRequestList', name: 'Danh sách mua hàng', icon: <List className="w-4 h-4" /> },
