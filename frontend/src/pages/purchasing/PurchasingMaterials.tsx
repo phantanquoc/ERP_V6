@@ -441,6 +441,10 @@ const PurchasingMaterials = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [cancelPrTarget, setCancelPrTarget] = useState<PurchaseRequest | null>(null);
   const [showCancelPrModal, setShowCancelPrModal] = useState(false);
+  // In-flight flag for the YCMH cancel request. CancelWithReasonModal uses `loading`
+  // to disable its confirm/cancel buttons and suppress a double-submit; without it a
+  // second click fires a second PATCH while the first is still running.
+  const [cancellingPr, setCancellingPr] = useState(false);
 
   const openDetailModal = useCallback((item: any) => {
     setSelectedItem(item);
@@ -700,6 +704,7 @@ const PurchasingMaterials = () => {
 
   const confirmCancelPurchaseRequest = useCallback(async (lyDoHuy: string) => {
     if (!cancelPrTarget) return;
+    setCancellingPr(true);
     try {
       await purchaseRequestService.cancelPurchaseRequest(cancelPrTarget.id, lyDoHuy);
       toast.success('Đã hủy yêu cầu mua hàng');
@@ -712,6 +717,8 @@ const PurchasingMaterials = () => {
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Lỗi khi hủy yêu cầu mua hàng');
       throw error;
+    } finally {
+      setCancellingPr(false);
     }
   }, [cancelPrTarget, selectedPurchaseRequest, fetchPurchaseRequests]);
 
@@ -2206,8 +2213,9 @@ const PurchasingMaterials = () => {
         {/* Cancel purchase request modal */}
         <CancelWithReasonModal
           isOpen={showCancelPrModal}
-          onClose={() => { setShowCancelPrModal(false); setCancelPrTarget(null); }}
+          onClose={() => { if (!cancellingPr) { setShowCancelPrModal(false); setCancelPrTarget(null); } }}
           onConfirm={confirmCancelPurchaseRequest}
+          loading={cancellingPr}
           ticketLabel={cancelPrTarget?.maYeuCau ?? ''}
           description="Hủy yêu cầu mua hàng này sẽ chuyển trạng thái sang Đã hủy và thông báo tới người tạo."
         />

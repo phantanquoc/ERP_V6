@@ -737,32 +737,58 @@ class PurchaseRequestService {
     const lyDoHuy = opts?.lyDoHuy?.trim();
     if (!lyDoHuy) throw new ValidationError('Vui lòng nhập lý do hủy');
 
-    const updated = await prisma.purchaseRequest.update({
-      where: { id },
-      data: {
-        trangThai: 'Đã hủy',
-        lyDoHuy,
-        ngayHuy: new Date(),
-        ...(opts?.nguoiHuy ? { nguoiHuy: opts.nguoiHuy } : {}),
-      },
-      include: { items: true },
-    });
-
     // A YCMH born from a YCBS must hand the shortage back to purchasing's queue:
     // "Đã chuyển mua hàng" is terminal on the YCBS, so without this revert the parent
     // would stay dead while its only child YCMH is now cancelled. The link itself uses
     // onDelete:SetNull, so leaving it non-null while pointing at a cancelled YCMH would
     // mislead the UI into rendering a live chain.
-    const parentYbs = await prisma.replenishmentRequest.findFirst({
-      where: { convertedPurchaseRequestId: id },
-      select: { id: true, supplyRequestId: true },
-    });
-    if (parentYbs) {
-      await prisma.replenishmentRequest.update({
-        where: { id: parentYbs.id },
+    //
+    // The cancel and the revert run in ONE transaction, and the header write is a
+    // guarded updateMany: the status check lives in the WHERE, so a concurrent cancel
+    // or approve racing this statement matches zero rows instead of producing a ticket
+    // half-cancelled (header cancelled, parent YCBS reverted, or vice-versa). If the
+    // revert throws, the whole transaction rolls back.
+    let parentYbsId: string | null = null;
+
+    await prisma.$transaction(async (tx) => {
+      const claimed = await tx.purchaseRequest.updateMany({
+        where: { id, trangThai: { in: ['Chờ báo giá', 'Chờ duyệt'] } },
+        data: {
+          trangThai: 'Đã hủy',
+          lyDoHuy,
+          ngayHuy: new Date(),
+          ...(opts?.nguoiHuy ? { nguoiHuy: opts.nguoiHuy } : {}),
+        },
+      });
+
+      if (claimed.count === 0) {
+        // Re-read inside the tx only to report the accurate reason; never rewrite.
+        const current = await tx.purchaseRequest.findUnique({
+          where: { id },
+          select: { trangThai: true },
+        });
+        throw new ValidationError(
+          `Không thể hủy YCMH ở trạng thái "${current?.trangThai ?? existing.trangThai}" — đã duyệt rồi thì dùng "Đã mua xong", hoặc người duyệt "Từ chối"`,
+        );
+      }
+
+      const parent = await tx.replenishmentRequest.findFirst({
+        where: { convertedPurchaseRequestId: id },
+        select: { id: true, supplyRequestId: true },
+      });
+      if (!parent) return;
+
+      parentYbsId = parent.id;
+      await tx.replenishmentRequest.update({
+        where: { id: parent.id },
         data: { trangThai: 'Chờ báo giá', convertedPurchaseRequestId: null },
       });
-    }
+    });
+
+    const updated = await prisma.purchaseRequest.findUnique({
+      where: { id },
+      include: { items: true },
+    });
 
     // Notify the requester. The YCBS revert is silent on purpose: purchasing sees it
     // reappear in their own queue, and the YCCB stays at "Chờ bổ sung".
@@ -773,7 +799,7 @@ class PurchaseRequestService {
         metadata: {
           maYeuCau: existing.maYeuCau,
           purchaseRequestId: id,
-          replenishmentRequestId: parentYbs?.id ?? '',
+          replenishmentRequestId: parentYbsId ?? '',
           lyDo: lyDoHuy,
         },
       });

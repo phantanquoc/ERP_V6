@@ -186,6 +186,7 @@ class SupplyRequestService {
               phanLoaiGroup: true,
               lyDoHuy: true,
               ngayHuy: true,
+              nguoiHuy: true,
               convertedPurchaseRequest: { select: { id: true, maYeuCau: true } },
             },
           },
@@ -226,6 +227,7 @@ class SupplyRequestService {
             phanLoaiGroup: true,
             lyDoHuy: true,
             ngayHuy: true,
+            nguoiHuy: true,
             convertedPurchaseRequest: { select: { id: true, maYeuCau: true } },
           },
         },
@@ -1092,36 +1094,53 @@ class SupplyRequestService {
   async cancelSupplyRequest(id: string, opts?: { lyDoHuy?: string; nguoiHuy?: string }): Promise<any> {
     const request = await this.getSupplyRequestById(id);
 
-    // Only allow cancellation from initial states
-    const cancellable = ['Chưa cung cấp', 'Đang xử lý'];
-    if (!cancellable.includes(request.trangThai)) {
-      throw new ValidationError(`Không thể hủy yêu cầu ở trạng thái "${request.trangThai}"`);
-    }
-
     const lyDoHuy = opts?.lyDoHuy?.trim();
     if (!lyDoHuy) {
       throw new ValidationError('Vui lòng nhập lý do hủy');
     }
 
-    // Update status to "Đã hủy" and cancel unfulfilled items
-    const updated = await prisma.supplyRequest.update({
-      where: { id },
+    // TOCTOU-safe claim: the status guard lives in the WHERE, so the read and the
+    // write are one atomic statement. A second cancel that races this one matches
+    // zero rows instead of silently re-cancelling an already-cancelled ticket.
+    const claimed = await prisma.supplyRequest.updateMany({
+      where: { id, trangThai: { in: ['Chưa cung cấp', 'Đang xử lý'] } },
       data: {
         trangThai: 'Đã hủy',
         lyDoHuy,
         ngayHuy: new Date(),
         ...(opts?.nguoiHuy ? { nguoiHuy: opts.nguoiHuy } : {}),
-        items: {
-          updateMany: {
-            where: { fulfillmentStatus: { notIn: ['Đã cấp đủ', 'Đã cấp một phần'] } },
-            data: { fulfillmentStatus: 'Đã hủy' },
-          },
-        },
       },
+    });
+
+    if (claimed.count === 0) {
+      // Re-read only to produce an accurate message; never rewrite.
+      const current = await prisma.supplyRequest.findUnique({
+        where: { id },
+        select: { trangThai: true },
+      });
+      if (!current) throw new NotFoundError('Không tìm thấy yêu cầu cung cấp');
+      throw new ValidationError(
+        `Không thể hủy yêu cầu ở trạng thái "${current.trangThai}" — có thể đã bị hủy bởi thao tác khác`,
+      );
+    }
+
+    // Unfulfilled items follow the header to "Đã hủy". updateMany carries no nested
+    // writes, so this runs as its own statement against the same guard fields.
+    await prisma.supplyRequestItem.updateMany({
+      where: {
+        supplyRequestId: id,
+        fulfillmentStatus: { notIn: ['Đã cấp đủ', 'Đã cấp một phần'] },
+      },
+      data: { fulfillmentStatus: 'Đã hủy' },
+    });
+
+    const updated = await prisma.supplyRequest.findUnique({
+      where: { id },
       include: { items: true },
     });
 
-    // Notify the requester (non-blocking)
+    // Notify the requester (non-blocking). Only reached after a successful claim,
+    // so a losing race emits exactly one cancellation notice.
     try {
       await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_CANCELLED, {
         targetEmployeeIds: [request.employeeId],

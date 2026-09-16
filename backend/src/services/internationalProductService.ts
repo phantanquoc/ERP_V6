@@ -233,11 +233,19 @@ export class InternationalProductService {
         if (created?.donViTinh?.trim()) patch.donViTinh = created.donViTinh.trim();
 
         const linkedItemId = typeof data.supplyRequestItemId === 'string' ? data.supplyRequestItemId.trim() : '';
+        let originalTenGoi: string | null = null;
         if (linkedItemId) {
-          await prisma.supplyRequestItem.update({
+          const pending = await prisma.supplyRequestItem.findUnique({
             where: { id: linkedItemId },
-            data: patch,
+            select: { tenGoi: true, isNewProduct: true },
           });
+          if (pending) originalTenGoi = (pending.tenGoi || '').trim() || null;
+          if (pending && pending.isNewProduct) {
+            await prisma.supplyRequestItem.update({
+              where: { id: linkedItemId },
+              data: patch,
+            });
+          }
         }
 
         const canonical = String(data.tenSanPham).trim();
@@ -245,6 +253,15 @@ export class InternationalProductService {
           await prisma.supplyRequestItem.updateMany({
             where: {
               tenGoi: { equals: canonical, mode: 'insensitive' },
+              ...(linkedItemId ? { id: { not: linkedItemId } } : {}),
+            },
+            data: patch,
+          });
+        }
+        if (originalTenGoi && originalTenGoi.toLowerCase() !== canonical.toLowerCase()) {
+          await prisma.supplyRequestItem.updateMany({
+            where: {
+              tenGoi: { equals: originalTenGoi, mode: 'insensitive' },
               ...(linkedItemId ? { id: { not: linkedItemId } } : {}),
             },
             data: patch,

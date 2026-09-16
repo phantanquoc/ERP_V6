@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { X, ShoppingCart, AlertTriangle, Plus, Ban } from 'lucide-react';
+import Modal from './Modal';
 import type { ReplenishmentRequest, ReplenishmentRequestItem } from '../services/replenishmentRequestService';
 import replenishmentRequestService from '../services/replenishmentRequestService';
 import { useQueryClient } from '@tanstack/react-query';
@@ -56,12 +57,20 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
   } = useSupplierOptions();
   const supplierList = (suppliers ?? []) as Array<{ id: string; tenNhaCungCap: string; maNhaCungCap: string }>;
 
+  const fetchIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!isOpen || !ybs?.id) return;
+    // Token check: capture the id this effect ran for. If `ybs.id` changes (or the
+    // modal closes) before the request settles, a newer effect has already moved
+    // `fetchIdRef.current` — so this response is stale and must not touch state.
+    const currentId = ybs.id;
+    fetchIdRef.current = currentId;
     setLoading(true);
     replenishmentRequestService
-      .getReplenishmentRequestById(ybs.id)
+      .getReplenishmentRequestById(currentId)
       .then((res: any) => {
+        if (fetchIdRef.current !== currentId) return;
         const row = (res?.data?.data ?? res?.data ?? res) as ReplenishmentRequest;
         setDetail(row);
         setRows(
@@ -76,8 +85,17 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
           })),
         );
       })
-      .catch(() => toast.error('Không tải được chi tiết YCBS'))
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (fetchIdRef.current !== currentId) return;
+        toast.error('Không tải được chi tiết YCBS');
+      })
+      .finally(() => {
+        if (fetchIdRef.current === currentId) setLoading(false);
+      });
+    // On unmount / id change, invalidate so any in-flight response is ignored.
+    return () => {
+      if (fetchIdRef.current === currentId) fetchIdRef.current = null;
+    };
   }, [isOpen, ybs?.id]);
 
   const readOnly = detail?.trangThai !== 'Chờ báo giá';
@@ -205,11 +223,10 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+    <>
+    <Modal isOpen={isOpen} onClose={onClose}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl flex flex-col modal-viewport-h overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
           <div>
             <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
@@ -221,7 +238,7 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded" aria-label="Đóng"><X className="w-5 h-5" /></button>
         </div>
 
-        <div className="px-6 py-4 space-y-4 overflow-y-auto flex-1">
+        <div className="px-6 py-4 space-y-4 overflow-y-auto flex-1 min-h-0">
           {loading ? (
             <div className="text-center py-8 text-sm text-gray-500">Đang tải…</div>
           ) : readOnly && detail ? (
@@ -353,7 +370,7 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
             </div>
           </div>
       </div>
-
+    </Modal>
       {quickCreateRowIdx !== null && (
         <QuickCreateSupplierModal
           key={quickCreateRowIdx}
@@ -363,7 +380,6 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
           onCreated={(s) => setRowField(quickCreateRowIdx, { nhaCungCapId: s.id })}
         />
       )}
-
       <CancelWithReasonModal
         isOpen={showCancelModal}
         onClose={() => { if (!cancelling) setShowCancelModal(false); }}
@@ -376,7 +392,7 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
           'Nếu YCCB không còn YCBS nào đang chờ, nó quay lại "Đang xử lý" để kho tạo yêu cầu bổ sung lại.',
         ]}
       />
-    </div>
+    </>
   );
 };
 

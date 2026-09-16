@@ -33,7 +33,7 @@ model SupplyRequest {
   trangThai             String                 @default("Chưa cung cấp")
   // Cancel audit — set by cancelSupplyRequest (lyDoHuy required)
   lyDoHuy               String?
-  ngayHuy               DateTime?
+  ngayHuy               DateTime?              @db.Timestamptz(6)
   nguoiHuy              String?
   fileKemTheo           String?
   loaiYeuCau            String?                @default("Thường") // "Thường" | "Mua nhanh"
@@ -47,6 +47,7 @@ model SupplyRequest {
   warehouseReceipts     WarehouseReceipt[]
   warehouseIssues       WarehouseIssue[]
 
+  @@index([trangThai])
   @@map("supply_requests")
   @@schema("business")
 }
@@ -126,7 +127,7 @@ model ReplenishmentRequest {
   trangThai                  String                     @default("Chờ báo giá")
   // Cancel audit — set by cancelReplenishmentRequest (lyDoHuy required)
   lyDoHuy                    String?
-  ngayHuy                    DateTime?
+  ngayHuy                    DateTime?                  @db.Timestamptz(6)
   nguoiHuy                   String?
   supplyRequestId            String?
   phanLoaiGroup              String? // MATERIALS | EQUIPMENT | OTHER (from bucketPhanLoai)
@@ -193,7 +194,7 @@ model PurchaseRequest {
   ngayDuyet            DateTime?
   // Cancel audit — set by cancelPurchaseRequest (lyDoHuy required)
   lyDoHuy              String?
-  ngayHuy              DateTime?
+  ngayHuy              DateTime?             @db.Timestamptz(6)
   nguoiHuy             String?
   supplyRequestId      String?
   nhaCungCapId         String?

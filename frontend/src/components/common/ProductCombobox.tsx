@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { InternationalProduct } from '../../services/internationalProductService';
 import type { LotProduct } from '../../services/warehouseService';
 
@@ -39,7 +40,7 @@ const ProductCombobox: React.FC<ProductComboboxProps> = ({
   products,
   value,
   onChange,
-  placeholder = 'Tìm sản phẩm theo mã, tên hoặc loại, hoặc nhập tên mới...',
+  placeholder = 'Tìm hàng hóa theo mã, tên hoặc loại, hoặc nhập tên mới...',
   disabled = false,
   allowCreate = false,
   onCreateNew,
@@ -59,10 +60,11 @@ const ProductCombobox: React.FC<ProductComboboxProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const [listStyle, setListStyle] = useState<React.CSSProperties | null>(null);
 
-  // Sync inputText when value changes externally (e.g., form reset)
+  // Sync inputText when value changes externally (e.g., form reset / reconcile tenGoi change)
   useEffect(() => {
-    if (!value && initialText && !selectedProduct) {
+    if (value === null && initialText) {
       setInputText((initialText as string).trim());
       return;
     }
@@ -71,28 +73,58 @@ const ProductCombobox: React.FC<ProductComboboxProps> = ({
     } else if (selectedProduct) {
       setInputText(displayText(selectedProduct));
     }
-  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [value, initialText]);
 
-  // Close dropdown on outside click
+  // Close dropdown on outside click — portal list is outside containerRef
   useEffect(() => {
+    if (!isOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-        const trimmed = inputText.trim();
-        if (selectedProduct) {
-          // Revert to confirmed product display text
-          setInputText(displayText(selectedProduct));
-        } else if (allowCreate && trimmed.length > 0 && onCreateNew) {
-          // User typed a free-text name — treat as "create new" instead of discarding
-          onCreateNew(trimmed);
-        } else {
-          setInputText('');
-        }
+      const target = e.target as Node;
+      if (containerRef.current?.contains(target) || listRef.current?.contains(target)) return;
+      setIsOpen(false);
+      const trimmed = inputText.trim();
+      if (selectedProduct) {
+        setInputText(displayText(selectedProduct));
+      } else if (allowCreate && trimmed.length > 0 && onCreateNew) {
+        onCreateNew(trimmed);
+      } else {
+        setInputText('');
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [selectedProduct, allowCreate, inputText, onCreateNew]);
+  }, [isOpen, selectedProduct, allowCreate, inputText, onCreateNew]);
+
+  const LIST_MAX_H = 224;
+  const measure = useCallback(() => {
+    const anchor = containerRef.current;
+    if (!anchor) return;
+    const r = anchor.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - r.bottom - 8;
+    const spaceAbove = r.top - 8;
+    const openUp = spaceBelow < 140 && spaceAbove > spaceBelow;
+    const height = Math.max(120, Math.min(LIST_MAX_H, openUp ? spaceAbove : spaceBelow));
+    setListStyle({
+      position: 'fixed',
+      left: r.left,
+      width: r.width,
+      maxHeight: height,
+      ...(openUp ? { bottom: window.innerHeight - r.top + 4 } : { top: r.bottom + 4 }),
+      zIndex: 9999,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    measure();
+    const onMove = () => measure();
+    window.addEventListener('scroll', onMove, true);
+    window.addEventListener('resize', onMove);
+    return () => {
+      window.removeEventListener('scroll', onMove, true);
+      window.removeEventListener('resize', onMove);
+    };
+  }, [isOpen, measure]);
 
   // Map productId → kiện in the lot, for the stock annotation and ordering
   const stockByProductId = React.useMemo(() => {
@@ -255,11 +287,12 @@ const ProductCombobox: React.FC<ProductComboboxProps> = ({
         )}
       </div>
 
-      {isOpen && (filtered.length > 0 || showCreateOption) && (
+      {isOpen && listStyle && (filtered.length > 0 || showCreateOption) && createPortal(
         <ul
           ref={listRef}
           role="listbox"
-          className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto"
+          style={listStyle}
+          className="bg-white border border-gray-200 rounded-lg shadow-xl overflow-y-auto"
         >
           {filtered.map((product, index) => {
             const kien = stockByProductId.get(product.id);
@@ -330,16 +363,21 @@ const ProductCombobox: React.FC<ProductComboboxProps> = ({
                   : 'text-green-700 hover:bg-green-50'
               }`}
             >
-              <span className="font-medium">+ Tạo mới sản phẩm</span> "{trimmedInput}"
+              <span className="font-medium">+ Tạo mới hàng hóa</span> "{trimmedInput}"
             </li>
           )}
-        </ul>
+        </ul>,
+        document.body,
       )}
 
-      {isOpen && filtered.length === 0 && !showCreateOption && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 text-sm text-gray-400">
-          Không tìm thấy sản phẩm
-        </div>
+      {isOpen && listStyle && filtered.length === 0 && !showCreateOption && createPortal(
+        <div
+          style={listStyle}
+          className="bg-white border border-gray-200 rounded-lg shadow-xl px-3 py-2 text-sm text-gray-400"
+        >
+          Không tìm thấy hàng hóa
+        </div>,
+        document.body,
       )}
     </div>
   );

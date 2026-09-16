@@ -478,8 +478,15 @@ class ReplenishmentRequestService {
     const lyDoHuy = opts?.lyDoHuy?.trim();
     if (!lyDoHuy) throw new ValidationError('Vui lòng nhập lý do hủy');
 
-    const updated = await prisma.replenishmentRequest.update({
-      where: { id },
+    // TOCTOU-safe claim, and the exact mirror of convertToPurchaseRequest's atomic
+    // claim (which matches on trangThai='Chờ báo giá' AND convertedPurchaseRequestId IS
+    // NULL). Because both statements carry the same two-field guard, a cancel and a
+    // convert racing on the same YCBS can never both succeed: whichever updateMany
+    // commits first flips trangThai, so the loser sees count === 0. Without the
+    // convertedPurchaseRequestId term here, a cancel landing after a convert would
+    // destroy a live YCMH's parent link.
+    const claimed = await prisma.replenishmentRequest.updateMany({
+      where: { id, trangThai: 'Chờ báo giá', convertedPurchaseRequestId: null },
       data: {
         trangThai: 'Đã hủy',
         lyDoHuy,
@@ -487,6 +494,20 @@ class ReplenishmentRequestService {
         ...(opts?.nguoiHuy ? { nguoiHuy: opts.nguoiHuy } : {}),
       },
     });
+
+    if (claimed.count === 0) {
+      // Re-read only to report the accurate reason; never rewrite.
+      const current = await prisma.replenishmentRequest.findUnique({
+        where: { id },
+        select: { trangThai: true, convertedPurchaseRequestId: true },
+      });
+      if (!current) throw new NotFoundError('Không tìm thấy yêu cầu bổ sung');
+      throw new ConflictError(
+        `Không thể hủy YCBS: yêu cầu đã được chuyển thành YCMH hoặc đã hủy bởi một thao tác khác (trạng thái "${current.trangThai}")`,
+      );
+    }
+
+    const updated = await prisma.replenishmentRequest.findUnique({ where: { id } });
 
     // The parent YCCB was bridged to "Chờ bổ sung" when this YCBS was filed. If it
     // is the last live replenishment request on that ticket, pull the YCCB back to
