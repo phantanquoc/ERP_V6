@@ -418,7 +418,7 @@ class OvertimePlanService {
     return this.populateWithUsers(plan);
   }
 
-  async getAll(query: OvertimePlanListQuery, callerUserId?: string): Promise<{ plans: any[]; total: number; page: number; totalPages: number }> {
+  async getAll(query: OvertimePlanListQuery, callerUserId?: string, callerRole?: string): Promise<{ plans: any[]; total: number; page: number; totalPages: number }> {
     const page = query.page || 1;
     const limit = query.limit || 10;
     const skip = (page - 1) * limit;
@@ -439,7 +439,8 @@ class OvertimePlanService {
       ];
     }
     // No-department callers: restrict to participant-or-creator visibility (change no-dept-self-service-access)
-    if (callerUserId && !(await this.callerHasDepartment(callerUserId))) {
+    // ADMIN is exempt — admin@ has departmentId=NULL but must see all plans (route-level ADMIN bypass already passed).
+    if (callerUserId && callerRole !== 'ADMIN' && !(await this.callerHasDepartment(callerUserId))) {
       const scope = this.participantScope(callerUserId);
       // Intersect the participant scope with any existing where. Where may already have
       // an OR from `query.department`; wrap both as AND conditions so neither is lost.
@@ -464,11 +465,12 @@ class OvertimePlanService {
     return { plans: await this.batchPopulateWithUsers(plans), total, page, totalPages: Math.ceil(total / limit) };
   }
 
-  async getById(id: string, callerUserId?: string): Promise<any> {
+  async getById(id: string, callerUserId?: string, callerRole?: string): Promise<any> {
     const plan = await this.findPlanWithItems(id);
     if (!plan) throw new NotFoundError('Không tìm thấy kế hoạch tăng ca');
     // No-department callers: deny plans that don't include them as creator or participant
-    if (callerUserId && !(await this.callerHasDepartment(callerUserId))) {
+    // ADMIN is exempt (same reason as getAll).
+    if (callerUserId && callerRole !== 'ADMIN' && !(await this.callerHasDepartment(callerUserId))) {
       const isCreator = plan.nguoiTaoId === callerUserId;
       const isParticipant = (plan.items || []).some((item: any) =>
         Array.isArray((item as any).nguoiThamGiaIds) && (item as any).nguoiThamGiaIds.includes(callerUserId)
