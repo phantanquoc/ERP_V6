@@ -231,7 +231,33 @@ class ReplenishmentRequestService {
       include: { items: { include: { supplier: true } }, supplyRequest: true, convertedPurchaseRequest: true },
     });
     if (!row) throw new NotFoundError('Không tìm thấy yêu cầu bổ sung');
-    return row;
+
+    // Reopening provenance for the purchasing workbench. When a YCMH is cancelled it
+    // reverts its parent YCBS to "Chờ báo giá" AND nulls convertedPurchaseRequestId
+    // (see purchaseRequestService.cancelPurchaseRequest), so the FK link is severed —
+    // the YCBS alone cannot say which YCMH came back from. Recover it heuristically:
+    // the YCMH created by convert copied this YCBS's supplyRequestId, so a cancelled
+    // YCMH on the same YCCB whose `ngayHuy` lands within a few seconds of this row's
+    // `updatedAt` is the one that reopened it (the revert and the cancel run in one
+    // transaction, so a genuinely reopened YCBS's updatedAt ≈ ngayHuy). The time
+    // window is what keeps a fresh never-converted YCBS — whose ticket merely happens
+    // to share a YCCB with an unrelated cancelled YCMH — from claiming a false
+    // "reopened from" caption.
+    let cancelledYcmh: { maYeuCau: string; lyDoHuy: string | null; ngayHuy: Date | null } | null = null;
+    if (row.trangThai === 'Chờ báo giá' && !row.convertedPurchaseRequestId && row.supplyRequestId) {
+      const reopen = await prisma.purchaseRequest.findFirst({
+        where: { supplyRequestId: row.supplyRequestId, trangThai: 'Đã hủy' },
+        orderBy: { ngayHuy: 'desc' },
+        select: { maYeuCau: true, lyDoHuy: true, ngayHuy: true },
+      });
+      const REOPEN_WINDOW_MS = 5000;
+      const reopenedRecently =
+        !!reopen?.ngayHuy &&
+        Math.abs(new Date(reopen.ngayHuy).getTime() - row.updatedAt.getTime()) <= REOPEN_WINDOW_MS;
+      cancelledYcmh = reopenedRecently ? reopen : null;
+    }
+
+    return { ...row, cancelledYcmh };
   }
 
   // ── Update — only Chờ báo giá, only fills giá+NCC/ghi chú, never changes phanLoai/soLuong ─

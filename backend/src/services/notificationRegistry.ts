@@ -501,7 +501,7 @@ const entries: NotificationEventDef[] = [
   },
   {
     event: NotificationEvent.PURCHASE_REQUEST_CANCELLED,
-    notificationType: NotificationType.PURCHASE_REQUEST,
+    notificationType: NotificationType.PURCHASE_REQUEST_CANCELLED,
     buildMessage: (ctx) => ({
       title: 'Yêu cầu mua hàng đã bị hủy',
       message: `Yêu cầu mua hàng ${ctx.metadata?.maYeuCau ?? ''} của bạn đã bị hủy${ctx.metadata?.lyDo ? ': ' + ctx.metadata.lyDo : ''}.`,

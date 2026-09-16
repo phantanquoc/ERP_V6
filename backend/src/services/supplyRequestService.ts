@@ -175,6 +175,9 @@ class SupplyRequestService {
               maYeuCau: true,
               trangThai: true,
               sourceType: true,
+              lyDoHuy: true,
+              ngayHuy: true,
+              nguoiHuy: true,
               items: { select: { tenHangHoa: true, soLuong: true, donViTinh: true } },
             },
           },
@@ -218,7 +221,18 @@ class SupplyRequestService {
           },
         },
         items: true,
-        purchaseRequests: { include: { items: true } },
+        purchaseRequests: {
+          select: {
+            id: true,
+            maYeuCau: true,
+            trangThai: true,
+            sourceType: true,
+            lyDoHuy: true,
+            ngayHuy: true,
+            nguoiHuy: true,
+            items: true,
+          },
+        },
         replenishmentRequests: {
           select: {
             id: true,
