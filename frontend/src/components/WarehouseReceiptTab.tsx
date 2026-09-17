@@ -10,6 +10,7 @@ import warehouseReceiptService, { WarehouseReceipt } from '../services/warehouse
 import TableFilter, { FilterField } from './TableFilter';
 import { warehouseKeys } from '../hooks';
 import { getUniqueSlipField, getWarehouseSlipLines, normalizeWarehouseListResponse, displayMaHang, displayLoaiKho } from '../utils/warehouseSlipLines';
+void getUniqueSlipField;
 import { TINH_TRANG_OPTIONS } from '../constants/warehouseCatalogs';
 
 interface WarehouseReceiptTabProps {
