@@ -7,13 +7,7 @@ interface ReplenishmentListProps {
   /** Opens the YCBS detail/pricing modal. Content lives in a sibling modal owned by the page. */
   onOpenDetail?: (row: ReplenishmentRequest) => void;
   onOpenSupplyRequest?: (supplyRequestId: string) => void;
-  /**
-   * Show converted/cancelled YCBS too. Default false: the queue hides only
-   * "Đã chuyển mua hàng" (once purchasing converts one it leaves the queue and the
-   * resulting YCMH appears in the purchase-request list instead). A cancelled YCBS
-   * deliberately STAYS in the default view — it must not silently vanish; it drops
-   * out of the actionable set but keeps showing with its cancel reason.
-   */
+  /** @deprecated Luon hien thi tat ca YCBS, dong dang hoat dong (Cho bao gia) to vang. Prop giu lai de tuong thich. */
   showConverted?: boolean;
 }
 
@@ -34,16 +28,15 @@ const ReplenishmentList: React.FC<ReplenishmentListProps> = ({
   showConverted = false,
 }) => {
   const [page, setPage] = useState(1);
+  // Hien thi tat ca YCBS — dong dang hoat dong (Cho bao gia) se to vang o dong
+  void showConverted;
   const { data, isFetching, error } = useReplenishmentRequests(
     page,
     PAGE_SIZE,
     undefined,
     undefined,
     undefined,
-    // Default: only "Chờ báo giá" + "Đã hủy" (actionable + recently cancelled).
-    // Converted YCBS leave the queue so the resulting YCMH appears in the purchase-
-    // request list instead; a cancelled YCBS stays so its reason is visible.
-    showConverted ? undefined : { trangThai: 'Chờ báo giá,Đã hủy' },
+    undefined,
   );
 
   if (isFetching) {
@@ -66,9 +59,7 @@ const ReplenishmentList: React.FC<ReplenishmentListProps> = ({
     return (
       <div className="text-center py-10">
         <PackageOpen className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-        <p className="text-sm text-gray-500">
-          {showConverted ? 'Chưa có yêu cầu bổ sung nào.' : 'Chưa có yêu cầu bổ sung (YC-BS · Chờ báo giá)'}
-        </p>
+        <p className="text-sm text-gray-500">Chưa có yêu cầu bổ sung nào.</p>
         <p className="text-xs text-gray-400 mt-1">Các phiếu thiếu hàng sau khi kho cấp một phần sẽ xuất hiện ở đây.</p>
       </div>
     );
@@ -80,9 +71,7 @@ const ReplenishmentList: React.FC<ReplenishmentListProps> = ({
         <h3 className="text-sm font-semibold text-gray-700">
           Yêu cầu bổ sung <span className="font-normal text-gray-500">({total})</span>
         </h3>
-        <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
-          YC-BS · {showConverted ? 'Tất cả' : 'Chờ báo giá'}
-        </span>
+        <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">YC-BS · Tất cả</span>
       </div>
       <div className="overflow-x-auto border border-gray-200 rounded-lg">
         <table className="w-full min-w-[860px] text-sm">
@@ -104,7 +93,7 @@ const ReplenishmentList: React.FC<ReplenishmentListProps> = ({
                 <tr
                   key={r.id}
                   onClick={() => onOpenDetail?.(r)}
-                  className="hover:bg-amber-50/60 cursor-pointer"
+                  className={`cursor-pointer ${r.trangThai === 'Chờ báo giá' ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-gray-50'}`}
                 >
                   <td className="px-3 py-2 font-medium text-blue-600">{r.maYeuCau}</td>
                   <td className="px-3 py-2">

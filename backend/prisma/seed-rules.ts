@@ -109,7 +109,7 @@ const FALLBACK_RESOURCES: Array<{ code: string; group: string }> = [
   { code: 'international-products', group: 'business' }, { code: 'quotation-requests', group: 'business' },
   { code: 'quotations', group: 'business' }, { code: 'quotation-calculators', group: 'business' },
   { code: 'supply-requests', group: 'purchasing' }, { code: 'purchase-requests', group: 'purchasing' },
-  { code: 'suppliers', group: 'purchasing' },
+  { code: 'replenishment-requests', group: 'purchasing' }, { code: 'suppliers', group: 'purchasing' },
   { code: 'warehouses', group: 'warehouse' }, { code: 'lots', group: 'warehouse' },
   { code: 'lot-products', group: 'warehouse' }, { code: 'warehouse-receipts', group: 'warehouse' },
   { code: 'warehouse-issues', group: 'warehouse' }, { code: 'warehouse-stock', group: 'warehouse' },
