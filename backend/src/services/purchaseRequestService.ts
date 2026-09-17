@@ -505,17 +505,20 @@ class PurchaseRequestService {
     if (data.trangThai === 'Đã duyệt' || data.trangThai === 'Từ chối') {
       await this.assertCanApprovePurchase(_actorIdForGuard);
     }
-    // Validate approval fields
-    if (data.trangThai === 'Đã duyệt') {
-      const errors: string[] = [];
-      if (!data.nguoiDuyet || !(data.nguoiDuyet as string).trim()) {
-        errors.push('Người duyệt không được để trống khi duyệt yêu cầu');
-      }
-      if (!data.ngayDuyet) {
-        errors.push('Ngày duyệt không được để trống khi duyệt yêu cầu');
-      }
-      if (errors.length > 0) {
-        throw new ValidationError(errors.join('; '));
+    // Server-derived approver identity (mirror cancelPurchaseRequest): ignore client
+    // nguoiDuyet/ngayDuyet and derive from actor user. No validation on client fields.
+    if (data.trangThai === 'Đã duyệt' || data.trangThai === 'Từ chối') {
+      const actorId = _actorIdForGuard as string | undefined;
+      if (actorId) {
+        const actor = await prisma.user.findUnique({
+          where: { id: actorId },
+          select: { firstName: true, lastName: true, email: true },
+        });
+        if (actor) {
+          const derived = `${actor.lastName ?? ''} ${actor.firstName ?? ''}`.trim() || actor.email || '';
+          (data as any).nguoiDuyet = derived;
+          (data as any).ngayDuyet = new Date();
+        }
       }
     }
 
