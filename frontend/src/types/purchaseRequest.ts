@@ -56,7 +56,7 @@ export interface PurchaseRequest {
     position?: { name: string } | null;
     user?: { firstName?: string; lastName?: string; email?: string } | null;
   } | null;
-  supplyRequest?: { id: string; maYeuCau: string; trangThai: string } | null;
+  supplyRequest?: { id: string; maYeuCau: string; trangThai: string; boPhan?: string } | null;
   replenishmentRequest?: { id: string; maYeuCau: string; trangThai: string } | null;
   warehouseReceipts?: Array<{ id: string; maPhieuNhap?: string; maPhieu?: string }> | null;
   supplier?: { id: string; tenNhaCungCap: string; maNhaCungCap?: string } | null;

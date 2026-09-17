@@ -16,6 +16,7 @@ class PurchaseRequestController {
       const phanLoaiNCC = req.query.phanLoaiNCC as string | undefined;
       const sourceType = req.query.sourceType as string | undefined;
       const trangThai = req.query.trangThai as string | undefined;
+      const supplyRequestBoPhan = req.query.supplyRequestBoPhan as string | undefined;
 
       const isAdmin = req.user?.role === 'ADMIN';
 
@@ -46,7 +47,7 @@ class PurchaseRequestController {
         month,
         year,
         phanLoaiQ,
-        { phanLoaiNCC, sourceType, trangThai } as any,
+        { phanLoaiNCC, sourceType, trangThai, supplyRequestBoPhan } as any,
       );
 
       return res.json({

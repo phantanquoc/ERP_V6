@@ -6,6 +6,7 @@ import ExcelJS from 'exceljs';
 import supplyRequestService from './supplyRequestService';
 import notificationService from './notificationService';
 import { NotificationEvent } from '@types';
+import { normalizeBoPhan } from '@utils/normalizeBoPhan';
 
 interface PurchaseRequestItemInput {
   phanLoai: string;
@@ -73,7 +74,7 @@ class PurchaseRequestService {
     month?: number,
     year?: number,
     phanLoaiFilter?: string | string[],
-    extra?: { phanLoaiNCC?: string; sourceType?: string; trangThai?: string },
+    extra?: { phanLoaiNCC?: string; sourceType?: string; trangThai?: string; supplyRequestBoPhan?: string | string[] },
   ) {
     const { skip } = getPaginationParams(page, limit);
 
@@ -138,18 +139,35 @@ class PurchaseRequestService {
       return {} as Record<string, unknown>;
     })();
     const sourceTypeWhere = extra?.sourceType ? { sourceType: extra.sourceType } : {};
-    const trangThaiWhere = extra?.trangThai ? { trangThai: extra.trangThai } : {};
+    const trangThaiWhere = (() => {
+      const raw = extra?.trangThai ? String(extra.trangThai).trim() : '';
+      if (!raw) return {} as Record<string, unknown>;
+      const vals = raw.split(',').map((s) => s.trim()).filter(Boolean);
+      if (vals.length <= 1) return { trangThai: raw } as Record<string, unknown>;
+      return { trangThai: { in: vals } } as Record<string, unknown>;
+    })();
     // SHORTAGE via phanLoaiNCC=SHORTAGE is handled as sourceType filter
     const effectiveSourceTypeWhere =
       extra?.phanLoaiNCC === 'SHORTAGE' ? { sourceType: 'SHORTAGE' } : sourceTypeWhere;
+    // supplyRequestBoPhan: normalize then filter on supplyRequest.boPhan
+    const supplyRequestBoPhanClauses: Record<string, unknown>[] = (() => {
+      const raw = extra?.supplyRequestBoPhan;
+      if (raw === undefined || raw === null || String(raw).trim() === '') return [];
+      const arr = Array.isArray(raw) ? raw : String(raw).split(',');
+      const normalized = arr.map((s) => normalizeBoPhan(String(s))).filter(Boolean);
+      if (!normalized.length) return [];
+      if (normalized.length === 1) {
+        return [{ supplyRequest: { boPhan: { equals: normalized[0], mode: 'insensitive' as const } } } as Record<string, unknown>];
+      }
+      return [{ OR: normalized.map((v) => ({ supplyRequest: { boPhan: { equals: v, mode: 'insensitive' as const } } })) } as unknown as Record<string, unknown>];
+    })();
     const classAndStageFilters = { ...phanLoaiWhere, ...effectiveSourceTypeWhere, ...trangThaiWhere };
 
+    const andClauses: Record<string, unknown>[] = [deptFilter, dateFilter, classAndStageFilters, ...supplyRequestBoPhanClauses];
     const where = search
       ? {
           AND: [
-            deptFilter,
-            dateFilter,
-            classAndStageFilters,
+            ...andClauses,
             {
               OR: [
                 { maYeuCau: { contains: search, mode: 'insensitive' as const } },
@@ -169,7 +187,7 @@ class PurchaseRequestService {
             },
           ],
         }
-      : { AND: [deptFilter, dateFilter, classAndStageFilters] };
+      : { AND: andClauses };
 
     const [data, total] = await Promise.all([
       prisma.purchaseRequest.findMany({
@@ -188,7 +206,7 @@ class PurchaseRequestService {
               position: { select: { name: true } },
             },
           },
-          supplyRequest: { select: { id: true, maYeuCau: true, trangThai: true } },
+          supplyRequest: { select: { id: true, maYeuCau: true, trangThai: true, boPhan: true } },
           supplier: { select: { id: true, tenNhaCungCap: true, maNhaCungCap: true } },
           items: { include: { supplier: true } },
         },

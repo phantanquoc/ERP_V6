@@ -68,7 +68,7 @@ class PurchaseRequestService {
     search?: string,
     month?: number,
     year?: number,
-    filters?: { phanLoaiNCC?: string; sourceType?: string; trangThai?: string; phanLoai?: string },
+    filters?: { phanLoaiNCC?: string; sourceType?: string; trangThai?: string; phanLoai?: string; supplyRequestBoPhan?: string },
   ) {
     const params: any = { page, limit };
     if (search) {
@@ -84,6 +84,7 @@ class PurchaseRequestService {
     if (filters?.sourceType) params.sourceType = filters.sourceType;
     if (filters?.trangThai) params.trangThai = filters.trangThai;
     if (filters?.phanLoai) params.phanLoai = filters.phanLoai;
+    if (filters?.supplyRequestBoPhan) params.supplyRequestBoPhan = filters.supplyRequestBoPhan;
 
      const response = await apiClient.get('/purchase-requests', { params });
      return response;

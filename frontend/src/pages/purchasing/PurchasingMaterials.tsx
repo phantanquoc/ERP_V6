@@ -19,10 +19,13 @@ import {
 } from 'lucide-react';
 // chuaPhanLoai badge reserved
 void (() => HelpCircle)();
+void (() => CheckCircle)();
+void (() => labelForPurchaseRequest)();
 import OrderManagement from '../../components/OrderManagement';
 import purchaseRequestService from '../../services/purchaseRequestService';
 import { supplierService, Supplier, CreateSupplierData, UpdateSupplierData } from '../../services/supplierService';
 import { parseNumberInput } from '../../utils/numberInput';
+import PurchaseRequestSubTabs from '../../components/purchasing/PurchaseRequestSubTabs';
 import { useAuth } from '../../contexts/AuthContext';
 import PageHeader from '../../design-system/PageHeader';
 import { can, isCachedPermissionsLoaded } from '../../utils/permissions';
@@ -151,7 +154,9 @@ const PurchasingMaterials = () => {
   // Tổng chi dự kiến của năm (chỉ tính YC đã báo giá: có giaDuKien trên item)
   const [yearSpend, setYearSpend] = useState(0);
   const [replenishmentPending, setReplenishmentPending] = useState(0);
-  const purchasePending = (cardPRStats.choBaoGia ?? 0) + (cardPRStats.choDuyet ?? 0);
+  const [purchaseSubTotal, setPurchaseSubTotal] = useState(0);
+  const [purchaseRefreshKey, setPurchaseRefreshKey] = useState(0);
+  const purchasePending = purchaseSubTotal || (cardPRStats.choBaoGia ?? 0) + (cardPRStats.choDuyet ?? 0);
 
   // Fetch purchase request stats (server-filtered by category + client-sliced by month/year)
   useEffect(() => {
@@ -206,19 +211,11 @@ const PurchasingMaterials = () => {
     return () => { cancelled = true; };
   }, [ybsModalOpen]);
 
-  // State for purchase requests
-  const [purchaseRequests, setPurchaseRequests] = useState<PurchaseRequest[]>([]);
-  const [purchaseRequestLoading, setPurchaseRequestLoading] = useState(false);
-  const [purchaseRequestSearch, setPurchaseRequestSearch] = useState('');
-  const [purchaseRequestPage, setPage] = useState(1);
-  const [purchaseRequestTotalPages, setTotalPages] = useState(1);
+  // State for purchase requests — replaced by PurchaseRequestSubTabs (kept refreshKey for compat)
+  void (() => PurchaseRequestSubTabs)();
+  const bumpPurchaseRefresh = useCallback(() => setPurchaseRefreshKey((k) => k + 1), []);
 
-  // Fetch purchase requests when tab is active
-  useEffect(() => {
-    if (activeTab === 'purchaseRequestList') {
-      fetchPurchaseRequests();
-    }
-  }, [activeTab, purchaseRequestPage, purchaseRequestSearch]);
+  // keep fetchPurchaseRequests as alias for legacy call sites
 
   // Open specific purchase request detail from URL param (notification link, reload,
   // or an in-app click that pushed the id). Skips the echo of our own close().
@@ -253,18 +250,7 @@ const PurchasingMaterials = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlYbsId]);
 
-  const fetchPurchaseRequests = async () => {
-    try {
-      setPurchaseRequestLoading(true);
-      const response: any = await purchaseRequestService.getAllPurchaseRequests(purchaseRequestPage, 10, purchaseRequestSearch || undefined, undefined, undefined, { phanLoaiNCC: 'NVL' });
-      setPurchaseRequests(response.data as PurchaseRequest[] || []);
-      setTotalPages(response.pagination?.totalPages || 1);
-    } catch (error) {
-      console.error('Error fetching purchase requests:', error);
-    } finally {
-      setPurchaseRequestLoading(false);
-    }
-  };
+  const fetchPurchaseRequests = useCallback(async () => { bumpPurchaseRefresh(); }, [bumpPurchaseRefresh]);
 
   // State for suppliers
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -494,7 +480,7 @@ const PurchasingMaterials = () => {
         }
       },
     });
-  }, [purchaseRequestPage, purchaseRequestSearch]);
+  }, [fetchPurchaseRequests]);
 
   const handleCompletePurchaseRequest = useCallback((item: any) => {
     if (item.trangThai === 'Hoàn thành') {
@@ -537,7 +523,7 @@ const PurchasingMaterials = () => {
         }
       },
     });
-  }, [purchaseRequestPage, purchaseRequestSearch]);
+  }, [fetchPurchaseRequests]);
 
   /**
    * True when every line of an approved YCMH already carries an actual price.
@@ -589,7 +575,7 @@ const PurchasingMaterials = () => {
         }
       },
     });
-  }, [purchaseRequestPage, purchaseRequestSearch]);
+  }, [fetchPurchaseRequests]);
 
   const handleCancelPurchaseRequest = useCallback((item: PurchaseRequest) => {
     setCancelPrTarget(item);
@@ -966,215 +952,21 @@ const PurchasingMaterials = () => {
           {/* DANH SÁCH ĐƠN HÀNG */}
           {activeTab === 'orderList' && <OrderManagement hideHeader={true} />}
 
-          {/* DANH SÁCH MUA HÀNG */}
+          {/* DANH SÁCH MUA HÀNG — sub tabs requests/purchased */}
           {activeTab === 'purchaseRequestList' && (
-            <div>
-              {/* Search and filter bar */}
-              <div className="mb-6 flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 sm:items-center justify-between">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
-                  <div className="relative w-full sm:w-auto">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                    <input
-                      type="text"
-                      placeholder="Tìm kiếm yêu cầu mua hàng..."
-                      value={purchaseRequestSearch}
-                      onChange={(e) => setPurchaseRequestSearch(e.target.value)}
-                      className="pl-10 pr-4 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 w-full sm:w-64"
-                    />
-                  </div>
-                  <button
-                    onClick={fetchPurchaseRequests}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-                  >
-                    <Search className="h-4 w-4" />
-                    Tìm kiếm
-                  </button>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                  <button
-                    onClick={async () => {
-                      try {
-                        await purchaseRequestService.exportToExcel({ search: purchaseRequestSearch || undefined });
-                      } catch (error) {
-                        console.error('Error exporting to Excel:', error);
-                        alert('Lỗi khi xuất Excel');
-                      }
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-                  >
-                    <Download className="h-4 w-4" />
-                    Xuất Excel
-                  </button>
-                </div>
-              </div>
-
-              {/* Table */}
-              {purchaseRequestLoading ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
-                  <p className="mt-4 text-gray-600">Đang tải dữ liệu...</p>
-                </div>
-              ) : purchaseRequests.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">Chưa có yêu cầu mua hàng nào</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[900px]">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã yêu cầu</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày yêu cầu</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nhân viên</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sản phẩm</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mức độ ưu tiên</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {purchaseRequests.map((item, index) => (
-                        <tr
-                          key={item.id}
-                          onClick={() => openPurchaseRequestDetail(item)}
-                          className="hover:bg-gray-50 cursor-pointer"
-                        >
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
-                            {item.maYeuCau}
-                            {item.sourceType === 'SHORTAGE' && item.trangThai === 'Chờ báo giá' && (
-                              <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200 align-middle">
-                                {labelForPurchaseRequest(item)}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {new Date(item.ngayYeuCau).toLocaleDateString('vi-VN')}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">{item.tenNhanVien}</td>
-                          <td className="px-4 py-4 text-sm text-gray-900 max-w-xs">
-                            {item.items && item.items.length > 0 ? (
-                              <div className="space-y-0.5">
-                                {item.items.map((subItem: any, i: number) => (
-                                  <div key={i} className="text-xs">
-                                    <span className="font-medium">{subItem.tenHangHoa}</span>
-                                    <span className="text-gray-400 ml-1">x{subItem.soLuong} {subItem.donViTinh}</span>
-                                    {subItem.giaDuKien && <span className="text-green-600 ml-1">{Number(subItem.giaDuKien).toLocaleString('vi-VN')}đ</span>}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <span className="text-gray-400">{item.tenHangHoa || '-'}</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              item.mucDoUuTien === 'Cao' ? 'bg-red-100 text-red-800' :
-                              item.mucDoUuTien === 'Trung bình' ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-green-100 text-green-800'
-                            }`}>
-                              {item.mucDoUuTien}
-                            </span>
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              item.trangThai === 'Chờ báo giá' ? 'bg-orange-100 text-orange-800' :
-                              item.trangThai === 'Chờ duyệt' ? 'bg-yellow-100 text-yellow-800' :
-                              item.trangThai === 'Đã duyệt' ? 'bg-green-100 text-green-800' :
-                              item.trangThai === 'Từ chối' ? 'bg-red-100 text-red-800' :
-                              item.trangThai === 'Đã hủy' ? 'bg-gray-100 text-gray-800' :
-                              item.trangThai === 'Hoàn thành' ? 'bg-emerald-100 text-emerald-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {item.trangThai}
-                            </span>
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                              <button
-                                onClick={() => openPurchaseRequestDetail(item)}
-                                className="text-blue-600 hover:text-blue-800"
-                                title="Xem chi tiết"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </button>
-                              {canEditPR && (
-                                <button
-                                  onClick={() => openEditPurchaseRequest(item)}
-                                  className="text-green-600 hover:text-green-800"
-                                  title="Chỉnh sửa"
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </button>
-                              )}
-                              {canDeletePR && (
-                                <button
-                                  onClick={() => handleDeletePurchaseRequest(item.id)}
-                                  className="text-red-600 hover:text-red-800"
-                                  title="Xóa"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              )}
-                              {canUpdatePR && item.trangThai === 'Chờ báo giá' && (
-                                <button
-                                  onClick={() => handleSubmitForApproval(item)}
-                                  className="inline-flex items-center gap-1 px-2 py-1 bg-orange-50 text-orange-700 rounded hover:bg-orange-100 border border-orange-200 text-xs font-medium"
-                                  title="Gửi admin phê duyệt (phải điền NCC + đơn giá trước)"
-                                >
-                                  <CheckCircle className="w-3.5 h-3.5" />
-                                  Gửi duyệt
-                                </button>
-                              )}
-                              {canUpdatePR && item.trangThai === 'Đã duyệt' && (
-                                <button
-                                  onClick={() => handleCompletePurchaseRequest(item)}
-                                  className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 rounded hover:bg-emerald-100 border border-emerald-200 text-xs font-medium"
-                                  title="Đã mua hàng xong - Thông báo kho nhập hàng"
-                                >
-                                  <CheckCircle className="w-3.5 h-3.5" />
-                                  Đã mua xong
-                                </button>
-                              )}
-                              {item.trangThai === 'Hoàn thành' && (
-                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-50 text-gray-500 rounded text-xs">
-                                  <CheckCircle className="w-3.5 h-3.5" />
-                                  Đã hoàn thành
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* Pagination */}
-              {purchaseRequestTotalPages > 1 && (
-                <div className="flex justify-center items-center gap-2 mt-6">
-                  <button
-                    onClick={() => setPage(prev => Math.max(prev - 1, 1))}
-                    disabled={purchaseRequestPage === 1}
-                    className="px-3 py-1 border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Trước
-                  </button>
-                  <span className="text-sm text-gray-600">
-                    Trang {purchaseRequestPage} / {purchaseRequestTotalPages}
-                  </span>
-                  <button
-                    onClick={() => setPage(prev => Math.min(prev + 1, purchaseRequestTotalPages))}
-                    disabled={purchaseRequestPage === purchaseRequestTotalPages}
-                    className="px-3 py-1 border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Sau
-                  </button>
-                </div>
-              )}
-            </div>
+            <PurchaseRequestSubTabs
+              phanLoaiNCC="NVL"
+              canEditPR={canEditPR}
+              canDeletePR={canDeletePR}
+              canUpdatePR={canUpdatePR}
+              onOpenDetail={openPurchaseRequestDetail as any}
+              onEdit={openEditPurchaseRequest as any}
+              onDelete={handleDeletePurchaseRequest as any}
+              onSubmitForApproval={handleSubmitForApproval as any}
+              onComplete={handleCompletePurchaseRequest as any}
+              refreshKey={purchaseRefreshKey}
+              onCountsChange={setPurchaseSubTotal}
+            />
           )}
 
           {activeTab === 'replenishment' && (

@@ -4,6 +4,7 @@ import Modal from '../Modal';
 import type { PurchaseRequest } from '../../types/purchaseRequest';
 import { labelForPurchaseRequest } from '../../utils/purchaseRequestLabel';
 import { sourceTypeLabel, sourceTypeBadgeClass, trangThaiBadgeClass } from '../../utils/purchaseRequestBadges';
+import { normalizeBoPhan } from '../../utils/normalizeBoPhan';
 
 interface Props {
   isOpen: boolean;
@@ -82,6 +83,7 @@ export default function PurchaseRequestDetailModal({
                   <span className="text-gray-500">YCCB:</span>
                   <span className="font-medium text-blue-700">{pr.supplyRequest.maYeuCau}</span>
                   <span className={`px-1.5 py-0.5 rounded-full text-[11px] ${trangThaiBadgeClass(pr.supplyRequest.trangThai)}`}>{pr.supplyRequest.trangThai}</span>
+                  {pr.supplyRequest.boPhan && <span className="text-gray-500 ml-1" title={pr.supplyRequest.boPhan}>· {normalizeBoPhan(pr.supplyRequest.boPhan)}</span>}
                 </span>
               )}
               {pr.replenishmentRequest && (
@@ -140,6 +142,10 @@ export default function PurchaseRequestDetailModal({
                 pr.mucDoUuTien === 'Trung bình' ? 'bg-yellow-100 text-yellow-800' :
                 'bg-green-100 text-green-800'
               }`}>{pr.mucDoUuTien}</span>
+            </div>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <label className="block text-sm font-medium text-gray-500 mb-1">Bộ phận yêu cầu</label>
+              <p className="text-sm text-gray-900" title={pr.supplyRequest?.boPhan ?? ''}>{pr.supplyRequest?.boPhan ? normalizeBoPhan(pr.supplyRequest.boPhan) : '—'}</p>
             </div>
 
             {/* Items table */}
