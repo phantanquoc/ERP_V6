@@ -40,6 +40,7 @@ import replenishmentRequestService from '../../services/replenishmentRequestServ
 import { useUrlTab, useUrlDetailId } from '../../hooks/useUrlState';
 import CancelWithReasonModal from '../../components/common/CancelWithReasonModal';
 import PurchaseRequestDetailModal from '../../components/purchasing/PurchaseRequestDetailModal';
+import SupplyRequestDetailModal from '../../components/purchasing/SupplyRequestDetailModal';
 import PurchaseRequestEditModal from '../../components/purchasing/PurchaseRequestEditModal';
 import {
   BarChart,
@@ -90,6 +91,7 @@ const PurchasingMaterials = () => {
   const { id: urlYbsId, open: pushYbsId, close: popYbsId, syncingRef: ybsSyncing } = useUrlDetailId('replenishmentRequestId');
   const [selectedYbs, setSelectedYbs] = useState<ReplenishmentRequest | null>(null);
   const [ybsModalOpen, setYbsModalOpen] = useState(false);
+  const [supplyDetailId, setSupplyDetailId] = useState<string | null>(null);
   // 6.4 — RBAC gates via Rule Matrix with baseline fallback inside can()
   // Before my-permissions loads, guard so EMPLOYEE never sees Sửa/Gửi duyệt briefly ring-to-internal-call-blocking
   const _roleEditBase = user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD || user?.role === UserRole.TEAM_LEAD;
@@ -1161,9 +1163,7 @@ const PurchasingMaterials = () => {
           {activeTab === 'replenishment' && (
             <ReplenishmentList
               onOpenDetail={(ybs) => { setSelectedYbs(ybs); pushYbsId(ybs.id); setYbsModalOpen(true); }}
-              onOpenSupplyRequest={(id) => {
-                window.open(`/supply-requests?supplyRequestId=${id}`, '_blank');
-              }}
+              onOpenSupplyRequest={(id) => setSupplyDetailId(id)}
             />
           )}
 
@@ -1172,12 +1172,14 @@ const PurchasingMaterials = () => {
           isOpen={ybsModalOpen}
           onClose={() => { setYbsModalOpen(false); setSelectedYbs(null); popYbsId(); }}
           ybs={selectedYbs}
+          onOpenSupplyRequest={(id) => setSupplyDetailId(id)}
           onConverted={() => {
             popYbsId();
             // The new YCMH belongs to the purchase-request list; refresh it when visible.
             if (activeTab === 'purchaseRequestList') fetchPurchaseRequests();
           }}
         />
+        <SupplyRequestDetailModal supplyRequestId={supplyDetailId} isOpen={!!supplyDetailId} onClose={() => setSupplyDetailId(null)} />
 
         {/* Detail Modal */}
         {isDetailModalOpen && selectedItem && (

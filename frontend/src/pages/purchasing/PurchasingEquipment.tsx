@@ -36,6 +36,7 @@ import { replenishmentRequestKeys } from '../../hooks/useReplenishmentRequests';
 import { supplyRequestKeys } from '../../hooks/useSupplyRequests';
 import CancelWithReasonModal from '../../components/common/CancelWithReasonModal';
 import PurchaseRequestDetailModal from '../../components/purchasing/PurchaseRequestDetailModal';
+import SupplyRequestDetailModal from '../../components/purchasing/SupplyRequestDetailModal';
 import PurchaseRequestEditModal from '../../components/purchasing/PurchaseRequestEditModal';
 import { useSupplierOptions } from '../../hooks/useSuppliers';
 import type { ReplenishmentRequest } from '../../services/replenishmentRequestService';
@@ -81,6 +82,7 @@ const PurchasingEquipment = () => {
   const { id: urlYbsId, open: pushYbsId, close: popYbsId, syncingRef: ybsSyncing } = useUrlDetailId('replenishmentRequestId');
   const [selectedYbs, setSelectedYbs] = useState<ReplenishmentRequest | null>(null);
   const [ybsModalOpen, setYbsModalOpen] = useState(false);
+  const [supplyDetailId, setSupplyDetailId] = useState<string | null>(null);
   // RBAC gates via Rule Matrix with baseline fallback inside can() (mirror NVL page).
   const _roleEditBase = (user?.role as string) === UserRole.ADMIN || (user?.role as string) === UserRole.DEPARTMENT_HEAD || (user?.role as string) === UserRole.TEAM_LEAD;
   const canEditPR = isCachedPermissionsLoaded() ? can('purchase-requests', 'UPDATE', user?.role as string) : _roleEditBase;
@@ -1003,7 +1005,7 @@ const PurchasingEquipment = () => {
           {activeTab === 'replenishment' && (
             <ReplenishmentList
               onOpenDetail={(ybs) => { setSelectedYbs(ybs); pushYbsId(ybs.id); setYbsModalOpen(true); }}
-              onOpenSupplyRequest={(id) => window.open(`/supply-requests?supplyRequestId=${id}`, '_blank')}
+              onOpenSupplyRequest={(id) => setSupplyDetailId(id)}
             />
           )}
 
@@ -1012,12 +1014,14 @@ const PurchasingEquipment = () => {
           isOpen={ybsModalOpen}
           onClose={() => { setYbsModalOpen(false); setSelectedYbs(null); popYbsId(); }}
           ybs={selectedYbs}
+          onOpenSupplyRequest={(id) => setSupplyDetailId(id)}
           onConverted={() => {
             popYbsId();
             // The new YCMH belongs to the purchase-request list; refresh it when visible.
             if (activeTab === 'purchaseRequestList') fetchPurchaseRequests();
           }}
         />
+        <SupplyRequestDetailModal supplyRequestId={supplyDetailId} isOpen={!!supplyDetailId} onClose={() => setSupplyDetailId(null)} />
 
         {/* Supplier Detail Modal */}
         {isDetailModalOpen && selectedItem && (

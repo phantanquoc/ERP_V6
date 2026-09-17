@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { X, ShoppingCart, AlertTriangle, Plus, Ban } from 'lucide-react';
+import { X, ShoppingCart, AlertTriangle, Plus, Ban, ExternalLink } from 'lucide-react';
 import Modal from './Modal';
 import type { ReplenishmentRequest, ReplenishmentRequestItem } from '../services/replenishmentRequestService';
 import replenishmentRequestService from '../services/replenishmentRequestService';
@@ -18,6 +18,7 @@ interface ReplenishmentDetailModalProps {
   ybs: ReplenishmentRequest | null;
   onConverted?: (ycbsId: string, ycmhId: string) => void;
   onCancelled?: (ycbsId: string) => void;
+  onOpenSupplyRequest?: (supplyRequestId: string) => void;
 }
 
 /**
@@ -36,6 +37,7 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
   ybs,
   onConverted,
   onCancelled,
+  onOpenSupplyRequest,
 }) => {
   const queryClient = useQueryClient();
   const [detail, setDetail] = useState<ReplenishmentRequest | null>(null);
@@ -58,6 +60,7 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
   const supplierList = (suppliers ?? []) as Array<{ id: string; tenNhaCungCap: string; maNhaCungCap: string }>;
 
   const fetchIdRef = useRef<string | null>(null);
+
 
   useEffect(() => {
     if (!isOpen || !ybs?.id) return;
@@ -243,12 +246,33 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
               <ShoppingCart className="w-5 h-5 text-amber-600" />
               Yêu cầu bổ sung {detail?.maYeuCau ?? ybs?.maYeuCau ?? ''}
             </h2>
-            {detail && <p className="text-xs text-gray-500 mt-1">Nguồn: {detail.supplyRequest?.maYeuCau ?? detail.supplyRequestId ?? '—'} · {detail.phanLoaiGroup ?? ''}</p>}
+            {detail && (
+              <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                <span>
+                  Nguồn:{' '}
+                  {detail.supplyRequestId ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenSupplyRequest?.(detail.supplyRequestId!)}
+                      className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 hover:underline"
+                      title="Xem chi tiết YCCB nguồn"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      {detail.supplyRequest?.maYeuCau ?? detail.supplyRequestId ?? '—'}
+                    </button>
+                  ) : (
+                    '—'
+                  )}
+                  {detail.phanLoaiGroup ? <> · {detail.phanLoaiGroup}</> : null}
+                </span>
+              </div>
+            )}
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded" aria-label="Đóng"><X className="w-5 h-5" /></button>
         </div>
 
         <div className="px-6 py-4 space-y-4 overflow-y-auto flex-1 min-h-0">
+
           {loading ? (
             <div className="text-center py-8 text-sm text-gray-500">Đang tải…</div>
           ) : readOnly && detail ? (
