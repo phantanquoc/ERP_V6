@@ -2,6 +2,7 @@ import React from 'react';
 import type { WarehouseReceiptLine } from '../services/warehouseReceiptService';
 import type { WarehouseIssueLine } from '../services/warehouseIssueService';
 import { totalsByUnit } from '../utils/warehouseSlipTotals';
+import { displayLoaiKho, displayMaHang } from '../utils/warehouseSlipLines';
 import { COMPANY_HEADER, BM_CODES } from '../constants/warehouseCatalogs';
 import abfLogo from '@assets/abf-logo.png';
 
@@ -106,8 +107,8 @@ const WarehouseSlipPrintView: React.FC<WarehouseSlipPrintViewProps> = ({
                 return (
                   <tr key={line.id || idx}>
                     <td style={{ border: '1px solid #000', textAlign: 'center', padding: 2 }}>{line.stt ?? idx+1}</td>
-                    <td style={{ border: '1px solid #000', padding: 2, fontFamily: 'monospace', fontSize: 7 }}>{line.maKien ?? (line.lotProductId?.slice(-6) ?? '')}</td>
-                    <td style={{ border: '1px solid #000', padding: 2 }}>{line.tenKho ?? ''}</td>
+                    <td style={{ border: '1px solid #000', padding: 2, fontFamily: 'monospace', fontSize: 7 }}>{displayMaHang(line as any)}</td>
+                    <td style={{ border: '1px solid #000', padding: 2 }}>{displayLoaiKho(line as any)}</td>
                     <td style={{ border: '1px solid #000', padding: 2 }}>{line.tenSanPham}</td>
                     <td style={{ border: '1px solid #000', padding: 2 }}>{soLoKH}</td>
                     <td style={{ border: '1px solid #000', padding: 2 }}>{soLoTT}</td>

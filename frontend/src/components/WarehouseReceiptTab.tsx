@@ -9,7 +9,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import warehouseReceiptService, { WarehouseReceipt } from '../services/warehouseReceiptService';
 import TableFilter, { FilterField } from './TableFilter';
 import { warehouseKeys } from '../hooks';
-import { getWarehouseSlipLines, normalizeWarehouseListResponse } from '../utils/warehouseSlipLines';
+import { getUniqueSlipField, getWarehouseSlipLines, normalizeWarehouseListResponse, displayMaHang, displayLoaiKho } from '../utils/warehouseSlipLines';
 import { TINH_TRANG_OPTIONS } from '../constants/warehouseCatalogs';
 
 interface WarehouseReceiptTabProps {
@@ -109,10 +109,16 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
     // Line-level matching: a slip is found when ANY of its lines carries the
     // value — the deprecated header mirror only holds line 1, so filtering on
     // it alone makes every other line unfindable.
-    const lineMatch = (needle: string) =>
-      lines.some((l) =>
-        contains(l.tenSanPham, needle) || contains(l.tenKho, needle) || contains(l.tenLo, needle)
-      );
+    const lineContains = (line: any, needle: string) =>
+      contains(line.tenSanPham, needle) ||
+      contains(line.maSanPham as string | undefined, needle) ||
+      contains(line.maKien as string | undefined, needle) ||
+      contains(line.tenKho, needle) ||
+      contains(line.maKho as string | undefined, needle) ||
+      contains(line.tenLo, needle) ||
+      contains(line.soKienThucTe as string | undefined, needle) ||
+      contains(line.soKienKeHoach as string | undefined, needle);
+    const lineMatch = (needle: string) => lines.some((l) => lineContains(l, needle));
     const search = (filterValues._search || '').toLowerCase().trim();
     if (search) {
       const matchSearch =
@@ -128,8 +134,8 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
     if (filterValues.tenNhanVien && !contains(r.tenNhanVien, filterValues.tenNhanVien.toLowerCase())) return false;
     if (filterValues.nguoiDeNghi && !contains((r as any).nguoiDeNghi, filterValues.nguoiDeNghi.toLowerCase())) return false;
     if (filterValues.boPhan && !contains((r as any).boPhan, filterValues.boPhan.toLowerCase())) return false;
-    if (filterValues.tenKho && !lines.some((l) => contains(l.tenKho, filterValues.tenKho.toLowerCase()))) return false;
-    if (filterValues.tenSanPham && !lines.some((l) => contains(l.tenSanPham, filterValues.tenSanPham.toLowerCase()))) return false;
+    if (filterValues.tenKho && !lines.some((l) => contains(l.tenKho, filterValues.tenKho.toLowerCase()) || contains((l as any).maKho, filterValues.tenKho.toLowerCase()))) return false;
+    if (filterValues.tenSanPham && !lines.some((l) => contains(l.tenSanPham, filterValues.tenSanPham.toLowerCase()) || contains((l as any).maSanPham, filterValues.tenSanPham.toLowerCase()) || contains((l as any).maKien, filterValues.tenSanPham.toLowerCase()))) return false;
     if (filterValues.tinhTrang && !lines.some((l) => contains((l as any).tinhTrang, filterValues.tinhTrang.toLowerCase()))) return false;
     if (filterValues.daIn) {
       const isPrinted = !!(r as any).daIn;
@@ -208,8 +214,8 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
       )}
       {loading && receipts.length === 0 && <p className="mb-4 text-sm text-gray-500">Đang tải danh sách phiếu nhập kho...</p>}
 
-      {/* Receipts Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      {/* Receipts Table — desktop */}
+      <div className="hidden md:block bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
         <table className="w-full min-w-[1050px] border-collapse">
           <thead>
@@ -355,6 +361,49 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
         </div>
       </div>
 
+      {/* Mobile: one card per slip — horizontal 10-col table is unusable on phones */}
+      <div className="md:hidden space-y-3">
+        {filteredReceipts.length === 0 ? (
+          <div className="rounded-lg border border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-500">Chưa có phiếu nhập kho nào</div>
+        ) : (
+          paginatedReceipts.map((receipt) => {
+            const lines = getWarehouseSlipLines(receipt);
+            return (
+              <div key={receipt.id} className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="font-mono text-sm font-semibold text-gray-900">{receipt.maPhieuNhap}{lines.length > 1 && <span className="ml-1 text-xs font-normal text-gray-400">· {lines.length} dòng</span>}</span>
+                  {receipt.isLocked ? <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">Đã khóa</span> : (receipt as any).daIn ? <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Đã in</span> : null}
+                </div>
+                <div className="mt-1 text-xs text-gray-500">{new Date(receipt.ngayNhap).toLocaleDateString('vi-VN')} · {receipt.tenNhanVien}{(receipt as any).nguoiDeNghi ? ` · ${(receipt as any).nguoiDeNghi}` : ''}</div>
+                <div className="mt-2 space-y-2">
+                  {lines.map((line: any, li) => (
+                    <div key={line.id ?? li} className="rounded border border-gray-100 bg-gray-50 px-2.5 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-xs font-semibold text-blue-700">{displayMaHang(line)}</span>
+                        <span className="rounded bg-white px-1.5 py-0.5 text-xs text-gray-600">{displayLoaiKho(line)}</span>
+                      </div>
+                      <div className="text-sm font-medium text-gray-900">{line.tenSanPham || '-'}</div>
+                      <div className="text-xs text-gray-500">{line.tenLo ? `Lô ${line.tenLo}` : ''}{line.maKien ? ` · Kiện ${line.maKien}` : ''} · {line.soLuongThucTe} {line.donViTinh || ''}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  <button onClick={() => handleViewDetail(receipt)} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700">Chi tiết</button>
+                  <button onClick={() => { setPrintReceipt(receipt); setShowPrintView(true); }} className="rounded border border-green-200 px-2.5 py-1 text-xs text-green-700">In</button>
+                  <button onClick={async () => { try { await warehouseReceiptService.exportXlsx(receipt.id); } catch (e: any) { alert(e.message || 'Lỗi xuất Excel'); } }} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700">Excel</button>
+                  {!receipt.isLocked && (
+                    <>
+                      <button onClick={() => setEditingReceipt(receipt)} className="rounded border border-amber-200 px-2.5 py-1 text-xs text-amber-700">Sửa</button>
+                      <button onClick={() => handleDelete(receipt)} className="rounded border border-red-200 px-2.5 py-1 text-xs text-red-700">Xóa</button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
       {totalPages > 1 && (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
           <span className="text-sm text-gray-600">
@@ -457,7 +506,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="text-xs text-gray-500 uppercase font-medium">Kho</label>
                   <p className="text-sm font-semibold text-gray-900 mt-1">
-                    {[...new Set(selectedReceiptLines.map((item) => item.tenKho).filter(Boolean))].join(', ') || '-'}
+                    {[...new Set(selectedReceiptLines.map((item: any) => (item.maKho || item.tenKho)).filter(Boolean))].join(', ') || '-'}
                   </p>
                 </div>
                 <div className="bg-gray-50 p-3 rounded-lg">
@@ -479,7 +528,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                   <label className="text-xs text-gray-500 uppercase font-medium mb-2 block">
                     Chi tiết hàng hóa ({selectedReceiptLines.length} dòng) — 14 cột BM01
                   </label>
-                  <div className="overflow-x-auto">
+                  <div className="hidden md:block overflow-x-auto">
                     <table className="w-full min-w-[1100px] text-sm border-collapse">
                       <thead>
                         <tr className="bg-gray-100">
@@ -505,8 +554,8 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                         {selectedReceiptLines.map((item: any, idx) => (
                           <tr key={item.id || idx} className="hover:bg-gray-100">
                             <td className="px-2 py-1.5 border text-center">{item.stt || idx + 1}</td>
-                            <td className="px-2 py-1.5 border font-mono text-xs">{item.maKien || item.lotProductId?.slice(-6) || '-'}</td>
-                            <td className="px-2 py-1.5 border">{item.tenKho || '-'}</td>
+                            <td className="px-2 py-1.5 border font-mono text-xs">{displayMaHang(item)}</td>
+                            <td className="px-2 py-1.5 border">{displayLoaiKho(item)}</td>
                             <td className="px-2 py-1.5 border">{item.tenSanPham || '-'}</td>
                             <td className="px-2 py-1.5 border text-center">{item.soLoKeHoach ?? '-'}</td>
                             <td className="px-2 py-1.5 border text-center">{item.soLoThucTe ?? item.tenLo ?? '-'}</td>
@@ -525,7 +574,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                       </tbody>
                       <tfoot>
                         <tr className="bg-gray-100 font-semibold">
-                          <td colSpan={11} className="px-2 py-1.5 border text-right">Tổng cộng:</td>
+                          <td colSpan={12} className="px-2 py-1.5 border text-right">Tổng cộng (SL TT):</td>
                           <td className="px-2 py-1.5 border text-right text-green-700">
                             {formatActualTotalByUnit(selectedReceiptLines)}
                           </td>
@@ -533,6 +582,33 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                         </tr>
                       </tfoot>
                     </table>
+                  </div>
+                  {/* Mobile: card per line — 16-column table is unreadable on phones */}
+                  <div className="md:hidden mt-3 space-y-3">
+                    {selectedReceiptLines.map((item: any, idx) => (
+                      <div key={item.id || idx} className="rounded-lg border border-gray-200 bg-white p-3 text-sm">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="font-mono text-xs font-semibold text-blue-700">{displayMaHang(item)}</span>
+                          <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{displayLoaiKho(item)}</span>
+                        </div>
+                        <div className="mt-1 font-medium text-gray-900">{item.tenSanPham || '-'}</div>
+                        <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                          <dt className="text-gray-500">Số lô KH</dt><dd className="text-right">{item.soLoKeHoach ?? '-'}</dd>
+                          <dt className="text-gray-500">Số lô TT</dt><dd className="text-right">{item.soLoThucTe ?? item.tenLo ?? '-'}</dd>
+                          <dt className="text-gray-500">Số kiện KH</dt><dd className="text-right font-mono text-xs">{(() => { try { const a = JSON.parse(item.soKienKeHoach); if (Array.isArray(a)) return a.join(', '); } catch {} return item.soKienKeHoach ?? '-'; })()}</dd>
+                          <dt className="text-gray-500">Số kiện TT</dt><dd className="text-right font-mono text-xs">{(() => { try { const a = JSON.parse(item.soKienThucTe); if (Array.isArray(a)) return a.join(', '); } catch {} return item.soKienThucTe ?? item.maKien ?? '-'; })()}</dd>
+                          <dt className="text-gray-500">Tình trạng</dt><dd className="text-right">{item.tinhTrang ?? '-'}</dd>
+                          <dt className="text-gray-500">Quy cách</dt><dd className="text-right">{item.quyCach ?? '-'}</dd>
+                          <dt className="text-gray-500">ĐV</dt><dd className="text-right">{item.donViTinh || '-'}</dd>
+                          <dt className="text-gray-500">SL KH</dt><dd className="text-right">{item.soLuongYeuCau ?? item.soLuongThucTe}</dd>
+                          <dt className="text-gray-500">SL TT</dt><dd className="text-right font-semibold text-green-600">{item.soLuongThucTe} {item.donViTinh || ''}</dd>
+                          <dt className="text-gray-500">Tồn trước</dt><dd className="text-right">{item.soLuongTruoc ?? '-'}</dd>
+                          <dt className="text-gray-500">Tồn sau</dt><dd className="text-right">{item.soLuongSau ?? '-'}</dd>
+                        </dl>
+                        {item.ghiChu && <div className="mt-2 text-xs text-gray-600"><span className="text-gray-500">Ghi chú:</span> {item.ghiChu}</div>}
+                      </div>
+                    ))}
+                    <div className="rounded-lg bg-gray-100 px-3 py-2 text-right text-sm font-semibold text-green-700">Tổng cộng (SL TT): {formatActualTotalByUnit(selectedReceiptLines)}</div>
                   </div>
                 </div>
               ) : (

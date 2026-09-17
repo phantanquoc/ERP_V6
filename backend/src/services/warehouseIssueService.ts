@@ -10,6 +10,7 @@ import {
   diffLines,
   type PackageBalance,
 } from '@utils/warehouseSlipLines';
+import { resolveSlipItems, slipItemInclude } from '@utils/warehouseSlipEnrichment';
 
 /** Prisma client or an interactive-transaction client. */
 type PrismaClientLike = typeof prisma | Prisma.TransactionClient;
@@ -373,14 +374,16 @@ class WarehouseIssueService {
       include: {
         // Lines are part of the list contract: the list table renders one row per
         // commodity line, so omitting them silently hides every line but the first.
-        items: { orderBy: { stt: 'asc' } },
+        // `slipItemInclude` carries package → product + warehouse refs — see warehouseSlipEnrichment.
+        items: slipItemInclude,
         materialEvaluation: { select: { id: true } },
       },
     });
-    return issues.map((issue) => {
-      const { materialEvaluation, ...rest } = issue;
+    return issues.map((issue: any) => {
+      const { materialEvaluation, items, ...rest } = issue;
       return {
         ...rest,
+        items: resolveSlipItems(items),
         // An issue is locked by either link — supply request or material evaluation.
         isLocked: !!issue.supplyRequestId || !!materialEvaluation,
       };
@@ -391,16 +394,17 @@ class WarehouseIssueService {
     const issue = await prisma.warehouseIssue.findUnique({
       where: { id },
       include: {
-        items: { orderBy: { stt: 'asc' } },
+        items: slipItemInclude,
         materialEvaluation: { select: { id: true } },
       },
     });
     if (!issue) {
       throw new NotFoundError('Không tìm thấy phiếu xuất kho');
     }
-    const { materialEvaluation, ...rest } = issue;
+    const { materialEvaluation, items, ...rest } = issue as any;
     return {
       ...rest,
+      items: resolveSlipItems(items),
       materialEvaluation,
       isLocked: !!issue.supplyRequestId || !!materialEvaluation,
     };

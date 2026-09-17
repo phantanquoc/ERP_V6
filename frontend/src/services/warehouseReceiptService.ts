@@ -5,6 +5,8 @@ export interface WarehouseReceiptLine {
   stt?: number;
   lotProductId: string;
   maKien?: string | null;
+  maSanPham?: string | null;
+  maKho?: string | null;
   tenSanPham: string;
   donViTinh?: string;
   warehouseId: string;

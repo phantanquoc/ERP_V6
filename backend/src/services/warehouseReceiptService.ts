@@ -10,6 +10,7 @@ import {
   diffLines,
   type PackageBalance,
 } from '@utils/warehouseSlipLines';
+import { resolveSlipItems, slipItemInclude } from '@utils/warehouseSlipEnrichment';
 
 /** Prisma client or an interactive-transaction client. */
 type PrismaClientLike = typeof prisma | Prisma.TransactionClient;
@@ -445,10 +446,14 @@ class WarehouseReceiptService {
       orderBy: { createdAt: 'desc' },
       // Lines are part of the list contract: the list table renders one row per
       // commodity line, so omitting them silently hides every line but the first.
-      include: { items: { orderBy: { stt: 'asc' } } },
+      // `slipItemInclude` carries the package → product + warehouse refs so the
+      // BM01 grid can render real "Mã hàng" (maSanPham) and real "Loại Kho" (maKho)
+      // instead of the package code / warehouse label — see warehouseSlipEnrichment.
+      include: { items: slipItemInclude },
     });
-    return receipts.map((r) => ({
+    return receipts.map((r: any) => ({
       ...r,
+      items: resolveSlipItems(r.items),
       isLocked: !!r.supplyRequestId,
     }));
   }
@@ -456,12 +461,12 @@ class WarehouseReceiptService {
   async getById(id: string) {
     const receipt = await prisma.warehouseReceipt.findUnique({
       where: { id },
-      include: { items: { orderBy: { stt: 'asc' } } },
+      include: { items: slipItemInclude },
     });
     if (!receipt) {
       throw new NotFoundError('Không tìm thấy phiếu nhập kho');
     }
-    return { ...receipt, isLocked: !!receipt.supplyRequestId };
+    return { ...(receipt as any), items: resolveSlipItems((receipt as any).items), isLocked: !!receipt.supplyRequestId };
   }
 
   async getByLotProduct(lotProductId: string) {

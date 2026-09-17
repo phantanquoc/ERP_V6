@@ -41,13 +41,36 @@ function toHeaderDate(d: Date | string): string {
 
 async function buildWorkbook(type: SlipType, id: string): Promise<{ wb: ExcelJS.Workbook; ws: ExcelJS.Worksheet; fileName: string; slip: any }> {
   const isReceipt = type === 'receipt';
+  const slipItemInclude = {
+    orderBy: { stt: 'asc' as const },
+    include: {
+      lotProduct: {
+        select: {
+          internationalProduct: { select: { maSanPham: true } },
+          lot: { select: { warehouse: { select: { maKho: true } } } },
+        },
+      },
+    },
+  };
   let slip: any;
   if (isReceipt) {
-    slip = await (prisma as any).warehouseReceipt.findUnique({ where: { id }, include: { items: { orderBy: { stt: 'asc' } } } });
+    slip = await (prisma as any).warehouseReceipt.findUnique({ where: { id }, include: { items: slipItemInclude } });
   } else {
-    slip = await (prisma as any).warehouseIssue.findUnique({ where: { id }, include: { items: { orderBy: { stt: 'asc' } } } });
+    slip = await (prisma as any).warehouseIssue.findUnique({ where: { id }, include: { items: slipItemInclude } });
   }
   if (!slip) throw new Error('Không tìm thấy phiếu');
+  // Flatten master refs onto the slip items so the grid columns read plain strings.
+  // Keeping the nested `lotProduct` in the slip would duplicate data the sheet never reads.
+  if (Array.isArray(slip.items)) {
+    slip.items = slip.items.map((it: any) => {
+      const { lotProduct, ...rest } = it;
+      return {
+        ...rest,
+        maSanPham: lotProduct?.internationalProduct?.maSanPham ?? null,
+        maKho: lotProduct?.lot?.warehouse?.maKho ?? null,
+      };
+    });
+  }
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet(isReceipt ? 'PhieuNhap' : 'PhieuXuat', {
@@ -124,8 +147,10 @@ async function buildWorkbook(type: SlipType, id: string): Promise<{ wb: ExcelJS.
     const soLuongTT = it.soLuongThucTe;
     const cols: Array<{ col: string; val: any; align?: string }> = [
       { col: 'A', val: it.stt ?? (i+1), align: 'center' },
-      { col: 'B', val: it.lotProductId ? (it.maKien ?? it.lotProductId.slice(-6)) : '' },
-      { col: 'C', val: it.tenKho ?? '' },
+      // B "Mã hàng hóa" is the catalog code, not the package code — see warehouseSlipEnrichment.
+      { col: 'B', val: it.lotProductId ? (it.maSanPham ?? it.maKien ?? it.lotProductId.slice(-6)) : '' },
+      // C "Loại Kho" is the warehouse code (KHONL/HD1/…), not the display label.
+      { col: 'C', val: it.maKho ?? it.tenKho ?? '' },
       { col: 'D', val: it.tenSanPham ?? '' },
       { col: 'E', val: soLoKH },
       { col: 'F', val: soLoTT },
