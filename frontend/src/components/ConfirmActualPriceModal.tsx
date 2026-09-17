@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { X, BadgeCheck, AlertTriangle } from 'lucide-react';
+import Modal from './Modal';
 import purchaseRequestService from '../services/purchaseRequestService';
 
 /**
@@ -122,8 +123,8 @@ const ConfirmActualPriceModal: React.FC<ConfirmActualPriceModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[92vh] flex flex-col">
+    <Modal isOpen={isOpen} onClose={onClose} closeOnBackdrop ariaLabel="Xác nhận giá thực tế">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[92vh] flex flex-col" onClick={(e) => e.stopPropagation()} role="document">
         <div className="flex items-start justify-between gap-3 px-6 py-4 border-b border-gray-200 shrink-0">
           <div>
             <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
@@ -237,7 +238,7 @@ const ConfirmActualPriceModal: React.FC<ConfirmActualPriceModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 
