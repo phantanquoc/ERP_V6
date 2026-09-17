@@ -10,6 +10,7 @@ import {
   Eye,
   Trash2,
   Phone,
+  ShoppingCart,
   ClipboardList,
   List,
   X,
@@ -113,6 +114,8 @@ const PurchasingEquipment = () => {
   const [monthlyCounts, setMonthlyCounts] = useState<number[]>(Array(12).fill(0));
   const [trendPct, setTrendPct] = useState<number | null>(null);
   const [yearSpend, setYearSpend] = useState(0);
+  const [replenishmentPending, setReplenishmentPending] = useState(0);
+  const purchasePending = (cardPRStats.choBaoGia ?? 0) + (cardPRStats.choDuyet ?? 0);
 
   // Fetch supplier stats (all-time, no month/year filter)
   useEffect(() => {
@@ -167,6 +170,18 @@ const PurchasingEquipment = () => {
     };
     fetchPRStats();
   }, [selectedMonth, selectedYear]);
+
+  // Pending YCBS for tab badge — matches ReplenishmentList's active filter
+  useEffect(() => {
+    let cancelled = false;
+    replenishmentRequestService.getAllReplenishmentRequests(1, 1, undefined, undefined, undefined, { trangThai: 'Chờ báo giá' } as any)
+      .then((res: any) => {
+        const total = res?.pagination?.total ?? res?.data?.pagination?.total ?? 0;
+        if (!cancelled) setReplenishmentPending(Number(total) || 0);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [ybsModalOpen]);
 
   useEffect(() => {
     if (prSyncing.current) { prSyncing.current = false; return; }
@@ -570,11 +585,11 @@ const PurchasingEquipment = () => {
   }, [purchaseRequestPage, purchaseRequestSearch]);
 
     const tabs = useMemo(() => [
-    { id: 'purchaseRequestList', name: 'Danh sách mua hàng', icon: <List className="w-4 h-4" /> },
-    { id: 'replenishment', name: 'Yêu cầu bổ sung', icon: <List className="w-4 h-4" /> },
+    { id: 'purchaseRequestList', name: 'Danh sách mua hàng', icon: <List className="w-4 h-4" />, count: purchasePending },
+    { id: 'replenishment', name: 'Yêu cầu bổ sung', icon: <ShoppingCart className="w-4 h-4" />, count: replenishmentPending },
     { id: 'suppliers', name: 'Nhà cung cấp Thiết bị', icon: <Users className="w-4 h-4" /> },
     { id: 'orderList', name: 'Danh sách đơn hàng', icon: <ClipboardList className="w-4 h-4" /> },
-  ], []);
+  ], [purchasePending, replenishmentPending]);
 
 
   return (
@@ -722,6 +737,9 @@ const PurchasingEquipment = () => {
             >
               {tab.icon}
               {tab.name}
+              {(tab as { count?: number }).count != null && (tab as { count?: number }).count! > 0 && (
+                <span className="ml-1 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white min-w-[18px]">{(tab as { count?: number }).count}</span>
+              )}
             </button>
           ))}
         </nav>
