@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import {
   Settings,
@@ -15,14 +15,11 @@ import {
   X,
   Globe,
   CheckCircle,
-  BadgeCheck,
-  Ban,
   HelpCircle
 } from 'lucide-react';
 // chuaPhanLoai badge reserved
 void (() => HelpCircle)();
 import PageHeader from '../../design-system/PageHeader';
-import FileUpload from '../../components/FileUpload';
 import OrderManagement from '../../components/OrderManagement';
 import purchaseRequestService from '../../services/purchaseRequestService';
 import { supplierService, Supplier, CreateSupplierData, UpdateSupplierData } from '../../services/supplierService';
@@ -34,46 +31,19 @@ import { labelForPurchaseRequest } from '../../utils/purchaseRequestLabel';
 import ReplenishmentList from '../../components/ReplenishmentList';
 import ReplenishmentDetailModal from '../../components/ReplenishmentDetailModal';
 import ConfirmActualPriceModal from '../../components/ConfirmActualPriceModal';
-import SupplierCombobox from '../../components/common/SupplierCombobox';
 import { useQueryClient } from '@tanstack/react-query';
 import { replenishmentRequestKeys } from '../../hooks/useReplenishmentRequests';
 import { supplyRequestKeys } from '../../hooks/useSupplyRequests';
 import CancelWithReasonModal from '../../components/common/CancelWithReasonModal';
+import PurchaseRequestDetailModal from '../../components/purchasing/PurchaseRequestDetailModal';
+import PurchaseRequestEditModal from '../../components/purchasing/PurchaseRequestEditModal';
 import { useSupplierOptions } from '../../hooks/useSuppliers';
 import type { ReplenishmentRequest } from '../../services/replenishmentRequestService';
 import replenishmentRequestService from '../../services/replenishmentRequestService';
 import { useUrlTab, useUrlDetailId } from '../../hooks/useUrlState';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
 
-interface PurchaseRequest {
-  id: string;
-  stt: number;
-  ngayYeuCau: string;
-  maYeuCau: string;
-  employeeId: string;
-  maNhanVien: string;
-  tenNhanVien: string;
-  phanLoai: string;
-  tenHangHoa: string;
-  soLuong: number;
-  donViTinh: string;
-  mucDichYeuCau: string;
-  mucDoUuTien: string;
-  ghiChu?: string;
-  ghiChuMuaHang?: string;
-  fileKemTheo?: string;
-  trangThai: string;
-  nguoiDuyet?: string;
-  ngayDuyet?: string;
-  lyDoHuy?: string;
-  ngayHuy?: string;
-  nguoiHuy?: string;
-  supplyRequestId?: string;
-  sourceType?: string;
-  createdAt: string;
-  updatedAt: string;
-  items?: { id: string; tenHangHoa: string; soLuong: number; donViTinh: string; phanLoai: string; giaDuKien?: number; giaThucTe?: number | null; nhaCungCapId?: string | null }[];
-}
+type PurchaseRequest = import('../../types/purchaseRequest').PurchaseRequest;
 
 const VALID_TABS = ['purchaseRequestList', 'replenishment', 'suppliers', 'orderList'] as const;
 type TabType = typeof VALID_TABS[number];
@@ -397,21 +367,8 @@ const PurchasingEquipment = () => {
   const [showConfirmActualPrice, setShowConfirmActualPrice] = useState(false);
   const [completeAfterPriceConfirm, setCompleteAfterPriceConfirm] = useState(false);
   const [confirmActualPriceTarget, setConfirmActualPriceTarget] = useState<import('../../components/ConfirmActualPriceModal').ConfirmPriceTarget | null>(null);
-  const [editFormData, setEditFormData] = useState<Partial<PurchaseRequest>>({});
   // Per-item pricing state — required so a "Chờ báo giá" replenishment PR can be
   // quoted (NCC + đơn giá per line) and submitted for approval from this page.
-  const [editItems, setEditItems] = useState<Array<{
-    id?: string;
-    phanLoai: string;
-    tenHangHoa: string;
-    soLuong: number;
-    donViTinh: string;
-    nhaCungCapId: string | null;
-    giaDuKien: number | null;
-  }>>([]);
-  const [editLoading, setEditLoading] = useState(false);
-  const [editFormErrors, setEditFormErrors] = useState<{ api?: string }>({});
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [confirmAction, setConfirmAction] = useState<{
     title: string;
     message: string;
@@ -493,96 +450,15 @@ const PurchasingEquipment = () => {
   };
 
   const openEditPurchaseRequest = useCallback((item: PurchaseRequest) => {
-    const currentUserName = user ? `${user.lastName} ${user.firstName}`.trim() : '';
-    const today = new Date().toISOString();
     setEditingPurchaseRequest(item);
-    setSelectedFile(null);
-    setEditFormErrors({});
-    setEditFormData({
-      trangThai: item.trangThai,
-      ghiChuMuaHang: (item as any).ghiChuMuaHang || '',
-      fileKemTheo: item.fileKemTheo || '',
-      nguoiDuyet: item.nguoiDuyet || currentUserName,
-      ngayDuyet: item.ngayDuyet || today,
-    });
-    // Load per-item pricing state (fallback to legacy single-row if no items)
-    if (item.items && item.items.length > 0) {
-      setEditItems(item.items.map((it) => ({
-        id: it.id,
-        phanLoai: it.phanLoai,
-        tenHangHoa: it.tenHangHoa,
-        soLuong: it.soLuong,
-        donViTinh: it.donViTinh,
-        nhaCungCapId: it.nhaCungCapId || null,
-        giaDuKien: it.giaDuKien ?? null,
-      })));
-    } else {
-      setEditItems([{
-        phanLoai: item.phanLoai || '',
-        tenHangHoa: item.tenHangHoa || '',
-        soLuong: item.soLuong || 0,
-        donViTinh: item.donViTinh || '',
-        nhaCungCapId: null,
-        giaDuKien: null,
-      }]);
-    }
-  }, [user]);
+  }, []);
 
   const closeEditPurchaseRequest = useCallback(() => {
     setEditingPurchaseRequest(null);
-    setEditFormData({});
-    setEditItems([]);
-    setSelectedFile(null);
-    setEditFormErrors({});
   }, []);
 
-  const updateEditItem = useCallback((index: number, patch: Partial<typeof editItems[number]>) => {
-    setEditItems((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
-  }, []);
 
-  const tongTienEdit = useMemo(() => {
-    return editItems.reduce((sum, it) => {
-      const qty = typeof it.soLuong === 'number' ? it.soLuong : parseFloat(String(it.soLuong)) || 0;
-      const gia = typeof it.giaDuKien === 'number' ? it.giaDuKien : parseFloat(String(it.giaDuKien ?? 0)) || 0;
-      return sum + qty * gia;
-    }, 0);
-  }, [editItems]);
 
-  const handleEditSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingPurchaseRequest) return;
-    setEditFormErrors({});
-    setEditLoading(true);
-    try {
-      const cleanedItems = editItems.map((it) => ({
-        ...(it.id ? { id: it.id } : {}),
-        phanLoai: it.phanLoai,
-        tenHangHoa: it.tenHangHoa,
-        soLuong: typeof it.soLuong === 'number' ? it.soLuong : parseFloat(String(it.soLuong)) || 0,
-        donViTinh: it.donViTinh,
-        nhaCungCapId: it.nhaCungCapId || null,
-        giaDuKien:
-          it.giaDuKien === null || it.giaDuKien === undefined || String(it.giaDuKien).trim() === ''
-            ? null
-            : typeof it.giaDuKien === 'number'
-              ? it.giaDuKien
-              : parseFloat(String(it.giaDuKien)) || null,
-      }));
-      await purchaseRequestService.updatePurchaseRequest(editingPurchaseRequest.id, {
-        ...editFormData,
-        items: cleanedItems,
-        file: selectedFile || undefined,
-      } as any);
-      alert('Cập nhật thành công!');
-      closeEditPurchaseRequest();
-      fetchPurchaseRequests();
-    } catch (error: any) {
-      const message = error.response?.data?.message || error.message || 'Lỗi hệ thống, vui lòng thử lại';
-      setEditFormErrors({ api: message });
-    } finally {
-      setEditLoading(false);
-    }
-  };
 
   // Validate every line has NCC + đơn giá, then flip "Chờ báo giá" → "Chờ duyệt".
   const handleSubmitForApproval = useCallback((item: any) => {
@@ -1228,137 +1104,17 @@ const PurchasingEquipment = () => {
           </div>
         )}
 
-        {/* Purchase Request Detail Modal */}
-        {selectedPurchaseRequest && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-sm max-w-4xl w-full mx-2 sm:mx-4 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] flex flex-col overflow-hidden">
-              <div className="p-4 sm:p-6 flex flex-col flex-1 min-h-0">
-                <div className="flex justify-between items-center mb-6 shrink-0">
-                  <h2 className="text-2xl font-bold text-gray-800">Chi tiết {labelForPurchaseRequest(selectedPurchaseRequest)}</h2>
-                  <button onClick={closePurchaseRequestDetail} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto flex-1 min-h-0 pr-1">
-                  <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Mã yêu cầu</label><p className="text-sm font-semibold text-purple-600">{selectedPurchaseRequest.maYeuCau}</p></div>
-                  <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Ngày yêu cầu</label><p className="text-sm text-gray-900">{new Date(selectedPurchaseRequest.ngayYeuCau).toLocaleDateString('vi-VN')}</p></div>
-                  <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Nhân viên yêu cầu</label><p className="text-sm text-gray-900">{selectedPurchaseRequest.tenNhanVien}</p></div>
-                  <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Mã nhân viên</label><p className="text-sm text-gray-900">{selectedPurchaseRequest.maNhanVien}</p></div>
-                  <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Phân loại</label><p className="text-sm text-gray-900">{selectedPurchaseRequest.phanLoai || '-'}</p></div>
-                  <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Mức độ ưu tiên</label>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${selectedPurchaseRequest.mucDoUuTien === 'Cao' ? 'bg-red-100 text-red-800' : selectedPurchaseRequest.mucDoUuTien === 'Trung bình' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>{selectedPurchaseRequest.mucDoUuTien}</span>
-                  </div>
-
-                  {/* Items table */}
-                  {selectedPurchaseRequest.items && selectedPurchaseRequest.items.length > 0 && (
-                    <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2">
-                      <label className="block text-sm font-medium text-gray-500 mb-2">Danh sách sản phẩm</label>
-                      <div className="overflow-x-auto">
-	                      <table className="w-full min-w-[760px] text-sm">
-                        <thead>
-                          <tr className="border-b border-gray-200">
-                            <th className="text-left py-2 px-2 font-medium text-gray-600">STT</th>
-                            <th className="text-left py-2 px-2 font-medium text-gray-600">Phân loại</th>
-                            <th className="text-left py-2 px-2 font-medium text-gray-600">Tên hàng hoá</th>
-                            <th className="text-right py-2 px-2 font-medium text-gray-600">Số lượng</th>
-                            <th className="text-left py-2 px-2 font-medium text-gray-600">ĐVT</th>
-                            <th className="text-left py-2 px-2 font-medium text-gray-600">Nhà cung cấp</th>
-                            <th className="text-right py-2 px-2 font-medium text-gray-600">Giá kế hoạch</th>
-                            <th className="text-right py-2 px-2 font-medium text-gray-600">Giá thực tế</th>
-                            <th className="text-right py-2 px-2 font-medium text-gray-600">Thành tiền</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {selectedPurchaseRequest.items.map((item: any, i: number) => {
-                            // Thành tiền follows the confirmed actual price when there is
-                            // one, so the slip's cost matches what purchasing really paid.
-                            const price = item.giaThucTe ?? item.giaDuKien;
-                            return (
-                            <tr key={i} className="border-b border-gray-100">
-                              <td className="py-2 px-2">{i + 1}</td>
-                              <td className="py-2 px-2">{item.phanLoai}</td>
-                              <td className="py-2 px-2 font-medium">{item.tenHangHoa}</td>
-                              <td className="py-2 px-2 text-right">{item.soLuong}</td>
-                              <td className="py-2 px-2">{item.donViTinh}</td>
-                              <td className="py-2 px-2 text-purple-600">{item.supplier?.tenNhaCungCap || '-'}</td>
-                              <td className="py-2 px-2 text-right text-gray-500">{item.giaDuKien ? Number(item.giaDuKien).toLocaleString('vi-VN') + 'đ' : '-'}</td>
-                              <td className={`py-2 px-2 text-right ${item.giaThucTe ? 'font-medium text-green-700' : 'text-gray-400 italic'}`}>
-                                {item.giaThucTe ? Number(item.giaThucTe).toLocaleString('vi-VN') + 'đ' : 'chưa chốt'}
-                              </td>
-                              <td className="py-2 px-2 text-right font-medium">{price ? (Number(price) * item.soLuong).toLocaleString('vi-VN') + 'đ' : '-'}</td>
-                            </tr>
-                            );
-                          })}
-                          <tr className="bg-gray-100 font-bold">
-                            <td colSpan={8} className="py-2 px-2 text-right">Tổng cộng:</td>
-                            <td className="py-2 px-2 text-right text-green-700">
-                              {selectedPurchaseRequest.items.reduce((sum: number, item: any) => sum + ((item.giaThucTe ?? item.giaDuKien) ? Number(item.giaThucTe ?? item.giaDuKien) * item.soLuong : 0), 0).toLocaleString('vi-VN')}đ
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-	                      </div>
-                    </div>
-                  )}
-
-                  <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2"><label className="block text-sm font-medium text-gray-500 mb-1">Mục đích yêu cầu</label><p className="text-sm text-gray-900">{selectedPurchaseRequest.mucDichYeuCau}</p></div>
-                  <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Trạng thái</label>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${selectedPurchaseRequest.trangThai === 'Chờ duyệt' ? 'bg-yellow-100 text-yellow-800' : selectedPurchaseRequest.trangThai === 'Đã duyệt' ? 'bg-green-100 text-green-800' : selectedPurchaseRequest.trangThai === 'Từ chối' ? 'bg-red-100 text-red-800' : selectedPurchaseRequest.trangThai === 'Đã hủy' ? 'bg-gray-100 text-gray-800' : 'bg-gray-100 text-gray-800'}`}>{selectedPurchaseRequest.trangThai}</span>
-                  </div>
-                  {selectedPurchaseRequest.ghiChu && <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2"><label className="block text-sm font-medium text-gray-500 mb-1">Ghi chú</label><p className="text-sm text-gray-900">{selectedPurchaseRequest.ghiChu}</p></div>}
-                  {selectedPurchaseRequest.lyDoHuy && (
-                    <div className="bg-red-50 p-4 rounded-lg col-span-1 sm:col-span-2 border border-red-200">
-                      <label className="block text-sm font-medium text-red-600 mb-1">Lý do hủy</label>
-                      <p className="text-sm text-gray-900">{selectedPurchaseRequest.lyDoHuy}</p>
-                      {selectedPurchaseRequest.ngayHuy && (
-                        <p className="text-xs text-gray-500 mt-1">Ngày hủy: {new Date(selectedPurchaseRequest.ngayHuy).toLocaleDateString('vi-VN')}</p>
-                      )}
-                    </div>
-                  )}
-                  <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Người duyệt</label><p className="text-sm text-gray-900">{selectedPurchaseRequest.nguoiDuyet || <span className="text-gray-400 italic">Chưa có</span>}</p></div>
-                  <div className="bg-gray-50 p-4 rounded-lg"><label className="block text-sm font-medium text-gray-500 mb-1">Ngày duyệt</label><p className="text-sm text-gray-900">{selectedPurchaseRequest.ngayDuyet ? new Date(selectedPurchaseRequest.ngayDuyet).toLocaleDateString('vi-VN') : <span className="text-gray-400 italic">Chưa duyệt</span>}</p></div>
-                  <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2"><label className="block text-sm font-medium text-gray-500 mb-1">File đính kèm</label>
-                    {selectedPurchaseRequest.fileKemTheo ? <a href={selectedPurchaseRequest.fileKemTheo} target="_blank" rel="noopener noreferrer" className="text-sm text-purple-600 hover:underline">{selectedPurchaseRequest.fileKemTheo}</a> : <p className="text-sm text-gray-400 italic">Không có file đính kèm</p>}
-                  </div>
-                </div>
-                <div className="flex flex-wrap justify-end gap-4 mt-4 pt-4 border-t border-gray-100 bg-white shrink-0">
-                  {(selectedPurchaseRequest.trangThai === 'Chờ báo giá' || selectedPurchaseRequest.trangThai === 'Chờ duyệt') && canEditPR && (
-                    <button
-                      type="button"
-                      onClick={() => { handleCancelPurchaseRequest(selectedPurchaseRequest); }}
-                      className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center gap-2"
-                    >
-                      <Ban className="w-4 h-4" />
-                      Hủy phiếu
-                    </button>
-                  )}
-                  {selectedPurchaseRequest.trangThai === 'Đã duyệt' && canUpdatePR && (
-                    <button
-                      type="button"
-                      onClick={() => { setConfirmActualPriceTarget(selectedPurchaseRequest); setShowConfirmActualPrice(true); }}
-                      className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 flex items-center gap-2"
-                    >
-                      <BadgeCheck className="w-4 h-4" />
-                      Xác nhận giá thực tế
-                      {!isActualPriceConfirmed(selectedPurchaseRequest) && (
-                        <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-white text-amber-700">chưa chốt</span>
-                      )}
-                    </button>
-                  )}
-                  {canEditPR && (
-                    <button
-                      type="button"
-                      onClick={() => { openEditPurchaseRequest(selectedPurchaseRequest); }}
-                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2"
-                    >
-                      <Edit className="w-4 h-4" />
-                      Chỉnh sửa
-                    </button>
-                  )}
-                  <button onClick={closePurchaseRequestDetail} className="px-4 py-2 border border-gray-200 rounded-md text-gray-700 hover:bg-gray-50">Đóng</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        <PurchaseRequestDetailModal
+          isOpen={!!selectedPurchaseRequest}
+          onClose={closePurchaseRequestDetail}
+          purchaseRequest={selectedPurchaseRequest}
+          canEdit={canEditPR}
+          canUpdate={canUpdatePR}
+          isActualPriceConfirmed={isActualPriceConfirmed}
+          onEdit={(pr) => { closePurchaseRequestDetail(); openEditPurchaseRequest(pr); }}
+          onCancel={(pr) => { closePurchaseRequestDetail(); handleCancelPurchaseRequest(pr); }}
+          onConfirmPrice={(pr) => { setConfirmActualPriceTarget(pr); setShowConfirmActualPrice(true); }}
+        />
 
         {/* Xác nhận giá thực tế cho YCMH đã duyệt (hàng về). Khi bật từ nút
             "Đã mua xong" (completeAfterPriceConfirm), đóng phiếu sau khi giá được lưu. */}
@@ -1393,191 +1149,40 @@ const PurchasingEquipment = () => {
           description="Hủy yêu cầu mua hàng này sẽ chuyển trạng thái sang Đã hủy và thông báo tới người tạo. Nếu phiếu sinh từ YCBS, YCBS cha sẽ quay lại Chờ báo giá."
         />
 
-        {/* Edit Purchase Request Modal */}
-        {editingPurchaseRequest && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-sm w-full max-w-2xl md:max-w-4xl lg:max-w-6xl mx-2 sm:mx-4 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] flex flex-col overflow-hidden">
-              <form onSubmit={handleEditSubmit} className="p-4 sm:p-6 flex flex-col flex-1 min-h-0">
-                <div className="flex justify-between items-center mb-6 shrink-0">
-                  <h2 className="text-2xl font-bold text-gray-800">Chỉnh sửa yêu cầu mua hàng</h2>
-                  <button type="button" onClick={closeEditPurchaseRequest} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
-                </div>
-                {/* Scrollable body — header + footer stay pinned. */}
-                <div className="flex-1 min-h-0 overflow-y-auto">
-                {/* API error banner */}
-                {editFormErrors.api && (
-                  <div className="mb-4 p-3 bg-red-50 border border-red-300 rounded-md flex items-start gap-2">
-                    <svg className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <p className="text-sm text-red-700">{editFormErrors.api}</p>
-                  </div>
-                )}
-
-                {/* Section 1: Thông tin yêu cầu (read-only) */}
-                <div className="bg-gray-50 rounded-lg p-4 mb-5">
-                  <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Thông tin yêu cầu</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                    <div className="flex gap-2"><span className="text-gray-500 flex-shrink-0">Người yêu cầu:</span><span className="font-medium text-gray-800">{editingPurchaseRequest.tenNhanVien}{editingPurchaseRequest.maNhanVien && <span className="text-gray-400 ml-1">({editingPurchaseRequest.maNhanVien})</span>}</span></div>
-                    <div className="flex gap-2"><span className="text-gray-500 flex-shrink-0">Ngày yêu cầu:</span><span className="font-medium text-gray-800">{new Date(editingPurchaseRequest.ngayYeuCau).toLocaleDateString('vi-VN')}</span></div>
-                    <div className="flex gap-2"><span className="text-gray-500 flex-shrink-0">Mức độ ưu tiên:</span><span className={`font-medium ${editingPurchaseRequest.mucDoUuTien === 'Cao' ? 'text-red-600' : editingPurchaseRequest.mucDoUuTien === 'Trung bình' ? 'text-yellow-600' : 'text-green-600'}`}>{editingPurchaseRequest.mucDoUuTien}</span></div>
-                    <div className="flex gap-2"><span className="text-gray-500 flex-shrink-0">Phân loại:</span><span className="font-medium text-gray-800">{editingPurchaseRequest.phanLoai || '—'}</span></div>
-                    {editingPurchaseRequest.items && editingPurchaseRequest.items.length > 0 ? (
-                      <div className="col-span-1 sm:col-span-2"><span className="text-gray-500">Danh sách hàng hóa:</span><div className="mt-1 space-y-1">{editingPurchaseRequest.items.map((item: any, i: number) => (<div key={i} className="flex items-center gap-2 bg-white border border-gray-200 rounded px-3 py-1.5 text-xs"><span className="font-medium text-gray-800">{item.tenHangHoa}</span><span className="text-gray-400">·</span><span className="text-gray-600">{item.soLuong} {item.donViTinh}</span>{item.phanLoai && <><span className="text-gray-400">·</span><span className="text-gray-500">{item.phanLoai}</span></>}{item.giaDuKien && <><span className="text-gray-400">·</span><span className="text-green-700">{Number(item.giaDuKien).toLocaleString('vi-VN')}đ</span></>}</div>))}</div></div>
-                    ) : (<><div className="col-span-1 sm:col-span-2 flex gap-2"><span className="text-gray-500 flex-shrink-0">Hàng hóa:</span><span className="font-medium text-gray-800">{editingPurchaseRequest.tenHangHoa || '—'}</span></div>{(editingPurchaseRequest.soLuong || editingPurchaseRequest.donViTinh) && (<div className="flex gap-2"><span className="text-gray-500 flex-shrink-0">Số lượng:</span><span className="font-medium text-gray-800">{editingPurchaseRequest.soLuong} {editingPurchaseRequest.donViTinh}</span></div>)} </> )}
-                    {editingPurchaseRequest.mucDichYeuCau && (<div className="col-span-1 sm:col-span-2 flex gap-2"><span className="text-gray-500 flex-shrink-0">Mục đích:</span><span className="text-gray-700">{editingPurchaseRequest.mucDichYeuCau}</span></div>)}
-                    {editingPurchaseRequest.ghiChu && (<div className="col-span-1 sm:col-span-2 flex gap-2"><span className="text-gray-500 flex-shrink-0">Ghi chú YC:</span><span className="text-gray-700 italic">{editingPurchaseRequest.ghiChu}</span></div>)}
-                    {(editingPurchaseRequest as any).ghiChuMuaHang && (<div className="col-span-1 sm:col-span-2 flex gap-2"><span className="text-gray-500 flex-shrink-0">Ghi chú MH:</span><span className="text-gray-700 italic">{(editingPurchaseRequest as any).ghiChuMuaHang}</span></div>)}
-                    {editingPurchaseRequest.fileKemTheo && (<div className="col-span-1 sm:col-span-2 flex gap-2"><span className="text-gray-500 flex-shrink-0">File đính kèm:</span><a href={editingPurchaseRequest.fileKemTheo} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline truncate text-xs">{editingPurchaseRequest.fileKemTheo.split('/').pop()}</a></div>)}
-                  </div>
-                </div>
-
-                {/* Section 2: Xử lý thu mua (editable) */}
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Xử lý thu mua</h3>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
-                    <select
-                      value={editFormData.trangThai || ''}
-                      onChange={(e) => {
-                        const newStatus = e.target.value;
-                        const currentUserName = user ? `${user.lastName} ${user.firstName}`.trim() : '';
-                        setEditFormData((prev) => ({
-                          ...prev,
-                          trangThai: newStatus,
-                          nguoiDuyet: newStatus === 'Đã duyệt' ? prev.nguoiDuyet || currentUserName : prev.nguoiDuyet,
-                          ngayDuyet: newStatus === 'Đã duyệt' ? prev.ngayDuyet || new Date().toISOString() : prev.ngayDuyet,
-                        }));
-                      }}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    >
-                      <option value="Chờ duyệt">Chờ duyệt</option>
-                      <option value="Đã duyệt">Đã duyệt</option>
-                      <option value="Từ chối">Từ chối</option>
-                      <option value="Hoàn thành">Hoàn thành</option>
-                    </select>
-                  </div>
-
-                  {editFormData.trangThai === 'Đã duyệt' && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-green-50 border border-green-200 rounded-md p-3">
-                      <div><label className="block text-xs font-medium text-green-800 mb-1">Người duyệt</label><input type="text" value={editFormData.nguoiDuyet || ''} readOnly className="w-full px-3 py-2 border border-green-200 rounded-md bg-white text-sm text-gray-700 cursor-default" /></div>
-                      <div><label className="block text-xs font-medium text-green-800 mb-1">Ngày duyệt</label><input type="date" value={editFormData.ngayDuyet ? new Date(editFormData.ngayDuyet).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]} onChange={(e) => setEditFormData((prev) => ({ ...prev, ngayDuyet: e.target.value ? new Date(e.target.value).toISOString() : new Date().toISOString() }))} className="w-full px-3 py-2 border border-green-200 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-green-400" /></div>
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Báo giá cho từng hàng hóa</label>
-                    <div className="border border-gray-200 rounded-md overflow-x-auto">
-                      <table className="w-full min-w-[720px] text-sm">
-                        <thead className="bg-gray-50">
-                          <tr><th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase w-8">#</th><th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Hàng hóa</th><th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase w-20">SL</th><th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase w-20">ĐVT</th><th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase w-52">Nhà cung cấp</th><th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase w-32">Đơn giá (đ)</th><th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase w-32">Thành tiền</th></tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {editItems.map((it, idx) => {
-                            const qty = typeof it.soLuong === 'number' ? it.soLuong : parseFloat(String(it.soLuong)) || 0;
-                            const gia = typeof it.giaDuKien === 'number' ? it.giaDuKien : parseFloat(String(it.giaDuKien ?? 0)) || 0;
-                            const thanhTien = qty * gia;
-                            return (
-                              <tr key={it.id ?? idx} className="align-top">
-                                <td className="px-2 py-2 text-gray-500 text-center">{idx + 1}</td>
-                                <td className="px-2 py-2"><div className="font-medium text-gray-800">{it.tenHangHoa}</div>{it.phanLoai && <div className="text-xs text-gray-500">{it.phanLoai}</div>}</td>
-                                <td className="px-2 py-2 text-right">{qty.toLocaleString('vi-VN')}</td>
-                                <td className="px-2 py-2">{it.donViTinh}</td>
-                                <td className="px-2 py-2 min-w-[180px]">
-                                  <SupplierCombobox
-                                    suppliers={(pricingSuppliers ?? []) as Array<{ id: string; tenNhaCungCap: string; maNhaCungCap?: string; loaiCungCap?: string }>}
-                                    value={it.nhaCungCapId || ''}
-                                    onChange={(id) => updateEditItem(idx, { nhaCungCapId: id || null })}
-                                    loading={pricingSuppliersLoading}
-                                    error={pricingSuppliersError}
-                                    onRetry={() => refetchPricingSuppliers()}
-                                    placeholder="Tìm NCC…"
-                                  />
-                                </td>
-                                <td className="px-2 py-2"><input type="number" min={0} step="any" value={it.giaDuKien ?? ''} onChange={(e) => updateEditItem(idx, { giaDuKien: e.target.value ? parseFloat(e.target.value) : null })} placeholder="0" className="w-full px-2 py-1 border border-gray-200 rounded text-sm text-right focus:outline-none focus:ring-1 focus:ring-purple-500" /></td>
-                                <td className="px-2 py-2 text-right font-medium text-green-700">{thanhTien > 0 ? thanhTien.toLocaleString('vi-VN') + 'đ' : '—'}</td>
-                              </tr>
-                            );
-                          })}
-                          {editItems.length === 0 && (<tr><td colSpan={7} className="px-3 py-4 text-center text-gray-400 italic">Không có hàng hóa</td></tr>)}
-                        </tbody>
-                        {editItems.length > 0 && (<tfoot className="bg-green-50"><tr><td colSpan={6} className="px-2 py-2 text-right font-semibold text-gray-700">Tổng cộng:</td><td className="px-2 py-2 text-right font-bold text-green-800">{tongTienEdit > 0 ? tongTienEdit.toLocaleString('vi-VN') + 'đ' : '—'}</td></tr></tfoot>)}
-                      </table>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">Chọn nhà cung cấp và đơn giá cho từng dòng. Thành tiền sẽ được tính tự động.</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú mua hàng</label>
-                    <textarea value={(editFormData as any).ghiChuMuaHang || ''} onChange={(e) => setEditFormData({ ...editFormData, ghiChuMuaHang: e.target.value } as any)} rows={3} placeholder="Ghi chú nội bộ của phòng thu mua..." className="w-full px-3 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                  </div>
-
-                  <FileUpload label="File đính kèm" files={selectedFile ? [selectedFile] : []} onChange={(files) => setSelectedFile(files[0] || null)} accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" existingFileName={!selectedFile && editFormData.fileKemTheo ? editFormData.fileKemTheo : undefined} existingFileUrl={!selectedFile && editFormData.fileKemTheo ? editFormData.fileKemTheo : undefined} onRemoveExisting={() => setEditFormData({ ...editFormData, fileKemTheo: '' })} />
-                </div>
-                </div>{/* /scrollable body */}
-                <div className="flex flex-col sm:flex-row sm:justify-end gap-3 mt-6 pt-4 border-t border-gray-100 bg-white shrink-0">
-                  <button type="button" onClick={closeEditPurchaseRequest} className="px-4 py-2 border border-gray-200 rounded-md text-gray-700 hover:bg-gray-50">Hủy</button>
-                  <button type="submit" disabled={editLoading} className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50">{editLoading ? 'Đang lưu...' : 'Lưu cập nhật'}</button>
-                  {editingPurchaseRequest.trangThai === 'Chờ báo giá' && (
-                    <button
-                      type="button"
-                      disabled={editLoading}
-                      onClick={() => {
-                        const missing = editItems.filter((it) => !it.nhaCungCapId || it.giaDuKien === null || it.giaDuKien === undefined || Number(it.giaDuKien) <= 0);
-                        if (missing.length > 0) {
-                          setConfirmAction({
-                            title: 'Chưa thể gửi duyệt',
-                            message: `Còn ${missing.length} sản phẩm chưa có nhà cung cấp hoặc đơn giá:\n` + missing.map((it) => `• ${it.tenHangHoa}`).join('\n') + `\n\nVui lòng bổ sung trước khi gửi duyệt.`,
-                            hideCancel: true,
-                            confirmLabel: 'Đã hiểu',
-                            variant: 'warning',
-                            onConfirm: () => setConfirmAction(null),
-                          });
-                          return;
-                        }
-                        const editPrId = editingPurchaseRequest.id;
-                        const editPrCode = editingPurchaseRequest.maYeuCau;
-                        setConfirmAction({
-                          title: 'Lưu & gửi duyệt',
-                          message: `Lưu báo giá cho yêu cầu ${editPrCode} và gửi lên admin phê duyệt?\nTổng tiền dự kiến: ${tongTienEdit.toLocaleString('vi-VN')}đ`,
-                          variant: 'warning',
-                          confirmLabel: 'Gửi duyệt',
-                          onConfirm: async () => {
-                            try {
-                              setConfirmLoading(true);
-                              const cleanedItems = editItems.map((it) => ({
-                                ...(it.id ? { id: it.id } : {}),
-                                phanLoai: it.phanLoai,
-                                tenHangHoa: it.tenHangHoa,
-                                soLuong: typeof it.soLuong === 'number' ? it.soLuong : parseFloat(String(it.soLuong)) || 0,
-                                donViTinh: it.donViTinh,
-                                nhaCungCapId: it.nhaCungCapId || null,
-                                giaDuKien: typeof it.giaDuKien === 'number' ? it.giaDuKien : parseFloat(String(it.giaDuKien ?? 0)) || null,
-                              }));
-                              await purchaseRequestService.updatePurchaseRequest(editPrId, { ...editFormData, items: cleanedItems, file: selectedFile || undefined } as any);
-                              await purchaseRequestService.submitForApproval(editPrId);
-                              setConfirmAction(null);
-                              closeEditPurchaseRequest();
-                              fetchPurchaseRequests();
-                            } catch (error: any) {
-                              alert(error.response?.data?.message || 'Lỗi khi gửi duyệt');
-                            } finally {
-                              setConfirmLoading(false);
-                            }
-                          },
-                        });
-                      }}
-                      className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50 inline-flex items-center gap-1"
-                    >
-                      <CheckCircle className="w-4 h-4" /> Lưu & Gửi duyệt
-                    </button>
-                  )}
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        <PurchaseRequestEditModal
+          isOpen={!!editingPurchaseRequest}
+          onClose={closeEditPurchaseRequest}
+          purchaseRequest={editingPurchaseRequest}
+          pricingSuppliers={pricingSuppliers as any}
+          pricingSuppliersLoading={pricingSuppliersLoading}
+          pricingSuppliersError={pricingSuppliersError}
+          onRetryPricingSuppliers={() => refetchPricingSuppliers()}
+          user={user as any}
+          onSubmit={async (id, { items, formData, file }) => {
+            const cleanedItems = items.map((it: any) => ({
+              ...(it.id ? { id: it.id } : {}),
+              phanLoai: it.phanLoai, tenHangHoa: it.tenHangHoa,
+              soLuong: typeof it.soLuong === 'number' ? it.soLuong : parseFloat(String(it.soLuong)) || 0,
+              donViTinh: it.donViTinh, nhaCungCapId: it.nhaCungCapId || null,
+              giaDuKien: it.giaDuKien === null || it.giaDuKien === undefined || String(it.giaDuKien).trim() === '' ? null : typeof it.giaDuKien === 'number' ? it.giaDuKien : parseFloat(String(it.giaDuKien)) || null,
+            }));
+            const dataToSend: any = { ...formData, items: cleanedItems, file: file || undefined };
+            await purchaseRequestService.updatePurchaseRequest(id, dataToSend);
+            fetchPurchaseRequests();
+          }}
+          onSubmitForApproval={async (id, { items, formData, file }) => {
+            const cleanedItems = items.map((it: any) => ({
+              ...(it.id ? { id: it.id } : {}),
+              phanLoai: it.phanLoai, tenHangHoa: it.tenHangHoa,
+              soLuong: typeof it.soLuong === 'number' ? it.soLuong : parseFloat(String(it.soLuong)) || 0,
+              donViTinh: it.donViTinh, nhaCungCapId: it.nhaCungCapId || null,
+              giaDuKien: typeof it.giaDuKien === 'number' ? it.giaDuKien : parseFloat(String(it.giaDuKien ?? 0)) || null,
+            }));
+            await purchaseRequestService.updatePurchaseRequest(id, { ...formData, items: cleanedItems, file: file || undefined });
+            await purchaseRequestService.submitForApproval(id);
+            fetchPurchaseRequests();
+          }}
+        />
 
         {/* Modal Thêm nhà cung cấp */}
         {isAddSupplierModalOpen && (

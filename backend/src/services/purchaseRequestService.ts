@@ -220,6 +220,8 @@ class PurchaseRequestService {
         supplyRequest: true,
         supplier: true,
         items: { include: { supplier: true } },
+        replenishmentRequest: { select: { id: true, maYeuCau: true, trangThai: true } },
+        warehouseReceipts: { select: { id: true, maPhieuNhap: true } },
       },
     });
 
