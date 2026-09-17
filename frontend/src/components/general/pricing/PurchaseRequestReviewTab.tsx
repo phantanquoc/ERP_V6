@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import { Eye, Check, XCircle } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { hasSubModuleAccess, can } from '../../../utils/permissions';
 import purchaseRequestService from '../../../services/purchaseRequestService';
@@ -9,6 +10,7 @@ import { labelForPurchaseRequest } from '../../../utils/purchaseRequestLabel';
 import TableFilter, { FilterField } from '../../TableFilter';
 import Modal from '../../Modal';
 import ConfirmDialog from '../../common/ConfirmDialog';
+import { getPricingPriorityBadge as getPriorityBadge, getPricingStatusBadge as getStatusBadge } from './pricingBadge';
 
 const PurchaseRequestReviewTab: React.FC = () => {
   const { user } = useAuth();
@@ -21,6 +23,7 @@ const PurchaseRequestReviewTab: React.FC = () => {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [approveId, setApproveId] = useState<string | null>(null);
 
   const canApprove = !!user && hasSubModuleAccess('general', 'pricing', (user as any).department, (user as any).subDepartment, (user as any).role, (user as any).secondaryDepartments);
   const canApprovePurchaseRequests = can('purchase-requests', 'APPROVE', (user as any)?.role);
@@ -38,6 +41,14 @@ const PurchaseRequestReviewTab: React.FC = () => {
   const search = (filterValues._search || '').toLowerCase().trim();
   const getTrangThai = (r: any): string => String(r.trangThai ?? r.status ?? '').trim();
   const getTongTien = (r: any): number => (r.items ?? []).reduce((s: number, it: any) => s + ((Number(it.giaDuKien) || 0) * (Number(it.soLuong) || 0)), 0);
+  // Server pagination — getAllPurchaseRequests returns ApiResponse { data, pagination } so
+  // the React Query `data` is that envelope. Handle both flat and nested shapes for safety.
+  const serverPagination: { page: number; limit: number; total: number; totalPages: number } | null =
+    (data as any)?.pagination ??
+    (raw as any)?.pagination ??
+    (data as any)?.data?.pagination ??
+    null;
+  const serverTotal: number | null = serverPagination?.total ?? null;
   const filtered = allRows.filter((r: any) => {
     if (search && !((r.maYeuCau ?? '').toLowerCase().includes(search) || (r.tenNhanVien ?? '').toLowerCase().includes(search) || (r.mucDichYeuCau ?? '').toLowerCase().includes(search))) return false;
     if (filterValues.maYeuCau && !(r.maYeuCau ?? '').toLowerCase().includes(filterValues.maYeuCau.toLowerCase())) return false;
@@ -60,9 +71,20 @@ const PurchaseRequestReviewTab: React.FC = () => {
     }
     return 0;
   });
-  const total = sorted.length;
-  const totalPages = Math.ceil(total / limit) || 1;
-  const pageRows = sorted.slice((page - 1) * limit, page * limit);
+  // Client-side search/mucDoUuTien filters run on the current server page only.
+  // When any filter is active, fall back to filtered length as total (spec requirement);
+  // otherwise use the server-side total so pagination reflects the full dataset.
+  const hasActiveFilter = !!search || !!filterValues.maYeuCau || !!filterValues.tenNhanVien || !!filterValues.mucDichYeuCau || !!filterValues.mucDoUuTien;
+  const clientTotal = sorted.length;
+  const total = hasActiveFilter ? clientTotal : (serverTotal ?? clientTotal);
+  const totalPages = hasActiveFilter
+    ? (Math.ceil(clientTotal / limit) || 1)
+    : ((serverPagination?.totalPages ?? Math.ceil(total / limit)) || 1);
+  // Server already paginates when no client filter is active; only slice client-side when filtering.
+  const pageRows = hasActiveFilter ? sorted.slice((page - 1) * limit, page * limit) : sorted;
+  // Display range for footer: e.g. "Hiển thị 1–20 / 46 sản phẩm"
+  const rangeFrom = total === 0 ? 0 : (hasActiveFilter ? (page - 1) * limit + 1 : (serverPagination ? (serverPagination.page - 1) * serverPagination.limit + 1 : (page - 1) * limit + 1));
+  const rangeTo = hasActiveFilter ? Math.min(page * limit, total) : (serverPagination ? Math.min(serverPagination.page * serverPagination.limit, total) : Math.min(page * limit, total));
 
   const toggleSort = (key: 'tongTien' | 'ngayYeuCau') => {
     if (sortKey === key) {
@@ -158,7 +180,7 @@ const PurchaseRequestReviewTab: React.FC = () => {
 
   const doApprove = async (id: string) => {
     try {
-      await apiClient.put(`/purchase-requests/${id}`, { trangThai: 'Đã duyệt', nguoiDuyet: (user as any)?.fullName ?? (user as any)?.name ?? 'Phòng giá thành', ngayDuyet: new Date().toISOString() });
+      await apiClient.put(`/purchase-requests/${id}`, { trangThai: 'Đã duyệt' });
       toast.success('Đã duyệt yêu cầu mua hàng');
       queryClient.invalidateQueries({ queryKey: ['purchase-requests'] });
       queryClient.invalidateQueries({ queryKey: ['pricingOverview'] });
@@ -166,7 +188,7 @@ const PurchaseRequestReviewTab: React.FC = () => {
   };
   const doReject = async (id: string, lyDo?: string) => {
     try {
-      await apiClient.put(`/purchase-requests/${id}`, { trangThai: 'Từ chối', ghiChuMuaHang: lyDo ?? '' });
+      await apiClient.put(`/purchase-requests/${id}`, { trangThai: 'Từ chối', ...(lyDo ? { ghiChuMuaHang: lyDo } : {}) });
       toast.success('Đã từ chối yêu cầu');
       queryClient.invalidateQueries({ queryKey: ['purchase-requests'] });
       queryClient.invalidateQueries({ queryKey: ['pricingOverview'] });
@@ -237,7 +259,7 @@ const PurchaseRequestReviewTab: React.FC = () => {
                 const productDisplay = productNames.length <= 3 ? productNames.join(', ') : `${productNames.slice(0, 3).join(', ')}...`;
                 const totalAmount = items.reduce((s: number, it: any) => s + ((Number(it.giaDuKien) || 0) * (Number(it.soLuong) || 0)), 0);
                 const st = getTrangThai(r);
-                const isPending = st.toLowerCase().includes('chờ duyệt') || st.toLowerCase().includes('cho duyet');
+                const isPending = st === 'Chờ duyệt';
                 const stt = (page - 1) * limit + idx + 1;
                 return (
                 <tr
@@ -252,29 +274,65 @@ const PurchaseRequestReviewTab: React.FC = () => {
                   <td className="px-3 py-3 text-sm max-w-[220px] truncate" title={productNames.join(', ')}>{productDisplay || '—'}</td>
                   <td className="px-3 py-3 whitespace-nowrap text-sm text-right font-medium">{totalAmount > 0 ? `${totalAmount.toLocaleString('vi-VN')}đ` : '—'}</td>
                   <td className="px-3 py-3 whitespace-nowrap text-center">
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-                      r.mucDoUuTien === 'Cao' ? 'bg-red-100 text-red-800' :
-                      r.mucDoUuTien === 'Trung bình' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-green-100 text-green-800'
-                    }`}>{r.mucDoUuTien ?? '—'}</span>
+                    {(() => { const b = getPriorityBadge(String(r.mucDoUuTien ?? '')); return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${b.class}`}>{r.mucDoUuTien ? b.label : '—'}</span>; })()}
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap text-center">
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-                      String(r.trangThai).includes('Chờ') ? 'bg-yellow-100 text-yellow-800' :
-                      String(r.trangThai).includes('Đã duyệt') ? 'bg-green-100 text-green-800' :
-                      String(r.trangThai).includes('Từ chối') ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-700'
-                    }`}>{r.trangThai}</span>
+                    {(() => { const b = getStatusBadge(String(r.trangThai ?? '')); return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${b.class}`}>{b.label}</span>; })()}
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-600">{r.nguoiDuyet || '—'}</td>
                   <td className="px-3 py-3 text-center whitespace-nowrap" onClick={e => e.stopPropagation()}>
                     <div className="inline-flex items-center gap-1">
-                      <button onClick={() => setDetailId(r.id)} className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md" title="Chi tiết">Chi tiết</button>
-                      {canApprove && isPending ? (
-                        <>
-                          <button onClick={() => doApprove(r.id)} disabled={!canApprovePurchaseRequests} title={!canApprovePurchaseRequests ? 'Bạn không có quyền duyệt' : undefined} className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">Duyệt</button>
-                          <button onClick={() => setRejectId(r.id)} disabled={!canUpdatePurchaseRequests} title={!canUpdatePurchaseRequests ? 'Bạn không có quyền từ chối' : undefined} className="px-3 py-1.5 text-xs bg-white border border-red-300 text-red-600 rounded-md hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed">Từ chối</button>
-                        </>
-                      ) : isPending ? <span className="text-xs text-gray-400 px-2">—</span> : <span className="text-xs text-gray-400 px-2">{st}</span>}
+                      <button
+                        onClick={() => setDetailId(r.id)}
+                        className="p-1.5 rounded-md text-blue-600 hover:bg-blue-100"
+                        title="Xem chi tiết"
+                        aria-label="Xem chi tiết"
+                      >
+                        <Eye size={16} />
+                      </button>
+                      {isPending ? (
+                        canApprove ? (
+                          <>
+                            <button
+                              onClick={() => setApproveId(r.id)}
+                              disabled={!canApprovePurchaseRequests}
+                              title={!canApprovePurchaseRequests ? 'Bạn không có quyền duyệt' : 'Duyệt'}
+                              aria-label="Duyệt"
+                              className="p-1.5 rounded-md text-green-600 hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <Check size={16} />
+                            </button>
+                            <button
+                              onClick={() => setRejectId(r.id)}
+                              disabled={!canUpdatePurchaseRequests}
+                              title={!canUpdatePurchaseRequests ? 'Bạn không có quyền duyệt' : 'Từ chối'}
+                              aria-label="Từ chối"
+                              className="p-1.5 rounded-md text-red-600 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <XCircle size={16} />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              disabled
+                              title="Bạn không có quyền duyệt"
+                              aria-label="Duyệt"
+                              className="p-1.5 rounded-md text-gray-400 opacity-50 cursor-not-allowed"
+                            >
+                              <Check size={16} />
+                            </button>
+                            <button
+                              disabled
+                              title="Bạn không có quyền duyệt"
+                              aria-label="Từ chối"
+                              className="p-1.5 rounded-md text-gray-400 opacity-50 cursor-not-allowed"
+                            >
+                              <XCircle size={16} />
+                            </button>
+                          </>
+                        )
+                      ) : null}
                     </div>
                   </td>
                 </tr>
@@ -285,10 +343,10 @@ const PurchaseRequestReviewTab: React.FC = () => {
         </div>
       )}
 
-      {totalPages > 1 && (
+      {total > 0 && (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
           <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-600">Hiển thị {(page - 1) * limit + 1}–{Math.min(page * limit, total)} / {total} mục</span>
+            <span className="text-sm text-gray-600">Hiển thị {rangeFrom}–{rangeTo} / {total} yêu cầu</span>
             <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }} className="text-sm border border-gray-300 rounded-md px-2 py-1 bg-white">
               {[10, 20, 50, 100].map(n => <option key={n} value={n}>{n}/trang</option>)}
             </select>
@@ -329,11 +387,11 @@ const PurchaseRequestReviewTab: React.FC = () => {
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Ưu tiên</p>
-                      <span className={`inline-flex mt-1 px-2 py-1 rounded-full text-xs font-medium ${row.mucDoUuTien === 'Cao' ? 'bg-red-100 text-red-800' : row.mucDoUuTien === 'Trung bình' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>{row.mucDoUuTien ?? '—'}</span>
+                      {(() => { const b = getPriorityBadge(String(row.mucDoUuTien ?? '')); return <span className={`inline-flex mt-1 px-2 py-1 rounded-full text-xs font-medium ${b.class}`}>{row.mucDoUuTien ? b.label : '—'}</span>; })()}
                     </div>
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Trạng thái</p>
-                      <span className={`inline-flex mt-1 px-2 py-1 rounded-full text-xs font-medium ${String(row.trangThai).includes('Chờ') ? 'bg-yellow-100 text-yellow-800' : String(row.trangThai).includes('Đã duyệt') ? 'bg-green-100 text-green-800' : String(row.trangThai).includes('Từ chối') ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-700'}`}>{row.trangThai}</span>
+                      {(() => { const b = getStatusBadge(String(row.trangThai ?? '')); return <span className={`inline-flex mt-1 px-2 py-1 rounded-full text-xs font-medium ${b.class}`}>{b.label}</span>; })()}
                     </div>
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Người duyệt</p>
@@ -354,10 +412,10 @@ const PurchaseRequestReviewTab: React.FC = () => {
                     </div>
                   )}
                   <div>
-                    <p className="font-medium mb-2">Sản phẩm ({items.length})</p>
-                    <div className="bg-white rounded-lg border overflow-hidden max-h-64 overflow-auto">
+                    <p className="font-medium mb-2">Danh sách hàng hóa ({items.length})</p>
+                    <div className="bg-white rounded-lg border overflow-x-auto">
                       <table className="w-full text-xs">
-                        <thead className="bg-gray-50 sticky top-0"><tr className="text-gray-600"><th className="text-left px-3 py-2 font-medium">Tên hàng</th><th className="text-right px-3 py-2 font-medium">SL</th><th className="text-left px-3 py-2 font-medium">ĐV</th><th className="text-left px-3 py-2 font-medium">Loại</th><th className="text-right px-3 py-2 font-medium">Giá DK</th></tr></thead>
+                        <thead className="bg-gray-50 sticky top-0 z-10"><tr className="text-gray-600"><th className="text-left px-3 py-2 font-medium">Tên hàng hóa</th><th className="text-right px-3 py-2 font-medium">SL</th><th className="text-left px-3 py-2 font-medium">ĐV</th><th className="text-left px-3 py-2 font-medium">Loại</th><th className="text-right px-3 py-2 font-medium">Giá DK</th></tr></thead>
                         <tbody className="divide-y divide-gray-100">
                           {items.length === 0 ? (
                             <tr><td colSpan={5} className="text-center py-4 text-gray-400">Không có mặt hàng</td></tr>
@@ -379,11 +437,11 @@ const PurchaseRequestReviewTab: React.FC = () => {
             <div className="flex gap-2">
               {(() => {
                 const row = allRows.find((x: any) => x.id === detailId);
-                if (!row || !canApprove || String(row.trangThai).includes('Đã duyệt') || String(row.trangThai).includes('Từ chối')) return null;
+                if (!row || !canApprove || getTrangThai(row) !== 'Chờ duyệt') return null;
                 return (
                   <>
                     <button onClick={() => { setDetailId(null); setRejectId(row.id); }} disabled={!canUpdatePurchaseRequests} title={!canUpdatePurchaseRequests ? 'Bạn không có quyền từ chối' : undefined} className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 text-sm disabled:opacity-50 disabled:cursor-not-allowed">Từ chối</button>
-                    <button onClick={() => { doApprove(row.id); setDetailId(null); }} disabled={!canApprovePurchaseRequests} title={!canApprovePurchaseRequests ? 'Bạn không có quyền duyệt' : undefined} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed">Duyệt ngay</button>
+                    <button onClick={() => { setDetailId(null); setApproveId(row.id); }} disabled={!canApprovePurchaseRequests} title={!canApprovePurchaseRequests ? 'Bạn không có quyền duyệt' : undefined} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed">Duyệt ngay</button>
                   </>
                 );
               })()}
@@ -404,6 +462,61 @@ const PurchaseRequestReviewTab: React.FC = () => {
         variant="danger"
       >
         <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} rows={3} placeholder="Lý do từ chối..." className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mt-3 focus:ring-2 focus:ring-red-500 focus:border-red-500" />
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        isOpen={!!approveId}
+        onClose={() => setApproveId(null)}
+        onConfirm={() => { if (approveId) doApprove(approveId); setApproveId(null); }}
+        title="Xác nhận duyệt yêu cầu"
+        message="Bạn có chắc muốn duyệt yêu cầu này?"
+        confirmText="Xác nhận"
+        cancelText="Hủy"
+        variant="primary"
+      >
+        {(() => {
+          const approveRow: any = allRows.find((x: any) => x.id === approveId);
+          if (!approveRow) return <p className="text-sm text-gray-500">Không tìm thấy yêu cầu.</p>;
+          const approveItems: any[] = approveRow.items ?? [];
+          const approveTotal = getTongTien(approveRow);
+          return (
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div><p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Mã yêu cầu</p><p className="font-semibold text-blue-600 mt-0.5">{approveRow.maYeuCau ?? '—'}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Ngày yêu cầu</p><p className="mt-0.5">{approveRow.ngayYeuCau ? new Date(approveRow.ngayYeuCau).toLocaleDateString('vi-VN') : '—'}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Nhân viên</p><p className="mt-0.5">{approveRow.tenNhanVien ? `${approveRow.tenNhanVien}${approveRow.maNhanVien ? ` (${approveRow.maNhanVien})` : ''}` : (approveRow.maNhanVien ?? '—')}</p></div>
+                <div><p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Ưu tiên</p>{(() => { const b = getPriorityBadge(String(approveRow.mucDoUuTien ?? '')); return <span className={`inline-flex mt-1 px-2 py-0.5 rounded-full text-xs font-medium ${b.class}`}>{approveRow.mucDoUuTien ? b.label : '—'}</span>; })()}</div>
+              </div>
+              {approveRow.mucDichYeuCau && (
+                <div className="bg-gray-50 rounded-lg p-2.5">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Mục đích</p>
+                  <p className="mt-1 text-sm">{approveRow.mucDichYeuCau}</p>
+                </div>
+              )}
+              <div className="flex items-center justify-between bg-blue-50 rounded-lg px-3 py-2">
+                <span className="text-xs text-gray-600 font-medium">Tổng tiền</span>
+                <span className="font-semibold text-blue-700">{approveTotal > 0 ? `${approveTotal.toLocaleString('vi-VN')}đ` : '—'}</span>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1.5">Hàng hóa ({approveItems.length})</p>
+                {approveItems.length === 0 ? (
+                  <p className="text-xs text-gray-400 py-2 text-center border rounded-lg">Không có mặt hàng</p>
+                ) : (
+                  <div className="border rounded-lg overflow-hidden max-h-64 overflow-y-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50 sticky top-0"><tr className="text-gray-600"><th className="text-left px-2.5 py-1.5 font-medium">Tên hàng hóa</th><th className="text-right px-2.5 py-1.5 font-medium">SL</th><th className="text-left px-2.5 py-1.5 font-medium">ĐVT</th><th className="text-right px-2.5 py-1.5 font-medium">Giá DK</th></tr></thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {approveItems.map((it: any) => (
+                          <tr key={it.id} className="hover:bg-gray-50"><td className="px-2.5 py-1.5">{it.tenHangHoa ?? '—'}</td><td className="px-2.5 py-1.5 text-right">{it.soLuong ?? '—'}</td><td className="px-2.5 py-1.5">{it.donViTinh ?? '—'}</td><td className="px-2.5 py-1.5 text-right">{it.giaDuKien != null && it.giaDuKien !== '' ? `${Number(it.giaDuKien).toLocaleString('vi-VN')}đ` : '—'}</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
       </ConfirmDialog>
     </div>
   );

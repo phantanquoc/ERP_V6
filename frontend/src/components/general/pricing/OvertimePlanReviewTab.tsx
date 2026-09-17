@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Clock, FileText, FileImage, FileSpreadsheet, FileCode } from 'lucide-react';
+import { Clock, FileText, FileImage, FileSpreadsheet, FileCode, Eye, Check, XCircle, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -8,34 +8,9 @@ import { useOvertimePlans, overtimePlanKeys } from '../../../hooks/useOvertimePl
 import { overtimePlanService, OvertimePlanStatus } from '../../../services/overtimePlanService';
 import TableFilter, { FilterField } from '../../TableFilter';
 import Modal from '../../Modal';
+import ConfirmDialog from '../../common/ConfirmDialog';
 import { getFileUrl } from '../../../config/api';
-
-function getStatusBadge(status: OvertimePlanStatus) {
-  const badges: Record<string, { label: string; class: string }> = {
-    [OvertimePlanStatus.CHO_DUYET]: { label: 'Chờ duyệt', class: 'bg-yellow-100 text-yellow-700' },
-    [OvertimePlanStatus.DA_DUYET]: { label: 'Đã duyệt', class: 'bg-blue-100 text-blue-700' },
-    [OvertimePlanStatus.TU_CHOI]: { label: 'Từ chối', class: 'bg-red-100 text-red-700' },
-    [OvertimePlanStatus.HOAN_THANH]: { label: 'Hoàn thành', class: 'bg-green-100 text-green-700' },
-    [OvertimePlanStatus.HUY]: { label: 'Hủy', class: 'bg-gray-100 text-gray-700' },
-  };
-  return badges[status as string] || badges[OvertimePlanStatus.CHO_DUYET];
-}
-
-function getPriorityBadge(priority: string) {
-  const badges: Record<string, { label: string; class: string }> = {
-    CAO: { label: 'Cao', class: 'bg-red-100 text-red-700' },
-    TRUNG_BINH: { label: 'Trung bình', class: 'bg-yellow-100 text-yellow-700' },
-    THAP: { label: 'Thấp', class: 'bg-gray-100 text-gray-700' },
-    KHAN_CAP: { label: 'Khẩn cấp', class: 'bg-red-100 text-red-700' },
-    // fallbacks for legacy lowercase / spaced values
-    Cao: { label: 'Cao', class: 'bg-red-100 text-red-700' },
-    'Trung bình': { label: 'Trung bình', class: 'bg-yellow-100 text-yellow-700' },
-    'Trung binh': { label: 'Trung bình', class: 'bg-yellow-100 text-yellow-700' },
-    Thap: { label: 'Thấp', class: 'bg-gray-100 text-gray-700' },
-    Thấp: { label: 'Thấp', class: 'bg-gray-100 text-gray-700' },
-  };
-  return badges[priority as string] || badges.TRUNG_BINH;
-}
+import { getPricingPriorityBadge as getPriorityBadge, getPricingStatusBadge as getStatusBadge } from './pricingBadge';
 
 function computeHours(start: string, end: string): number {
   const [sh, sm] = (start ?? '').split(':').map(Number);
@@ -83,9 +58,12 @@ const OvertimePlanReviewTab: React.FC = () => {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', noiDung: '', nguoiTao: '', trangThai: '', mucDoUuTien: '' });
+  const [sortKey, setSortKey] = useState<'ngayTao' | 'mucDoUuTien' | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [detailId, setDetailId] = useState<string | null>(null);
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [approveId, setApproveId] = useState<string | null>(null);
 
   const canApprove = !!user && hasSubModuleAccess('general', 'pricing', (user as any).department, (user as any).subDepartment, (user as any).role, (user as any).secondaryDepartments);
 
@@ -105,9 +83,56 @@ const OvertimePlanReviewTab: React.FC = () => {
     if (filterValues.mucDoUuTien && String(r.mucDoUuTien ?? '') !== filterValues.mucDoUuTien) return false;
     return true;
   });
-  const total = filtered.length;
-  const totalPages = Math.ceil(total / limit) || 1;
-  const pageRows = filtered.slice((page - 1) * limit, page * limit);
+  const priorityOrder = (p: string): number => {
+    const k = String(p ?? '').trim().toLowerCase().replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+    if (k === 'khan cap' || k === 'khẩn cấp') return 4;
+    if (k === 'cao') return 3;
+    if (k === 'trung binh' || k === 'trung bình') return 2;
+    if (k === 'thap' || k === 'thấp') return 1;
+    return 2;
+  };
+  const sorted = [...filtered].sort((a: any, b: any) => {
+    if (!sortKey) return 0;
+    if (sortKey === 'ngayTao') {
+      const da = a.ngayTao ? new Date(a.ngayTao).getTime() : 0;
+      const db = b.ngayTao ? new Date(b.ngayTao).getTime() : 0;
+      return sortDir === 'asc' ? da - db : db - da;
+    }
+    if (sortKey === 'mucDoUuTien') {
+      const pa = priorityOrder(String(a.mucDoUuTien ?? ''));
+      const pb = priorityOrder(String(b.mucDoUuTien ?? ''));
+      return sortDir === 'asc' ? pa - pb : pb - pa;
+    }
+    return 0;
+  });
+  const toggleSort = (key: 'ngayTao' | 'mucDoUuTien') => {
+    if (sortKey === key) setSortDir(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    else { setSortKey(key); setSortDir('asc'); }
+  };
+  const sortIndicator = (key: 'ngayTao' | 'mucDoUuTien') => {
+    if (sortKey !== key) return <ArrowUpDown size={12} className="inline-block ml-1 opacity-40" />;
+    return sortDir === 'asc' ? <ChevronUp size={12} className="inline-block ml-1" /> : <ChevronDown size={12} className="inline-block ml-1" />;
+  };
+  // Server pagination — overtimePlanService.getAll returns { data, total, page, totalPages }
+  const serverTotal: number | null = (raw as any)?.total ?? (raw as any)?.pagination?.total ?? (data as any)?.pagination?.total ?? null;
+  const serverPagination: { page: number; limit: number; total: number; totalPages: number } | null =
+    serverTotal != null
+      ? {
+          page: (raw as any)?.page ?? (data as any)?.pagination?.page ?? page,
+          limit: (raw as any)?.limit ?? limit,
+          total: serverTotal,
+          totalPages: (((raw as any)?.totalPages ?? (data as any)?.pagination?.totalPages ?? Math.ceil((serverTotal as number) / limit)) || 1),
+        }
+      : null;
+  const hasActiveFilter = !!search || !!filterValues.noiDung || !!filterValues.nguoiTao || !!filterValues.trangThai || !!filterValues.mucDoUuTien;
+  const clientTotal = sorted.length;
+  const total = hasActiveFilter ? clientTotal : (serverTotal ?? clientTotal);
+  const totalPages = hasActiveFilter
+    ? (Math.ceil(clientTotal / limit) || 1)
+    : ((serverPagination?.totalPages ?? Math.ceil(total / limit)) || 1);
+  const pageRows = hasActiveFilter ? sorted.slice((page - 1) * limit, page * limit) : sorted;
+  const rangeFrom = total === 0 ? 0 : (hasActiveFilter ? (page - 1) * limit + 1 : (serverPagination ? (serverPagination.page - 1) * serverPagination.limit + 1 : (page - 1) * limit + 1));
+  const rangeTo = hasActiveFilter ? Math.min(page * limit, total) : (serverPagination ? Math.min(serverPagination.page * serverPagination.limit, total) : Math.min(page * limit, total));
 
   // Fetch full plan for detail modal (to ensure nguoiThamGia populated when list is partial)
   const detailQuery = useQuery({
@@ -156,7 +181,7 @@ const OvertimePlanReviewTab: React.FC = () => {
   });
 
   const handleExportFiltered = () => {
-    const exportRows = filtered;
+    const exportRows = sorted;
     if (exportRows.length === 0) { toast.error('Không có dữ liệu để xuất'); return; }
     try {
       const headers = ['STT', 'Ngay tao', 'Noi dung', 'Uu tien', 'Nguoi tao', 'So dong', 'Trang thai'];
@@ -169,7 +194,7 @@ const OvertimePlanReviewTab: React.FC = () => {
       });
       const all = [headers, ...csvRows];
       const csv = all.map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url;
       a.download = `tang-ca-dang-loc-${new Date().toISOString().slice(0,10)}.csv`;
@@ -202,9 +227,23 @@ const OvertimePlanReviewTab: React.FC = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">STT</th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Ngày tạo</th>
+                <th
+                  className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer select-none hover:text-blue-600 hover:bg-gray-100"
+                  onClick={() => toggleSort('ngayTao')}
+                  title="Nhấp để sắp xếp theo Ngày tạo"
+                  aria-sort={sortKey === 'ngayTao' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                >
+                  Ngày tạo <span className="inline-flex ml-1 align-middle">{sortIndicator('ngayTao')}</span>
+                </th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Nội dung</th>
-                <th className="px-3 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Ưu tiên</th>
+                <th
+                  className="px-3 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer select-none hover:text-blue-600 hover:bg-gray-100"
+                  onClick={() => toggleSort('mucDoUuTien')}
+                  title="Nhấp để sắp xếp theo Ưu tiên"
+                  aria-sort={sortKey === 'mucDoUuTien' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                >
+                  Ưu tiên <span className="inline-flex ml-1 align-middle">{sortIndicator('mucDoUuTien')}</span>
+                </th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Người tạo</th>
                 <th className="px-3 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Số dòng</th>
                 <th className="px-3 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Trạng thái</th>
@@ -237,13 +276,30 @@ const OvertimePlanReviewTab: React.FC = () => {
                   </td>
                   <td className="px-3 py-3 text-center whitespace-nowrap" onClick={e => e.stopPropagation()}>
                     <div className="inline-flex items-center gap-1">
-                      <button onClick={() => setDetailId(r.id)} className="px-2 py-1.5 text-xs border border-gray-300 rounded-md hover:bg-white bg-gray-50" title="Xem chi tiết">Chi tiết</button>
-                      {canApprove && isPending ? (
-                        <>
-                          <button disabled={approveMut.isPending} onClick={() => approveMut.mutate(r.id)} className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 shadow-sm">Duyệt</button>
-                          <button disabled={rejectMut.isPending} onClick={() => setRejectId(r.id)} className="px-3 py-1.5 text-xs bg-white border border-red-300 text-red-600 rounded-md hover:bg-red-50 disabled:opacity-50">Từ chối</button>
-                        </>
-                      ) : <span className="text-xs text-gray-400 px-2">—</span>}
+                      <button onClick={() => setDetailId(r.id)} className="p-1.5 rounded-md text-blue-600 hover:bg-blue-100" title="Xem chi tiết" aria-label="Xem chi tiết">
+                        <Eye size={16} />
+                      </button>
+                      {isPending ? (
+                        canApprove ? (
+                          <>
+                            <button onClick={() => setApproveId(r.id)} title="Duyệt" aria-label="Duyệt" className="p-1.5 rounded-md text-green-600 hover:bg-green-100">
+                              <Check size={16} />
+                            </button>
+                            <button onClick={() => setRejectId(r.id)} title="Từ chối" aria-label="Từ chối" className="p-1.5 rounded-md text-red-600 hover:bg-red-100">
+                              <XCircle size={16} />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button disabled title="Bạn không có quyền duyệt" aria-label="Duyệt" className="p-1.5 rounded-md text-gray-400 opacity-50 cursor-not-allowed">
+                              <Check size={16} />
+                            </button>
+                            <button disabled title="Bạn không có quyền duyệt" aria-label="Từ chối" className="p-1.5 rounded-md text-gray-400 opacity-50 cursor-not-allowed">
+                              <XCircle size={16} />
+                            </button>
+                          </>
+                        )
+                      ) : null}
                     </div>
                   </td>
                 </tr>
@@ -253,10 +309,10 @@ const OvertimePlanReviewTab: React.FC = () => {
         </div>
       )}
 
-      {totalPages > 1 && (
+      {total > 0 && (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
           <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-600">Hiển thị {(page - 1) * limit + 1}–{Math.min(page * limit, total)} / {total} mục</span>
+            <span className="text-sm text-gray-600">Hiển thị {rangeFrom}–{rangeTo} / {total} kế hoạch</span>
             <select value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }} className="text-sm border border-gray-300 rounded-md px-2 py-1 bg-white">
               {[10, 20, 50, 100].map(n => <option key={n} value={n}>{n}/trang</option>)}
             </select>
@@ -413,7 +469,7 @@ const OvertimePlanReviewTab: React.FC = () => {
                 return (
                   <>
                     <button onClick={() => { setDetailId(null); setRejectId(row.id); }} className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 text-sm">Từ chối</button>
-                    <button disabled={approveMut.isPending} onClick={() => { approveMut.mutate(row.id); setDetailId(null); }} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm disabled:opacity-50">Duyệt ngay</button>
+                    <button onClick={() => { setDetailId(null); setApproveId(row.id); }} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">Duyệt ngay</button>
                   </>
                 );
               })()}
@@ -434,6 +490,95 @@ const OvertimePlanReviewTab: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        isOpen={!!approveId}
+        onClose={() => setApproveId(null)}
+        onConfirm={() => { if (approveId) approveMut.mutate(approveId); setApproveId(null); }}
+        title="Xác nhận duyệt kế hoạch"
+        message="Bạn có chắc muốn duyệt kế hoạch tăng ca này?"
+        confirmText="Xác nhận"
+        cancelText="Hủy"
+        variant="primary"
+      >
+        {(() => {
+          const approveRow: any = allRows.find((x: any) => x.id === approveId) ?? (detailQuery.data as any);
+          if (!approveRow) return <p className="text-sm text-gray-500">Không tìm thấy kế hoạch.</p>;
+          const priorityBadge = getPriorityBadge(String(approveRow.mucDoUuTien ?? 'TRUNG_BINH'));
+          const statusBadge = getStatusBadge(String(approveRow.trangThai ?? approveRow.status ?? 'CHO_DUYET') as OvertimePlanStatus);
+          const items: any[] = approveRow.items ?? [];
+          const totalHours = items.reduce((s: number, it: any) => s + computeHours(it.gioBatDau ?? '', it.gioKetThuc ?? ''), 0);
+          const approverDisplay = approveRow.nguoiTao ? `${approveRow.nguoiTao.lastName ?? ''} ${approveRow.nguoiTao.firstName ?? ''}`.trim() : '—';
+          return (
+            <div className="space-y-3 text-sm max-h-[60vh] overflow-y-auto pr-1">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-gray-50 rounded-lg p-2.5 border">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Nội dung</p>
+                  <p className="font-medium mt-0.5 line-clamp-2" title={approveRow.noiDung}>{approveRow.noiDung || '—'}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2.5 border">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Ngày tạo</p>
+                  <p className="mt-0.5">{approveRow.ngayTao ? new Date(approveRow.ngayTao).toLocaleDateString('vi-VN') : '—'}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2.5 border">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Người tạo</p>
+                  <p className="mt-0.5">{approverDisplay || '—'}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2.5 border">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Ưu tiên</p>
+                  <span className={`inline-flex mt-1 px-2 py-0.5 rounded-full text-xs font-medium ${priorityBadge.class}`}>{priorityBadge.label}</span>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2.5 border">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Trạng thái</p>
+                  <span className={`inline-flex mt-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusBadge.class}`}>{statusBadge.label}</span>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2.5 border">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Files</p>
+                  <p className="mt-0.5">{approveRow.files?.length ? `${approveRow.files.length} file` : '—'}</p>
+                </div>
+              </div>
+              {approveRow.ghiChu && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2.5">
+                  <p className="text-xs text-yellow-700 uppercase tracking-wide font-medium">Ghi chú</p>
+                  <p className="mt-1 text-sm line-clamp-3" title={approveRow.ghiChu}>{approveRow.ghiChu}</p>
+                </div>
+              )}
+              <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                <span className="text-xs text-gray-600 font-medium">Tổng giờ (theo ca)</span>
+                <span className="font-semibold text-blue-700">{totalHours ? `${totalHours.toFixed(1)}h` : '—'}</span>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1.5">Các ngày tăng ca ({items.length})</p>
+                {items.length === 0 ? (
+                  <p className="text-xs text-gray-400 py-2 text-center border rounded-lg">Không có dòng</p>
+                ) : (
+                  <div className="border rounded-lg overflow-hidden max-h-64 overflow-y-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50 sticky top-0"><tr className="text-gray-600"><th className="text-left px-2.5 py-1.5 font-medium">Ngày</th><th className="text-left px-2.5 py-1.5 font-medium">Ca</th><th className="text-left px-2.5 py-1.5 font-medium">Nhân sự</th><th className="text-left px-2.5 py-1.5 font-medium">Giờ</th></tr></thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {items.map((it: any) => {
+                          const hours = computeHours(it.gioBatDau ?? '', it.gioKetThuc ?? '');
+                          const participants = (it.nguoiThamGia ?? []).length > 0
+                            ? it.nguoiThamGia.map((p: any) => `${p.lastName ?? ''} ${p.firstName ?? ''}`.trim()).join(', ')
+                            : ((it.nguoiThamGiaIds ?? []).length ? `${(it.nguoiThamGiaIds ?? []).length} người` : '—');
+                          return (
+                            <tr key={it.id} className="hover:bg-gray-50">
+                              <td className="px-2.5 py-1.5 whitespace-nowrap">{it.ngayTangCa ? new Date(it.ngayTangCa).toLocaleDateString('vi-VN') : '—'}</td>
+                              <td className="px-2.5 py-1.5 whitespace-nowrap">{it.workShiftName ?? it.ca ?? '—'}</td>
+                              <td className="px-2.5 py-1.5 max-w-[140px] truncate" title={participants}>{participants}</td>
+                              <td className="px-2.5 py-1.5 whitespace-nowrap">{it.gioBatDau ?? '—'}–{it.gioKetThuc ?? '—'}{hours ? ` (${hours.toFixed(1)}h)` : ''}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+      </ConfirmDialog>
     </div>
   );
 };
