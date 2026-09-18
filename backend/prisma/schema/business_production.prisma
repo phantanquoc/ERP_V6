@@ -46,6 +46,7 @@ model SupplyRequest {
   replenishmentRequests ReplenishmentRequest[]
   warehouseReceipts     WarehouseReceipt[]
   warehouseIssues       WarehouseIssue[]
+  outboundPlans         OutboundPlan[]
 
   @@index([trangThai])
   @@map("supply_requests")
@@ -194,7 +195,7 @@ model PurchaseRequest {
   ngayDuyet            DateTime?
   // Cancel audit — set by cancelPurchaseRequest (lyDoHuy required)
   lyDoHuy              String?
-  ngayHuy              DateTime?             @db.Timestamptz(6)
+  ngayHuy              DateTime?               @db.Timestamptz(6)
   nguoiHuy             String?
   supplyRequestId      String?
   nhaCungCapId         String?
@@ -206,6 +207,11 @@ model PurchaseRequest {
   sourceType           String                  @default("MANUAL")
   createdAt            DateTime                @default(now())
   updatedAt            DateTime                @updatedAt
+  // Inbound plan — expected arrival + warehouse + shipping note
+  ngayDuKienNhap       DateTime?
+  warehouseId          String?
+  warehouse            warehouses?             @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  ghiChuVanChuyen      String?
   employee             Employee                @relation(fields: [employeeId], references: [id])
   supplyRequest        SupplyRequest?          @relation(fields: [supplyRequestId], references: [id])
   supplier             Supplier?               @relation(fields: [nhaCungCapId], references: [id])
@@ -214,12 +220,15 @@ model PurchaseRequest {
   // Back-reference to the YCBS that was converted into this YCMH.
   replenishmentRequest ReplenishmentRequest?   @relation("ReplenishmentToPurchase")
   warehouseReceipts    WarehouseReceipt[]
+  inboundPlan          InboundPlan?
 
   @@index([employeeId])
   @@index([supplyRequestId])
   @@index([nhaCungCapId])
   @@index([trangThai])
   @@index([sourceType])
+  @@index([warehouseId])
+  @@index([ngayDuKienNhap])
   @@map("purchase_requests")
   @@schema("business")
 }
@@ -284,22 +293,109 @@ model Supplier {
 }
 
 model warehouses {
-  id             String          @id
-  maKho          String          @unique
-  tenKho         String
-  loaiKho        String?
-  diaChi         String?
-  dienTich       Float?
-  sucChua        Float?
-  nguoiQuanLy    String?
-  soDienThoai    String?
-  trangThai      String          @default("active")
-  ghiChu         String?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  lots           Lot[]
-  warehouseSlots WarehouseSlot[]
+  id              String            @id
+  maKho           String            @unique
+  tenKho          String
+  loaiKho         String?
+  diaChi          String?
+  dienTich        Float?
+  sucChua         Float?
+  nguoiQuanLy     String?
+  soDienThoai     String?
+  trangThai       String            @default("active")
+  ghiChu          String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  lots            Lot[]
+  warehouseSlots  WarehouseSlot[]
+  inboundPlans    InboundPlan[]
+  outboundPlans   OutboundPlan[]
+  PurchaseRequest PurchaseRequest[]
 
+  @@schema("business")
+}
+
+// ─── Inbound / Outbound Plans ───────────────────────────────────────────────
+
+model InboundPlan {
+  id                String             @id @default(cuid())
+  stt               Int                @default(autoincrement())
+  maKeHoach         String             @unique // KH-NH-YYYY-NNN
+  purchaseRequestId String             @unique // 1 YCMH = 1 plan
+  ngayDuKien        DateTime
+  warehouseId       String?
+  trangThai         String             @default("Chờ nhập") // Chờ nhập/Đã nhập/Quá hạn/Đã hủy
+  lyDoChenhLech     String?
+  ngayDuKienMoi     DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  purchaseRequest   PurchaseRequest    @relation(fields: [purchaseRequestId], references: [id], onDelete: Cascade)
+  warehouse         warehouses?        @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  receipts          WarehouseReceipt[]
+  logs              InboundPlanLog[]
+
+  @@index([warehouseId])
+  @@index([ngayDuKien])
+  @@index([trangThai])
+  @@map("inbound_plans")
+  @@schema("business")
+}
+
+model InboundPlanLog {
+  id            String      @id @default(cuid())
+  inboundPlanId String
+  hanhDong      String
+  ngayCu        DateTime?
+  ngayMoi       DateTime?
+  lyDo          String?
+  nguoiThucHien String?
+  createdAt     DateTime    @default(now())
+  inboundPlan   InboundPlan @relation(fields: [inboundPlanId], references: [id], onDelete: Cascade)
+
+  @@index([inboundPlanId])
+  @@map("inbound_plan_logs")
+  @@schema("business")
+}
+
+model OutboundPlan {
+  id              String             @id @default(cuid())
+  stt             Int                @default(autoincrement())
+  maKeHoach       String             @unique // KH-XH-YYYY-NNN
+  supplyRequestId String?
+  ngayDuKien      DateTime
+  warehouseId     String?
+  trangThai       String             @default("Chờ xuất") // Chờ xuất/Đã xuất/Quá hạn/Đã hủy
+  ghiChu          String?
+  lyDoChenhLech   String?
+  ngayDuKienMoi   DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  supplyRequest   SupplyRequest?     @relation(fields: [supplyRequestId], references: [id], onDelete: SetNull)
+  warehouse       warehouses?        @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  logs            OutboundPlanLog[]
+  issues          WarehouseIssue[]
+
+  @@index([supplyRequestId])
+  @@index([warehouseId])
+  @@index([ngayDuKien])
+  @@index([trangThai])
+  @@map("outbound_plans")
+  @@schema("business")
+}
+
+model OutboundPlanLog {
+  id             String       @id @default(cuid())
+  outboundPlanId String
+  hanhDong       String
+  ngayCu         DateTime?
+  ngayMoi        DateTime?
+  lyDo           String?
+  nguoiThucHien  String?
+  createdAt      DateTime     @default(now())
+  outboundPlan   OutboundPlan @relation(fields: [outboundPlanId], references: [id], onDelete: Cascade)
+
+  @@index([outboundPlanId])
+  @@map("outbound_plan_logs")
   @@schema("business")
 }
 
@@ -398,6 +494,8 @@ model WarehouseReceipt {
   supplyRequest     SupplyRequest?         @relation(fields: [supplyRequestId], references: [id])
   purchaseRequestId String?
   purchaseRequest   PurchaseRequest?       @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
+  inboundPlanId     String?
+  inboundPlan       InboundPlan?           @relation(fields: [inboundPlanId], references: [id], onDelete: SetNull)
   // Derived totals across items — recomputed inside the same transaction as any item mutation
   tongSoLuongThucTe Float                  @default(0)
   soDongHang        Int                    @default(0)
@@ -414,6 +512,7 @@ model WarehouseReceipt {
 
   @@index([supplyRequestId])
   @@index([purchaseRequestId])
+  @@index([inboundPlanId])
   @@map("warehouse_receipts")
   @@schema("business")
 }
@@ -487,6 +586,8 @@ model WarehouseIssue {
   ghiChu             String?
   supplyRequestId    String?
   supplyRequest      SupplyRequest?       @relation(fields: [supplyRequestId], references: [id])
+  outboundPlanId     String?
+  outboundPlan       OutboundPlan?        @relation(fields: [outboundPlanId], references: [id], onDelete: SetNull)
   materialEvaluation MaterialEvaluation?
   // Derived totals across items — recomputed inside the same transaction as any item mutation
   tongSoLuongThucTe  Float                @default(0)

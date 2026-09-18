@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Edit, BadgeCheck, Ban, X } from 'lucide-react';
+import { Edit, BadgeCheck, Ban, X, PackageOpen } from 'lucide-react';
 import Modal from '../Modal';
 import type { PurchaseRequest } from '../../types/purchaseRequest';
 import { labelForPurchaseRequest } from '../../utils/purchaseRequestLabel';
@@ -16,6 +16,7 @@ interface Props {
   onEdit: (pr: PurchaseRequest) => void;
   onCancel: (pr: PurchaseRequest) => void;
   onConfirmPrice: (pr: PurchaseRequest) => void;
+  onViewInboundPlan?: (pr: PurchaseRequest) => void;
 }
 
 function formatDate(d?: string | null): string {
@@ -27,8 +28,21 @@ function formatDateTime(d?: string | null): string {
   try { return new Date(d).toLocaleString('vi-VN'); } catch { return '—'; }
 }
 
+function arrivalBadge(ngayDuKienNhap?: string | null): { label: string; cls: string } | null {
+  if (!ngayDuKienNhap) return null;
+  const d = new Date(ngayDuKienNhap);
+  if (isNaN(d.getTime())) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const dDay = new Date(d); dDay.setHours(0, 0, 0, 0);
+  const diffMs = dDay.getTime() - today.getTime();
+  const diffDays = Math.floor(diffMs / (24 * 3600 * 1000));
+  if (diffDays < 0) return { label: 'Quá hạn', cls: 'bg-red-100 text-red-700 border-red-200' };
+  if (diffDays <= 3) return { label: 'Sắp đến hạn', cls: 'bg-amber-100 text-amber-700 border-amber-200' };
+  return null;
+}
+
 export default function PurchaseRequestDetailModal({
-  isOpen, onClose, purchaseRequest, canEdit, canUpdate, isActualPriceConfirmed, onEdit, onCancel, onConfirmPrice,
+  isOpen, onClose, purchaseRequest, canEdit, canUpdate, isActualPriceConfirmed, onEdit, onCancel, onConfirmPrice, onViewInboundPlan,
 }: Props) {
   const pr = purchaseRequest;
   const totals = useMemo(() => {
@@ -51,6 +65,8 @@ export default function PurchaseRequestDetailModal({
   const positionName = pr.employee?.position?.name;
   const showPriceConfirm = pr.trangThai === 'Đã duyệt' && canUpdate;
   const showCancel = (pr.trangThai === 'Chờ báo giá' || pr.trangThai === 'Chờ duyệt') && canEdit;
+  const badge = arrivalBadge(pr.ngayDuKienNhap);
+  const tenKho = pr.warehouse?.tenKho ?? pr.inboundPlan?.warehouse?.tenKho ?? null;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} closeOnBackdrop ariaLabel="Chi tiết yêu cầu mua hàng" className="p-0 sm:p-4">
@@ -147,6 +163,42 @@ export default function PurchaseRequestDetailModal({
               <label className="block text-sm font-medium text-gray-500 mb-1">Bộ phận yêu cầu</label>
               <p className="text-sm text-gray-900" title={pr.supplyRequest?.boPhan ?? ''}>{pr.supplyRequest?.boPhan ? normalizeBoPhan(pr.supplyRequest.boPhan) : '—'}</p>
             </div>
+
+            {/* Inbound scheduling */}
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+              <label className="block text-sm font-medium text-gray-500 mb-1">Ngày dự kiến hàng về</label>
+              {pr.ngayDuKienNhap ? (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-medium text-gray-900">{formatDate(pr.ngayDuKienNhap)}</span>
+                  {badge && <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${badge.cls}`}>{badge.label}</span>}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400 italic">Chưa có</p>
+              )}
+            </div>
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+              <label className="block text-sm font-medium text-gray-500 mb-1">Kho dự kiến nhập</label>
+              {tenKho ? <p className="text-sm font-medium text-gray-900">{tenKho}</p> : <p className="text-sm text-gray-400 italic">Chưa chọn</p>}
+            </div>
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 col-span-1 sm:col-span-2">
+              <label className="block text-sm font-medium text-gray-500 mb-1">Ghi chú vận chuyển</label>
+              {pr.ghiChuVanChuyen ? <p className="text-sm text-gray-900 whitespace-pre-wrap">{pr.ghiChuVanChuyen}</p> : <p className="text-sm text-gray-400 italic">—</p>}
+            </div>
+            {pr.inboundPlan && (
+              <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200 col-span-1 sm:col-span-2">
+                <label className="block text-sm font-medium text-emerald-700 mb-1">Kế hoạch nhập kho</label>
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="font-medium text-gray-900">{pr.inboundPlan.maKeHoach}</span>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-white border text-gray-700">{pr.inboundPlan.trangThai}</span>
+                  <span className="text-gray-500">Ngày DK: {formatDate(pr.inboundPlan.ngayDuKien)}</span>
+                  {onViewInboundPlan && (
+                    <button type="button" onClick={() => onViewInboundPlan(pr)} className="ml-auto inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded-md text-xs hover:bg-emerald-700">
+                      <PackageOpen className="w-3.5 h-3.5" /> Xem kế hoạch
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Items table */}
             {pr.items && pr.items.length > 0 && (
@@ -268,6 +320,11 @@ export default function PurchaseRequestDetailModal({
           </div>
 
           <div className="flex flex-wrap justify-end gap-3 mt-4 pt-4 border-t border-gray-100 bg-white shrink-0">
+            {pr.inboundPlan && onViewInboundPlan && (
+              <button type="button" onClick={() => onViewInboundPlan(pr)} className="px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 flex items-center gap-2">
+                <PackageOpen className="w-4 h-4" /> Kế hoạch nhập
+              </button>
+            )}
             {showPriceConfirm && (
               <button type="button" onClick={() => onConfirmPrice(pr)} className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 flex items-center gap-2">
                 <BadgeCheck className="w-4 h-4" /> Xác nhận giá thực tế

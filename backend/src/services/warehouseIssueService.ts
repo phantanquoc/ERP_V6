@@ -48,6 +48,8 @@ export interface CreateIssueInput {
   ngayXuat?: Date | string;
   ghiChu?: string;
   supplyRequestId?: string;
+  outboundPlanId?: string | null;
+  lyDoChenhLech?: string | null;
   nguoiDeNghi?: string;
   maNguoiDeNghi?: string;
   boPhan?: string;
@@ -473,6 +475,7 @@ class WarehouseIssueService {
         ...(normalized.ngayXuat ? { ngayXuat: new Date(normalized.ngayXuat) } : {}),
         ghiChu: normalized.ghiChu,
         ...(normalized.supplyRequestId ? { supplyRequestId: normalized.supplyRequestId } : {}),
+        ...((normalized as any).outboundPlanId ? { outboundPlanId: (normalized as any).outboundPlanId } : {}),
         ...(normalized.nguoiDeNghi ? { nguoiDeNghi: normalized.nguoiDeNghi } : {}),
         ...(normalized.maNguoiDeNghi ? { maNguoiDeNghi: normalized.maNguoiDeNghi } : {}),
         ...(normalized.boPhan ? { boPhan: normalized.boPhan } : {}),
@@ -486,6 +489,28 @@ class WarehouseIssueService {
       },
       include: { items: { orderBy: { stt: 'asc' } } },
     });
+
+    const outboundPlanId = (normalized as any).outboundPlanId as string | undefined;
+    if (outboundPlanId) {
+      try {
+        const hasDiff = withMaKien.some((l) => Math.abs(Number((l as any).soLuongYeuCau ?? l.soLuongThucTe) - Number(l.soLuongThucTe)) > 1e-9);
+        const lyDo = (normalized as any).lyDoChenhLech as string | undefined;
+        // Try outboundPlan service first, fallback to inline update
+        try {
+          const mod = await import('./outboundPlanService');
+          const svc: any = (mod as any).default ?? mod;
+          if (svc?.markReceived) await svc.markReceived(outboundPlanId, { lyDoChenhLech: lyDo ?? (hasDiff ? 'Chênh lệch SL kế hoạch/thực tế' : undefined) }, tx as any);
+          else throw new Error('no markReceived');
+        } catch {
+          const cur = await (tx as any).outboundPlan?.findUnique?.({ where: { id: outboundPlanId }, select: { trangThai: true, ngayDuKien: true } });
+          if (cur && !['Đã xuất', 'Đã hủy'].includes(cur.trangThai)) {
+            await (tx as any).outboundPlan.update({ where: { id: outboundPlanId }, data: { trangThai: 'Đã xuất', ...(lyDo ? { lyDoChenhLech: lyDo } : {}) } });
+          }
+        }
+      } catch (e) {
+        console.error('[warehouseIssue] mark outboundPlan failed', e);
+      }
+    }
 
     // Atomic decrement with affected-rows check; sequential snapshots remain second defence.
     // Throws (and thus rolls back the outer transaction) when stock is insufficient.

@@ -59,6 +59,9 @@ export interface CreatePurchaseRequestRequest {
   fileKemTheo?: string;
   supplyRequestId?: string;
   ghiChuMuaHang?: string;
+  ngayDuKienNhap?: string | null;
+  warehouseId?: string | null;
+  ghiChuVanChuyen?: string | null;
 }
 
 class PurchaseRequestService {
@@ -132,6 +135,9 @@ class PurchaseRequestService {
     nhaCungCapId?: string;
     giaDuKien?: number;
     ghiChuMuaHang?: string;
+    ngayDuKienNhap?: string | null;
+    warehouseId?: string | null;
+    ghiChuVanChuyen?: string | null;
     items?: {
       id?: string;
       phanLoai: string;
@@ -155,6 +161,9 @@ class PurchaseRequestService {
       if (data.nhaCungCapId) formData.append('nhaCungCapId', data.nhaCungCapId);
       if (data.giaDuKien !== undefined) formData.append('giaDuKien', data.giaDuKien.toString());
       if (data.ghiChuMuaHang !== undefined) formData.append('ghiChuMuaHang', data.ghiChuMuaHang || '');
+      if (data.ngayDuKienNhap !== undefined) formData.append('ngayDuKienNhap', data.ngayDuKienNhap || '');
+      if (data.warehouseId !== undefined) formData.append('warehouseId', data.warehouseId || '');
+      if (data.ghiChuVanChuyen !== undefined) formData.append('ghiChuVanChuyen', data.ghiChuVanChuyen || '');
       if (data.items) formData.append('items', JSON.stringify(data.items));
       formData.append('file', data.file);
        const response = await apiClient.put(`/purchase-requests/${id}`, formData);

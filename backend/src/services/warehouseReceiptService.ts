@@ -57,6 +57,9 @@ export interface CreateReceiptInput {
    * handoff can be inherited from the PR when the caller only knows the YCMH).
    */
   purchaseRequestId?: string;
+  inboundPlanId?: string | null;
+  /** Reason for discrepancy when actual receipt differs from inbound plan. Forwarded to InboundPlan.lyDoChenhLech; also merged into ghiChu as fallback. */
+  lyDoChenhLech?: string | null;
   nguoiDeNghi?: string;
   maNguoiDeNghi?: string;
   boPhan?: string;
@@ -675,6 +678,12 @@ class WarehouseReceiptService {
     const { lines } = computeSequentialSnapshots(resolved, balances, 'IN');
     const totals = computeHeaderTotals(lines);
 
+    const lyDoChenhLech = (normalized as any).lyDoChenhLech as string | null | undefined;
+    // WarehouseReceipt has no lyDoChenhLech column — keep it in ghiChu so FE validation is not bypassed
+    const effectiveGhiChu = lyDoChenhLech
+      ? normalized.ghiChu ? `${normalized.ghiChu} | LyDoChenhLech: ${lyDoChenhLech}` : `LyDoChenhLech: ${lyDoChenhLech}`
+      : normalized.ghiChu;
+
     const receipt = await tx.warehouseReceipt.create({
       data: {
         maPhieuNhap,
@@ -683,9 +692,10 @@ class WarehouseReceiptService {
         tenNhanVien: normalized.tenNhanVien ?? '',
         ...(normalized.ngayNhap ? { ngayNhap: new Date(normalized.ngayNhap) } : {}),
         mucDich: normalized.mucDich,
-        ghiChu: normalized.ghiChu,
+        ghiChu: effectiveGhiChu,
         ...(normalized.supplyRequestId ? { supplyRequestId: normalized.supplyRequestId } : {}),
         ...((normalized as CreateReceiptInput).purchaseRequestId ? { purchaseRequestId: (normalized as CreateReceiptInput).purchaseRequestId } : {}),
+        ...((normalized as any).inboundPlanId ? { inboundPlanId: (normalized as any).inboundPlanId } : {}),
         ...(normalized.nguoiDeNghi ? { nguoiDeNghi: normalized.nguoiDeNghi } : {}),
         ...(normalized.maNguoiDeNghi ? { maNguoiDeNghi: normalized.maNguoiDeNghi } : {}),
         ...(normalized.boPhan ? { boPhan: normalized.boPhan } : {}),
@@ -703,6 +713,30 @@ class WarehouseReceiptService {
     const totalsByPackage = this.sumByPackage(resolved);
     for (const [lotProductId, qty] of totalsByPackage) {
       await tx.lotProduct.update({ where: { id: lotProductId }, data: { soLuong: { increment: qty } } });
+    }
+
+    // If linked to an inbound plan, accumulate actual quantities: when total >= planned, mark plan Đã nhập
+    const inboundPlanId = (normalized as any).inboundPlanId as string | undefined;
+    if (inboundPlanId) {
+      // Persist discrepancy reason on the plan when FE sent one (plan owns lyDoChenhLech column)
+      if (lyDoChenhLech) {
+        try {
+          await tx.inboundPlan.update({ where: { id: inboundPlanId }, data: { lyDoChenhLech } as any });
+        } catch (e) {
+          console.error('[warehouseReceipt] inboundPlan lyDoChenhLech persist failed', e);
+        }
+      }
+      try {
+        // Derive plan linkage when caller passed inboundPlanId but no purchaseRequestId — infer from plan
+        // Defer heavy aggregation to helper inside transaction; best-effort, never fails the receipt
+        const mod = await import('./inboundPlanService');
+        const svc: any = (mod as any).default ?? mod;
+        if (svc?.onReceiptCreated) await svc.onReceiptCreated(inboundPlanId, tx as any);
+        else await onReceiptCreatedInline(tx as any, inboundPlanId);
+      } catch (e) {
+        console.error('[warehouseReceipt] onReceiptCreated failed (inline fallback)', e);
+        try { await onReceiptCreatedInline(tx as any, inboundPlanId); } catch {}
+      }
     }
 
     // Goods that arrived from a purchase must carry their cost, otherwise the slip
@@ -1207,6 +1241,29 @@ class WarehouseReceiptService {
         donViTinh: line.donViTinh || product.donViTinh || kienDonViTinh || '',
         // Kiện mới nhận giá chuẩn của hàng hóa thay vì giữ default DB (100000đ).
         ...(product.giaThanh != null ? { giaThanh: product.giaThanh } : {}),
+      },
+    });
+  }
+}
+
+async function onReceiptCreatedInline(tx: any, inboundPlanId: string): Promise<void> {
+  const plan = await tx.inboundPlan.findUnique({
+    where: { id: inboundPlanId },
+    include: { purchaseRequest: { include: { items: true } }, receipts: true },
+  });
+  if (!plan || plan.trangThai === 'Đã nhập' || plan.trangThai === 'Đã hủy') return;
+  const plannedQty = (plan.purchaseRequest?.items ?? []).reduce((s: number, it: any) => s + Number(it.soLuong ?? 0), 0);
+  const receivedQty = (plan.receipts ?? []).reduce((s: number, r: any) => s + Number(r.tongSoLuongThucTe ?? 0), 0);
+  const isOverdue = plan.ngayDuKien && new Date(plan.ngayDuKien) < new Date();
+  if (plannedQty > 0 && receivedQty + 1e-9 >= plannedQty) {
+    await tx.inboundPlan.update({ where: { id: inboundPlanId }, data: { trangThai: 'Đã nhập' } });
+    await tx.inboundPlanLog.create({
+      data: {
+        inboundPlanId,
+        hanhDong: isOverdue ? 'Nhập quá hạn' : 'Đã nhập — đủ SL',
+        lyDo: isOverdue
+          ? `Quá hạn nhưng đã nhận đủ ${receivedQty}/${plannedQty}`
+          : `Đã nhận đủ ${receivedQty}/${plannedQty}`,
       },
     });
   }

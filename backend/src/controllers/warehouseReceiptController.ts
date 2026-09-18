@@ -17,7 +17,7 @@ export const generateReceiptCode = async (_req: Request, res: Response, next: Ne
 
 export const createWarehouseReceipt = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { maPhieuNhap, employeeId, maNhanVien, tenNhanVien, ngayNhap, mucDich, ghiChu, supplyRequestId, purchaseRequestId, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, items } = req.body;
+    const { maPhieuNhap, employeeId, maNhanVien, tenNhanVien, ngayNhap, mucDich, ghiChu, supplyRequestId, purchaseRequestId, inboundPlanId, lyDoChenhLech, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, items } = req.body;
 
     if (!employeeId) {
       res.status(400).json({ success: false, message: 'Thiếu mã nhân viên' });
@@ -29,7 +29,7 @@ export const createWarehouseReceipt = async (req: Request, res: Response, next: 
     }
 
     const receipt = await warehouseReceiptService.create({
-      maPhieuNhap, employeeId, maNhanVien, tenNhanVien, ngayNhap, mucDich, ghiChu, supplyRequestId, purchaseRequestId, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, items,
+      maPhieuNhap, employeeId, maNhanVien, tenNhanVien, ngayNhap, mucDich, ghiChu, supplyRequestId, purchaseRequestId, inboundPlanId, lyDoChenhLech, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, items,
     });
 
     res.status(201).json({ success: true, data: receipt, message: 'Tạo phiếu nhập kho thành công' });

@@ -85,6 +85,8 @@ const ROUTE_MAP: Record<string, string> = {
   inventory: '/api/inventory',
   pricingOverview: '/api/pricing/overview',
   rule: '/api/rules',
+  inboundPlan: '/api/inbound-plans',
+  outboundPlan: '/api/outbound-plans',
   agent: '/api/agent',
   chat: '/api/chat',
 };

@@ -33,6 +33,9 @@ interface CreatePurchaseRequestRequest {
   isQuickPurchase?: boolean;
   // 'MANUAL' | 'SHORTAGE' | 'REORDER' | 'QUICK'
   sourceType?: string;
+  ngayDuKienNhap?: string | Date | null;
+  warehouseId?: string | null;
+  ghiChuVanChuyen?: string | null;
 }
 
 // 3.1 — strict allowlist: every transition must be explicitly listed.
@@ -208,6 +211,8 @@ class PurchaseRequestService {
           },
           supplyRequest: { select: { id: true, maYeuCau: true, trangThai: true, boPhan: true } },
           supplier: { select: { id: true, tenNhaCungCap: true, maNhaCungCap: true } },
+          warehouse: { select: { id: true, tenKho: true, maKho: true } },
+          inboundPlan: { include: { warehouse: { select: { id: true, tenKho: true, maKho: true } }, logs: { orderBy: { createdAt: 'desc' }, take: 20 } } },
           items: { include: { supplier: true } },
         },
       }),
@@ -237,6 +242,8 @@ class PurchaseRequestService {
         },
         supplyRequest: true,
         supplier: true,
+        warehouse: { select: { id: true, tenKho: true, maKho: true } },
+        inboundPlan: { include: { warehouse: { select: { id: true, tenKho: true, maKho: true } }, logs: { orderBy: { createdAt: 'desc' } } } },
         items: { include: { supplier: true } },
         replenishmentRequest: { select: { id: true, maYeuCau: true, trangThai: true } },
         warehouseReceipts: { select: { id: true, maPhieuNhap: true } },
@@ -299,6 +306,26 @@ class PurchaseRequestService {
         }
       }
     }
+    // Validate ngayDuKienNhap / warehouseId trước khi tạo
+    let ngayDuKienNhapValidated: Date | null = null;
+    if (data.ngayDuKienNhap !== undefined && data.ngayDuKienNhap !== null && String(data.ngayDuKienNhap).trim() !== '') {
+      const d = new Date(data.ngayDuKienNhap as string);
+      if (isNaN(d.getTime())) throw new ValidationError('Ngày dự kiến nhập không hợp lệ');
+      const ngayYeuCauRef = new Date(); ngayYeuCauRef.setHours(0, 0, 0, 0);
+      const dDay = new Date(d); dDay.setHours(0, 0, 0, 0);
+      if (dDay < ngayYeuCauRef) throw new ValidationError('Ngày dự kiến nhập phải >= ngày yêu cầu');
+      ngayDuKienNhapValidated = d;
+    }
+    // Treat empty string warehouseId as null (no warehouse)
+    const warehouseIdNorm = (() => {
+      const v = (data as any).warehouseId;
+      if (v === undefined || v === null || String(v).trim() === '') return null;
+      return String(v).trim();
+    })();
+    if (warehouseIdNorm) {
+      const wh = await prisma.warehouses.findUnique({ where: { id: warehouseIdNorm }, select: { id: true } });
+      if (!wh) throw new ValidationError('Kho không tồn tại');
+    }
 
     const purchaseRequest = await prisma.$transaction(async (tx) => {
       // 3.2 — maYeuCau is selected FOR the transaction, not before it
@@ -334,6 +361,9 @@ class PurchaseRequestService {
           trangThai,
           nguoiDuyet: isQuick ? 'Hệ thống (Tự động)' : undefined,
           ngayDuyet: isQuick ? new Date() : undefined,
+          ngayDuKienNhap: ngayDuKienNhapValidated,
+          warehouseId: warehouseIdNorm,
+          ghiChuVanChuyen: (data.ghiChuVanChuyen ?? null) as string | null,
         },
       });
 
@@ -362,6 +392,8 @@ class PurchaseRequestService {
           },
           supplyRequest: true,
           supplier: true,
+          warehouse: { select: { id: true, tenKho: true, maKho: true } },
+          inboundPlan: { include: { warehouse: { select: { id: true, tenKho: true, maKho: true } }, logs: { orderBy: { createdAt: 'desc' }, take: 20 } } },
           items: { include: { supplier: true } },
         },
       });
@@ -473,6 +505,9 @@ class PurchaseRequestService {
     giaDuKien?: number;
     ghiChuMuaHang?: string;
     items?: PurchaseRequestItemInput[];
+    ngayDuKienNhap?: string | Date | null;
+    warehouseId?: string | null;
+    ghiChuVanChuyen?: string | null;
   }) {
     const existingRequest = await prisma.purchaseRequest.findUnique({
       where: { id },
@@ -504,7 +539,9 @@ class PurchaseRequestService {
     // confirmation (confirmActualPrice) still gates on Đã duyệt, and the per-line
     // giaThucTe is preserved across an item re-write below so a post-approval edit
     // never wipes a cost basis that was already booked into the catalog.
-    const lockedStatuses = new Set(['Hoàn thành']);
+    // Inbound scheduling fields (ngayDuKienNhap/warehouseId/ghiChuVanChuyen) are
+    // editable even after Đã duyệt — only Hoàn thành/Đã hủy lock them (and items/pricing).
+    const lockedStatuses = new Set(['Hoàn thành', 'Đã hủy']);
     if (lockedStatuses.has(existingRequest.trangThai)) {
       const touchesItems = data.items !== undefined;
       const touchesPricing =
@@ -513,10 +550,43 @@ class PurchaseRequestService {
         (data as any).phanLoai !== undefined ||
         (data as any).tenHangHoa !== undefined ||
         (data as any).soLuong !== undefined;
-      if (touchesItems || touchesPricing) {
-        throw new ValidationError('Không thể sửa mặt hàng/đơn giá sau khi đã duyệt hoặc hoàn thành');
+      const touchesSchedule =
+        (data as any).ngayDuKienNhap !== undefined ||
+        (data as any).warehouseId !== undefined ||
+        (data as any).ghiChuVanChuyen !== undefined;
+      if (touchesItems || touchesPricing || touchesSchedule) {
+        throw new ValidationError('Không thể sửa yêu cầu đã hoàn thành hoặc đã hủy');
       }
-      // still allow non-pricing header edits (ghiChu, mucDichYeuCau, etc.) — only pricing/items are locked
+      // still allow non-pricing/non-schedule header edits (ghiChu, mucDichYeuCau, etc.)
+    }
+    // Allow ngayDuKienNhap/warehouseId/ghiChuVanChuyen edits while in Đã duyệt (intentional exception)
+    // Validate new schedule fields if provided
+    let normalizedNgayDuKienNhap: Date | null | undefined = undefined; // undefined = not touched
+    if ((data as any).ngayDuKienNhap !== undefined) {
+      const raw = (data as any).ngayDuKienNhap;
+      if (raw === null || raw === '' || (typeof raw === 'string' && raw.trim() === '')) {
+        normalizedNgayDuKienNhap = null;
+      } else {
+        const d = new Date(raw as string);
+        if (isNaN(d.getTime())) throw new ValidationError('Ngày dự kiến nhập không hợp lệ');
+        const ngayYeuCauRef: Date = (existingRequest as any).ngayYeuCau ?? new Date();
+        const refDay = new Date(ngayYeuCauRef); refDay.setHours(0, 0, 0, 0);
+        const dDay = new Date(d); dDay.setHours(0, 0, 0, 0);
+        if (dDay < refDay) throw new ValidationError('Ngày dự kiến nhập phải >= ngày yêu cầu');
+        normalizedNgayDuKienNhap = d;
+      }
+    }
+    let normalizedWarehouseId: string | null | undefined = undefined;
+    if ((data as any).warehouseId !== undefined) {
+      const raw = (data as any).warehouseId;
+      if (raw === null || raw === '' || (typeof raw === 'string' && raw.trim() === '')) {
+        normalizedWarehouseId = null;
+      } else {
+        const wid = String(raw).trim();
+        const wh = await prisma.warehouses.findUnique({ where: { id: wid }, select: { id: true } });
+        if (!wh) throw new ValidationError('Kho không tồn tại');
+        normalizedWarehouseId = wid;
+      }
     }
 
     // Guard: approval/rejection requires pricing approver (called via controller with actorId)
@@ -546,6 +616,14 @@ class PurchaseRequestService {
     const { items, ...updateData } = data as any;
     // Strip internal actor field before Prisma — unknown field causes P2000/P2011
     delete (updateData as any).__actorUserId;
+    // Inject normalized schedule fields (undefined = not touched, null = clear)
+    if (normalizedNgayDuKienNhap !== undefined) updateData.ngayDuKienNhap = normalizedNgayDuKienNhap;
+    if (normalizedWarehouseId !== undefined) updateData.warehouseId = normalizedWarehouseId;
+    // ghiChuVanChuyen: normalize empty string → null, but only if caller touched it
+    if ((data as any).ghiChuVanChuyen !== undefined) {
+      const gcv = (data as any).ghiChuVanChuyen;
+      updateData.ghiChuVanChuyen = (gcv === null || gcv === '' || (typeof gcv === 'string' && gcv.trim() === '')) ? null : String(gcv);
+    }
     if (updateData.soLuong !== undefined && updateData.soLuong !== null) {
       updateData.soLuong = parseFloat(updateData.soLuong.toString());
     }
@@ -555,12 +633,22 @@ class PurchaseRequestService {
     // Sanitize empty-string foreign keys → null (Prisma throws P2003 otherwise)
     if (updateData.nhaCungCapId === '') updateData.nhaCungCapId = null;
     if (updateData.supplyRequestId === '') updateData.supplyRequestId = null;
+    // empty warehouseId already handled via normalizedWarehouseId; catch stray '' in updateData
+    if (updateData.warehouseId === '') updateData.warehouseId = null;
+    if (updateData.ngayDuKienNhap === '') updateData.ngayDuKienNhap = null;
+    if (typeof updateData.ngayDuKienNhap === 'string' && updateData.ngayDuKienNhap) {
+      const d = new Date(updateData.ngayDuKienNhap);
+      if (!isNaN(d.getTime())) updateData.ngayDuKienNhap = d;
+    }
     // Coerce numeric fields sent as strings from FormData
     if (typeof updateData.giaDuKien === 'string') {
       updateData.giaDuKien = updateData.giaDuKien === '' ? null : parseFloat(updateData.giaDuKien);
     }
 
     let purchaseRequest;
+    // Snapshot prior schedule values to detect InboundPlan reschedule after the write
+    const priorNgayDuKienNhap: Date | null = (existingRequest as any).ngayDuKienNhap ?? null;
+    const priorWarehouseId: string | null = (existingRequest as any).warehouseId ?? null;
 
     if (items && Array.isArray(items)) {
       purchaseRequest = await prisma.$transaction(async (tx) => {
@@ -608,6 +696,8 @@ class PurchaseRequestService {
             employee: { include: { user: true, position: true } },
             supplyRequest: true,
             supplier: true,
+            warehouse: { select: { id: true, tenKho: true, maKho: true } },
+            inboundPlan: { include: { warehouse: { select: { id: true, tenKho: true, maKho: true } }, logs: { orderBy: { createdAt: 'desc' }, take: 20 } } },
             items: { include: { supplier: true } },
           },
         });
@@ -620,9 +710,80 @@ class PurchaseRequestService {
           employee: { include: { user: true, position: true } },
           supplyRequest: true,
           supplier: true,
+          warehouse: { select: { id: true, tenKho: true, maKho: true } },
+          inboundPlan: { include: { warehouse: { select: { id: true, tenKho: true, maKho: true } }, logs: { orderBy: { createdAt: 'desc' }, take: 20 } } },
           items: { include: { supplier: true } },
         },
       });
+    }
+    // ── Reschedule InboundPlan when ngayDuKienNhap or warehouseId changed after a plan already exists ──
+    if ((normalizedNgayDuKienNhap !== undefined || normalizedWarehouseId !== undefined) && purchaseRequest) {
+      const existingPlan = (purchaseRequest as any).inboundPlan ?? await prisma.inboundPlan.findUnique({ where: { purchaseRequestId: id } });
+      if (existingPlan) {
+        const newNgay = normalizedNgayDuKienNhap !== undefined ? normalizedNgayDuKienNhap : null;
+        const newWhId = normalizedWarehouseId !== undefined ? normalizedWarehouseId : null;
+        const dateChanged = newNgay !== undefined && newNgay !== null && priorNgayDuKienNhap?.getTime() !== (newNgay as Date)?.getTime();
+        const whChanged = newWhId !== undefined && newWhId !== null && priorWarehouseId !== newWhId;
+        // Date reschedule: update InboundPlan.ngayDuKien + log
+        if (dateChanged && newNgay) {
+          const oldDate: Date | null = existingPlan.ngayDuKien ?? priorNgayDuKienNhap;
+          const actorLabel = (updateData as any).nguoiDuyet ?? (purchaseRequest as any).nguoiDuyet ?? 'Hệ thống';
+          await prisma.$transaction(async (tx) => {
+            await tx.inboundPlan.update({ where: { id: existingPlan.id }, data: { ngayDuKien: newNgay as Date, ...(newWhId !== undefined && newWhId !== null ? { warehouseId: newWhId } : {}) } });
+            await tx.inboundPlanLog.create({ data: { inboundPlanId: existingPlan.id, hanhDong: 'Đổi ngày dự kiến', ngayCu: oldDate, ngayMoi: newNgay as Date, nguoiThucHien: actorLabel } });
+          });
+          // also sync warehouse if it changed at same time but date log already covers warehouse update
+          if (whChanged && newWhId) {
+            // warehouse already updated in the same tx above; nothing extra
+          }
+        } else if (whChanged && newWhId) {
+          await prisma.inboundPlan.update({ where: { id: existingPlan.id }, data: { warehouseId: newWhId } });
+        } else if (newNgay === null && existingPlan) {
+          // clearing date is not propagated to plan — keep plan date as-is
+        }
+      }
+    }
+    // ── Auto-create InboundPlan when transitioning to Hoàn thành (idempotent) ──
+    if (updateData.trangThai === 'Hoàn thành' && existingRequest.trangThai !== 'Hoàn thành') {
+      const existingPlan = await prisma.inboundPlan.findUnique({ where: { purchaseRequestId: id } });
+      if (!existingPlan) {
+        // Resolve ngayDuKien: ngayDuKienNhap ?? ngayDuyet ?? now+7d
+        const prForPlan = (purchaseRequest as any) ?? await prisma.purchaseRequest.findUnique({ where: { id } });
+        const ngayDuyetVal: Date | null = prForPlan?.ngayDuyet ?? (existingRequest as any).ngayDuyet ?? null;
+        const ngayHen: Date | null = prForPlan?.ngayDuKienNhap ?? (existingRequest as any).ngayDuKienNhap ?? null;
+        let ngayDuKien: Date;
+        if (ngayHen) ngayDuKien = new Date(ngayHen);
+        else if (ngayDuyetVal) ngayDuKien = new Date(ngayDuyetVal);
+        else { const d = new Date(); d.setDate(d.getDate() + 7); ngayDuKien = d; }
+        const whId: string | null = prForPlan?.warehouseId ?? (existingRequest as any).warehouseId ?? null;
+        await prisma.$transaction(async (tx) => {
+          // Double-check idempotency inside tx
+          const already = await tx.inboundPlan.findUnique({ where: { purchaseRequestId: id } });
+          if (already) return;
+          const year = new Date().getFullYear();
+          const lastPlan = await tx.inboundPlan.findFirst({ where: { maKeHoach: yearlyCodeWhere('KH-NH', year) }, orderBy: { maKeHoach: 'desc' }, select: { maKeHoach: true } });
+          const maKeHoach = nextYearlyCode(lastPlan?.maKeHoach ?? null, 'KH-NH', year);
+          await tx.inboundPlan.create({ data: { maKeHoach, purchaseRequestId: id, ngayDuKien, warehouseId: whId, trangThai: 'Chờ nhập' } });
+        });
+      }
+      // Warehouse notification for the inbound plan is covered by the existing
+      // "Hoàn thành → notify warehouse" block below (SUPPLY_REQUEST_APPROVED to SUBDEPT_PRODUCTION_WAREHOUSE),
+      // so no duplicate notify here — plan existence is still refreshed for the response.
+      // Refresh purchaseRequest to include the newly created plan for the response
+      try {
+        const refreshed = await prisma.purchaseRequest.findUnique({
+          where: { id },
+          include: {
+            employee: { include: { user: true, position: true } },
+            supplyRequest: true,
+            supplier: true,
+            warehouse: { select: { id: true, tenKho: true, maKho: true } },
+            inboundPlan: { include: { warehouse: { select: { id: true, tenKho: true, maKho: true } }, logs: { orderBy: { createdAt: 'desc' }, take: 20 } } },
+            items: { include: { supplier: true } },
+          },
+        });
+        if (refreshed) purchaseRequest = refreshed as any;
+      } catch {}
     }
 
     // Trigger supply request status advancement when purchase request is approved
@@ -833,13 +994,19 @@ class PurchaseRequestService {
         where: { convertedPurchaseRequestId: id },
         select: { id: true, supplyRequestId: true },
       });
-      if (!parent) return;
-
-      parentYbsId = parent.id;
-      await tx.replenishmentRequest.update({
-        where: { id: parent.id },
-        data: { trangThai: 'Chờ báo giá', convertedPurchaseRequestId: null },
-      });
+      if (parent) {
+        parentYbsId = parent.id;
+        await tx.replenishmentRequest.update({
+          where: { id: parent.id },
+          data: { trangThai: 'Chờ báo giá', convertedPurchaseRequestId: null },
+        });
+      }
+      // Nếu đã có InboundPlan ở Chờ nhập/Quá hạn thì hủy plan
+      const plan = await tx.inboundPlan.findUnique({ where: { purchaseRequestId: id }, select: { id: true, trangThai: true } });
+      if (plan && (plan.trangThai === 'Chờ nhập' || plan.trangThai === 'Quá hạn')) {
+        await tx.inboundPlan.update({ where: { id: plan.id }, data: { trangThai: 'Đã hủy' } });
+        await tx.inboundPlanLog.create({ data: { inboundPlanId: plan.id, hanhDong: 'Hủy kế hoạch do hủy YCMH', lyDo: lyDoHuy, nguoiThucHien: opts?.nguoiHuy ?? null } });
+      }
     });
 
     const updated = await prisma.purchaseRequest.findUnique({

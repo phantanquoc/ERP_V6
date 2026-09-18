@@ -5,6 +5,7 @@ import SupplierCombobox from '../common/SupplierCombobox';
 import Modal from '../Modal';
 import type { PurchaseRequest } from '../../types/purchaseRequest';
 import { ALLOWED_TRANSITIONS, ALL_TRANG_THAI } from '../../utils/purchaseRequestBadges';
+import { useWarehouses } from '../../hooks/useWarehouses';
 
 interface EditItem {
   id?: string;
@@ -20,7 +21,6 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   purchaseRequest: PurchaseRequest | null;
-  // pricing suppliers from useSupplierOptions
   pricingSuppliers?: Array<{ id: string; tenNhaCungCap: string; maNhaCungCap?: string; loaiCungCap?: string }>;
   pricingSuppliersLoading?: boolean;
   pricingSuppliersError?: unknown;
@@ -28,6 +28,15 @@ interface Props {
   user?: { firstName?: string; lastName?: string } | null;
   onSubmit: (id: string, data: { items: EditItem[]; formData: Record<string, unknown>; file: File | null }) => Promise<void>;
   onSubmitForApproval: (id: string, data: { items: EditItem[]; formData: Record<string, unknown>; file: File | null }) => Promise<void>;
+}
+
+function toDateInputValue(raw?: string | null): string {
+  if (!raw) return '';
+  try {
+    const d = new Date(raw as string);
+    if (isNaN(d.getTime())) return '';
+    return d.toISOString().split('T')[0];
+  } catch { return ''; }
 }
 
 export default function PurchaseRequestEditModal({
@@ -38,7 +47,15 @@ export default function PurchaseRequestEditModal({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [dateError, setDateError] = useState<string | null>(null);
   const [confirmNeeded, setConfirmNeeded] = useState<{ title: string; message: string } | null>(null);
+  const { data: warehousesData } = useWarehouses();
+  const warehouses: Array<{ id: string; tenKho: string }> = useMemo(() => {
+    const raw: any = warehousesData;
+    if (Array.isArray(raw)) return raw;
+    if (raw?.data && Array.isArray(raw.data)) return raw.data;
+    return [];
+  }, [warehousesData]);
 
   // Sync from pr when opened
   useEffect(() => {
@@ -51,6 +68,9 @@ export default function PurchaseRequestEditModal({
       fileKemTheo: pr.fileKemTheo ?? '',
       nguoiDuyet: pr.nguoiDuyet ?? currentUserName,
       ngayDuyet: pr.ngayDuyet ?? today,
+      ngayDuKienNhap: toDateInputValue(pr.ngayDuKienNhap ?? null),
+      warehouseId: pr.warehouseId ?? '',
+      ghiChuVanChuyen: pr.ghiChuVanChuyen ?? '',
     });
     if (pr.items && pr.items.length > 0) {
       setItems(pr.items.map((it) => ({
@@ -65,6 +85,7 @@ export default function PurchaseRequestEditModal({
     }
     setSelectedFile(null);
     setApiError(null);
+    setDateError(null);
     setConfirmNeeded(null);
   }, [isOpen, pr, user]);
 
@@ -79,6 +100,20 @@ export default function PurchaseRequestEditModal({
   }, 0), [items]);
 
   const updateItem = (idx: number, patch: Partial<EditItem>) => setItems((prev) => prev.map((r, i) => i === idx ? { ...r, ...patch } : r));
+
+  const validateNgayDuKienNhap = (dateStr: string): string | null => {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return 'Ngày không hợp lệ';
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const dDay = new Date(d); dDay.setHours(0, 0, 0, 0);
+    // Khi tạo mới (Chờ báo giá / Chờ duyệt) hoặc khi có giá trị: phải >= today
+    const isCreatingPhase = originalStatus === 'Chờ báo giá' || originalStatus === 'Chờ duyệt' || !pr?.ngayDuKienNhap;
+    if (isCreatingPhase && dDay < today) return 'Ngày dự kiến nhập phải từ hôm nay trở đi';
+    return null;
+  };
+
+  const isHoanThanhTransition = formData.trangThai === 'Hoàn thành' || (originalStatus === 'Đã duyệt' && formData.trangThai === 'Hoàn thành');
 
   if (!isOpen || !pr) return null;
 
@@ -107,15 +142,35 @@ export default function PurchaseRequestEditModal({
       setApiError('Vui lòng nhập ghi chú thu mua khi từ chối (lý do từ chối).');
       return;
     }
+    // Validate ngayDuKienNhap bắt buộc khi Hoàn thành
+    if ((formData.trangThai === 'Hoàn thành' || isHoanThanhTransition) && !String(formData.ngayDuKienNhap ?? '').trim()) {
+      setDateError('Ngày dự kiến nhập là bắt buộc khi hoàn thành phiếu.');
+      setApiError('Vui lòng nhập ngày dự kiến hàng về trước khi hoàn thành.');
+      return;
+    }
+    // Validate ngayDuKienNhap >= today
+    const dErr = validateNgayDuKienNhap(String(formData.ngayDuKienNhap ?? ''));
+    if (dErr) {
+      setDateError(dErr);
+      setApiError(dErr);
+      return;
+    }
     // Validate transition
     if (formData.trangThai !== originalStatus && !allowedNext.includes(formData.trangThai) && formData.trangThai !== originalStatus) {
       setApiError(`Không thể chuyển từ "${originalStatus}" sang "${formData.trangThai}". Chỉ cho phép: ${allowedNext.join(', ') || 'không chuyển tiếp'}.`);
       return;
     }
     setApiError(null);
+    setDateError(null);
     setLoading(true);
     try {
-      await onSubmit(pr.id, { items, formData, file: selectedFile });
+      const payload: Record<string, unknown> = {
+        ...formData,
+        ngayDuKienNhap: formData.ngayDuKienNhap || null,
+        warehouseId: formData.warehouseId || null,
+        ghiChuVanChuyen: formData.ghiChuVanChuyen || null,
+      };
+      await onSubmit(pr.id, { items, formData: payload, file: selectedFile });
       onClose();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message
@@ -132,7 +187,12 @@ export default function PurchaseRequestEditModal({
       setConfirmNeeded({ title: 'Chưa thể gửi duyệt', message: `Còn ${missing.length} sản phẩm chưa có nhà cung cấp hoặc đơn giá:\n${missing.map((it) => `• ${it.tenHangHoa}`).join('\n')}\n\nVui lòng bổ sung trước khi gửi duyệt.` });
       return;
     }
-    // Inline confirm
+    const dErr = validateNgayDuKienNhap(String(formData.ngayDuKienNhap ?? ''));
+    if (dErr) {
+      setDateError(dErr);
+      setApiError(dErr);
+      return;
+    }
     setConfirmNeeded({ title: 'Lưu & gửi duyệt', message: `Lưu báo giá cho yêu cầu ${pr.maYeuCau} và gửi lên admin phê duyệt?\nTổng tiền dự kiến: ${tongTien.toLocaleString('vi-VN')}đ` });
   };
 
@@ -141,7 +201,13 @@ export default function PurchaseRequestEditModal({
     setLoading(true);
     setApiError(null);
     try {
-      await onSubmitForApproval(pr.id, { items, formData, file: selectedFile });
+      const payload: Record<string, unknown> = {
+        ...formData,
+        ngayDuKienNhap: formData.ngayDuKienNhap || null,
+        warehouseId: formData.warehouseId || null,
+        ghiChuVanChuyen: formData.ghiChuVanChuyen || null,
+      };
+      await onSubmitForApproval(pr.id, { items, formData: payload, file: selectedFile });
       onClose();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message
@@ -216,6 +282,55 @@ export default function PurchaseRequestEditModal({
                   })}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">Chỉ các trạng thái hợp lệ từ <span className="font-medium">{originalStatus}</span> mới được chọn. Hủy phiếu dùng nút riêng ở danh sách/chi tiết.</p>
+              </div>
+
+              {/* Inbound scheduling — right after Trạng thái for visibility */}
+              <div className="border border-blue-100 rounded-lg p-4 bg-blue-50/40 space-y-3">
+                <h4 className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Dự kiến hàng về</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Ngày dự kiến hàng về {(formData.trangThai === 'Hoàn thành' || isHoanThanhTransition) && <span className="text-red-500">*</span>}
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.ngayDuKienNhap ?? ''}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setFormData((prev) => ({ ...prev, ngayDuKienNhap: v }));
+                        const err = validateNgayDuKienNhap(v);
+                        setDateError(err);
+                      }}
+                      onBlur={(e) => setDateError(validateNgayDuKienNhap(e.target.value))}
+                      className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 ${dateError ? 'border-red-300 focus:ring-red-400' : 'border-gray-200 focus:ring-blue-400'}`}
+                    />
+                    {dateError && <p className="text-xs text-red-600 mt-1">{dateError}</p>}
+                    {!dateError && <p className="text-xs text-gray-500 mt-1">Phải từ hôm nay trở đi. Bắt buộc khi Hoàn thành.</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Kho dự kiến nhập</label>
+                    <select
+                      value={formData.warehouseId ?? ''}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, warehouseId: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                    >
+                      <option value="">-- Không chọn --</option>
+                      {warehouses.map((w) => (
+                        <option key={w.id} value={w.id}>{w.tenKho}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú vận chuyển</label>
+                  <textarea
+                    value={formData.ghiChuVanChuyen ?? ''}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, ghiChuVanChuyen: e.target.value }))}
+                    rows={2}
+                    placeholder="Thông tin vận chuyển, liên hệ, lưu ý giao nhận..."
+                    className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  />
+                </div>
               </div>
 
               {formData.trangThai === 'Đã duyệt' && (

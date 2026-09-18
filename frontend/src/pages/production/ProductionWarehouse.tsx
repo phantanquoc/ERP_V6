@@ -23,6 +23,8 @@ import warehouseIssueService from '../../services/warehouseIssueService';
 import supplyRequestService from '../../services/supplyRequestService';
 import { useWarehouses } from '../../hooks';
 import { resolveWarehouseParam } from '../../utils/warehouseParam';
+import InboundPlanTab from '../../components/warehouse/InboundPlanTab';
+import OutboundPlanTab from '../../components/warehouse/OutboundPlanTab';
 
 type TabType = 'inbound' | 'outbound' | 'supplyRequest' | 'warehouseManagement' | 'products' | 'inventory';
 const VALID_TABS: TabType[] = ['supplyRequest', 'inventory', 'inbound', 'outbound', 'products', 'warehouseManagement'];
@@ -132,6 +134,16 @@ const WarehouseManagementWithSubTabs: React.FC = () => {
 
 const ProductionWarehouse = () => {
   const { value: activeTab, set: setActiveTab, searchParams, setSearchParams } = useUrlTab<TabType>('tab', (v): v is TabType => VALID_TABS.includes(v as TabType), 'supplyRequest', TAB_SCOPED_PARAMS);
+
+  // Sub tabs for inbound/outbound — synced to URL ?inboundSubTab / ?outboundSubTab
+  const inboundSubTab = (searchParams.get('inboundSubTab') === 'list' ? 'list' : 'plan') as 'plan' | 'list';
+  const outboundSubTab = (searchParams.get('outboundSubTab') === 'list' ? 'list' : 'plan') as 'plan' | 'list';
+  const setInboundSubTab = (v: 'plan' | 'list') => {
+    const p = new URLSearchParams(searchParams); p.set('inboundSubTab', v); setSearchParams(p, { replace: true });
+  };
+  const setOutboundSubTab = (v: 'plan' | 'list') => {
+    const p = new URLSearchParams(searchParams); p.set('outboundSubTab', v); setSearchParams(p, { replace: true });
+  };
 
   // Overview data states
   const [warehouses, setWarehouses] = useState<WarehouseType[]>([]);
@@ -719,8 +731,36 @@ const ProductionWarehouse = () => {
       {activeTab === 'inventory' && <InventoryOverview />}
       {activeTab === 'warehouseManagement' && <WarehouseManagementWithSubTabs />}
       {activeTab === 'products' && <InternationalProductManagement />}
-      {activeTab === 'inbound' && <WarehouseReceiptTab month={filterMonth} year={filterYear} />}
-      {activeTab === 'outbound' && <WarehouseIssueTab month={filterMonth} year={filterYear} />}
+      {activeTab === 'inbound' && (
+        <div className="space-y-4">
+          <div className="flex gap-1 border-b border-gray-200">
+            <button onClick={() => setInboundSubTab('plan')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${inboundSubTab === 'plan' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+              Kế hoạch nhập
+            </button>
+            <button onClick={() => setInboundSubTab('list')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${inboundSubTab === 'list' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+              Danh sách phiếu
+            </button>
+          </div>
+          {inboundSubTab === 'plan' ? <InboundPlanTab /> : <WarehouseReceiptTab month={filterMonth} year={filterYear} />}
+        </div>
+      )}
+      {activeTab === 'outbound' && (
+        <div className="space-y-4">
+          <div className="flex gap-1 border-b border-gray-200">
+            <button onClick={() => setOutboundSubTab('plan')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${outboundSubTab === 'plan' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+              Kế hoạch xuất
+            </button>
+            <button onClick={() => setOutboundSubTab('list')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${outboundSubTab === 'list' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+              Danh sách phiếu
+            </button>
+          </div>
+          {outboundSubTab === 'plan' ? <OutboundPlanTab /> : <WarehouseIssueTab month={filterMonth} year={filterYear} />}
+        </div>
+      )}
 
       {/* Detail Modal */}
       {isDetailModalOpen && selectedItem && (

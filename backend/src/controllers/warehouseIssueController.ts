@@ -17,7 +17,7 @@ export const generateIssueCode = async (_req: Request, res: Response, next: Next
 
 export const createWarehouseIssue = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { maPhieuXuat, employeeId, maNhanVien, tenNhanVien, ngayXuat, ghiChu, supplyRequestId, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, lyDoXuatKho, items } = req.body;
+    const { maPhieuXuat, employeeId, maNhanVien, tenNhanVien, ngayXuat, ghiChu, supplyRequestId, outboundPlanId, lyDoChenhLech, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, lyDoXuatKho, items } = req.body;
 
     if (!employeeId) {
       res.status(400).json({ success: false, message: 'Thiếu mã nhân viên' });
@@ -29,7 +29,7 @@ export const createWarehouseIssue = async (req: Request, res: Response, next: Ne
     }
 
     const warehouseIssue = await warehouseIssueService.create({
-      maPhieuXuat, employeeId, maNhanVien, tenNhanVien, ngayXuat, ghiChu, supplyRequestId, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, lyDoXuatKho, items,
+      maPhieuXuat, employeeId, maNhanVien, tenNhanVien, ngayXuat, ghiChu, supplyRequestId, outboundPlanId, lyDoChenhLech, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, lyDoXuatKho, items,
     });
 
     res.status(201).json({ success: true, message: 'Tạo phiếu xuất kho thành công', data: warehouseIssue });

@@ -60,4 +60,10 @@ export interface PurchaseRequest {
   replenishmentRequest?: { id: string; maYeuCau: string; trangThai: string } | null;
   warehouseReceipts?: Array<{ id: string; maPhieuNhap?: string; maPhieu?: string }> | null;
   supplier?: { id: string; tenNhaCungCap: string; maNhaCungCap?: string } | null;
+  // Inbound scheduling
+  ngayDuKienNhap?: string | null;
+  warehouseId?: string | null;
+  warehouse?: { id: string; tenKho: string; maKho?: string } | null;
+  ghiChuVanChuyen?: string | null;
+  inboundPlan?: { id: string; maKeHoach: string; ngayDuKien: string; trangThai: string; warehouseId?: string | null; warehouse?: { tenKho: string } | null } | null;
 }
