@@ -6,6 +6,17 @@ export interface InboundPlanFilters {
   trangThai?: string;
   warehouseId?: string;
   overdueOnly?: boolean;
+  sortBy?: string;
+  sortDir?: string;
+}
+
+/** Cột được phép sort — whitelist để query param không đụng tới cột tùy ý. */
+const INBOUND_SORTABLE = ['ngayDuKien', 'maKeHoach', 'trangThai', 'createdAt'] as const;
+
+function resolveInboundOrderBy(sortBy?: string, sortDir?: string) {
+  const dir = sortDir === 'asc' ? 'asc' : 'desc';
+  const col = (INBOUND_SORTABLE as readonly string[]).includes(sortBy ?? '') ? sortBy! : 'createdAt';
+  return { [col]: dir } as Record<string, 'asc' | 'desc'>;
 }
 
 const INBOUND_INCLUDE = {
@@ -57,7 +68,7 @@ async function getAllInboundPlans(
       where,
       skip,
       take: limit,
-      orderBy: { createdAt: 'desc' },
+      orderBy: resolveInboundOrderBy(filters.sortBy, filters.sortDir),
       include: INBOUND_INCLUDE as any,
     }),
     prisma.inboundPlan.count({ where }),
@@ -93,16 +104,23 @@ async function updateInboundPlan(
   if (isNaN(ngayMoi.getTime())) throw new ValidationError('Ngày hẹn không hợp lệ');
 
   const ngayCu = existing.ngayDuKien;
+  // Đổi ngày hẹn ra tương lai từ trạng thái 'Quá hạn' thì đưa lại 'Chờ nhập' — nếu không,
+  // dòng này bị kẹt đỏ mãi mãi dù người dùng đã dời hẹn thành công (bug A2).
+  const shouldReopen = existing.trangThai === 'Quá hạn' && ngayMoi.getTime() >= Date.now();
 
   const updated = await prisma.$transaction(async (tx) => {
     const plan = await tx.inboundPlan.update({
       where: { id },
-      data: { ngayDuKien: ngayMoi, ngayDuKienMoi: ngayMoi },
+      data: {
+        ngayDuKien: ngayMoi,
+        ngayDuKienMoi: ngayMoi,
+        ...(shouldReopen ? { trangThai: 'Chờ nhập' } : {}),
+      },
     });
     await tx.inboundPlanLog.create({
       data: {
         inboundPlanId: id,
-        hanhDong: 'Đổi ngày hẹn',
+        hanhDong: shouldReopen ? 'Đổi ngày hẹn — về Chờ nhập' : 'Đổi ngày hẹn',
         ngayCu,
         ngayMoi,
         lyDo: data.lyDo ?? null,

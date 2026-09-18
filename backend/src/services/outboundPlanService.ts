@@ -6,6 +6,17 @@ export interface OutboundPlanFilters {
   trangThai?: string;
   warehouseId?: string;
   overdueOnly?: boolean;
+  sortBy?: string;
+  sortDir?: string;
+}
+
+/** Cột được phép sort — whitelist để query param không đụng tới cột tùy ý. */
+const OUTBOUND_SORTABLE = ['ngayDuKien', 'maKeHoach', 'trangThai', 'createdAt'] as const;
+
+function resolveOutboundOrderBy(sortBy?: string, sortDir?: string) {
+  const dir = sortDir === 'asc' ? 'asc' : 'desc';
+  const col = (OUTBOUND_SORTABLE as readonly string[]).includes(sortBy ?? '') ? sortBy! : 'createdAt';
+  return { [col]: dir } as Record<string, 'asc' | 'desc'>;
 }
 
 const OUTBOUND_INCLUDE = {
@@ -16,6 +27,7 @@ const OUTBOUND_INCLUDE = {
     },
   },
   warehouse: { select: { id: true, tenKho: true, maKho: true } },
+  logs: { orderBy: { createdAt: 'desc' } as const },
 } as const;
 
 async function getAllOutboundPlans(
@@ -54,7 +66,7 @@ async function getAllOutboundPlans(
       where,
       skip,
       take: limit,
-      orderBy: { createdAt: 'desc' },
+      orderBy: resolveOutboundOrderBy(filters.sortBy, filters.sortDir),
       include: OUTBOUND_INCLUDE as any,
     }),
     prisma.outboundPlan.count({ where }),
@@ -77,7 +89,7 @@ async function getOutboundPlanById(id: string) {
 
 async function updateOutboundPlan(
   id: string,
-  data: { ngayDuKien?: string | Date; ghiChu?: string; warehouseId?: string | null },
+  data: { ngayDuKien?: string | Date; ghiChu?: string; warehouseId?: string | null; lyDo?: string; nguoiThucHien?: string },
 ) {
   const existing = await prisma.outboundPlan.findUnique({ where: { id } });
   if (!existing) throw new NotFoundError('Không tìm thấy kế hoạch xuất kho');
@@ -86,12 +98,19 @@ async function updateOutboundPlan(
   }
 
   const updateData: Record<string, unknown> = {};
+  const ngayCu = existing.ngayDuKien;
+  let ngayMoi: Date | undefined;
+  let shouldReopen = false;
   if (data.ngayDuKien !== undefined) {
     if (!data.ngayDuKien) throw new ValidationError('Thiếu ngày hẹn mới');
-    const ngayMoi = new Date(data.ngayDuKien as string);
+    ngayMoi = new Date(data.ngayDuKien as string);
     if (isNaN(ngayMoi.getTime())) throw new ValidationError('Ngày hẹn không hợp lệ');
     updateData.ngayDuKien = ngayMoi;
     updateData.ngayDuKienMoi = ngayMoi;
+    // Đổi ngày hẹn ra tương lai từ trạng thái 'Quá hạn' thì đưa lại 'Chờ xuất' (bug A2,
+    // đồng bộ với inboundPlanService.updateInboundPlan).
+    shouldReopen = existing.trangThai === 'Quá hạn' && ngayMoi.getTime() >= Date.now();
+    if (shouldReopen) updateData.trangThai = 'Chờ xuất';
   }
   if (data.ghiChu !== undefined) updateData.ghiChu = data.ghiChu ?? null;
   if (data.warehouseId !== undefined) {
@@ -106,13 +125,29 @@ async function updateOutboundPlan(
 
   if (Object.keys(updateData).length === 0) throw new ValidationError('Không có dữ liệu cập nhật');
 
-  await prisma.outboundPlan.update({ where: { id }, data: updateData as any });
+  await prisma.$transaction(async (tx) => {
+    await tx.outboundPlan.update({ where: { id }, data: updateData as any });
+    // Chỉ ghi log khi đổi ngày hẹn — sửa ghiChu/warehouseId đơn thuần không cần audit trail.
+    if (ngayMoi) {
+      await tx.outboundPlanLog.create({
+        data: {
+          outboundPlanId: id,
+          hanhDong: shouldReopen ? 'Đổi ngày hẹn — về Chờ xuất' : 'Đổi ngày hẹn',
+          ngayCu,
+          ngayMoi,
+          lyDo: data.lyDo ?? null,
+          nguoiThucHien: data.nguoiThucHien ?? null,
+        },
+      });
+    }
+  });
+
   return prisma.outboundPlan.findUnique({ where: { id }, include: OUTBOUND_INCLUDE as any });
 }
 
 async function cancelOutboundPlan(
   id: string,
-  opts: { lyDo?: string },
+  opts: { lyDo?: string; nguoiThucHien?: string },
 ) {
   const existing = await prisma.outboundPlan.findUnique({ where: { id } });
   if (!existing) throw new NotFoundError('Không tìm thấy kế hoạch xuất kho');
@@ -130,6 +165,9 @@ async function cancelOutboundPlan(
     const cur = await prisma.outboundPlan.findUnique({ where: { id }, select: { trangThai: true } });
     throw new ValidationError(`Không thể hủy kế hoạch ở trạng thái "${cur?.trangThai ?? existing.trangThai}"`);
   }
+  await prisma.outboundPlanLog.create({
+    data: { outboundPlanId: id, hanhDong: 'Hủy kế hoạch', lyDo, nguoiThucHien: opts.nguoiThucHien ?? null },
+  });
   return prisma.outboundPlan.findUnique({ where: { id }, include: OUTBOUND_INCLUDE as any });
 }
 

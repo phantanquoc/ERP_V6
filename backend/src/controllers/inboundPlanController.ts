@@ -11,6 +11,8 @@ export const getAllInboundPlans = async (req: Request, res: Response, next: Next
       trangThai: (req.query.trangThai as string) || undefined,
       warehouseId: (req.query.warehouseId as string) || undefined,
       overdueOnly: req.query.overdueOnly === 'true' || req.query.overdueOnly === '1',
+      sortBy: (req.query.sortBy as string) || undefined,
+      sortDir: (req.query.sortDir as string) || undefined,
     };
     const result = await inboundPlanService.getAllInboundPlans(page, limit, search, filters);
     res.json({ success: true, data: result.data, pagination: result.pagination });
