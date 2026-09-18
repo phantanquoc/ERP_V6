@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { X, PackagePlus, Check, Plus, Trash2, AlertTriangle } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import warehouseReceiptService from '../services/warehouseReceiptService';
 import warehouseService, { Warehouse, Lot, LotProduct } from '../services/warehouseService';
+import { warehouseKeys } from '../hooks/useWarehouses';
 import { useAuth } from '../contexts/AuthContext';
 import { SupplyRequest } from '../services/supplyRequestService';
 import { parseNumberInput } from '../utils/numberInput';
@@ -72,6 +74,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
   isOpen, onClose, supplyRequest, inboundPlan, onSuccess,
 }) => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { isKnownUnit } = useUnitOptions();
   const { data: productsData } = useProducts({ page: 1, limit: 1000 });
   const products = productsData?.data || [];
@@ -504,6 +507,8 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
       });
       alert(`Đã tạo phiếu nhập kho ${items.length} dòng thành công!`);
       onSuccess?.();
+      queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: warehouseKeys.lotProducts() });
       onClose();
     } catch (error: any) {
       alert(error.response?.data?.message || 'Lỗi khi tạo phiếu nhập kho');
