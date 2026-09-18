@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Plus, CalendarClock, XCircle, Pencil, AlertTriangle, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import outboundPlanService, { OutboundPlan } from '../../services/outboundPlanService';
@@ -9,6 +9,7 @@ import CreateWarehouseIssueModal from '../CreateWarehouseIssueModal';
 import PlanLogHistory from './PlanLogHistory';
 import { formatDateInAppTz } from '../../utils/dateUtils';
 import { useDebounce } from '../../hooks/useDebounce';
+import { useWarehouses } from '../../hooks/useWarehouses';
 import { resolvePlanBadge } from '../../utils/warehousePlanBadges';
 
 // Không có "Quá hạn" như một giá trị trangThai gửi thẳng: xem isOverdueFilter bên dưới.
@@ -40,7 +41,7 @@ const OutboundPlanTab: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', trangThai: '' });
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', trangThai: '', warehouseId: '' });
   const debouncedSearch = useDebounce(filterValues._search, 300);
   const [sortKey, setSortKey] = useState<SortKey>('createdAt');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -57,6 +58,13 @@ const OutboundPlanTab: React.FC = () => {
   // sang overdueOnly để filter thực sự trả về dòng nào đó, thay vì luôn rỗng.
   const isOverdueFilter = filterValues.trangThai === 'Quá hạn';
 
+  const { data: warehousesData } = useWarehouses();
+  const warehouseOptions = useMemo(() => {
+    const raw = (warehousesData as any)?.data ?? warehousesData;
+    const list = Array.isArray(raw) ? raw : [];
+    return list.map((w: any) => ({ value: w.id, label: `${w.tenKho} (${w.maKho})` }));
+  }, [warehousesData]);
+
   const fetchPlans = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
@@ -65,6 +73,7 @@ const OutboundPlanTab: React.FC = () => {
         search: debouncedSearch || undefined,
         trangThai: isOverdueFilter ? undefined : (filterValues.trangThai || undefined),
         overdueOnly: isOverdueFilter || undefined,
+        warehouseId: filterValues.warehouseId || undefined,
         page: currentPage,
         limit: ITEMS_PER_PAGE,
         sortBy: sortKey,
@@ -79,10 +88,10 @@ const OutboundPlanTab: React.FC = () => {
       console.error(e);
       setLoadError(e?.response?.data?.message || e?.message || 'Không tải được danh sách kế hoạch xuất kho');
     } finally { setLoading(false); }
-  }, [debouncedSearch, filterValues.trangThai, isOverdueFilter, currentPage, sortKey, sortDir]);
+  }, [debouncedSearch, filterValues.trangThai, filterValues.warehouseId, isOverdueFilter, currentPage, sortKey, sortDir]);
 
   useEffect(() => { fetchPlans(); }, [fetchPlans]);
-  useEffect(() => { setCurrentPage(1); }, [debouncedSearch, filterValues.trangThai]);
+  useEffect(() => { setCurrentPage(1); }, [debouncedSearch, filterValues.trangThai, filterValues.warehouseId]);
   useEffect(() => {
     setCurrentPage((page) => Math.min(Math.max(1, page), Math.max(1, totalPages)));
   }, [totalPages]);
@@ -138,7 +147,10 @@ const OutboundPlanTab: React.FC = () => {
       </div>
 
       <TableFilter
-        filters={[{ key: 'trangThai', label: 'Trạng thái', type: 'select', options: STATUS_FILTERS }]}
+        filters={[
+          { key: 'trangThai', label: 'Trạng thái', type: 'select', options: STATUS_FILTERS },
+          { key: 'warehouseId', label: 'Kho đích', type: 'select', options: warehouseOptions },
+        ]}
         values={filterValues}
         onChange={setFilterValues}
         searchPlaceholder="Mã KH / YCCB..."
