@@ -9,7 +9,7 @@ import CreateWarehouseReceiptModal from './CreateWarehouseReceiptModal';
 import { useQueryClient } from '@tanstack/react-query';
 import warehouseReceiptService, { WarehouseReceipt } from '../services/warehouseReceiptService';
 import TableFilter, { FilterField } from './TableFilter';
-import { warehouseKeys } from '../hooks';
+import { warehouseKeys, useWarehouses } from '../hooks';
 import { getUniqueSlipField, getWarehouseSlipLines, normalizeWarehouseListResponse, displayMaHang, displayLoaiKho } from '../utils/warehouseSlipLines';
 void getUniqueSlipField;
 import { TINH_TRANG_OPTIONS } from '../constants/warehouseCatalogs';
@@ -37,21 +37,46 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
   const [loadError, setLoadError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maPhieuNhap: '', tenNhanVien: '', nguoiDeNghi: '', boPhan: '', tenKho: '', tenSanPham: '', tinhTrang: '', daIn: '', fromNgay: '', toNgay: '' });
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maPhieuNhap: '', tenNhanVien: '', nguoiDeNghi: '', boPhan: '', tenKho: '', tinhTrang: '', daIn: '', fromNgay: '', toNgay: '' });
   const [sortKey, setSortKey] = useState<'ngayNhap' | 'maPhieuNhap'>('ngayNhap');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const { data: warehousesRaw } = useWarehouses();
+  // useWarehouses returns the unwrapped body, whose shape the service leaves
+  // untyped — normalize to an array the same way the sibling tabs do.
+  const warehouseList = React.useMemo(() => {
+    const raw = (warehousesRaw as any)?.data ?? warehousesRaw;
+    return (Array.isArray(raw) ? raw : []) as { maKho?: string; tenKho?: string }[];
+  }, [warehousesRaw]);
+
+  // Distinct employee names actually present in the fetched receipts — a
+  // dropdown built from the HR directory would list people with zero slips,
+  // a dead end for the user picking a filter value.
+  const tenNhanVienOptions = React.useMemo(() => {
+    const names = new Set<string>();
+    receipts.forEach((r) => { if (r.tenNhanVien) names.add(r.tenNhanVien); });
+    return [...names].sort((a, b) => a.localeCompare(b, 'vi')).map((n) => ({ value: n, label: n }));
+  }, [receipts]);
+
+  const tenKhoOptions = React.useMemo(
+    () => warehouseList
+      .filter((w) => !!w.tenKho)
+      .map((w) => ({ value: w.tenKho as string, label: w.tenKho as string })),
+    [warehouseList]
+  );
+
   const receiptFilterFields: FilterField[] = [
     { key: 'maPhieuNhap', label: 'Mã phiếu', type: 'text' },
-    { key: 'tenNhanVien', label: 'Nhân viên', type: 'text' },
+    { key: 'tenNhanVien', label: 'Nhân viên', type: 'select', options: tenNhanVienOptions },
     { key: 'nguoiDeNghi', label: 'Người đề nghị', type: 'text' },
     { key: 'boPhan', label: 'Bộ phận', type: 'text' },
-    { key: 'tenKho', label: 'Kho', type: 'text' },
-    { key: 'tenSanPham', label: 'Hàng hóa', type: 'text' },
+    { key: 'tenKho', label: 'Kho', type: 'select', options: tenKhoOptions },
     { key: 'tinhTrang', label: 'Tình trạng', type: 'select', options: [{ value: '', label: 'Tất cả' }, ...[...TINH_TRANG_OPTIONS].map((o) => ({ value: o.value, label: o.label })) ] },
     { key: 'daIn', label: 'Đã in', type: 'select', options: [{ value: '', label: 'Tất cả' }, { value: 'true', label: 'Đã in' }, { value: 'false', label: 'Chưa in' }] },
-    { key: 'fromNgay', label: 'Từ ngày', type: 'text', placeholder: 'YYYY-MM-DD' },
-    { key: 'toNgay', label: 'Đến ngày', type: 'text', placeholder: 'YYYY-MM-DD' },
+    { key: 'fromNgay', label: 'Từ ngày', type: 'date' },
+    { key: 'toNgay', label: 'Đến ngày', type: 'date' },
   ];
+
+  const dateRangeError = !!(filterValues.fromNgay && filterValues.toNgay && filterValues.fromNgay > filterValues.toNgay);
 
   const handleViewDetail = (receipt: WarehouseReceipt) => {
     setSelectedReceipt(receipt);
@@ -100,6 +125,14 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
     }
   };
 
+  // The warehouse filter now stores a tenKho picked from master data, but slip
+  // lines may only carry maKho — resolve the pair so either one still matches.
+  const selectedWarehouseCodes = React.useMemo(() => {
+    if (!filterValues.tenKho) return [] as string[];
+    const w = warehouseList.find((x) => x.tenKho === filterValues.tenKho);
+    return [filterValues.tenKho, w?.maKho].filter(Boolean).map((s) => (s as string).toLowerCase());
+  }, [filterValues.tenKho, warehouseList]);
+
   const filteredReceipts = receipts.filter((r) => {
     // Period filter
     if (month || year) {
@@ -133,22 +166,22 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
       if (!matchSearch) return false;
     }
     if (filterValues.maPhieuNhap && !contains(r.maPhieuNhap, filterValues.maPhieuNhap.toLowerCase())) return false;
-    if (filterValues.tenNhanVien && !contains(r.tenNhanVien, filterValues.tenNhanVien.toLowerCase())) return false;
+    // Exact match: value comes from a select of names actually present in the data.
+    if (filterValues.tenNhanVien && r.tenNhanVien !== filterValues.tenNhanVien) return false;
     if (filterValues.nguoiDeNghi && !contains((r as any).nguoiDeNghi, filterValues.nguoiDeNghi.toLowerCase())) return false;
     if (filterValues.boPhan && !contains((r as any).boPhan, filterValues.boPhan.toLowerCase())) return false;
-    if (filterValues.tenKho && !lines.some((l) => contains(l.tenKho, filterValues.tenKho.toLowerCase()) || contains((l as any).maKho, filterValues.tenKho.toLowerCase()))) return false;
-    if (filterValues.tenSanPham && !lines.some((l) => contains(l.tenSanPham, filterValues.tenSanPham.toLowerCase()) || contains((l as any).maSanPham, filterValues.tenSanPham.toLowerCase()) || contains((l as any).maKien, filterValues.tenSanPham.toLowerCase()))) return false;
+    if (selectedWarehouseCodes.length > 0 && !lines.some((l) => selectedWarehouseCodes.some((code) => contains(l.tenKho, code) || contains((l as any).maKho, code)))) return false;
     if (filterValues.tinhTrang && !lines.some((l) => contains((l as any).tinhTrang, filterValues.tinhTrang.toLowerCase()))) return false;
     if (filterValues.daIn) {
       const isPrinted = !!(r as any).daIn;
       if (filterValues.daIn === 'true' && !isPrinted) return false;
       if (filterValues.daIn === 'false' && isPrinted) return false;
     }
-    if (filterValues.fromNgay) {
+    if (!dateRangeError && filterValues.fromNgay) {
       const from = new Date(filterValues.fromNgay); from.setHours(0,0,0,0);
       if (new Date(r.ngayNhap) < from) return false;
     }
-    if (filterValues.toNgay) {
+    if (!dateRangeError && filterValues.toNgay) {
       const to = new Date(filterValues.toNgay); to.setHours(23,59,59,999);
       if (new Date(r.ngayNhap) > to) return false;
     }
@@ -188,8 +221,13 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
         filters={receiptFilterFields}
         values={filterValues}
         onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
-        searchPlaceholder="Tìm kiếm phiếu nhập..."
+        searchPlaceholder="Tìm mã kiện, tên hàng, mã phiếu, nhân viên..."
       />
+      {dateRangeError && (
+        <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800" role="alert">
+          Khoảng ngày không hợp lệ: "Từ ngày" phải trước hoặc bằng "Đến ngày". Bộ lọc ngày đang tạm bỏ qua.
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <span className="text-xs text-gray-500">Sắp xếp:</span>
         <select value={sortKey} onChange={(e) => setSortKey(e.target.value as any)} className="px-2 py-1 border border-gray-300 rounded text-xs">

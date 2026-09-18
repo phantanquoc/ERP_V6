@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Plus, FileText, Eye, Pencil, Trash2, Printer } from 'lucide-react';
 import TableFilter, { FilterField } from './TableFilter';
@@ -10,7 +10,7 @@ import EditWarehouseIssueModal from './EditWarehouseIssueModal';
 import { useQueryClient } from '@tanstack/react-query';
 import warehouseIssueService, { WarehouseIssue } from '../services/warehouseIssueService';
 import { displayLoaiKho, displayMaHang, getUniqueSlipField, getWarehouseSlipLines, normalizeWarehouseListResponse } from '../utils/warehouseSlipLines';
-import { warehouseKeys } from '../hooks';
+import { warehouseKeys, useWarehouses } from '../hooks';
 import { TINH_TRANG_OPTIONS } from '../constants/warehouseCatalogs';
 
 interface WarehouseIssueTabProps {
@@ -36,21 +36,38 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
   const [editingIssue, setEditingIssue] = useState<WarehouseIssue | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maPhieuXuat: '', tenNhanVien: '', nguoiDeNghi: '', boPhan: '', tenKho: '', tenSanPham: '', tinhTrang: '', daIn: '', fromNgay: '', toNgay: '' });
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maPhieuXuat: '', tenNhanVien: '', nguoiDeNghi: '', boPhan: '', tenKho: '', tinhTrang: '', daIn: '', fromNgay: '', toNgay: '' });
   const [sortKey, setSortKey] = useState<'ngayXuat' | 'maPhieuXuat'>('ngayXuat');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const { data: warehousesRaw } = useWarehouses();
+  const warehouseOptions = useMemo(() => {
+    const raw = (warehousesRaw as any)?.data ?? warehousesRaw;
+    const list = Array.isArray(raw) ? raw : [];
+    return list.map((w: any) => ({ value: w.maKho as string, label: `${w.maKho} — ${w.tenKho}` }));
+  }, [warehousesRaw]);
+
+  // Distinct employee names present in the fetched issues — a filter derived
+  // from the dataset in view, not the full employee directory.
+  const employeeOptions = useMemo(() => {
+    const names = new Set<string>();
+    issues.forEach((issue) => { if (issue.tenNhanVien) names.add(issue.tenNhanVien); });
+    return Array.from(names).sort((a, b) => a.localeCompare(b, 'vi')).map((name) => ({ value: name, label: name }));
+  }, [issues]);
+
   const issueFilterFields: FilterField[] = [
     { key: 'maPhieuXuat', label: 'Mã phiếu', type: 'text' },
-    { key: 'tenNhanVien', label: 'Nhân viên', type: 'text' },
+    { key: 'tenNhanVien', label: 'Nhân viên', type: 'combobox', options: employeeOptions, placeholder: 'Tất cả' },
     { key: 'nguoiDeNghi', label: 'Người đề nghị', type: 'text' },
     { key: 'boPhan', label: 'Bộ phận', type: 'text' },
-    { key: 'tenKho', label: 'Kho', type: 'text' },
-    { key: 'tenSanPham', label: 'Hàng hóa', type: 'text' },
-    { key: 'tinhTrang', label: 'Tình trạng', type: 'select', options: [{ value: '', label: 'Tất cả' }, ...[...TINH_TRANG_OPTIONS].map((o) => ({ value: o.value, label: o.label })) ] },
-    { key: 'daIn', label: 'Đã in', type: 'select', options: [{ value: '', label: 'Tất cả' }, { value: 'true', label: 'Đã in' }, { value: 'false', label: 'Chưa in' }] },
-    { key: 'fromNgay', label: 'Từ ngày', type: 'text', placeholder: 'YYYY-MM-DD' },
-    { key: 'toNgay', label: 'Đến ngày', type: 'text', placeholder: 'YYYY-MM-DD' },
+    { key: 'tenKho', label: 'Kho', type: 'select', options: warehouseOptions },
+    { key: 'tinhTrang', label: 'Tình trạng', type: 'select', options: [...TINH_TRANG_OPTIONS.map((o) => ({ value: o.value, label: o.label }))] },
+    { key: 'daIn', label: 'Đã in', type: 'select', options: [{ value: 'true', label: 'Đã in' }, { value: 'false', label: 'Chưa in' }] },
+    { key: 'fromNgay', label: 'Từ ngày', type: 'date' },
+    { key: 'toNgay', label: 'Đến ngày', type: 'date' },
   ];
+
+  const dateRangeInvalid = !!(filterValues.fromNgay && filterValues.toNgay && filterValues.fromNgay > filterValues.toNgay);
 
   const handleViewDetail = (issue: WarehouseIssue) => {
     setSelectedIssue(issue);
@@ -90,6 +107,15 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
     }
   };
 
+  // The "Kho" filter stores maKho, but older lines may only carry tenKho — keep
+  // the name of the selected warehouse around so those lines still match.
+  const selectedWarehouseName = useMemo(() => {
+    if (!filterValues.tenKho) return '';
+    const raw = (warehousesRaw as any)?.data ?? warehousesRaw;
+    const list = Array.isArray(raw) ? raw : [];
+    return (list.find((w: any) => w.maKho === filterValues.tenKho)?.tenKho as string | undefined) || '';
+  }, [filterValues.tenKho, warehousesRaw]);
+
   const filteredIssues = issues.filter((issue) => {
     // Period filter
     if (month || year) {
@@ -121,11 +147,10 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
       if (!matchSearch) return false;
     }
     if (filterValues.maPhieuXuat && !contains(issue.maPhieuXuat, filterValues.maPhieuXuat.toLowerCase())) return false;
-    if (filterValues.tenNhanVien && !contains(issue.tenNhanVien, filterValues.tenNhanVien.toLowerCase())) return false;
+    if (filterValues.tenNhanVien && issue.tenNhanVien !== filterValues.tenNhanVien) return false;
     if (filterValues.nguoiDeNghi && !contains((issue as any).nguoiDeNghi, filterValues.nguoiDeNghi.toLowerCase())) return false;
     if (filterValues.boPhan && !contains((issue as any).boPhan, filterValues.boPhan.toLowerCase())) return false;
-    if (filterValues.tenKho && !lines.some((l) => contains(l.tenKho, filterValues.tenKho.toLowerCase()) || contains((l as any).maKho, filterValues.tenKho.toLowerCase()))) return false;
-    if (filterValues.tenSanPham && !lines.some((l) => contains(l.tenSanPham, filterValues.tenSanPham.toLowerCase()) || contains((l as any).maSanPham, filterValues.tenSanPham.toLowerCase()) || contains((l as any).maKien, filterValues.tenSanPham.toLowerCase()))) return false;
+    if (filterValues.tenKho && !lines.some((l) => (l as any).maKho === filterValues.tenKho || (selectedWarehouseName && contains(l.tenKho, selectedWarehouseName.toLowerCase())))) return false;
     if (filterValues.tinhTrang && !lines.some((l) => contains((l as any).tinhTrang, filterValues.tinhTrang.toLowerCase()))) return false;
     if (filterValues.daIn) {
       const isPrinted = !!(issue as any).daIn;
@@ -178,8 +203,13 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
         filters={issueFilterFields}
         values={filterValues}
         onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
-        searchPlaceholder="Tìm kiếm phiếu xuất..."
+        searchPlaceholder="Tìm mã kiện, tên hàng, mã phiếu, nhân viên..."
       />
+      {dateRangeInvalid && (
+        <div className="mb-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800" role="alert">
+          Khoảng ngày không hợp lệ: &quot;Từ ngày&quot; đang sau &quot;Đến ngày&quot; nên không có phiếu nào khớp. Đổi lại hai mốc ngày.
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <span className="text-xs text-gray-500">Sắp xếp:</span>
         <select value={sortKey} onChange={(e) => setSortKey(e.target.value as any)} className="px-2 py-1 border border-gray-300 rounded text-xs">
