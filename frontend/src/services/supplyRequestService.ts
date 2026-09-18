@@ -142,6 +142,7 @@ export interface SupplyRequestListFilters {
   maYeuCau?: string;
   tenNhanVien?: string;
   boPhan?: string;
+  phanLoai?: string;
   trangThai?: string;
   mucDoUuTien?: string;
 }
@@ -153,6 +154,7 @@ class SupplyRequestService {
     if (filters?.maYeuCau) params.maYeuCau = filters.maYeuCau;
     if (filters?.tenNhanVien) params.tenNhanVien = filters.tenNhanVien;
     if (filters?.boPhan) params.boPhan = filters.boPhan;
+    if (filters?.phanLoai) params.phanLoai = filters.phanLoai;
     if (filters?.trangThai) params.trangThai = filters.trangThai;
     if (filters?.mucDoUuTien) params.mucDoUuTien = filters.mucDoUuTien;
 

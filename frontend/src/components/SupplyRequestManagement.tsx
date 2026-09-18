@@ -22,6 +22,8 @@ import UnitSelect from './common/UnitSelect';
 import ProductCombobox from './common/ProductCombobox';
 import ProductFormModal from './products/ProductFormModal';
 import { FormField, inputCls, readonlyCls, textareaCls } from './ModalForm';
+import { useLookups } from '../hooks/useLookups';
+import { LOOKUP_GROUPS } from '../types/lookup';
 
 interface SupplyRequestManagementProps {
   onClose?: () => void;
@@ -167,7 +169,8 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   const canCancel = isCachedPermissionsLoaded() ? can('supply-requests', 'UPDATE', user?.role) : _roleEdit; // CANCEL maps to UPDATE
   const [requests, setRequests] = useState<SupplyRequest[]>([]);
   const [loading, setLoading] = useState(false);
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maYeuCau: '', tenNhanVien: '', boPhan: '', trangThai: '', mucDoUuTien: '' });
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maYeuCau: '', tenNhanVien: '', boPhan: '', phanLoai: '', trangThai: '', mucDoUuTien: '' });
+  const { data: phanLoaiVatTuOptions } = useLookups(LOOKUP_GROUPS.PHAN_LOAI_VAT_TU);
   const supplyFilterFields: FilterField[] = [
     { key: 'maYeuCau', label: 'Mã yêu cầu', type: 'text' },
     { key: 'tenNhanVien', label: 'Tên nhân viên', type: 'text' },
@@ -181,6 +184,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
       { value: 'Bộ phận kỹ thuật', label: 'Bộ phận kỹ thuật' },
       { value: 'Ban quản trị', label: 'Ban quản trị' },
     ] },
+    { key: 'phanLoai', label: 'Phân loại vật tư', type: 'select', options: phanLoaiVatTuOptions.map((l) => ({ value: l.label, label: l.label })) },
     { key: 'trangThai', label: 'Trạng thái', type: 'select', options: [
       { value: 'Chưa cung cấp', label: 'Chưa cung cấp' },
       { value: 'Đang xử lý', label: 'Đang xử lý' },
@@ -400,6 +404,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
     if ((filterValues.maYeuCau || '').trim()) f.maYeuCau = filterValues.maYeuCau.trim();
     if ((filterValues.tenNhanVien || '').trim()) f.tenNhanVien = filterValues.tenNhanVien.trim();
     if ((filterValues.boPhan || '').trim()) f.boPhan = filterValues.boPhan.trim();
+    if (filterValues.phanLoai) f.phanLoai = filterValues.phanLoai;
     if (filterValues.trangThai) f.trangThai = filterValues.trangThai;
     if (filterValues.mucDoUuTien) f.mucDoUuTien = filterValues.mucDoUuTien;
     return f;
