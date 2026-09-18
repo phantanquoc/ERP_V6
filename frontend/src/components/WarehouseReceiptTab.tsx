@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Plus, FileText, Eye, Pencil, Trash2, Printer } from 'lucide-react';
 import Modal from './Modal';
 import WarehouseSlipPrintView from './WarehouseSlipPrintView';
@@ -91,11 +92,11 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
     if (!confirm('Bạn có chắc chắn muốn xóa phiếu nhập kho này?')) return;
     try {
       await warehouseReceiptService.deleteWarehouseReceipt(receipt.id);
-      alert('Xóa phiếu nhập kho thành công!');
+      toast.success('Xóa phiếu nhập kho thành công!');
       fetchReceipts();
       refreshInventoryCaches();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Lỗi khi xóa phiếu nhập kho');
+      toast.error(error.response?.data?.message || 'Lỗi khi xóa phiếu nhập kho');
     }
   };
 
@@ -199,7 +200,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
         <span className="text-xs text-gray-400 ml-2">{sortedReceipts.length} phiếu {filteredReceipts.length !== receipts.length && `· lọc từ ${receipts.length}`}</span>
         <button type="button" onClick={async () => {
           const ids = sortedReceipts.map((r) => r.id);
-          if (ids.length === 0) { alert('Không có phiếu để xuất'); return; }
+          if (ids.length === 0) { toast.error('Không có phiếu để xuất'); return; }
           if (!confirm(`Xuất tổng hợp ${ids.length} phiếu đang lọc?`)) return;
           for (const id of ids) { try { await warehouseReceiptService.exportXlsx(id); } catch {} }
         }} className="ml-auto px-3 py-1.5 text-xs border border-blue-300 text-blue-700 rounded hover:bg-blue-50">Xuất tổng hợp (đang lọc)</button>
@@ -313,7 +314,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                                 <Printer className="w-5 h-5" />
                               </button>
                               <button
-                                onClick={async () => { try { await warehouseReceiptService.exportXlsx(receipt.id); } catch (e: any) { alert(e.message || 'Lỗi xuất Excel'); } }}
+                                onClick={async () => { try { await warehouseReceiptService.exportXlsx(receipt.id); } catch (e: any) { toast.error(e.message || 'Lỗi xuất Excel'); } }}
                                 aria-label="Xuất Excel"
                                 className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
                                 title="Xuất Excel (BM01)"
@@ -391,7 +392,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   <button onClick={() => handleViewDetail(receipt)} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700">Chi tiết</button>
                   <button onClick={() => { setPrintReceipt(receipt); setShowPrintView(true); }} className="rounded border border-green-200 px-2.5 py-1 text-xs text-green-700">In</button>
-                  <button onClick={async () => { try { await warehouseReceiptService.exportXlsx(receipt.id); } catch (e: any) { alert(e.message || 'Lỗi xuất Excel'); } }} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700">Excel</button>
+                  <button onClick={async () => { try { await warehouseReceiptService.exportXlsx(receipt.id); } catch (e: any) { toast.error(e.message || 'Lỗi xuất Excel'); } }} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700">Excel</button>
                   {!receipt.isLocked && (
                     <>
                       <button onClick={() => setEditingReceipt(receipt)} className="rounded border border-amber-200 px-2.5 py-1 text-xs text-amber-700">Sửa</button>
@@ -647,7 +648,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                 In phiếu
               </button>
               <button
-                onClick={async () => { try { await warehouseReceiptService.exportXlsx(selectedReceipt.id); } catch (e: any) { alert(e.message || 'Lỗi xuất Excel'); } }}
+                onClick={async () => { try { await warehouseReceiptService.exportXlsx(selectedReceipt.id); } catch (e: any) { toast.error(e.message || 'Lỗi xuất Excel'); } }}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 Xuất Excel

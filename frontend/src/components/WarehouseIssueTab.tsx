@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { Plus, FileText, Eye, Pencil, Trash2, Printer } from 'lucide-react';
 import TableFilter, { FilterField } from './TableFilter';
 import Modal from './Modal';
@@ -79,13 +80,13 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
     if (!confirm('Bạn có chắc chắn muốn xóa phiếu xuất kho này?')) return;
     try {
       await warehouseIssueService.deleteWarehouseIssue(issue.id);
-      alert('Xóa phiếu xuất kho thành công!');
+      toast.success('Xóa phiếu xuất kho thành công!');
       fetchIssues();
       queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
       queryClient.invalidateQueries({ queryKey: warehouseKeys.lotProducts() });
       queryClient.invalidateQueries({ queryKey: warehouseKeys.receiptHistories() });
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Lỗi khi xóa phiếu xuất kho');
+      toast.error(error.response?.data?.message || 'Lỗi khi xóa phiếu xuất kho');
     }
   };
 
@@ -189,7 +190,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
         <span className="text-xs text-gray-400 ml-2">{sortedIssues.length} phiếu {filteredIssues.length !== issues.length && `· lọc từ ${issues.length}`}</span>
         <button type="button" onClick={async () => {
           const ids = sortedIssues.map((r) => r.id);
-          if (ids.length === 0) { alert('Không có phiếu để xuất'); return; }
+          if (ids.length === 0) { toast.error('Không có phiếu để xuất'); return; }
           if (!confirm(`Xuất tổng hợp ${ids.length} phiếu đang lọc?`)) return;
           for (const id of ids) { try { await warehouseIssueService.exportXlsx(id); } catch {} }
         }} className="ml-auto px-3 py-1.5 text-xs border border-blue-300 text-blue-700 rounded hover:bg-blue-50">Xuất tổng hợp (đang lọc)</button>
@@ -306,7 +307,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                                 <Printer className="w-5 h-5" />
                               </button>
                               <button
-                                onClick={async () => { try { await warehouseIssueService.exportXlsx(issue.id); } catch (e: any) { alert(e.message || 'Lỗi xuất Excel'); } }}
+                                onClick={async () => { try { await warehouseIssueService.exportXlsx(issue.id); } catch (e: any) { toast.error(e.message || 'Lỗi xuất Excel'); } }}
                                 aria-label="Xuất Excel"
                                 className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
                                 title="Xuất Excel (BM03)"
@@ -379,7 +380,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   <button onClick={() => handleViewDetail(issue)} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700">Chi tiết</button>
                   <button onClick={() => { setPrintIssue(issue); setShowPrintView(true); }} className="rounded border border-green-200 px-2.5 py-1 text-xs text-green-700">In</button>
-                  <button onClick={async () => { try { await warehouseIssueService.exportXlsx(issue.id); } catch (e: any) { alert(e.message || 'Lỗi xuất Excel'); } }} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700">Excel</button>
+                  <button onClick={async () => { try { await warehouseIssueService.exportXlsx(issue.id); } catch (e: any) { toast.error(e.message || 'Lỗi xuất Excel'); } }} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700">Excel</button>
                   {!issue.isLocked && (
                     <>
                       <button onClick={() => setEditingIssue(issue)} className="rounded border border-amber-200 px-2.5 py-1 text-xs text-amber-700">Sửa</button>
@@ -637,7 +638,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
               In phiếu
             </button>
             <button
-              onClick={async () => { try { await warehouseIssueService.exportXlsx(selectedIssue!.id); } catch (e: any) { alert(e.message || 'Lỗi xuất Excel'); } }}
+              onClick={async () => { try { await warehouseIssueService.exportXlsx(selectedIssue!.id); } catch (e: any) { toast.error(e.message || 'Lỗi xuất Excel'); } }}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
               Xuất Excel
