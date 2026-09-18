@@ -316,16 +316,65 @@ class WarehouseReceiptService {
     }
   }
 
+  /**
+   * `nguoiDeNghi` / `boPhan` describe WHO ASKED for the goods, never the thủ kho who
+   * types the slip. The only authoritative source is `SupplyRequest` (YCCB) — the
+   * request that started the flow. Resolution walks every linkage the slip may carry:
+   *
+   *   supplyRequestId                                   → SupplyRequest
+   *   purchaseRequestId    → PurchaseRequest.supplyRequest
+   *   inboundPlanId        → InboundPlan.purchaseRequest.supplyRequest
+   *
+   * A YCMH created directly by thu mua (`sourceType: REORDER/MANUAL`) has no
+   * SupplyRequest, and a standalone slip has no linkage at all. In both cases the
+   * fields stay EMPTY on purpose: there is no digitized "bộ phận đề nghị" to read, and
+   * writing the creator's own department here is exactly the bug this guards against
+   * (that is how 44 receipts ended up stamped "Quản lý kho").
+   */
   private async fillHeaderFromSupplyRequest(client: PrismaClientLike, normalized: CreateReceiptInput & UpdateReceiptInput & { employeeId: string }) {
-    if (!normalized.supplyRequestId) return;
     if (normalized.nguoiDeNghi && normalized.boPhan) return;
     try {
-      const sr = await (client as any).supplyRequest?.findUnique?.({ where: { id: normalized.supplyRequestId }, select: { tenNhanVien: true, boPhan: true } });
+      const srId = await this.resolveSupplyRequestId(client, normalized);
+      if (!srId) return;
+      const sr = await (client as any).supplyRequest?.findUnique?.({ where: { id: srId }, select: { tenNhanVien: true, boPhan: true } });
       if (sr) {
         if (!normalized.nguoiDeNghi && sr.tenNhanVien) (normalized as any).nguoiDeNghi = sr.tenNhanVien;
         if (!normalized.boPhan && sr.boPhan) (normalized as any).boPhan = sr.boPhan;
       }
     } catch {}
+  }
+
+  /**
+   * Find the YCCB behind a receipt, following the YCMH / kế hoạch nhập chain when the
+   * slip does not carry `supplyRequestId` directly. Read-only: it never writes the id
+   * back onto the slip, because the SR linkage also acts as an edit lock and must only
+   * be set after the YCMH quantity guard has passed.
+   */
+  private async resolveSupplyRequestId(
+    client: PrismaClientLike,
+    normalized: CreateReceiptInput & UpdateReceiptInput,
+  ): Promise<string | null> {
+    if (normalized.supplyRequestId) return normalized.supplyRequestId;
+
+    const purchaseRequestId = (normalized as CreateReceiptInput).purchaseRequestId;
+    if (purchaseRequestId) {
+      const pr = await (client as any).purchaseRequest?.findUnique?.({
+        where: { id: purchaseRequestId },
+        select: { supplyRequestId: true },
+      });
+      if (pr?.supplyRequestId) return pr.supplyRequestId;
+    }
+
+    const inboundPlanId = (normalized as any).inboundPlanId as string | undefined;
+    if (inboundPlanId) {
+      const plan = await (client as any).inboundPlan?.findUnique?.({
+        where: { id: inboundPlanId },
+        select: { purchaseRequest: { select: { supplyRequestId: true } } },
+      });
+      if (plan?.purchaseRequest?.supplyRequestId) return plan.purchaseRequest.supplyRequestId;
+    }
+
+    return null;
   }
 
   private async deriveSoLoThucTeFromKien(client: PrismaClientLike, items: ReceiptLineInput[]) {

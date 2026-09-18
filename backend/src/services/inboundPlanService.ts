@@ -23,7 +23,7 @@ const INBOUND_INCLUDE = {
   purchaseRequest: {
     include: {
       items: true,
-      supplyRequest: { select: { id: true, maYeuCau: true, trangThai: true } },
+      supplyRequest: { select: { id: true, maYeuCau: true, trangThai: true, tenNhanVien: true, boPhan: true } },
       warehouse: { select: { id: true, tenKho: true, maKho: true } },
     },
   },

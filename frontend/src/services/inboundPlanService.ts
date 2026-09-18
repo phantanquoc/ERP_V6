@@ -18,7 +18,7 @@ export interface InboundPlan {
     nhaCungCapId?: string;
     supplier?: { tenNhaCungCap: string } | null;
     items?: { id?: string; tenHangHoa: string; soLuong: number; donViTinh: string; phanLoai?: string; giaDuKien?: number | null }[];
-    supplyRequest?: { id: string; maYeuCau: string; trangThai: string } | null;
+    supplyRequest?: { id: string; maYeuCau: string; trangThai: string; tenNhanVien?: string; boPhan?: string } | null;
     warehouse?: { id: string; tenKho: string; maKho: string } | null;
     warehouseId?: string | null;
   } | null;

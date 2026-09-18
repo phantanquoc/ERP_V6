@@ -188,8 +188,11 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
         const prItems: any[] = (pr?.items as any[]) ?? [];
         setMucDich('Nhập từ thu mua');
         setGhiChu('');
-        setNguoiDeNghi('');
-        setBoPhan('');
+        // Bộ phận đề nghị = bộ phận đã tạo YCCB gốc (nếu YCMH có liên kết YCCB), KHÔNG
+        // phải bộ phận của thủ kho đang lập phiếu. Khi YCMH không gắn YCCB (mua trực
+        // tiếp / REORDER), không có nguồn để suy ra — để trống, không tự điền.
+        setNguoiDeNghi(pr?.supplyRequest?.tenNhanVien ?? '');
+        setBoPhan(pr?.supplyRequest?.boPhan ?? '');
         setMaNguoiDeNghi('');
         setCompletedPurchaseRequests([]);
         setPurchasedByItem({});

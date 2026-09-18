@@ -267,16 +267,48 @@ class WarehouseIssueService {
     return totals;
   }
 
+  /**
+   * `nguoiDeNghi` / `boPhan` describe WHO ASKED for the goods, never the thủ kho who
+   * types the slip. The only authoritative source is `SupplyRequest` (YCCB). Resolution
+   * walks either linkage the slip may carry:
+   *
+   *   supplyRequestId                → SupplyRequest
+   *   outboundPlanId  → OutboundPlan.supplyRequest
+   *
+   * A standalone slip (no SR, no kế hoạch xuất) has no digitized "bộ phận đề nghị" to
+   * read — the fields stay EMPTY on purpose rather than falling back to the creator's
+   * own department (that fallback is what produced the "Quản lý kho" stamping bug).
+   */
   private async fillHeaderFromSupplyRequest(client: PrismaClientLike, normalized: CreateIssueInput & UpdateIssueInput & { employeeId: string }) {
-    if (!normalized.supplyRequestId) return;
     if (normalized.nguoiDeNghi && normalized.boPhan) return;
     try {
-      const sr = await (client as any).supplyRequest?.findUnique?.({ where: { id: normalized.supplyRequestId }, select: { tenNhanVien: true, boPhan: true } });
+      const srId = await this.resolveSupplyRequestId(client, normalized);
+      if (!srId) return;
+      const sr = await (client as any).supplyRequest?.findUnique?.({ where: { id: srId }, select: { tenNhanVien: true, boPhan: true } });
       if (sr) {
         if (!normalized.nguoiDeNghi && sr.tenNhanVien) (normalized as any).nguoiDeNghi = sr.tenNhanVien;
         if (!normalized.boPhan && sr.boPhan) (normalized as any).boPhan = sr.boPhan;
       }
     } catch {}
+  }
+
+  /** Find the YCCB behind an issue slip, following outboundPlanId when direct linkage is absent. */
+  private async resolveSupplyRequestId(
+    client: PrismaClientLike,
+    normalized: CreateIssueInput & UpdateIssueInput,
+  ): Promise<string | null> {
+    if (normalized.supplyRequestId) return normalized.supplyRequestId;
+
+    const outboundPlanId = (normalized as any).outboundPlanId as string | undefined;
+    if (outboundPlanId) {
+      const plan = await (client as any).outboundPlan?.findUnique?.({
+        where: { id: outboundPlanId },
+        select: { supplyRequestId: true },
+      });
+      if (plan?.supplyRequestId) return plan.supplyRequestId;
+    }
+
+    return null;
   }
 
   private async deriveSoLoThucTeFromKien(client: PrismaClientLike, items: IssueLineInput[]) {
