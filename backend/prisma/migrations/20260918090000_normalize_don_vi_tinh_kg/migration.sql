@@ -1,16 +1,21 @@
 -- Normalize DON_VI_TINH "kg"/"KG" case variants to canonical "Kg".
 --
--- Viết ngày: 2026-09-18. Đo dữ liệu trên DB dev (docker exec postgres, database
--- erp_database) cùng ngày — xem chi tiết số dòng ảnh hưởng ở khối MEASURED ON DEV DB
--- bên dưới (tổng 3 rows bẩn trên dev: quotation_request_items=3, quotation_calculator_products=1;
--- 19/21 cột còn lại = 0 rows).
+-- Viết ngày: 2026-09-18.
 --
--- ⚠️ CẢNH BÁO: CHƯA CHẠY - CẦN XÁC NHẬN TRƯỚC KHI APPLY. Đây là data migration ảnh
--- hưởng dữ liệu thật, khó revert nếu không backup trước. Số liệu trên production
--- CHƯA được đo lại — phải đo lại trên DB đích trước khi áp dụng, kể cả trên dev.
+-- TRẠNG THÁI APPLY
+--   ✅ DEV: đã apply 2026-09-18 trên bản dev được restore từ dump PRODUCTION cùng
+--      ngày (nên số liệu dưới đây là số liệu prod thật, không phải data dev cũ).
+--      Prisma tracking đã đồng bộ bằng `migrate resolve --applied`.
+--   ⛔ PRODUCTION: CHƯA apply. Chạy qua `npx prisma migrate deploy` theo playbook
+--      deploy (backup trước), KHÔNG chạy psql tay trên prod.
 --
--- NOT APPLIED. Written for review only — see task instructions. This is a DATA
--- migration on production-shaped tables; get explicit confirmation before running.
+-- ⚠️ Đây là DATA migration (UPDATE + DELETE dữ liệu thật), không phải schema
+-- migration — không có down-migration tự động. Phải backup trước khi apply.
+--
+-- ⚠️ BẪY KHI TEST: file này có BEGIN...COMMIT riêng bên trong. Bọc nó trong một
+-- transaction ngoài rồi ROLLBACK sẽ KHÔNG hoàn tác được — COMMIT bên trong chạy
+-- trước và ăn thật. Muốn thử nghiệm an toàn: restore sang database throwaway
+-- riêng rồi chạy, đừng bọc transaction.
 --
 -- Apply manually with:
 --   psql "$DATABASE_URL" -f backend/prisma/migrations/20260918090000_normalize_don_vi_tinh_kg/migration.sql
@@ -27,14 +32,20 @@
 -- "21 columns across 20 tables", and against backend/prisma/schema/*.prisma —
 -- no @relation exists from any donViTinh/donVi field to Lookup.)
 --
--- MEASURED ON DEV DB (docker exec postgres, erp_database), 2026-09-18:
---   business.quotation_request_items.donViTinh:   kg=2, KG=1   (of 4 rows total)
---   business.quotation_calculator_products.donViTinh: kg=1     (of 2 rows total)
---   All other 19 columns below: 0 rows with 'kg' or 'KG' (checked individually).
---   common.lookups (group='DON_VI_TINH'): 23 rows total; 3 label variants of Kg
+-- ĐO TRÊN DỮ LIỆU PRODUCTION (dump prod 2026-09-18 restore vào dev rồi đo):
+--   TRƯỚC                                              SAU
+--   quotation_request_items:       kg=2, KG=1, Kg=11 → Kg=14
+--   quotation_calculator_products: kg=1, Kg=4        → Kg=5
+--   19 cột donViTinh/donVi còn lại: 0 rows bẩn       → không đổi
+--   common.lookups (group='DON_VI_TINH'): 23 rows    → 21 rows
 --     — code=DON_VI_TINH_KG   label='Kg' (sortOrder 0, canonical, KEEP)
---     — code=DON_VI_TINH_KG_2 label='kg' (sortOrder 21, DELETE after cascade)
---     — code=DON_VI_TINH_KG_3 label='KG' (sortOrder 22, DELETE after cascade)
+--     — code=DON_VI_TINH_KG_2 label='kg' (sortOrder 21, DELETED)
+--     — code=DON_VI_TINH_KG_3 label='KG' (sortOrder 22, DELETED)
+--   lookup_change_logs trỏ tới 2 id bị xóa: 0 rows → không mất audit trail nào
+--   (FK duy nhất tới lookups là lookup_change_logs_lookupId_fkey, ON DELETE SET NULL)
+--
+-- Tổng tác động: 4 rows dữ liệu + 2 rows lookup. Nhỏ, nhưng vẫn phải backup vì
+-- DELETE không hoàn tác được.
 --
 -- Matching is EXACT on 'kg'/'KG' only — no other unit variants are touched (does
 -- NOT touch dirty values in PHAN_LOAI_VAT_TU / LOAI_CHI_PHI, which are out of scope).
