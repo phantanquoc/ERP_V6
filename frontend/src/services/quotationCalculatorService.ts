@@ -5,7 +5,7 @@ export interface GeneralCostGroupData {
   id: string;
   tenBangChiPhi: string;
   selectedCosts: QuotationCalculatorCostData[];
-  selectedProducts: string[]; // Danh sách sản phẩm được chọn cho bảng này
+  selectedProducts: string[]; // Danh sách hàng hóa được chọn cho bảng này
 }
 
 // Interface matching backend

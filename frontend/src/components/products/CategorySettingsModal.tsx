@@ -92,7 +92,7 @@ const CategorySettingsModal: React.FC<CategorySettingsModalProps> = ({ isOpen, c
   };
 
   const handleDelete = async (name: string) => {
-    if (!window.confirm(`Xóa loại "${name}"? Các sản phẩm thuộc loại này sẽ bị bỏ trống loại hàng hóa.`)) return;
+    if (!window.confirm(`Xóa loại "${name}"? Các hàng hóa thuộc loại này sẽ bị bỏ trống loại hàng hóa.`)) return;
     setLoading(true);
     try {
       await internationalProductService.deleteCategory(name);

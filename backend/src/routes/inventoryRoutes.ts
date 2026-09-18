@@ -14,7 +14,7 @@ router.use(authenticate);
  *   get:
  *     tags: [Inventory]
  *     summary: Tổng quan tồn kho
- *     description: Lấy danh sách sản phẩm với tồn kho tổng hợp và chi tiết theo kho
+ *     description: Lấy danh sách hàng hóa với tồn kho tổng hợp và chi tiết theo kho
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -22,12 +22,12 @@ router.use(authenticate);
  *         name: search
  *         schema:
  *           type: string
- *         description: Tìm kiếm theo mã hoặc tên sản phẩm
+ *         description: Tìm kiếm theo mã hoặc tên hàng hóa
  *       - in: query
  *         name: loaiSanPham
  *         schema:
  *           type: string
- *         description: Lọc theo loại sản phẩm
+ *         description: Lọc theo loại hàng hóa
  *       - in: query
  *         name: warehouseId
  *         schema:

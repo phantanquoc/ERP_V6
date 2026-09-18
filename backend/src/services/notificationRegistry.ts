@@ -364,7 +364,7 @@ const entries: NotificationEventDef[] = [
     notificationType: NotificationType.LOW_STOCK_ALERT,
     buildMessage: (ctx) => ({
       title: 'Cảnh báo tồn kho thấp',
-      message: `Sản phẩm ${ctx.metadata?.tenSanPham ?? ''} đang dưới ngưỡng tồn kho tối thiểu (còn ${ctx.metadata?.currentStock ?? 0} ${ctx.metadata?.donViTinh ?? ''}).`,
+      message: `Hàng hóa ${ctx.metadata?.tenSanPham ?? ''} đang dưới ngưỡng tồn kho tối thiểu (còn ${ctx.metadata?.currentStock ?? 0} ${ctx.metadata?.donViTinh ?? ''}).`,
     }),
     resolveRecipients: async (ctx) => {
       const warehouse = await getEmployeeIdsBySubDeptCode('SUBDEPT_PRODUCTION_WAREHOUSE');

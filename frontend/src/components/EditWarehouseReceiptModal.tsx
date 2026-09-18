@@ -252,7 +252,7 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
         return lp ? !lp.internationalProductId : false;
       });
       if (targetsEmptyKien && !row.tenSanPham.trim()) {
-        alert(`Dòng ${i + 1}: Kiện được chọn đang trống — hãy nhập tên hàng hóa để gắn sản phẩm vào kiện`);
+        alert(`Dòng ${i + 1}: Kiện được chọn đang trống — hãy nhập tên hàng hóa để gắn hàng hóa vào kiện`);
         return;
       }
     }
@@ -369,7 +369,7 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="block text-sm font-medium text-gray-700">
-                Danh sách sản phẩm nhập kho <span className="text-red-500">*</span>
+                Danh sách hàng hóa nhập kho <span className="text-red-500">*</span>
               </label>
               <button type="button" onClick={addRow}
                 className="flex items-center gap-1 px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700">
@@ -383,7 +383,7 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
                 <div key={row.id ?? `new-${index}`} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-sm font-semibold text-gray-700">
-                      Sản phẩm {index + 1}{row.tenSanPham ? `: ${row.tenSanPham}` : ''}
+                      Hàng hóa {index + 1}{row.tenSanPham ? `: ${row.tenSanPham}` : ''}
                       {!row.id && <span className="ml-2 text-xs font-normal text-green-600">(dòng mới)</span>}
                     </span>
                     <button type="button" onClick={() => removeRow(index)} disabled={rows.length === 1}

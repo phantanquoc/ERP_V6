@@ -82,7 +82,7 @@ const PurchaseRequestReviewTab: React.FC = () => {
     : ((serverPagination?.totalPages ?? Math.ceil(total / limit)) || 1);
   // Server already paginates when no client filter is active; only slice client-side when filtering.
   const pageRows = hasActiveFilter ? sorted.slice((page - 1) * limit, page * limit) : sorted;
-  // Display range for footer: e.g. "Hiển thị 1–20 / 46 sản phẩm"
+  // Display range for footer: e.g. "Hiển thị 1–20 / 46 hàng hóa"
   const rangeFrom = total === 0 ? 0 : (hasActiveFilter ? (page - 1) * limit + 1 : (serverPagination ? (serverPagination.page - 1) * serverPagination.limit + 1 : (page - 1) * limit + 1));
   const rangeTo = hasActiveFilter ? Math.min(page * limit, total) : (serverPagination ? Math.min(serverPagination.page * serverPagination.limit, total) : Math.min(page * limit, total));
 
@@ -119,7 +119,7 @@ const PurchaseRequestReviewTab: React.FC = () => {
       }
     }
     try {
-      const headers = ['STT', 'Mã yêu cầu', 'Ngày yêu cầu', 'Nhân viên', 'Sản phẩm', 'Tổng tiền', 'Ưu tiên', 'Trạng thái', 'Người duyệt', 'Ngày duyệt'];
+      const headers = ['STT', 'Mã yêu cầu', 'Ngày yêu cầu', 'Nhân viên', 'Hàng hóa', 'Tổng tiền', 'Ưu tiên', 'Trạng thái', 'Người duyệt', 'Ngày duyệt'];
       const csvRows = exportRows.map((r: any, idx: number) => {
         const items = r.items ?? [];
         const productNames = items.map((it: any) => it.tenHangHoa).filter(Boolean).join('; ');
@@ -236,7 +236,7 @@ const PurchaseRequestReviewTab: React.FC = () => {
                   Ngày yêu cầu <span className="inline-block ml-1 text-[10px]">{sortIndicator('ngayYeuCau')}</span>
                 </th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Nhân viên</th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Sản phẩm</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Hàng hóa</th>
                 <th
                   className="px-3 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer select-none hover:text-blue-600 hover:bg-gray-100"
                   onClick={() => toggleSort('tongTien')}

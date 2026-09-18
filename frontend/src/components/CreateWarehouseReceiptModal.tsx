@@ -366,7 +366,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
 
     const submittedRows = isSupplyBatch ? selectedRows : rows;
     if (submittedRows.length === 0) {
-      alert('Vui lòng chọn ít nhất một sản phẩm');
+      alert('Vui lòng chọn ít nhất một hàng hóa');
       return;
     }
     const invalidIndex = submittedRows.findIndex((row) => {
@@ -393,7 +393,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
     });
     if (emptyKienNoProductIndex >= 0) {
       const rowNumber = rows.indexOf(submittedRows[emptyKienNoProductIndex]) + 1;
-      alert(`Dòng ${rowNumber}: Kiện được chọn đang trống — hãy nhập/tên hàng hóa để gắn sản phẩm vào kiện`);
+      alert(`Dòng ${rowNumber}: Kiện được chọn đang trống — hãy nhập/tên hàng hóa để gắn hàng hóa vào kiện`);
       return;
     }
 
@@ -592,7 +592,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
           </div>
           <div><label className="block text-sm font-medium text-gray-700 mb-1">Mục đích nhập</label><input type="text" list="muc-dich-presets-create" value={mucDich} onChange={(event) => setMucDich(event.target.value)} placeholder="" className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
           {isSupplyBatch && <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200"><span className="text-xs font-medium text-gray-500 uppercase">Áp dụng cho tất cả:</span><select className="text-sm border border-gray-300 rounded px-2 py-1" value={firstSelected?.warehouseId || ''} onChange={(event) => { const warehouseId = event.target.value; const lots = getLotsForWarehouse(warehouseId); applyToAll(warehouseId, lots.length === 1 ? lots[0].id : ''); }}><option value="">Chọn kho</option>{warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.tenKho}</option>)}</select>{firstSelected?.warehouseId && <select className="text-sm border border-gray-300 rounded px-2 py-1" value={firstSelected.lotId} onChange={(event) => applyToAll(firstSelected.warehouseId, event.target.value)}><option value="">Chọn lô</option>{getLotsForWarehouse(firstSelected.warehouseId).map((lot) => <option key={lot.id} value={lot.id}>{lot.tenLo}</option>)}</select>}</div>}
-          <div className="flex items-center justify-between"><label className="block text-sm font-medium text-gray-700">Danh sách sản phẩm nhập kho <span className="text-red-500">*</span></label>{!isSupplyBatch && <button type="button" onClick={addRow} className="flex items-center gap-1 px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700"><Plus className="h-4 w-4" />Thêm dòng</button>}</div>
+          <div className="flex items-center justify-between"><label className="block text-sm font-medium text-gray-700">Danh sách hàng hóa nhập kho <span className="text-red-500">*</span></label>{!isSupplyBatch && <button type="button" onClick={addRow} className="flex items-center gap-1 px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700"><Plus className="h-4 w-4" />Thêm dòng</button>}</div>
           <div className="space-y-3">
             {rows.map((row, index) => {
               const hasDiff = hasKeHoachColumn && Math.abs(Number(row.soLuong ?? 0) - Number(row.soLuongYeuCau ?? row.soLuong)) > 1e-9;

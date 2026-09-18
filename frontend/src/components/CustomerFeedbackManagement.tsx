@@ -222,7 +222,7 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
         filters={feedbackFilterFields}
         values={filterValues}
         onChange={handleFilterChange}
-        searchPlaceholder="Tìm kiếm nội dung, sản phẩm, khách hàng..."
+        searchPlaceholder="Tìm kiếm nội dung, hàng hóa, khách hàng..."
       />
 
       {/* Table */}
@@ -405,7 +405,7 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Sản phẩm liên quan</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Hàng hóa liên quan</label>
                   <input
                     type="text"
                     value={formData.sanPhamLienQuan || ''}
@@ -566,7 +566,7 @@ const CustomerFeedbackManagement: React.FC<CustomerFeedbackManagementProps> = ({
 
               {selectedFeedback.sanPhamLienQuan && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">Sản phẩm liên quan</label>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Hàng hóa liên quan</label>
                   <p className="text-gray-900">{selectedFeedback.sanPhamLienQuan}</p>
                 </div>
               )}

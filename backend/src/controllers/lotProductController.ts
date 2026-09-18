@@ -24,7 +24,7 @@ export class LotProductController {
       }
 
       const lotProduct = await lotProductService.addProduct({ lotId, internationalProductId, soLuong, donViTinh });
-      res.status(201).json({ success: true, data: lotProduct, message: 'Thêm sản phẩm vào lô thành công' });
+      res.status(201).json({ success: true, data: lotProduct, message: 'Thêm hàng hóa vào lô thành công' });
     } catch (error: any) {
       if (error.status === 400) {
         res.status(400).json({ success: false, message: error.message });
@@ -37,7 +37,7 @@ export class LotProductController {
   async removeProductFromLot(req: Request, res: Response, next: NextFunction) {
     try {
       await lotProductService.remove(req.params.id);
-      res.json({ success: true, message: 'Xóa sản phẩm khỏi lô thành công' });
+      res.json({ success: true, message: 'Xóa hàng hóa khỏi lô thành công' });
     } catch (error) {
       next(error);
     }
@@ -124,7 +124,7 @@ export class LotProductController {
         return;
       }
       if (clean.length > 200) {
-        res.status(400).json({ success: false, message: 'Tối đa 200 tên sản phẩm' });
+        res.status(400).json({ success: false, message: 'Tối đa 200 tên hàng hóa' });
         return;
       }
       const data = await lotProductService.checkStockByNames(clean);

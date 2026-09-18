@@ -661,7 +661,7 @@ const InvoiceManagement: React.FC<InvoiceManagementProps> = ({ month, year }) =>
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-                  <textarea value={formData.ghiChu} onChange={(e) => setFormData({ ...formData, ghiChu: e.target.value })} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" placeholder="VD: tên từng loại sản phẩm - giá tiền từng món - thuế (tùy sản phẩm có hay không) - các chi phí liên quan (vận chuyển,...)" />
+                  <textarea value={formData.ghiChu} onChange={(e) => setFormData({ ...formData, ghiChu: e.target.value })} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" placeholder="VD: tên từng loại hàng hóa - giá tiền từng món - thuế (tùy hàng hóa có hay không) - các chi phí liên quan (vận chuyển,...)" />
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Tài liệu đính kèm</label>
@@ -819,7 +819,7 @@ const InvoiceManagement: React.FC<InvoiceManagementProps> = ({ month, year }) =>
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
-                  <textarea value={formData.ghiChu} onChange={(e) => setFormData({ ...formData, ghiChu: e.target.value })} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" placeholder="VD: tên từng loại sản phẩm - giá tiền từng món - thuế (tùy sản phẩm có hay không) - các chi phí liên quan (vận chuyển,...)" />
+                  <textarea value={formData.ghiChu} onChange={(e) => setFormData({ ...formData, ghiChu: e.target.value })} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" placeholder="VD: tên từng loại hàng hóa - giá tiền từng món - thuế (tùy hàng hóa có hay không) - các chi phí liên quan (vận chuyển,...)" />
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Tài liệu đính kèm</label>

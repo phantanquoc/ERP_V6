@@ -81,7 +81,7 @@ const FIELD_LABELS: Record<string, string> = {
   approvedBy: 'Người duyệt',
   nguoiDuyet: 'Người duyệt',
   items: 'Danh mục',
-  products: 'Sản phẩm',
+  products: 'Hàng hóa',
   materials: 'Vật tư',
   // Employee & user
   employee: 'Nhân viên',
@@ -349,7 +349,7 @@ function formatDateTime(iso: string): string {
   return `${day}/${month}/${year} ${h}:${m}`;
 }
 
-// Render an array of item-like objects (Danh mục, Sản phẩm...) as a compact list.
+// Render an array of item-like objects (Danh mục, Hàng hóa...) as a compact list.
 function renderItemList(items: any[]): React.ReactNode {
   return (
     <ul className="space-y-1.5 mt-0.5">

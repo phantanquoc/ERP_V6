@@ -178,7 +178,7 @@ describe('suggestProductCode', () => {
 
   it('assigns globally unique sequences across categories', () => {
     const existing = ['NLT-001-A', 'BB-005-B', 'TPS-010-C'];
-    const code1 = suggestProductCode({ tenSanPham: 'Sản phẩm mới', loaiSanPham: 'Phụ liệu', existingCodes: existing });
+    const code1 = suggestProductCode({ tenSanPham: 'Hàng hóa mới', loaiSanPham: 'Phụ liệu', existingCodes: existing });
     const code2 = suggestProductCode({ tenSanPham: 'Hàng khác', loaiSanPham: 'Nhiên liệu', existingCodes: [...existing, code1] });
     // Both get globally unique sequences: 11 and 12
     expect(code1).toBe('PL-011-SPM');

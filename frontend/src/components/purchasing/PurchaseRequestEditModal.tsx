@@ -184,7 +184,7 @@ export default function PurchaseRequestEditModal({
   const handleSubmitForApproval = () => {
     const missing = items.filter((it) => !it.nhaCungCapId || it.giaDuKien == null || Number(it.giaDuKien) <= 0);
     if (missing.length > 0) {
-      setConfirmNeeded({ title: 'Chưa thể gửi duyệt', message: `Còn ${missing.length} sản phẩm chưa có nhà cung cấp hoặc đơn giá:\n${missing.map((it) => `• ${it.tenHangHoa}`).join('\n')}\n\nVui lòng bổ sung trước khi gửi duyệt.` });
+      setConfirmNeeded({ title: 'Chưa thể gửi duyệt', message: `Còn ${missing.length} hàng hóa chưa có nhà cung cấp hoặc đơn giá:\n${missing.map((it) => `• ${it.tenHangHoa}`).join('\n')}\n\nVui lòng bổ sung trước khi gửi duyệt.` });
       return;
     }
     const dErr = validateNgayDuKienNhap(String(formData.ngayDuKienNhap ?? ''));

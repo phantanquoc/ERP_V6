@@ -203,7 +203,7 @@ export default function PurchaseRequestDetailModal({
             {/* Items table */}
             {pr.items && pr.items.length > 0 && (
               <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-500 mb-2">Danh sách sản phẩm</label>
+                <label className="block text-sm font-medium text-gray-500 mb-2">Danh sách hàng hóa</label>
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[760px] text-sm">
                     <thead>

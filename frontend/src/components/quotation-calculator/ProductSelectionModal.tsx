@@ -50,7 +50,7 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
       >
         <div className="bg-gradient-to-r from-green-600 to-green-700 px-6 py-4 flex justify-between items-center shrink-0">
           <h3 className="text-lg font-semibold text-white">
-            Chọn sản phẩm cho:{' '}
+            Chọn hàng hóa cho:{' '}
             {currentGroup?.tenBangChiPhi || 'Chi phí chung'}
           </h3>
           <button onClick={onClose} className="text-white hover:text-gray-200">
@@ -61,8 +61,8 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
         <div className="p-6 overflow-y-auto flex-1">
           <div className="mb-4 flex justify-between items-center">
             <p className="text-sm text-gray-600">
-              Chọn các sản phẩm mà chi phí chung sẽ được phân bổ cho. Nếu không chọn sản phẩm nào,
-              chi phí sẽ được phân bổ cho tất cả sản phẩm.
+              Chọn các hàng hóa mà chi phí chung sẽ được phân bổ cho. Nếu không chọn hàng hóa nào,
+              chi phí sẽ được phân bổ cho tất cả hàng hóa.
             </p>
             <div className="flex gap-2">
               <button
@@ -83,10 +83,10 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
           </div>
 
           <div className="space-y-2">
-            {/* Sản phẩm chính */}
+            {/* Hàng hóa chính */}
             {tabsData.length > 0 && (
               <div className="border border-gray-200 rounded-lg p-4">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Sản phẩm chính</h4>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">Hàng hóa chính</h4>
                 <div className="space-y-2">
                   {tabsData.map((tab, index) => {
                     const productId = `tab-${index}`;
@@ -94,7 +94,7 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
                     const productName =
                       tab.formData.tenDinhMuc ||
                       tab.selectedStandard?.tenDinhMuc ||
-                      `Sản phẩm ${index + 1}`;
+                      `Hàng hóa ${index + 1}`;
 
                     return (
                       <label
@@ -127,11 +127,11 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
                         />
                         <div className="flex-1">
                           <div className="text-sm font-medium text-gray-900">
-                            Sản phẩm {index + 1}: {productName}
+                            Hàng hóa {index + 1}: {productName}
                           </div>
                           {tab.formData.sanPhamDauRa && (
                             <div className="text-xs text-gray-500">
-                              Sản phẩm đầu ra: {tab.formData.sanPhamDauRa}
+                              Hàng hóa đầu ra: {tab.formData.sanPhamDauRa}
                             </div>
                           )}
                         </div>
@@ -187,7 +187,7 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
                           </div>
                           {tab.formData.sanPhamDauRa && (
                             <div className="text-xs text-gray-500">
-                              Sản phẩm đầu ra: {tab.formData.sanPhamDauRa}
+                              Hàng hóa đầu ra: {tab.formData.sanPhamDauRa}
                             </div>
                           )}
                         </div>
@@ -200,7 +200,7 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
 
             {tabsData.length === 0 && additionalCostTabs.length === 0 && (
               <div className="text-center py-8 text-gray-500">
-                Chưa có sản phẩm nào. Vui lòng thêm sản phẩm trước.
+                Chưa có hàng hóa nào. Vui lòng thêm hàng hóa trước.
               </div>
             )}
           </div>
@@ -212,7 +212,7 @@ const ProductSelectionModal: React.FC<ProductSelectionModalProps> = ({
             <span className="font-semibold">
               {currentGroup?.selectedProducts.length || 0}
             </span>{' '}
-            / {tabsData.length + additionalCostTabs.length} sản phẩm
+            / {tabsData.length + additionalCostTabs.length} hàng hóa
           </div>
           <div className="flex gap-3">
             <button

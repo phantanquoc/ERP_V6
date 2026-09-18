@@ -316,7 +316,7 @@ export class InternationalProductService {
     logger.debug('Quotation request items count:', quotationRequestItems);
 
     if (quotationRequestItems > 0) {
-      const errorMsg = `Không thể xóa sản phẩm này vì đang được sử dụng trong ${quotationRequestItems} yêu cầu báo giá`;
+      const errorMsg = `Không thể xóa hàng hóa này vì đang được sử dụng trong ${quotationRequestItems} yêu cầu báo giá`;
       logger.debug('Throwing ValidationError:', errorMsg);
       throw new ValidationError(errorMsg);
     }
@@ -328,7 +328,7 @@ export class InternationalProductService {
 
     if (orderItems > 0) {
       throw new ValidationError(
-        `Không thể xóa sản phẩm này vì đang được sử dụng trong ${orderItems} đơn hàng`
+        `Không thể xóa hàng hóa này vì đang được sử dụng trong ${orderItems} đơn hàng`
       );
     }
 
@@ -345,7 +345,7 @@ export class InternationalProductService {
     });
 
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Danh sách sản phẩm quốc tế');
+    const worksheet = workbook.addWorksheet('Danh sách hàng hóa quốc tế');
 
     // Column order mirrors the on-screen table so an export is recognisable, and
     // includes đơn vị tính — without it the export drops a field the UI now shows.

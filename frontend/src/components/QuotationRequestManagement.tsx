@@ -169,7 +169,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
         return;
       }
       if (formData.items.length === 0) {
-        toast.error('Vui lòng thêm ít nhất 1 sản phẩm');
+        toast.error('Vui lòng thêm ít nhất 1 hàng hóa');
         return;
       }
 
@@ -177,15 +177,15 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
       for (let i = 0; i < formData.items.length; i++) {
         const item = formData.items[i];
         if (!item.productId) {
-          toast.error(`Sản phẩm ${i + 1}: Vui lòng chọn sản phẩm`);
+          toast.error(`Hàng hóa ${i + 1}: Vui lòng chọn hàng hóa`);
           return;
         }
         if (!item.soLuong || item.soLuong <= 0) {
-          toast.error(`Sản phẩm ${i + 1}: Vui lòng nhập số lượng hợp lệ`);
+          toast.error(`Hàng hóa ${i + 1}: Vui lòng nhập số lượng hợp lệ`);
           return;
         }
         if (!item.donViTinh || item.donViTinh.trim() === '') {
-          toast.error(`Sản phẩm ${i + 1}: Vui lòng nhập đơn vị tính`);
+          toast.error(`Hàng hóa ${i + 1}: Vui lòng nhập đơn vị tính`);
           return;
         }
       }
@@ -229,7 +229,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
         return;
       }
       if (formData.items.length === 0) {
-        toast.error('Vui lòng thêm ít nhất 1 sản phẩm');
+        toast.error('Vui lòng thêm ít nhất 1 hàng hóa');
         return;
       }
 
@@ -237,15 +237,15 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
       for (let i = 0; i < formData.items.length; i++) {
         const item = formData.items[i];
         if (!item.productId) {
-          toast.error(`Sản phẩm ${i + 1}: Vui lòng chọn sản phẩm`);
+          toast.error(`Hàng hóa ${i + 1}: Vui lòng chọn hàng hóa`);
           return;
         }
         if (!item.soLuong || item.soLuong <= 0) {
-          toast.error(`Sản phẩm ${i + 1}: Vui lòng nhập số lượng hợp lệ`);
+          toast.error(`Hàng hóa ${i + 1}: Vui lòng nhập số lượng hợp lệ`);
           return;
         }
         if (!item.donViTinh || item.donViTinh.trim() === '') {
-          toast.error(`Sản phẩm ${i + 1}: Vui lòng nhập đơn vị tính`);
+          toast.error(`Hàng hóa ${i + 1}: Vui lòng nhập đơn vị tính`);
           return;
         }
       }
@@ -542,7 +542,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã YC</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Nhân viên</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Khách hàng</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Sản phẩm</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Hàng hóa</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Số lượng</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hành động</th>
@@ -589,14 +589,14 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                     <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
                       {request.items && request.items.length > 0 ? (
                         <div>
-                          <div className="font-medium">{request.items.length} sản phẩm</div>
+                          <div className="font-medium">{request.items.length} hàng hóa</div>
                           <div className="text-xs text-gray-500">
                             {request.items[0].tenSanPham}
                             {request.items.length > 1 && ` +${request.items.length - 1}`}
                           </div>
                         </div>
                       ) : (
-                        <span className="text-gray-400">Chưa có sản phẩm</span>
+                        <span className="text-gray-400">Chưa có hàng hóa</span>
                       )}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
@@ -753,11 +753,11 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                   </select>
                 </div>
 
-                {/* Danh sách sản phẩm */}
+                {/* Danh sách hàng hóa */}
                 <div className="border-t border-b border-gray-200 py-4">
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
                     <label className="block text-sm font-medium text-gray-700">
-                      Danh sách sản phẩm <span className="text-red-500">*</span>
+                      Danh sách hàng hóa <span className="text-red-500">*</span>
                     </label>
                     <button
                       type="button"
@@ -765,14 +765,14 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                       className="flex items-center justify-center gap-2 px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
                     >
                       <Plus className="w-4 h-4" />
-                      Thêm sản phẩm
+                      Thêm hàng hóa
                     </button>
                   </div>
 
                   {formData.items.map((item, index) => (
                     <div key={index} className="border border-gray-300 rounded-lg p-4 mb-4 bg-gray-50">
                       <div className="flex justify-between items-center mb-3">
-                        <h4 className="font-medium text-gray-700">Sản phẩm {index + 1}</h4>
+                        <h4 className="font-medium text-gray-700">Hàng hóa {index + 1}</h4>
                         {formData.items.length > 1 && (
                           <button
                             type="button"
@@ -785,10 +785,10 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                       </div>
 
                       <div className="space-y-3">
-                        {/* Chọn sản phẩm */}
+                        {/* Chọn hàng hóa */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Sản phẩm <span className="text-red-500">*</span>
+                            Hàng hóa <span className="text-red-500">*</span>
                           </label>
                           <select
                             value={item.productId}
@@ -796,7 +796,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                             required
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                           >
-                            <option value="">-- Chọn sản phẩm --</option>
+                            <option value="">-- Chọn hàng hóa --</option>
                             {products.map(product => (
                               <option key={product.id} value={product.id}>
                                 {product.maSanPham} - {product.tenSanPham}
@@ -805,11 +805,11 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                           </select>
                         </div>
 
-                        {/* Yêu cầu sản phẩm & Quy cách đóng gói */}
+                        {/* Yêu cầu hàng hóa & Quy cách đóng gói */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Yêu cầu sản phẩm
+                              Yêu cầu hàng hóa
                             </label>
                             <input
                               type="text"
@@ -1099,21 +1099,21 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                   </div>
                 </div>
 
-                {/* Danh sách sản phẩm */}
+                {/* Danh sách hàng hóa */}
                 <div className="border-t border-b border-gray-200 py-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-3">Danh sách sản phẩm</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">Danh sách hàng hóa</label>
                   {selectedRequest.items && selectedRequest.items.length > 0 ? (
                     <div className="space-y-3">
                       {selectedRequest.items.map((item, index) => (
                         <div key={index} className="border border-gray-300 rounded-lg p-4 bg-gray-50">
-                          <h4 className="font-medium text-gray-700 mb-2">Sản phẩm {index + 1}</h4>
+                          <h4 className="font-medium text-gray-700 mb-2">Hàng hóa {index + 1}</h4>
                           <div className="grid grid-cols-2 gap-3 text-sm">
                             <div>
-                              <span className="text-gray-500">Mã sản phẩm:</span>
+                              <span className="text-gray-500">Mã hàng hóa:</span>
                               <p className="text-gray-900">{item.maSanPham}</p>
                             </div>
                             <div>
-                              <span className="text-gray-500">Tên sản phẩm:</span>
+                              <span className="text-gray-500">Tên hàng hóa:</span>
                               <p className="text-gray-900">{item.tenSanPham}</p>
                             </div>
                             <div>
@@ -1121,7 +1121,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                               <p className="text-gray-900">{item.soLuong} {item.donViTinh}</p>
                             </div>
                             <div>
-                              <span className="text-gray-500">Yêu cầu sản phẩm:</span>
+                              <span className="text-gray-500">Yêu cầu hàng hóa:</span>
                               <p className="text-gray-900">{item.yeuCauSanPham || '-'}</p>
                             </div>
                             <div>
@@ -1141,7 +1141,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500">Chưa có sản phẩm</p>
+                    <p className="text-sm text-gray-500">Chưa có hàng hóa</p>
                   )}
                 </div>
 

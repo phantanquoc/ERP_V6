@@ -916,7 +916,7 @@ const Dashboard1: React.FC = () => {
                       <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã yêu cầu</th>
                       <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày yêu cầu</th>
                       <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nhân viên</th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sản phẩm</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hàng hóa</th>
                       <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Tổng tiền</th>
                       <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ưu tiên</th>
                       <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
@@ -1111,7 +1111,7 @@ const Dashboard1: React.FC = () => {
 
               {/* Items */}
               <div>
-                <p className="text-xs text-gray-500 mb-2 font-semibold uppercase">Danh sách sản phẩm</p>
+                <p className="text-xs text-gray-500 mb-2 font-semibold uppercase">Danh sách hàng hóa</p>
                 {selectedPurchaseRequest.items && selectedPurchaseRequest.items.length > 0 ? (
                   <table className="min-w-full divide-y divide-gray-200 border border-gray-200 rounded-lg overflow-hidden">
                     <thead className="bg-gray-50">
@@ -1154,7 +1154,7 @@ const Dashboard1: React.FC = () => {
                     </tfoot>
                   </table>
                 ) : (
-                  <p className="text-sm text-gray-400">Không có sản phẩm</p>
+                  <p className="text-sm text-gray-400">Không có hàng hóa</p>
                 )}
               </div>
 

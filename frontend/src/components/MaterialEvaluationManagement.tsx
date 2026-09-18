@@ -1022,10 +1022,10 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                   </>
                 ) : (
                   <>
-                    {/* Select: Sản phẩm nguyên liệu */}
+                    {/* Select: Hàng hóa nguyên liệu */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Sản phẩm nguyên liệu <span className="text-red-500">*</span>
+                        Hàng hóa nguyên liệu <span className="text-red-500">*</span>
                       </label>
                       <select
                         value={productId}
@@ -1040,7 +1040,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                       >
                         <option value="">
-                          {loadingRawMaterials ? 'Đang tải...' : '-- Chọn sản phẩm --'}
+                          {loadingRawMaterials ? 'Đang tải...' : '-- Chọn hàng hóa --'}
                         </option>
                         {rawMaterials.map(p => (
                           <option key={p.id} value={p.id}>
@@ -1069,7 +1069,7 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
                       >
                         <option value="">
                           {!productId
-                            ? '-- Chọn sản phẩm trước --'
+                            ? '-- Chọn hàng hóa trước --'
                             : loadingLots
                             ? 'Đang tải...'
                             : lots.length === 0

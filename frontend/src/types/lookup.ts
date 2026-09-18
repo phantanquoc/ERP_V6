@@ -31,7 +31,7 @@ export const LOOKUP_GROUP_LABELS: Record<LookupGroup, string> = {
   KHU_VUC: 'Khu vực',
   MUC_DO_LOI: 'Mức độ lỗi',
   LOAI_LOI: 'Loại lỗi',
-  LOAI_SAN_PHAM: 'Loại sản phẩm',
+  LOAI_SAN_PHAM: 'Loại hàng hóa',
   LOAI_KHACH_HANG: 'Loại khách hàng',
   VAI_TRO_DU_AN: 'Vai trò dự án',
   DON_VI_TIEN: 'Đơn vị tiền',

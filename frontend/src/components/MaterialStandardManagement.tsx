@@ -132,7 +132,7 @@ const MaterialStandardManagement: React.FC = () => {
       inputItems: prev.inputItems.map((item, i) => {
         if (i !== index) return item;
         const next = { ...item, [field]: field === 'tiLe' ? parseNumberInput(value as string) : value };
-        // Gõ tay tên khác với sản phẩm đã chọn thì bỏ link — id cũ không còn đúng
+        // Gõ tay tên khác với hàng hóa đã chọn thì bỏ link — id cũ không còn đúng
         if (field === 'tenNguyenLieu' && item.internationalProduct?.tenSanPham !== value) {
           next.internationalProductId = null;
           next.internationalProduct = null;
@@ -142,7 +142,7 @@ const MaterialStandardManagement: React.FC = () => {
     }));
   };
 
-  /** Chọn sản phẩm từ danh mục cho item đầu vào — lưu cả id để backend suy được loại định mức. */
+  /** Chọn hàng hóa từ danh mục cho item đầu vào — lưu cả id để backend suy được loại định mức. */
   const selectInputItemProduct = (index: number, product: InternationalProduct) => {
     setFormData(prev => ({
       ...prev,
@@ -192,7 +192,7 @@ const MaterialStandardManagement: React.FC = () => {
     }));
   };
 
-  /** Chọn sản phẩm từ danh mục cho item đầu ra — lưu cả id để backend suy được loại định mức. */
+  /** Chọn hàng hóa từ danh mục cho item đầu ra — lưu cả id để backend suy được loại định mức. */
   const selectOutputItemProduct = (index: number, product: InternationalProduct) => {
     setFormData(prev => ({
       ...prev,
@@ -627,7 +627,7 @@ const MaterialStandardManagement: React.FC = () => {
                                   onClick={(e) => e.stopPropagation()}
                                   className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
                                 >
-                                  <option value="">-- Tất cả loại sản phẩm --</option>
+                                  <option value="">-- Tất cả loại hàng hóa --</option>
                                   {[...new Set(allProducts.map(p => p.loaiSanPham).filter(Boolean))].map(type => (
                                     <option key={type} value={type}>{type}</option>
                                   ))}
@@ -673,7 +673,7 @@ const MaterialStandardManagement: React.FC = () => {
                                   const search = (inputProductSearchTerms[index] || '').toLowerCase();
                                   return !search || p.tenSanPham.toLowerCase().includes(search) || p.maSanPham.toLowerCase().includes(search);
                                 }).length === 0 && (
-                                  <div className="px-3 py-2 text-sm text-gray-400 italic">Không tìm thấy sản phẩm</div>
+                                  <div className="px-3 py-2 text-sm text-gray-400 italic">Không tìm thấy hàng hóa</div>
                                 )}
                               </div>
                             </div>
@@ -731,7 +731,7 @@ const MaterialStandardManagement: React.FC = () => {
                             onClick={() => setOpenDropdownIndex(openDropdownIndex === index ? null : index)}
                           >
                             <span className={item.tenThanhPham ? 'text-gray-900' : 'text-gray-400'}>
-                              {item.tenThanhPham || 'Chọn sản phẩm...'}
+                              {item.tenThanhPham || 'Chọn hàng hóa...'}
                             </span>
                             <ChevronDown className="w-4 h-4 text-gray-400" />
                           </div>
@@ -744,14 +744,14 @@ const MaterialStandardManagement: React.FC = () => {
                                   onClick={(e) => e.stopPropagation()}
                                   className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
                                 >
-                                  <option value="">-- Tất cả loại sản phẩm --</option>
+                                  <option value="">-- Tất cả loại hàng hóa --</option>
                                   {[...new Set(allProducts.map(p => p.loaiSanPham).filter(Boolean))].map(type => (
                                     <option key={type} value={type}>{type}</option>
                                   ))}
                                 </select>
                                 <input
                                   type="text"
-                                  placeholder="Tìm sản phẩm..."
+                                  placeholder="Tìm hàng hóa..."
                                   value={productSearchTerms[index] || ''}
                                   onChange={(e) => setProductSearchTerms(prev => ({ ...prev, [index]: e.target.value }))}
                                   className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -790,7 +790,7 @@ const MaterialStandardManagement: React.FC = () => {
                                   const search = (productSearchTerms[index] || '').toLowerCase();
                                   return !search || p.tenSanPham.toLowerCase().includes(search) || p.maSanPham.toLowerCase().includes(search);
                                 }).length === 0 && (
-                                  <div className="px-3 py-2 text-sm text-gray-400 italic">Không tìm thấy sản phẩm</div>
+                                  <div className="px-3 py-2 text-sm text-gray-400 italic">Không tìm thấy hàng hóa</div>
                                 )}
                               </div>
                             </div>

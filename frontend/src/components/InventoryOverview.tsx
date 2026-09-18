@@ -169,7 +169,7 @@ const InventoryOverview: React.FC = () => {
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
         <div className="bg-white rounded-lg border border-gray-200 px-4 py-3">
-          <div className="text-xs text-gray-500">Sản phẩm có tồn</div>
+          <div className="text-xs text-gray-500">Hàng hóa có tồn</div>
           <div className="text-xl font-bold text-gray-900">{totalProducts}</div>
         </div>
         <div className={`rounded-lg border px-4 py-3 ${lowStockCount > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'}`}>
@@ -192,7 +192,7 @@ const InventoryOverview: React.FC = () => {
         filters={filterFields}
         values={filterValues}
         onChange={handleFilterChange}
-        searchPlaceholder="Tìm kiếm theo mã hoặc tên sản phẩm..."
+        searchPlaceholder="Tìm kiếm theo mã hoặc tên hàng hóa..."
       />
 
       {/* Error */}
@@ -244,7 +244,7 @@ const InventoryOverview: React.FC = () => {
                 {items.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
-                      Không có sản phẩm nào có tồn kho
+                      Không có hàng hóa nào có tồn kho
                     </td>
                   </tr>
                 ) : (
@@ -333,8 +333,8 @@ const InventoryOverview: React.FC = () => {
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-600">
               {totalProducts > 0
-                ? `Hiển thị ${(pagination.page - 1) * pagination.limit + 1}–${Math.min(pagination.page * pagination.limit, pagination.total)} / ${pagination.total} sản phẩm`
-                : 'Không có sản phẩm'}
+                ? `Hiển thị ${(pagination.page - 1) * pagination.limit + 1}–${Math.min(pagination.page * pagination.limit, pagination.total)} / ${pagination.total} hàng hóa`
+                : 'Không có hàng hóa'}
             </span>
             <select
               value={pageSize}

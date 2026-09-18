@@ -265,7 +265,7 @@ export const customerFeedbackService = {
       { header: 'Loại phản hồi', key: 'loaiPhanHoi', width: 15 },
       { header: 'Mức độ nghiêm trọng', key: 'mucDoNghiemTrong', width: 20 },
       { header: 'Nội dung phản hồi', key: 'noiDungPhanHoi', width: 40 },
-      { header: 'Sản phẩm liên quan', key: 'sanPhamLienQuan', width: 20 },
+      { header: 'Hàng hóa liên quan', key: 'sanPhamLienQuan', width: 20 },
       { header: 'Trạng thái xử lý', key: 'trangThaiXuLy', width: 15 },
       { header: 'Người tiếp nhận', key: 'nguoiTiepNhan', width: 20 },
     ];

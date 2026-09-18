@@ -1141,7 +1141,7 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
                 onChange={handleLotChange}
                 disabled={!wizardData.productId}
                 loading={loadingLots}
-                placeholderDisabled="-- Chọn sản phẩm trước --"
+                placeholderDisabled="-- Chọn hàng hóa trước --"
                 placeholderReady="-- Chọn lô --"
                 emptyMessage="Không có lô tồn kho"
                 overlayTitle="Chọn lô"

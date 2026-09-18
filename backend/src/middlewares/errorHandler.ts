@@ -32,11 +32,11 @@ export const errorHandler = (
 
       // Customize message based on constraint
       if (constraint.includes('quotation_request_items')) {
-        message = 'Không thể xóa sản phẩm này vì đang được sử dụng trong yêu cầu báo giá';
+        message = 'Không thể xóa hàng hóa này vì đang được sử dụng trong yêu cầu báo giá';
       } else if (constraint.includes('warehouse_inventory')) {
-        message = 'Không thể xóa sản phẩm này vì đang có trong kho hàng';
+        message = 'Không thể xóa hàng hóa này vì đang có trong kho hàng';
       } else if (constraint.includes('order_items')) {
-        message = 'Không thể xóa sản phẩm này vì đang được sử dụng trong đơn hàng';
+        message = 'Không thể xóa hàng hóa này vì đang được sử dụng trong đơn hàng';
       } else if (fieldName.includes('employeeId') || constraint.includes('employee')) {
         message = 'Không tìm thấy thông tin nhân viên. Vui lòng đăng nhập lại.';
       }

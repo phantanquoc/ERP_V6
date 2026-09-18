@@ -248,12 +248,12 @@ const ProductionProcessManagement: React.FC = () => {
     setFormData(prev => ({
       ...prev,
       materialStandardId,
-      sanPhamDauRa: '', // Reset sản phẩm đầu ra khi đổi định mức
+      sanPhamDauRa: '', // Reset hàng hóa đầu ra khi đổi định mức
       tongNguyenLieuCanSanXuat: 0, // Reset tổng nguyên liệu
     }));
   };
 
-  // Helper function để lấy tỉ lệ sản phẩm từ material standard
+  // Helper function để lấy tỉ lệ hàng hóa từ material standard
   const getTiLeSanPham = (sanPhamDauRa: string, materialStandard?: MaterialStandard | null): number => {
     const items = materialStandard?.items || selectedMaterialStandard?.items;
     const selectedProduct = items?.find(item => item.tenThanhPham === sanPhamDauRa);
@@ -261,7 +261,7 @@ const ProductionProcessManagement: React.FC = () => {
   };
 
   // Tính tổng nguyên liệu cần sản xuất
-  // Công thức: Tổng NL = Khối lượng TP / (tiLe sản phẩm%) * kgNguyenLieuTren1KgThanhPham
+  // Công thức: Tổng NL = Khối lượng TP / (tiLe hàng hóa%) * kgNguyenLieuTren1KgThanhPham
   // (kgNguyenLieuTren1KgThanhPham = số kg NL cần để tạo 1kg TP)
   const calculateTongNguyenLieu = (khoiLuong: number, kgNguyenLieuTren1KgThanhPham: number, tiLeSanPham: number): number => {
     if (kgNguyenLieuTren1KgThanhPham > 0 && tiLeSanPham > 0) {
@@ -533,7 +533,7 @@ const ProductionProcessManagement: React.FC = () => {
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã NV</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã NV</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Định mức NVL</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Sản phẩm đầu ra</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Hàng hóa đầu ra</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Khối lượng (Kg)</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900 border-r border-gray-200">Thời gian (Ngày)</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hoạt động</th>
@@ -782,7 +782,7 @@ const ProductionProcessManagement: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Chọn sản phẩm đầu ra
+                    Chọn hàng hóa đầu ra
                   </label>
                   <select
                     value={formData.sanPhamDauRa || ''}
@@ -790,7 +790,7 @@ const ProductionProcessManagement: React.FC = () => {
                     disabled={!selectedMaterialStandard}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   >
-                    <option value="">-- Chọn sản phẩm --</option>
+                    <option value="">-- Chọn hàng hóa --</option>
                     {selectedMaterialStandard?.items?.map((item, index) => (
                       <option key={index} value={item.tenThanhPham}>
                         {item.tenThanhPham} ({item.tiLe}%)
@@ -1296,7 +1296,7 @@ const ProductionProcessManagement: React.FC = () => {
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Sản phẩm đầu ra</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Hàng hóa đầu ra</label>
                   <p className="text-sm text-gray-900">
                     {viewingProcess.sanPhamDauRa || '-'}
                     {viewingProcess.sanPhamDauRa && viewingProcess.materialStandard && (() => {

@@ -87,7 +87,7 @@ export const updateCustomerSchema = z.object({
 
 // ==================== QUOTATION REQUEST SCHEMAS ====================
 export const quotationRequestItemSchema = z.object({
-  productId: z.string().min(1, 'Sản phẩm là bắt buộc'),
+  productId: z.string().min(1, 'Hàng hóa là bắt buộc'),
   soLuong: z.number().min(0, 'Số lượng phải >= 0'),
   donViTinh: z.string().min(1, 'Đơn vị tính là bắt buộc'),
   yeuCauSanPham: z.string().optional(),
@@ -99,7 +99,7 @@ export const quotationRequestItemSchema = z.object({
 export const createQuotationRequestSchema = z.object({
   customerId: z.string().min(1, 'Khách hàng là bắt buộc'),
   employeeId: z.string().min(1, 'Nhân viên là bắt buộc'),
-  items: z.array(quotationRequestItemSchema).min(1, 'Phải có ít nhất 1 sản phẩm'),
+  items: z.array(quotationRequestItemSchema).min(1, 'Phải có ít nhất 1 hàng hóa'),
   maYeuCauBaoGia: z.string().optional(),
   hinhThucVanChuyen: z.string().optional(),
   hinhThucThanhToan: z.string().optional(),
@@ -394,7 +394,7 @@ const warehouseLineBM = {
 
 const warehouseLineBase = {
   lotProductId: z.string().min(1, 'Thiếu kiện hàng').optional().nullable(),
-  tenSanPham: z.string().min(1, 'Tên sản phẩm là bắt buộc'),
+  tenSanPham: z.string().min(1, 'Tên hàng hóa là bắt buộc'),
   donViTinh: optionalString,
   warehouseId: z.string().min(1, 'Thiếu kho hàng'),
   tenKho: optionalString,
@@ -444,7 +444,7 @@ export const updateReceiptSchema = z.object({
 
 const issueLineBase = {
   lotProductId: z.string().min(1, 'Thiếu kiện hàng'),
-  tenSanPham: z.string().min(1, 'Tên sản phẩm là bắt buộc'),
+  tenSanPham: z.string().min(1, 'Tên hàng hóa là bắt buộc'),
   donViTinh: optionalString,
   warehouseId: z.string().min(1, 'Thiếu kho hàng'),
   tenKho: optionalString,

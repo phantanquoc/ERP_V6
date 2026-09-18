@@ -32,7 +32,7 @@ describe('deriveMaterialStandardType', () => {
     expect(result).toBe('Nguyên liệu trái → Thành phẩm + Nguyên liệu đông');
   });
 
-  it('bỏ qua item không link được sản phẩm khi phía đó còn item khác đã link', () => {
+  it('bỏ qua item không link được hàng hóa khi phía đó còn item khác đã link', () => {
     const result = deriveMaterialStandardType(
       [item(100, 'Nguyên liệu')],
       [item(83, 'Thành phẩm'), item(12.5)]
@@ -40,7 +40,7 @@ describe('deriveMaterialStandardType', () => {
     expect(result).toBe('Nguyên liệu → Thành phẩm');
   });
 
-  it('trả "Chưa xác định" cho phía không có item nào link được sản phẩm', () => {
+  it('trả "Chưa xác định" cho phía không có item nào link được hàng hóa', () => {
     const result = deriveMaterialStandardType(
       [item(100, 'Nguyên liệu')],
       [item(83), item(12.5)]

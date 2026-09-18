@@ -266,7 +266,7 @@ class SupplyRequestService {
     }
 
     if (!data.items || data.items.length === 0) {
-      throw new ValidationError('Phải có ít nhất một sản phẩm trong yêu cầu cung cấp.');
+      throw new ValidationError('Phải có ít nhất một hàng hóa trong yêu cầu cung cấp.');
     }
 
     // Check each item: if it doesn't exist in InternationalProduct, mark as new product

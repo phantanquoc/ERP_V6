@@ -175,7 +175,7 @@ const PartialFulfillmentModal: React.FC<PartialFulfillmentModalProps> = ({
       return;
     }
     if (qty > 0 && !selectedLotProductId && !autoCreateProduct) {
-      setError('Vui lòng chọn sản phẩm hoặc bật "Tạo sản phẩm mới trong lô"');
+      setError('Vui lòng chọn hàng hóa hoặc bật "Tạo hàng hóa mới trong lô"');
       return;
     }
     if (!user?.employeeId) {
@@ -264,7 +264,7 @@ const PartialFulfillmentModal: React.FC<PartialFulfillmentModalProps> = ({
             {/* Global stock summary — shown immediately when qty > 0, before any warehouse is picked */}
             {totalStockForItem === 0 && warehouses.length > 0 && !loadingWarehouses && (
               <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                Hết hàng toàn kho — lượng tồn của sản phẩm "{item.tenGoi}" là 0. Đặt số lượng cấp về 0 để chuyển phần này sang <span className="font-semibold">Yêu cầu bổ sung</span>.
+                Hết hàng toàn kho — lượng tồn của hàng hóa "{item.tenGoi}" là 0. Đặt số lượng cấp về 0 để chuyển phần này sang <span className="font-semibold">Yêu cầu bổ sung</span>.
               </div>
             )}
             {totalStockForItem > 0 && (
@@ -312,7 +312,7 @@ const PartialFulfillmentModal: React.FC<PartialFulfillmentModalProps> = ({
                   })}
                 </select>
               </FormField>
-              <FormField label="Sản phẩm" required>
+              <FormField label="Hàng hóa" required>
                 <select
                   value={selectedLotProductId}
                   onChange={(e) => setSelectedLotProductId(e.target.value)}
@@ -330,7 +330,7 @@ const PartialFulfillmentModal: React.FC<PartialFulfillmentModalProps> = ({
                   })}
                 </select>
                 {!hasInStockInLot && lotProducts.length > 0 && selectedLotId && !autoCreateProduct && (
-                  <div className="mt-1 text-xs text-red-600 font-medium">Lô này không còn kiện nào có hàng — số lượng cấp sẽ bị từ chối. Chọn lô khác hoặc tạo sản phẩm mới.</div>
+                  <div className="mt-1 text-xs text-red-600 font-medium">Lô này không còn kiện nào có hàng — số lượng cấp sẽ bị từ chối. Chọn lô khác hoặc tạo hàng hóa mới.</div>
                 )}
               </FormField>
             </div>
@@ -347,7 +347,7 @@ const PartialFulfillmentModal: React.FC<PartialFulfillmentModalProps> = ({
             {selectedLotId && noMatchInLot && (
               <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 space-y-2">
                 <div>
-                  Không tìm thấy sản phẩm khớp tên <span className="font-semibold">"{item.tenGoi}"</span> trong lô này.
+                  Không tìm thấy hàng hóa khớp tên <span className="font-semibold">"{item.tenGoi}"</span> trong lô này.
                 </div>
                 <label className="inline-flex items-start gap-2 cursor-pointer">
                   <input
@@ -360,7 +360,7 @@ const PartialFulfillmentModal: React.FC<PartialFulfillmentModalProps> = ({
                     className="mt-0.5 rounded border-amber-300"
                   />
                   <span>
-                    Tạo sản phẩm <span className="font-semibold">"{item.tenGoi}"</span> mới trong lô này (mã SP tự sinh, đơn vị {item.donViTinh}, loại {item.phanLoai})
+                    Tạo hàng hóa <span className="font-semibold">"{item.tenGoi}"</span> mới trong lô này (mã SP tự sinh, đơn vị {item.donViTinh}, loại {item.phanLoai})
                   </span>
                 </label>
               </div>

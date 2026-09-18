@@ -45,7 +45,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
     { key: 'nguoiDeNghi', label: 'Người đề nghị', type: 'text' },
     { key: 'boPhan', label: 'Bộ phận', type: 'text' },
     { key: 'tenKho', label: 'Kho', type: 'text' },
-    { key: 'tenSanPham', label: 'Sản phẩm', type: 'text' },
+    { key: 'tenSanPham', label: 'Hàng hóa', type: 'text' },
     { key: 'tinhTrang', label: 'Tình trạng', type: 'select', options: [{ value: '', label: 'Tất cả' }, ...[...TINH_TRANG_OPTIONS].map((o) => ({ value: o.value, label: o.label })) ] },
     { key: 'daIn', label: 'Đã in', type: 'select', options: [{ value: '', label: 'Tất cả' }, { value: 'true', label: 'Đã in' }, { value: 'false', label: 'Chưa in' }] },
     { key: 'fromNgay', label: 'Từ ngày', type: 'text', placeholder: 'YYYY-MM-DD' },
@@ -228,7 +228,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
               <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Kho</th>
               <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Lô</th>
               <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã kiện</th>
-              <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Sản phẩm</th>
+              <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Hàng hóa</th>
               <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Số lượng</th>
               <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Thao tác</th>
             </tr>
@@ -614,7 +614,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                 </div>
               ) : (
                 <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="text-xs text-gray-500 uppercase font-medium">Sản phẩm</label>
+                  <label className="text-xs text-gray-500 uppercase font-medium">Hàng hóa</label>
                   <p className="text-sm font-semibold text-gray-900 mt-1">{selectedReceipt.tenSanPham ?? 'N/A'}</p>
                 </div>
               )}

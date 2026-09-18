@@ -543,7 +543,7 @@ describe('warehouseReceiptService.getByLotProduct', () => {
 
   it('throws NotFoundError for an unknown package', async () => {
     (prismaMock.lotProduct.findUnique as jest.Mock).mockResolvedValue(null);
-    await expect(warehouseReceiptService.getByLotProduct('lpX')).rejects.toThrow('Không tìm thấy sản phẩm trong lô');
+    await expect(warehouseReceiptService.getByLotProduct('lpX')).rejects.toThrow('Không tìm thấy hàng hóa trong lô');
   });
 });
 

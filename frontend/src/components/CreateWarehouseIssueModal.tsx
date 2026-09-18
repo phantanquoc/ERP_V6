@@ -83,7 +83,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
     else if (!name) { setMaNguoiDeNghi(''); setBoPhan(''); }
   };
 
-  // Chế độ "xuất tổng → trừ FIFO": chọn lô + sản phẩm + tổng số lượng, backend
+  // Chế độ "xuất tổng → trừ FIFO": chọn lô + hàng hóa + tổng số lượng, backend
   // tự trừ dần từng kiện (theo thứ tự mã) và tạo 1 phiếu xuất nhiều dòng.
   const [fifoMode, setFifoMode] = useState(false);
   const [fifoLotId, setFifoLotId] = useState('');
@@ -272,7 +272,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
     if (fifoMode && !isFromSupplyRequest) {
       const total = parseFloat(fifoTongSoLuong);
       if (!fifoLotId || !fifoProductId || !(total > 0)) {
-        alert('Vui lòng chọn đủ lô, sản phẩm và nhập tổng số lượng');
+        alert('Vui lòng chọn đủ lô, hàng hóa và nhập tổng số lượng');
         return;
       }
       setLoading(true);
@@ -373,7 +373,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
       // Khi đi qua batchFulfill thì 0 có nghĩa là "chuyển thu mua" nên bỏ qua; còn Path B thì 0 là invalid.
       // Ở đây Path B: mọi dòng đều phải có số lượng >0
       if (!row.warehouseId || !row.lotId || !row.lotProductId) {
-        alert(`Dòng ${i + 1}: Vui lòng chọn đầy đủ kho, lô và sản phẩm`);
+        alert(`Dòng ${i + 1}: Vui lòng chọn đầy đủ kho, lô và hàng hóa`);
         return;
       }
       if (row.soLuongXuat <= 0) {
@@ -525,14 +525,14 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Sản phẩm <span className="text-red-500">*</span></label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Hàng hóa <span className="text-red-500">*</span></label>
                   <select
                     value={fifoProductId}
                     onChange={(e) => setFifoProductId(e.target.value)}
                     disabled={!fifoLotId}
                     className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500 disabled:bg-gray-100"
                   >
-                    <option value="">Chọn sản phẩm</option>
+                    <option value="">Chọn hàng hóa</option>
                     {fifoProducts.map((lp) => (
                       <option key={lp.id} value={lp.id}>
                         {lp.internationalProduct?.tenSanPham} ({lp.maKien ?? ''}) — còn {lp.soLuong} {lp.donViTinh}
@@ -563,7 +563,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
             <div>
             <div className="flex items-center justify-between mb-2">
               <label className="block text-sm font-medium text-gray-700">
-                Danh sách sản phẩm xuất kho <span className="text-red-500">*</span>
+                Danh sách hàng hóa xuất kho <span className="text-red-500">*</span>
               </label>
               {supplyRequest ? (
                 <span className="text-xs text-gray-500">{rows.length} dòng yêu cầu — mặc định xuất phần còn thiếu</span>

@@ -64,7 +64,7 @@ class LotProductService {
     }
     const product = await prisma.internationalProduct.findUnique({ where: { id: input.internationalProductId } });
     if (!product) {
-      throw new NotFoundError('Không tìm thấy sản phẩm');
+      throw new NotFoundError('Không tìm thấy hàng hóa');
     }
 
     const soLuong = parseFloat(input.soLuong.toString());
@@ -125,7 +125,7 @@ class LotProductService {
       include: { internationalProduct: true },
     });
     if (existing) {
-      throw Object.assign(new Error(`Sản phẩm "${existing.internationalProduct?.tenSanPham}" đã được thêm vào lô này trước đó`), { status: 400 });
+      throw Object.assign(new Error(`Hàng hóa "${existing.internationalProduct?.tenSanPham}" đã được thêm vào lô này trước đó`), { status: 400 });
     }
 
     const created = await prisma.lotProduct.create({
@@ -158,7 +158,7 @@ class LotProductService {
     });
 
     if (!sourceProduct) {
-      throw Object.assign(new Error('Không tìm thấy sản phẩm'), { status: 404 });
+      throw Object.assign(new Error('Không tìm thấy hàng hóa'), { status: 404 });
     }
 
     const existingInTarget = await prisma.lotProduct.findFirst({
@@ -179,7 +179,7 @@ class LotProductService {
         include: lotProductInclude,
       });
 
-      return { data: result, message: `Đã gộp ${sourceProduct.soLuong} ${sourceProduct.donViTinh} vào sản phẩm cùng loại trong lô đích` };
+      return { data: result, message: `Đã gộp ${sourceProduct.soLuong} ${sourceProduct.donViTinh} vào hàng hóa cùng loại trong lô đích` };
     }
 
     const result = await prisma.lotProduct.update({
@@ -189,7 +189,7 @@ class LotProductService {
       include: lotProductInclude,
     });
 
-    return { data: result, message: 'Di chuyển sản phẩm thành công' };
+    return { data: result, message: 'Di chuyển hàng hóa thành công' };
   }
 
   /** @deprecated Use updateLotProduct instead */

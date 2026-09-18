@@ -211,7 +211,7 @@ export const getStatsForDepartment = (userDepartment?: string) => {
         color: "bg-purple-500"
       },
       {
-        title: "Sản phẩm",
+        title: "Hàng hóa",
         value: 128,
         icon: "package",
         color: "bg-orange-500"
@@ -245,7 +245,7 @@ const getDepartmentStats = (department?: string) => {
           color: "bg-red-500"
         },
         {
-          title: "Sản phẩm đạt chuẩn",
+          title: "Hàng hóa đạt chuẩn",
           value: 98,
           icon: "check-circle",
           color: "bg-blue-500"
@@ -255,7 +255,7 @@ const getDepartmentStats = (department?: string) => {
     case DEPARTMENTS.PRODUCTION:
       return [
         {
-          title: "Sản phẩm sản xuất",
+          title: "Hàng hóa sản xuất",
           value: 150,
           icon: "package",
           color: "bg-blue-500"

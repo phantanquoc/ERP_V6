@@ -121,7 +121,7 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
         filters={filterFields}
         values={filterValues}
         onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
-        searchPlaceholder="Tìm kiếm tên, mã sản phẩm..."
+        searchPlaceholder="Tìm kiếm tên, mã hàng hóa..."
       />
 
       {/* Warehouse Tabs - Machine style */}
@@ -201,7 +201,7 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
                   <div className="flex justify-between items-center px-4 py-3 bg-gray-50 border-b border-gray-200">
                     <h3 className="text-base font-semibold text-blue-600">{lot.tenLo}</h3>
                     <div className="flex items-center gap-4">
-                      <span className="text-sm text-gray-500">{lot.lotProducts?.length || 0} sản phẩm</span>
+                      <span className="text-sm text-gray-500">{lot.lotProducts?.length || 0} hàng hóa</span>
                       <span className="text-sm font-semibold text-green-600">
                         Tổng thành tiền: {formatCurrency(
                           lot.lotProducts?.reduce((sum, product) => {
@@ -280,7 +280,7 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
                     </div>
                   ) : (
                     <div className="px-4 py-6 text-center text-gray-500 text-sm bg-white">
-                      Chưa có sản phẩm trong lô này
+                      Chưa có hàng hóa trong lô này
                     </div>
                   )}
                 </div>
@@ -335,7 +335,7 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
             <div className="p-6 overflow-y-auto flex-1">
             {selectedProduct && (<>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold">Chi tiết sản phẩm</h3>
+              <h3 className="text-xl font-bold">Chi tiết hàng hóa</h3>
               <button
                 onClick={() => setViewModalOpen(false)}
                 className="text-gray-500 hover:text-gray-700"
@@ -347,11 +347,11 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Mã sản phẩm</label>
+                  <label className="text-sm font-medium text-gray-600">Mã hàng hóa</label>
                   <p className="text-gray-900">{selectedProduct.internationalProduct?.maSanPham || 'N/A'}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Tên sản phẩm</label>
+                  <label className="text-sm font-medium text-gray-600">Tên hàng hóa</label>
                   <p className="text-gray-900">{selectedProduct.internationalProduct?.tenSanPham || 'N/A'}</p>
                 </div>
                 <div>
@@ -379,7 +379,7 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
                   </p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Loại sản phẩm</label>
+                  <label className="text-sm font-medium text-gray-600">Loại hàng hóa</label>
                   <p className="text-gray-900">{selectedProduct.internationalProduct?.loaiSanPham || 'N/A'}</p>
                 </div>
               </div>
@@ -431,7 +431,7 @@ const AssetManagement: React.FC<AssetManagementProps> = ({ hideHeader = false })
 
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium text-gray-600">Sản phẩm</label>
+                <label className="text-sm font-medium text-gray-600">Hàng hóa</label>
                 <p className="text-gray-900 font-semibold">
                   {selectedProduct.internationalProduct?.tenSanPham || 'N/A'}
                 </p>

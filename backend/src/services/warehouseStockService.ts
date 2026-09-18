@@ -77,7 +77,7 @@ async function receiveSplit(input: ReceiveSplitInput) {
   if (!lot) throw new NotFoundError('Không tìm thấy lô');
 
   const product = await prisma.internationalProduct.findUnique({ where: { id: internationalProductId } });
-  if (!product) throw new NotFoundError('Không tìm thấy sản phẩm');
+  if (!product) throw new NotFoundError('Không tìm thấy hàng hóa');
 
   const unit = donViTinh || product.donViTinh || 'Kg';
 
@@ -194,7 +194,7 @@ async function receiveSplit(input: ReceiveSplitInput) {
 
 /**
  * Xuất hàng theo kiểu "nhập tổng → trừ FIFO":
- *   - Tổng soLuong được trừ dần từ các kiện đang giữ sản phẩm đó, theo thứ tự
+ *   - Tổng soLuong được trừ dần từ các kiện đang giữ hàng hóa đó, theo thứ tự
  *     mã kiện (hết kiện này mới sang kiện kế), đến khi đủ.
  *   - Tự tạo 1 Phiếu xuất kho với nhiều dòng (1 dòng / kiện bị trừ).
  */
@@ -206,7 +206,7 @@ async function issueFifo(input: IssueFifoInput) {
   if (!lot) throw new NotFoundError('Không tìm thấy lô');
 
   const product = await prisma.internationalProduct.findUnique({ where: { id: input.internationalProductId } });
-  if (!product) throw new NotFoundError('Không tìm thấy sản phẩm');
+  if (!product) throw new NotFoundError('Không tìm thấy hàng hóa');
 
   const kienRows = await prisma.lotProduct.findMany({
     where: { lotId: lot.id, internationalProductId: product.id, soLuong: { gt: 0 } },

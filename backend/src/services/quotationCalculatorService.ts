@@ -352,7 +352,7 @@ class QuotationCalculatorService {
     if (!quotationRequest) throw Object.assign(new Error('Không tìm thấy yêu cầu báo giá'), { status: 404 });
 
     const firstProduct = calculator.products[0];
-    if (!firstProduct) throw Object.assign(new Error('Không tìm thấy sản phẩm trong bảng tính'), { status: 400 });
+    if (!firstProduct) throw Object.assign(new Error('Không tìm thấy hàng hóa trong bảng tính'), { status: 400 });
 
     const giaBaoKhach = (firstProduct.giaHoaVon || 0) + (firstProduct.loiNhuanCongThem || 0);
     const maBaoGia = `BG-${quotationRequest.maYeuCauBaoGia}`;

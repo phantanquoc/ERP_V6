@@ -475,7 +475,7 @@ class WarehouseReceiptService {
   async getByLotProduct(lotProductId: string) {
     const lotProduct = await prisma.lotProduct.findUnique({ where: { id: lotProductId } });
     if (!lotProduct) {
-      throw new NotFoundError('Không tìm thấy sản phẩm trong lô');
+      throw new NotFoundError('Không tìm thấy hàng hóa trong lô');
     }
 
     const lines = await prisma.warehouseReceiptItem.findMany({

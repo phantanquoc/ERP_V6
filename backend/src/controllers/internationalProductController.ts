@@ -246,7 +246,7 @@ export class InternationalProductController {
       res.json({
         success: true,
         data: { count },
-        message: `Đã xóa loại hàng hóa và cập nhật ${count} sản phẩm`,
+        message: `Đã xóa loại hàng hóa và cập nhật ${count} hàng hóa`,
       });
     } catch (error) {
       next(error);

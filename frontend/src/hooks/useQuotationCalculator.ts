@@ -865,7 +865,7 @@ export function useQuotationCalculator(
   // ── Inventory check ───────────────────────────────────────────────────────
 
   const handleCheckInventory = async (productName: string, materialName?: string) => {
-    if (!productName && !materialName) { alert('Vui lòng chọn sản phẩm đầu ra hoặc nguyên liệu đầu vào trước'); return; }
+    if (!productName && !materialName) { alert('Vui lòng chọn hàng hóa đầu ra hoặc nguyên liệu đầu vào trước'); return; }
     setInventoryCheckResult({ show: true, loading: true, productName: productName || '', materialName: materialName || '', items: [], materialItems: [] });
     try {
       const response = await warehouseService.getAllLotProducts() as any;

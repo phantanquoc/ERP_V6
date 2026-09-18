@@ -10,7 +10,7 @@ const MATERIAL_STANDARD_INCLUDE = {
   inputItems: { include: { internationalProduct: { select: { id: true, tenSanPham: true, loaiSanPham: true } } } },
 } as const;
 
-/** Item đầu vào/đầu ra kèm sản phẩm đã link — chỉ cần tiLe và loaiSanPham để suy loại định mức. */
+/** Item đầu vào/đầu ra kèm hàng hóa đã link — chỉ cần tiLe và loaiSanPham để suy loại định mức. */
 type DerivableItem = {
   tiLe: number;
   internationalProduct?: { loaiSanPham: string | null } | null;
@@ -18,7 +18,7 @@ type DerivableItem = {
 
 /**
  * Gom loaiSanPham phân biệt của một phía, sắp theo tiLe giảm dần.
- * Item chưa link sản phẩm hoặc sản phẩm không có loaiSanPham bị bỏ qua.
+ * Item chưa link hàng hóa hoặc hàng hóa không có loaiSanPham bị bỏ qua.
  */
 function distinctTypesByShare(items: DerivableItem[]): string[] {
   const shareByType = new Map<string, number>();
@@ -36,7 +36,7 @@ function distinctTypesByShare(items: DerivableItem[]): string[] {
  * Sinh nhãn loại định mức dạng "<loại đầu vào> → <loại đầu ra>".
  *
  * Trả null khi một phía không có item nào — định mức chưa đủ thông tin để phân loại.
- * Phía có item nhưng không item nào link được sản phẩm hiện "Chưa xác định", để phân
+ * Phía có item nhưng không item nào link được hàng hóa hiện "Chưa xác định", để phân
  * biệt với trường hợp chưa nhập item.
  */
 export function deriveMaterialStandardType(

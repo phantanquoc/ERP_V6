@@ -97,16 +97,16 @@ const InventoryCheckPopup: React.FC<InventoryCheckPopupProps> = ({
                 </div>
               )}
 
-              {/* Bảng tồn kho sản phẩm đầu ra */}
+              {/* Bảng tồn kho hàng hóa đầu ra */}
               {inventoryCheckResult.productName && (
                 <div>
                   <div className="bg-gray-50 rounded-lg p-3 mb-2">
-                    <span className="text-xs text-gray-500">Sản phẩm đầu ra</span>
+                    <span className="text-xs text-gray-500">Hàng hóa đầu ra</span>
                     <p className="text-sm font-medium text-gray-800">{inventoryCheckResult.productName}</p>
                   </div>
                   {inventoryCheckResult.items.length === 0 ? (
                     <p className="text-sm text-orange-600 text-center py-2">
-                      Không tìm thấy tồn kho cho sản phẩm này
+                      Không tìm thấy tồn kho cho hàng hóa này
                     </p>
                   ) : (
                     <table className="w-full border-collapse text-sm">

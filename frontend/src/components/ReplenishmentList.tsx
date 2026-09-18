@@ -81,7 +81,7 @@ const ReplenishmentList: React.FC<ReplenishmentListProps> = ({
               <th className="px-3 py-2 text-left">Trạng thái</th>
               <th className="px-3 py-2 text-left">Ngày</th>
               <th className="px-3 py-2 text-left">Nhân viên</th>
-              <th className="px-3 py-2 text-left">Sản phẩm</th>
+              <th className="px-3 py-2 text-left">Hàng hóa</th>
               <th className="px-3 py-2 text-left">Nguồn</th>
               <th className="px-3 py-2 text-center">Thao tác</th>
             </tr>

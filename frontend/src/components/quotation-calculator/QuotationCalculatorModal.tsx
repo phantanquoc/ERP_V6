@@ -125,7 +125,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                   : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
               }`}
             >
-              Sản phẩm {index + 1}: {item.tenSanPham}
+              Hàng hóa {index + 1}: {item.tenSanPham}
             </button>
           ))}
           {/* Tabs Chi phí bổ sung */}
@@ -208,7 +208,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {/* Chi phí từng sản phẩm */}
+                      {/* Chi phí từng hàng hóa */}
                       {quotationRequest.items?.map((item, index) => {
                         const tab = tabsData[index];
                         let totalKeHoach = 0;
@@ -288,7 +288,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                   <input type="text" value={group.tenBangChiPhi} onChange={(e) => updateGeneralCostGroupName(group.id, e.target.value)} className="px-2 py-1 text-sm font-medium text-purple-800 bg-transparent border-b border-purple-300 focus:border-purple-500 focus:outline-none" placeholder="Tên bảng chi phí" />
-                                  <button type="button" onClick={() => { setEditingGeneralCostGroupId(group.id); setShowProductSelectionModal(true); }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-600 hover:text-green-700 hover:bg-green-50 rounded transition-colors border border-green-300" title="Chọn sản phẩm cho bảng chi phí này">
+                                  <button type="button" onClick={() => { setEditingGeneralCostGroupId(group.id); setShowProductSelectionModal(true); }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-600 hover:text-green-700 hover:bg-green-50 rounded transition-colors border border-green-300" title="Chọn hàng hóa cho bảng chi phí này">
                                     <Users className="w-3 h-3" />
                                     Chọn SP ({group.selectedProducts.length > 0 ? group.selectedProducts.length : 'Tất cả'})
                                   </button>
@@ -476,7 +476,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                         })()}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">= Σ (giá báo khách × số KG sản phẩm chính)</p>
+                    <p className="text-xs text-gray-500 mt-1">= Σ (giá báo khách × số KG hàng hóa chính)</p>
                   </div>
                   <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                     <div className="flex justify-between items-center mb-2">
@@ -621,11 +621,11 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
             </div>
           ) : isAdditionalCostTab && currentAdditionalTab ? (
             <div className="space-y-5">
-              {/* ========== SECTION 1: THÔNG TIN SẢN PHẨM BỔ SUNG ========== */}
+              {/* ========== SECTION 1: THÔNG TIN HÀNG HÓA BỔ SUNG ========== */}
               <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
                 <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-gray-200">
                   <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-                  <h4 className="text-sm font-semibold text-slate-800">Thông tin sản phẩm</h4>
+                  <h4 className="text-sm font-semibold text-slate-800">Thông tin hàng hóa</h4>
                 </div>
                 <div className="p-4">
                   <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
@@ -634,7 +634,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       <input type="text" value={currentAdditionalTab.tenChiPhiBoSung} disabled className="w-full px-3 py-2 text-sm border border-orange-200 rounded-md bg-orange-50 font-semibold text-gray-900" />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Loại sản phẩm <span className="text-red-500">*</span></label>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Loại hàng hóa <span className="text-red-500">*</span></label>
                       <select value={currentAdditionalTab.selectedProductType || ''} onChange={(e) => handleAdditionalTabProductTypeChange(currentAdditionalTab.id, e.target.value)} className="w-full px-3 py-2 text-sm border border-blue-200 rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                         <option value="">-- Chọn loại SP --</option>
                         {Array.from(new Set(availableProducts.map((p) => p.loaiSanPham).filter(Boolean))).map((type) => (
@@ -643,7 +643,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Tên sản phẩm <span className="text-red-500">*</span></label>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Tên hàng hóa <span className="text-red-500">*</span></label>
                       <select value={currentAdditionalTab.selectedProduct?.id || ''} onChange={(e) => handleAdditionalTabProductChange(currentAdditionalTab.id, e.target.value)} className="w-full px-3 py-2 text-sm border border-blue-200 rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500" disabled={!currentAdditionalTab.selectedProductType}>
                         <option value="">-- Chọn SP --</option>
                         {availableProducts.filter((p) => p.loaiSanPham === currentAdditionalTab.selectedProductType).map((product) => (
@@ -953,7 +953,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                 </div>
               </div>
 
-              {/* Danh sách sản phẩm trong định mức */}
+              {/* Danh sách hàng hóa trong định mức */}
               {currentAdditionalTab.selectedStandard?.items && currentAdditionalTab.selectedStandard.items.length > 0 && (
                 <div className="mt-6">
                   <h4 className="text-md font-semibold text-gray-800 mb-3 border-b pb-2">Thành phẩm đầu ra</h4>
@@ -1200,11 +1200,11 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
           ) : (
             <div className="space-y-5">
 
-            {/* ========== SECTION 1: THÔNG TIN SẢN PHẨM ========== */}
+            {/* ========== SECTION 1: THÔNG TIN HÀNG HÓA ========== */}
             <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
               <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-gray-200">
                 <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-                <h4 className="text-sm font-semibold text-slate-800">Thông tin sản phẩm</h4>
+                <h4 className="text-sm font-semibold text-slate-800">Thông tin hàng hóa</h4>
               </div>
               <div className="p-4">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -1213,7 +1213,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
                     <input type="text" value={quotationRequest.tenNhanVien || ''} disabled className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-gray-50 text-gray-700" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Tên sản phẩm</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Tên hàng hóa</label>
                     <input type="text" value={currentItem?.tenSanPham || ''} disabled className="w-full px-3 py-2 text-sm border border-orange-200 rounded-md bg-orange-50 font-semibold text-gray-900" />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -1410,7 +1410,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
               </div>
             </div>
 
-          {/* Danh sách sản phẩm trong định mức - Table Layout */}
+          {/* Danh sách hàng hóa trong định mức - Table Layout */}
           {currentTab && currentTab.selectedStandard && currentTab.selectedStandard.items && currentTab.selectedStandard.items.length > 0 && (
             <div className="mt-6">
               <h4 className="text-md font-semibold text-gray-800 mb-3 border-b pb-2">Thành phẩm đầu ra</h4>
@@ -1727,7 +1727,7 @@ const QuotationCalculatorModal: React.FC<QuotationCalculatorModalProps> = ({
       </div>
     </Modal>
 
-    {/* Modal chọn sản phẩm cho chi phí chung */}
+    {/* Modal chọn hàng hóa cho chi phí chung */}
     <ProductSelectionModal
       isOpen={showProductSelectionModal}
       editingGeneralCostGroupId={editingGeneralCostGroupId}

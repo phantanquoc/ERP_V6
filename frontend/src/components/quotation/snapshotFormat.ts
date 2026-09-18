@@ -12,7 +12,7 @@ export const FIELD_LABELS: Record<string, string> = {
   thoiGianGiaoHang: 'Thời gian giao hàng (ngày)',
   hieuLucBaoGia: 'Hiệu lực báo giá (ngày)',
   tiLeThuHoi: 'Tỉ lệ thu hồi (%)',
-  sanPhamDauRa: 'Sản phẩm đầu ra',
+  sanPhamDauRa: 'Hàng hóa đầu ra',
   thanhPhamTonKho: 'Thành phẩm tồn kho',
   tongThanhPhamCanSxThem: 'Thành phẩm cần SX thêm',
   tongNguyenLieuCanSanXuat: 'Nguyên liệu cần SX',

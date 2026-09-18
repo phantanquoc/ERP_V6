@@ -557,7 +557,7 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
                   <p className="text-lg">{selectedQuotation.tenKhachHang}</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Sản phẩm</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Hàng hóa</label>
                   <p className="text-lg">{selectedQuotation.tenSanPham}</p>
                 </div>
                 <div>
@@ -624,7 +624,7 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
                       <p className="text-lg">{selectedQuotation.tiLeThuHoi ? `${selectedQuotation.tiLeThuHoi}%` : '-'}</p>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Sản phẩm đầu ra</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Hàng hóa đầu ra</label>
                       <p className="text-lg">{selectedQuotation.sanPhamDauRa || '-'}</p>
                     </div>
                   </div>
@@ -708,7 +708,7 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
                     <p className="text-lg">{selectedQuotation.tenKhachHang}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Sản phẩm</label>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">Hàng hóa</label>
                     <p className="text-lg">{selectedQuotation.tenSanPham}</p>
                   </div>
                 </div>

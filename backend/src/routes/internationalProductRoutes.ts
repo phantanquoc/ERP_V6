@@ -15,7 +15,7 @@ router.use(authenticate);
  * /api/international-products:
  *   get:
  *     tags: [International Products]
- *     summary: Danh sách sản phẩm quốc tế
+ *     summary: Danh sách hàng hóa quốc tế
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -36,7 +36,7 @@ router.use(authenticate);
  *         description: Từ khóa tìm kiếm
  *     responses:
  *       200:
- *         description: Lấy danh sách sản phẩm quốc tế thành công
+ *         description: Lấy danh sách hàng hóa quốc tế thành công
  *       401:
  *         description: Không có quyền truy cập
  */
@@ -47,12 +47,12 @@ router.get('/', internationalProductController.getAllProducts);
  * /api/international-products/generate-code:
  *   get:
  *     tags: [International Products]
- *     summary: Tạo mã sản phẩm quốc tế
+ *     summary: Tạo mã hàng hóa quốc tế
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Tạo mã sản phẩm thành công
+ *         description: Tạo mã hàng hóa thành công
  *       401:
  *         description: Không có quyền truy cập
  */
@@ -63,7 +63,7 @@ router.get('/generate-code', internationalProductController.generateProductCode)
  * /api/international-products/export/excel:
  *   get:
  *     tags: [International Products]
- *     summary: Xuất Excel danh sách sản phẩm quốc tế
+ *     summary: Xuất Excel danh sách hàng hóa quốc tế
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -84,7 +84,7 @@ router.get('/export/excel', internationalProductController.exportToExcel);
  * /api/international-products/code/{code}:
  *   get:
  *     tags: [International Products]
- *     summary: Tìm sản phẩm theo mã
+ *     summary: Tìm hàng hóa theo mã
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -93,14 +93,14 @@ router.get('/export/excel', internationalProductController.exportToExcel);
  *         required: true
  *         schema:
  *           type: string
- *         description: Mã sản phẩm
+ *         description: Mã hàng hóa
  *     responses:
  *       200:
- *         description: Lấy sản phẩm theo mã thành công
+ *         description: Lấy hàng hóa theo mã thành công
  *       401:
  *         description: Không có quyền truy cập
  *       404:
- *         description: Không tìm thấy sản phẩm
+ *         description: Không tìm thấy hàng hóa
  */
 router.get('/code/:code', internationalProductController.getProductByCode);
 
@@ -137,7 +137,7 @@ router.post(
  * /api/international-products/{id}:
  *   get:
  *     tags: [International Products]
- *     summary: Chi tiết sản phẩm quốc tế
+ *     summary: Chi tiết hàng hóa quốc tế
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -146,14 +146,14 @@ router.post(
  *         required: true
  *         schema:
  *           type: string
- *         description: ID của sản phẩm
+ *         description: ID của hàng hóa
  *     responses:
  *       200:
- *         description: Lấy chi tiết sản phẩm thành công
+ *         description: Lấy chi tiết hàng hóa thành công
  *       401:
  *         description: Không có quyền truy cập
  *       404:
- *         description: Không tìm thấy sản phẩm
+ *         description: Không tìm thấy hàng hóa
  */
 router.get('/:id/stock', internationalProductController.getStockSummary);
 
@@ -164,7 +164,7 @@ router.get('/:id', internationalProductController.getProductById);
  * /api/international-products:
  *   post:
  *     tags: [International Products]
- *     summary: Tạo sản phẩm quốc tế
+ *     summary: Tạo hàng hóa quốc tế
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -175,7 +175,7 @@ router.get('/:id', internationalProductController.getProductById);
  *             type: object
  *     responses:
  *       201:
- *         description: Tạo sản phẩm thành công
+ *         description: Tạo hàng hóa thành công
  *       401:
  *         description: Không có quyền truy cập
  *       403:
@@ -192,7 +192,7 @@ router.post(
  * /api/international-products/{id}:
  *   patch:
  *     tags: [International Products]
- *     summary: Cập nhật sản phẩm quốc tế
+ *     summary: Cập nhật hàng hóa quốc tế
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -201,7 +201,7 @@ router.post(
  *         required: true
  *         schema:
  *           type: string
- *         description: ID của sản phẩm
+ *         description: ID của hàng hóa
  *     requestBody:
  *       required: true
  *       content:
@@ -210,13 +210,13 @@ router.post(
  *             type: object
  *     responses:
  *       200:
- *         description: Cập nhật sản phẩm thành công
+ *         description: Cập nhật hàng hóa thành công
  *       401:
  *         description: Không có quyền truy cập
  *       403:
  *         description: Không đủ quyền hạn
  *       404:
- *         description: Không tìm thấy sản phẩm
+ *         description: Không tìm thấy hàng hóa
  */
 router.patch(
   '/:id',
@@ -229,7 +229,7 @@ router.patch(
  * /api/international-products/{id}:
  *   delete:
  *     tags: [International Products]
- *     summary: Xóa sản phẩm quốc tế
+ *     summary: Xóa hàng hóa quốc tế
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -238,16 +238,16 @@ router.patch(
  *         required: true
  *         schema:
  *           type: string
- *         description: ID của sản phẩm
+ *         description: ID của hàng hóa
  *     responses:
  *       200:
- *         description: Xóa sản phẩm thành công
+ *         description: Xóa hàng hóa thành công
  *       401:
  *         description: Không có quyền truy cập
  *       403:
  *         description: Không đủ quyền hạn
  *       404:
- *         description: Không tìm thấy sản phẩm
+ *         description: Không tìm thấy hàng hóa
  */
 router.delete(
   '/:id',

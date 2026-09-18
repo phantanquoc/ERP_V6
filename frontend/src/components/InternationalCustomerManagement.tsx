@@ -522,7 +522,7 @@ const InternationalCustomerManagement: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Sản phẩm chính
+                    Hàng hóa chính
                   </label>
                   <input
                     type="text"
@@ -667,7 +667,7 @@ const InternationalCustomerManagement: React.FC = () => {
                     <p className="mt-1 text-sm text-gray-900">{selectedCustomer.soLuongDonHang}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-500">Sản phẩm chính</label>
+                    <label className="block text-sm font-medium text-gray-500">Hàng hóa chính</label>
                     <p className="mt-1 text-sm text-gray-900">{selectedCustomer.sanPhamChinh || '-'}</p>
                   </div>
                 </div>

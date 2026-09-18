@@ -92,7 +92,7 @@ class ReorderRuleService {
 
   async createRule(input: CreateReorderRuleInput) {
     if (!input.internationalProductId) {
-      throw new ValidationError('Thiếu mã sản phẩm');
+      throw new ValidationError('Thiếu mã hàng hóa');
     }
     if (input.minStock < 0 || input.reorderQty < 0) {
       throw new ValidationError('Giá trị tồn kho tối thiểu và số lượng đặt lại phải lớn hơn hoặc bằng 0');
@@ -103,7 +103,7 @@ class ReorderRuleService {
       select: { id: true },
     });
     if (!product) {
-      throw new NotFoundError('Không tìm thấy sản phẩm');
+      throw new NotFoundError('Không tìm thấy hàng hóa');
     }
 
     const existing = await prisma.productReorderRule.findUnique({
@@ -111,7 +111,7 @@ class ReorderRuleService {
       select: { id: true },
     });
     if (existing) {
-      throw new ConflictError('Sản phẩm này đã có quy tắc bổ sung hàng');
+      throw new ConflictError('Hàng hóa này đã có quy tắc bổ sung hàng');
     }
 
     return prisma.productReorderRule.create({
@@ -223,7 +223,7 @@ class ReorderRuleService {
         data: { lastAlertedAt: new Date() },
       });
 
-      const productName = rule.internationalProduct?.tenSanPham ?? 'Sản phẩm';
+      const productName = rule.internationalProduct?.tenSanPham ?? 'Hàng hóa';
       const productCode = rule.internationalProduct?.maSanPham ?? '';
       const donViTinh = rule.internationalProduct?.donViTinh ?? '';
 

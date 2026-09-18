@@ -473,7 +473,7 @@ export class FinishedProductService {
       throw new ValidationError('Vui lòng chọn lô hàng');
     }
     if (!rows || rows.length === 0) {
-      throw new ValidationError('Không có dòng sản phẩm nào để nhập kho');
+      throw new ValidationError('Không có dòng hàng hóa nào để nhập kho');
     }
 
     // Validate that the finished product exists

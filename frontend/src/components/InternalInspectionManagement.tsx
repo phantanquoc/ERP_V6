@@ -428,7 +428,7 @@ const InternalInspectionManagement = () => {
                   <option value="An toàn lao động">An toàn lao động</option>
                   <option value="Vệ sinh thực phẩm">Vệ sinh thực phẩm</option>
                   <option value="Quy trình sản xuất">Quy trình sản xuất</option>
-                  <option value="Chất lượng sản phẩm">Chất lượng sản phẩm</option>
+                  <option value="Chất lượng hàng hóa">Chất lượng hàng hóa</option>
                   <option value="Môi trường">Môi trường</option>
                   <option value="Hành chính">Hành chính</option>
                   <option value="Khác">Khác</option>

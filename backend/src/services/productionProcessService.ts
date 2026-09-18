@@ -13,7 +13,7 @@ interface CreateProductionProcessData {
   khoiLuong?: number;
   thoiGian?: number;
   materialStandardId?: string; // Định mức NVL
-  sanPhamDauRa?: string; // Sản phẩm đầu ra
+  sanPhamDauRa?: string; // Hàng hóa đầu ra
   tongNguyenLieuCanSanXuat?: number; // Tổng nguyên liệu cần sản xuất
   soGioLamTrong1Ngay?: number; // Số giờ làm trong 1 ngày
   flowchart: {
@@ -359,7 +359,7 @@ class ProductionProcessService {
     // Info rows
     const infoData = [
       ['Tên quy trình sản xuất', productionProcess.tenQuyTrinhSanXuat || '', 'Mã NV', productionProcess.maNVSanXuat || productionProcess.msnv || '', 'Tên nhân viên', productionProcess.tenNVSanXuat || productionProcess.tenNhanVien || '', 'Khối lượng (Kg)', productionProcess.khoiLuong || ''],
-      ['Định mức NVL', productionProcess.materialStandard?.tenDinhMuc || '-', 'Sản phẩm đầu ra', productionProcess.sanPhamDauRa || '-', 'Tổng nguyên liệu cần SX (Kg)', productionProcess.tongNguyenLieuCanSanXuat || '-', 'Số giờ làm trong 1 ngày', productionProcess.soGioLamTrong1Ngay || ''],
+      ['Định mức NVL', productionProcess.materialStandard?.tenDinhMuc || '-', 'Hàng hóa đầu ra', productionProcess.sanPhamDauRa || '-', 'Tổng nguyên liệu cần SX (Kg)', productionProcess.tongNguyenLieuCanSanXuat || '-', 'Số giờ làm trong 1 ngày', productionProcess.soGioLamTrong1Ngay || ''],
       ['Thời gian (Ngày)', productionProcess.thoiGian || '', '', '', '', '', '', ''],
     ];
 

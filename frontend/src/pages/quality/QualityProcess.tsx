@@ -397,17 +397,17 @@ const QualityProcess = () => {
             </div>
           </div>
 
-          {/* Tổng quan danh sách sản phẩm */}
+          {/* Tổng quan danh sách hàng hóa */}
           <div onClick={() => switchTab('productionProcess')} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 hover:border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer">
             <div className="flex items-center gap-2 mb-3">
               <Package className="w-4 h-4 text-emerald-500" />
-              <h3 className="text-sm font-semibold text-gray-700">Tổng quan danh sách sản phẩm
+              <h3 className="text-sm font-semibold text-gray-700">Tổng quan danh sách hàng hóa
               </h3>
             </div>
             <div className="space-y-3">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-medium text-gray-500">Tổng sản phẩm</span>
+                  <span className="text-xs font-medium text-gray-500">Tổng hàng hóa</span>
                   <span className="text-2xl font-bold text-gray-800">{loading ? '...' : realProducts.length}</span>
                 </div>
               </div>
@@ -426,13 +426,13 @@ const QualityProcess = () => {
                 </div>
                 <div className="bg-white border border-gray-200 rounded-lg p-2 text-center">
                   <div className="text-lg font-bold text-gray-800">
-                    {loading ? '...' : realProducts.filter(p => p.loaiSanPham === 'Sản phẩm khô').length}
+                    {loading ? '...' : realProducts.filter(p => p.loaiSanPham === 'Hàng hóa khô').length}
                   </div>
                   <div className="text-xs text-gray-400 mt-0.5">SP khô</div>
                 </div>
                 <div className="bg-white border border-gray-200 rounded-lg p-2 text-center">
                   <div className="text-lg font-bold text-gray-800">
-                    {loading ? '...' : realProducts.filter(p => p.loaiSanPham === 'Sản phẩm đông').length}
+                    {loading ? '...' : realProducts.filter(p => p.loaiSanPham === 'Hàng hóa đông').length}
                   </div>
                   <div className="text-xs text-gray-400 mt-0.5">SP đông</div>
                 </div>

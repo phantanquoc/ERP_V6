@@ -17,7 +17,7 @@ interface LotProductComboboxProps {
   showEmptyDisabled?: boolean;
 }
 
-/** Label for a kiện: mã kiện · tên sản phẩm · tồn. */
+/** Label for a kiện: mã kiện · tên hàng hóa · tồn. */
 function displayText(lp: LotProduct): string {
   const ma = lp.maKien ?? lp.id.slice(-4);
   const ten = lp.internationalProduct?.tenSanPham ?? '';
@@ -27,7 +27,7 @@ function displayText(lp: LotProduct): string {
 /**
  * Searchable combobox for picking a kiện (LotProduct) to issue from.
  * Deliberately has no create-new path: you cannot issue stock that does not exist.
- * Filters by mã kiện and tên sản phẩm (case-insensitive substring).
+ * Filters by mã kiện and tên hàng hóa (case-insensitive substring).
  */
 const LotProductCombobox: React.FC<LotProductComboboxProps> = ({
   lotProducts,

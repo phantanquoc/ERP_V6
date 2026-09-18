@@ -16,7 +16,7 @@ import {
 // ─── Zod schema ───────────────────────────────────────────────────────────────
 
 const rowSchema = z.object({
-  tenSanPham: z.string().min(1, 'Tên sản phẩm không được để trống'),
+  tenSanPham: z.string().min(1, 'Tên hàng hóa không được để trống'),
   soLuongNhap: z.preprocess((v) => (v === '' ? undefined : Number(v)), z.number().positive('Số lượng phải lớn hơn 0')),
   donViTinh: z.string().default('Kg'),
 }) as any;
@@ -265,7 +265,7 @@ const FinishedProductWarehouseReceiptModal: React.FC<FinishedProductWarehouseRec
                   /* Single-product mode: editable rows */
                   <div>
                     <h4 className="text-sm font-semibold text-gray-700 mb-2">
-                      Danh sách sản phẩm nhập kho
+                      Danh sách hàng hóa nhập kho
                     </h4>
 
                     {fields.length === 0 ? (

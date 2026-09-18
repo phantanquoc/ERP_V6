@@ -70,7 +70,7 @@ const CategoryManagementSection: React.FC = () => {
     {
       id: 'category',
       title: 'Loại hàng hóa',
-      description: 'Phân loại sản phẩm quốc tế',
+      description: 'Phân loại hàng hóa quốc tế',
       icon: <Package className="w-5 h-5 text-green-600" />,
       modal: 'category',
     },

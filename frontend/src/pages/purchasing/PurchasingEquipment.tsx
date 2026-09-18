@@ -471,7 +471,7 @@ const PurchasingEquipment = () => {
       setConfirmAction({
         title: 'Chưa thể gửi duyệt',
         message:
-          `Còn ${missing.length} sản phẩm chưa có nhà cung cấp hoặc đơn giá:\n` +
+          `Còn ${missing.length} hàng hóa chưa có nhà cung cấp hoặc đơn giá:\n` +
           missing.map((it: any) => `• ${it.tenHangHoa}`).join('\n') +
           `\n\nVui lòng mở "Chỉnh sửa" để bổ sung.`,
         hideCancel: true,

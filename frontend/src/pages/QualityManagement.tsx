@@ -141,7 +141,7 @@ const QualityManagement = () => {
       <div className="space-y-5">
         <PageHeader
           title="Bộ phận chất lượng"
-          description="Quản lý và đảm bảo chất lượng sản phẩm, quy trình"
+          description="Quản lý và đảm bảo chất lượng hàng hóa, quy trình"
           icon={<ShieldCheck className="w-6 h-6 text-violet-500" />}
         />
         <ErrorState message={error} onRetry={fetchAll} />
@@ -156,7 +156,7 @@ const QualityManagement = () => {
     <div className="space-y-5">
         <PageHeader
           title="Bộ phận chất lượng"
-          description="Quản lý và đảm bảo chất lượng sản phẩm, quy trình"
+          description="Quản lý và đảm bảo chất lượng hàng hóa, quy trình"
           icon={<ShieldCheck className="w-6 h-6 text-violet-500" />}
         />
 

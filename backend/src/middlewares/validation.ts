@@ -188,7 +188,7 @@ export const quotationRequestValidationRules = {
   create: [
     { field: 'customerId', label: 'Khách hàng', required: true, type: 'string' as const },
     { field: 'employeeId', label: 'Nhân viên', required: true, type: 'string' as const },
-    { field: 'items', label: 'Danh sách sản phẩm', required: true, type: 'array' as const },
+    { field: 'items', label: 'Danh sách hàng hóa', required: true, type: 'array' as const },
   ],
   update: [
     { field: 'trangThai', label: 'Trạng thái', type: 'string' as const },

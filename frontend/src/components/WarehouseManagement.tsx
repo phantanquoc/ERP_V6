@@ -323,7 +323,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
           donViTinh: productUnit,
         });
         console.log('Product added successfully:', response.data);
-        toast.success('Thêm sản phẩm vào lô thành công');
+        toast.success('Thêm hàng hóa vào lô thành công');
       }
       setShowProductModal(false);
       resetProductForm();
@@ -331,7 +331,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
       queryClient.invalidateQueries({ queryKey: warehouseKeys.lotProducts() });
       queryClient.invalidateQueries({ queryKey: warehouseKeys.receiptHistories() });
     } catch (error: any) {
-      toast.error(error instanceof Error ? error.message : 'Lỗi khi thêm sản phẩm');
+      toast.error(error instanceof Error ? error.message : 'Lỗi khi thêm hàng hóa');
     }
   };
 
@@ -351,13 +351,13 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
   };
 
   const handleRemoveProduct = async (productId: string) => {
-    if (!confirm('Bạn có chắc chắn muốn xóa sản phẩm này khỏi lô?')) return;
+    if (!confirm('Bạn có chắc chắn muốn xóa hàng hóa này khỏi lô?')) return;
 
     try {
       await removeProductFromLot.mutateAsync(productId);
-      toast.success('Xóa sản phẩm thành công');
+      toast.success('Xóa hàng hóa thành công');
     } catch (error: any) {
-      toast.error(error instanceof Error ? error.message : 'Lỗi khi xóa sản phẩm');
+      toast.error(error instanceof Error ? error.message : 'Lỗi khi xóa hàng hóa');
     }
   };
 
@@ -372,13 +372,13 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
         lotProductId: movingProduct.id,
         targetLotId,
       });
-      toast.success('Di chuyển sản phẩm thành công');
+      toast.success('Di chuyển hàng hóa thành công');
       setShowMoveModal(false);
       setMovingProduct(null);
       setTargetWarehouseId('');
       setTargetLotId('');
     } catch (error: any) {
-      toast.error(error instanceof Error ? error.message : 'Lỗi khi di chuyển sản phẩm');
+      toast.error(error instanceof Error ? error.message : 'Lỗi khi di chuyển hàng hóa');
     }
   };
 
@@ -618,7 +618,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
                       <button
                         onClick={() => openAddProductModal(lot.id)}
                         className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors"
-                        title="Thêm sản phẩm"
+                        title="Thêm hàng hóa"
                       >
                         <PackagePlus className="w-3.5 h-3.5" />
                       </button>
@@ -681,7 +681,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
                               <button
                                 onClick={() => handleRemoveProduct(product.id)}
                                 className="p-1 text-red-500 hover:bg-red-100 rounded transition-colors"
-                                title="Xóa sản phẩm"
+                                title="Xóa hàng hóa"
                               >
                                 <Trash2 className="w-3 h-3" />
                               </button>
@@ -929,20 +929,20 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
       <Modal isOpen={showProductModal} onClose={() => { setShowProductModal(false); resetProductForm(); }} showBackdrop>
           <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-96 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
-              <h2 className="text-xl font-bold">Thêm sản phẩm vào lô</h2>
+              <h2 className="text-xl font-bold">Thêm hàng hóa vào lô</h2>
             </div>
             <div className="p-6 overflow-y-auto flex-1">
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Sản phẩm <span className="text-red-500">*</span>
+                  Hàng hóa <span className="text-red-500">*</span>
                 </label>
                 <ProductCombobox
                   products={products}
                   value={selectedProductId || null}
                   onChange={(productId, product) => {
                     setSelectedProductId(productId ?? '');
-                    // Đvt là thuộc tính của chính sản phẩm → LUÔN tự lấy từ sản phẩm
+                    // Đvt là thuộc tính của chính hàng hóa → LUÔN tự lấy từ hàng hóa
                     // (không chặn bởi danh sách lookup để khỏi phải điền tay).
                     if (product?.donViTinh) {
                       setProductUnit(product.donViTinh.trim());
@@ -1121,11 +1121,11 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
       <Modal isOpen={showMoveModal && !!movingProduct} onClose={() => { setShowMoveModal(false); setMovingProduct(null); setTargetWarehouseId(''); setTargetLotId(''); }} showBackdrop>
           <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-2rem)] sm:w-96 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
-              <h2 className="text-xl font-bold">Di chuyển sản phẩm</h2>
+              <h2 className="text-xl font-bold">Di chuyển hàng hóa</h2>
             </div>
             <div className="p-6 overflow-y-auto flex-1">
             <p className="text-sm text-gray-600 mb-4">
-              Sản phẩm: <strong>{movingProduct?.internationalProduct?.tenSanPham}</strong>
+              Hàng hóa: <strong>{movingProduct?.internationalProduct?.tenSanPham}</strong>
             </p>
 
             {/* Select Warehouse */}

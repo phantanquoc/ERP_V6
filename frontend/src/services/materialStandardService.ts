@@ -8,7 +8,7 @@ interface PaginatedResponse<T> {
   totalPages: number;
 }
 
-/** Sản phẩm đã link từ danh mục — dùng để suy loại định mức và hiển thị loại hàng hóa. */
+/** Hàng hóa đã link từ danh mục — dùng để suy loại định mức và hiển thị loại hàng hóa. */
 export interface LinkedProduct {
   id: string;
   tenSanPham: string;

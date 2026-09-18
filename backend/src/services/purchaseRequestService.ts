@@ -265,7 +265,7 @@ class PurchaseRequestService {
       throw new ValidationError('Thiếu tồn kho nay đi qua YCBS (YC-BS) — kho tạo yêu cầu bổ sung, thu mua chuyển thành YCMH. Không tạo trực tiếp YCMH SHORTAGE.');
     }
     if (!data.items || data.items.length === 0) {
-      throw new ValidationError('Vui lòng thêm ít nhất một sản phẩm');
+      throw new ValidationError('Vui lòng thêm ít nhất một hàng hóa');
     }
     // 3.2 — item + reference validation before any DB write
     for (let i = 0; i < data.items.length; i++) {
@@ -1152,7 +1152,7 @@ class PurchaseRequestService {
     );
     if (missing.length > 0) {
       throw new ValidationError(
-        `Vui lòng nhập nhà cung cấp và đơn giá cho ${missing.length} sản phẩm trước khi gửi duyệt`
+        `Vui lòng nhập nhà cung cấp và đơn giá cho ${missing.length} hàng hóa trước khi gửi duyệt`
       );
     }
 
