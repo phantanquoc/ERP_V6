@@ -24,7 +24,15 @@ export interface InboundPlan {
   } | null;
   warehouse?: { id: string; tenKho: string; maKho: string } | null;
   receipts?: { id: string; maPhieuNhap: string; ngayNhap: string }[];
-  logs?: { id: string; hanhDong: string; lyDo?: string | null; createdAt: string }[];
+  logs?: {
+    id: string;
+    hanhDong: string;
+    ngayCu?: string | null;
+    ngayMoi?: string | null;
+    lyDo?: string | null;
+    nguoiThucHien?: string | null;
+    createdAt: string;
+  }[];
 }
 
 const inboundPlanService = {

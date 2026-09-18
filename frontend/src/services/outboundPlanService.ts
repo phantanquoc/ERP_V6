@@ -17,6 +17,15 @@ export interface OutboundPlan {
     items?: { id: string; tenGoi: string; soLuong: number; donViTinh: string; phanLoai?: string; fulfilledQty?: number; fulfillmentStatus?: string }[];
   } | null;
   warehouse?: { id: string; tenKho: string; maKho: string } | null;
+  logs?: {
+    id: string;
+    hanhDong: string;
+    ngayCu?: string | null;
+    ngayMoi?: string | null;
+    lyDo?: string | null;
+    nguoiThucHien?: string | null;
+    createdAt: string;
+  }[];
 }
 
 const outboundPlanService = {
@@ -26,7 +35,7 @@ const outboundPlanService = {
   getById: (id: string) =>
     apiClient.get<OutboundPlan>(`/outbound-plans/${id}`),
 
-  update: (id: string, data: { ngayDuKien?: string; ghiChu?: string; warehouseId?: string | null }) =>
+  update: (id: string, data: { ngayDuKien?: string; ghiChu?: string; warehouseId?: string | null; lyDo?: string }) =>
     apiClient.put<OutboundPlan>(`/outbound-plans/${id}`, data),
 
   cancel: (id: string, data: { lyDo: string }) =>
