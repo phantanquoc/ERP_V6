@@ -1092,6 +1092,10 @@ const PurchasingMaterials = () => {
           onEdit={(pr) => { closePurchaseRequestDetail(); openEditPurchaseRequest(pr); }}
           onCancel={(pr) => { closePurchaseRequestDetail(); handleCancelPurchaseRequest(pr); }}
           onConfirmPrice={(pr) => { setConfirmActualPriceTarget(pr); setShowConfirmActualPrice(true); }}
+          onViewInboundPlan={(pr) => {
+            const kh = pr.inboundPlan?.maKeHoach;
+            toast(kh ? `Kế hoạch nhập kho: ${kh}` : 'Chưa có kế hoạch nhập kho', { icon: '📦' });
+          }}
         />
 
         {/* Xác nhận giá thực tế cho YCMH đã duyệt (hàng về). Khi bật từ nút

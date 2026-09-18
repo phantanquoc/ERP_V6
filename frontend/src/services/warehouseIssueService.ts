@@ -67,6 +67,8 @@ export interface CreateWarehouseIssueData {
   ngayXuat?: string;
   ghiChu?: string;
   supplyRequestId?: string;
+  outboundPlanId?: string | null;
+  lyDoChenhLech?: string | null;
   nguoiDeNghi?: string;
   maNguoiDeNghi?: string;
   boPhan?: string;

@@ -74,6 +74,8 @@ export interface CreateWarehouseReceiptData {
    * quantity against that single purchase request and rejects over-receipt.
    */
   purchaseRequestId?: string;
+  inboundPlanId?: string | null;
+  lyDoChenhLech?: string | null;
   nguoiDeNghi?: string;
   maNguoiDeNghi?: string;
   boPhan?: string;

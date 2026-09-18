@@ -17,10 +17,13 @@ import { TINH_TRANG_OPTIONS } from '../constants/warehouseCatalogs';
 import { kienCapacityByUnit } from '../utils/kienCapacity';
 import { can } from '../utils/permissions';
 
+import type { InboundPlan } from '../services/inboundPlanService';
+
 interface CreateWarehouseReceiptModalProps {
   isOpen: boolean;
   onClose: () => void;
   supplyRequest?: SupplyRequest | null;
+  inboundPlan?: InboundPlan | null;
   onSuccess?: () => void;
 }
 
@@ -45,6 +48,11 @@ interface ReceiptRow {
   selectedKienIds: string[];
   perKienQty: number[];
   perKienYeuCau: number[];
+  /** Snapshot KH khi có inboundPlan / supplyRequest — để render cột KH disabled */
+  warehouseKeHoach?: string;
+  lotKeHoach?: string;
+  donGiaKeHoach?: number | null;
+  soKienKeHoach?: string;
 }
 
 const MUC_DICH_PRESETS = [
@@ -61,7 +69,7 @@ const emptyRow = (): ReceiptRow => ({
 });
 
 const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = ({
-  isOpen, onClose, supplyRequest, onSuccess,
+  isOpen, onClose, supplyRequest, inboundPlan, onSuccess,
 }) => {
   const { user } = useAuth();
   const { isKnownUnit } = useUnitOptions();
@@ -78,6 +86,8 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
   const [nguoiDeNghi, setNguoiDeNghi] = useState('');
   const [boPhan, setBoPhan] = useState('');
   const [maNguoiDeNghi, setMaNguoiDeNghi] = useState('');
+  const [lyDoChenhLech, setLyDoChenhLech] = useState('');
+  const [lyDoChenhLechError, setLyDoChenhLechError] = useState<string | null>(null);
   /**
    * The YCMH this slip receives against. One slip = one YCMH, because the backend
    * reconciles quantities against a single `purchaseRequestId`. When a supply
@@ -125,11 +135,17 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
       (pr?.items ?? []).map((it) => {
         const key = nameKeyOf(it.tenHangHoa);
         const srItem = (supplyRequest?.items ?? []).find((i) => nameKeyOf(i.tenGoi) === key);
+        const kh = Number(srItem?.soLuong ?? it.soLuong) || 0;
+        const tt = Number(it.soLuong) || 0;
         return {
           ...emptyRow(),
           tenSanPham: it.tenHangHoa,
-          soLuong: Number(it.soLuong) || 0,
-          soLuongYeuCau: srItem ? Number(srItem.soLuong) || 0 : Number(it.soLuong) || 0,
+          soLuong: tt,
+          soLuongYeuCau: kh,
+          warehouseKeHoach: '',
+          lotKeHoach: '',
+          donGiaKeHoach: (it as any).giaDuKien ?? null,
+          soKienKeHoach: '',
           donViTinh: it.donViTinh || srItem?.donViTinh || '',
           phanLoai: srItem?.phanLoai || '',
           ghiChu: `Nhập kho theo ${pr?.maYeuCau ?? ''} - ${it.tenHangHoa}`,
@@ -144,6 +160,9 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
     applyPurchasePr(prId || null);
   };
 
+  const isInboundPlanMode = !!inboundPlan;
+  // KH column exists when inboundPlan OR supplyRequest (with items). Empty form -> no KH.
+  const hasKeHoachColumn = isInboundPlanMode || isSupplyBatch;
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
@@ -156,6 +175,43 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
       const warehouseData = warehouseResponse.data?.data ?? warehouseResponse.data ?? [];
       setWarehouses(Array.isArray(warehouseData) ? warehouseData : []);
       setCode((codeResponse.data as { code: string }).code);
+      setLyDoChenhLech('');
+      setLyDoChenhLechError(null);
+      // InboundPlan prefill takes priority over supplyRequest
+      if (inboundPlan) {
+        const pr = inboundPlan.purchaseRequest;
+        const prefWarehouseId = inboundPlan.warehouseId || (pr as any)?.warehouseId || '';
+        const prefWarehouseName = inboundPlan.warehouse?.tenKho || (warehouseData as any[]).find((w: any) => w.id === prefWarehouseId)?.tenKho || '';
+        const prItems: any[] = (pr?.items as any[]) ?? [];
+        setMucDich('Nhập từ thu mua');
+        setGhiChu('');
+        setNguoiDeNghi('');
+        setBoPhan('');
+        setMaNguoiDeNghi('');
+        setCompletedPurchaseRequests([]);
+        setPurchasedByItem({});
+        setLinkedPurchaseRequestId(pr?.id ?? null);
+        const prefRows: ReceiptRow[] = prItems.map((it: any) => {
+          const kh = Number(it.soLuong) || 0;
+          return {
+            ...emptyRow(),
+            tenSanPham: it.tenHangHoa,
+            soLuong: kh,
+            soLuongYeuCau: kh,
+            donViTinh: it.donViTinh || '',
+            phanLoai: it.phanLoai || '',
+            warehouseId: prefWarehouseId,
+            warehouseKeHoach: prefWarehouseName || prefWarehouseId,
+            lotKeHoach: '',
+            donGiaKeHoach: it.giaDuKien ?? null,
+            soKienKeHoach: '',
+            ghiChu: `Nhập theo ${inboundPlan.maKeHoach} - ${it.tenHangHoa}`,
+            lots: prefWarehouseId ? (warehouseData as any[]).find((w: any) => w.id === prefWarehouseId)?.lots ?? [] : [],
+          };
+        });
+        setRows(prefRows.length > 0 ? prefRows : [emptyRow()]);
+        return;
+      }
       setMucDich(isSupplyBatch ? 'Nhập từ thu mua' : '');
       setGhiChu('');
       setNguoiDeNghi(supplyRequest?.tenNhanVien ?? '');
@@ -194,20 +250,28 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
       // No completed purchase: prefill each line's remaining shortage (the quantity
       // the warehouse still owes the requester).
       setRows(isSupplyBatch
-        ? (supplyRequest?.items ?? []).map((item) => ({
-            ...emptyRow(),
-            tenSanPham: item.tenGoi,
-            soLuong: Math.max(0, Number(item.soLuong || 0) - Number(item.fulfilledQty || 0)),
-            donViTinh: item.donViTinh,
-            phanLoai: item.phanLoai || '',
-            ghiChu: `Nhập kho cho ${supplyRequest?.maYeuCau} - ${item.tenGoi}`,
-          }))
+        ? (supplyRequest?.items ?? []).map((item) => {
+            const kh = Number(item.soLuong || 0);
+            return {
+              ...emptyRow(),
+              tenSanPham: item.tenGoi,
+              soLuong: kh,
+              soLuongYeuCau: kh,
+              warehouseKeHoach: '',
+              lotKeHoach: '',
+              donGiaKeHoach: null,
+              soKienKeHoach: '',
+              donViTinh: item.donViTinh,
+              phanLoai: item.phanLoai || '',
+              ghiChu: `Nhập kho cho ${supplyRequest?.maYeuCau} - ${item.tenGoi}`,
+            };
+          })
         : [emptyRow()]);
     };
     initialize().catch((error) => console.error('Error initializing receipt modal:', error));
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, supplyRequest, isSupplyBatch]);
+  }, [isOpen, supplyRequest, isSupplyBatch, inboundPlan]);
 
   const updateRow = (index: number, updates: Partial<ReceiptRow>) => {
     setRows((previous) => previous.map((row, rowIndex) => rowIndex === index ? { ...row, ...updates } : row));
@@ -278,26 +342,6 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
     updateRow(index, { soLuong: total, perKienQty, perKienYeuCau });
   };
 
-  const handleKeHoachChange = (index: number, kh: number) => {
-    const val = kh > 0 ? kh : undefined;
-    const ids = rows[index]?.selectedKienIds ?? [];
-    const n = ids.length;
-    if (n > 1) {
-      const totalKH = val ?? rows[index]?.soLuong ?? 0;
-      let perKienYeuCau: number[] = [];
-      if (totalKH > 0) {
-        const base = Math.floor(totalKH / n);
-        const rem = totalKH % n;
-        perKienYeuCau = ids.map((_, i) => i === n - 1 ? base + rem : base);
-      } else {
-        perKienYeuCau = ids.map(() => 0);
-      }
-      updateRow(index, { soLuongYeuCau: val, perKienYeuCau });
-    } else {
-      updateRow(index, { soLuongYeuCau: val });
-    }
-  };
-
   const addRow = () => setRows((previous) => [...previous, emptyRow()]);
   const removeRow = (index: number) => setRows((previous) => previous.length > 1 ? previous.filter((_, i) => i !== index) : previous);
 
@@ -351,6 +395,19 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
       const rowNumber = rows.indexOf(submittedRows[emptyKienNoProductIndex]) + 1;
       alert(`Dòng ${rowNumber}: Kiện được chọn đang trống — hãy nhập/tên hàng hóa để gắn sản phẩm vào kiện`);
       return;
+    }
+
+    if (isInboundPlanMode) {
+      const hasDiff = submittedRows.some((r) => {
+        const kh = Number(r.soLuongYeuCau ?? r.soLuong);
+        const tt = Number(r.soLuong);
+        return Math.abs(kh - tt) > 1e-9;
+      });
+      if (hasDiff && !lyDoChenhLech.trim()) {
+        setLyDoChenhLechError('Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.');
+        return;
+      }
+      setLyDoChenhLechError(null);
     }
 
     // Client-side mirror of the backend reconciliation, so the operator sees which
@@ -438,8 +495,10 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
       await warehouseReceiptService.createWarehouseReceipt({
         maPhieuNhap: code, employeeId: user?.employeeId || '', maNhanVien: user?.employeeCode || '',
         tenNhanVien: `${user?.lastName || ''} ${user?.firstName || ''}`.trim(), mucDich: mucDich || undefined,
-        ghiChu: ghiChu || undefined, supplyRequestId: supplyRequest?.id,
-        purchaseRequestId: linkedPurchaseRequestId ?? undefined,
+        ghiChu: ghiChu || undefined, supplyRequestId: (isInboundPlanMode ? inboundPlan?.purchaseRequest?.supplyRequest?.id : supplyRequest?.id) || undefined,
+        purchaseRequestId: (inboundPlan?.purchaseRequest?.id ?? linkedPurchaseRequestId) ?? undefined,
+        inboundPlanId: inboundPlan?.id ?? undefined,
+        lyDoChenhLech: isInboundPlanMode && lyDoChenhLech.trim() ? lyDoChenhLech.trim() : undefined,
         nguoiDeNghi: nguoiDeNghi || undefined, maNguoiDeNghi: maNguoiDeNghi || undefined, boPhan: boPhan || undefined,
         items,
       });
@@ -466,6 +525,15 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
           <button type="button" onClick={onClose} aria-label="Đóng" className="text-gray-400 hover:text-gray-600"><X className="h-6 w-6" /></button>
         </div>
         <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
+          {inboundPlan && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm flex flex-wrap gap-2">
+              <span><span className="text-gray-600">Kế hoạch: </span><strong className="text-blue-700">{inboundPlan.maKeHoach}</strong></span>
+              <span><span className="text-gray-600">YCMH: </span><strong>{inboundPlan.purchaseRequest?.maYeuCau ?? '—'}</strong></span>
+              <span><span className="text-gray-600">Ngày DK: </span><strong>{inboundPlan.ngayDuKien ? new Date(inboundPlan.ngayDuKien).toLocaleDateString('vi-VN') : '—'}</strong></span>
+              <span><span className="text-gray-600">Kho DK: </span><strong>{inboundPlan.warehouse?.tenKho ?? '—'}</strong></span>
+              <span className="px-2 py-0.5 rounded-full text-xs bg-white border">{inboundPlan.trangThai}</span>
+            </div>
+          )}
           {supplyRequest && <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm"><span className="text-gray-600">Mã YC: </span><strong className="text-blue-700">{supplyRequest.maYeuCau}</strong><span className="ml-4 text-gray-600">Người yêu cầu: </span><strong>{supplyRequest.tenNhanVien}</strong></div>}
           {/* Purchased in several completed batches → the warehouse picks which one this
               slip receives. One slip per YCMH, because the backend reconciles the slip
@@ -525,23 +593,106 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
           <div><label className="block text-sm font-medium text-gray-700 mb-1">Mục đích nhập</label><input type="text" list="muc-dich-presets-create" value={mucDich} onChange={(event) => setMucDich(event.target.value)} placeholder="" className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
           {isSupplyBatch && <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200"><span className="text-xs font-medium text-gray-500 uppercase">Áp dụng cho tất cả:</span><select className="text-sm border border-gray-300 rounded px-2 py-1" value={firstSelected?.warehouseId || ''} onChange={(event) => { const warehouseId = event.target.value; const lots = getLotsForWarehouse(warehouseId); applyToAll(warehouseId, lots.length === 1 ? lots[0].id : ''); }}><option value="">Chọn kho</option>{warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.tenKho}</option>)}</select>{firstSelected?.warehouseId && <select className="text-sm border border-gray-300 rounded px-2 py-1" value={firstSelected.lotId} onChange={(event) => applyToAll(firstSelected.warehouseId, event.target.value)}><option value="">Chọn lô</option>{getLotsForWarehouse(firstSelected.warehouseId).map((lot) => <option key={lot.id} value={lot.id}>{lot.tenLo}</option>)}</select>}</div>}
           <div className="flex items-center justify-between"><label className="block text-sm font-medium text-gray-700">Danh sách sản phẩm nhập kho <span className="text-red-500">*</span></label>{!isSupplyBatch && <button type="button" onClick={addRow} className="flex items-center gap-1 px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700"><Plus className="h-4 w-4" />Thêm dòng</button>}</div>
-          <div className="space-y-4">
-            {rows.map((row, index) => (
-              <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                <div className="flex items-center justify-between mb-3"><span className="text-sm font-semibold text-gray-700">Dòng {index + 1}{row.tenSanPham ? `: ${row.tenSanPham}` : ''}</span>{!isSupplyBatch && <button type="button" onClick={() => removeRow(index)} disabled={rows.length === 1} aria-label={`Xóa dòng ${index + 1}`} className="text-red-500 hover:text-red-700 disabled:text-gray-300"><Trash2 className="h-4 w-4" /></button>}</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div><label className="block text-xs font-medium text-gray-600 mb-1">Kho <span className="text-red-500">*</span></label><select value={row.warehouseId} onChange={(event) => handleWarehouseChange(index, event.target.value)} disabled={isSupplyBatch && !row.selected} required className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm disabled:bg-gray-100"><option value="">Chọn kho</option>{warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.tenKho}</option>)}</select></div>
-                  <div><label className="block text-xs font-medium text-gray-600 mb-1">Lô <span className="text-red-500">*</span></label><select value={row.lotId} onChange={(event) => handleLotChange(index, event.target.value)} disabled={!row.warehouseId || (isSupplyBatch && !row.selected)} required className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm disabled:bg-gray-100"><option value="">Chọn lô</option>{row.lots.map((lot) => <option key={lot.id} value={lot.id}>{lot.tenLo}</option>)}</select></div>
+          <div className="space-y-3">
+            {rows.map((row, index) => {
+              const hasDiff = hasKeHoachColumn && Math.abs(Number(row.soLuong ?? 0) - Number(row.soLuongYeuCau ?? row.soLuong)) > 1e-9;
+              return (
+              <div key={index} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold text-gray-700">Dòng {index + 1}{row.tenSanPham ? `: ${row.tenSanPham}` : ''}</span>
+                  <div className="flex items-center gap-2">
+                    {hasDiff && <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">Lệch {Number((Number(row.soLuong) - Number(row.soLuongYeuCau ?? row.soLuong)).toFixed(2))}</span>}
+                    {!isSupplyBatch && <button type="button" onClick={() => removeRow(index)} disabled={rows.length === 1} aria-label={`Xóa dòng ${index + 1}`} className="text-red-500 hover:text-red-700 disabled:text-gray-300"><Trash2 className="h-4 w-4" /></button>}
+                  </div>
                 </div>
-                {!isSupplyBatch && <div className="mt-3"><label className="block text-xs font-medium text-gray-600 mb-1">Hàng hóa <span className="text-red-500">*</span></label><ProductCombobox products={products} value={row.internationalProductId || null} disabled={!row.lotId} lotProducts={row.lotProducts} allowCreate onChange={(productId, product) => handleProductChange(index, productId, product)} onCreateNew={(name) => updateRow(index, { internationalProductId: '', lotProductId: '', tenSanPham: name })} />{row.lotProductId && <p className="mt-1 text-xs text-blue-600">Kiện đã có trong lô — tồn hiện tại {row.lotProducts.find((item) => item.id === row.lotProductId)?.soLuong} {row.lotProducts.find((item) => item.id === row.lotProductId)?.donViTinh}</p>}</div>}
-                {/* Multi-kiện picker: hiện khi đã chọn kho+lô (kể cả khi chọn hàng hóa đơn kiện) */}
+                {/* Hàng 1: Tên hàng | Kho | Lô | SL KH | SL TT | Đơn giá — 1 hàng grid cùng baseline */}
+                <div className="grid grid-cols-12 gap-2 items-start">
+                  {/* Tên hàng */}
+                  <div className={hasKeHoachColumn ? 'col-span-12 sm:col-span-5 flex flex-col' : 'col-span-12 sm:col-span-6 flex flex-col'}>
+                    {!hasKeHoachColumn && !row.tenSanPham ? (
+                      <>
+                        <label className="block text-xs font-medium text-gray-600 min-h-[16px] h-4 leading-4 mb-1">Hàng hóa <span className="text-red-500">*</span></label>
+                        <div className="h-[32px] flex items-center">
+                          <ProductCombobox products={products} value={row.internationalProductId || null} disabled={!row.lotId} lotProducts={row.lotProducts} allowCreate onChange={(productId, product) => handleProductChange(index, productId, product)} onCreateNew={(name) => updateRow(index, { internationalProductId: '', lotProductId: '', tenSanPham: name })} />
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <label className="block text-xs font-medium text-gray-600 min-h-[16px] h-4 leading-4 mb-1">Tên hàng</label>
+                        <input value={row.tenSanPham} onChange={(e) => !hasKeHoachColumn && updateRow(index, { tenSanPham: e.target.value })} disabled={hasKeHoachColumn} tabIndex={hasKeHoachColumn ? -1 : 0} placeholder={hasKeHoachColumn ? '' : 'Tên hàng'} title={row.tenSanPham} className={`w-full h-[32px] px-2 py-1.5 border rounded text-sm truncate ${hasKeHoachColumn ? 'bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed' : 'border-gray-300 bg-white'}`} />
+                      </>
+                    )}
+                    <div className="mt-1 min-h-[16px]" />
+                  </div>
+
+                  {/* ĐVT */}
+                  <div className="col-span-3 sm:col-span-1 flex flex-col">
+                    <label className="block text-xs font-medium text-gray-600 min-h-[16px] h-4 leading-4 mb-1">ĐVT</label>
+                    <input value={row.donViTinh || ''} readOnly tabIndex={-1} placeholder="—" className="w-full h-[32px] px-2 py-1.5 border border-gray-200 rounded text-sm bg-gray-100 text-gray-600 cursor-not-allowed text-center" title={row.donViTinh || ''} />
+                    <div className="mt-1 min-h-[16px] flex items-center gap-1 text-xs text-gray-500">{row.lotProductId && <span className="text-blue-600 text-[11px]">• Kiện có sẵn</span>}</div>
+                  </div>
+
+                  {/* Kho (TT) */}
+                  <div className="col-span-5 sm:col-span-2 flex flex-col">
+                    <label className="block text-xs font-medium text-gray-600 min-h-[16px] h-4 leading-4 mb-1">Kho <span className="text-red-500">*</span></label>
+                    <select value={row.warehouseId} onChange={(event) => handleWarehouseChange(index, event.target.value)} disabled={isSupplyBatch && !row.selected} required className="w-full h-[32px] px-2 py-1.5 border border-gray-300 rounded text-sm bg-white disabled:bg-gray-100">
+                      <option value="">Chọn kho</option>
+                      {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.tenKho}</option>)}
+                    </select>
+                    <div className="mt-1 min-h-[16px]" />
+                  </div>
+
+                  {/* Lô (TT) */}
+                  <div className="col-span-4 sm:col-span-2 flex flex-col">
+                    <label className="block text-xs font-medium text-gray-600 min-h-[16px] h-4 leading-4 mb-1">Lô <span className="text-red-500">*</span></label>
+                    <select value={row.lotId} onChange={(event) => handleLotChange(index, event.target.value)} disabled={!row.warehouseId || (isSupplyBatch && !row.selected)} required className="w-full h-[32px] px-2 py-1.5 border border-gray-300 rounded text-sm bg-white disabled:bg-gray-100">
+                      <option value="">Chọn lô</option>
+                      {row.lots.map((lot) => <option key={lot.id} value={lot.id}>{lot.tenLo}</option>)}
+                    </select>
+                    <div className="mt-1 min-h-[16px]" />
+                  </div>
+
+                  {/* SL KH (disabled) */}
+                  {hasKeHoachColumn && (
+                    <div className="col-span-4 sm:col-span-1 flex flex-col">
+                      <label className="block text-xs font-medium text-gray-500 min-h-[16px] h-4 leading-4 mb-1">SL KH</label>
+                      <input type="number" value={(row.soLuongYeuCau ?? 0) > 0 ? row.soLuongYeuCau : ''} placeholder="—" disabled tabIndex={-1} className="w-full h-[32px] px-2 py-1.5 border border-gray-200 rounded text-sm bg-gray-100 cursor-not-allowed text-gray-500 text-center" />
+                      <div className="mt-1 min-h-[16px] flex flex-col">
+                        {row.warehouseKeHoach && <span className="text-[11px] text-gray-400 truncate leading-tight" title={row.warehouseKeHoach}>Kho KH: {row.warehouseKeHoach}</span>}
+                        {row.lotKeHoach && <span className="text-[11px] text-gray-400 truncate leading-tight" title={row.lotKeHoach}>Lô KH: {row.lotKeHoach}</span>}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SL TT (editable) */}
+                  <div className={hasKeHoachColumn ? 'col-span-4 sm:col-span-1 flex flex-col' : 'col-span-4 sm:col-span-1 flex flex-col'}>
+                    <label className="block text-xs font-medium text-gray-600 min-h-[16px] h-4 leading-4 mb-1">SL TT <span className="text-red-500">*</span></label>
+                    <input type="number" value={row.soLuong === 0 ? '' : row.soLuong} onChange={(event) => handleTotalChange(index, parseNumberInput(event.target.value))} min="0.01" step="0.01" required disabled={isSupplyBatch && !row.selected} className="w-full h-[32px] px-2 py-1.5 border border-gray-300 rounded text-sm bg-white disabled:bg-gray-100 text-center" />
+                    <div className="mt-1 min-h-[16px]" />
+                  </div>
+                </div>
+
+                {/* Tình trạng / quy cách — ngay trên Ghi chú */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                  <div><label className="block text-xs font-medium text-gray-600 mb-1">Tình trạng</label><select value={row.tinhTrang} onChange={(e) => updateRow(index, { tinhTrang: e.target.value })} className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-white"><option value="">— Chọn —</option>{TINH_TRANG_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>{row.tinhTrang === 'Khác' && <input value={row.tinhTrangCustom} onChange={(e) => updateRow(index, { tinhTrangCustom: e.target.value })} placeholder="Nhập tình trạng khác..." className="mt-1 w-full px-2 py-1.5 border border-gray-300 rounded text-sm" />}</div>
+                  <div><label className="block text-xs font-medium text-gray-600 mb-1">Quy cách</label><input value={row.quyCach} onChange={(e) => updateRow(index, { quyCach: e.target.value })} placeholder="VD: 10kg/bao, 500g/hộp..." className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" /></div>
+                </div>
+
+                {/* Ghi chú + badge lệch */}
+                <div className="mt-2 pt-2 border-t border-gray-200 flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+                  <div className="flex-1 w-full">
+                    <input value={row.ghiChu} onChange={(event) => updateRow(index, { ghiChu: event.target.value })} placeholder="Ghi chú dòng..." className="w-full h-[32px] px-2 py-1.5 border border-gray-300 rounded text-sm bg-white" />
+                  </div>
+                  {hasDiff ? <span className="text-xs px-2 py-1 rounded bg-red-50 text-red-700 border border-red-200 whitespace-nowrap">Lệch {Number((Number(row.soLuong) - Number(row.soLuongYeuCau ?? row.soLuong)).toFixed(2))}</span> : <span className="text-xs px-2 py-1 rounded bg-green-50 text-green-700 border border-green-200 whitespace-nowrap">Khớp KH</span>}
+                </div>
+
+                {/* Multi-kiện picker + per-kiện */}
                 {row.warehouseId && row.lotId && (
-                  <div className="mt-3">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Chọn kiện (có thể chọn nhiều — sẽ chia đều số lượng, remainder dồn kiện cuối){row.selectedKienIds.length > 0 && <span className="ml-2 text-blue-600 font-semibold">Đã chọn {row.selectedKienIds.length} kiện</span>}</label>
+                  <div className="mt-2">
                     <MultiKienPicker lots={row.lots.filter((l) => l.id === row.lotId)} value={row.selectedKienIds} onChange={(ids) => handleKienMultiChange(index, ids)} disabled={isSupplyBatch && !row.selected} />
                     {row.selectedKienIds.length > 1 && (
                       <div className="mt-2">
-                        <div className="text-xs text-gray-500 mb-1">Chia đều {row.soLuong} {row.donViTinh || ''} vào {row.selectedKienIds.length} kiện — có thể sửa tay từng kiện:</div>
+                        <div className="text-xs text-gray-500 mb-1">Chia đều {row.soLuong} {row.donViTinh || ''} vào {row.selectedKienIds.length} kiện:</div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                           {row.selectedKienIds.map((kid, ki) => {
                             const lp = row.lotProducts.find((p) => p.id === kid);
@@ -562,22 +713,19 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
                     )}
                   </div>
                 )}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
-                  <div><label className="block text-xs font-medium text-gray-600 mb-1">Số lượng thực tế <span className="text-red-500">*</span></label><input type="number" value={row.soLuong === 0 ? '' : row.soLuong} placeholder="" onChange={(event) => handleTotalChange(index, parseNumberInput(event.target.value))} min="0.01" step="0.01" required disabled={isSupplyBatch && !row.selected} className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" /></div>
-                  <div><label className="block text-xs font-medium text-gray-600 mb-1">Số lượng kế hoạch</label><input type="number" value={(row.soLuongYeuCau ?? 0) > 0 ? row.soLuongYeuCau : ''} placeholder={row.soLuong > 0 ? String(row.soLuong) : ''} title="Bỏ trống thì mặc định bằng số lượng thực tế" onChange={(event) => handleKeHoachChange(index, parseNumberInput(event.target.value))} min="0.01" step="0.01" disabled={isSupplyBatch && !row.selected} className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" /></div>
-                  <div><label className="block text-xs font-medium text-gray-600 mb-1">Đơn vị tính {!row.lotProductId && <span className="text-red-500">*</span>}</label>{row.lotProductId ? <input value={row.lotProducts.find((item) => item.id === row.lotProductId)?.donViTinh || row.donViTinh} readOnly className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-gray-100" /> : <UnitSelect value={row.donViTinh} onChange={(value) => updateRow(index, { donViTinh: value })} className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" />}</div>
-                  <div><label className="block text-xs font-medium text-gray-600 mb-1">Ghi chú dòng</label><input value={row.ghiChu} onChange={(event) => updateRow(index, { ghiChu: event.target.value })} placeholder="" className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" /></div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
-                  <div><label className="block text-xs font-medium text-gray-600 mb-1">Tình trạng</label><select value={row.tinhTrang} onChange={(e) => updateRow(index, { tinhTrang: e.target.value })} className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"><option value="">— Chọn —</option>{TINH_TRANG_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>{row.tinhTrang === 'Khác' && <input value={row.tinhTrangCustom} onChange={(e) => updateRow(index, { tinhTrangCustom: e.target.value })} placeholder="" className="mt-1 w-full px-2 py-1.5 border border-gray-300 rounded text-sm" />}</div>
-                  <div><label className="block text-xs font-medium text-gray-600 mb-1">Quy cách (đóng gói)</label><input value={row.quyCach} onChange={(e) => updateRow(index, { quyCach: e.target.value })} placeholder="" className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" /></div>
-                  <div />
-                </div>
-                {isSupplyBatch && <label className="mt-3 flex items-center gap-2 text-xs text-gray-600"><input type="checkbox" checked={row.selected} onChange={(event) => updateRow(index, { selected: event.target.checked })} className="rounded" />Chọn dòng cấp phát</label>}
+                {hasKeHoachColumn && isSupplyBatch && <label className="mt-2 flex items-center gap-2 text-xs text-gray-600"><input type="checkbox" checked={row.selected} onChange={(event) => updateRow(index, { selected: event.target.checked })} className="rounded" />Chọn dòng cấp phát</label>}
               </div>
-            ))}
+              );
+            })}
           </div>
           <div><label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú phiếu</label><textarea value={ghiChu} onChange={(event) => setGhiChu(event.target.value)} rows={2} placeholder="" className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
+          {isInboundPlanMode && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Lý do chênh lệch (bắt buộc khi thực tế khác kế hoạch)</label>
+              <textarea value={lyDoChenhLech} onChange={(e) => { setLyDoChenhLech(e.target.value); if (e.target.value.trim()) setLyDoChenhLechError(null); }} rows={2} placeholder="Nhập lý do nếu số lượng thực tế khác kế hoạch..." className={`w-full px-3 py-2 border rounded-lg text-sm ${lyDoChenhLechError ? 'border-red-300 focus:ring-red-400' : 'border-gray-300'}`} />
+              {lyDoChenhLechError && <p className="text-xs text-red-600 mt-1">{lyDoChenhLechError}</p>}
+            </div>
+          )}
           <div className="flex justify-end gap-2 pt-2"><button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Hủy</button><button type="submit" disabled={loading} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2">{loading ? 'Đang xử lý...' : <><Check className="w-4 h-4" />Nhập kho {isSupplyBatch ? selectedRows.length : rows.length} dòng</>}</button></div>
         </form>
       </div>
