@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, Package, Download, AlertTriangle, ArrowUpDow
 import TableFilter, { FilterField } from './TableFilter';
 import { useInventoryOverview } from '../hooks/useInventory';
 import { useWarehouses } from '../hooks/useWarehouses';
+import { useUnitOptions } from '../hooks/useLookups';
 import type { InventoryFilters } from '../services/inventoryService';
 import internationalProductService from '../services/internationalProductService';
 
@@ -31,6 +32,12 @@ const InventoryOverview: React.FC = () => {
     const raw = (warehousesData as any)?.data ?? warehousesData;
     return Array.isArray(raw) ? raw : [];
   }, [warehousesData]);
+
+  const { units } = useUnitOptions();
+  const unitOptions = useMemo(
+    () => units.map((u) => ({ value: u.label, label: u.label })),
+    [units]
+  );
 
   const [categories, setCategories] = useState<string[]>([]);
   React.useEffect(() => {
@@ -86,11 +93,19 @@ const InventoryOverview: React.FC = () => {
     { key: 'loaiSanPham', label: 'Loại hàng', type: 'select', options: categories.map((c) => ({ value: c, label: c })) },
     { key: 'warehouseId', label: 'Kho', type: 'select', options: warehouses.map((w: any) => ({ value: w.id, label: w.tenKho })) },
     { key: 'stockStatus', label: 'Tồn kho', type: 'select', options: [
-      { value: '', label: 'Tất cả' },
       { value: 'low', label: `Sắp hết (≤${LOW_STOCK_THRESHOLD})` },
       { value: 'normal', label: 'Còn hàng' },
     ]},
-    { key: 'donViTinh', label: 'Đơn vị tính', type: 'text', placeholder: 'Lọc ĐVT...' },
+    // ĐVT is dirty by design (product form allows units outside the catalog),
+    // so the combobox suggests catalog units but still accepts free text.
+    {
+      key: 'donViTinh',
+      label: 'Đơn vị tính',
+      type: 'combobox',
+      allowFreeValue: true,
+      placeholder: 'Lọc ĐVT...',
+      options: unitOptions,
+    },
   ];
 
   const handleFilterChange = (vals: Record<string, string>) => {
