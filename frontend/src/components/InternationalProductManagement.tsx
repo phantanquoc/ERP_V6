@@ -8,6 +8,7 @@ import { useProducts, productKeys } from '../hooks/useProducts';
 import type { ProductSortField } from '../hooks/useProducts';
 import SortableColumnHeader from './common/SortableColumnHeader';
 import { useDebounce } from '../hooks/useDebounce';
+import { useUnitOptions } from '../hooks/useLookups';
 import TableFilter, { FilterField } from './TableFilter';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types/auth';
@@ -94,13 +95,23 @@ const InternationalProductManagement: React.FC = () => {
     debouncedSearch || loaiSanPhamFilter || debouncedMaSanPham || debouncedTenSanPham || donViTinhFilter
   );
 
-  /** Units offered in the ĐVT column filter, taken from the rows in view. */
-  const unitOptions = useMemo(
-    () => [...new Set(products.map((p) => p.donViTinh).filter((u): u is string => !!u))].sort(
-      (a, b) => a.localeCompare(b, 'vi')
-    ),
-    [products]
-  );
+  const { units: unitLookups } = useUnitOptions();
+
+  /**
+   * Units offered in the ĐVT filter, taken from the shared lookup catalog — NOT from the
+   * rows in view. Deriving them from `products` collapsed the list to the single selected
+   * unit once a filter was applied (the page only holds rows already matching it), so the
+   * user could not switch units without clearing the filter first.
+   *
+   * The active value is unioned in: ĐVT is dirty data, so a unit saved on a product may no
+   * longer exist in the catalog, and dropping it would silently blank the current filter.
+   */
+  const unitOptions = useMemo(() => {
+    const labels = unitLookups.filter((u) => u.isActive).map((u) => u.label);
+    const merged = new Set(labels);
+    if (donViTinhFilter) merged.add(donViTinhFilter);
+    return [...merged].sort((a, b) => a.localeCompare(b, 'vi'));
+  }, [unitLookups, donViTinhFilter]);
 
   // Reset to page 1 whenever filters, sort or page size change so we never land on an
   // out-of-range page. Sort is included because it changes which rows fall on page 1.
@@ -312,9 +323,18 @@ const InternationalProductManagement: React.FC = () => {
     }));
   };
 
-  const productFilterFields: FilterField[] = [
+  /**
+   * Every filterable key is declared here, not just the ones with a dropdown: TableFilter
+   * reads `label` for both the panel and the active-filter chips, so a missing entry showed
+   * the raw key ("maSanPham: ...") on the chip.
+   */
+  const productFilterFields: FilterField[] = useMemo(() => [
+    { key: 'maSanPham', label: 'Mã hàng hóa', type: 'text', placeholder: 'Lọc theo mã...' },
+    { key: 'tenSanPham', label: 'Tên hàng hóa', type: 'text', placeholder: 'Lọc theo tên...' },
     { key: 'loaiSanPham', label: 'Loại hàng hóa', type: 'select', options: categories.map(cat => ({ value: cat, label: cat })) },
-  ];
+    // Combobox, not select: the unit catalog is long and searching beats scrolling.
+    { key: 'donViTinh', label: 'Đơn vị tính', type: 'combobox', options: unitOptions.map(u => ({ value: u, label: u })) },
+  ], [categories, unitOptions]);
 
   return (
     <div className="space-y-6">
