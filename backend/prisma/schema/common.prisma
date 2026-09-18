@@ -79,6 +79,7 @@ model PositionResponsibility {
   title             String
   description       String
   weight            Float
+  isActive          Boolean            @default(true)
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   evaluationDetails EvaluationDetail[]
@@ -232,9 +233,11 @@ model EvaluationDetail {
   createdAt                DateTime               @default(now())
   updatedAt                DateTime               @updatedAt
   evaluation               Evaluation             @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
-  positionResponsibility   PositionResponsibility @relation(fields: [positionResponsibilityId], references: [id], onDelete: Cascade)
+  positionResponsibility   PositionResponsibility @relation(fields: [positionResponsibilityId], references: [id], onDelete: Restrict)
   evidences                EvaluationEvidence[]
   auditLogs                EvaluationAuditLog[]
+  // Frozen weight at detail creation time — used for scoring when live weight changes
+  weightSnapshot           Float?
 
   @@unique([evaluationId, positionResponsibilityId])
   @@map("evaluation_details")

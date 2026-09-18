@@ -1,6 +1,6 @@
 import prisma from '@config/database';
 import logger from '@config/logger';
-import { NotFoundError, ValidationError, AuthorizationError } from '@utils/errors';
+import { NotFoundError, ValidationError, AuthorizationError, ConflictError } from '@utils/errors';
 import { computeKpiDeduction } from '@utils/payroll';
 import notificationService from './notificationService';
 import { logChange, logStatusTransition, logScoreUpdate, EvaluationAuditAction } from './evaluationAuditService';
@@ -36,18 +36,24 @@ const MAX_IDP_ITEMS_PER_EVALUATION = 3;
  * value → compute weighted score = sum(score * weight) / totalActiveWeight.
  * Average only the score types that are fully filled.
  */
+function resolveWeight(d: { weightSnapshot?: number | null; positionResponsibility?: { weight: number } | null }): number {
+  if (d.weightSnapshot != null) return d.weightSnapshot;
+  return d.positionResponsibility?.weight ?? 0;
+}
+
 function computeWeightedScore(details: Array<{
   selfScore: number | null;
   supervisorScore1: number | null;
   supervisorScore2: number | null;
   notApplicable?: boolean;
+  weightSnapshot?: number | null;
   positionResponsibility: { weight: number } | null;
 }>): number {
   // Filter out N/A details
   const activeDetails = details.filter(d => !d.notApplicable);
   if (activeDetails.length === 0) return 0;
 
-  const totalWeight = activeDetails.reduce((sum, d) => sum + (d.positionResponsibility?.weight ?? 0), 0);
+  const totalWeight = activeDetails.reduce((sum, d) => sum + resolveWeight(d as any), 0);
   if (totalWeight === 0) return 0;
 
   const hasSelf = activeDetails.every(d => d.selfScore !== null);
@@ -57,15 +63,15 @@ function computeWeightedScore(details: Array<{
   const scoresToAverage: number[] = [];
 
   if (hasSelf) {
-    const s = activeDetails.reduce((sum, d) => sum + ((d.selfScore ?? 0) * (d.positionResponsibility?.weight ?? 0)), 0) / totalWeight;
+    const s = activeDetails.reduce((sum, d) => sum + ((d.selfScore ?? 0) * resolveWeight(d as any)), 0) / totalWeight;
     scoresToAverage.push(s);
   }
   if (hasSup1) {
-    const s = activeDetails.reduce((sum, d) => sum + ((d.supervisorScore1 ?? 0) * (d.positionResponsibility?.weight ?? 0)), 0) / totalWeight;
+    const s = activeDetails.reduce((sum, d) => sum + ((d.supervisorScore1 ?? 0) * resolveWeight(d as any)), 0) / totalWeight;
     scoresToAverage.push(s);
   }
   if (hasSup2) {
-    const s = activeDetails.reduce((sum, d) => sum + ((d.supervisorScore2 ?? 0) * (d.positionResponsibility?.weight ?? 0)), 0) / totalWeight;
+    const s = activeDetails.reduce((sum, d) => sum + ((d.supervisorScore2 ?? 0) * resolveWeight(d as any)), 0) / totalWeight;
     scoresToAverage.push(s);
   }
 
@@ -86,6 +92,7 @@ export function computeWeightedScoreForField(
     supervisorScore1: number | null;
     supervisorScore2: number | null;
     notApplicable?: boolean;
+    weightSnapshot?: number | null;
     positionResponsibility: { weight: number } | null;
   }>,
   field: 'selfScore' | 'supervisorScore1' | 'supervisorScore2'
@@ -97,12 +104,12 @@ export function computeWeightedScoreForField(
   const allFilled = activeDetails.every(d => d[field] !== null);
   if (!allFilled) return 0;
 
-  const totalWeight = activeDetails.reduce((sum, d) => sum + (d.positionResponsibility?.weight ?? 0), 0);
+  const totalWeight = activeDetails.reduce((sum, d) => sum + resolveWeight(d as any), 0);
   if (totalWeight === 0) return 0;
 
   return activeDetails.reduce((sum, d) => {
     const score = d[field] ?? 0;
-    const weight = d.positionResponsibility?.weight ?? 0;
+    const weight = resolveWeight(d as any);
     return sum + score * weight;
   }, 0) / totalWeight;
 }
@@ -174,17 +181,19 @@ export class EmployeeEvaluationService {
           const isSup1ForRow = emp.user?.supervisor1Id === callerId;
           const isSup2ForRow = emp.user?.supervisor2Id === callerId;
 
-          // Sup1 in SUPERVISOR1_PENDING: mask self-score until they've saved scores
+          // Sup1 in SUPERVISOR1_PENDING: mask self-score until ALL active details have sup1 scores
           if (isSup1ForRow && evalStatus === EvaluationStatus.SUPERVISOR1_PENDING) {
-            const anyDetailHasSup1Score = evaluation.details.some(d => d.supervisorScore1 !== null);
-            if (!anyDetailHasSup1Score) {
+            const activeDetails = evaluation.details.filter((d: any) => !d.notApplicable);
+            const allHaveSup1Score = activeDetails.length > 0 && activeDetails.every((d: any) => d.supervisorScore1 !== null);
+            if (!allHaveSup1Score) {
               selfScore = null;
             }
           }
-          // Sup2 in SUPERVISOR2_PENDING: mask sup1 score until they've saved scores
+          // Sup2 in SUPERVISOR2_PENDING: mask sup1 score until ALL active details have sup2 scores
           if (isSup2ForRow && evalStatus === EvaluationStatus.SUPERVISOR2_PENDING) {
-            const anyDetailHasSup2Score = evaluation.details.some(d => d.supervisorScore2 !== null);
-            if (!anyDetailHasSup2Score) {
+            const activeDetails = evaluation.details.filter((d: any) => !d.notApplicable);
+            const allHaveSup2Score = activeDetails.length > 0 && activeDetails.every((d: any) => d.supervisorScore2 !== null);
+            if (!allHaveSup2Score) {
               supervisorScore1 = null;
             }
           }
@@ -260,27 +269,29 @@ export class EmployeeEvaluationService {
       const evalUser = evaluation.employee.user;
       const evalStatus = evaluation.status;
 
-      // Sup1 masking: non-ADMIN sup1 in SUPERVISOR1_PENDING, no scores saved yet
+      // Sup1 masking: non-ADMIN sup1 in SUPERVISOR1_PENDING, only unmask when ALL active details have sup1 scores
       if (
         (callerRole === UserRole.TEAM_LEAD || callerRole === UserRole.DEPARTMENT_HEAD) &&
         evalStatus === EvaluationStatus.SUPERVISOR1_PENDING &&
         evalUser?.supervisor1Id === userId
       ) {
-        const anyDetailHasSup1Score = evaluation.details.some(d => d.supervisorScore1 !== null);
-        if (!anyDetailHasSup1Score) {
+        const activeDetails = evaluation.details.filter((d: any) => !d.notApplicable);
+        const allHaveSup1Score = activeDetails.length > 0 && activeDetails.every((d: any) => d.supervisorScore1 !== null);
+        if (!allHaveSup1Score) {
           shouldMaskSelfScore = true;
           masked = 'selfScore';
         }
       }
 
-      // Sup2 masking: non-ADMIN sup2 in SUPERVISOR2_PENDING, no scores saved yet
+      // Sup2 masking: non-ADMIN sup2 in SUPERVISOR2_PENDING, only unmask when ALL active details have sup2 scores
       if (
         (callerRole === UserRole.TEAM_LEAD || callerRole === UserRole.DEPARTMENT_HEAD) &&
         evalStatus === EvaluationStatus.SUPERVISOR2_PENDING &&
         evalUser?.supervisor2Id === userId
       ) {
-        const anyDetailHasSup2Score = evaluation.details.some(d => d.supervisorScore2 !== null);
-        if (!anyDetailHasSup2Score) {
+        const activeDetails = evaluation.details.filter((d: any) => !d.notApplicable);
+        const allHaveSup2Score = activeDetails.length > 0 && activeDetails.every((d: any) => d.supervisorScore2 !== null);
+        if (!allHaveSup2Score) {
           shouldMaskSup1Score = true;
           masked = 'supervisorScore1';
         }
@@ -375,17 +386,24 @@ export class EmployeeEvaluationService {
     });
 
     if (!evaluation) {
-      evaluation = await prisma.evaluation.create({
-        data: {
-          employeeId,
-          period,
-          score: 0,
-          mode: mode as any,
-        },
-      });
+      try {
+        evaluation = await prisma.evaluation.create({
+          data: {
+            employeeId,
+            period,
+            score: 0,
+            mode: mode as any,
+          },
+        });
+      } catch (err: any) {
+        if (err?.code === 'P2002') {
+          throw new ConflictError('Kỳ đánh giá đã tồn tại cho nhân viên này');
+        }
+        throw err;
+      }
 
       const responsibilities = employee.positionId
-        ? await prisma.positionResponsibility.findMany({ where: { positionId: employee.positionId } })
+        ? await prisma.positionResponsibility.findMany({ where: { positionId: employee.positionId, isActive: true } })
         : [];
 
       for (const resp of responsibilities) {
@@ -393,6 +411,7 @@ export class EmployeeEvaluationService {
           data: {
             evaluationId: evaluation.id,
             positionResponsibilityId: resp.id,
+            weightSnapshot: resp.weight,
           },
         });
       }
@@ -411,7 +430,7 @@ export class EmployeeEvaluationService {
     } else {
       const evalId = evaluation.id;
       const responsibilities = employee.positionId
-        ? await prisma.positionResponsibility.findMany({ where: { positionId: employee.positionId } })
+        ? await prisma.positionResponsibility.findMany({ where: { positionId: employee.positionId, isActive: true } })
         : [];
 
       const existingDetails = await prisma.evaluationDetail.findMany({
@@ -423,7 +442,7 @@ export class EmployeeEvaluationService {
 
       if (missing.length > 0) {
         await prisma.evaluationDetail.createMany({
-          data: missing.map(r => ({ evaluationId: evalId, positionResponsibilityId: r.id })),
+          data: missing.map(r => ({ evaluationId: evalId, positionResponsibilityId: r.id, weightSnapshot: r.weight })),
         });
       }
     }
@@ -437,7 +456,10 @@ export class EmployeeEvaluationService {
     const period = `${year}-${String(month).padStart(2, '0')}`;
 
     const employees = await prisma.employee.findMany({
-      where: {},
+      where: {
+        status: 'ACTIVE',
+        user: { role: { not: 'ADMIN' } },
+      },
       include: {
         user: { select: { role: true } },
         position: {
@@ -485,6 +507,7 @@ export class EmployeeEvaluationService {
               data: responsibilities.map(resp => ({
                 evaluationId: evaluation.id,
                 positionResponsibilityId: resp.id,
+                weightSnapshot: (resp as any).weight,
               })),
             });
           }
@@ -500,8 +523,15 @@ export class EmployeeEvaluationService {
         }
 
         createdCount++;
-      } catch (error) {
-        logger.error(`Error creating evaluation for employee ${employee.id}:`, error);
+      } catch (error: any) {
+        if (error?.code === 'P2002') {
+          // Unique violation (employeeId+period) — treat as already exists, do not rethrow
+          logger.warn(`Skipping duplicate evaluation for employee ${employee.id} period ${period} (P2002)`);
+        } else if (error instanceof ConflictError) {
+          logger.warn(`Skipping duplicate evaluation for employee ${employee.id}: ${error.message}`);
+        } else {
+          logger.error(`Error creating evaluation for employee ${employee.id}:`, error);
+        }
       }
     }
 
@@ -2156,10 +2186,11 @@ export class EmployeeEvaluationService {
       });
     }
 
-    // Apply BS1 masking on list for supervisor1 / supervisor2
+    // Apply BS1 masking on list for supervisor1 / supervisor2 — only unmask when ALL active details have scores
     return evaluations.map(ev => {
-      const hasSup1Score = ev.details.some((d: any) => d.supervisorScore1 !== null);
-      const hasSup2Score = ev.details.some((d: any) => d.supervisorScore2 !== null);
+      const activeDetails = ev.details.filter((d: any) => !d.notApplicable);
+      const allHaveSup1Score = activeDetails.length > 0 && activeDetails.every((d: any) => d.supervisorScore1 !== null);
+      const allHaveSup2Score = activeDetails.length > 0 && activeDetails.every((d: any) => d.supervisorScore2 !== null);
 
       let selfPercentage = ev.selfScorePercentage ?? computeWeightedScoreForField(ev.details, 'selfScore');
       let sup1Percentage = ev.sup1Percentage ?? computeWeightedScoreForField(ev.details, 'supervisorScore1');
@@ -2171,14 +2202,14 @@ export class EmployeeEvaluationService {
       if (
         isSup1 &&
         ev.status === EvaluationStatus.SUPERVISOR1_PENDING &&
-        !hasSup1Score
+        !allHaveSup1Score
       ) {
         selfPercentage = null;
       }
       if (
         isSup2 &&
         ev.status === EvaluationStatus.SUPERVISOR2_PENDING &&
-        !hasSup2Score
+        !allHaveSup2Score
       ) {
         sup1Percentage = null;
       }
@@ -2282,7 +2313,7 @@ export class EmployeeEvaluationService {
     await prisma.$transaction(async (tx) => {
       if (missing.length > 0) {
         await tx.evaluationDetail.createMany({
-          data: missing.map((r: any) => ({ evaluationId, positionResponsibilityId: r.id })),
+          data: missing.map((r: any) => ({ evaluationId, positionResponsibilityId: r.id, weightSnapshot: r.weight })),
         });
       }
       if (obsoleteIds.length > 0) {

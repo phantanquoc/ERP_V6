@@ -195,6 +195,14 @@ async function main(): Promise<void> {
       continue;
     }
 
+    // Validate total weight before insert
+    const sumWeight = responsibilitiesData.reduce((s, r) => s + r.weight, 0);
+    if (Math.abs(sumWeight - 100) > 0.001) {
+      console.warn(
+        `  ⚠️  ${position.name} (${position.code}): total weight = ${sumWeight} != 100 — will rescale to 100 after insert`
+      );
+    }
+
     await prisma.positionResponsibility.createMany({
       data: responsibilitiesData.map(r => ({
         positionId: position.id,
@@ -203,6 +211,35 @@ async function main(): Promise<void> {
         weight: r.weight,
       })),
     });
+
+    // Post-insert: rescale if sum drifted, otherwise just log
+    if (Math.abs(sumWeight - 100) > 0.001) {
+      const rows = await prisma.positionResponsibility.findMany({ where: { positionId: position.id } });
+      const total = rows.reduce((s, r) => s + r.weight, 0);
+      if (total !== 0 && Math.abs(total - 100) > 0.001) {
+        const factor = 100 / total;
+        // Round to 2 decimals, fix residual on largest item
+        const scaled = rows.map(r => ({ ...r, weight: Math.round(r.weight * factor * 100) / 100 }));
+        const scaledSum = scaled.reduce((s, r) => s + r.weight, 0);
+        const residual = Math.round((100 - scaledSum) * 100) / 100;
+        if (Math.abs(residual) > 0.001) {
+          let largest = scaled[0];
+          for (const r of scaled) if (r.weight > largest.weight) largest = r;
+          largest.weight = Math.round((largest.weight + residual) * 100) / 100;
+        }
+        for (const r of scaled) {
+          await prisma.positionResponsibility.update({ where: { id: r.id }, data: { weight: r.weight } });
+        }
+        console.log(`  🔧 ${position.name}: rescaled ${total.toFixed(2)} → 100`);
+      }
+    }
+
+    // Final verify
+    const verifyRows = await prisma.positionResponsibility.findMany({ where: { positionId: position.id }, select: { weight: true } });
+    const verifySum = verifyRows.reduce((s, r) => s + r.weight, 0);
+    if (Math.abs(verifySum - 100) > 0.001) {
+      console.warn(`  ⚠️  ${position.name}: post-seed total still ${verifySum.toFixed(2)} != 100 — check data`);
+    }
 
     totalCreated += responsibilitiesData.length;
     console.log(`  ✅ ${position.name}: created ${responsibilitiesData.length} responsibilities`);

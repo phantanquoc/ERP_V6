@@ -101,6 +101,24 @@ class PositionResponsibilityService {
       throw this.handleError(error);
     }
   }
+
+  async bulkCreateResponsibilities(positionId: string, items: Array<{ title: string; description: string; weight: number }>): Promise<PositionResponsibility[]> {
+    try {
+      const response = await apiClient.post(`/position-responsibilities/${positionId}/responsibilities/bulk`, { items });
+      return response.data as PositionResponsibility[];
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  async deactivateResponsibility(id: string): Promise<PositionResponsibility> {
+    try {
+      const response = await apiClient.patch(`/position-responsibilities/responsibility/${id}/deactivate`, {});
+      return response.data as PositionResponsibility;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
 }
 
 export default new PositionResponsibilityService();

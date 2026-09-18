@@ -62,6 +62,27 @@ export class PositionResponsibilityController {
     }
   }
 
+  async bulkCreateResponsibilities(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const positionId = req.params.positionId as string;
+      const items = (req.body as any)?.items ?? req.body;
+      const responsibilities = await positionResponsibilityService.bulkCreateResponsibilities(positionId, items);
+      res.status(201).json({ success: true, data: responsibilities, message: `Đã tạo ${responsibilities.length} tiêu chí` } as ApiResponse<any>);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deactivateResponsibility(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = req.params.id as string;
+      const responsibility = await positionResponsibilityService.deactivateResponsibility(id);
+      res.json({ success: true, data: responsibility, message: 'Đã vô hiệu hóa tiêu chí' } as ApiResponse<any>);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async deleteResponsibility(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = req.params.id as string;

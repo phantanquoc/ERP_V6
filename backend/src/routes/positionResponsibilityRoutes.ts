@@ -110,9 +110,19 @@ router.post('/:positionId/responsibilities',
   positionResponsibilityController.createResponsibility
 );
 
+router.post('/:positionId/responsibilities/bulk',
+  requireRule('position-responsibilities', 'CREATE'),
+  positionResponsibilityController.bulkCreateResponsibilities
+);
+
 router.post('/:positionId/responsibilities/rescale',
   requireRule('position-responsibilities', 'CREATE'),
   positionResponsibilityController.rescaleResponsibilityWeights
+);
+
+router.patch('/responsibility/:id/deactivate',
+  requireRule('position-responsibilities', 'UPDATE'),
+  positionResponsibilityController.deactivateResponsibility
 );
 
 /**

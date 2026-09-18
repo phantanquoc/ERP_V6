@@ -1,4 +1,5 @@
 import prisma from '@config/database';
+import logger from '@config/logger';
 import { NotFoundError, ValidationError, ConflictError } from '@utils/errors';
 import ExcelJS from 'exceljs';
 
@@ -7,10 +8,11 @@ const WEIGHT_EPSILON = 0.001;
 /**
  * Validate that the sum of weights for a position equals 100 (within epsilon).
  * Called inside a transaction so the check reflects the post-write state.
+ * Only active responsibilities are counted — inactive (soft-deleted) ones are excluded.
  */
 async function validateWeightSum(tx: any, positionId: string): Promise<void> {
   const responsibilities = await tx.positionResponsibility.findMany({
-    where: { positionId },
+    where: { positionId, isActive: true },
     select: { weight: true },
   });
 
@@ -25,7 +27,6 @@ async function validateWeightSum(tx: any, positionId: string): Promise<void> {
 
 export class PositionResponsibilityService {
   async getAllResponsibilities(positionId: string): Promise<any[]> {
-    // Verify position exists
     const position = await prisma.position.findUnique({
       where: { id: positionId },
     });
@@ -35,7 +36,7 @@ export class PositionResponsibilityService {
     }
 
     return await prisma.positionResponsibility.findMany({
-      where: { positionId },
+      where: { positionId, isActive: true },
       orderBy: { createdAt: 'asc' },
     });
   }
@@ -52,8 +53,7 @@ export class PositionResponsibilityService {
     return responsibility;
   }
 
-  async createResponsibility(positionId: string, data: any): Promise<any> {
-    // Verify position exists
+  async createResponsibility(positionId: string, data: any, actorId?: string): Promise<any> {
     const position = await prisma.position.findUnique({
       where: { id: positionId },
     });
@@ -62,23 +62,73 @@ export class PositionResponsibilityService {
       throw new NotFoundError('Position not found');
     }
 
-    return await prisma.$transaction(async (tx) => {
-      const created = await tx.positionResponsibility.create({
+    if (data.weight !== undefined && data.weight !== null && Number(data.weight) <= 0) {
+      throw new ValidationError('Trọng số phải lớn hơn 0');
+    }
+
+    const created = await prisma.$transaction(async (tx) => {
+      const c = await tx.positionResponsibility.create({
         data: {
           positionId,
           title: data.title,
           description: data.description,
-          weight: data.weight || 0,
+          weight: data.weight ?? 0,
         },
       });
-
       await validateWeightSum(tx, positionId);
-
-      return created;
+      return c;
     });
+    logger.info('PositionResponsibility created', { positionId, responsibilityId: created.id, weight: created.weight, actorId });
+    return created;
   }
 
-  async updateResponsibility(id: string, data: any): Promise<any> {
+  // P1 — bulk create in one transaction, validating weight sum once
+  async bulkCreateResponsibilities(
+    positionId: string,
+    items: Array<{ title: string; description: string; weight: number }>,
+    actorId?: string
+  ): Promise<any[]> {
+    const position = await prisma.position.findUnique({ where: { id: positionId } });
+    if (!position) throw new NotFoundError('Position not found');
+    if (!items || items.length === 0) throw new ValidationError('Danh sách tiêu chí không được rỗng');
+
+    for (const it of items) {
+      if (!it.title || !String(it.title).trim()) throw new ValidationError('Tên tiêu chí không được rỗng');
+      if (it.weight === undefined || it.weight === null || Number(it.weight) <= 0) {
+        throw new ValidationError('Trọng số phải lớn hơn 0');
+      }
+    }
+
+    const created = await prisma.$transaction(async (tx) => {
+      const existing = await tx.positionResponsibility.findMany({
+        where: { positionId, isActive: true },
+        select: { weight: true },
+      });
+      const existingSum = existing.reduce((s: number, r: any) => s + r.weight, 0);
+      const newSum = items.reduce((s, r) => s + Number(r.weight), 0);
+      const total = existingSum + newSum;
+      if (Math.abs(total - 100) > WEIGHT_EPSILON) {
+        const diff = 100 - total;
+        if (diff > 0) throw new ValidationError(`Tổng trọng số thiếu ${diff.toFixed(1)}% để đủ 100%`);
+        throw new ValidationError(`Tổng trọng số vượt ${Math.abs(diff).toFixed(1)}% (hiện tại ${total.toFixed(1)}%)`);
+      }
+
+      const result = await Promise.all(
+        items.map(it =>
+          tx.positionResponsibility.create({
+            data: { positionId, title: it.title, description: it.description, weight: Number(it.weight) },
+          })
+        )
+      );
+
+      await validateWeightSum(tx, positionId);
+      return result;
+    });
+    logger.info('PositionResponsibility bulkCreate', { positionId, count: created.length, weights: created.map((c: any) => c.weight), actorId });
+    return created;
+  }
+
+  async updateResponsibility(id: string, data: any, actorId?: string): Promise<any> {
     const responsibility = await prisma.positionResponsibility.findUnique({
       where: { id },
     });
@@ -87,42 +137,73 @@ export class PositionResponsibilityService {
       throw new NotFoundError('Responsibility not found');
     }
 
-    return await prisma.$transaction(async (tx) => {
-      const updated = await tx.positionResponsibility.update({
+    if (data.weight !== undefined && data.weight !== null && Number(data.weight) <= 0) {
+      throw new ValidationError('Trọng số phải lớn hơn 0');
+    }
+
+    const oldWeight = responsibility.weight;
+    const updated = await prisma.$transaction(async (tx) => {
+      const u = await tx.positionResponsibility.update({
         where: { id },
         data: {
-          ...(data.title && { title: data.title }),
-          ...(data.description && { description: data.description }),
+          ...(data.title !== undefined && { title: data.title }),
+          ...(data.description !== undefined && { description: data.description }),
           ...(data.weight !== undefined && { weight: data.weight }),
         },
       });
-
       await validateWeightSum(tx, responsibility.positionId);
-
-      return updated;
+      return u;
     });
+    logger.info('PositionResponsibility updated', { positionId: responsibility.positionId, responsibilityId: id, oldWeight, newWeight: updated.weight, actorId });
+    return updated;
   }
 
-  async deleteResponsibility(id: string): Promise<void> {
+  async deleteResponsibility(id: string, actorId?: string): Promise<void> {
     const responsibility = await prisma.positionResponsibility.findUnique({
       where: { id },
     });
 
     if (!responsibility) {
       throw new NotFoundError('Responsibility not found');
+    }
+
+    const count = await prisma.evaluationDetail.count({ where: { positionResponsibilityId: id } });
+    if (count > 0) {
+      throw new ConflictError(
+        `Tiêu chí đang được dùng trong ${count} đánh giá, không thể xóa. Hãy vô hiệu hóa thay vì xóa.`
+      );
     }
 
     const positionId = responsibility.positionId;
 
     await prisma.$transaction(async (tx) => {
       await tx.positionResponsibility.delete({ where: { id } });
-
-      // Only enforce weight sum if there are remaining responsibilities
-      const remaining = await tx.positionResponsibility.count({ where: { positionId } });
+      const remaining = await tx.positionResponsibility.count({ where: { positionId, isActive: true } });
       if (remaining > 0) {
         await validateWeightSum(tx, positionId);
       }
     });
+    logger.info('PositionResponsibility deleted', { positionId, responsibilityId: id, oldWeight: responsibility.weight, actorId });
+  }
+
+  async deactivateResponsibility(id: string, actorId?: string): Promise<any> {
+    const responsibility = await prisma.positionResponsibility.findUnique({ where: { id } });
+    if (!responsibility) throw new NotFoundError('Responsibility not found');
+    const updated = await prisma.$transaction(async (tx) => {
+      const u = await tx.positionResponsibility.update({
+        where: { id },
+        data: { isActive: false },
+      });
+      const remaining = await tx.positionResponsibility.count({
+        where: { positionId: responsibility.positionId, isActive: true },
+      });
+      if (remaining > 0) {
+        await validateWeightSum(tx, responsibility.positionId);
+      }
+      return u;
+    });
+    logger.info('PositionResponsibility deactivated', { positionId: responsibility.positionId, responsibilityId: id, oldWeight: responsibility.weight, actorId });
+    return updated;
   }
 
   /**
@@ -132,7 +213,8 @@ export class PositionResponsibilityService {
    */
   async copyResponsibilitiesFrom(
     targetPositionId: string,
-    sourcePositionId: string
+    sourcePositionId: string,
+    actorId?: string
   ): Promise<any[]> {
     const [target, source] = await Promise.all([
       prisma.position.findUnique({ where: { id: targetPositionId } }),
@@ -142,9 +224,9 @@ export class PositionResponsibilityService {
     if (!target) throw new NotFoundError('Chức vụ đích không tồn tại');
     if (!source) throw new NotFoundError('Chức vụ nguồn không tồn tại');
 
-    return await prisma.$transaction(async (tx) => {
+    const created = await prisma.$transaction(async (tx) => {
       const existingCount = await tx.positionResponsibility.count({
-        where: { positionId: targetPositionId },
+        where: { positionId: targetPositionId, isActive: true },
       });
 
       if (existingCount > 0) {
@@ -154,7 +236,7 @@ export class PositionResponsibilityService {
       }
 
       const sourceItems = await tx.positionResponsibility.findMany({
-        where: { positionId: sourcePositionId },
+        where: { positionId: sourcePositionId, isActive: true },
         orderBy: { createdAt: 'asc' },
       });
 
@@ -162,7 +244,7 @@ export class PositionResponsibilityService {
         return [];
       }
 
-      const created = await Promise.all(
+      const result = await Promise.all(
         sourceItems.map((item: any) =>
           tx.positionResponsibility.create({
             data: {
@@ -175,20 +257,21 @@ export class PositionResponsibilityService {
         )
       );
 
-      // Verify weight sum post-copy (should always be valid since source was valid)
       await validateWeightSum(tx, targetPositionId);
 
-      return created;
+      return result;
     });
+    logger.info('PositionResponsibility copy', { targetPositionId, sourcePositionId, count: created.length, actorId });
+    return created;
   }
 
-  async rescaleResponsibilityWeights(positionId: string): Promise<any[]> {
+  async rescaleResponsibilityWeights(positionId: string, actorId?: string): Promise<any[]> {
     const position = await prisma.position.findUnique({ where: { id: positionId } });
     if (!position) throw new NotFoundError('Chức vụ không tồn tại');
 
-    return await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const items = await tx.positionResponsibility.findMany({
-        where: { positionId },
+        where: { positionId, isActive: true },
         orderBy: { createdAt: 'asc' },
       });
 
@@ -201,15 +284,14 @@ export class PositionResponsibilityService {
         return items; // Already balanced
       }
 
-      // Compute proportional weights rounded to 2 decimal places
       const rescaled = items.map((r: any) => ({
         id: r.id,
+        oldWeight: r.weight,
         weight: totalWeight > 0
           ? Math.round(r.weight * (100 / totalWeight) * 100) / 100
           : Math.round((100 / items.length) * 100) / 100,
       }));
 
-      // Fix residual on largest-weight item so sum is exactly 100
       const computedSum = rescaled.reduce((s: number, r: any) => s + r.weight, 0);
       const residual = Math.round((100 - computedSum) * 100) / 100;
       if (Math.abs(residual) > 0.0001 && rescaled.length > 0) {
@@ -217,7 +299,6 @@ export class PositionResponsibilityService {
         largest.weight = Math.round((largest.weight + residual) * 100) / 100;
       }
 
-      // Apply all updates within the transaction
       const updated: any[] = [];
       for (const r of rescaled) {
         const u = await tx.positionResponsibility.update({
@@ -227,7 +308,6 @@ export class PositionResponsibilityService {
         updated.push(u);
       }
 
-      // Verify final sum = 100
       const finalSum = updated.reduce((s: number, r: any) => s + r.weight, 0);
       if (Math.abs(finalSum - 100) > 0.01) {
         throw new ValidationError(`Tổng trọng số sau chuẩn hóa không đúng: ${finalSum.toFixed(3)}`);
@@ -235,6 +315,8 @@ export class PositionResponsibilityService {
 
       return updated;
     });
+    logger.info('PositionResponsibility rescale', { positionId, count: result.length, actorId });
+    return result;
   }
 
   async getResponsibilityUsage(id: string): Promise<any> {
@@ -249,7 +331,8 @@ export class PositionResponsibilityService {
   }
 
   async exportResponsibilities(positionId?: string): Promise<any> {
-    const where = positionId ? { positionId } : {};
+    const where: any = { isActive: true };
+    if (positionId) where.positionId = positionId;
 
     const responsibilities = await prisma.positionResponsibility.findMany({
       where,
@@ -292,5 +375,3 @@ export class PositionResponsibilityService {
 }
 
 export default new PositionResponsibilityService();
-
-
