@@ -353,25 +353,26 @@ model InboundPlanLog {
   inboundPlan   InboundPlan @relation(fields: [inboundPlanId], references: [id], onDelete: Cascade)
 
   @@index([inboundPlanId])
+  @@index([inboundPlanId, createdAt(sort: Desc)])
   @@map("inbound_plan_logs")
   @@schema("business")
 }
 
 model OutboundPlan {
-  id              String             @id @default(cuid())
-  stt             Int                @default(autoincrement())
-  maKeHoach       String             @unique // KH-XH-YYYY-NNN
+  id              String            @id @default(cuid())
+  stt             Int               @default(autoincrement())
+  maKeHoach       String            @unique // KH-XH-YYYY-NNN
   supplyRequestId String?
   ngayDuKien      DateTime
   warehouseId     String?
-  trangThai       String             @default("Chờ xuất") // Chờ xuất/Đã xuất/Quá hạn/Đã hủy
+  trangThai       String            @default("Chờ xuất") // Chờ xuất/Đã xuất/Quá hạn/Đã hủy
   ghiChu          String?
   lyDoChenhLech   String?
   ngayDuKienMoi   DateTime?
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  supplyRequest   SupplyRequest?     @relation(fields: [supplyRequestId], references: [id], onDelete: SetNull)
-  warehouse       warehouses?        @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  supplyRequest   SupplyRequest?    @relation(fields: [supplyRequestId], references: [id], onDelete: SetNull)
+  warehouse       warehouses?       @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
   logs            OutboundPlanLog[]
   issues          WarehouseIssue[]
 
@@ -395,6 +396,7 @@ model OutboundPlanLog {
   outboundPlan   OutboundPlan @relation(fields: [outboundPlanId], references: [id], onDelete: Cascade)
 
   @@index([outboundPlanId])
+  @@index([outboundPlanId, createdAt(sort: Desc)])
   @@map("outbound_plan_logs")
   @@schema("business")
 }
