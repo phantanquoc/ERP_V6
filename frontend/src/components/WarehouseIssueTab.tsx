@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { Plus, FileText, Eye, Pencil, Trash2, Printer } from 'lucide-react';
 import TableFilter, { FilterField } from './TableFilter';
 import Modal from './Modal';
+import CancelWithReasonModal from './common/CancelWithReasonModal';
 import WarehouseSlipPrintView from './WarehouseSlipPrintView';
 import { formatActualTotalByUnit } from '../utils/warehouseSlipTotals';
 import CreateWarehouseIssueModal from './CreateWarehouseIssueModal';
@@ -11,16 +12,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import warehouseIssueService, { WarehouseIssue } from '../services/warehouseIssueService';
 import { displayLoaiKho, displayMaHang, getUniqueSlipField, getWarehouseSlipLines, normalizeWarehouseListResponse } from '../utils/warehouseSlipLines';
 import { warehouseKeys, useWarehouses } from '../hooks';
-import { TINH_TRANG_OPTIONS } from '../constants/warehouseCatalogs';
+import { useDebounce } from '../hooks/useDebounce';
+import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
+import { TINH_TRANG_OPTIONS, BO_PHAN_OPTIONS } from '../constants/warehouseCatalogs';
 
 interface WarehouseIssueTabProps {
   month?: number;
   year?: number;
-}
-
-/** Case-insensitive substring test that tolerates undefined haystacks. */
-function contains(haystack: string | undefined | null, needle: string): boolean {
-  return (haystack || '').toLowerCase().includes(needle);
 }
 
 const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) => {
@@ -34,33 +32,41 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
   const [printIssue, setPrintIssue] = useState<WarehouseIssue | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingIssue, setEditingIssue] = useState<WarehouseIssue | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<WarehouseIssue | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const ITEMS_PER_PAGE = 10;
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maPhieuXuat: '', tenNhanVien: '', nguoiDeNghi: '', boPhan: '', tenKho: '', tinhTrang: '', daIn: '', fromNgay: '', toNgay: '' });
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maPhieuXuat: '', tenNhanVien: '', nguoiDeNghi: '', boPhan: '', warehouseId: '', tinhTrang: '', daIn: '', fromNgay: '', toNgay: '' });
+  const debouncedSearch = useDebounce(filterValues._search, 300);
   const [sortKey, setSortKey] = useState<'ngayXuat' | 'maPhieuXuat'>('ngayXuat');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false);
+  const [bulkExporting, setBulkExporting] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   const { data: warehousesRaw } = useWarehouses();
   const warehouseOptions = useMemo(() => {
     const raw = (warehousesRaw as any)?.data ?? warehousesRaw;
     const list = Array.isArray(raw) ? raw : [];
-    return list.map((w: any) => ({ value: w.maKho as string, label: `${w.maKho} — ${w.tenKho}` }));
+    return list.map((w: any) => ({ value: w.id as string, label: `${w.tenKho} (${w.maKho})` }));
   }, [warehousesRaw]);
 
-  // Distinct employee names present in the fetched issues — a filter derived
-  // from the dataset in view, not the full employee directory.
+  const { data: employeeOptionsRaw } = useEmployeesForAssignment();
   const employeeOptions = useMemo(() => {
+    const opts = (employeeOptionsRaw ?? []) as { name: string }[];
+    if (opts.length > 0) return opts.map((e) => ({ value: e.name, label: e.name }));
     const names = new Set<string>();
     issues.forEach((issue) => { if (issue.tenNhanVien) names.add(issue.tenNhanVien); });
     return Array.from(names).sort((a, b) => a.localeCompare(b, 'vi')).map((name) => ({ value: name, label: name }));
-  }, [issues]);
+  }, [employeeOptionsRaw, issues]);
 
   const issueFilterFields: FilterField[] = [
     { key: 'maPhieuXuat', label: 'Mã phiếu', type: 'text' },
     { key: 'tenNhanVien', label: 'Nhân viên', type: 'combobox', options: employeeOptions, placeholder: 'Tất cả' },
     { key: 'nguoiDeNghi', label: 'Người đề nghị', type: 'text' },
-    { key: 'boPhan', label: 'Bộ phận', type: 'text' },
-    { key: 'tenKho', label: 'Kho', type: 'select', options: warehouseOptions },
+    { key: 'boPhan', label: 'Bộ phận', type: 'select', options: [...BO_PHAN_OPTIONS] },
+    { key: 'warehouseId', label: 'Kho', type: 'select', options: warehouseOptions },
     { key: 'tinhTrang', label: 'Tình trạng', type: 'select', options: [...TINH_TRANG_OPTIONS.map((o) => ({ value: o.value, label: o.label }))] },
     { key: 'daIn', label: 'Đã in', type: 'select', options: [{ value: 'true', label: 'Đã in' }, { value: 'false', label: 'Chưa in' }] },
     { key: 'fromNgay', label: 'Từ ngày', type: 'date' },
@@ -75,109 +81,79 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
   };
 
   const fetchIssues = useCallback(async () => {
+    const _dateInvalid = !!(dateRangeInvalid);
     setLoading(true);
     setLoadError(null);
     try {
-      const response = await warehouseIssueService.getAllWarehouseIssues() as any;
-      setIssues(normalizeWarehouseListResponse<WarehouseIssue>(response?.data));
+      const response = await warehouseIssueService.getAllWarehouseIssues({
+        page: currentPage,
+        limit: ITEMS_PER_PAGE,
+        search: debouncedSearch || undefined,
+        warehouseId: filterValues.warehouseId || undefined,
+        fromNgay: _dateInvalid ? undefined : (filterValues.fromNgay || undefined),
+        toNgay: _dateInvalid ? undefined : (filterValues.toNgay || undefined),
+        sortBy: sortKey,
+        sortOrder: sortDir,
+        maPhieu: filterValues.maPhieuXuat?.trim() || undefined,
+        maPhieuXuat: filterValues.maPhieuXuat?.trim() || undefined,
+        tenNhanVien: filterValues.tenNhanVien?.trim() || undefined,
+        nguoiDeNghi: filterValues.nguoiDeNghi?.trim() || undefined,
+        boPhan: filterValues.boPhan?.trim() || undefined,
+        tinhTrang: filterValues.tinhTrang?.trim() || undefined,
+        daIn: filterValues.daIn || undefined,
+      } as any) as any;
+      const payload = response?.data;
+      const data = payload?.data ?? payload;
+      const pagination = payload?.pagination;
+      if (Array.isArray(payload)) {
+        setIssues(normalizeWarehouseListResponse<WarehouseIssue>(payload));
+        setTotal(payload.length);
+        setTotalPages(Math.ceil(payload.length / ITEMS_PER_PAGE) || 1);
+      } else {
+        setIssues(normalizeWarehouseListResponse<WarehouseIssue>(data));
+        setTotal(pagination?.total ?? (Array.isArray(data) ? data.length : 0));
+        setTotalPages(pagination?.totalPages ?? Math.max(1, Math.ceil((pagination?.total ?? 0) / ITEMS_PER_PAGE)));
+      }
     } catch (error: any) {
       console.error('Error fetching issues:', error);
       setLoadError(error.response?.data?.message || 'Không thể tải danh sách phiếu xuất kho');
-      // Preserve existing data so a transient refresh failure does not blank the table.
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentPage, dateRangeInvalid, debouncedSearch, filterValues.warehouseId, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuXuat, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, sortKey, sortDir]);
 
-  useEffect(() => {
-    fetchIssues();
-  }, [fetchIssues]);
+  useEffect(() => { fetchIssues(); }, [fetchIssues]);
+  useEffect(() => { setCurrentPage(1); }, [debouncedSearch, filterValues.warehouseId, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuXuat, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, sortKey, sortDir]);
 
-  const handleDelete = async (issue: WarehouseIssue) => {
-    if (!confirm('Bạn có chắc chắn muốn xóa phiếu xuất kho này?')) return;
+  const handleDelete = async (lyDo: string) => {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      await warehouseIssueService.deleteWarehouseIssue(issue.id);
+      await warehouseIssueService.deleteWarehouseIssue(deleteTarget.id, { lyDo });
       toast.success('Xóa phiếu xuất kho thành công!');
+      setDeleteTarget(null);
       fetchIssues();
       queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
       queryClient.invalidateQueries({ queryKey: warehouseKeys.lotProducts() });
       queryClient.invalidateQueries({ queryKey: warehouseKeys.receiptHistories() });
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Lỗi khi xóa phiếu xuất kho');
+    } finally {
+      setDeleting(false);
     }
   };
 
-  // The "Kho" filter stores maKho, but older lines may only carry tenKho — keep
-  // the name of the selected warehouse around so those lines still match.
-  const selectedWarehouseName = useMemo(() => {
-    if (!filterValues.tenKho) return '';
-    const raw = (warehousesRaw as any)?.data ?? warehousesRaw;
-    const list = Array.isArray(raw) ? raw : [];
-    return (list.find((w: any) => w.maKho === filterValues.tenKho)?.tenKho as string | undefined) || '';
-  }, [filterValues.tenKho, warehousesRaw]);
-
-  const filteredIssues = issues.filter((issue) => {
-    // Period filter
-    if (month || year) {
+  const refinedIssues = React.useMemo(() => {
+    if (!month && !year) return issues;
+    return issues.filter((issue) => {
       const date = new Date(issue.ngayXuat);
       if (month && (date.getMonth() + 1) !== month) return false;
       if (year && date.getFullYear() !== year) return false;
-    }
-    const lines = getWarehouseSlipLines(issue) as any[];
-    // value — the deprecated header mirror only holds line 1, so filtering on
-    // it alone makes every other line unfindable.
-    const lineContains = (line: any, needle: string) =>
-      contains(line.tenSanPham, needle) ||
-      contains(line.maSanPham as string | undefined, needle) ||
-      contains(line.maKien as string | undefined, needle) ||
-      contains(line.tenKho, needle) ||
-      contains(line.maKho as string | undefined, needle) ||
-      contains(line.tenLo, needle) ||
-      contains(line.soKienThucTe as string | undefined, needle) ||
-      contains(line.soKienKeHoach as string | undefined, needle);
-    const lineMatch = (needle: string) => lines.some((l) => lineContains(l, needle));
-    const search = (filterValues._search || '').toLowerCase().trim();
-    if (search) {
-      const matchSearch =
-        contains(issue.maPhieuXuat, search) ||
-        contains(issue.tenNhanVien, search) ||
-        contains((issue as any).nguoiDeNghi, search) ||
-        contains((issue as any).boPhan, search) ||
-        lineMatch(search);
-      if (!matchSearch) return false;
-    }
-    if (filterValues.maPhieuXuat && !contains(issue.maPhieuXuat, filterValues.maPhieuXuat.toLowerCase())) return false;
-    if (filterValues.tenNhanVien && issue.tenNhanVien !== filterValues.tenNhanVien) return false;
-    if (filterValues.nguoiDeNghi && !contains((issue as any).nguoiDeNghi, filterValues.nguoiDeNghi.toLowerCase())) return false;
-    if (filterValues.boPhan && !contains((issue as any).boPhan, filterValues.boPhan.toLowerCase())) return false;
-    if (filterValues.tenKho && !lines.some((l) => (l as any).maKho === filterValues.tenKho || (selectedWarehouseName && contains(l.tenKho, selectedWarehouseName.toLowerCase())))) return false;
-    if (filterValues.tinhTrang && !lines.some((l) => contains((l as any).tinhTrang, filterValues.tinhTrang.toLowerCase()))) return false;
-    if (filterValues.daIn) {
-      const isPrinted = !!(issue as any).daIn;
-      if (filterValues.daIn === 'true' && !isPrinted) return false;
-      if (filterValues.daIn === 'false' && isPrinted) return false;
-    }
-    if (filterValues.fromNgay) {
-      const from = new Date(filterValues.fromNgay); from.setHours(0,0,0,0);
-      if (new Date(issue.ngayXuat) < from) return false;
-    }
-    if (filterValues.toNgay) {
-      const to = new Date(filterValues.toNgay); to.setHours(23,59,59,999);
-      if (new Date(issue.ngayXuat) > to) return false;
-    }
-    return true;
-  });
-  const sortedIssues = [...filteredIssues].sort((a, b) => {
-    const dir = sortDir === 'asc' ? 1 : -1;
-    if (sortKey === 'maPhieuXuat') return dir * (a.maPhieuXuat.localeCompare(b.maPhieuXuat));
-    return dir * (new Date(a.ngayXuat).getTime() - new Date(b.ngayXuat).getTime());
-  });
-  const totalPages = Math.ceil(sortedIssues.length / itemsPerPage);
-  const paginatedIssues = sortedIssues.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+      return true;
+    });
+  }, [issues, month, year]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [month, year, filterValues]);
+  const displayIssues = refinedIssues;
 
   useEffect(() => {
     setCurrentPage((page) => Math.min(Math.max(1, page), Math.max(1, totalPages)));
@@ -204,26 +180,12 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
         values={filterValues}
         onChange={(vals) => { setFilterValues(vals); setCurrentPage(1); }}
         searchPlaceholder="Tìm mã kiện, tên hàng, mã phiếu, nhân viên..."
+        dateRangeInvalid={dateRangeInvalid}
       />
-      {dateRangeInvalid && (
-        <div className="mb-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800" role="alert">
-          Khoảng ngày không hợp lệ: &quot;Từ ngày&quot; đang sau &quot;Đến ngày&quot; nên không có phiếu nào khớp. Đổi lại hai mốc ngày.
-        </div>
-      )}
+
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <span className="text-xs text-gray-500">Sắp xếp:</span>
-        <select value={sortKey} onChange={(e) => setSortKey(e.target.value as any)} className="px-2 py-1 border border-gray-300 rounded text-xs">
-          <option value="ngayXuat">Ngày xuất</option>
-          <option value="maPhieuXuat">Mã phiếu</option>
-        </select>
-        <button type="button" onClick={() => setSortDir((d) => d === 'asc' ? 'desc' : 'asc')} className="px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50">{sortDir === 'asc' ? '↑ Tăng' : '↓ Giảm'}</button>
-        <span className="text-xs text-gray-400 ml-2">{sortedIssues.length} phiếu {filteredIssues.length !== issues.length && `· lọc từ ${issues.length}`}</span>
-        <button type="button" onClick={async () => {
-          const ids = sortedIssues.map((r) => r.id);
-          if (ids.length === 0) { toast.error('Không có phiếu để xuất'); return; }
-          if (!confirm(`Xuất tổng hợp ${ids.length} phiếu đang lọc?`)) return;
-          for (const id of ids) { try { await warehouseIssueService.exportXlsx(id); } catch {} }
-        }} className="ml-auto px-3 py-1.5 text-xs border border-blue-300 text-blue-700 rounded hover:bg-blue-50">Xuất tổng hợp (đang lọc)</button>
+        <span className="text-xs text-gray-400">{total} phiếu — bấm tiêu đề Mã phiếu / Ngày xuất để sắp xếp</span>
+        <button type="button" onClick={() => setShowBulkConfirm(true)} disabled={displayIssues.length===0} className="ml-auto px-3 py-1.5 min-h-[32px] text-xs border border-blue-300 text-blue-700 rounded hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed">Xuất tổng hợp (trang hiện tại)</button>
       </div>
 
       {loadError && (
@@ -242,8 +204,8 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
         <table className="w-full min-w-[1050px] border-collapse">
           <thead>
             <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-              <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã phiếu</th>
-              <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày xuất</th>
+              <th scope="col" aria-sort={sortKey==='maPhieuXuat' ? (sortDir==='asc'?'ascending':'descending'):'none'} className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200"><button type="button" aria-label="Sắp xếp theo mã phiếu" onClick={()=>{ if(sortKey==='maPhieuXuat') setSortDir(d=>d==='asc'?'desc':'asc'); else {setSortKey('maPhieuXuat'); setSortDir('desc');} }} className="inline-flex items-center gap-1 hover:text-gray-700">Mã phiếu {sortKey==='maPhieuXuat'?(sortDir==='asc'?'↑':'↓'):''}</button></th>
+              <th scope="col" aria-sort={sortKey==='ngayXuat' ? (sortDir==='asc'?'ascending':'descending'):'none'} className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200"><button type="button" aria-label="Sắp xếp theo ngày xuất" onClick={()=>{ if(sortKey==='ngayXuat') setSortDir(d=>d==='asc'?'desc':'asc'); else {setSortKey('ngayXuat'); setSortDir('desc');} }} className="inline-flex items-center gap-1 hover:text-gray-700">Ngày xuất {sortKey==='ngayXuat'?(sortDir==='asc'?'↑':'↓'):''}</button></th>
               <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Nhân viên</th>
               <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người đề nghị</th>
               <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Kho</th>
@@ -255,17 +217,19 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
             </tr>
           </thead>
           <tbody>
-            {filteredIssues.length === 0 ? (
+            {displayIssues.length === 0 ? (
+              (()=>{ const hasF = !!(filterValues._search||filterValues.maPhieuXuat||filterValues.tenNhanVien||filterValues.nguoiDeNghi||filterValues.boPhan||filterValues.warehouseId||filterValues.tinhTrang||filterValues.daIn||filterValues.fromNgay||filterValues.toNgay); return (
               <tr>
                 <td colSpan={10} className="px-6 py-4 text-center text-gray-500">
-                  Chưa có phiếu xuất kho nào
+                  {hasF ? (<span className="inline-flex items-center gap-2">Không khớp bộ lọc <button onClick={()=>setFilterValues({ _search:'',maPhieuXuat:'',tenNhanVien:'',nguoiDeNghi:'',boPhan:'',warehouseId:'',tinhTrang:'',daIn:'',fromNgay:'',toNgay:'' })} className="px-2 py-1 text-xs border rounded hover:bg-gray-50">Xóa lọc</button></span>) : 'Chưa có phiếu xuất kho nào'}
                 </td>
               </tr>
+            );})()
             ) : (
-              paginatedIssues.map((issue, issueIndex) => {
+              displayIssues.map((issue, issueIndex) => {
                 const lines = getWarehouseSlipLines(issue);
                 const slipBg = issueIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50';
-                const slipBorder = issueIndex < paginatedIssues.length - 1 ? 'border-b-2 border-gray-300' : '';
+                const slipBorder = issueIndex < displayIssues.length - 1 ? 'border-b-2 border-gray-300' : '';
                 return (
                   <React.Fragment key={issue.id}>
                     {lines.map((line: any, lineIndex) => {
@@ -323,7 +287,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
               <button
                 aria-label="Xem chi tiết phiếu xuất"
                 onClick={() => handleViewDetail(issue)}
-                                className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                                className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
                                 title="Xem chi tiết"
                               >
                                 <Eye className="w-5 h-5" />
@@ -331,7 +295,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                               <button
                                 aria-label="In phiếu xuất"
                                 onClick={() => { setPrintIssue(issue); setShowPrintView(true); }}
-                                className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
+                                className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
                                 title="In phiếu"
                               >
                                 <Printer className="w-5 h-5" />
@@ -339,7 +303,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                               <button
                                 onClick={async () => { try { await warehouseIssueService.exportXlsx(issue.id); } catch (e: any) { toast.error(e.message || 'Lỗi xuất Excel'); } }}
                                 aria-label="Xuất Excel"
-                                className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                                className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
                                 title="Xuất Excel (BM03)"
                               >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg>
@@ -352,15 +316,15 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                                   <button
                                     aria-label="Chỉnh sửa phiếu xuất"
                                     onClick={() => setEditingIssue(issue)}
-                                    className="p-1.5 text-amber-600 hover:bg-amber-100 rounded-md transition-colors"
+                                    className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-amber-600 hover:bg-amber-100 rounded-md transition-colors"
                                     title="Chỉnh sửa"
                                   >
                                     <Pencil className="w-5 h-5" />
                                   </button>
                                   <button
                                     aria-label="Xóa phiếu xuất"
-                                    onClick={() => handleDelete(issue)}
-                                    className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
+                                    onClick={() => setDeleteTarget(issue)}
+                                    className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
                                     title="Xóa"
                                   >
                                     <Trash2 className="w-5 h-5" />
@@ -383,10 +347,10 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
 
       {/* Mobile: one card per slip */}
       <div className="md:hidden space-y-3">
-        {filteredIssues.length === 0 ? (
-          <div className="rounded-lg border border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-500">Chưa có phiếu xuất kho nào</div>
+        {displayIssues.length === 0 ? (
+          (()=>{ const hasF2=!!(filterValues._search||filterValues.maPhieuXuat||filterValues.tenNhanVien||filterValues.nguoiDeNghi||filterValues.boPhan||filterValues.warehouseId||filterValues.tinhTrang||filterValues.daIn||filterValues.fromNgay||filterValues.toNgay); return hasF2 ? (<div className="flex flex-col items-center gap-2 rounded-lg border border-dashed bg-white px-4 py-6 text-center text-sm text-gray-500">Không khớp bộ lọc <button onClick={()=>setFilterValues({ _search:'',maPhieuXuat:'',tenNhanVien:'',nguoiDeNghi:'',boPhan:'',warehouseId:'',tinhTrang:'',daIn:'',fromNgay:'',toNgay:'' })} className="px-3 py-1.5 text-xs border rounded hover:bg-gray-50">Xóa lọc</button></div>) : (<div className="rounded-lg border border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-500">Chưa có phiếu xuất kho nào</div>);})()
         ) : (
-          paginatedIssues.map((issue) => {
+          displayIssues.map((issue) => {
             const lines = getWarehouseSlipLines(issue);
             return (
               <div key={issue.id} className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
@@ -396,16 +360,25 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                 </div>
                 <div className="mt-1 text-xs text-gray-500">{new Date(issue.ngayXuat).toLocaleDateString('vi-VN')} · {issue.tenNhanVien}{(issue as any).nguoiDeNghi ? ` · ${(issue as any).nguoiDeNghi}` : ''}</div>
                 <div className="mt-2 space-y-2">
-                  {lines.map((line: any, li) => (
-                    <div key={line.id ?? li} className="rounded border border-gray-100 bg-gray-50 px-2.5 py-2">
+                  {lines.map((line: any, li) => {
+                    const isOver = line.soLuongYeuCau != null && line.soLuongThucTe != null && line.soLuongYeuCau !== line.soLuongThucTe && (() => { const p = Number(line.soLuongYeuCau), a = Number(line.soLuongThucTe); if (!p) return a !== 0; return Math.abs(a-p)/Math.abs(p) > 0.1; })();
+                    return (
+                    <div key={line.id ?? li} className={`rounded border px-2.5 py-2 ${isOver ? 'border-amber-200 bg-amber-50' : 'border-gray-100 bg-gray-50'}`}>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-xs font-semibold text-blue-700">{displayMaHang(line)}</span>
-                        <span className="rounded bg-white px-1.5 py-0.5 text-xs text-gray-600">{displayLoaiKho(line)}</span>
+                        <span className="font-mono text-xs font-semibold text-blue-700 break-words">{displayMaHang(line)}</span>
+                        <span className="rounded bg-white px-1.5 py-0.5 text-xs text-gray-600 shrink-0">{displayLoaiKho(line)}</span>
                       </div>
-                      <div className="text-sm font-medium text-gray-900">{line.tenSanPham || '-'}</div>
-                      <div className="text-xs text-gray-500">{line.tenLo ? `Lô ${line.tenLo}` : ''}{line.maKien ? ` · Kiện ${line.maKien}` : ''} · {line.soLuongThucTe} {line.donViTinh || ''}</div>
+                      <div className="text-sm font-medium text-gray-900 line-clamp-2 break-words">{line.tenSanPham || '-'}</div>
+                      <div className="text-xs text-gray-500 break-words">{line.tenKho ? `Kho ${line.tenKho} · ` : ''}{line.tenLo ? `Lô ${line.tenLo}` : ''}{line.maKien ? ` · Kiện ${line.maKien}` : ''} · {line.soLuongThucTe} {line.donViTinh || ''}</div>
+                      {(line.tinhTrang || line.quyCach) && (
+                        <div className="mt-1 flex flex-wrap gap-1.5 text-xs">
+                          {line.tinhTrang && <span className="rounded bg-white px-1.5 py-0.5 text-gray-600 border border-gray-200 break-words">{line.tinhTrang}</span>}
+                          {line.quyCach && <span className="rounded bg-white px-1.5 py-0.5 text-gray-600 border border-gray-200 break-words">{line.quyCach}</span>}
+                        </div>
+                      )}
+                      {isOver && <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">⚠ KH {line.soLuongYeuCau} → TT {line.soLuongThucTe}</div>}
                     </div>
-                  ))}
+                    );})}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   <button onClick={() => handleViewDetail(issue)} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700">Chi tiết</button>
@@ -414,7 +387,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                   {!issue.isLocked && (
                     <>
                       <button onClick={() => setEditingIssue(issue)} className="rounded border border-amber-200 px-2.5 py-1 text-xs text-amber-700">Sửa</button>
-                      <button onClick={() => handleDelete(issue)} className="rounded border border-red-200 px-2.5 py-1 text-xs text-red-700">Xóa</button>
+                      <button onClick={() => setDeleteTarget(issue)} className="rounded border border-red-200 px-2.5 py-1 text-xs text-red-700">Xóa</button>
                     </>
                   )}
                 </div>
@@ -425,16 +398,17 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
       </div>
 
       {totalPages > 1 && (
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
+        <nav aria-label="Phân trang phiếu xuất" className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
           <span className="text-sm text-gray-600">
-            Hiển thị {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, filteredIssues.length)} / {filteredIssues.length} phiếu
-            <span className="ml-2 text-xs text-gray-400">({paginatedIssues.reduce((count, issue) => count + getWarehouseSlipLines(issue).length, 0)} dòng)</span>
+            Hiển thị {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, total)} / {total} phiếu
+            <span className="ml-2 text-xs text-gray-400">({displayIssues.reduce((count, issue) => count + getWarehouseSlipLines(issue).length, 0)} dòng)</span>
           </span>
           <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
             <button
+              type="button"
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-1.5 min-h-[32px] text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Trước
             </button>
@@ -444,8 +418,11 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                 <React.Fragment key={page}>
                   {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
                   <button
+                    type="button"
+                    aria-current={page === currentPage ? 'page' : undefined}
+                    aria-label={`Trang ${page}`}
                     onClick={() => setCurrentPage(page)}
-                    className={`px-3 py-1.5 text-sm rounded-md ${
+                    className={`px-3 py-1.5 min-h-[32px] min-w-[32px] text-sm rounded-md ${
                       page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
                     }`}
                   >
@@ -454,14 +431,15 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                 </React.Fragment>
               ))}
             <button
+              type="button"
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-1.5 min-h-[32px] text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Sau
             </button>
           </div>
-        </div>
+        </nav>
       )}
 
       {/* Detail Modal */}
@@ -579,8 +557,8 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                             <td className="px-2 py-1.5 border">{item.tenSanPham || '-'}</td>
                             <td className="px-2 py-1.5 border text-center">{item.soLoKeHoach ?? '-'}</td>
                             <td className="px-2 py-1.5 border text-center">{item.soLoThucTe ?? item.tenLo ?? '-'}</td>
-                            <td className="px-2 py-1.5 border font-mono text-xs">{(() => { try { const a = JSON.parse(item.soKienKeHoach); if (Array.isArray(a)) return a.join(', '); } catch {} return item.soKienKeHoach ?? '-'; })()}</td>
-                            <td className="px-2 py-1.5 border font-mono text-xs">{(() => { try { const a = JSON.parse(item.soKienThucTe); if (Array.isArray(a)) return a.join(', '); } catch {} return item.soKienThucTe ?? item.maKien ?? '-'; })()}</td>
+                            <td className="px-2 py-1.5 border font-mono text-xs">{(() => { try { const a = JSON.parse(item.soKienKeHoach); if (Array.isArray(a)) return a.join(', '); } catch { void 0; } return item.soKienKeHoach ?? '-'; })()}</td>
+                            <td className="px-2 py-1.5 border font-mono text-xs">{(() => { try { const a = JSON.parse(item.soKienThucTe); if (Array.isArray(a)) return a.join(', '); } catch { void 0; } return item.soKienThucTe ?? item.maKien ?? '-'; })()}</td>
                             <td className="px-2 py-1.5 border">{item.tinhTrang ?? '-'}</td>
                             <td className="px-2 py-1.5 border">{item.quyCach ?? '-'}</td>
                             <td className="px-2 py-1.5 border text-center">{item.donViTinh || '-'}</td>
@@ -615,8 +593,8 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                         <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                           <dt className="text-gray-500">Số lô KH</dt><dd className="text-right">{item.soLoKeHoach ?? '-'}</dd>
                           <dt className="text-gray-500">Số lô TT</dt><dd className="text-right">{item.soLoThucTe ?? item.tenLo ?? '-'}</dd>
-                          <dt className="text-gray-500">Số kiện KH</dt><dd className="text-right font-mono text-xs">{(() => { try { const a = JSON.parse(item.soKienKeHoach); if (Array.isArray(a)) return a.join(', '); } catch {} return item.soKienKeHoach ?? '-'; })()}</dd>
-                          <dt className="text-gray-500">Số kiện TT</dt><dd className="text-right font-mono text-xs">{(() => { try { const a = JSON.parse(item.soKienThucTe); if (Array.isArray(a)) return a.join(', '); } catch {} return item.soKienThucTe ?? item.maKien ?? '-'; })()}</dd>
+                          <dt className="text-gray-500">Số kiện KH</dt><dd className="text-right font-mono text-xs">{(() => { try { const a = JSON.parse(item.soKienKeHoach); if (Array.isArray(a)) return a.join(', '); } catch { void 0; } return item.soKienKeHoach ?? '-'; })()}</dd>
+                          <dt className="text-gray-500">Số kiện TT</dt><dd className="text-right font-mono text-xs">{(() => { try { const a = JSON.parse(item.soKienThucTe); if (Array.isArray(a)) return a.join(', '); } catch { void 0; } return item.soKienThucTe ?? item.maKien ?? '-'; })()}</dd>
                           <dt className="text-gray-500">Tình trạng</dt><dd className="text-right">{item.tinhTrang ?? '-'}</dd>
                           <dt className="text-gray-500">Quy cách</dt><dd className="text-right">{item.quyCach ?? '-'}</dd>
                           <dt className="text-gray-500">ĐV</dt><dd className="text-right">{item.donViTinh || '-'}</dd>
@@ -719,6 +697,32 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
           queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
         }}
       />
+
+      <CancelWithReasonModal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        ticketLabel={`phiếu xuất ${deleteTarget?.maPhieuXuat ?? ''}`}
+        description="Hành động này sẽ xóa phiếu và hoàn tác số tồn liên quan. Không thể hoàn tác."
+        loading={deleting}
+      />
+      <Modal isOpen={showBulkConfirm} onClose={()=>setShowBulkConfirm(false)} ariaLabel="Xác nhận xuất tổng hợp">
+        <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-1rem)] max-w-md p-6" onClick={e=>e.stopPropagation()}>
+          <h3 className="font-semibold text-gray-900 mb-2">Xuất tổng hợp {displayIssues.length} phiếu?</h3>
+          <p className="text-sm text-gray-600 mb-4">Tải Excel cho từng phiếu đang hiển thị (trang hiện tại).</p>
+          <div className="flex justify-end gap-2">
+            <button onClick={()=>setShowBulkConfirm(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm">Hủy</button>
+            <button disabled={bulkExporting} onClick={async()=>{
+              setBulkExporting(true);
+              let ok=0,fail=0;
+              for(const r of displayIssues){ try{ await warehouseIssueService.exportXlsx((r as any).id); ok++; } catch{ fail++; } }
+              setBulkExporting(false); setShowBulkConfirm(false);
+              if(fail>0) toast.error(`Xuất xong ${ok}/${displayIssues.length} phiếu, ${fail} lỗi`);
+              else toast.success(`Đã xuất ${ok} phiếu`);
+            }} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">{bulkExporting?'Đang xuất...':'Xác nhận'}</button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

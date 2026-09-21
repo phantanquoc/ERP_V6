@@ -8,7 +8,6 @@ import CancelWithReasonModal from '../common/CancelWithReasonModal';
 import CreateWarehouseIssueModal from '../CreateWarehouseIssueModal';
 import PlanLogHistory from './PlanLogHistory';
 import { formatDateInAppTz } from '../../utils/dateUtils';
-import { useDebounce } from '../../hooks/useDebounce';
 import { useWarehouses } from '../../hooks/useWarehouses';
 import { resolvePlanBadge } from '../../utils/warehousePlanBadges';
 
@@ -41,8 +40,7 @@ const OutboundPlanTab: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', trangThai: '', warehouseId: '' });
-  const debouncedSearch = useDebounce(filterValues._search, 300);
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', trangThai: '', warehouseId: '', fromNgay: '', toNgay: '' });
   const [sortKey, setSortKey] = useState<SortKey>('createdAt');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [editingPlan, setEditingPlan] = useState<OutboundPlan | null>(null);
@@ -58,6 +56,8 @@ const OutboundPlanTab: React.FC = () => {
   // sang overdueOnly để filter thực sự trả về dòng nào đó, thay vì luôn rỗng.
   const isOverdueFilter = filterValues.trangThai === 'Quá hạn';
 
+  const dateRangeInvalid = !!(filterValues.fromNgay && filterValues.toNgay && filterValues.fromNgay > filterValues.toNgay);
+
   const { data: warehousesData } = useWarehouses();
   const warehouseOptions = useMemo(() => {
     const raw = (warehousesData as any)?.data ?? warehousesData;
@@ -70,10 +70,12 @@ const OutboundPlanTab: React.FC = () => {
     setLoadError(null);
     try {
       const res = await outboundPlanService.getAll({
-        search: debouncedSearch || undefined,
+        search: filterValues._search || undefined,
         trangThai: isOverdueFilter ? undefined : (filterValues.trangThai || undefined),
         overdueOnly: isOverdueFilter || undefined,
         warehouseId: filterValues.warehouseId || undefined,
+        fromNgay: filterValues.fromNgay || undefined,
+        toNgay: filterValues.toNgay || undefined,
         page: currentPage,
         limit: ITEMS_PER_PAGE,
         sortBy: sortKey,
@@ -88,10 +90,10 @@ const OutboundPlanTab: React.FC = () => {
       console.error(e);
       setLoadError(e?.response?.data?.message || e?.message || 'Không tải được danh sách kế hoạch xuất kho');
     } finally { setLoading(false); }
-  }, [debouncedSearch, filterValues.trangThai, filterValues.warehouseId, isOverdueFilter, currentPage, sortKey, sortDir]);
+  }, [filterValues._search, filterValues.trangThai, filterValues.warehouseId, filterValues.fromNgay, filterValues.toNgay, isOverdueFilter, currentPage, sortKey, sortDir]);
 
   useEffect(() => { fetchPlans(); }, [fetchPlans]);
-  useEffect(() => { setCurrentPage(1); }, [debouncedSearch, filterValues.trangThai, filterValues.warehouseId]);
+  useEffect(() => { setCurrentPage(1); }, [filterValues._search, filterValues.trangThai, filterValues.warehouseId, filterValues.fromNgay, filterValues.toNgay]);
   useEffect(() => {
     setCurrentPage((page) => Math.min(Math.max(1, page), Math.max(1, totalPages)));
   }, [totalPages]);
@@ -150,10 +152,13 @@ const OutboundPlanTab: React.FC = () => {
         filters={[
           { key: 'trangThai', label: 'Trạng thái', type: 'select', options: STATUS_FILTERS },
           { key: 'warehouseId', label: 'Kho đích', type: 'select', options: warehouseOptions },
+          { key: 'fromNgay', label: 'Từ ngày hẹn', type: 'date' },
+          { key: 'toNgay', label: 'Đến ngày hẹn', type: 'date' },
         ]}
         values={filterValues}
         onChange={setFilterValues}
         searchPlaceholder="Mã KH / YCCB..."
+        dateRangeInvalid={dateRangeInvalid}
       />
 
       {loadError ? (
@@ -164,88 +169,130 @@ const OutboundPlanTab: React.FC = () => {
           </button>
         </div>
       ) : loading ? <div className="text-sm text-gray-400 py-8 text-center">Đang tải...</div> : plans.length === 0 ? (
-        <div className="text-sm text-gray-400 py-8 text-center border border-dashed rounded-lg">Chưa có kế hoạch xuất kho</div>
+        (() => {
+          const hasActiveFilter = !!(filterValues._search || filterValues.trangThai || filterValues.warehouseId || filterValues.fromNgay || filterValues.toNgay);
+          return hasActiveFilter ? (
+            <div className="flex flex-col items-center gap-3 text-sm text-gray-500 py-8 text-center border border-dashed rounded-lg">
+              <span>Không khớp bộ lọc</span>
+              <button onClick={() => setFilterValues({ _search: '', trangThai: '', warehouseId: '', fromNgay: '', toNgay: '' })} className="px-3 py-1.5 rounded-lg border border-gray-300 text-xs text-gray-600 hover:bg-gray-50">Xóa lọc</button>
+            </div>
+          ) : (
+            <div className="text-sm text-gray-400 py-8 text-center border border-dashed rounded-lg">Chưa có kế hoạch xuất kho</div>
+          );
+        })()
       ) : (
-        <div className="overflow-x-auto bg-white rounded-lg border border-gray-200">
-          <table className="w-full min-w-[900px] text-sm">
-            <thead><tr className="bg-gray-50 border-b text-xs text-gray-500">
-              <th scope="col" className="px-3 py-2 text-left">
-                <button onClick={() => toggleSort('maKeHoach')} className="inline-flex items-center gap-1 hover:text-gray-700">Mã KH {sortIcon('maKeHoach')}</button>
-              </th>
-              <th scope="col" className="px-3 py-2 text-left">YCCB</th>
-              <th scope="col" className="px-3 py-2 text-left">Hàng hóa</th>
-              <th scope="col" className="px-3 py-2 text-left">
-                <button onClick={() => toggleSort('ngayDuKien')} className="inline-flex items-center gap-1 hover:text-gray-700">Ngày hẹn {sortIcon('ngayDuKien')}</button>
-              </th>
-              <th scope="col" className="px-3 py-2 text-left">Kho</th>
-              <th scope="col" className="px-3 py-2 text-left">Trạng thái</th>
-              <th scope="col" className="px-3 py-2 text-right">Thao tác</th>
-            </tr></thead>
-            <tbody>
-              {plans.map((p) => {
-                const kho = p.warehouse?.tenKho || '— (tự tạo)';
-                const canEdit = !['Đã xuất', 'Đã hủy'].includes(p.trangThai);
-                const items = p.supplyRequest?.items ?? [];
-                const itemsSummary = items.length === 0 ? '—' : items
-                  .map((it) => `${it.tenGoi} (${it.soLuong} ${it.donViTinh})`)
-                  .join(', ');
-                return (
-                  <tr key={p.id} className="border-b hover:bg-gray-50">
-                    <td className="px-3 py-2 font-mono text-xs font-medium">{p.maKeHoach}</td>
-                    <td className="px-3 py-2 font-mono text-xs">{p.supplyRequest?.maYeuCau || '—'}</td>
-                    <td className="px-3 py-2 text-xs truncate max-w-[220px]" title={itemsSummary}>{itemsSummary}</td>
-                    <td className="px-3 py-2 text-xs whitespace-nowrap">{p.ngayDuKien ? new Date(p.ngayDuKien).toLocaleDateString('vi-VN') : '—'}</td>
-                    <td className="px-3 py-2 text-xs">{kho}</td>
-                    <td className="px-3 py-2">{statusBadge(p)}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center justify-end gap-1">
-                        {canEdit && (
-                          <button onClick={() => setCreateForPlan(p)} title="Tạo phiếu xuất kho từ kế hoạch"
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-600 text-white text-xs hover:bg-blue-700">
-                            <Plus className="w-3 h-3" /> Xuất kho
-                          </button>
-                        )}
-                        {canEdit && (
-                          <button onClick={() => openEdit(p)} title="Sửa ngày hẹn" aria-label={`Sửa ngày hẹn kế hoạch ${p.maKeHoach}`}
-                            className="p-1.5 rounded hover:bg-amber-50 text-amber-600"><Pencil className="w-4 h-4" /></button>
-                        )}
-                        {canEdit && (
-                          <button onClick={() => setCancelPlan(p)} title="Hủy kế hoạch" aria-label={`Hủy kế hoạch ${p.maKeHoach}`}
-                            className="p-1.5 rounded hover:bg-red-50 text-red-600"><XCircle className="w-4 h-4" /></button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="hidden md:block overflow-x-auto bg-white rounded-lg border border-gray-200">
+            <table className="w-full min-w-[900px] text-sm">
+              <thead><tr className="bg-gray-50 border-b text-xs text-gray-500">
+                <th scope="col" aria-sort={sortKey === 'maKeHoach' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-3 py-2 text-left">
+                  <button type="button" aria-label="Sắp xếp theo mã kế hoạch" onClick={() => toggleSort('maKeHoach')} className="inline-flex items-center gap-1 hover:text-gray-700">Mã KH {sortIcon('maKeHoach')}</button>
+                </th>
+                <th scope="col" className="px-3 py-2 text-left">YCCB</th>
+                <th scope="col" className="px-3 py-2 text-left">Hàng hóa</th>
+                <th scope="col" aria-sort={sortKey === 'ngayDuKien' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-3 py-2 text-left">
+                  <button type="button" aria-label="Sắp xếp theo ngày hẹn" onClick={() => toggleSort('ngayDuKien')} className="inline-flex items-center gap-1 hover:text-gray-700">Ngày hẹn {sortIcon('ngayDuKien')}</button>
+                </th>
+                <th scope="col" className="px-3 py-2 text-left">Kho</th>
+                <th scope="col" className="px-3 py-2 text-left">Trạng thái</th>
+                <th scope="col" className="px-3 py-2 text-right">Thao tác</th>
+              </tr></thead>
+              <tbody>
+                {plans.map((p) => {
+                  const kho = p.warehouse?.tenKho || '— (tự tạo)';
+                  const canEdit = !['Đã xuất', 'Đã hủy'].includes(p.trangThai);
+                  const items = p.supplyRequest?.items ?? [];
+                  const itemsSummary = items.length === 0 ? '—' : items
+                    .map((it) => `${it.tenGoi} (${it.soLuong} ${it.donViTinh})`)
+                    .join(', ');
+                  return (
+                    <tr key={p.id} className="border-b hover:bg-gray-50">
+                      <td className="px-3 py-2 font-mono text-xs font-medium">{p.maKeHoach}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{p.supplyRequest?.maYeuCau || '—'}</td>
+                      <td className="px-3 py-2 text-xs truncate max-w-[220px]" title={itemsSummary}>{itemsSummary}</td>
+                      <td className="px-3 py-2 text-xs whitespace-nowrap">{p.ngayDuKien ? new Date(p.ngayDuKien).toLocaleDateString('vi-VN') : '—'}</td>
+                      <td className="px-3 py-2 text-xs">{kho}</td>
+                      <td className="px-3 py-2">{statusBadge(p)}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center justify-end gap-1">
+                          {canEdit && (
+                            <button onClick={() => setCreateForPlan(p)} title="Tạo phiếu xuất kho từ kế hoạch"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-600 text-white text-xs hover:bg-blue-700">
+                              <Plus className="w-3 h-3" /> Xuất kho
+                            </button>
+                          )}
+                          {canEdit && (
+                            <button type="button" onClick={() => openEdit(p)} title="Sửa ngày hẹn" aria-label={`Sửa ngày hẹn kế hoạch ${p.maKeHoach}`}
+                              className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 rounded hover:bg-amber-50 text-amber-600"><Pencil className="w-4 h-4" /></button>
+                          )}
+                          {canEdit && (
+                            <button type="button" onClick={() => setCancelPlan(p)} title="Hủy kế hoạch" aria-label={`Hủy kế hoạch ${p.maKeHoach}`}
+                              className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 rounded hover:bg-red-50 text-red-600"><XCircle className="w-4 h-4" /></button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="md:hidden space-y-3">
+            {plans.map((p) => {
+              const kho = p.warehouse?.tenKho || '— (tự tạo)';
+              const canEdit = !['Đã xuất', 'Đã hủy'].includes(p.trangThai);
+              const items = p.supplyRequest?.items ?? [];
+              const itemsSummary = items.length === 0 ? '—' : items.map((it) => `${it.tenGoi} (${it.soLuong} ${it.donViTinh})`).join(', ');
+              return (
+                <div key={p.id} className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-mono text-sm font-semibold text-gray-900">{p.maKeHoach}</span>
+                    {statusBadge(p)}
+                  </div>
+                  <div className="mt-1 text-xs text-gray-500">YCCB {p.supplyRequest?.maYeuCau || '—'} · Kho {kho}</div>
+                  <div className="mt-1 text-xs text-gray-500">Ngày hẹn {p.ngayDuKien ? new Date(p.ngayDuKien).toLocaleDateString('vi-VN') : '—'}</div>
+                  <div className="mt-2 rounded border border-gray-100 bg-gray-50 px-2.5 py-2 text-xs text-gray-700 truncate" title={itemsSummary}>{itemsSummary}</div>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {canEdit && (
+                      <button onClick={() => setCreateForPlan(p)} className="inline-flex items-center gap-1 rounded bg-blue-600 px-2.5 py-1 text-xs text-white hover:bg-blue-700"><Plus className="w-3 h-3" /> Xuất kho</button>
+                    )}
+                    {canEdit && (
+                      <button onClick={() => openEdit(p)} aria-label={`Sửa ngày hẹn kế hoạch ${p.maKeHoach}`} className="rounded border border-amber-200 px-2.5 py-1 text-xs text-amber-700">Sửa ngày hẹn</button>
+                    )}
+                    {canEdit && (
+                      <button onClick={() => setCancelPlan(p)} aria-label={`Hủy kế hoạch ${p.maKeHoach}`} className="rounded border border-red-200 px-2.5 py-1 text-xs text-red-700">Hủy</button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {!loadError && !loading && totalPages > 1 && (
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-2">
+        <nav aria-label="Phân trang kế hoạch xuất" className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-2">
           <span className="text-sm text-gray-600">
             Hiển thị {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, total)} / {total} kế hoạch
           </span>
           <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-            <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}
+            <button type="button" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}
               className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Trước</button>
             {Array.from({ length: totalPages }, (_, i) => i + 1)
               .filter((page) => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
               .map((page, idx, arr) => (
                 <React.Fragment key={page}>
                   {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
-                  <button onClick={() => setCurrentPage(page)}
+                  <button type="button" aria-current={page === currentPage ? 'page' : undefined} aria-label={`Trang ${page}`} onClick={() => setCurrentPage(page)}
                     className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}>
                     {page}
                   </button>
                 </React.Fragment>
               ))}
-            <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
+            <button type="button" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
               className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Sau</button>
           </div>
-        </div>
+        </nav>
       )}
 
       <Modal isOpen={!!editingPlan} onClose={() => setEditingPlan(null)} showBackdrop closeOnBackdrop>

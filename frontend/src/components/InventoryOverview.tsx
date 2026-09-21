@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ChevronDown, ChevronRight, Package, Download, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { ChevronDown, ChevronRight, Package, Download, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, RefreshCw } from 'lucide-react';
 import TableFilter, { FilterField } from './TableFilter';
 import { useInventoryOverview } from '../hooks/useInventory';
 import { useWarehouses } from '../hooks/useWarehouses';
@@ -59,7 +59,7 @@ const InventoryOverview: React.FC = () => {
     limit: pageSize,
   }), [filterValues, currentPage, pageSize, sortField, sortOrder]);
 
-  const { data, isLoading, error } = useInventoryOverview(apiParams);
+  const { data, isLoading, error, refetch } = useInventoryOverview(apiParams);
 
   const items = data?.data ?? [];
   const pagination = data?.pagination;
@@ -129,11 +129,13 @@ const InventoryOverview: React.FC = () => {
   };
 
   const totalProducts = pagination?.total ?? 0;
-  const lowStockCount = items.filter((item) => item.tongTonKho > 0 && item.tongTonKho <= LOW_STOCK_THRESHOLD).length;
-  const tongGiaTriTon = useMemo(
-    () => items.reduce((s, it: any) => s + ((it.giaTriTon ?? 0) as number), 0),
-    [items],
-  );
+  const summary = (data as any)?.summary as { lowStockCount: number; tongGiaTriTon: number } | null | undefined;
+  const lowStockCount = summary != null
+    ? summary.lowStockCount
+    : items.filter((item) => item.tongTonKho > 0 && item.tongTonKho <= LOW_STOCK_THRESHOLD).length;
+  const tongGiaTriTon = summary != null
+    ? summary.tongGiaTriTon
+    : items.reduce((s, it: any) => s + ((it.giaTriTon ?? 0) as number), 0);
 
   const handleExport = () => {
     const headers = ['Mã hàng', 'Tên hàng', 'Loại', 'ĐVT', 'Tồn kho', 'Giá TB (đ)', 'Giá trị tồn (đ)'];
@@ -174,7 +176,7 @@ const InventoryOverview: React.FC = () => {
         <button
           onClick={handleExport}
           disabled={items.length === 0}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-blue-300 text-blue-700 rounded hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Download className="w-4 h-4" />
           Xuất CSV
@@ -210,60 +212,63 @@ const InventoryOverview: React.FC = () => {
         searchPlaceholder="Tìm kiếm theo mã hoặc tên hàng hóa..."
       />
 
-      {/* Error */}
-      {error && (
-        <div className="mt-4 mb-4 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          <span>Không thể tải dữ liệu tồn kho</span>
+      {/* Error / Loading / Empty / Table — unified chain matching InboundPlanTab */}
+      {error ? (
+        <div className="mt-4 flex items-center justify-between gap-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+          <span className="flex items-center gap-2"><AlertTriangle className="w-4 h-4 flex-shrink-0" /> {(error as any)?.message || 'Không thể tải dữ liệu tồn kho'}</span>
+          <button onClick={() => refetch()} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs hover:bg-red-700 flex-shrink-0">
+            <RefreshCw className="w-3 h-3" /> Thử lại
+          </button>
         </div>
-      )}
-
-      {/* Loading skeleton */}
-      {isLoading && (
-        <div className="mt-4 space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />
-          ))}
-        </div>
-      )}
-
-      {/* Table */}
-      {!isLoading && (
+      ) : isLoading ? (
+        <div className="mt-4 text-sm text-gray-400 py-8 text-center">Đang tải...</div>
+      ) : items.length === 0 ? (
+        (() => {
+          const hasActiveFilter = !!(filterValues._search || filterValues.loaiSanPham || filterValues.warehouseId || filterValues.donViTinh || filterValues.stockStatus);
+          return hasActiveFilter ? (
+            <div className="mt-4 flex flex-col items-center gap-3 text-sm text-gray-500 py-8 text-center border border-dashed rounded-lg">
+              <span>Không khớp bộ lọc</span>
+              <button
+                onClick={() => setFilterValues({ _search: '', loaiSanPham: '', warehouseId: '', donViTinh: '', stockStatus: '' })}
+                className="px-3 py-1.5 rounded-lg border border-gray-300 text-xs text-gray-600 hover:bg-gray-50"
+              >
+                Xóa lọc
+              </button>
+            </div>
+          ) : (
+            <div className="mt-4 text-sm text-gray-400 py-8 text-center border border-dashed rounded-lg">Chưa có hàng hóa tồn kho</div>
+          );
+        })()
+      ) : (
         <div className="mt-4 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[860px] border-collapse">
               <thead>
                 <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
                   <th scope="col" className="px-3 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200 w-8"></th>
-                  <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200 cursor-pointer select-none" onClick={() => handleSort('maSanPham')}>
-                    Mã hàng <SortIcon field="maSanPham" />
+                  <th scope="col" aria-sort={sortField === 'maSanPham' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">
+                    <button type="button" onClick={() => handleSort('maSanPham')} className="inline-flex items-center gap-1">Mã hàng <SortIcon field="maSanPham" /></button>
                   </th>
-                  <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200 cursor-pointer select-none" onClick={() => handleSort('tenSanPham')}>
-                    Tên hàng <SortIcon field="tenSanPham" />
+                  <th scope="col" aria-sort={sortField === 'tenSanPham' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">
+                    <button type="button" onClick={() => handleSort('tenSanPham')} className="inline-flex items-center gap-1">Tên hàng <SortIcon field="tenSanPham" /></button>
                   </th>
-                  <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200 cursor-pointer select-none" onClick={() => handleSort('loaiSanPham')}>
-                    Loại <SortIcon field="loaiSanPham" />
+                  <th scope="col" aria-sort={sortField === 'loaiSanPham' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">
+                    <button type="button" onClick={() => handleSort('loaiSanPham')} className="inline-flex items-center gap-1">Loại <SortIcon field="loaiSanPham" /></button>
                   </th>
                   <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">ĐVT</th>
-                  <th scope="col" className="px-4 py-3 text-right text-sm font-semibold text-gray-900 border-r border-gray-200 cursor-pointer select-none" onClick={() => handleSort('tongTonKho')}>
-                    Tồn kho <SortIcon field="tongTonKho" />
+                  <th scope="col" aria-sort={sortField === 'tongTonKho' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-4 py-3 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">
+                    <button type="button" onClick={() => handleSort('tongTonKho')} className="inline-flex items-center gap-1 ml-auto">Tồn kho <SortIcon field="tongTonKho" /></button>
                   </th>
-                  <th scope="col" className="px-4 py-3 text-right text-sm font-semibold text-gray-900 border-r border-gray-200 cursor-pointer select-none" onClick={() => handleSort('giaThanhTB')}>
-                    Giá TB <SortIcon field="giaThanhTB" />
+                  <th scope="col" aria-sort={sortField === 'giaThanhTB' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-4 py-3 text-right text-sm font-semibold text-gray-900 border-r border-gray-200">
+                    <button type="button" onClick={() => handleSort('giaThanhTB')} className="inline-flex items-center gap-1 ml-auto">Giá TB <SortIcon field="giaThanhTB" /></button>
                   </th>
-                  <th scope="col" className="px-4 py-3 text-right text-sm font-semibold text-gray-900 cursor-pointer select-none" onClick={() => handleSort('giaTriTon')}>
-                    Giá trị tồn <SortIcon field="giaTriTon" />
+                  <th scope="col" aria-sort={sortField === 'giaTriTon' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-4 py-3 text-right text-sm font-semibold text-gray-900">
+                    <button type="button" onClick={() => handleSort('giaTriTon')} className="inline-flex items-center gap-1 ml-auto">Giá trị tồn <SortIcon field="giaTriTon" /></button>
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {items.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
-                      Không có hàng hóa nào có tồn kho
-                    </td>
-                  </tr>
-                ) : (
-                  items.map((item) => {
+                {items.map((item) => {
                     const isExpanded = expandedRows.has(item.id);
                     const hasDetails = item.chiTietTheoKho.length > 0;
 
@@ -334,8 +339,7 @@ const InventoryOverview: React.FC = () => {
                         )}
                       </React.Fragment>
                     );
-                  })
-                )}
+                  })}
               </tbody>
             </table>
           </div>
@@ -362,11 +366,12 @@ const InventoryOverview: React.FC = () => {
             </select>
           </div>
           {pagination.totalPages > 1 && (
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+            <nav aria-label="Phân trang tồn kho" className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
               <button
+                type="button"
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={pagination.page === 1}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 min-h-[32px] text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Trước
               </button>
@@ -376,8 +381,11 @@ const InventoryOverview: React.FC = () => {
                   <React.Fragment key={page}>
                     {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
                     <button
+                      type="button"
+                      aria-current={page === pagination.page ? 'page' : undefined}
+                      aria-label={`Trang ${page}`}
                       onClick={() => setCurrentPage(page)}
-                      className={`px-3 py-1.5 text-sm rounded-md ${
+                      className={`px-3 py-1.5 min-h-[32px] min-w-[32px] text-sm rounded-md ${
                         page === pagination.page ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
                       }`}
                     >
@@ -386,13 +394,14 @@ const InventoryOverview: React.FC = () => {
                   </React.Fragment>
                 ))}
               <button
+                type="button"
                 onClick={() => setCurrentPage((p) => Math.min(pagination.totalPages, p + 1))}
                 disabled={pagination.page === pagination.totalPages}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 min-h-[32px] text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Sau
               </button>
-            </div>
+            </nav>
           )}
         </div>
       )}
