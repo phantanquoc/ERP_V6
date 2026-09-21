@@ -24,6 +24,17 @@ export const MUC_DICH_PRESETS = [
   'Nhập trả lại',
 ] as const;
 
+export const BO_PHAN_OPTIONS = [
+  { value: 'Bộ phận tổng hợp', label: 'Bộ phận tổng hợp' },
+  { value: 'Bộ phận chất lượng', label: 'Bộ phận chất lượng' },
+  { value: 'Bộ phận kinh doanh', label: 'Bộ phận kinh doanh' },
+  { value: 'Bộ phận kế toán', label: 'Bộ phận kế toán' },
+  { value: 'Bộ phận thu mua', label: 'Bộ phận thu mua' },
+  { value: 'Bộ phận sản xuất', label: 'Bộ phận sản xuất' },
+  { value: 'Bộ phận kỹ thuật', label: 'Bộ phận kỹ thuật' },
+  { value: 'Ban quản trị', label: 'Ban quản trị' },
+] as const;
+
 export const COMPANY_HEADER = {
   name: 'CÔNG TY TNHH THỰC PHẨM QUỐC TẾ AN BÌNH',
   address: 'Số 58, đường 3, thôn 4, Đức Hạnh, Đức Linh, Bình Thuận, Việt Nam',

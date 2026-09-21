@@ -103,8 +103,8 @@ const warehouseReceiptService = {
     return apiClient.post('/warehouse-receipts', data);
   },
 
-  getAllWarehouseReceipts: async () => {
-    return apiClient.get('/warehouse-receipts');
+  getAllWarehouseReceipts: async (params?: Record<string, unknown>) => {
+    return apiClient.get('/warehouse-receipts', { params: params as Record<string, string> });
   },
 
   getWarehouseReceiptById: async (id: string) => {
@@ -115,8 +115,8 @@ const warehouseReceiptService = {
     return apiClient.put(`/warehouse-receipts/${id}`, data);
   },
 
-  deleteWarehouseReceipt: async (id: string) => {
-    return apiClient.delete(`/warehouse-receipts/${id}`);
+  deleteWarehouseReceipt: async (id: string, data?: { lyDo?: string }) => {
+    return apiClient.delete(`/warehouse-receipts/${id}`, { data } as any);
   },
 
   markPrinted: async (id: string) => {

@@ -1,5 +1,6 @@
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback, useId } from 'react';
 import { Search, SlidersHorizontal, X, ChevronDown } from 'lucide-react';
+import { useDebounce } from '../hooks/useDebounce';
 
 export interface FilterField {
   key: string;
@@ -49,6 +50,8 @@ const FilterCombobox: React.FC<FilterComboboxProps> = ({
   placeholder = 'Tất cả',
   allowFreeValue = false,
 }) => {
+  const comboId = useId();
+  const listboxId = `${comboId}-listbox`;
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -108,6 +111,12 @@ const FilterCombobox: React.FC<FilterComboboxProps> = ({
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setHighlightedIndex(prev => Math.max(prev - 1, 0));
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      setHighlightedIndex(0);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      setHighlightedIndex(entries.length - 1);
     } else if (e.key === 'Enter') {
       e.preventDefault();
       if (highlightedIndex >= 0 && entries[highlightedIndex]) {
@@ -139,6 +148,8 @@ const FilterCombobox: React.FC<FilterComboboxProps> = ({
           aria-haspopup="listbox"
           aria-autocomplete="list"
           autoComplete="off"
+          aria-controls={listboxId}
+          aria-activedescendant={highlightedIndex >= 0 ? `${listboxId}-opt-${highlightedIndex}` : undefined}
           value={isOpen ? query : selectedLabel}
           placeholder={selectedLabel || placeholder}
           onChange={(e) => {
@@ -175,11 +186,13 @@ const FilterCombobox: React.FC<FilterComboboxProps> = ({
         entries.length > 0 ? (
           <ul
             ref={listRef}
+            id={listboxId}
             role="listbox"
             className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded shadow-lg max-h-48 overflow-y-auto"
           >
             {entries.map((opt, index) => (
               <li
+                id={`${listboxId}-opt-${index}`}
                 key={opt.value || '__all__'}
                 role="option"
                 aria-selected={opt.value === value}
@@ -212,6 +225,7 @@ interface TableFilterProps {
   values: Record<string, string>;
   onChange: (values: Record<string, string>) => void;
   searchPlaceholder?: string;
+  dateRangeInvalid?: boolean;
 }
 
 const TableFilter: React.FC<TableFilterProps> = ({
@@ -219,15 +233,35 @@ const TableFilter: React.FC<TableFilterProps> = ({
   values,
   onChange,
   searchPlaceholder = 'Tìm kiếm tất cả...',
+  dateRangeInvalid = false,
 }) => {
   const [showFilters, setShowFilters] = useState(false);
+
+  // Debounce _search 300ms: local draft, propagate after delay (W15)
+  const [searchDraft, setSearchDraft] = useState(values._search || '');
+  const debouncedDraft = useDebounce(searchDraft, 300);
+
+  // Sync when parent clears/sets _search externally (e.g. Xóa lọc)
+  useEffect(() => {
+    if ((values._search || '') !== searchDraft && (values._search || '') !== debouncedDraft) {
+      setSearchDraft(values._search || '');
+    }
+  }, [values._search, searchDraft, debouncedDraft]);
+
+  useEffect(() => {
+    if (debouncedDraft !== (values._search || '')) {
+      onChange({ ...values, _search: debouncedDraft });
+    }
+    // values/onChange intentionally not in deps — only sync when debouncedDraft vs _search diverges
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedDraft, values._search]);
 
   const activeFilters = useMemo(() => {
     return Object.entries(values).filter(([key, val]) => val !== '' && key !== '_search');
   }, [values]);
 
   const handleSearchChange = (value: string) => {
-    onChange({ ...values, _search: value });
+    setSearchDraft(value);
   };
 
   const handleFilterChange = (key: string, value: string) => {
@@ -270,22 +304,21 @@ const TableFilter: React.FC<TableFilterProps> = ({
       {/* Search bar + Filter toggle */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 w-3.5 h-3.5" />
+          <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 w-3.5 h-3.5" aria-hidden="true" />
           <input
             type="text"
+            aria-label={searchPlaceholder}
             placeholder={searchPlaceholder}
-            value={values._search || ''}
+            value={searchDraft}
             onChange={(e) => handleSearchChange(e.target.value)}
             className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-xs"
           />
         </div>
         <button
           onClick={() => setShowFilters(!showFilters)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-md text-xs font-medium transition-colors ${
-            showFilters || activeFilters.length > 0
-              ? 'border-blue-500 bg-blue-50 text-blue-700'
-              : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-          }`}
+          disabled={dateRangeInvalid}
+          title={dateRangeInvalid ? 'Khoảng ngày không hợp lệ — sửa "Từ ngày"/"Đến ngày" trước khi lọc' : undefined}
+          className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-md text-xs font-medium transition-colors ${dateRangeInvalid ? 'opacity-50 cursor-not-allowed border-amber-300 bg-amber-50 text-amber-700' : showFilters || activeFilters.length > 0 ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
         >
           <SlidersHorizontal className="w-3.5 h-3.5" />
           Bộ lọc
@@ -305,6 +338,12 @@ const TableFilter: React.FC<TableFilterProps> = ({
           </button>
         )}
       </div>
+
+      {dateRangeInvalid && (
+        <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800" role="alert">
+          Khoảng ngày không hợp lệ: "Từ ngày" đang sau "Đến ngày" — bộ lọc ngày đang tạm bỏ qua (fail-open). Đổi lại hai mốc ngày để lọc theo ngày.
+        </div>
+      )}
 
       {/* Filter panel */}
       {showFilters && (
@@ -369,8 +408,10 @@ const TableFilter: React.FC<TableFilterProps> = ({
             >
               {getFilterLabel(key)}: {getValueLabel(key, value)}
               <button
+                type="button"
+                aria-label={`Xóa bộ lọc ${getFilterLabel(key)}`}
                 onClick={() => handleRemoveFilter(key)}
-                className="ml-0.5 hover:text-blue-900 transition-colors"
+                className="ml-0.5 inline-flex items-center justify-center min-h-[32px] min-w-[32px] -my-1 hover:text-blue-900 transition-colors"
               >
                 <X className="w-2.5 h-2.5" />
               </button>

@@ -97,8 +97,8 @@ const warehouseIssueService = {
     return apiClient.post('/warehouse-issues', data);
   },
 
-  getAllWarehouseIssues: async () => {
-    return apiClient.get('/warehouse-issues');
+  getAllWarehouseIssues: async (params?: Record<string, unknown>) => {
+    return apiClient.get('/warehouse-issues', { params: params as Record<string, string> });
   },
 
   getWarehouseIssueById: async (id: string) => {
@@ -109,8 +109,8 @@ const warehouseIssueService = {
     return apiClient.put(`/warehouse-issues/${id}`, data);
   },
 
-  deleteWarehouseIssue: async (id: string) => {
-    return apiClient.delete(`/warehouse-issues/${id}`);
+  deleteWarehouseIssue: async (id: string, data?: { lyDo?: string }) => {
+    return apiClient.delete(`/warehouse-issues/${id}`, { data } as any);
   },
 
   markPrinted: async (id: string) => {

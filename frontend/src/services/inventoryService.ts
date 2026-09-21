@@ -45,6 +45,7 @@ export interface InventoryOverviewResponse {
     total: number;
     totalPages: number;
   };
+  summary: { lowStockCount: number; tongGiaTriTon: number } | null;
 }
 
 const inventoryService = {

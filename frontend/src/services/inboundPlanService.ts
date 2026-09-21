@@ -23,7 +23,7 @@ export interface InboundPlan {
     warehouseId?: string | null;
   } | null;
   warehouse?: { id: string; tenKho: string; maKho: string } | null;
-  receipts?: { id: string; maPhieuNhap: string; ngayNhap: string }[];
+  receipts?: { id: string; maPhieuNhap: string; ngayNhap: string; tongSoLuongThucTe?: number }[];
   logs?: {
     id: string;
     hanhDong: string;
