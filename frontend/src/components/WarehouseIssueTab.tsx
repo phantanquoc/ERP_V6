@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Plus, FileText, Eye, Pencil, Trash2, Printer, Ban, RotateCcw } from 'lucide-react';
 import TableFilter, { FilterField } from './TableFilter';
@@ -12,7 +12,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import warehouseIssueService, { WarehouseIssue } from '../services/warehouseIssueService';
 import { displayLoaiKho, displayMaHang, getUniqueSlipField, getWarehouseSlipLines, normalizeWarehouseListResponse } from '../utils/warehouseSlipLines';
 import { warehouseKeys, useWarehouses } from '../hooks';
-import { useDebounce } from '../hooks/useDebounce';
 import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
 import { TINH_TRANG_OPTIONS, BO_PHAN_OPTIONS } from '../constants/warehouseCatalogs';
 
@@ -36,10 +35,10 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
   const [deleting, setDeleting] = useState(false);
   const [voidTarget, setVoidTarget] = useState<WarehouseIssue | null>(null);
   const [voiding, setVoiding] = useState(false);
+  const reqIdRef = useRef(0);
   const ITEMS_PER_PAGE = 10;
   const [currentPage, setCurrentPage] = useState(1);
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maPhieuXuat: '', tenNhanVien: '', nguoiDeNghi: '', boPhan: '', warehouseId: '', tinhTrang: '', daIn: '', isVoided: '', fromNgay: '', toNgay: '' });
-  const debouncedSearch = useDebounce(filterValues._search, 300);
   const [sortKey, setSortKey] = useState<'ngayXuat' | 'maPhieuXuat'>('ngayXuat');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [showBulkConfirm, setShowBulkConfirm] = useState(false);
@@ -91,6 +90,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
   };
 
   const fetchIssues = useCallback(async () => {
+    const cur = ++reqIdRef.current;
     const _dateInvalid = !!(dateRangeInvalid);
     setLoading(true);
     setLoadError(null);
@@ -98,7 +98,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
       const response = await warehouseIssueService.getAllWarehouseIssues({
         page: currentPage,
         limit: ITEMS_PER_PAGE,
-        search: debouncedSearch || undefined,
+        search: filterValues._search || undefined,
         warehouseId: filterValues.warehouseId || undefined,
         fromNgay: _dateInvalid ? undefined : (filterValues.fromNgay || undefined),
         toNgay: _dateInvalid ? undefined : (filterValues.toNgay || undefined),
@@ -113,6 +113,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
         daIn: filterValues.daIn || undefined,
         isVoided: filterValues.isVoided || undefined,
       } as any) as any;
+      if (cur !== reqIdRef.current) return;
       const payload = response?.data;
       const data = payload?.data ?? payload;
       const pagination = payload?.pagination;
@@ -126,15 +127,16 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
         setTotalPages(pagination?.totalPages ?? Math.max(1, Math.ceil((pagination?.total ?? 0) / ITEMS_PER_PAGE)));
       }
     } catch (error: any) {
+      if (cur !== reqIdRef.current) return;
       console.error('Error fetching issues:', error);
       setLoadError(error.response?.data?.message || 'Không thể tải danh sách phiếu xuất kho');
     } finally {
-      setLoading(false);
+      if (cur === reqIdRef.current) setLoading(false);
     }
-  }, [currentPage, dateRangeInvalid, debouncedSearch, filterValues.warehouseId, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuXuat, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, filterValues.isVoided, sortKey, sortDir]);
+  }, [currentPage, dateRangeInvalid, filterValues._search, filterValues.warehouseId, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuXuat, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, filterValues.isVoided, sortKey, sortDir, month, year]);
 
   useEffect(() => { fetchIssues(); }, [fetchIssues]);
-  useEffect(() => { setCurrentPage(1); }, [debouncedSearch, filterValues.warehouseId, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuXuat, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, filterValues.isVoided, sortKey, sortDir]);
+  useEffect(() => { setCurrentPage(1); }, [filterValues._search, filterValues.warehouseId, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuXuat, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, filterValues.isVoided, sortKey, sortDir, month, year]);
 
   const handleDelete = async (lyDo: string) => {
     if (!deleteTarget) return;

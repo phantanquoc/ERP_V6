@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Plus, FileText, Eye, Pencil, Trash2, Printer, Ban, RotateCcw } from 'lucide-react';
 import Modal from './Modal';
@@ -46,6 +46,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [showBulkConfirm, setShowBulkConfirm] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
+  const reqIdRef = useRef(0);
   const { data: warehousesRaw } = useWarehouses();
   // useWarehouses returns the unwrapped body, whose shape the service leaves
   // untyped — normalize to an array the same way the sibling tabs do.
@@ -106,6 +107,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
   };
 
   const fetchReceipts = useCallback(async () => {
+    const cur = ++reqIdRef.current;
     const _dateInvalid = !!(dateRangeError);
     setLoading(true);
     setLoadError(null);
@@ -128,6 +130,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
         daIn: filterValues.daIn || undefined,
         isVoided: filterValues.isVoided || undefined,
       } as any) as any;
+      if (cur !== reqIdRef.current) return;
       const payload = response?.data;
       const data = payload?.data ?? payload;
       const pagination = payload?.pagination;
@@ -142,12 +145,13 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
         setTotalPages(pagination?.totalPages ?? Math.max(1, Math.ceil((pagination?.total ?? 0) / ITEMS_PER_PAGE)));
       }
     } catch (error: any) {
+      if (cur !== reqIdRef.current) return;
       console.error('Error fetching receipts:', error);
       setLoadError(error.response?.data?.message || 'Không thể tải danh sách phiếu nhập kho');
     } finally {
-      setLoading(false);
+      if (cur === reqIdRef.current) setLoading(false);
     }
-  }, [currentPage, dateRangeError, filterValues._search, warehouseIdFromName, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuNhap, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, filterValues.isVoided, sortKey, sortDir]);
+  }, [currentPage, dateRangeError, filterValues._search, warehouseIdFromName, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuNhap, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, filterValues.isVoided, sortKey, sortDir, month, year]);
 
   /** Stock figures live in React Query; invalidating is enough to refresh them. */
   const refreshInventoryCaches = useCallback(() => {
