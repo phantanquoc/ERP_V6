@@ -100,6 +100,9 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
   const [completedPurchaseRequests, setCompletedPurchaseRequests] = useState<NonNullable<SupplyRequest['purchaseRequests']>>([]);
   /** Purchased quantity keyed by normalized product name — drives the "đã mua" hint + client-side cap. */
   const [purchasedByItem, setPurchasedByItem] = useState<Record<string, number>>({});
+  /** Remaining qty per YCMH id — null = chưa tính, 0 = đã nhập đủ */
+  const [remainingByPrId, setRemainingByPrId] = useState<Record<string, number | null>>({});
+  const [remainingLoading, setRemainingLoading] = useState(false);
 
   const handleNguoiDeNghiChange = (name: string) => {
     setNguoiDeNghi(name);
@@ -235,6 +238,44 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
       const prs = supplyRequest?.purchaseRequests ?? [];
       const completedPrs = prs.filter((pr) => pr.trangThai === 'Hoàn thành' && pr.items?.length);
       setCompletedPurchaseRequests(completedPrs);
+      // Async: fetch remaining per PR to disable fully-received options
+      if (completedPrs.length > 0) {
+        setRemainingLoading(true);
+        const nameKey = (v: unknown) => String(v ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+        Promise.all(completedPrs.map(async (pr) => {
+          try {
+            const res: any = await warehouseReceiptService.getAllWarehouseReceipts({ purchaseRequestId: pr.id, limit: 100 } as any);
+            const list: any[] = res?.data?.data ?? res?.data ?? [];
+            const already: Record<string, number> = {};
+            for (const r of list) {
+              if ((r as any).isVoided) continue;
+              for (const it of (r as any).items ?? []) {
+                const k = nameKey(it.tenSanPham);
+                if (!k) continue;
+                already[k] = (already[k] ?? 0) + Number(it.soLuongThucTe ?? 0);
+              }
+            }
+            let remaining = Infinity;
+            for (const it of (pr.items ?? [])) {
+              const k = nameKey((it as any).tenHangHoa);
+              const bought = Number((it as any).soLuong ?? 0);
+              const got = already[k] ?? 0;
+              remaining = Math.min(remaining, bought - got);
+            }
+            if (!isFinite(remaining)) remaining = 0;
+            return { id: pr.id, remaining: Math.max(0, remaining) };
+          } catch { return { id: pr.id, remaining: null as number | null }; }
+        })).then((pairs) => {
+          if (cancelled) return;
+          const map: Record<string, number | null> = {};
+          for (const p of pairs) map[p.id] = p.remaining;
+          setRemainingByPrId(map);
+          setRemainingLoading(false);
+        });
+      } else {
+        setRemainingByPrId({});
+        setRemainingLoading(false);
+      }
       const primary = completedPrs[0] as (typeof prs)[number] | undefined;
       let completedPr = primary;
       if (linkedPurchaseRequestId) {
@@ -245,8 +286,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
         setLinkedPurchaseRequestId(primary?.id ?? null);
       }
       if (completedPr) {
-        // Receive exactly what was bought on the selected batch. Hand-added lines
-        // that the supply request never mentioned are covered because the PR has them.
+        // If selected PR is already fully received, keep it selected but submit will be blocked by BE guard
         applyPurchasePr(completedPr.id);
         return;
       }
@@ -400,6 +440,12 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
     if (emptyKienNoProductIndex >= 0) {
       const rowNumber = rows.indexOf(submittedRows[emptyKienNoProductIndex]) + 1;
       alert(`Dòng ${rowNumber}: Kiện được chọn đang trống — hãy nhập/tên hàng hóa để gắn hàng hóa vào kiện`);
+      return;
+    }
+
+    // Fully received YCMH — block client-side with clear message (BE also blocks)
+    if (linkedPurchaseRequestId && remainingByPrId[linkedPurchaseRequestId] === 0) {
+      alert('Yêu cầu mua hàng này đã nhập đủ — không thể tạo thêm phiếu. Tạo YCMH mới nếu cần nhập thêm.');
       return;
     }
 
@@ -557,13 +603,26 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
                 onChange={(event) => handlePurchasePrChange(event.target.value)}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white"
               >
-                {(completedPurchaseRequests ?? []).map((pr) => (
-                  <option key={pr.id} value={pr.id}>{pr.maYeuCau} — {pr.items?.length ?? 0} dòng</option>
-                ))}
+                {(completedPurchaseRequests ?? []).map((pr) => {
+                  const rem = remainingByPrId[pr.id];
+                  const isFull = rem !== null && rem !== undefined && rem <= 0;
+                  return <option key={pr.id} value={pr.id} disabled={isFull}>{pr.maYeuCau} — {pr.items?.length ?? 0} dòng{rem !== null && rem !== undefined ? (isFull ? ' — đã nhập đủ ✓' : ` — còn ${rem}`) : ''}</option>;
+                })}
               </select>
               <p className="mt-1 text-xs text-indigo-800">
                 Yêu cầu này được mua thành {completedPurchaseRequests?.length} đợt đã hoàn thành — mỗi phiếu nhập tương ứng một yêu cầu mua hàng. Đổi đợt sẽ nạp lại danh sách dòng.
               </p>
+              {remainingLoading && <p className="mt-1 text-xs text-gray-500">Đang kiểm tra số lượng đã nhập...</p>}
+              {(() => {
+                const allFull = completedPurchaseRequests.length > 0 && completedPurchaseRequests.every((pr) => remainingByPrId[pr.id] === 0);
+                return allFull ? <p className="mt-2 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1">Tất cả đợt đã nhập đủ — không thể tạo thêm phiếu cho yêu cầu này. Tạo YCMH mới nếu cần nhập thêm.</p> : null;
+              })()}
+            </div>
+          )}
+          {/* Single completed PR that is already fully received */}
+          {completedPurchaseRequests.length === 1 && remainingByPrId[completedPurchaseRequests[0].id] === 0 && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs font-medium text-red-700">
+              Yêu cầu mua hàng {completedPurchaseRequests[0].maYeuCau} đã nhập đủ — không thể tạo thêm phiếu. Tạo YCMH mới nếu cần nhập thêm.
             </div>
           )}
           {/* What purchasing actually bought — the authority for this slip when a YCMH is completed. */}

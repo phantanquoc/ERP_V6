@@ -596,6 +596,8 @@ class WarehouseReceiptService {
     boPhan?: string;
     tinhTrang?: string;
     daIn?: string | boolean;
+    purchaseRequestId?: string;
+    inboundPlanId?: string;
   }) {
     const pageNum = Math.max(1, parseInt(String(params?.page ?? 1), 10) || 1);
     const limitNum = Math.max(1, Math.min(100, parseInt(String(params?.limit ?? 10), 10) || 10));
@@ -660,6 +662,9 @@ class WarehouseReceiptService {
         ],
       });
     }
+
+    if (params?.purchaseRequestId?.trim()) (where as any).purchaseRequestId = params.purchaseRequestId.trim();
+    if (params?.inboundPlanId?.trim()) (where as any).inboundPlanId = params.inboundPlanId.trim();
 
     if (andClauses.length > 0) (where as any).AND = andClauses;
 
@@ -782,6 +787,7 @@ class WarehouseReceiptService {
     purchaseRequestId: string,
     normalized: CreateReceiptInput,
     effectiveItems: ReceiptLineInput[],
+    opts?: { excludeReceiptId?: string },
   ): Promise<void> {
     const pr = await client.purchaseRequest.findUnique({
       where: { id: purchaseRequestId },
@@ -857,11 +863,53 @@ class WarehouseReceiptService {
     }
 
     const exceeded: string[] = [];
+    // Cumulative guard: sum prior non-voided receipts for same YCMH
+    const priorWhere: Record<string, unknown> = { purchaseRequestId, isVoided: false };
+    if (opts?.excludeReceiptId) (priorWhere as any).id = { not: opts.excludeReceiptId };
+    let priorByKey = new Map<string, number>();
+    try {
+      const priorReceipts = await (client as any).warehouseReceipt.findMany({
+        where: priorWhere,
+        select: { items: { select: { tenSanPham: true, soLuongThucTe: true } } },
+      });
+      for (const r of priorReceipts as any[]) {
+        for (const it of r.items ?? []) {
+          const k = norm(it.tenSanPham);
+          if (!k) continue;
+          priorByKey.set(k, (priorByKey.get(k) ?? 0) + Number(it.soLuongThucTe ?? 0));
+        }
+      }
+    } catch {
+      // best-effort — if model not available on tx delegate, fall back to global prisma (excluding current tx uncommitted row is still safe: it hasn't been written yet)
+      try {
+        const where2: Record<string, unknown> = { purchaseRequestId, isVoided: false };
+        if (opts?.excludeReceiptId) (where2 as any).id = { not: opts.excludeReceiptId };
+        const priorReceipts = await prisma.warehouseReceipt.findMany({
+          where: where2 as any,
+          select: { items: { select: { tenSanPham: true, soLuongThucTe: true } } },
+        } as any);
+        for (const r of priorReceipts as any[]) {
+          for (const it of r.items ?? []) {
+            const k = norm(it.tenSanPham);
+            if (!k) continue;
+            priorByKey.set(k, (priorByKey.get(k) ?? 0) + Number(it.soLuongThucTe ?? 0));
+          }
+        }
+      } catch {}
+    }
+    // If every commodity already fully received, block even before per-line check
+    const allFullyReceived = [...purchased.keys()].every((k) => (priorByKey.get(k) ?? 0) + 1e-9 >= (purchased.get(k)?.qty ?? 0));
+    if (allFullyReceived && purchased.size > 0) {
+      throw new ValidationError(
+        `Yêu cầu mua hàng ${pr.maYeuCau} đã nhập đủ — không thể tạo thêm phiếu`
+      );
+    }
     for (const [key, rec] of received) {
       const bought = purchased.get(key);
       if (!bought) continue;
-      if (rec.qty - bought.qty > 1e-9) {
-        exceeded.push(`${bought.tenHangHoa} (nhập ${rec.qty} ${bought.donViTinh}, mua ${bought.qty} ${bought.donViTinh})`);
+      const already = priorByKey.get(key) ?? 0;
+      if (already + rec.qty - bought.qty > 1e-9) {
+        exceeded.push(`${bought.tenHangHoa} (đã nhập ${already} + thêm ${rec.qty} > mua ${bought.qty} ${bought.donViTinh})`);
       }
     }
     if (exceeded.length > 0) {
@@ -889,18 +937,19 @@ class WarehouseReceiptService {
     // after the guard so an over-receipt can never inherit the SR linkage it was rejected for.
     // A2: cross-check inboundPlan.purchaseRequestId vs purchaseRequestId — no swallow
     const inboundPlanIdRaw = (normalized as any).inboundPlanId as string | undefined;
-    if (inboundPlanIdRaw && normalized.purchaseRequestId) {
-      const plan = await (tx as any).inboundPlan.findUnique({ where: { id: inboundPlanIdRaw }, select: { purchaseRequestId: true } });
+    if (inboundPlanIdRaw) {
+      const plan = await (tx as any).inboundPlan.findUnique({ where: { id: inboundPlanIdRaw }, select: { purchaseRequestId: true, trangThai: true } });
       if (!plan) throw new NotFoundError('Kế hoạch không tồn tại');
-      if (plan.purchaseRequestId !== normalized.purchaseRequestId) {
+      if (plan.trangThai === 'Đã nhập' || plan.trangThai === 'Đã hủy') {
+        throw new ValidationError(`Kế hoạch nhập đã ở trạng thái "${plan.trangThai}" — không thể tạo thêm phiếu`);
+      }
+      if (normalized.purchaseRequestId && plan.purchaseRequestId !== normalized.purchaseRequestId) {
         throw new ValidationError('Kế hoạch nhập không khớp yêu cầu mua hàng đã chọn');
       }
-    } else if (inboundPlanIdRaw && !normalized.purchaseRequestId) {
-      // inboundPlan linked but no PR on slip — still verify plan exists so stale id fails fast
-      const plan = await (tx as any).inboundPlan.findUnique({ where: { id: inboundPlanIdRaw }, select: { id: true } });
-      if (!plan) throw new NotFoundError('Kế hoạch không tồn tại');
     }
     if (normalized.purchaseRequestId) {
+      // Serialize concurrent receipts for same YCMH
+      try { await tx.$queryRaw`SELECT id FROM business.purchase_requests WHERE id = ${normalized.purchaseRequestId} FOR UPDATE`; } catch {}
       await this.assertMatchesPurchaseRequest(tx, normalized.purchaseRequestId, normalized, effective);
       if (!normalized.supplyRequestId) {
         try {
@@ -1127,6 +1176,7 @@ class WarehouseReceiptService {
           existing.purchaseRequestId,
           { employeeId: existing.employeeId, items } as CreateReceiptInput,
           items,
+          { excludeReceiptId: id },
         );
       }
 
@@ -1571,9 +1621,26 @@ class WarehouseReceiptService {
       const existing = await tx.warehouseReceipt.findUnique({ where: { id }, include: { items: true } });
       if (!existing) throw new NotFoundError('Không tìm thấy phiếu nhập kho');
       if (!(existing as any).isVoided) throw new ConflictError('Phiếu chưa vô hiệu');
-      const stored = (existing as any).items ?? [] as any[];
-      if (stored.length > 0) {
-        const totalsByPackage = this.sumByPackage(stored);
+      // Guard: restoring this voided receipt must not exceed YCMH purchased qty
+      const storedForGuard = (existing as any).items ?? [] as any[];
+      if ((existing as any).purchaseRequestId) {
+        const eff: ReceiptLineInput[] = storedForGuard.map((it: any) => ({
+          tenSanPham: it.tenSanPham, soLuongThucTe: Number(it.soLuongThucTe ?? 0), donViTinh: it.donViTinh,
+          warehouseId: it.warehouseId, lotId: it.lotId,
+        }));
+        const prId = (existing as any).purchaseRequestId as string;
+        try { await tx.$queryRaw`SELECT id FROM business.purchase_requests WHERE id = ${prId} FOR UPDATE`; } catch {}
+        await this.assertMatchesPurchaseRequest(tx, prId, { purchaseRequestId: prId } as any, eff, { excludeReceiptId: id });
+      }
+      const inboundPlanId = (existing as any).inboundPlanId as string | undefined;
+      if (inboundPlanId) {
+        const plan = await (tx as any).inboundPlan.findUnique({ where: { id: inboundPlanId }, select: { trangThai: true } });
+        if (plan && (plan.trangThai === 'Đã nhập' || plan.trangThai === 'Đã hủy')) {
+          throw new ValidationError(`Kế hoạch nhập đã ở trạng thái "${plan.trangThai}" — không thể khôi phục phiếu`);
+        }
+      }
+      if (storedForGuard.length > 0) {
+        const totalsByPackage = this.sumByPackage(storedForGuard);
         for (const [lotProductId, qty] of totalsByPackage) {
           await tx.lotProduct.update({ where: { id: lotProductId }, data: { soLuong: { increment: qty } } });
         }

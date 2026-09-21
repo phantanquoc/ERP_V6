@@ -76,9 +76,11 @@ export const getAllWarehouseReceipts = async (req: Request, res: Response, next:
       daIn: req.query.daIn as string | undefined,
       includeVoided: req.query.includeVoided as string | undefined,
       isVoided: req.query.isVoided as string | undefined,
+      purchaseRequestId: req.query.purchaseRequestId as string | undefined,
+      inboundPlanId: req.query.inboundPlanId as string | undefined,
     } as any);
     // Backward compat: no pagination params → return bare array like before
-    const hasPaging = req.query.page !== undefined || req.query.limit !== undefined || req.query.search !== undefined || req.query.warehouseId !== undefined || req.query.fromNgay !== undefined || req.query.toNgay !== undefined || req.query.sortBy !== undefined || req.query.sortOrder !== undefined || req.query.warehouse !== undefined || req.query.sortKey !== undefined || req.query.sortDir !== undefined || req.query.maPhieu !== undefined || req.query.maPhieuNhap !== undefined || req.query.tenNhanVien !== undefined || req.query.nguoiDeNghi !== undefined || req.query.boPhan !== undefined || req.query.tinhTrang !== undefined || req.query.daIn !== undefined || req.query.isVoided !== undefined || req.query.includeVoided !== undefined;
+    const hasPaging = req.query.page !== undefined || req.query.limit !== undefined || req.query.search !== undefined || req.query.warehouseId !== undefined || req.query.fromNgay !== undefined || req.query.toNgay !== undefined || req.query.sortBy !== undefined || req.query.sortOrder !== undefined || req.query.warehouse !== undefined || req.query.sortKey !== undefined || req.query.sortDir !== undefined || req.query.maPhieu !== undefined || req.query.maPhieuNhap !== undefined || req.query.tenNhanVien !== undefined || req.query.nguoiDeNghi !== undefined || req.query.boPhan !== undefined || req.query.tinhTrang !== undefined || req.query.daIn !== undefined || req.query.isVoided !== undefined || req.query.includeVoided !== undefined || req.query.purchaseRequestId !== undefined || req.query.inboundPlanId !== undefined;
     if (!hasPaging) {
       res.status(200).json({ success: true, data: result.data });
       return;
