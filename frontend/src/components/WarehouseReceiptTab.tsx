@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Plus, FileText, Eye, Pencil, Trash2, Printer } from 'lucide-react';
+import { Plus, FileText, Eye, Pencil, Trash2, Printer, Ban, RotateCcw } from 'lucide-react';
 import Modal from './Modal';
 import CancelWithReasonModal from './common/CancelWithReasonModal';
 import WarehouseSlipPrintView from './WarehouseSlipPrintView';
@@ -361,9 +361,9 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                                 <span className="ml-1 inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs text-green-700" title="Đã in/xuất">Đã in</span>
                               )}
                               {(receipt as any).isVoided ? (
-                                <button onClick={() => handleUnvoid(receipt.id)} className="inline-flex items-center justify-center min-h-[32px] px-2 py-1 text-xs text-green-700 border border-green-200 rounded hover:bg-green-50" title="Khôi phục">Khôi phục</button>
+                                <button onClick={() => handleUnvoid(receipt.id)} className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors" title="Khôi phục"><RotateCcw className="w-5 h-5" /></button>
                               ) : (
-                                <button onClick={() => setVoidTarget(receipt)} className="inline-flex items-center justify-center min-h-[32px] px-2 py-1 text-xs text-red-700 border border-red-200 rounded hover:bg-red-50" title="Vô hiệu hóa">Vô hiệu</button>
+                                <button onClick={() => setVoidTarget(receipt)} className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors" title="Vô hiệu hóa"><Ban className="w-5 h-5" /></button>
                               )}
                               {!receipt.isLocked && !((receipt as any).isVoided) && (
                                 <>
@@ -443,7 +443,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                   <button onClick={() => handleViewDetail(receipt)} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700">Chi tiết</button>
                   <button onClick={() => { setPrintReceipt(receipt); setShowPrintView(true); }} className="rounded border border-green-200 px-2.5 py-1 text-xs text-green-700">In</button>
                   <button onClick={async () => { try { await warehouseReceiptService.exportXlsx(receipt.id); } catch (e: any) { toast.error(e.message || 'Lỗi xuất Excel'); } }} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700">Excel</button>
-                  {(receipt as any).isVoided ? <button onClick={() => handleUnvoid(receipt.id)} className="rounded border border-green-200 px-2.5 py-1 text-xs text-green-700">Khôi phục</button> : <button onClick={() => setVoidTarget(receipt)} className="rounded border border-red-200 px-2.5 py-1 text-xs text-red-700">Vô hiệu</button>}
+                  {(receipt as any).isVoided ? <button onClick={() => handleUnvoid(receipt.id)} className="inline-flex items-center gap-1 rounded border border-green-200 px-2.5 py-1 text-xs text-green-700"><RotateCcw className="w-3.5 h-3.5" /> Khôi phục</button> : <button onClick={() => setVoidTarget(receipt)} className="inline-flex items-center gap-1 rounded border border-red-200 px-2.5 py-1 text-xs text-red-700"><Ban className="w-3.5 h-3.5" /> Vô hiệu</button>}
                   {!receipt.isLocked && !((receipt as any).isVoided) && (
                     <>
                       <button onClick={() => setEditingReceipt(receipt)} className="rounded border border-amber-200 px-2.5 py-1 text-xs text-amber-700">Sửa</button>

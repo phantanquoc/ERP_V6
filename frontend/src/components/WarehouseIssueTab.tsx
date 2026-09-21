@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Plus, FileText, Eye, Pencil, Trash2, Printer } from 'lucide-react';
+import { Plus, FileText, Eye, Pencil, Trash2, Printer, Ban, RotateCcw } from 'lucide-react';
 import TableFilter, { FilterField } from './TableFilter';
 import Modal from './Modal';
 import CancelWithReasonModal from './common/CancelWithReasonModal';
@@ -329,7 +329,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                               {(issue as any).daIn && (
                                 <span className="ml-1 inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs text-green-700" title="Đã in/xuất">Đã in</span>
                               )}
-                              {(issue as any).isVoided ? <button onClick={() => handleUnvoid(issue.id)} className="inline-flex items-center justify-center min-h-[32px] px-2 py-1 text-xs text-green-700 border border-green-200 rounded hover:bg-green-50">Khôi phục</button> : <button onClick={() => setVoidTarget(issue)} className="inline-flex items-center justify-center min-h-[32px] px-2 py-1 text-xs text-red-700 border border-red-200 rounded hover:bg-red-50">Vô hiệu</button>}
+                              {(issue as any).isVoided ? <button onClick={() => handleUnvoid(issue.id)} className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors" title="Khôi phục"><RotateCcw className="w-5 h-5" /></button> : <button onClick={() => setVoidTarget(issue)} className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors" title="Vô hiệu hóa"><Ban className="w-5 h-5" /></button>}
                               {!issue.isLocked && !((issue as any).isVoided) && (
                                 <>
                                   <button
@@ -403,7 +403,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                   <button onClick={() => handleViewDetail(issue)} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700">Chi tiết</button>
                   <button onClick={() => { setPrintIssue(issue); setShowPrintView(true); }} className="rounded border border-green-200 px-2.5 py-1 text-xs text-green-700">In</button>
                   <button onClick={async () => { try { await warehouseIssueService.exportXlsx(issue.id); } catch (e: any) { toast.error(e.message || 'Lỗi xuất Excel'); } }} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700">Excel</button>
-                  {(issue as any).isVoided ? <button onClick={() => handleUnvoid(issue.id)} className="rounded border border-green-200 px-2.5 py-1 text-xs text-green-700">Khôi phục</button> : <button onClick={() => setVoidTarget(issue)} className="rounded border border-red-200 px-2.5 py-1 text-xs text-red-700">Vô hiệu</button>}
+                  {(issue as any).isVoided ? <button onClick={() => handleUnvoid(issue.id)} className="inline-flex items-center gap-1 rounded border border-green-200 px-2.5 py-1 text-xs text-green-700"><RotateCcw className="w-3.5 h-3.5" /> Khôi phục</button> : <button onClick={() => setVoidTarget(issue)} className="inline-flex items-center gap-1 rounded border border-red-200 px-2.5 py-1 text-xs text-red-700"><Ban className="w-3.5 h-3.5" /> Vô hiệu</button>}
                   {!issue.isLocked && !((issue as any).isVoided) && (
                     <>
                       <button onClick={() => setEditingIssue(issue)} className="rounded border border-amber-200 px-2.5 py-1 text-xs text-amber-700">Sửa</button>
