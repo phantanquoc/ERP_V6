@@ -8,6 +8,22 @@ export interface InboundPlanFilters {
   overdueOnly?: boolean;
   sortBy?: string;
   sortDir?: string;
+  fromNgay?: string;
+  toNgay?: string;
+}
+
+function vnStartOfDay(): Date {
+  const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function parseLocalDateVN(s: string): Date {
+  return new Date(s + 'T00:00:00+07:00');
+}
+
+function parseLocalDateVNDayEnd(s: string): Date {
+  return new Date(s + 'T23:59:59.999+07:00');
 }
 
 /** Cột được phép sort — whitelist để query param không đụng tới cột tùy ý. */
@@ -23,6 +39,7 @@ const INBOUND_INCLUDE = {
   purchaseRequest: {
     include: {
       items: true,
+      supplier: { select: { tenNhaCungCap: true } },
       supplyRequest: { select: { id: true, maYeuCau: true, trangThai: true, tenNhanVien: true, boPhan: true } },
       warehouse: { select: { id: true, tenKho: true, maKho: true } },
     },
@@ -42,17 +59,33 @@ async function getAllInboundPlans(
   const where: Record<string, unknown> = {};
 
   if (filters.warehouseId) where.warehouseId = filters.warehouseId;
-  if (filters.overdueOnly && filters.trangThai) {
-    const allowed = ['Chờ nhập', 'Quá hạn'];
-    const raw = String(filters.trangThai).split(',').map((s) => s.trim()).filter(Boolean);
-    const inter = raw.filter((s) => allowed.includes(s));
-    where.ngayDuKien = { lt: new Date() };
-    where.trangThai = inter.length > 0 ? { in: inter } : ({ in: [] as string[] } as any);
-  } else if (filters.overdueOnly) {
-    where.ngayDuKien = { lt: new Date() };
-    where.trangThai = { in: ['Chờ nhập', 'Quá hạn'] };
+  const startOfDay = vnStartOfDay();
+  const hasDateRange = !!(filters.fromNgay || filters.toNgay);
+  // A5: when date range filter is present, skip overdueOnly to avoid contradictory lt+gte on same key
+  if (!hasDateRange) {
+    if (filters.overdueOnly && filters.trangThai) {
+      const allowed = ['Chờ nhập', 'Quá hạn'];
+      const raw = String(filters.trangThai).split(',').map((s) => s.trim()).filter(Boolean);
+      const inter = raw.filter((s) => allowed.includes(s));
+      where.ngayDuKien = { lt: startOfDay };
+      if (inter.length > 0) where.trangThai = { in: inter } as any;
+    } else if (filters.overdueOnly) {
+      where.ngayDuKien = { lt: startOfDay };
+      where.trangThai = { in: ['Chờ nhập', 'Quá hạn'] };
+    } else if (filters.trangThai) {
+      where.trangThai = filters.trangThai;
+    }
   } else if (filters.trangThai) {
     where.trangThai = filters.trangThai;
+  }
+
+  if (filters.fromNgay || filters.toNgay) {
+    const r: Record<string, Date> = {};
+    if (filters.fromNgay) { const d = parseLocalDateVN(filters.fromNgay); if (!isNaN(d.getTime())) r.gte = d; }
+    if (filters.toNgay) { const d = parseLocalDateVNDayEnd(filters.toNgay); if (!isNaN(d.getTime())) r.lte = d; }
+    if (Object.keys(r).length > 0) {
+      (where as any).ngayDuKien = r;
+    }
   }
 
   if (search) {
@@ -104,19 +137,26 @@ async function updateInboundPlan(
   if (isNaN(ngayMoi.getTime())) throw new ValidationError('Ngày hẹn không hợp lệ');
 
   const ngayCu = existing.ngayDuKien;
-  // Đổi ngày hẹn ra tương lai từ trạng thái 'Quá hạn' thì đưa lại 'Chờ nhập' — nếu không,
-  // dòng này bị kẹt đỏ mãi mãi dù người dùng đã dời hẹn thành công (bug A2).
-  const shouldReopen = existing.trangThai === 'Quá hạn' && ngayMoi.getTime() >= Date.now();
+  const snapshotUpdatedAt = (existing as any).updatedAt as Date;
+  // A6: normalize ngayMoi về 00:00 VN để so sánh với vnStartOfDay (không dùng Date.now())
+  const startOfDayMs = vnStartOfDay().getTime();
+  const ngayMoiDayMs = (() => { const d = new Date(ngayMoi); d.setHours(0, 0, 0, 0); return d.getTime(); })();
+  const shouldReopen = existing.trangThai === 'Quá hạn' && ngayMoiDayMs >= startOfDayMs;
 
-  const updated = await prisma.$transaction(async (tx) => {
-    const plan = await tx.inboundPlan.update({
-      where: { id },
-      data: {
-        ngayDuKien: ngayMoi,
-        ngayDuKienMoi: ngayMoi,
-        ...(shouldReopen ? { trangThai: 'Chờ nhập' } : {}),
-      },
+  const updateData: Record<string, unknown> = {
+    ngayDuKien: ngayMoi,
+    ngayDuKienMoi: ngayMoi,
+    ...(shouldReopen ? { trangThai: 'Chờ nhập' } : {}),
+  };
+
+  await prisma.$transaction(async (tx) => {
+    const claimed = await tx.inboundPlan.updateMany({
+      where: { id, trangThai: { in: ['Chờ nhập', 'Quá hạn'] }, updatedAt: snapshotUpdatedAt } as any,
+      data: updateData as any,
     });
+    if (claimed.count === 0) {
+      throw new ValidationError('Dữ liệu đã thay đổi, vui lòng tải lại');
+    }
     await tx.inboundPlanLog.create({
       data: {
         inboundPlanId: id,
@@ -127,10 +167,9 @@ async function updateInboundPlan(
         nguoiThucHien: data.nguoiThucHien ?? null,
       },
     });
-    return plan;
   });
 
-  return prisma.inboundPlan.findUnique({ where: { id: updated.id }, include: INBOUND_INCLUDE as any });
+  return prisma.inboundPlan.findUnique({ where: { id }, include: INBOUND_INCLUDE as any });
 }
 
 async function cancelInboundPlan(
@@ -145,16 +184,18 @@ async function cancelInboundPlan(
   const lyDo = opts.lyDo?.trim();
   if (!lyDo) throw new ValidationError('Vui lòng nhập lý do hủy');
 
-  const claimed = await prisma.inboundPlan.updateMany({
-    where: { id, trangThai: { in: ['Chờ nhập', 'Quá hạn'] } },
-    data: { trangThai: 'Đã hủy', lyDoChenhLech: lyDo },
-  });
-  if (claimed.count === 0) {
-    const cur = await prisma.inboundPlan.findUnique({ where: { id }, select: { trangThai: true } });
-    throw new ValidationError(`Không thể hủy kế hoạch ở trạng thái "${cur?.trangThai ?? existing.trangThai}"`);
-  }
-  await prisma.inboundPlanLog.create({
-    data: { inboundPlanId: id, hanhDong: 'Hủy kế hoạch', lyDo, nguoiThucHien: opts.nguoiThucHien ?? null },
+  await prisma.$transaction(async (tx) => {
+    const claimed = await tx.inboundPlan.updateMany({
+      where: { id, trangThai: { in: ['Chờ nhập', 'Quá hạn'] } },
+      data: { trangThai: 'Đã hủy', lyDoChenhLech: lyDo },
+    });
+    if (claimed.count === 0) {
+      const cur = await tx.inboundPlan.findUnique({ where: { id }, select: { trangThai: true } });
+      throw new ValidationError(`Không thể hủy kế hoạch ở trạng thái "${cur?.trangThai ?? existing.trangThai}"`);
+    }
+    await tx.inboundPlanLog.create({
+      data: { inboundPlanId: id, hanhDong: 'Hủy kế hoạch', lyDo, nguoiThucHien: opts.nguoiThucHien ?? null },
+    });
   });
   return prisma.inboundPlan.findUnique({ where: { id }, include: INBOUND_INCLUDE as any });
 }
@@ -184,19 +225,27 @@ async function markReceived(
     (data as any).lyDoChenhLech = opts.lyDoChenhLech;
   }
 
-  await prisma.inboundPlan.update({ where: { id }, data: data as any });
-
   const logLyDo = isOverdue
     ? `Đánh dấu đã nhập (quá hạn)${opts?.lyDoChenhLech ? `: ${opts.lyDoChenhLech}` : ''}`
     : opts?.lyDoChenhLech ?? (opts?.soLuongThucTe !== undefined ? `SL thực tế: ${opts.soLuongThucTe}` : null);
 
-  await prisma.inboundPlanLog.create({
-    data: {
-      inboundPlanId: id,
-      hanhDong: isOverdue ? 'Đã nhập (quá hạn)' : 'Đã nhập',
-      lyDo: logLyDo,
-      nguoiThucHien: opts?.nguoiThucHien ?? null,
-    },
+  await prisma.$transaction(async (tx) => {
+    const claimed = await tx.inboundPlan.updateMany({
+      where: { id, trangThai: { in: ['Chờ nhập', 'Quá hạn'] } } as any,
+      data: data as any,
+    });
+    if (claimed.count === 0) {
+      const cur = await tx.inboundPlan.findUnique({ where: { id }, select: { trangThai: true } });
+      throw new ValidationError(`Không thể đánh dấu đã nhập khi kế hoạch đã "${cur?.trangThai ?? (plan as any).trangThai}"`);
+    }
+    await tx.inboundPlanLog.create({
+      data: {
+        inboundPlanId: id,
+        hanhDong: isOverdue ? 'Đã nhập (quá hạn)' : 'Đã nhập',
+        lyDo: logLyDo,
+        nguoiThucHien: opts?.nguoiThucHien ?? null,
+      },
+    });
   });
 
   return prisma.inboundPlan.findUnique({ where: { id }, include: INBOUND_INCLUDE as any });

@@ -13,6 +13,8 @@ export const getAllInboundPlans = async (req: Request, res: Response, next: Next
       overdueOnly: req.query.overdueOnly === 'true' || req.query.overdueOnly === '1',
       sortBy: (req.query.sortBy as string) || undefined,
       sortDir: (req.query.sortDir as string) || undefined,
+      fromNgay: (req.query.fromNgay as string) || undefined,
+      toNgay: (req.query.toNgay as string) || undefined,
     };
     const result = await inboundPlanService.getAllInboundPlans(page, limit, search, filters);
     res.json({ success: true, data: result.data, pagination: result.pagination });
