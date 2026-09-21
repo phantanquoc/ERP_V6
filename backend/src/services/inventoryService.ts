@@ -61,6 +61,17 @@ export class InventoryService {
         { maSanPham: { contains: params.search, mode: 'insensitive' as const } },
         { tenSanPham: { contains: params.search, mode: 'insensitive' as const } },
       ];
+      // U4: also match products that have in-stock parcels in a warehouse whose name matches the search.
+      // Cannot OR directly via InternationalProduct relations, so resolve matching productIds first.
+      const wMatch = await prisma.lotProduct.findMany({
+        where: { lot: { warehouse: { tenKho: { contains: params.search, mode: 'insensitive' as const } } } },
+        select: { internationalProductId: true },
+        distinct: ['internationalProductId'],
+      });
+      const warehouseMatchedIds = [...new Set(wMatch.map((r) => r.internationalProductId).filter(Boolean) as string[])];
+      if (warehouseMatchedIds.length > 0) {
+        where.OR.push({ id: { in: warehouseMatchedIds } });
+      }
     }
     if (params.loaiSanPham) {
       where.loaiSanPham = params.loaiSanPham;

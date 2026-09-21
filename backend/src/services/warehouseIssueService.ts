@@ -445,15 +445,20 @@ class WarehouseIssueService {
     boPhan?: string;
     tinhTrang?: string;
     daIn?: string | boolean;
-    includeVoided?: string | boolean;
   }) {
     const pageNum = Math.max(1, parseInt(String(params?.page ?? 1), 10) || 1);
     const limitNum = Math.max(1, Math.min(100, parseInt(String(params?.limit ?? 10), 10) || 10));
     const skip = (pageNum - 1) * limitNum;
     const where: Record<string, unknown> = {};
+    const andClauses: Record<string, unknown>[] = [];
 
-    if (params?.warehouseId) {
-      (where as any).items = { some: { warehouseId: params.warehouseId } };
+    // B2: warehouseId + tinhTrang via explicit AND so both must match
+    if (params?.warehouseId?.trim() && params?.tinhTrang?.trim()) {
+      andClauses.push({ items: { some: { warehouseId: params.warehouseId } } });
+      andClauses.push({ items: { some: { tinhTrang: params.tinhTrang.trim() } } });
+    } else {
+      if (params?.warehouseId?.trim()) andClauses.push({ items: { some: { warehouseId: params.warehouseId } } });
+      if (params?.tinhTrang?.trim()) andClauses.push({ items: { some: { tinhTrang: params.tinhTrang.trim() } } });
     }
 
     if (params?.maPhieu?.trim()) {
@@ -467,18 +472,6 @@ class WarehouseIssueService {
     }
     if (params?.boPhan?.trim()) {
       (where as any).boPhan = { contains: params.boPhan.trim(), mode: 'insensitive' as const };
-    }
-    if (params?.tinhTrang?.trim()) {
-      const tt = params.tinhTrang.trim();
-      if (params?.warehouseId) {
-        (where as any).AND = [
-          { items: { some: { warehouseId: params.warehouseId } } },
-          { items: { some: { tinhTrang: tt } } },
-        ];
-        delete (where as any).items;
-      } else {
-        (where as any).items = { some: { tinhTrang: tt } };
-      }
     }
     if (params?.daIn !== undefined && params?.daIn !== null && String(params.daIn).trim() !== '') {
       const v = String(params.daIn).toLowerCase().trim();
@@ -499,10 +492,10 @@ class WarehouseIssueService {
       if (Object.keys(range).length > 0) (where as any).ngayXuat = range;
     }
 
-    if (params?.search) {
+    if (params?.search?.trim()) {
       const s = params.search.trim();
-      if (s) {
-        (where as any).OR = [
+      andClauses.push({
+        OR: [
           { maPhieuXuat: { contains: s, mode: 'insensitive' as const } },
           { tenNhanVien: { contains: s, mode: 'insensitive' as const } },
           { maNhanVien: { contains: s, mode: 'insensitive' as const } },
@@ -512,9 +505,11 @@ class WarehouseIssueService {
           { items: { some: { maKien: { contains: s, mode: 'insensitive' as const } } } },
           { items: { some: { tenKho: { contains: s, mode: 'insensitive' as const } } } },
           { items: { some: { tenLo: { contains: s, mode: 'insensitive' as const } } } },
-        ];
-      }
+        ],
+      });
     }
+
+    if (andClauses.length > 0) (where as any).AND = andClauses;
 
     // Soft-void filter: default show all (including voided); filter only when isVoided explicitly set
     if (params && 'isVoided' in params && (params as any).isVoided !== undefined && String((params as any).isVoided).trim() !== '') {

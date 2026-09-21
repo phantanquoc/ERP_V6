@@ -209,7 +209,7 @@ const InventoryOverview: React.FC = () => {
         filters={filterFields}
         values={filterValues}
         onChange={handleFilterChange}
-        searchPlaceholder="Tìm kiếm theo mã hoặc tên hàng hóa..."
+        searchPlaceholder="Tìm kiếm theo mã, tên hàng hoặc kho..."
       />
 
       {/* Error / Loading / Empty / Table — unified chain matching InboundPlanTab */}

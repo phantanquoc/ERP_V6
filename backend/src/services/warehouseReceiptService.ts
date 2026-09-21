@@ -596,15 +596,20 @@ class WarehouseReceiptService {
     boPhan?: string;
     tinhTrang?: string;
     daIn?: string | boolean;
-    includeVoided?: string | boolean;
   }) {
     const pageNum = Math.max(1, parseInt(String(params?.page ?? 1), 10) || 1);
     const limitNum = Math.max(1, Math.min(100, parseInt(String(params?.limit ?? 10), 10) || 10));
     const skip = (pageNum - 1) * limitNum;
     const where: Record<string, unknown> = {};
+    const andClauses: Record<string, unknown>[] = [];
 
-    if (params?.warehouseId) {
-      (where as any).items = { some: { warehouseId: params.warehouseId } };
+    // B2: warehouseId + tinhTrang via explicit AND so both must match (avoids overwrite / merge hacks)
+    if (params?.warehouseId?.trim() && params?.tinhTrang?.trim()) {
+      andClauses.push({ items: { some: { warehouseId: params.warehouseId } } });
+      andClauses.push({ items: { some: { tinhTrang: params.tinhTrang.trim() } } });
+    } else {
+      if (params?.warehouseId?.trim()) andClauses.push({ items: { some: { warehouseId: params.warehouseId } } });
+      if (params?.tinhTrang?.trim()) andClauses.push({ items: { some: { tinhTrang: params.tinhTrang.trim() } } });
     }
 
     // B1: server-side column filters so pagination total reflects them (FE was filtering client-side on 10 rows)
@@ -619,18 +624,6 @@ class WarehouseReceiptService {
     }
     if (params?.boPhan?.trim()) {
       (where as any).boPhan = { contains: params.boPhan.trim(), mode: 'insensitive' as const };
-    }
-    if (params?.tinhTrang?.trim()) {
-      const tt = params.tinhTrang.trim();
-      (where as any).items = { ...(where as any).items, some: { ...(where as any).items?.some ?? {}, tinhTrang: tt } };
-      // If warehouseId + tinhTrang both filter items, merge into AND so both must match (different lines may satisfy each alone)
-      if (params?.warehouseId && params?.tinhTrang?.trim()) {
-        (where as any).AND = [
-          { items: { some: { warehouseId: params.warehouseId } } },
-          { items: { some: { tinhTrang: tt } } },
-        ];
-        delete (where as any).items;
-      }
     }
     if (params?.daIn !== undefined && params?.daIn !== null && String(params.daIn).trim() !== '') {
       const v = String(params.daIn).toLowerCase().trim();
@@ -651,10 +644,10 @@ class WarehouseReceiptService {
       if (Object.keys(range).length > 0) (where as any).ngayNhap = range;
     }
 
-    if (params?.search) {
+    if (params?.search?.trim()) {
       const s = params.search.trim();
-      if (s) {
-        (where as any).OR = [
+      andClauses.push({
+        OR: [
           { maPhieuNhap: { contains: s, mode: 'insensitive' as const } },
           { tenNhanVien: { contains: s, mode: 'insensitive' as const } },
           { maNhanVien: { contains: s, mode: 'insensitive' as const } },
@@ -664,9 +657,11 @@ class WarehouseReceiptService {
           { items: { some: { maKien: { contains: s, mode: 'insensitive' as const } } } },
           { items: { some: { tenKho: { contains: s, mode: 'insensitive' as const } } } },
           { items: { some: { tenLo: { contains: s, mode: 'insensitive' as const } } } },
-        ];
-      }
+        ],
+      });
     }
+
+    if (andClauses.length > 0) (where as any).AND = andClauses;
 
     // Soft-void filter: default show all (including voided); filter only when isVoided explicitly set
     if (params && 'isVoided' in params && (params as any).isVoided !== undefined && String((params as any).isVoided).trim() !== '') {
