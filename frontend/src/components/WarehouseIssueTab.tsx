@@ -36,9 +36,8 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
   const [deleting, setDeleting] = useState(false);
   const [voidTarget, setVoidTarget] = useState<WarehouseIssue | null>(null);
   const [voiding, setVoiding] = useState(false);
-  const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
+  const ITEMS_PER_PAGE = 10;
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maPhieuXuat: '', tenNhanVien: '', nguoiDeNghi: '', boPhan: '', warehouseId: '', tinhTrang: '', daIn: '', isVoided: '', fromNgay: '', toNgay: '' });
   const debouncedSearch = useDebounce(filterValues._search, 300);
   const [sortKey, setSortKey] = useState<'ngayXuat' | 'maPhieuXuat'>('ngayXuat');
@@ -98,7 +97,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
     try {
       const response = await warehouseIssueService.getAllWarehouseIssues({
         page: currentPage,
-        limit: pageSize,
+        limit: ITEMS_PER_PAGE,
         search: debouncedSearch || undefined,
         warehouseId: filterValues.warehouseId || undefined,
         fromNgay: _dateInvalid ? undefined : (filterValues.fromNgay || undefined),
@@ -112,7 +111,6 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
         boPhan: filterValues.boPhan?.trim() || undefined,
         tinhTrang: filterValues.tinhTrang?.trim() || undefined,
         daIn: filterValues.daIn || undefined,
-        includeVoided: filterValues.isVoided ? 'true' : undefined,
         isVoided: filterValues.isVoided || undefined,
       } as any) as any;
       const payload = response?.data;
@@ -121,11 +119,11 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
       if (Array.isArray(payload)) {
         setIssues(normalizeWarehouseListResponse<WarehouseIssue>(payload));
         setTotal(payload.length);
-        setTotalPages(Math.ceil(payload.length / pageSize) || 1);
+        setTotalPages(Math.ceil(payload.length / ITEMS_PER_PAGE) || 1);
       } else {
         setIssues(normalizeWarehouseListResponse<WarehouseIssue>(data));
         setTotal(pagination?.total ?? (Array.isArray(data) ? data.length : 0));
-        setTotalPages(pagination?.totalPages ?? Math.max(1, Math.ceil((pagination?.total ?? 0) / pageSize)));
+        setTotalPages(pagination?.totalPages ?? Math.max(1, Math.ceil((pagination?.total ?? 0) / ITEMS_PER_PAGE)));
       }
     } catch (error: any) {
       console.error('Error fetching issues:', error);
@@ -133,7 +131,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
     } finally {
       setLoading(false);
     }
-  }, [currentPage, pageSize, dateRangeInvalid, debouncedSearch, filterValues.warehouseId, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuXuat, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, filterValues.isVoided, sortKey, sortDir]);
+  }, [currentPage, dateRangeInvalid, debouncedSearch, filterValues.warehouseId, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuXuat, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, filterValues.isVoided, sortKey, sortDir]);
 
   useEffect(() => { fetchIssues(); }, [fetchIssues]);
   useEffect(() => { setCurrentPage(1); }, [debouncedSearch, filterValues.warehouseId, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuXuat, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, filterValues.isVoided, sortKey, sortDir]);
@@ -419,56 +417,49 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 mt-4 px-2 py-3 bg-white rounded-lg border border-gray-200">
-        <span className="text-sm text-gray-600">
-          Hiển thị {total === 0 ? 0 : (currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, total)} / {total} mục
-        </span>
-        <label className="flex items-center gap-1.5 text-sm text-gray-600">
-          Số dòng:
-          <select
-            value={pageSize}
-            onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
-            className="rounded-lg border border-gray-300 px-2 py-1 text-sm bg-white"
-          >
-            {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
-        </label>
-        <nav aria-label="Phân trang phiếu xuất" className="flex items-center gap-1.5 ml-auto flex-wrap">
-          <button
-            type="button"
-            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
-            className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Trước
-          </button>
-          {(() => {
-            const pages: number[] = Array.from({ length: totalPages }, (_, i) => i + 1).filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1);
-            return pages.map((page, idx, arr) => (
-              <React.Fragment key={page}>
-                {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400 text-sm">...</span>}
-                <button
-                  type="button"
-                  aria-current={page === currentPage ? 'page' : undefined}
-                  aria-label={`Trang ${page}`}
-                  onClick={() => setCurrentPage(page)}
-                  className={`px-3 py-1.5 min-w-[36px] text-sm rounded-lg border ${page === currentPage ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 hover:bg-gray-50 bg-white'}`}
-                >
-                  {page}
-                </button>
-              </React.Fragment>
-            ));
-          })()}
-          <button
-            type="button"
-            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages || total === 0}
-            className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Sau
-          </button>
+      {totalPages > 1 && (
+        <nav aria-label="Phân trang phiếu xuất" className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
+          <span className="text-sm text-gray-600">
+            Hiển thị {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, total)} / {total} mục
+          </span>
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+            <button
+              type="button"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 min-h-[32px] text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Trước
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+              .map((page, idx, arr) => (
+                <React.Fragment key={page}>
+                  {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
+                  <button
+                    type="button"
+                    aria-current={page === currentPage ? 'page' : undefined}
+                    aria-label={`Trang ${page}`}
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-3 py-1.5 min-h-[32px] min-w-[32px] text-sm rounded-md ${
+                      page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                </React.Fragment>
+              ))}
+            <button
+              type="button"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 min-h-[32px] text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Sau
+            </button>
+          </div>
         </nav>
-      </div>
+      )}
 
       {/* Detail Modal */}
       <Modal isOpen={showDetailModal && !!selectedIssue} onClose={() => setShowDetailModal(false)} showBackdrop closeOnBackdrop={true}>

@@ -516,11 +516,9 @@ class WarehouseIssueService {
       }
     }
 
-    const includeVoided = String(params?.includeVoided ?? '').toLowerCase() === 'true' || (params?.includeVoided as unknown) === true;
-    if (!includeVoided) {
-      (where as any).isVoided = false;
-    } else if (params && 'isVoided' in params && (params as any).isVoided !== undefined && (params as any).isVoided !== '') {
-      const v = String((params as any).isVoided).toLowerCase();
+    // Soft-void filter: default show all (including voided); filter only when isVoided explicitly set
+    if (params && 'isVoided' in params && (params as any).isVoided !== undefined && String((params as any).isVoided).trim() !== '') {
+      const v = String((params as any).isVoided).toLowerCase().trim();
       if (v === 'true' || v === '1') (where as any).isVoided = true;
       else if (v === 'false' || v === '0') (where as any).isVoided = false;
     }
