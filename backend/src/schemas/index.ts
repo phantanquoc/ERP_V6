@@ -610,3 +610,13 @@ export const updateSupplierSchema = z.object({
 export type CreateSupplierInput = z.infer<typeof createSupplierSchema>;
 export type UpdateSupplierInput = z.infer<typeof updateSupplierSchema>;
 
+// ==================== WAREHOUSE VOID SCHEMAS ====================
+export const voidReceiptSchema = z.object({
+  voidReason: z.string().trim().min(1, 'Lý do vô hiệu là bắt buộc').max(500, 'Lý do tối đa 500 ký tự'),
+});
+export const voidIssueSchema = z.object({
+  voidReason: z.string().trim().min(1, 'Lý do vô hiệu là bắt buộc').max(500, 'Lý do tối đa 500 ký tự'),
+});
+export type VoidReceiptInput = z.infer<typeof voidReceiptSchema>;
+export type VoidIssueInput = z.infer<typeof voidIssueSchema>;
+

@@ -45,6 +45,10 @@ export interface WarehouseIssue {
   boPhan?: string | null;
   boPhanId?: string | null;
   lyDoXuatKho?: string | null;
+  isVoided?: boolean;
+  voidReason?: string | null;
+  voidedAt?: string | null;
+  voidedBy?: string | null;
   daIn?: boolean;
   inLanDauAt?: string | null;
   items?: WarehouseIssueLine[];
@@ -118,6 +122,14 @@ const warehouseIssueService = {
 
   markPrinted: async (id: string) => {
     return apiClient.post(`/warehouse-issues/${id}/mark-printed`, {});
+  },
+
+  voidWarehouseIssue: async (id: string, data: { voidReason: string }) => {
+    return apiClient.post(`/warehouse-issues/${id}/void`, data);
+  },
+
+  unvoidWarehouseIssue: async (id: string) => {
+    return apiClient.post(`/warehouse-issues/${id}/unvoid`, {});
   },
 
   exportXlsx: async (id: string) => {

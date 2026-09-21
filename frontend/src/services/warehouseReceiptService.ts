@@ -46,6 +46,10 @@ export interface WarehouseReceipt {
   maNguoiDeNghi?: string | null;
   boPhan?: string | null;
   boPhanId?: string | null;
+  isVoided?: boolean;
+  voidReason?: string | null;
+  voidedAt?: string | null;
+  voidedBy?: string | null;
   daIn?: boolean;
   inLanDauAt?: string | null;
   items?: WarehouseReceiptLine[];
@@ -124,6 +128,14 @@ const warehouseReceiptService = {
 
   markPrinted: async (id: string) => {
     return apiClient.post(`/warehouse-receipts/${id}/mark-printed`, {});
+  },
+
+  voidWarehouseReceipt: async (id: string, data: { voidReason: string }) => {
+    return apiClient.post(`/warehouse-receipts/${id}/void`, data);
+  },
+
+  unvoidWarehouseReceipt: async (id: string) => {
+    return apiClient.post(`/warehouse-receipts/${id}/unvoid`, {});
   },
 
   exportXlsx: async (id: string) => {

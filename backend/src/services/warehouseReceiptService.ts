@@ -596,6 +596,7 @@ class WarehouseReceiptService {
     boPhan?: string;
     tinhTrang?: string;
     daIn?: string | boolean;
+    includeVoided?: string | boolean;
   }) {
     const pageNum = Math.max(1, parseInt(String(params?.page ?? 1), 10) || 1);
     const limitNum = Math.max(1, Math.min(100, parseInt(String(params?.limit ?? 10), 10) || 10));
@@ -665,6 +666,16 @@ class WarehouseReceiptService {
           { items: { some: { tenLo: { contains: s, mode: 'insensitive' as const } } } },
         ];
       }
+    }
+
+    // Soft-void filter: hide voided by default, include when explicitly requested
+    const includeVoided = String(params?.includeVoided ?? '').toLowerCase() === 'true' || (params?.includeVoided as unknown) === true;
+    if (!includeVoided) {
+      (where as any).isVoided = false;
+    } else if (params && 'isVoided' in params && (params as any).isVoided !== undefined && (params as any).isVoided !== '') {
+      const v = String((params as any).isVoided).toLowerCase();
+      if (v === 'true' || v === '1') (where as any).isVoided = true;
+      else if (v === 'false' || v === '0') (where as any).isVoided = false;
     }
 
     const [receipts, total] = await Promise.all([
@@ -1527,6 +1538,60 @@ class WarehouseReceiptService {
         // Kiện mới nhận giá chuẩn của hàng hóa thay vì giữ default DB (100000đ).
         ...(product.giaThanh != null ? { giaThanh: product.giaThanh } : {}),
       },
+    });
+  }
+
+  // ─── Soft-void ────────────────────────────────────────────────────────────
+
+  async void(id: string, opts: { voidReason: string; userId?: string }) {
+    const reason = (opts.voidReason ?? '').trim();
+    if (!reason) throw new ValidationError('Lý do vô hiệu là bắt buộc');
+    return prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM business.warehouse_receipts WHERE id = ${id} FOR UPDATE`;
+      const existing = await tx.warehouseReceipt.findUnique({ where: { id }, include: { items: true } });
+      if (!existing) throw new NotFoundError('Không tìm thấy phiếu nhập kho');
+      if ((existing as any).isVoided) throw new ConflictError('Phiếu đã vô hiệu');
+      const stored = (existing as any).items ?? [] as any[];
+      if (stored.length > 0) {
+        const reversals = this.sumByPackage(stored);
+        const balances = await this.loadBalances(tx, stored.map((l: any) => l.lotProductId));
+        assertSufficientStock(reversals, balances);
+        for (const [lotProductId, qty] of reversals) {
+          const res = await tx.lotProduct.updateMany({ where: { id: lotProductId, soLuong: { gte: qty } }, data: { soLuong: { decrement: qty } } });
+          if (res.count === 0) {
+            const bal = balances.get(lotProductId);
+            throw new ValidationError(`Số lượng tồn kho của ${bal?.tenSanPham ? `"${bal.tenSanPham}"` : `kiện ${lotProductId}`} không đủ. Cần ${qty}, còn ${bal?.soLuong ?? 0}`);
+          }
+        }
+      }
+      const updated = await tx.warehouseReceipt.update({
+        where: { id },
+        data: { isVoided: true, voidReason: reason, voidedAt: new Date(), voidedBy: opts.userId ?? null } as any,
+        include: { items: slipItemInclude, inboundPlan: { select: { lyDoChenhLech: true } } },
+      });
+      return { ...(updated as any), items: resolveSlipItems((updated as any).items), isLocked: !!updated.supplyRequestId };
+    });
+  }
+
+  async unvoid(id: string) {
+    return prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM business.warehouse_receipts WHERE id = ${id} FOR UPDATE`;
+      const existing = await tx.warehouseReceipt.findUnique({ where: { id }, include: { items: true } });
+      if (!existing) throw new NotFoundError('Không tìm thấy phiếu nhập kho');
+      if (!(existing as any).isVoided) throw new ConflictError('Phiếu chưa vô hiệu');
+      const stored = (existing as any).items ?? [] as any[];
+      if (stored.length > 0) {
+        const totalsByPackage = this.sumByPackage(stored);
+        for (const [lotProductId, qty] of totalsByPackage) {
+          await tx.lotProduct.update({ where: { id: lotProductId }, data: { soLuong: { increment: qty } } });
+        }
+      }
+      const updated = await tx.warehouseReceipt.update({
+        where: { id },
+        data: { isVoided: false, voidReason: null, voidedAt: null, voidedBy: null } as any,
+        include: { items: slipItemInclude, inboundPlan: { select: { lyDoChenhLech: true } } },
+      });
+      return { ...(updated as any), items: resolveSlipItems((updated as any).items), isLocked: !!updated.supplyRequestId };
     });
   }
 }

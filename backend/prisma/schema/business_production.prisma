@@ -510,12 +510,18 @@ model WarehouseReceipt {
   boPhanId          String?
   daIn              Boolean                @default(false)
   inLanDauAt        DateTime?
+  // Soft-void (warehouse-void-soft) — keeps record for audit, reverses stock
+  isVoided          Boolean                @default(false)
+  voidReason        String?
+  voidedAt          DateTime?              @db.Timestamptz(6)
+  voidedBy          String?
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
 
   @@index([supplyRequestId])
   @@index([purchaseRequestId])
   @@index([inboundPlanId])
+  @@index([isVoided])
   @@map("warehouse_receipts")
   @@schema("business")
 }
@@ -605,10 +611,16 @@ model WarehouseIssue {
   lyDoXuatKho        String?
   daIn               Boolean              @default(false)
   inLanDauAt         DateTime?
+  // Soft-void (warehouse-void-soft) — keeps record for audit, reverses stock
+  isVoided           Boolean              @default(false)
+  voidReason         String?
+  voidedAt           DateTime?            @db.Timestamptz(6)
+  voidedBy           String?
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
 
   @@index([supplyRequestId])
+  @@index([isVoided])
   @@map("warehouse_issues")
   @@schema("business")
 }

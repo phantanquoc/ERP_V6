@@ -34,9 +34,12 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
   const [editingIssue, setEditingIssue] = useState<WarehouseIssue | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WarehouseIssue | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const ITEMS_PER_PAGE = 10;
+  const [voidTarget, setVoidTarget] = useState<WarehouseIssue | null>(null);
+  const [voiding, setVoiding] = useState(false);
+  const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
   const [currentPage, setCurrentPage] = useState(1);
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maPhieuXuat: '', tenNhanVien: '', nguoiDeNghi: '', boPhan: '', warehouseId: '', tinhTrang: '', daIn: '', fromNgay: '', toNgay: '' });
+  const [pageSize, setPageSize] = useState(20);
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maPhieuXuat: '', tenNhanVien: '', nguoiDeNghi: '', boPhan: '', warehouseId: '', tinhTrang: '', daIn: '', isVoided: '', fromNgay: '', toNgay: '' });
   const debouncedSearch = useDebounce(filterValues._search, 300);
   const [sortKey, setSortKey] = useState<'ngayXuat' | 'maPhieuXuat'>('ngayXuat');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -69,6 +72,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
     { key: 'warehouseId', label: 'Kho', type: 'select', options: warehouseOptions },
     { key: 'tinhTrang', label: 'Tình trạng', type: 'select', options: [...TINH_TRANG_OPTIONS.map((o) => ({ value: o.value, label: o.label }))] },
     { key: 'daIn', label: 'Đã in', type: 'select', options: [{ value: 'true', label: 'Đã in' }, { value: 'false', label: 'Chưa in' }] },
+    { key: 'isVoided', label: 'Đã vô hiệu', type: 'select', options: [{ value: 'true', label: 'Đã vô hiệu' }, { value: 'false', label: 'Hoạt động' }] },
     { key: 'fromNgay', label: 'Từ ngày', type: 'date' },
     { key: 'toNgay', label: 'Đến ngày', type: 'date' },
   ];
@@ -94,7 +98,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
     try {
       const response = await warehouseIssueService.getAllWarehouseIssues({
         page: currentPage,
-        limit: ITEMS_PER_PAGE,
+        limit: pageSize,
         search: debouncedSearch || undefined,
         warehouseId: filterValues.warehouseId || undefined,
         fromNgay: _dateInvalid ? undefined : (filterValues.fromNgay || undefined),
@@ -108,6 +112,8 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
         boPhan: filterValues.boPhan?.trim() || undefined,
         tinhTrang: filterValues.tinhTrang?.trim() || undefined,
         daIn: filterValues.daIn || undefined,
+        includeVoided: filterValues.isVoided ? 'true' : undefined,
+        isVoided: filterValues.isVoided || undefined,
       } as any) as any;
       const payload = response?.data;
       const data = payload?.data ?? payload;
@@ -115,11 +121,11 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
       if (Array.isArray(payload)) {
         setIssues(normalizeWarehouseListResponse<WarehouseIssue>(payload));
         setTotal(payload.length);
-        setTotalPages(Math.ceil(payload.length / ITEMS_PER_PAGE) || 1);
+        setTotalPages(Math.ceil(payload.length / pageSize) || 1);
       } else {
         setIssues(normalizeWarehouseListResponse<WarehouseIssue>(data));
         setTotal(pagination?.total ?? (Array.isArray(data) ? data.length : 0));
-        setTotalPages(pagination?.totalPages ?? Math.max(1, Math.ceil((pagination?.total ?? 0) / ITEMS_PER_PAGE)));
+        setTotalPages(pagination?.totalPages ?? Math.max(1, Math.ceil((pagination?.total ?? 0) / pageSize)));
       }
     } catch (error: any) {
       console.error('Error fetching issues:', error);
@@ -127,10 +133,10 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
     } finally {
       setLoading(false);
     }
-  }, [currentPage, dateRangeInvalid, debouncedSearch, filterValues.warehouseId, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuXuat, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, sortKey, sortDir]);
+  }, [currentPage, pageSize, dateRangeInvalid, debouncedSearch, filterValues.warehouseId, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuXuat, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, filterValues.isVoided, sortKey, sortDir]);
 
   useEffect(() => { fetchIssues(); }, [fetchIssues]);
-  useEffect(() => { setCurrentPage(1); }, [debouncedSearch, filterValues.warehouseId, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuXuat, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, sortKey, sortDir]);
+  useEffect(() => { setCurrentPage(1); }, [debouncedSearch, filterValues.warehouseId, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuXuat, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, filterValues.isVoided, sortKey, sortDir]);
 
   const handleDelete = async (lyDo: string) => {
     if (!deleteTarget) return;
@@ -149,6 +155,12 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
       setDeleting(false);
     }
   };
+  const handleVoid = async (reason: string) => {
+    if (!voidTarget) return;
+    setVoiding(true);
+    try { await warehouseIssueService.voidWarehouseIssue(voidTarget.id, { voidReason: reason }); toast.success('Đã vô hiệu phiếu xuất'); setVoidTarget(null); fetchIssues(); queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() }); queryClient.invalidateQueries({ queryKey: warehouseKeys.lotProducts() }); } catch (e: any) { toast.error(e.response?.data?.message || 'Lỗi khi vô hiệu phiếu'); } finally { setVoiding(false); }
+  };
+  const handleUnvoid = async (id: string) => { try { await warehouseIssueService.unvoidWarehouseIssue(id); toast.success('Đã khôi phục phiếu'); fetchIssues(); queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() }); } catch (e: any) { toast.error(e.response?.data?.message || 'Lỗi khi khôi phục'); } };
 
   const refinedIssues = React.useMemo(() => {
     if (!month && !year) return issues;
@@ -228,7 +240,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
               (()=>{ const hasF = !!(filterValues._search||filterValues.maPhieuXuat||filterValues.tenNhanVien||filterValues.nguoiDeNghi||filterValues.boPhan||filterValues.warehouseId||filterValues.tinhTrang||filterValues.daIn||filterValues.fromNgay||filterValues.toNgay); return (
               <tr>
                 <td colSpan={10} className="px-6 py-4 text-center text-gray-500">
-                  {hasF ? (<span className="inline-flex items-center gap-2">Không khớp bộ lọc <button onClick={()=>setFilterValues({ _search:'',maPhieuXuat:'',tenNhanVien:'',nguoiDeNghi:'',boPhan:'',warehouseId:'',tinhTrang:'',daIn:'',fromNgay:'',toNgay:'' })} className="px-2 py-1 text-xs border rounded hover:bg-gray-50">Xóa lọc</button></span>) : 'Chưa có phiếu xuất kho nào'}
+                  {hasF ? (<span className="inline-flex items-center gap-2">Không khớp bộ lọc <button onClick={()=>setFilterValues({ _search:'',maPhieuXuat:'',tenNhanVien:'',nguoiDeNghi:'',boPhan:'',warehouseId:'',tinhTrang:'',daIn:'',isVoided:'',fromNgay:'',toNgay:'' })} className="px-2 py-1 text-xs border rounded hover:bg-gray-50">Xóa lọc</button></span>) : 'Chưa có phiếu xuất kho nào'}
                 </td>
               </tr>
             );})()
@@ -240,13 +252,14 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                 return (
                   <React.Fragment key={issue.id}>
                     {lines.map((line: any, lineIndex) => {
+                      const isVoidedRow = (issue as any).isVoided;
                       const isOver = line.soLuongYeuCau != null && line.soLuongThucTe != null && Math.abs(Number(line.soLuongYeuCau) - Number(line.soLuongThucTe)) > 1e-9;
-                      const rowHl = isOver ? 'bg-amber-50 hover:bg-amber-100' : `${slipBg} hover:bg-blue-50`;
+                      const rowHl = isVoidedRow ? 'opacity-60 bg-gray-100' : isOver ? 'bg-amber-50 hover:bg-amber-100' : `${slipBg} hover:bg-blue-50`;
                       return (
                       <tr key={line.id ?? lineIndex} className={`${rowHl} transition-colors`}>
                         {lineIndex === 0 && (
                           <td rowSpan={lines.length} className={`px-4 py-3 whitespace-nowrap align-top text-sm font-medium text-gray-900 border-r border-gray-200 ${slipBorder}`}>
-                            {issue.maPhieuXuat}
+                            {issue.maPhieuXuat}{(issue as any).isVoided && <span className="ml-2 inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-gray-700">Đã vô hiệu</span>}
                             {issue.isLocked && (
                               <span className="ml-2 inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700" title={issue.supplyRequestId ? 'Phiếu liên kết yêu cầu cấp vật tư' : 'Phiếu đã khóa, không thể chỉnh sửa hoặc xóa'}>
                                 {issue.supplyRequestId ? 'Đã khóa — yêu cầu cấp vật tư' : 'Đã khóa — chỉ xem/in'}
@@ -318,7 +331,8 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                               {(issue as any).daIn && (
                                 <span className="ml-1 inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs text-green-700" title="Đã in/xuất">Đã in</span>
                               )}
-                              {!issue.isLocked && (
+                              {(issue as any).isVoided ? <button onClick={() => handleUnvoid(issue.id)} className="inline-flex items-center justify-center min-h-[32px] px-2 py-1 text-xs text-green-700 border border-green-200 rounded hover:bg-green-50">Khôi phục</button> : <button onClick={() => setVoidTarget(issue)} className="inline-flex items-center justify-center min-h-[32px] px-2 py-1 text-xs text-red-700 border border-red-200 rounded hover:bg-red-50">Vô hiệu</button>}
+                              {!issue.isLocked && !((issue as any).isVoided) && (
                                 <>
                                   <button
                                     aria-label="Chỉnh sửa phiếu xuất"
@@ -355,14 +369,14 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
       {/* Mobile: one card per slip */}
       <div className="md:hidden space-y-3">
         {displayIssues.length === 0 ? (
-          (()=>{ const hasF2=!!(filterValues._search||filterValues.maPhieuXuat||filterValues.tenNhanVien||filterValues.nguoiDeNghi||filterValues.boPhan||filterValues.warehouseId||filterValues.tinhTrang||filterValues.daIn||filterValues.fromNgay||filterValues.toNgay); return hasF2 ? (<div className="flex flex-col items-center gap-2 rounded-lg border border-dashed bg-white px-4 py-6 text-center text-sm text-gray-500">Không khớp bộ lọc <button onClick={()=>setFilterValues({ _search:'',maPhieuXuat:'',tenNhanVien:'',nguoiDeNghi:'',boPhan:'',warehouseId:'',tinhTrang:'',daIn:'',fromNgay:'',toNgay:'' })} className="px-3 py-1.5 text-xs border rounded hover:bg-gray-50">Xóa lọc</button></div>) : (<div className="rounded-lg border border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-500">Chưa có phiếu xuất kho nào</div>);})()
+          (()=>{ const hasF2=!!(filterValues._search||filterValues.maPhieuXuat||filterValues.tenNhanVien||filterValues.nguoiDeNghi||filterValues.boPhan||filterValues.warehouseId||filterValues.tinhTrang||filterValues.daIn||filterValues.fromNgay||filterValues.toNgay); return hasF2 ? (<div className="flex flex-col items-center gap-2 rounded-lg border border-dashed bg-white px-4 py-6 text-center text-sm text-gray-500">Không khớp bộ lọc <button onClick={()=>setFilterValues({ _search:'',maPhieuXuat:'',tenNhanVien:'',nguoiDeNghi:'',boPhan:'',warehouseId:'',tinhTrang:'',daIn:'',isVoided:'',fromNgay:'',toNgay:'' })} className="px-3 py-1.5 text-xs border rounded hover:bg-gray-50">Xóa lọc</button></div>) : (<div className="rounded-lg border border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-500">Chưa có phiếu xuất kho nào</div>);})()
         ) : (
           displayIssues.map((issue) => {
             const lines = getWarehouseSlipLines(issue);
             return (
-              <div key={issue.id} className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+              <div key={issue.id} className={`rounded-lg border p-3 shadow-sm ${(issue as any).isVoided ? "opacity-60 bg-gray-50 border-red-200" : "border-gray-200 bg-white"}`}>
                 <div className="flex items-start justify-between gap-2">
-                  <span className="font-mono text-sm font-semibold text-gray-900">{issue.maPhieuXuat}{lines.length > 1 && <span className="ml-1 text-xs font-normal text-gray-400">· {lines.length} dòng</span>}</span>
+                  <span className="font-mono text-sm font-semibold text-gray-900">{issue.maPhieuXuat}{(issue as any).isVoided && <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700">Đã vô hiệu</span>}{lines.length > 1 && <span className="ml-1 text-xs font-normal text-gray-400">· {lines.length} dòng</span>}</span>
                   {issue.isLocked ? <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">Đã khóa</span> : (issue as any).daIn ? <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Đã in</span> : null}
                 </div>
                 <div className="mt-1 text-xs text-gray-500">{new Date(issue.ngayXuat).toLocaleDateString('vi-VN')} · {issue.tenNhanVien}{(issue as any).nguoiDeNghi ? ` · ${(issue as any).nguoiDeNghi}` : ''}</div>
@@ -391,7 +405,8 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                   <button onClick={() => handleViewDetail(issue)} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700">Chi tiết</button>
                   <button onClick={() => { setPrintIssue(issue); setShowPrintView(true); }} className="rounded border border-green-200 px-2.5 py-1 text-xs text-green-700">In</button>
                   <button onClick={async () => { try { await warehouseIssueService.exportXlsx(issue.id); } catch (e: any) { toast.error(e.message || 'Lỗi xuất Excel'); } }} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700">Excel</button>
-                  {!issue.isLocked && (
+                  {(issue as any).isVoided ? <button onClick={() => handleUnvoid(issue.id)} className="rounded border border-green-200 px-2.5 py-1 text-xs text-green-700">Khôi phục</button> : <button onClick={() => setVoidTarget(issue)} className="rounded border border-red-200 px-2.5 py-1 text-xs text-red-700">Vô hiệu</button>}
+                  {!issue.isLocked && !((issue as any).isVoided) && (
                     <>
                       <button onClick={() => setEditingIssue(issue)} className="rounded border border-amber-200 px-2.5 py-1 text-xs text-amber-700">Sửa</button>
                       <button onClick={() => setDeleteTarget(issue)} className="rounded border border-red-200 px-2.5 py-1 text-xs text-red-700">Xóa</button>
@@ -404,50 +419,56 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
         )}
       </div>
 
-      {totalPages > 1 && (
-        <nav aria-label="Phân trang phiếu xuất" className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
-          <span className="text-sm text-gray-600">
-            Hiển thị {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, total)} / {total} phiếu
-            <span className="ml-2 text-xs text-gray-400">({displayIssues.reduce((count, issue) => count + getWarehouseSlipLines(issue).length, 0)} dòng)</span>
-          </span>
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-            <button
-              type="button"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1.5 min-h-[32px] text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Trước
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
-              .map((page, idx, arr) => (
-                <React.Fragment key={page}>
-                  {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
-                  <button
-                    type="button"
-                    aria-current={page === currentPage ? 'page' : undefined}
-                    aria-label={`Trang ${page}`}
-                    onClick={() => setCurrentPage(page)}
-                    className={`px-3 py-1.5 min-h-[32px] min-w-[32px] text-sm rounded-md ${
-                      page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                </React.Fragment>
-              ))}
-            <button
-              type="button"
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1.5 min-h-[32px] text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Sau
-            </button>
-          </div>
+      <div className="flex flex-wrap items-center gap-3 mt-4 px-2 py-3 bg-white rounded-lg border border-gray-200">
+        <span className="text-sm text-gray-600">
+          Hiển thị {total === 0 ? 0 : (currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, total)} / {total} mục
+        </span>
+        <label className="flex items-center gap-1.5 text-sm text-gray-600">
+          Số dòng:
+          <select
+            value={pageSize}
+            onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+            className="rounded-lg border border-gray-300 px-2 py-1 text-sm bg-white"
+          >
+            {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </label>
+        <nav aria-label="Phân trang phiếu xuất" className="flex items-center gap-1.5 ml-auto flex-wrap">
+          <button
+            type="button"
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Trước
+          </button>
+          {(() => {
+            const pages: number[] = Array.from({ length: totalPages }, (_, i) => i + 1).filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1);
+            return pages.map((page, idx, arr) => (
+              <React.Fragment key={page}>
+                {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400 text-sm">...</span>}
+                <button
+                  type="button"
+                  aria-current={page === currentPage ? 'page' : undefined}
+                  aria-label={`Trang ${page}`}
+                  onClick={() => setCurrentPage(page)}
+                  className={`px-3 py-1.5 min-w-[36px] text-sm rounded-lg border ${page === currentPage ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 hover:bg-gray-50 bg-white'}`}
+                >
+                  {page}
+                </button>
+              </React.Fragment>
+            ));
+          })()}
+          <button
+            type="button"
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages || total === 0}
+            className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Sau
+          </button>
         </nav>
-      )}
+      </div>
 
       {/* Detail Modal */}
       <Modal isOpen={showDetailModal && !!selectedIssue} onClose={() => setShowDetailModal(false)} showBackdrop closeOnBackdrop={true}>
@@ -467,6 +488,9 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
 
           {selectedIssue && (
             <div className="overflow-y-auto flex-1 p-6">
+            {(selectedIssue as any).isVoided && (
+              <div className="mb-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700"><div className="font-semibold">Đã vô hiệu</div><div>Lý do: {(selectedIssue as any).voidReason || '—'}</div><div className="text-xs text-red-600">{(selectedIssue as any).voidedAt ? new Date((selectedIssue as any).voidedAt).toLocaleString('vi-VN') : ''} {(selectedIssue as any).voidedBy ? `· ${(selectedIssue as any).voidedBy}` : ''}</div></div>
+            )}
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
               <div className="flex items-center gap-2 text-red-800 font-semibold text-lg">
                 <FileText className="h-5 w-5" />
@@ -694,6 +718,8 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
           lyDoChenhLech={(printIssue as any).lyDoChenhLech ?? (printIssue as any).outboundPlan?.lyDoChenhLech ?? undefined}
           nguoiDeNghi={(printIssue as any).nguoiDeNghi ?? undefined}
           boPhan={(printIssue as any).boPhan ?? undefined}
+          isVoided={(printIssue as any).isVoided}
+          voidReason={(printIssue as any).voidReason}
           items={getWarehouseSlipLines(printIssue)}
           onClose={() => { setShowPrintView(false); setPrintIssue(null); }}
           onMarkPrinted={() => { warehouseIssueService.markPrinted(printIssue.id).catch(()=>{}); }}
@@ -719,6 +745,14 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
         }}
       />
 
+      <CancelWithReasonModal
+        isOpen={!!voidTarget}
+        onClose={() => setVoidTarget(null)}
+        onConfirm={handleVoid}
+        ticketLabel={`phiếu xuất ${voidTarget?.maPhieuXuat ?? ''}`}
+        description="Vô hiệu sẽ hoàn tác tồn kho của phiếu. Nhập lý do để tiếp tục."
+        loading={voiding}
+      />
       <CancelWithReasonModal
         isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}

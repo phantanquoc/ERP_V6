@@ -5,6 +5,7 @@ import reorderRuleService from './reorderRuleService';
 import { ValidationError, ConflictError, NotFoundError } from '@utils/errors';
 import {
   assertLinesFitStock,
+  assertSufficientStock,
   computeHeaderTotals,
   computeSequentialSnapshots,
   diffLines,
@@ -444,6 +445,7 @@ class WarehouseIssueService {
     boPhan?: string;
     tinhTrang?: string;
     daIn?: string | boolean;
+    includeVoided?: string | boolean;
   }) {
     const pageNum = Math.max(1, parseInt(String(params?.page ?? 1), 10) || 1);
     const limitNum = Math.max(1, Math.min(100, parseInt(String(params?.limit ?? 10), 10) || 10));
@@ -512,6 +514,15 @@ class WarehouseIssueService {
           { items: { some: { tenLo: { contains: s, mode: 'insensitive' as const } } } },
         ];
       }
+    }
+
+    const includeVoided = String(params?.includeVoided ?? '').toLowerCase() === 'true' || (params?.includeVoided as unknown) === true;
+    if (!includeVoided) {
+      (where as any).isVoided = false;
+    } else if (params && 'isVoided' in params && (params as any).isVoided !== undefined && (params as any).isVoided !== '') {
+      const v = String((params as any).isVoided).toLowerCase();
+      if (v === 'true' || v === '1') (where as any).isVoided = true;
+      else if (v === 'false' || v === '0') (where as any).isVoided = false;
     }
 
     const [issues, total] = await Promise.all([
@@ -949,6 +960,62 @@ class WarehouseIssueService {
       await tx.warehouseIssue.delete({ where: { id } });
 
       return { id };
+    });
+  }
+
+  // ─── Soft-void ────────────────────────────────────────────────────────────
+
+  async void(id: string, opts: { voidReason: string; userId?: string }) {
+    const reason = (opts.voidReason ?? '').trim();
+    if (!reason) throw new ValidationError('Lý do vô hiệu là bắt buộc');
+    return prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM business.warehouse_issues WHERE id = ${id} FOR UPDATE`;
+      const existing = await tx.warehouseIssue.findUnique({ where: { id }, include: { items: true } });
+      if (!existing) throw new NotFoundError('Không tìm thấy phiếu xuất kho');
+      if ((existing as any).isVoided) throw new ConflictError('Phiếu đã vô hiệu');
+      const stored = (existing as any).items ?? [] as any[];
+      if (stored.length > 0) {
+        const totalsByPackage = this.sumByPackage(stored);
+        for (const [lotProductId, qty] of totalsByPackage) {
+          await tx.lotProduct.update({ where: { id: lotProductId }, data: { soLuong: { increment: qty } } });
+        }
+      }
+      const updated = await tx.warehouseIssue.update({
+        where: { id },
+        data: { isVoided: true, voidReason: reason, voidedAt: new Date(), voidedBy: opts.userId ?? null } as any,
+        include: { items: slipItemInclude, outboundPlan: { select: { lyDoChenhLech: true } }, materialEvaluation: { select: { id: true } } },
+      });
+      const { materialEvaluation, outboundPlan, items, ...rest } = updated as any;
+      return { ...rest, outboundPlan, items: resolveSlipItems(items), materialEvaluation, isLocked: !!updated.supplyRequestId || !!materialEvaluation };
+    });
+  }
+
+  async unvoid(id: string) {
+    return prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM business.warehouse_issues WHERE id = ${id} FOR UPDATE`;
+      const existing = await tx.warehouseIssue.findUnique({ where: { id }, include: { items: true } });
+      if (!existing) throw new NotFoundError('Không tìm thấy phiếu xuất kho');
+      if (!(existing as any).isVoided) throw new ConflictError('Phiếu chưa vô hiệu');
+      const stored = (existing as any).items ?? [] as any[];
+      if (stored.length > 0) {
+        const reversals = this.sumByPackage(stored);
+        const balances = await this.loadBalances(tx, stored.map((l: any) => l.lotProductId));
+        assertSufficientStock(reversals, balances);
+        for (const [lotProductId, qty] of reversals) {
+          const res = await tx.lotProduct.updateMany({ where: { id: lotProductId, soLuong: { gte: qty } }, data: { soLuong: { decrement: qty } } });
+          if (res.count === 0) {
+            const bal = balances.get(lotProductId);
+            throw new ValidationError(`Số lượng tồn kho của ${bal?.tenSanPham ? `"${bal.tenSanPham}"` : `kiện ${lotProductId}`} không đủ. Cần ${qty}, còn ${bal?.soLuong ?? 0}`);
+          }
+        }
+      }
+      const updated = await tx.warehouseIssue.update({
+        where: { id },
+        data: { isVoided: false, voidReason: null, voidedAt: null, voidedBy: null } as any,
+        include: { items: slipItemInclude, outboundPlan: { select: { lyDoChenhLech: true } }, materialEvaluation: { select: { id: true } } },
+      });
+      const { materialEvaluation, outboundPlan, items, ...rest } = updated as any;
+      return { ...rest, outboundPlan, items: resolveSlipItems(items), materialEvaluation, isLocked: !!updated.supplyRequestId || !!materialEvaluation };
     });
   }
 }

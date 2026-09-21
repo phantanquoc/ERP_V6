@@ -74,7 +74,9 @@ export const getAllWarehouseReceipts = async (req: Request, res: Response, next:
       boPhan: req.query.boPhan as string | undefined,
       tinhTrang: req.query.tinhTrang as string | undefined,
       daIn: req.query.daIn as string | undefined,
-    });
+      includeVoided: req.query.includeVoided as string | undefined,
+      isVoided: req.query.isVoided as string | undefined,
+    } as any);
     // Backward compat: no pagination params → return bare array like before
     const hasPaging = req.query.page !== undefined || req.query.limit !== undefined || req.query.search !== undefined || req.query.warehouseId !== undefined || req.query.fromNgay !== undefined || req.query.toNgay !== undefined || req.query.sortBy !== undefined || req.query.sortOrder !== undefined || req.query.warehouse !== undefined || req.query.sortKey !== undefined || req.query.sortDir !== undefined || req.query.maPhieu !== undefined || req.query.maPhieuNhap !== undefined || req.query.tenNhanVien !== undefined || req.query.nguoiDeNghi !== undefined || req.query.boPhan !== undefined || req.query.tinhTrang !== undefined || req.query.daIn !== undefined;
     if (!hasPaging) {
@@ -170,6 +172,34 @@ export const markReceiptPrinted = async (req: Request, res: Response, next: Next
       res.status(404).json({ success: false, message: error.message });
       return;
     }
+    next(error);
+  }
+};
+
+export const voidWarehouseReceipt = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { voidReason } = req.body as { voidReason: string };
+    const userId = (req as any).user?.id as string | undefined;
+    const result = await warehouseReceiptService.void(id, { voidReason, userId });
+    res.status(200).json({ success: true, message: 'Vô hiệu phiếu nhập thành công', data: result });
+  } catch (error: any) {
+    if (error instanceof ValidationError) { res.status(400).json({ success: false, message: error.message }); return; }
+    if (error instanceof NotFoundError) { res.status(404).json({ success: false, message: error.message }); return; }
+    if (error instanceof ConflictError) { res.status(409).json({ success: false, message: error.message }); return; }
+    next(error);
+  }
+};
+
+export const unvoidWarehouseReceipt = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const result = await warehouseReceiptService.unvoid(id);
+    res.status(200).json({ success: true, message: 'Khôi phục phiếu nhập thành công', data: result });
+  } catch (error: any) {
+    if (error instanceof ValidationError) { res.status(400).json({ success: false, message: error.message }); return; }
+    if (error instanceof NotFoundError) { res.status(404).json({ success: false, message: error.message }); return; }
+    if (error instanceof ConflictError) { res.status(409).json({ success: false, message: error.message }); return; }
     next(error);
   }
 };

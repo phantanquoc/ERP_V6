@@ -19,6 +19,8 @@ interface WarehouseSlipPrintViewProps {
   nguoiDeNghi?: string;
   boPhan?: string;
   items: (WarehouseReceiptLine | WarehouseIssueLine)[];
+  isVoided?: boolean;
+  voidReason?: string | null;
   daIn?: boolean;
   onClose: () => void;
   onMarkPrinted?: () => void;
@@ -32,7 +34,7 @@ function parseKienDisplay(v: any): string {
 }
 
 const WarehouseSlipPrintView: React.FC<WarehouseSlipPrintViewProps> = ({
-  type, maPhieu, ngay, tenNhanVien, maNhanVien, ghiChu, mucDich, lyDoXuatKho, lyDoChenhLech, nguoiDeNghi, boPhan, items, onClose, onMarkPrinted,
+  type, maPhieu, ngay, tenNhanVien, maNhanVien, ghiChu, mucDich, lyDoXuatKho, lyDoChenhLech, nguoiDeNghi, boPhan, items, isVoided, voidReason, onClose, onMarkPrinted,
 }) => {
   const isReceipt = type === 'receipt';
   const title = isReceipt ? 'PHIẾU NHẬP KHO' : 'PHIẾU XUẤT KHO';
@@ -53,7 +55,10 @@ const WarehouseSlipPrintView: React.FC<WarehouseSlipPrintViewProps> = ({
         <button type="button" onClick={onClose} className="btn-close-print px-4 py-2 border rounded hover:bg-gray-50">Đóng</button>
       </div>
 
-      <div className="print-page" style={{ background: 'white', margin: '0 auto', maxWidth: 1100, padding: 16 }}>
+      <div className="print-page" style={{ background: 'white', margin: '0 auto', maxWidth: 1100, padding: 16, position: 'relative', overflow: 'hidden' }}>
+        {isVoided && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', opacity: 0.12, transform: 'rotate(-30deg)', fontSize: 96, fontWeight: 800, color: '#dc2626', letterSpacing: 8, zIndex: 10 }}>ĐÃ VÔ HIỆU</div>
+        )}
         {/* Company header + logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderBottom: '2px solid #1f2937', paddingBottom: 8, marginBottom: 8 }}>
           <img src={abfLogo} alt="ABF" style={{ height: 36, objectFit: 'contain' }} onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
@@ -79,6 +84,7 @@ const WarehouseSlipPrintView: React.FC<WarehouseSlipPrintViewProps> = ({
           </div>
           {ghiChu && (isReceipt ? mucDich : lyDoXuatKho) ? <div><strong>Ghi chú:</strong> {ghiChu}</div> : null}
           {lyDoChenhLech ? <div><strong>Lý do chênh lệch:</strong> {lyDoChenhLech}</div> : null}
+          {isVoided && voidReason ? <div style={{ color: '#dc2626', fontWeight: 600 }}><strong>Lý do vô hiệu:</strong> {voidReason}</div> : null}
         </div>
 
         {/* 14-col table: TT | Ma hang | Loai Kho | Ten hang | So lo KH | So lo TT | So kien KH | So kien TT | Tinh trang | Quy cach | Don vi | So luong KH | So luong TT | Ghi chu */}
