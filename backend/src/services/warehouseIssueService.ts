@@ -489,11 +489,11 @@ class WarehouseIssueService {
     if (params?.fromNgay || params?.toNgay) {
       const range: Record<string, Date> = {};
       if (params.fromNgay) {
-        const d = new Date(params.fromNgay + 'T00:00:00');
+        const d = new Date(params.fromNgay + 'T00:00:00+07:00');
         if (!isNaN(d.getTime())) range.gte = d;
       }
       if (params.toNgay) {
-        const d = new Date(params.toNgay + 'T23:59:59.999');
+        const d = new Date(params.toNgay + 'T23:59:59.999+07:00');
         if (!isNaN(d.getTime())) range.lte = d;
       }
       if (Object.keys(range).length > 0) (where as any).ngayXuat = range;
