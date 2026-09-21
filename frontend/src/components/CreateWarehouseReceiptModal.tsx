@@ -8,13 +8,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { SupplyRequest } from '../services/supplyRequestService';
 import { parseNumberInput } from '../utils/numberInput';
 import Modal from './Modal';
-import UnitSelect from './common/UnitSelect';
 import ProductCombobox from './common/ProductCombobox';
 import EmployeeCombobox from './common/EmployeeCombobox';
 import MultiKienPicker from './common/MultiKienPicker';
+import UnitSelect from './common/UnitSelect';
 import { useProducts } from '../hooks';
 import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
-import { useUnitOptions } from '../hooks/useLookups';
 import { TINH_TRANG_OPTIONS } from '../constants/warehouseCatalogs';
 import { kienCapacityByUnit } from '../utils/kienCapacity';
 import { can } from '../utils/permissions';
@@ -75,7 +74,6 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
 }) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const { isKnownUnit } = useUnitOptions();
   const { data: productsData } = useProducts({ page: 1, limit: 1000 });
   const products = productsData?.data || [];
   const { data: employeesData } = useEmployeesForAssignment();
@@ -357,7 +355,9 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
     updateRow(index, {
       internationalProductId: productId ?? '', lotProductId: existing?.id ?? '',
       tenSanPham: product?.tenSanPham ?? row.tenSanPham,
-      donViTinh: existing?.donViTinh ?? (isKnownUnit(product?.donViTinh) ? product.donViTinh : row.donViTinh),
+      // ĐVT lấy trực tiếp từ hàng hóa/kiện — giá trị chuẩn nằm trong Lookup DON_VI_TINH,
+      // thêm/sửa trong Cài đặt có hiệu lực ngay, không còn bị chặn bởi Set cứng.
+      donViTinh: existing?.donViTinh ?? product?.donViTinh ?? row.donViTinh,
     });
   };
 
@@ -636,7 +636,12 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
                   {/* ĐVT */}
                   <div className="col-span-3 sm:col-span-1 flex flex-col">
                     <label className="block text-xs font-medium text-gray-600 min-h-[16px] h-4 leading-4 mb-1">ĐVT</label>
-                    <input value={row.donViTinh || ''} readOnly tabIndex={-1} placeholder="—" className="w-full h-[32px] px-2 py-1.5 border border-gray-200 rounded text-sm bg-gray-100 text-gray-600 cursor-not-allowed text-center" title={row.donViTinh || ''} />
+                    <UnitSelect
+                      value={row.donViTinh}
+                      onChange={(v) => updateRow(index, { donViTinh: v })}
+                      className="w-full h-[32px] px-2 py-1.5 border border-gray-300 rounded text-sm bg-white text-center"
+                      disabled={isSupplyBatch && !row.selected}
+                    />
                     <div className="mt-1 min-h-[16px] flex items-center gap-1 text-xs text-gray-500">{row.lotProductId && <span className="text-blue-600 text-[11px]">• Kiện có sẵn</span>}</div>
                   </div>
 

@@ -10,7 +10,6 @@ import EmployeeCombobox from './common/EmployeeCombobox';
 import MultiKienPicker from './common/MultiKienPicker';
 import { useProducts } from '../hooks';
 import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
-import { useUnitOptions } from '../hooks/useLookups';
 import { TINH_TRANG_OPTIONS } from '../constants/warehouseCatalogs';
 import { kienCapacityByUnit } from '../utils/kienCapacity';
 
@@ -64,7 +63,6 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const { isKnownUnit } = useUnitOptions();
   const { data: productsData } = useProducts({ page: 1, limit: 1000 });
   const allProducts = productsData?.data || [];
   const { data: employeesData } = useEmployeesForAssignment();
@@ -429,9 +427,8 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
                           internationalProductId: productId ?? '',
                           lotProductId: existing?.id ?? '',
                           tenSanPham: product?.tenSanPham ?? '',
-                          donViTinh:
-                            existing?.donViTinh ??
-                            (isKnownUnit(product?.donViTinh) ? product!.donViTinh : row.donViTinh),
+                          // ĐVT lấy trực tiếp từ hàng hóa/kiện — Lookup DON_VI_TINH là single source, Cài đặt có hiệu lực ngay.
+                          donViTinh: existing?.donViTinh ?? product?.donViTinh ?? row.donViTinh,
                         });
                       }}
                       onCreateNew={(tenSanPham) => {
