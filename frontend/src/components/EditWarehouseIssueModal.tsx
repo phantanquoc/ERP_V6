@@ -24,6 +24,7 @@ interface EditIssueRow {
   lotId: string;
   lotProductId: string;
   soLuongXuat: number;
+  soLuongYeuCau?: number;
   ghiChu: string;
   tinhTrang: string;
   tinhTrangCustom: string;
@@ -55,6 +56,8 @@ const EditWarehouseIssueModal: React.FC<EditWarehouseIssueModalProps> = ({
   const [maNguoiDeNghi, setMaNguoiDeNghi] = useState('');
   const [boPhan, setBoPhan] = useState('');
   const [lyDoXuatKho, setLyDoXuatKho] = useState('');
+  const [lyDoChenhLech, setLyDoChenhLech] = useState('');
+  const [lyDoChenhLechError, setLyDoChenhLechError] = useState<string | null>(null);
   const [rows, setRows] = useState<EditIssueRow[]>([]);
 
   const handleNguoiDeNghiChange = (name: string) => {
@@ -77,6 +80,8 @@ const EditWarehouseIssueModal: React.FC<EditWarehouseIssueModalProps> = ({
       setMaNguoiDeNghi((issue as any)?.maNguoiDeNghi || '');
       setBoPhan((issue as any)?.boPhan || '');
       setLyDoXuatKho((issue as any)?.lyDoXuatKho || '');
+      setLyDoChenhLech((issue as any)?.lyDoChenhLech ?? (issue as any)?.outboundPlan?.lyDoChenhLech ?? '');
+      setLyDoChenhLechError(null);
       setRows(buildRows(issue, list));
     };
     load();
@@ -129,6 +134,7 @@ const EditWarehouseIssueModal: React.FC<EditWarehouseIssueModalProps> = ({
         lotId: line.lotId ?? '',
         lotProductId: line.lotProductId ?? '',
         soLuongXuat: line.soLuongThucTe ?? 0,
+        soLuongYeuCau: (line as any).soLuongYeuCau ?? undefined,
         ghiChu: line.ghiChu ?? '',
         tinhTrang: isKnown ? rawTinh : (rawTinh ? 'Khác' : 'Bình thường'),
         tinhTrangCustom: isKnown ? '' : rawTinh,
@@ -202,6 +208,14 @@ const EditWarehouseIssueModal: React.FC<EditWarehouseIssueModalProps> = ({
       if (!ok) return;
     }
 
+    const hasKeHoachValues = rows.some((r) => r.soLuongYeuCau != null);
+    const hasDiff = rows.some((r) => r.soLuongYeuCau != null && Math.abs(Number(r.soLuongYeuCau) - Number(r.soLuongXuat)) > 1e-9);
+    if (hasKeHoachValues && hasDiff && !lyDoChenhLech.trim()) {
+      setLyDoChenhLechError('Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.');
+      return;
+    }
+    setLyDoChenhLechError(null);
+
     setLoading(true);
     try {
       const items = rows.map((row) => {
@@ -219,6 +233,7 @@ const EditWarehouseIssueModal: React.FC<EditWarehouseIssueModalProps> = ({
           lotId: row.lotId,
           tenLo: lot?.tenLo || '',
           soLuongThucTe: row.soLuongXuat,
+          soLuongYeuCau: row.soLuongYeuCau ?? undefined,
           donViTinh: lotProduct?.donViTinh || row.donViTinh || '',
           ghiChu: row.ghiChu,
           tinhTrang: tinhTrangVal,
@@ -226,7 +241,7 @@ const EditWarehouseIssueModal: React.FC<EditWarehouseIssueModalProps> = ({
         };
       });
 
-      await warehouseIssueService.updateWarehouseIssue(issue.id, { ghiChu, nguoiDeNghi: nguoiDeNghi || undefined, maNguoiDeNghi: maNguoiDeNghi || undefined, boPhan: boPhan || undefined, lyDoXuatKho: lyDoXuatKho || undefined, items });
+      await warehouseIssueService.updateWarehouseIssue(issue.id, { ghiChu, lyDoChenhLech: lyDoChenhLech.trim() || undefined, nguoiDeNghi: nguoiDeNghi || undefined, maNguoiDeNghi: maNguoiDeNghi || undefined, boPhan: boPhan || undefined, lyDoXuatKho: lyDoXuatKho || undefined, items });
       alert('Cập nhật phiếu xuất kho thành công!');
       onSuccess?.();
       onClose();
@@ -369,6 +384,18 @@ const EditWarehouseIssueModal: React.FC<EditWarehouseIssueModalProps> = ({
             <textarea value={ghiChu} onChange={(e) => setGhiChu(e.target.value)} rows={2}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500" />
           </div>
+
+          {(() => {
+            const hasKeHoachValues = rows.some((r) => r.soLuongYeuCau != null);
+            if (!hasKeHoachValues) return null;
+            return (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Lý do chênh lệch (bắt buộc khi thực tế khác kế hoạch)</label>
+                <textarea value={lyDoChenhLech} onChange={(e) => { setLyDoChenhLech(e.target.value); if (e.target.value.trim()) setLyDoChenhLechError(null); }} rows={2} placeholder="Nhập lý do nếu số lượng thực tế khác kế hoạch..." className={`w-full px-3 py-2 border rounded-lg text-sm ${lyDoChenhLechError ? 'border-red-300 focus:ring-red-400' : 'border-gray-300'}`} />
+                {lyDoChenhLechError && <p className="text-xs text-red-600 mt-1">{lyDoChenhLechError}</p>}
+              </div>
+            );
+          })()}
 
           <div className="flex justify-end gap-2 mt-6">
             <button type="button" onClick={onClose}

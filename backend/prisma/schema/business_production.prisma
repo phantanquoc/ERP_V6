@@ -492,6 +492,7 @@ model WarehouseReceipt {
   donViTinh         String?
   mucDich           String? // Mục đích nhập kho (VD: "Nhập từ thu mua", "Nhập thành phẩm")
   ghiChu            String?
+  lyDoChenhLech     String?
   supplyRequestId   String?
   supplyRequest     SupplyRequest?         @relation(fields: [supplyRequestId], references: [id])
   purchaseRequestId String?
@@ -586,6 +587,7 @@ model WarehouseIssue {
   // @deprecated — item-level column, kept for backward compatibility; use items relation instead
   donViTinh          String?
   ghiChu             String?
+  lyDoChenhLech      String?
   supplyRequestId    String?
   supplyRequest      SupplyRequest?       @relation(fields: [supplyRequestId], references: [id])
   outboundPlanId     String?

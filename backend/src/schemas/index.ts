@@ -443,17 +443,36 @@ export const createReceiptSchema = z.object({
   boPhan: optionalString,
   boPhanId: optionalString,
   items: z.array(z.object(warehouseLineBase)).min(1, 'Phiếu phải có ít nhất một dòng'),
+}).superRefine((data, ctx) => {
+  const hasDiff = data.items.some((it: any) => {
+    const kh = it.soLuongYeuCau;
+    if (kh == null) return false;
+    return Math.abs(Number(kh) - Number(it.soLuongThucTe)) > 1e-9;
+  });
+  if (hasDiff && !(data.lyDoChenhLech && String(data.lyDoChenhLech).trim())) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['lyDoChenhLech'], message: 'Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.' });
+  }
 });
 
 export const updateReceiptSchema = z.object({
   ngayNhap: optionalString,
   mucDich: optionalString,
   ghiChu: optionalString,
+  lyDoChenhLech: z.string().nullable().optional(),
   nguoiDeNghi: optionalString,
   maNguoiDeNghi: optionalString,
   boPhan: optionalString,
   boPhanId: optionalString,
   items: z.array(z.object(warehouseLineBase)).min(1, 'Phiếu phải có ít nhất một dòng'),
+}).superRefine((data, ctx) => {
+  const hasDiff = data.items.some((it: any) => {
+    const kh = it.soLuongYeuCau;
+    if (kh == null) return false;
+    return Math.abs(Number(kh) - Number(it.soLuongThucTe)) > 1e-9;
+  });
+  if (hasDiff && !(data.lyDoChenhLech && String(data.lyDoChenhLech).trim())) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['lyDoChenhLech'], message: 'Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.' });
+  }
 });
 
 const issueLineBase = {
@@ -483,23 +502,44 @@ export const createIssueSchema = z.object({
   ngayXuat: optionalString,
   ghiChu: optionalString,
   supplyRequestId: optionalString,
+  outboundPlanId: optionalString,
   nguoiDeNghi: optionalString,
   maNguoiDeNghi: optionalString,
   boPhan: optionalString,
   boPhanId: optionalString,
   lyDoXuatKho: optionalString,
+  lyDoChenhLech: z.string().nullable().optional(),
   items: z.array(z.object(issueLineBase)).min(1, 'Phiếu phải có ít nhất một dòng'),
+}).superRefine((data, ctx) => {
+  const hasDiff = data.items.some((it: any) => {
+    const kh = it.soLuongYeuCau;
+    if (kh == null) return false;
+    return Math.abs(Number(kh) - Number(it.soLuongThucTe)) > 1e-9;
+  });
+  if (hasDiff && !(data.lyDoChenhLech && String(data.lyDoChenhLech).trim())) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['lyDoChenhLech'], message: 'Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.' });
+  }
 });
 
 export const updateIssueSchema = z.object({
   ngayXuat: optionalString,
   ghiChu: optionalString,
+  lyDoChenhLech: z.string().nullable().optional(),
   nguoiDeNghi: optionalString,
   maNguoiDeNghi: optionalString,
   boPhan: optionalString,
   boPhanId: optionalString,
   lyDoXuatKho: optionalString,
   items: z.array(z.object(issueLineBase)).min(1, 'Phiếu phải có ít nhất một dòng'),
+}).superRefine((data, ctx) => {
+  const hasDiff = data.items.some((it: any) => {
+    const kh = it.soLuongYeuCau;
+    if (kh == null) return false;
+    return Math.abs(Number(kh) - Number(it.soLuongThucTe)) > 1e-9;
+  });
+  if (hasDiff && !(data.lyDoChenhLech && String(data.lyDoChenhLech).trim())) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['lyDoChenhLech'], message: 'Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.' });
+  }
 });
 
 export const batchFulfillSchema = z.object({

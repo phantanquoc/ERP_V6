@@ -15,6 +15,7 @@ interface WarehouseSlipPrintViewProps {
   ghiChu?: string;
   mucDich?: string;
   lyDoXuatKho?: string;
+  lyDoChenhLech?: string;
   nguoiDeNghi?: string;
   boPhan?: string;
   items: (WarehouseReceiptLine | WarehouseIssueLine)[];
@@ -31,7 +32,7 @@ function parseKienDisplay(v: any): string {
 }
 
 const WarehouseSlipPrintView: React.FC<WarehouseSlipPrintViewProps> = ({
-  type, maPhieu, ngay, tenNhanVien, maNhanVien, ghiChu, mucDich, lyDoXuatKho, nguoiDeNghi, boPhan, items, onClose, onMarkPrinted,
+  type, maPhieu, ngay, tenNhanVien, maNhanVien, ghiChu, mucDich, lyDoXuatKho, lyDoChenhLech, nguoiDeNghi, boPhan, items, onClose, onMarkPrinted,
 }) => {
   const isReceipt = type === 'receipt';
   const title = isReceipt ? 'PHIẾU NHẬP KHO' : 'PHIẾU XUẤT KHO';
@@ -77,6 +78,7 @@ const WarehouseSlipPrintView: React.FC<WarehouseSlipPrintViewProps> = ({
             <span><strong>Nhân viên:</strong> {tenNhanVien} ({maNhanVien})</span>
           </div>
           {ghiChu && (isReceipt ? mucDich : lyDoXuatKho) ? <div><strong>Ghi chú:</strong> {ghiChu}</div> : null}
+          {lyDoChenhLech ? <div><strong>Lý do chênh lệch:</strong> {lyDoChenhLech}</div> : null}
         </div>
 
         {/* 14-col table: TT | Ma hang | Loai Kho | Ten hang | So lo KH | So lo TT | So kien KH | So kien TT | Tinh trang | Quy cach | Don vi | So luong KH | So luong TT | Ghi chu */}

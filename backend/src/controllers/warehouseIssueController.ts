@@ -105,9 +105,9 @@ export const getWarehouseIssueById = async (req: Request, res: Response, next: N
 export const updateWarehouseIssue = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { id } = req.params;
-    const { ngayXuat, ghiChu, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, lyDoXuatKho, items } = req.body;
+    const { ngayXuat, ghiChu, lyDoChenhLech, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, lyDoXuatKho, items } = req.body;
 
-    const issue = await warehouseIssueService.update(id, { ngayXuat, ghiChu, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, lyDoXuatKho, items });
+    const issue = await warehouseIssueService.update(id, { ngayXuat, ghiChu, lyDoChenhLech, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, lyDoXuatKho, items });
 
     res.status(200).json({ success: true, message: 'Cập nhật phiếu xuất kho thành công', data: issue });
   } catch (error: any) {

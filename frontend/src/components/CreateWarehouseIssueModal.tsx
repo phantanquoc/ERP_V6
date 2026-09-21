@@ -302,9 +302,10 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
     }
 
     // lyDoChenhLech bắt buộc khi lệch (giống phiếu nhập)
-    if (hasKeHoachColumn) {
-      const hasDiff = rows.some((r) => Math.abs(Number(r.soLuongYeuCau ?? r.soLuongXuat) - Number(r.soLuongXuat)) > 1e-9);
-      if (hasDiff && !lyDoChenhLech.trim()) {
+    {
+      const hasKeHoachValues = rows.some((r) => r.soLuongYeuCau != null);
+      const hasDiff = rows.some((r) => r.soLuongYeuCau != null && Math.abs(Number(r.soLuongYeuCau) - Number(r.soLuongXuat)) > 1e-9);
+      if (hasKeHoachValues && hasDiff && !lyDoChenhLech.trim()) {
         setLyDoChenhLechError('Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.');
         return;
       }
@@ -419,7 +420,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
         tenNhanVien: `${user?.lastName} ${user?.firstName}`,
         supplyRequestId: supplyRequest?.id ?? outboundPlan?.supplyRequestId ?? undefined,
         outboundPlanId: outboundPlan?.id ?? undefined,
-        lyDoChenhLech: hasKeHoachColumn && lyDoChenhLech.trim() ? lyDoChenhLech.trim() : undefined,
+        lyDoChenhLech: lyDoChenhLech.trim() || undefined,
         nguoiDeNghi: nguoiDeNghi || undefined,
         maNguoiDeNghi: maNguoiDeNghi || undefined,
         boPhan: boPhan || undefined,

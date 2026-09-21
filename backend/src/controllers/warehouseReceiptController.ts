@@ -103,9 +103,9 @@ export const getWarehouseReceiptById = async (req: Request, res: Response, next:
 export const updateWarehouseReceipt = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { id } = req.params;
-    const { ngayNhap, mucDich, ghiChu, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, items } = req.body;
+    const { ngayNhap, mucDich, ghiChu, lyDoChenhLech, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, items } = req.body;
 
-    const receipt = await warehouseReceiptService.update(id, { ngayNhap, mucDich, ghiChu, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, items });
+    const receipt = await warehouseReceiptService.update(id, { ngayNhap, mucDich, ghiChu, lyDoChenhLech, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, items });
 
     res.status(200).json({ success: true, message: 'Cập nhật phiếu nhập kho thành công', data: receipt });
   } catch (error: any) {

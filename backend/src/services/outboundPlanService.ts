@@ -217,10 +217,17 @@ async function markReceived(
   txClient?: any,
 ) {
   const db: any = txClient ?? prisma;
-  const plan = await db.outboundPlan.findUnique({ where: { id } });
+  const plan = await db.outboundPlan.findUnique({ where: { id }, include: { supplyRequest: { include: { items: true } } } as any });
   if (!plan) throw new NotFoundError('Không tìm thấy kế hoạch xuất kho');
   if (plan.trangThai === 'Đã xuất' || plan.trangThai === 'Đã hủy') {
     throw new ValidationError(`Kế hoạch đã ở trạng thái "${plan.trangThai}"`);
+  }
+
+  if (opts?.soLuongThucTe !== undefined && opts.soLuongThucTe !== null) {
+    const plannedQty = ((plan as any).supplyRequest?.items as any[] | undefined)?.reduce((s: number, it: any) => s + Number(it.soLuong ?? 0), 0) ?? 0;
+    if (plannedQty > 0 && Math.abs(Number(opts.soLuongThucTe) - plannedQty) > 1e-9 && !(opts.lyDoChenhLech && String(opts.lyDoChenhLech).trim())) {
+      throw new ValidationError('Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.');
+    }
   }
 
   const isOverdue = (plan as any).ngayDuKien && new Date((plan as any).ngayDuKien) < new Date();

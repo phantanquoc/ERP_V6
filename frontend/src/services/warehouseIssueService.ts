@@ -34,6 +34,8 @@ export interface WarehouseIssue {
   maNhanVien: string;
   tenNhanVien: string;
   ghiChu?: string;
+  lyDoChenhLech?: string | null;
+  outboundPlan?: { lyDoChenhLech?: string | null } | null;
   tongSoLuongThucTe?: number;
   soDongHang?: number;
   isLocked?: boolean;
@@ -80,6 +82,7 @@ export interface CreateWarehouseIssueData {
 export interface UpdateWarehouseIssueData {
   ngayXuat?: string;
   ghiChu?: string;
+  lyDoChenhLech?: string | null;
   nguoiDeNghi?: string;
   maNguoiDeNghi?: string;
   boPhan?: string;

@@ -90,9 +90,16 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
 
   const dateRangeError = !!(filterValues.fromNgay && filterValues.toNgay && filterValues.fromNgay > filterValues.toNgay);
 
-  const handleViewDetail = (receipt: WarehouseReceipt) => {
+  const handleViewDetail = async (receipt: WarehouseReceipt) => {
     setSelectedReceipt(receipt);
     setShowDetailModal(true);
+    try {
+      const res = await warehouseReceiptService.getWarehouseReceiptById(receipt.id) as any;
+      const fresh = res?.data?.data ?? res?.data ?? res;
+      if (fresh?.id) setSelectedReceipt(fresh as WarehouseReceipt);
+    } catch {
+      // keep stale list item if fetch fails
+    }
   };
 
   const fetchReceipts = useCallback(async () => {
@@ -259,7 +266,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                 return (
                   <React.Fragment key={receipt.id}>
                     {lines.map((line: any, lineIndex) => {
-                      const isOver = line.soLuongYeuCau != null && line.soLuongThucTe != null && line.soLuongYeuCau !== line.soLuongThucTe && (() => { const p = Number(line.soLuongYeuCau), a = Number(line.soLuongThucTe); if (!p) return a !== 0; return Math.abs(a-p)/Math.abs(p) > 0.1; })();
+                      const isOver = line.soLuongYeuCau != null && line.soLuongThucTe != null && Math.abs(Number(line.soLuongYeuCau) - Number(line.soLuongThucTe)) > 1e-9;
                       const rowHl = isOver ? 'bg-amber-50 hover:bg-amber-100' : `${slipBg} hover:bg-blue-50`;
                       return (
                       <tr key={line.id ?? lineIndex} className={`${rowHl} transition-colors`}>
@@ -389,7 +396,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                 <div className="mt-1 text-xs text-gray-500">{new Date(receipt.ngayNhap).toLocaleDateString('vi-VN')} · {receipt.tenNhanVien}{(receipt as any).nguoiDeNghi ? ` · ${(receipt as any).nguoiDeNghi}` : ''}</div>
                 <div className="mt-2 space-y-2">
                   {lines.map((line: any, li) => {
-                    const isOver = line.soLuongYeuCau != null && line.soLuongThucTe != null && line.soLuongYeuCau !== line.soLuongThucTe && (() => { const p = Number(line.soLuongYeuCau), a = Number(line.soLuongThucTe); if (!p) return a !== 0; return Math.abs(a-p)/Math.abs(p) > 0.1; })();
+                    const isOver = line.soLuongYeuCau != null && line.soLuongThucTe != null && Math.abs(Number(line.soLuongYeuCau) - Number(line.soLuongThucTe)) > 1e-9;
                     return (
                     <div key={line.id ?? li} className={`rounded border px-2.5 py-2 ${isOver ? 'border-amber-200 bg-amber-50' : 'border-gray-100 bg-gray-50'}`}>
                       <div className="flex items-center justify-between gap-2">
@@ -651,6 +658,19 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                 </div>
               )}
 
+              {(() => {
+                const lyDo = (selectedReceipt as any).lyDoChenhLech ?? selectedReceipt.inboundPlan?.lyDoChenhLech ?? null;
+                const hasLyDo = !!(lyDo && String(lyDo).trim());
+                const hasDiff = (selectedReceipt.items ?? []).some((it: any) => it.soLuongYeuCau != null && Math.abs(Number(it.soLuongYeuCau) - Number(it.soLuongThucTe)) > 1e-9);
+                if (!hasLyDo && !hasDiff) return null;
+                return (
+                  <div className={`p-3 rounded-lg border ${hasLyDo ? 'bg-amber-50 border-amber-300' : 'bg-red-50 border-red-200'}`}>
+                    <label className={`text-xs uppercase font-medium ${hasLyDo ? 'text-amber-700' : 'text-red-600'}`}>Lý do chênh lệch {hasDiff ? '(thực tế khác kế hoạch)' : ''}</label>
+                    <p className={`text-sm mt-1 ${hasLyDo ? 'text-gray-800' : 'text-red-700 italic'}`}>{hasLyDo ? String(lyDo) : 'Chưa ghi lý do — thực tế khác kế hoạch nhưng không có lý do chênh lệch.'}</p>
+                  </div>
+                );
+              })()}
+
               {(selectedReceipt as any).daIn && (
                 <div className="bg-green-50 border border-green-200 p-3 rounded-lg flex flex-wrap items-center gap-4 text-sm">
                   <span><span className="text-xs text-gray-500 uppercase font-medium">Người lập phiếu:</span> <span className="font-semibold text-gray-900 ml-1">{selectedReceipt.tenNhanVien}</span></span>
@@ -708,6 +728,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
           maNhanVien={printReceipt.maNhanVien}
           ghiChu={printReceipt.ghiChu ?? undefined}
           mucDich={(printReceipt as any).mucDich ?? undefined}
+          lyDoChenhLech={(printReceipt as any).lyDoChenhLech ?? printReceipt.inboundPlan?.lyDoChenhLech ?? undefined}
           nguoiDeNghi={(printReceipt as any).nguoiDeNghi ?? undefined}
           boPhan={(printReceipt as any).boPhan ?? undefined}
           items={getWarehouseSlipLines(printReceipt)}

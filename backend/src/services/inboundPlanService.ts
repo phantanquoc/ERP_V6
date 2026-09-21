@@ -215,6 +215,13 @@ async function markReceived(
 
   const isOverdue = (plan as any).ngayDuKien && new Date((plan as any).ngayDuKien) < new Date();
 
+  if (opts?.soLuongThucTe !== undefined && opts.soLuongThucTe !== null) {
+    const plannedQty = ((plan as any).purchaseRequest?.items as any[] | undefined)?.reduce((s: number, it: any) => s + Number(it.soLuong ?? 0), 0) ?? 0;
+    if (plannedQty > 0 && Math.abs(Number(opts.soLuongThucTe) - plannedQty) > 1e-9 && !(opts.lyDoChenhLech && String(opts.lyDoChenhLech).trim())) {
+      throw new ValidationError('Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.');
+    }
+  }
+
   const data: Record<string, unknown> = { trangThai: 'Đã nhập' };
   if (opts?.soLuongThucTe !== undefined && opts.soLuongThucTe !== null) {
     (data as any).lyDoChenhLech = opts.lyDoChenhLech ?? (plan as any).lyDoChenhLech ?? null;

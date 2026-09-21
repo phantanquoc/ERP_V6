@@ -61,6 +61,7 @@ export interface CreateIssueInput {
 export interface UpdateIssueInput {
   ngayXuat?: Date | string;
   ghiChu?: string;
+  lyDoChenhLech?: string | null;
   nguoiDeNghi?: string;
   maNguoiDeNghi?: string;
   boPhan?: string;
@@ -521,6 +522,7 @@ class WarehouseIssueService {
         orderBy: this.resolveOrderBy(params?.sortBy, params?.sortOrder),
         include: {
           items: slipItemInclude,
+          outboundPlan: { select: { lyDoChenhLech: true } },
           materialEvaluation: { select: { id: true } },
         },
       }),
@@ -528,9 +530,11 @@ class WarehouseIssueService {
     ]);
 
     const data = issues.map((issue: any) => {
-      const { materialEvaluation, items, ...rest } = issue;
+      const { materialEvaluation, outboundPlan, items, ...rest } = issue;
       return {
         ...rest,
+        lyDoChenhLech: rest.lyDoChenhLech ?? outboundPlan?.lyDoChenhLech ?? null,
+        outboundPlan,
         items: resolveSlipItems(items),
         isLocked: !!issue.supplyRequestId || !!materialEvaluation,
       };
@@ -547,15 +551,18 @@ class WarehouseIssueService {
       where: { id },
       include: {
         items: slipItemInclude,
+        outboundPlan: { select: { lyDoChenhLech: true } },
         materialEvaluation: { select: { id: true } },
       },
     });
     if (!issue) {
       throw new NotFoundError('Không tìm thấy phiếu xuất kho');
     }
-    const { materialEvaluation, items, ...rest } = issue as any;
+    const { materialEvaluation, outboundPlan, items, ...rest } = issue as any;
     return {
       ...rest,
+      lyDoChenhLech: rest.lyDoChenhLech ?? outboundPlan?.lyDoChenhLech ?? null,
+      outboundPlan,
       items: resolveSlipItems(items),
       materialEvaluation,
       isLocked: !!issue.supplyRequestId || !!materialEvaluation,
@@ -627,6 +634,21 @@ class WarehouseIssueService {
     const { lines } = computeSequentialSnapshots(items, balances, 'OUT');
     const totals = computeHeaderTotals(lines);
     const withMaKien = lines.map((l) => ({ ...l, maKien: balances.get(l.lotProductId)?.maKien ?? undefined }));
+    {
+      const hasDiff = withMaKien.some((l) => {
+        const kh = (l as any).soLuongYeuCau;
+        if (kh == null) return false;
+        return Math.abs(Number(kh) - Number(l.soLuongThucTe)) > 1e-9;
+      }) || items.some((l: any) => {
+        const kh = l.soLuongYeuCau;
+        if (kh == null) return false;
+        return Math.abs(Number(kh) - Number(l.soLuongThucTe)) > 1e-9;
+      });
+      const lyDo = (normalized as any).lyDoChenhLech as string | undefined;
+      if (hasDiff && !(lyDo && String(lyDo).trim())) {
+        throw new ValidationError('Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.');
+      }
+    }
 
     const issue = await tx.warehouseIssue.create({
       data: {
@@ -636,6 +658,7 @@ class WarehouseIssueService {
         tenNhanVien: normalized.tenNhanVien ?? '',
         ...(normalized.ngayXuat ? { ngayXuat: new Date(normalized.ngayXuat) } : {}),
         ghiChu: normalized.ghiChu,
+        lyDoChenhLech: (normalized as any).lyDoChenhLech?.trim() || null,
         ...(normalized.supplyRequestId ? { supplyRequestId: normalized.supplyRequestId } : {}),
         ...((normalized as any).outboundPlanId ? { outboundPlanId: (normalized as any).outboundPlanId } : {}),
         ...(normalized.nguoiDeNghi ? { nguoiDeNghi: normalized.nguoiDeNghi } : {}),
@@ -725,6 +748,17 @@ class WarehouseIssueService {
     // Preserve plan/BM fields when the client only edited actuals — an actual-only
     // edit must not wipe the informational plan columns.
     this.preserveStoredFields(normalized.items, stored);
+    {
+      const hasDiff = (normalized.items ?? []).some((it: any) => {
+        const kh = it.soLuongYeuCau ?? (stored.find((s: any) => s.id === it.id) as any)?.soLuongYeuCau;
+        if (kh == null) return false;
+        return Math.abs(Number(kh) - Number(it.soLuongThucTe)) > 1e-9;
+      });
+      const lyDo = (normalized as any).lyDoChenhLech as string | null | undefined;
+      if (hasDiff && !(lyDo && String(lyDo).trim())) {
+        throw new ValidationError('Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.');
+      }
+    }
     const items = this.assertLinesPresent(normalized.items);
 
     // Immutable maKien snapshot: a line that stays on the same package keeps the
@@ -828,6 +862,11 @@ class WarehouseIssueService {
         data: {
           ...(normalized.ngayXuat ? { ngayXuat: new Date(normalized.ngayXuat) } : {}),
           ghiChu: normalized.ghiChu,
+          lyDoChenhLech: (() => {
+            const lyDo = (normalized as any).lyDoChenhLech as string | null | undefined;
+            if (lyDo !== undefined) return lyDo?.trim() ? lyDo.trim() : null;
+            return undefined;
+          })() as any,
           ...(normalized.nguoiDeNghi !== undefined ? { nguoiDeNghi: normalized.nguoiDeNghi } : {}),
           ...(normalized.maNguoiDeNghi !== undefined ? { maNguoiDeNghi: normalized.maNguoiDeNghi } : {}),
           ...(normalized.boPhan !== undefined ? { boPhan: normalized.boPhan } : {}),
@@ -838,6 +877,20 @@ class WarehouseIssueService {
         },
         include: { items: { orderBy: { stt: 'asc' } } },
       });
+
+      // Persist edited reason to linked outbound plan when present (mirrors create path)
+      const outboundPlanIdForUpdate = (existing as any).outboundPlanId as string | undefined;
+      const editedLyDo = (normalized as any).lyDoChenhLech as string | null | undefined;
+      if (outboundPlanIdForUpdate && editedLyDo !== undefined) {
+        try {
+          await tx.outboundPlan.update({
+            where: { id: outboundPlanIdForUpdate },
+            data: { lyDoChenhLech: editedLyDo?.trim() ? editedLyDo.trim() : null } as any,
+          });
+        } catch (e) {
+          console.error('[warehouseIssue] outboundPlan lyDoChenhLech update failed', e);
+        }
+      }
 
       return { updated, balances, lotProductIds: [...afterReversal.keys()] };
     });

@@ -41,6 +41,7 @@ interface EditReceiptRow {
   tenSanPham: string;
   donViTinh: string;
   soLuongNhap: number;
+  soLuongYeuCau?: number;
   ghiChu: string;
   tinhTrang: string;
   tinhTrangCustom: string;
@@ -49,13 +50,20 @@ interface EditReceiptRow {
   lotProducts: LotProduct[];
   selectedKienIds: string[];
   perKienQty: number[];
+  perKienYeuCau: number[];
 }
 
 const emptyRow = (): EditReceiptRow => ({
   warehouseId: '', lotId: '', lotProductId: '', internationalProductId: '',
   tenSanPham: '', donViTinh: '', soLuongNhap: 0, ghiChu: '', tinhTrang: 'Bình thường', tinhTrangCustom: '', quyCach: '',
-  lots: [], lotProducts: [], selectedKienIds: [], perKienQty: [],
+  lots: [], lotProducts: [], selectedKienIds: [], perKienQty: [], perKienYeuCau: [],
 });
+
+const parseLyDoFromGhiChu = (ghiChu?: string | null): string | null => {
+  if (!ghiChu) return null;
+  const m = String(ghiChu).match(/\|\s*LyDoChenhLech:\s*(.*)\s*$/);
+  return m ? m[1].trim() || null : null;
+};
 
 const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
   isOpen,
@@ -75,6 +83,8 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
   const [nguoiDeNghi, setNguoiDeNghi] = useState('');
   const [maNguoiDeNghi, setMaNguoiDeNghi] = useState('');
   const [boPhan, setBoPhan] = useState('');
+  const [lyDoChenhLech, setLyDoChenhLech] = useState('');
+  const [lyDoChenhLechError, setLyDoChenhLechError] = useState<string | null>(null);
   const [rows, setRows] = useState<EditReceiptRow[]>([]);
 
   const handleNguoiDeNghiChange = (name: string) => {
@@ -92,7 +102,11 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
       const list = await fetchWarehouses();
       if (cancelled) return;
       setWarehouses(list);
-      setGhiChu(receipt?.ghiChu || '');
+      const rawGhiChu = receipt?.ghiChu || '';
+      const parsedLyDo = (receipt as any)?.lyDoChenhLech ?? (receipt as any)?.inboundPlan?.lyDoChenhLech ?? parseLyDoFromGhiChu(rawGhiChu) ?? '';
+      setGhiChu(rawGhiChu.replace(/\s*\|\s*LyDoChenhLech:.*$/,'').trim());
+      setLyDoChenhLech(parsedLyDo);
+      setLyDoChenhLechError(null);
       setMucDich(receipt?.mucDich || '');
       setNguoiDeNghi((receipt as any)?.nguoiDeNghi || '');
       setMaNguoiDeNghi((receipt as any)?.maNguoiDeNghi || '');
@@ -140,7 +154,7 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
         soLuongNhap: target.soLuongNhap ?? 0,
         ghiChu: target.ghiChu ?? '',
         tinhTrang: 'Bình thường', tinhTrangCustom: '', quyCach: '',
-        lots, lotProducts, selectedKienIds: target.lotProductId ? [target.lotProductId] : [], perKienQty: target.lotProductId ? [target.soLuongNhap ?? 0] : [],
+        lots, lotProducts, selectedKienIds: target.lotProductId ? [target.lotProductId] : [], perKienQty: target.lotProductId ? [target.soLuongNhap ?? 0] : [], perKienYeuCau: [],
       }];
     }
 
@@ -158,6 +172,7 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
         tenSanPham: line.tenSanPham ?? '',
         donViTinh: line.donViTinh ?? '',
         soLuongNhap: line.soLuongThucTe ?? 0,
+        soLuongYeuCau: (line as any).soLuongYeuCau ?? undefined,
         ghiChu: line.ghiChu ?? '',
         tinhTrang: isKnownTinh ? rawTinh : (rawTinh ? 'Khác' : 'Bình thường'),
         tinhTrangCustom: isKnownTinh ? '' : rawTinh,
@@ -165,6 +180,7 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
         lots, lotProducts,
         selectedKienIds: line.lotProductId ? [line.lotProductId] : [],
         perKienQty: line.lotProductId ? [line.soLuongThucTe ?? 0] : [],
+        perKienYeuCau: line.lotProductId ? [Number((line as any).soLuongYeuCau ?? line.soLuongThucTe ?? 0)] : [],
       };
     });
   };
@@ -177,19 +193,22 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
     const warehouse = warehouses.find((w) => w.id === warehouseId);
     updateRow(index, {
       warehouseId, lotId: '', lotProductId: '',
-      lots: warehouse?.lots || [], lotProducts: [],
+      lots: warehouse?.lots || [], lotProducts: [], perKienYeuCau: [],
     });
   };
 
   const handleLotChange = (index: number, lotId: string) => {
     const lot = rows[index].lots.find((l) => l.id === lotId);
-    updateRow(index, { lotId, lotProductId: '', lotProducts: lot?.lotProducts || [], selectedKienIds: [], perKienQty: [] });
+    updateRow(index, { lotId, lotProductId: '', lotProducts: lot?.lotProducts || [], selectedKienIds: [], perKienQty: [], perKienYeuCau: [] });
   };
 
   const handleKienMultiChange = (index: number, ids: string[]) => {
-    const total = rows[index]?.soLuongNhap ?? 0;
+    const row = rows[index];
+    const total = row?.soLuongNhap ?? 0;
+    const totalKH = row?.soLuongYeuCau ?? total;
     const n = ids.length;
     let perKienQty: number[] = [];
+    let perKienYeuCau: number[] = [];
     if (n > 0 && total > 0) {
       const base = Math.floor(total / n);
       const rem = total % n;
@@ -197,15 +216,24 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
     } else {
       perKienQty = ids.map(() => 0);
     }
+    if (n > 0 && totalKH > 0) {
+      const base = Math.floor(totalKH / n);
+      const rem = totalKH % n;
+      perKienYeuCau = ids.map((_, i) => i === n - 1 ? base + rem : base);
+    } else {
+      perKienYeuCau = ids.map(() => 0);
+    }
     // Keep lotProductId in sync with the picker so the single-kiem submit path
     // never falls back to a stale kiện selected earlier through the combobox.
-    updateRow(index, { selectedKienIds: ids, perKienQty, lotProductId: ids.length === 1 ? ids[0] : '' });
+    updateRow(index, { selectedKienIds: ids, perKienQty, perKienYeuCau, lotProductId: ids.length === 1 ? ids[0] : '' });
   };
 
   const handleTotalChange = (index: number, total: number) => {
     const ids = rows[index]?.selectedKienIds ?? [];
     const n = ids.length;
+    const kh = rows[index]?.soLuongYeuCau ?? total;
     let perKienQty: number[] = [];
+    let perKienYeuCau: number[] = [];
     if (n > 0 && total > 0) {
       const base = Math.floor(total / n);
       const rem = total % n;
@@ -213,7 +241,14 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
     } else {
       perKienQty = ids.map(() => 0);
     }
-    updateRow(index, { soLuongNhap: total, perKienQty });
+    if (n > 0 && kh > 0) {
+      const base = Math.floor(kh / n);
+      const rem = kh % n;
+      perKienYeuCau = ids.map((_, i) => i === n - 1 ? base + rem : base);
+    } else {
+      perKienYeuCau = ids.map(() => 0);
+    }
+    updateRow(index, { soLuongNhap: total, perKienQty, perKienYeuCau });
   };
 
   const addRow = () => setRows((prev) => [...prev, emptyRow()]);
@@ -291,6 +326,14 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
       if (!ok) return;
     }
 
+    const hasKeHoachValues = rows.some((r) => r.soLuongYeuCau != null);
+    const hasDiff = rows.some((r) => r.soLuongYeuCau != null && Math.abs(Number(r.soLuongYeuCau) - Number(r.soLuongNhap)) > 1e-9);
+    if (hasKeHoachValues && hasDiff && !lyDoChenhLech.trim()) {
+      setLyDoChenhLechError('Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.');
+      return;
+    }
+    setLyDoChenhLechError(null);
+
     setLoading(true);
     try {
       const items = rows.flatMap((row) => {
@@ -302,18 +345,22 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
           const perKien = row.perKienQty?.length === kienIds.length ? row.perKienQty : (() => { const base=Math.floor(row.soLuongNhap/kienIds.length); const rem=row.soLuongNhap%kienIds.length; return kienIds.map((_,i)=> i===kienIds.length-1 ? base+rem : base); })();
           const cap = kienCapacityByUnit(row.donViTinh);
           if (cap) { const maxPer=Math.max(...perKien); if(maxPer>cap) throw new Error(`Vượt sức chứa kiện (tối đa ${cap} ${row.donViTinh}/kiện)`); }
+          const hasKH = row.soLuongYeuCau != null;
+          const totalKH = hasKH ? Number(row.soLuongYeuCau) : row.soLuongNhap;
+          const perKienKH = row.perKienYeuCau?.length === kienIds.length ? row.perKienYeuCau : (()=>{ const b=Math.floor(totalKH/kienIds.length); const r=totalKH%kienIds.length; return kienIds.map((_,i)=> i===kienIds.length-1? b+r : b);})();
           return kienIds.map((kid, i) => {
             const lp = row.lotProducts.find((p)=> p.id===kid);
-            return { ...(row.id && i===0 ? { id: row.id } : {}), lotProductId: kid, tenSanPham: lp?.internationalProduct?.tenSanPham || row.tenSanPham, warehouseId: row.warehouseId, tenKho: warehouse?.tenKho || '', lotId: lp?.lotId ?? row.lotId, tenLo: warehouses.find((w)=> w.id===row.warehouseId)?.lots?.find((l)=> l.id===(lp?.lotId ?? row.lotId))?.tenLo ?? lot?.tenLo ?? '', soLuongThucTe: perKien[i], donViTinh: lp?.donViTinh || row.donViTinh, ghiChu: row.ghiChu, tinhTrang: tinhTrangVal, quyCach: row.quyCach || undefined };
+            return { ...(row.id && i===0 ? { id: row.id } : {}), lotProductId: kid, tenSanPham: lp?.internationalProduct?.tenSanPham || row.tenSanPham, warehouseId: row.warehouseId, tenKho: warehouse?.tenKho || '', lotId: lp?.lotId ?? row.lotId, tenLo: warehouses.find((w)=> w.id===row.warehouseId)?.lots?.find((l)=> l.id===(lp?.lotId ?? row.lotId))?.tenLo ?? lot?.tenLo ?? '', soLuongThucTe: perKien[i], soLuongYeuCau: hasKH ? perKienKH[i] : undefined, donViTinh: lp?.donViTinh || row.donViTinh, ghiChu: row.ghiChu, tinhTrang: tinhTrangVal, quyCach: row.quyCach || undefined };
           });
         }
         const singleKienId = kienIds.length === 1 ? kienIds[0] : row.lotProductId;
         const lotProduct = row.lotProducts.find((lp) => lp.id === singleKienId);
-        return [{ ...(row.id ? { id: row.id } : {}), lotProductId: singleKienId ?? '', tenSanPham: lotProduct?.internationalProduct?.tenSanPham || row.tenSanPham, warehouseId: row.warehouseId, tenKho: warehouse?.tenKho || '', lotId: (lotProduct as any)?.lotId ?? row.lotId, tenLo: lot?.tenLo || '', soLuongThucTe: row.soLuongNhap, donViTinh: lotProduct?.donViTinh || row.donViTinh, ghiChu: row.ghiChu, tinhTrang: tinhTrangVal, quyCach: row.quyCach || undefined }];
+        return [{ ...(row.id ? { id: row.id } : {}), lotProductId: singleKienId ?? '', tenSanPham: lotProduct?.internationalProduct?.tenSanPham || row.tenSanPham, warehouseId: row.warehouseId, tenKho: warehouse?.tenKho || '', lotId: (lotProduct as any)?.lotId ?? row.lotId, tenLo: lot?.tenLo || '', soLuongThucTe: row.soLuongNhap, soLuongYeuCau: row.soLuongYeuCau ?? undefined, donViTinh: lotProduct?.donViTinh || row.donViTinh, ghiChu: row.ghiChu, tinhTrang: tinhTrangVal, quyCach: row.quyCach || undefined }];
       });
 
       await warehouseReceiptService.updateWarehouseReceipt(receipt.id, {
         ghiChu,
+        lyDoChenhLech: lyDoChenhLech.trim() || undefined,
         mucDich: mucDich || undefined,
         nguoiDeNghi: nguoiDeNghi || undefined,
         maNguoiDeNghi: maNguoiDeNghi || undefined,
@@ -464,11 +511,14 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
                               const lp = row.lotProducts.find((p) => p.id === kid);
                               const max = kienCapacityByUnit(row.donViTinh || lp?.donViTinh || '');
                               const per = row.perKienQty[ki] ?? 0;
+                              const perKH = row.perKienYeuCau?.[ki] ?? per;
                               const over = max !== null && per > max;
                               return (
                                 <div key={kid} className={`p-2 rounded border ${over ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-white'}`}>
                                   <div className="text-xs font-mono text-gray-600">{lp?.maKien ?? kid.slice(-6)}</div>
+                                  <div className="text-[10px] text-gray-500">TT</div>
                                   <input type="number" value={per} onChange={(e) => { const next=[...row.perKienQty]; next[ki]=parseNumberInput(e.target.value); updateRow(index,{ perKienQty: next }); }} min={0} step={0.01} className="mt-1 w-full px-2 py-1 border border-gray-300 rounded text-sm" />
+                                  {row.soLuongYeuCau != null && (<><div className="text-[10px] text-gray-500 mt-1">KH</div><input type="number" value={perKH} onChange={(e) => { const next=[...(row.perKienYeuCau ?? row.perKienQty)]; next[ki]=parseNumberInput(e.target.value); const sum=row.perKienYeuCau ? next.reduce((a,b)=>a+b,0) : perKH; updateRow(index,{ perKienYeuCau: next, soLuongYeuCau: next.reduce((a,b)=>a+b,0) }); }} min={0} step={0.01} className="mt-1 w-full px-2 py-1 border border-gray-200 rounded text-sm bg-amber-50" /></>)}
                                   {over && <div className="text-xs text-red-600 mt-1">Vượt {max}</div>}
                                 </div>
                               );
@@ -529,6 +579,18 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
             <textarea value={ghiChu} onChange={(e) => setGhiChu(e.target.value)} rows={2}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500" />
           </div>
+
+          {(() => {
+            const hasKeHoachValues = rows.some((r) => r.soLuongYeuCau != null);
+            if (!hasKeHoachValues) return null;
+            return (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Lý do chênh lệch (bắt buộc khi thực tế khác kế hoạch)</label>
+                <textarea value={lyDoChenhLech} onChange={(e) => { setLyDoChenhLech(e.target.value); if (e.target.value.trim()) setLyDoChenhLechError(null); }} rows={2} placeholder="Nhập lý do nếu số lượng thực tế khác kế hoạch..." className={`w-full px-3 py-2 border rounded-lg text-sm ${lyDoChenhLechError ? 'border-red-300 focus:ring-red-400' : 'border-gray-300'}`} />
+                {lyDoChenhLechError && <p className="text-xs text-red-600 mt-1">{lyDoChenhLechError}</p>}
+              </div>
+            );
+          })()}
 
           <div className="flex justify-end gap-2 mt-6">
             <button type="button" onClick={onClose}

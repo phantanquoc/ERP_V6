@@ -71,6 +71,7 @@ export interface UpdateReceiptInput {
   ngayNhap?: Date | string;
   mucDich?: string;
   ghiChu?: string;
+  lyDoChenhLech?: string | null;
   nguoiDeNghi?: string;
   maNguoiDeNghi?: string;
   boPhan?: string;
@@ -97,6 +98,7 @@ export interface LegacyFlatReceiptInput {
   soLuongNhap: number;
   donViTinh?: string;
   ghiChu?: string;
+  lyDoChenhLech?: string | null;
   mucDich?: string;
   supplyRequestId?: string;
   purchaseRequestId?: string;
@@ -348,6 +350,12 @@ class WarehouseReceiptService {
     return totals;
   }
 
+  private parseLyDoChenhLech(ghiChu: string | null | undefined): string | null {
+    if (!ghiChu) return null;
+    const m = String(ghiChu).match(/\|\s*LyDoChenhLech:\s*(.*)\s*$/);
+    return m ? m[1].trim() || null : null;
+  }
+
   /**
    * Preserve the informational PLAN fields (soLuongYeuCau, soLoKeHoach, soKienKeHoach)
    * from the stored line when the update payload omits them. Kế hoạch is reference-only
@@ -360,9 +368,13 @@ class WarehouseReceiptService {
       if (!line.id) continue;
       const old = byId.get(line.id);
       if (!old) continue;
-      if (line.soLuongYeuCau === undefined) line.soLuongYeuCau = old.soLuongYeuCau ?? undefined;
-      if (line.soLoKeHoach === undefined) line.soLoKeHoach = old.soLoKeHoach ?? undefined;
-      if (line.soKienKeHoach === undefined) line.soKienKeHoach = old.soKienKeHoach ?? undefined;
+      if (line.soLuongYeuCau === undefined || line.soLuongYeuCau === null) line.soLuongYeuCau = old.soLuongYeuCau ?? undefined;
+      if (line.soLoKeHoach === undefined || line.soLoKeHoach === null) line.soLoKeHoach = old.soLoKeHoach ?? undefined;
+      if (line.soKienKeHoach === undefined || line.soKienKeHoach === null) line.soKienKeHoach = old.soKienKeHoach ?? undefined;
+      if ((line as any).soLoThucTe === undefined || (line as any).soLoThucTe === null) (line as any).soLoThucTe = old.soLoThucTe ?? undefined;
+      if ((line as any).soKienThucTe === undefined || (line as any).soKienThucTe === null) (line as any).soKienThucTe = old.soKienThucTe ?? undefined;
+      if ((line as any).tinhTrang === undefined || (line as any).tinhTrang === null) (line as any).tinhTrang = old.tinhTrang ?? undefined;
+      if ((line as any).quyCach === undefined || (line as any).quyCach === null) (line as any).quyCach = old.quyCach ?? undefined;
     }
   }
 
@@ -661,13 +673,14 @@ class WarehouseReceiptService {
         skip,
         take: limitNum,
         orderBy: this.resolveOrderBy(params?.sortBy, params?.sortOrder),
-        include: { items: slipItemInclude },
+        include: { items: slipItemInclude, inboundPlan: { select: { lyDoChenhLech: true } } },
       }),
       prisma.warehouseReceipt.count({ where }),
     ]);
 
     const data = receipts.map((r: any) => ({
       ...r,
+      lyDoChenhLech: r.lyDoChenhLech ?? r.inboundPlan?.lyDoChenhLech ?? this.parseLyDoChenhLech(r.ghiChu),
       items: resolveSlipItems(r.items),
       isLocked: !!r.supplyRequestId,
     }));
@@ -681,12 +694,12 @@ class WarehouseReceiptService {
   async getById(id: string) {
     const receipt = await prisma.warehouseReceipt.findUnique({
       where: { id },
-      include: { items: slipItemInclude },
+      include: { items: slipItemInclude, inboundPlan: { select: { lyDoChenhLech: true } } },
     });
     if (!receipt) {
       throw new NotFoundError('Không tìm thấy phiếu nhập kho');
     }
-    return { ...(receipt as any), items: resolveSlipItems((receipt as any).items), isLocked: !!receipt.supplyRequestId };
+    return { ...(receipt as any), lyDoChenhLech: (receipt as any).lyDoChenhLech ?? (receipt as any).inboundPlan?.lyDoChenhLech ?? this.parseLyDoChenhLech((receipt as any).ghiChu), items: resolveSlipItems((receipt as any).items), isLocked: !!receipt.supplyRequestId };
   }
 
   async getByLotProduct(lotProductId: string) {
@@ -911,10 +924,21 @@ class WarehouseReceiptService {
     const totals = computeHeaderTotals(lines);
 
     const lyDoChenhLech = (normalized as any).lyDoChenhLech as string | null | undefined;
-    // WarehouseReceipt has no lyDoChenhLech column — keep it in ghiChu so FE validation is not bypassed
-    const effectiveGhiChu = lyDoChenhLech
-      ? normalized.ghiChu ? `${normalized.ghiChu} | LyDoChenhLech: ${lyDoChenhLech}` : `LyDoChenhLech: ${lyDoChenhLech}`
-      : normalized.ghiChu;
+    {
+      const hasDiff = effective.some((l: any) => {
+        const kh = (l as any).soLuongYeuCau;
+        if (kh == null) return false;
+        return Math.abs(Number(kh) - Number(l.soLuongThucTe)) > 1e-9;
+      }) || lines.some((l: any) => {
+        const kh = (l as any).soLuongYeuCau;
+        if (kh == null) return false;
+        return Math.abs(Number(kh) - Number(l.soLuongThucTe)) > 1e-9;
+      });
+      if (hasDiff && !(lyDoChenhLech && String(lyDoChenhLech).trim())) {
+        throw new ValidationError('Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.');
+      }
+    }
+    const effectiveGhiChu = normalized.ghiChu;
 
     const receipt = await tx.warehouseReceipt.create({
       data: {
@@ -925,6 +949,7 @@ class WarehouseReceiptService {
         ...(normalized.ngayNhap ? { ngayNhap: new Date(normalized.ngayNhap) } : {}),
         mucDich: normalized.mucDich,
         ghiChu: effectiveGhiChu,
+        lyDoChenhLech: lyDoChenhLech?.trim() || null,
         ...(normalized.supplyRequestId ? { supplyRequestId: normalized.supplyRequestId } : {}),
         ...((normalized as CreateReceiptInput).purchaseRequestId ? { purchaseRequestId: (normalized as CreateReceiptInput).purchaseRequestId } : {}),
         ...((normalized as any).inboundPlanId ? { inboundPlanId: (normalized as any).inboundPlanId } : {}),
@@ -1105,6 +1130,18 @@ class WarehouseReceiptService {
       const stored = existing.items ?? [];
       // An actual-only edit must not wipe the informational plan columns.
       this.preserveStoredFields(items, stored);
+      // Require lyDoChenhLech when edited actuals diverge from plan (includes inherited soLuongYeuCau)
+      {
+        const hasDiff = items.some((it: any) => {
+          const kh = it.soLuongYeuCau;
+          if (kh == null) return false;
+          return Math.abs(Number(kh) - Number(it.soLuongThucTe)) > 1e-9;
+        });
+        const lyDo = (normalized as any).lyDoChenhLech as string | null | undefined;
+        if (hasDiff && !(lyDo && String(lyDo).trim())) {
+          throw new ValidationError('Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.');
+        }
+      }
       await this.validateFreeTextFields(tx, items, (normalized.boPhan as string | undefined) ?? existing.boPhan ?? undefined);
 
       const incoming = await this.resolveLines(tx, items);
@@ -1201,6 +1238,11 @@ class WarehouseReceiptService {
           ...(normalized.ngayNhap ? { ngayNhap: new Date(normalized.ngayNhap) } : {}),
           mucDich: normalized.mucDich,
           ghiChu: normalized.ghiChu,
+          lyDoChenhLech: (() => {
+            const lyDo = (normalized as any).lyDoChenhLech as string | null | undefined;
+            if (lyDo !== undefined) return lyDo?.trim() ? lyDo.trim() : null;
+            return undefined;
+          })() as any,
           ...(normalized.nguoiDeNghi !== undefined ? { nguoiDeNghi: normalized.nguoiDeNghi } : {}),
           ...(normalized.maNguoiDeNghi !== undefined ? { maNguoiDeNghi: normalized.maNguoiDeNghi } : {}),
           ...(normalized.boPhan !== undefined ? { boPhan: normalized.boPhan } : {}),
@@ -1210,6 +1252,19 @@ class WarehouseReceiptService {
         },
         include: { items: { orderBy: { stt: 'asc' } } },
       });
+
+      const inboundPlanIdForUpdate = (existing as any).inboundPlanId as string | undefined;
+      const editedLyDoReceipt = (normalized as any).lyDoChenhLech as string | null | undefined;
+      if (inboundPlanIdForUpdate && editedLyDoReceipt !== undefined) {
+        try {
+          await tx.inboundPlan.update({
+            where: { id: inboundPlanIdForUpdate },
+            data: { lyDoChenhLech: editedLyDoReceipt?.trim() ? editedLyDoReceipt.trim() : null } as any,
+          });
+        } catch (e) {
+          console.error('[warehouseReceipt] inboundPlan lyDoChenhLech update failed', e);
+        }
+      }
 
       return { ...updated, isLocked: !!updated.supplyRequestId };
     });

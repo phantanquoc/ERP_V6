@@ -403,11 +403,11 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
       return;
     }
 
-    if (isInboundPlanMode) {
+    if (hasKeHoachColumn) {
       const hasDiff = submittedRows.some((r) => {
-        const kh = Number(r.soLuongYeuCau ?? r.soLuong);
-        const tt = Number(r.soLuong);
-        return Math.abs(kh - tt) > 1e-9;
+        const kh = r.soLuongYeuCau;
+        if (kh == null) return false;
+        return Math.abs(Number(kh) - Number(r.soLuong)) > 1e-9;
       });
       if (hasDiff && !lyDoChenhLech.trim()) {
         setLyDoChenhLechError('Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.');
@@ -504,7 +504,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
         ghiChu: ghiChu || undefined, supplyRequestId: (isInboundPlanMode ? inboundPlan?.purchaseRequest?.supplyRequest?.id : supplyRequest?.id) || undefined,
         purchaseRequestId: (inboundPlan?.purchaseRequest?.id ?? linkedPurchaseRequestId) ?? undefined,
         inboundPlanId: inboundPlan?.id ?? undefined,
-        lyDoChenhLech: isInboundPlanMode && lyDoChenhLech.trim() ? lyDoChenhLech.trim() : undefined,
+        lyDoChenhLech: lyDoChenhLech.trim() || undefined,
         nguoiDeNghi: nguoiDeNghi || undefined, maNguoiDeNghi: maNguoiDeNghi || undefined, boPhan: boPhan || undefined,
         items,
       });
@@ -732,7 +732,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
             })}
           </div>
           <div><label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú phiếu</label><textarea value={ghiChu} onChange={(event) => setGhiChu(event.target.value)} rows={2} placeholder="" className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
-          {isInboundPlanMode && (
+          {hasKeHoachColumn && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Lý do chênh lệch (bắt buộc khi thực tế khác kế hoạch)</label>
               <textarea value={lyDoChenhLech} onChange={(e) => { setLyDoChenhLech(e.target.value); if (e.target.value.trim()) setLyDoChenhLechError(null); }} rows={2} placeholder="Nhập lý do nếu số lượng thực tế khác kế hoạch..." className={`w-full px-3 py-2 border rounded-lg text-sm ${lyDoChenhLechError ? 'border-red-300 focus:ring-red-400' : 'border-gray-300'}`} />

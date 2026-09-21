@@ -36,6 +36,8 @@ export interface WarehouseReceipt {
   tenNhanVien: string;
   mucDich?: string | null;
   ghiChu?: string;
+  lyDoChenhLech?: string | null;
+  inboundPlan?: { lyDoChenhLech?: string | null } | null;
   tongSoLuongThucTe?: number;
   soDongHang?: number;
   isLocked?: boolean;
@@ -87,6 +89,7 @@ export interface UpdateWarehouseReceiptData {
   ngayNhap?: string;
   mucDich?: string;
   ghiChu?: string;
+  lyDoChenhLech?: string | null;
   nguoiDeNghi?: string;
   maNguoiDeNghi?: string;
   boPhan?: string;
