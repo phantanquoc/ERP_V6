@@ -12,16 +12,9 @@
 -- ⚠️ Đây là DATA migration (UPDATE + DELETE dữ liệu thật), không phải schema
 -- migration — không có down-migration tự động. Phải backup trước khi apply.
 --
--- ⚠️ BẪY KHI TEST: file này có BEGIN...COMMIT riêng bên trong. Bọc nó trong một
--- transaction ngoài rồi ROLLBACK sẽ KHÔNG hoàn tác được — COMMIT bên trong chạy
--- trước và ăn thật. Muốn thử nghiệm an toàn: restore sang database throwaway
--- riêng rồi chạy, đừng bọc transaction.
---
--- Apply manually with:
+-- Apply qua Prisma: `npx prisma migrate deploy` (Prisma tự bọc transaction).
+-- Chạy tay (throwaway DB) mới dùng psql -f như bên dưới:
 --   psql "$DATABASE_URL" -f backend/prisma/migrations/20260918090000_normalize_don_vi_tinh_kg/migration.sql
--- or:
---   docker compose -f docker-compose.dev.yml exec -T postgres \
---     psql -U erp_user -d erp_database -f - < backend/prisma/migrations/20260918090000_normalize_don_vi_tinh_kg/migration.sql
 --
 -- BACKGROUND
 -- `donViTinh` (and its `donVi`-named siblings) is a free-text String column copied
@@ -49,8 +42,6 @@
 --
 -- Matching is EXACT on 'kg'/'KG' only — no other unit variants are touched (does
 -- NOT touch dirty values in PHAN_LOAI_VAT_TU / LOAI_CHI_PHI, which are out of scope).
-
-BEGIN;
 
 -- 1) Cascade the label fix across every column that stores DON_VI_TINH values.
 --    (List and column names verified 1:1 against LOOKUP_COLUMN_MAP.DON_VI_TINH.)
@@ -134,8 +125,6 @@ UPDATE business.tax_reports
 
 DELETE FROM common.lookups
   WHERE "group" = 'DON_VI_TINH' AND label IN ('kg', 'KG');
-
-COMMIT;
 
 -- Post-migration verification (run manually, not part of the transaction):
 --   SELECT "group", code, label FROM common.lookups WHERE "group"='DON_VI_TINH' ORDER BY "sortOrder";

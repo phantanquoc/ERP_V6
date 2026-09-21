@@ -392,10 +392,24 @@ const warehouseLineBM = {
   quyCach: optionalString,
 };
 
+// ĐVT là free-text có kiểm soát: giá trị chuẩn nằm trong common.lookups (group DON_VI_TINH)
+// và được quản lý qua Cài đặt → Danh mục. Thêm/sửa ở đó có hiệu lực ngay.
+// Zod chỉ kiểm tra hình thức (không rỗng vô nghĩa, không quá dài); kiểm tra
+// "có trong danh mục hay không" là soft-warn ở service (warnIfUnknownUnit) để
+// không chặn phiếu khi admin vừa thêm ĐVT mới.
+const dvtField = z
+  .string()
+  .optional()
+  .nullable()
+  .transform((v) => (v == null ? v : String(v).trim()))
+  .refine((v) => v == null || v === '' || v.length <= 50, {
+    message: 'Đơn vị tính quá dài (tối đa 50 ký tự)',
+  });
+
 const warehouseLineBase = {
   lotProductId: z.string().min(1, 'Thiếu kiện hàng').optional().nullable(),
   tenSanPham: z.string().min(1, 'Tên hàng hóa là bắt buộc'),
-  donViTinh: optionalString,
+  donViTinh: dvtField,
   warehouseId: z.string().min(1, 'Thiếu kho hàng'),
   tenKho: optionalString,
   lotId: z.string().min(1, 'Thiếu lô hàng'),
@@ -445,7 +459,7 @@ export const updateReceiptSchema = z.object({
 const issueLineBase = {
   lotProductId: z.string().min(1, 'Thiếu kiện hàng'),
   tenSanPham: z.string().min(1, 'Tên hàng hóa là bắt buộc'),
-  donViTinh: optionalString,
+  donViTinh: dvtField,
   warehouseId: z.string().min(1, 'Thiếu kho hàng'),
   tenKho: optionalString,
   lotId: z.string().min(1, 'Thiếu lô hàng'),

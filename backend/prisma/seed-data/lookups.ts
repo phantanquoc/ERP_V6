@@ -68,6 +68,7 @@ const SEED: Record<LookupGroup, string[]> = {
     'Xe',
     'Container',
     'Lô',
+    'Cây',
     'kg', // (dirty) case variant, 3 rows
     'KG', // (dirty) case variant, 1 row
   ],
