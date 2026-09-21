@@ -563,7 +563,8 @@ describe('warehouseReceiptService.getAll', () => {
       },
     ]);
 
-    const list = await warehouseReceiptService.getAll();
+    const result = await warehouseReceiptService.getAll()
+    const list = (result as any).data ?? result;
 
     // The list response must carry lines: the header mirror only holds line 1,
     // so a list without lines silently hides every other commodity.

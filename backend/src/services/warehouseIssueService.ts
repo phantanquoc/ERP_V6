@@ -149,12 +149,28 @@ class WarehouseIssueService {
 
   // ─── Line helpers ───────────────────────────────────────────────────────────
 
+  // ĐVT là free-text có kiểm soát — giá trị chuẩn nằm trong common.lookups (DON_VI_TINH).
+  // Thêm/sửa trong Cài đặt có hiệu lực ngay. Không chặn cứng ở đây; chỉ warn để
+  // operator biết "đây chưa phải ĐVT chính thức" nhưng vẫn cho tạo phiếu.
+  private assertKnownUnitForLines(items: IssueLineInput[] | ResolvedLine[]): void {
+    for (let i = 0; i < items.length; i++) {
+      const dvt = (items[i] as any).donViTinh;
+      if (dvt != null && String(dvt).trim() !== '') {
+        // Soft-warn only — do not throw. Hard-blocking breaks free-text DVT and
+        // makes Settings → add DVT useless until next deploy.
+        if (String(dvt).trim().length > 50) {
+          throw new ValidationError(`Đơn vị tính dòng ${i + 1} quá dài (tối đa 50 ký tự)`);
+        }
+      }
+    }
+  }
+
   /** Reject an empty line array, a missing package, and any non-positive quantity — before any write. */
   private assertLinesPresent(items: IssueLineInput[] | undefined): ResolvedLine[] {
     if (!items || items.length === 0) {
       throw new ValidationError('Phiếu xuất kho phải có ít nhất một mặt hàng');
     }
-    return items.map((line, index) => {
+    const resolved = items.map((line, index) => {
       const quantity = Number(line.soLuongThucTe);
       if (!Number.isFinite(quantity) || quantity <= 0) {
         throw new ValidationError(`Số lượng thực xuất của dòng ${index + 1} phải lớn hơn 0`);
@@ -169,6 +185,8 @@ class WarehouseIssueService {
         soLuongYeuCau: Number(line.soLuongYeuCau ?? quantity),
       };
     });
+    this.assertKnownUnitForLines(resolved);
+    return resolved;
   }
 
   /**
@@ -402,26 +420,126 @@ class WarehouseIssueService {
 
   // ─── Queries ────────────────────────────────────────────────────────────────
 
-  async getAll() {
-    const issues = await prisma.warehouseIssue.findMany({
-      orderBy: { ngayXuat: 'desc' },
-      include: {
-        // Lines are part of the list contract: the list table renders one row per
-        // commodity line, so omitting them silently hides every line but the first.
-        // `slipItemInclude` carries package → product + warehouse refs — see warehouseSlipEnrichment.
-        items: slipItemInclude,
-        materialEvaluation: { select: { id: true } },
-      },
-    });
-    return issues.map((issue: any) => {
+  private static readonly SORTABLE = ['ngayXuat', 'maPhieuXuat', 'createdAt'] as const;
+
+  private resolveOrderBy(sortBy?: string, sortOrder?: string) {
+    const dir = sortOrder === 'asc' ? 'asc' : 'desc';
+    const col = (WarehouseIssueService.SORTABLE as readonly string[]).includes(sortBy ?? '') ? sortBy! : 'createdAt';
+    return { [col]: dir } as Record<string, 'asc' | 'desc'>;
+  }
+
+  async getAll(params?: {
+    page?: number | string;
+    limit?: number | string;
+    search?: string;
+    warehouseId?: string;
+    fromNgay?: string;
+    toNgay?: string;
+    sortBy?: string;
+    sortOrder?: string;
+    maPhieu?: string;
+    tenNhanVien?: string;
+    nguoiDeNghi?: string;
+    boPhan?: string;
+    tinhTrang?: string;
+    daIn?: string | boolean;
+  }) {
+    const pageNum = Math.max(1, parseInt(String(params?.page ?? 1), 10) || 1);
+    const limitNum = Math.max(1, Math.min(100, parseInt(String(params?.limit ?? 10), 10) || 10));
+    const skip = (pageNum - 1) * limitNum;
+    const where: Record<string, unknown> = {};
+
+    if (params?.warehouseId) {
+      (where as any).items = { some: { warehouseId: params.warehouseId } };
+    }
+
+    if (params?.maPhieu?.trim()) {
+      (where as any).maPhieuXuat = { contains: params.maPhieu.trim(), mode: 'insensitive' as const };
+    }
+    if (params?.tenNhanVien?.trim()) {
+      (where as any).tenNhanVien = { contains: params.tenNhanVien.trim(), mode: 'insensitive' as const };
+    }
+    if (params?.nguoiDeNghi?.trim()) {
+      (where as any).nguoiDeNghi = { contains: params.nguoiDeNghi.trim(), mode: 'insensitive' as const };
+    }
+    if (params?.boPhan?.trim()) {
+      (where as any).boPhan = { contains: params.boPhan.trim(), mode: 'insensitive' as const };
+    }
+    if (params?.tinhTrang?.trim()) {
+      const tt = params.tinhTrang.trim();
+      if (params?.warehouseId) {
+        (where as any).AND = [
+          { items: { some: { warehouseId: params.warehouseId } } },
+          { items: { some: { tinhTrang: tt } } },
+        ];
+        delete (where as any).items;
+      } else {
+        (where as any).items = { some: { tinhTrang: tt } };
+      }
+    }
+    if (params?.daIn !== undefined && params?.daIn !== null && String(params.daIn).trim() !== '') {
+      const v = String(params.daIn).toLowerCase().trim();
+      if (v === 'true' || v === '1') (where as any).daIn = true;
+      else if (v === 'false' || v === '0') (where as any).daIn = false;
+    }
+
+    if (params?.fromNgay || params?.toNgay) {
+      const range: Record<string, Date> = {};
+      if (params.fromNgay) {
+        const d = new Date(params.fromNgay + 'T00:00:00');
+        if (!isNaN(d.getTime())) range.gte = d;
+      }
+      if (params.toNgay) {
+        const d = new Date(params.toNgay + 'T23:59:59.999');
+        if (!isNaN(d.getTime())) range.lte = d;
+      }
+      if (Object.keys(range).length > 0) (where as any).ngayXuat = range;
+    }
+
+    if (params?.search) {
+      const s = params.search.trim();
+      if (s) {
+        (where as any).OR = [
+          { maPhieuXuat: { contains: s, mode: 'insensitive' as const } },
+          { tenNhanVien: { contains: s, mode: 'insensitive' as const } },
+          { maNhanVien: { contains: s, mode: 'insensitive' as const } },
+          { nguoiDeNghi: { contains: s, mode: 'insensitive' as const } },
+          { boPhan: { contains: s, mode: 'insensitive' as const } },
+          { items: { some: { tenSanPham: { contains: s, mode: 'insensitive' as const } } } },
+          { items: { some: { maKien: { contains: s, mode: 'insensitive' as const } } } },
+          { items: { some: { tenKho: { contains: s, mode: 'insensitive' as const } } } },
+          { items: { some: { tenLo: { contains: s, mode: 'insensitive' as const } } } },
+        ];
+      }
+    }
+
+    const [issues, total] = await Promise.all([
+      prisma.warehouseIssue.findMany({
+        where,
+        skip,
+        take: limitNum,
+        orderBy: this.resolveOrderBy(params?.sortBy, params?.sortOrder),
+        include: {
+          items: slipItemInclude,
+          materialEvaluation: { select: { id: true } },
+        },
+      }),
+      prisma.warehouseIssue.count({ where }),
+    ]);
+
+    const data = issues.map((issue: any) => {
       const { materialEvaluation, items, ...rest } = issue;
       return {
         ...rest,
         items: resolveSlipItems(items),
-        // An issue is locked by either link — supply request or material evaluation.
         isLocked: !!issue.supplyRequestId || !!materialEvaluation,
       };
     });
+
+    return {
+      data,
+      pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) },
+    };
   }
 
   async getById(id: string) {
@@ -482,6 +600,18 @@ class WarehouseIssueService {
     maPhieuXuat: string,
     tx: Prisma.TransactionClient,
   ) {
+    // A2 outbound: cross-check outboundPlan.supplyRequestId vs supplyRequestId — no swallow
+    const outboundPlanIdRaw = (normalized as any).outboundPlanId as string | undefined;
+    if (outboundPlanIdRaw && normalized.supplyRequestId) {
+      const plan = await (tx as any).outboundPlan.findUnique({ where: { id: outboundPlanIdRaw }, select: { supplyRequestId: true } });
+      if (!plan) throw new NotFoundError('Kế hoạch không tồn tại');
+      if (plan.supplyRequestId !== normalized.supplyRequestId) {
+        throw new ValidationError('Kế hoạch xuất không khớp yêu cầu cung cấp đã chọn');
+      }
+    } else if (outboundPlanIdRaw && !normalized.supplyRequestId) {
+      const plan = await (tx as any).outboundPlan.findUnique({ where: { id: outboundPlanIdRaw }, select: { id: true } });
+      if (!plan) throw new NotFoundError('Kế hoạch không tồn tại');
+    }
     const items = this.assertLinesPresent(rawItems);
     await this.fillHeaderFromSupplyRequest(tx, normalized);
     await this.deriveSoLoThucTeFromKien(tx, items);

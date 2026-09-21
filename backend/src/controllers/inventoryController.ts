@@ -31,6 +31,7 @@ export class InventoryController {
             total: result.total,
             totalPages: result.totalPages,
           },
+          summary: (result as any).summary ?? null,
         },
       };
 

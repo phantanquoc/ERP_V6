@@ -180,6 +180,74 @@ class WarehouseReceiptService {
   }
 
   /**
+   * D2: Soft validation for free-text DVT / boPhan fields (W11).
+   * donViTinh / phanLoai canonically come from `common.lookups`, but older
+   * slips and quick-purchase flows write new labels freely. Hard-blocking would
+   * break N+2 writes, so we WARN and allow the write; callers that want a strict
+   * gate can set `strict: true` to receive a ValidationError instead.
+   * The lookup hit is best-effort — a cache/DB failure degrades to a warning.
+   */
+  private async warnIfUnknownUnit(
+    client: PrismaClientLike,
+    field: string,
+    group: string,
+    raw: string | undefined | null,
+    opts: { strict?: boolean } = {}
+  ): Promise<void> {
+    const label = (raw ?? '').trim();
+    if (!label) return;
+    try {
+      const hit = await (client as any).lookup?.findFirst?.({
+        where: { group, label, isActive: true },
+        select: { id: true },
+      });
+      // Fallback to global prisma if tx delegate has no lookup (older delegate shape)
+      const resolved =
+        hit ??
+        (client !== prisma
+          ? await (prisma as any).lookup.findFirst({
+              where: { group, label, isActive: true },
+              select: { id: true },
+            })
+          : null);
+      if (!resolved) {
+        const msg = `"${label}" chưa có trong danh mục ${group} — sẽ ghi tự do, hãy bổ sung Lookup nếu đây là ĐVT chính thức (${field})`;
+        if (opts.strict) throw new ValidationError(msg);
+        console.warn(`[warehouseReceipt][lookup-warn] ${msg}`);
+      }
+    } catch (e) {
+      if (e instanceof ValidationError) throw e;
+      console.warn(`[warehouseReceipt][lookup-warn] lookup check failed for ${group}/${label}:`, e);
+    }
+  }
+
+  // ĐVT là free-text có kiểm soát — giá trị chuẩn nằm trong common.lookups (DON_VI_TINH).
+  // Thêm/sửa trong Cài đặt có hiệu lực ngay; không chặn cứng ở đây.
+  private assertKnownUnitForLines(items: ReceiptLineInput[]): void {
+    for (let i = 0; i < items.length; i++) {
+      const dvt = items[i].donViTinh;
+      if (dvt != null && String(dvt).trim() !== '' && String(dvt).trim().length > 50) {
+        throw new ValidationError(`Đơn vị tính dòng ${i + 1} quá dài (tối đa 50 ký tự)`);
+      }
+    }
+  }
+
+  private async validateFreeTextFields(client: PrismaClientLike, items: ReceiptLineInput[], boPhan?: string | null): Promise<void> {
+    this.assertKnownUnitForLines(items);
+    for (let i = 0; i < items.length; i++) {
+      const dvt = (items[i].donViTinh ?? '').trim();
+      if (dvt) await this.warnIfUnknownUnit(client, `items[${i}].donViTinh`, 'DON_VI_TINH', dvt);
+    }
+    if (boPhan?.trim()) {
+      // boPhan is sourced from SupplyRequest.boPhan — no dedicated Lookup group today,
+      // so only warn on egregiously long/freeform values rather than blocking.
+      if (boPhan.trim().length > 100) {
+        console.warn(`[warehouseReceipt][lookup-warn] boPhan value unusually long (${boPhan.length} chars): "${boPhan.slice(0, 80)}..."`);
+      }
+    }
+  }
+
+  /**
    * Resolve every line's package inside the caller's transaction, creating the
    * package when the line only names a commodity.
    */
@@ -493,21 +561,121 @@ class WarehouseReceiptService {
 
   // ─── Queries ────────────────────────────────────────────────────────────────
 
-  async getAll() {
-    const receipts = await prisma.warehouseReceipt.findMany({
-      orderBy: { createdAt: 'desc' },
-      // Lines are part of the list contract: the list table renders one row per
-      // commodity line, so omitting them silently hides every line but the first.
-      // `slipItemInclude` carries the package → product + warehouse refs so the
-      // BM01 grid can render real "Mã hàng" (maSanPham) and real "Loại Kho" (maKho)
-      // instead of the package code / warehouse label — see warehouseSlipEnrichment.
-      include: { items: slipItemInclude },
-    });
-    return receipts.map((r: any) => ({
+  private static readonly SORTABLE = ['ngayNhap', 'maPhieuNhap', 'createdAt'] as const;
+
+  private resolveOrderBy(sortBy?: string, sortOrder?: string) {
+    const dir = sortOrder === 'asc' ? 'asc' : 'desc';
+    const col = (WarehouseReceiptService.SORTABLE as readonly string[]).includes(sortBy ?? '') ? sortBy! : 'createdAt';
+    return { [col]: dir } as Record<string, 'asc' | 'desc'>;
+  }
+
+  async getAll(params?: {
+    page?: number | string;
+    limit?: number | string;
+    search?: string;
+    warehouseId?: string;
+    fromNgay?: string;
+    toNgay?: string;
+    sortBy?: string;
+    sortOrder?: string;
+    maPhieu?: string;
+    tenNhanVien?: string;
+    nguoiDeNghi?: string;
+    boPhan?: string;
+    tinhTrang?: string;
+    daIn?: string | boolean;
+  }) {
+    const pageNum = Math.max(1, parseInt(String(params?.page ?? 1), 10) || 1);
+    const limitNum = Math.max(1, Math.min(100, parseInt(String(params?.limit ?? 10), 10) || 10));
+    const skip = (pageNum - 1) * limitNum;
+    const where: Record<string, unknown> = {};
+
+    if (params?.warehouseId) {
+      (where as any).items = { some: { warehouseId: params.warehouseId } };
+    }
+
+    // B1: server-side column filters so pagination total reflects them (FE was filtering client-side on 10 rows)
+    if (params?.maPhieu?.trim()) {
+      (where as any).maPhieuNhap = { contains: params.maPhieu.trim(), mode: 'insensitive' as const };
+    }
+    if (params?.tenNhanVien?.trim()) {
+      (where as any).tenNhanVien = { contains: params.tenNhanVien.trim(), mode: 'insensitive' as const };
+    }
+    if (params?.nguoiDeNghi?.trim()) {
+      (where as any).nguoiDeNghi = { contains: params.nguoiDeNghi.trim(), mode: 'insensitive' as const };
+    }
+    if (params?.boPhan?.trim()) {
+      (where as any).boPhan = { contains: params.boPhan.trim(), mode: 'insensitive' as const };
+    }
+    if (params?.tinhTrang?.trim()) {
+      const tt = params.tinhTrang.trim();
+      (where as any).items = { ...(where as any).items, some: { ...(where as any).items?.some ?? {}, tinhTrang: tt } };
+      // If warehouseId + tinhTrang both filter items, merge into AND so both must match (different lines may satisfy each alone)
+      if (params?.warehouseId && params?.tinhTrang?.trim()) {
+        (where as any).AND = [
+          { items: { some: { warehouseId: params.warehouseId } } },
+          { items: { some: { tinhTrang: tt } } },
+        ];
+        delete (where as any).items;
+      }
+    }
+    if (params?.daIn !== undefined && params?.daIn !== null && String(params.daIn).trim() !== '') {
+      const v = String(params.daIn).toLowerCase().trim();
+      if (v === 'true' || v === '1') (where as any).daIn = true;
+      else if (v === 'false' || v === '0') (where as any).daIn = false;
+    }
+
+    if (params?.fromNgay || params?.toNgay) {
+      const range: Record<string, Date> = {};
+      if (params.fromNgay) {
+        const d = new Date(params.fromNgay + 'T00:00:00');
+        if (!isNaN(d.getTime())) range.gte = d;
+      }
+      if (params.toNgay) {
+        const d = new Date(params.toNgay + 'T23:59:59.999');
+        if (!isNaN(d.getTime())) range.lte = d;
+      }
+      if (Object.keys(range).length > 0) (where as any).ngayNhap = range;
+    }
+
+    if (params?.search) {
+      const s = params.search.trim();
+      if (s) {
+        (where as any).OR = [
+          { maPhieuNhap: { contains: s, mode: 'insensitive' as const } },
+          { tenNhanVien: { contains: s, mode: 'insensitive' as const } },
+          { maNhanVien: { contains: s, mode: 'insensitive' as const } },
+          { nguoiDeNghi: { contains: s, mode: 'insensitive' as const } },
+          { boPhan: { contains: s, mode: 'insensitive' as const } },
+          { items: { some: { tenSanPham: { contains: s, mode: 'insensitive' as const } } } },
+          { items: { some: { maKien: { contains: s, mode: 'insensitive' as const } } } },
+          { items: { some: { tenKho: { contains: s, mode: 'insensitive' as const } } } },
+          { items: { some: { tenLo: { contains: s, mode: 'insensitive' as const } } } },
+        ];
+      }
+    }
+
+    const [receipts, total] = await Promise.all([
+      prisma.warehouseReceipt.findMany({
+        where,
+        skip,
+        take: limitNum,
+        orderBy: this.resolveOrderBy(params?.sortBy, params?.sortOrder),
+        include: { items: slipItemInclude },
+      }),
+      prisma.warehouseReceipt.count({ where }),
+    ]);
+
+    const data = receipts.map((r: any) => ({
       ...r,
       items: resolveSlipItems(r.items),
       isLocked: !!r.supplyRequestId,
     }));
+
+    return {
+      data,
+      pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) },
+    };
   }
 
   async getById(id: string) {
@@ -703,6 +871,19 @@ class WarehouseReceiptService {
     // resolution can create catalog rows and kiện, so a slip that fails the quantity
     // guard must not leave that scaffolding behind. The supplyRequestId backfill runs
     // after the guard so an over-receipt can never inherit the SR linkage it was rejected for.
+    // A2: cross-check inboundPlan.purchaseRequestId vs purchaseRequestId — no swallow
+    const inboundPlanIdRaw = (normalized as any).inboundPlanId as string | undefined;
+    if (inboundPlanIdRaw && normalized.purchaseRequestId) {
+      const plan = await (tx as any).inboundPlan.findUnique({ where: { id: inboundPlanIdRaw }, select: { purchaseRequestId: true } });
+      if (!plan) throw new NotFoundError('Kế hoạch không tồn tại');
+      if (plan.purchaseRequestId !== normalized.purchaseRequestId) {
+        throw new ValidationError('Kế hoạch nhập không khớp yêu cầu mua hàng đã chọn');
+      }
+    } else if (inboundPlanIdRaw && !normalized.purchaseRequestId) {
+      // inboundPlan linked but no PR on slip — still verify plan exists so stale id fails fast
+      const plan = await (tx as any).inboundPlan.findUnique({ where: { id: inboundPlanIdRaw }, select: { id: true } });
+      if (!plan) throw new NotFoundError('Kế hoạch không tồn tại');
+    }
     if (normalized.purchaseRequestId) {
       await this.assertMatchesPurchaseRequest(tx, normalized.purchaseRequestId, normalized, effective);
       if (!normalized.supplyRequestId) {
@@ -717,6 +898,8 @@ class WarehouseReceiptService {
         }
       }
     }
+
+    await this.validateFreeTextFields(tx, effective, normalized.boPhan as string | undefined);
 
     const resolved = await this.resolveLines(tx, effective);
     const balances = await this.loadBalances(
@@ -776,15 +959,12 @@ class WarehouseReceiptService {
         }
       }
       try {
-        // Derive plan linkage when caller passed inboundPlanId but no purchaseRequestId — infer from plan
-        // Defer heavy aggregation to helper inside transaction; best-effort, never fails the receipt
         const mod = await import('./inboundPlanService');
         const svc: any = (mod as any).default ?? mod;
         if (svc?.onReceiptCreated) await svc.onReceiptCreated(inboundPlanId, tx as any);
-        else await onReceiptCreatedInline(tx as any, inboundPlanId);
+        else console.error('[warehouseReceipt] inboundPlanService.onReceiptCreated missing');
       } catch (e) {
-        console.error('[warehouseReceipt] onReceiptCreated failed (inline fallback)', e);
-        try { await onReceiptCreatedInline(tx as any, inboundPlanId); } catch {}
+        console.error('[warehouseReceipt] onReceiptCreated failed', e);
       }
     }
 
@@ -925,6 +1105,7 @@ class WarehouseReceiptService {
       const stored = existing.items ?? [];
       // An actual-only edit must not wipe the informational plan columns.
       this.preserveStoredFields(items, stored);
+      await this.validateFreeTextFields(tx, items, (normalized.boPhan as string | undefined) ?? existing.boPhan ?? undefined);
 
       const incoming = await this.resolveLines(tx, items);
       // Preserve the stored maKien snapshot: the same-lot re-resolve above may have
@@ -1290,29 +1471,6 @@ class WarehouseReceiptService {
         donViTinh: line.donViTinh || product.donViTinh || kienDonViTinh || '',
         // Kiện mới nhận giá chuẩn của hàng hóa thay vì giữ default DB (100000đ).
         ...(product.giaThanh != null ? { giaThanh: product.giaThanh } : {}),
-      },
-    });
-  }
-}
-
-async function onReceiptCreatedInline(tx: any, inboundPlanId: string): Promise<void> {
-  const plan = await tx.inboundPlan.findUnique({
-    where: { id: inboundPlanId },
-    include: { purchaseRequest: { include: { items: true } }, receipts: true },
-  });
-  if (!plan || plan.trangThai === 'Đã nhập' || plan.trangThai === 'Đã hủy') return;
-  const plannedQty = (plan.purchaseRequest?.items ?? []).reduce((s: number, it: any) => s + Number(it.soLuong ?? 0), 0);
-  const receivedQty = (plan.receipts ?? []).reduce((s: number, r: any) => s + Number(r.tongSoLuongThucTe ?? 0), 0);
-  const isOverdue = plan.ngayDuKien && new Date(plan.ngayDuKien) < new Date();
-  if (plannedQty > 0 && receivedQty + 1e-9 >= plannedQty) {
-    await tx.inboundPlan.update({ where: { id: inboundPlanId }, data: { trangThai: 'Đã nhập' } });
-    await tx.inboundPlanLog.create({
-      data: {
-        inboundPlanId,
-        hanhDong: isOverdue ? 'Nhập quá hạn' : 'Đã nhập — đủ SL',
-        lyDo: isOverdue
-          ? `Quá hạn nhưng đã nhận đủ ${receivedQty}/${plannedQty}`
-          : `Đã nhận đủ ${receivedQty}/${plannedQty}`,
       },
     });
   }

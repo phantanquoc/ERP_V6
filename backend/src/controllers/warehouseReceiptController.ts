@@ -57,10 +57,31 @@ export const createWarehouseReceipt = async (req: Request, res: Response, next: 
   }
 };
 
-export const getAllWarehouseReceipts = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getAllWarehouseReceipts = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const receipts = await warehouseReceiptService.getAll();
-    res.status(200).json({ success: true, data: receipts });
+    const result = await warehouseReceiptService.getAll({
+      page: req.query.page as string | undefined,
+      limit: req.query.limit as string | undefined,
+      search: req.query.search as string | undefined,
+      warehouseId: (req.query.warehouseId as string | undefined) || (req.query.warehouse as string | undefined),
+      fromNgay: req.query.fromNgay as string | undefined,
+      toNgay: req.query.toNgay as string | undefined,
+      sortBy: (req.query.sortBy as string | undefined) || (req.query.sortKey as string | undefined),
+      sortOrder: (req.query.sortOrder as string | undefined) || (req.query.sortDir as string | undefined),
+      maPhieu: (req.query.maPhieu as string | undefined) || (req.query.maPhieuNhap as string | undefined),
+      tenNhanVien: req.query.tenNhanVien as string | undefined,
+      nguoiDeNghi: req.query.nguoiDeNghi as string | undefined,
+      boPhan: req.query.boPhan as string | undefined,
+      tinhTrang: req.query.tinhTrang as string | undefined,
+      daIn: req.query.daIn as string | undefined,
+    });
+    // Backward compat: no pagination params → return bare array like before
+    const hasPaging = req.query.page !== undefined || req.query.limit !== undefined || req.query.search !== undefined || req.query.warehouseId !== undefined || req.query.fromNgay !== undefined || req.query.toNgay !== undefined || req.query.sortBy !== undefined || req.query.sortOrder !== undefined || req.query.warehouse !== undefined || req.query.sortKey !== undefined || req.query.sortDir !== undefined || req.query.maPhieu !== undefined || req.query.maPhieuNhap !== undefined || req.query.tenNhanVien !== undefined || req.query.nguoiDeNghi !== undefined || req.query.boPhan !== undefined || req.query.tinhTrang !== undefined || req.query.daIn !== undefined;
+    if (!hasPaging) {
+      res.status(200).json({ success: true, data: result.data });
+      return;
+    }
+    res.status(200).json({ success: true, data: result.data, pagination: result.pagination });
   } catch (error) {
     next(error);
   }

@@ -484,9 +484,10 @@ describe('warehouseIssueService.getAll / getById', () => {
       { id: 'i3', supplyRequestId: null, materialEvaluation: null, tongSoLuongThucTe: 1, soDongHang: 1 },
     ]);
 
-    const list = await warehouseIssueService.getAll();
+    const result = await warehouseIssueService.getAll()
+    const list = (result as any).data ?? result;
 
-    expect(list.map((i) => i.isLocked)).toEqual([true, true, false]);
+    expect(list.map((i: any) => i.isLocked)).toEqual([true, true, false]);
     expect(list[0]).not.toHaveProperty('materialEvaluation');
     expect(list[0].soDongHang).toBe(2);
   });
@@ -503,7 +504,8 @@ describe('warehouseIssueService.getAll / getById', () => {
       },
     ]);
 
-    const list = await warehouseIssueService.getAll();
+    const result = await warehouseIssueService.getAll()
+    const list = (result as any).data ?? result;
 
     // The list response must carry lines: the header mirror only holds line 1,
     // so a list without lines silently hides every other commodity.

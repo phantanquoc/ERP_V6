@@ -45,6 +45,7 @@ export interface InventoryOverviewResult {
   page: number;
   limit: number;
   totalPages: number;
+  summary: { lowStockCount: number; tongGiaTriTon: number };
 }
 
 const LOW_STOCK_THRESHOLD = 10;
@@ -83,7 +84,7 @@ export class InventoryService {
     });
 
     if (allProducts.length === 0) {
-      return { data: [], total: 0, page, limit, totalPages: 0 };
+      return { data: [], total: 0, page, limit, totalPages: 0, summary: { lowStockCount: 0, tongGiaTriTon: 0 } };
     }
 
     const allIds = allProducts.map((p) => p.id);
@@ -157,6 +158,10 @@ export class InventoryService {
     }
 
     const total = allItems.length;
+
+    // 5b. Summary over full filtered set (not page slice) — C5
+    const summaryLowStockCount = allItems.filter((item) => item._tongTonKho > 0 && item._tongTonKho <= LOW_STOCK_THRESHOLD).length;
+    const summaryTongGiaTriTon = allItems.reduce((s, item) => s + ((item as any).giaTriTon ?? 0), 0);
 
     // 6. Sort
     const sortBy = params.sortBy || 'maSanPham';
@@ -250,7 +255,14 @@ export class InventoryService {
     // 9. Strip internal field and return
     const data = paginatedItems.map(({ _tongTonKho, ...item }) => item);
 
-    return { data, total, page, limit, totalPages: calculateTotalPages(total, limit) };
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: calculateTotalPages(total, limit),
+      summary: { lowStockCount: summaryLowStockCount, tongGiaTriTon: summaryTongGiaTriTon },
+    };
   }
 }
 
