@@ -38,7 +38,9 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
   const [voiding, setVoiding] = useState(false);
   const [unvoidingId, setUnvoidingId] = useState<string | null>(null);
   const reqIdRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
   const detailSeqRef = useRef(0);
+  // TODO: URL sync for _search + page (?search=&page=) — skipped as optional/complex; add useSearchParams sync to preserve filters on F5 if needed.
   const { id: urlIssueId, open: openUrlIssue, close: closeUrlIssue, syncingRef: issueSyncRef } = useUrlDetailId('issueId');
   const ITEMS_PER_PAGE = 10;
   const [pageSize, setPageSize] = useState<number>(ITEMS_PER_PAGE);
@@ -125,6 +127,9 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
   }, [urlIssueId, issues]);
 
   const fetchIssues = useCallback(async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     const cur = ++reqIdRef.current;
     const _dateInvalid = !!(dateRangeInvalid);
     setLoading(true);
@@ -147,7 +152,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
         tinhTrang: filterValues.tinhTrang?.trim() || undefined,
         daIn: filterValues.daIn || undefined,
         isVoided: filterValues.isVoided || undefined,
-      } as any) as any;
+      } as any, { signal: controller.signal }) as any;
       if (cur !== reqIdRef.current) return;
       const payload = response?.data;
       const data = payload?.data ?? payload;
@@ -162,16 +167,19 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
         setTotalPages(pagination?.totalPages ?? Math.max(1, Math.ceil((pagination?.total ?? 0) / pageSize)));
       }
     } catch (error: any) {
+      if ((error as any)?.name === 'CanceledError' || (error as any)?.code === 'ERR_CANCELED' || controller.signal.aborted) return;
       if (cur !== reqIdRef.current) return;
       console.error('Error fetching issues:', error);
       setLoadError(error.response?.data?.message || 'Không thể tải danh sách phiếu xuất kho');
     } finally {
       if (cur === reqIdRef.current) setLoading(false);
     }
-  }, [currentPage, pageSize, dateRangeInvalid, filterValues._search, filterValues.warehouseId, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuXuat, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, filterValues.isVoided, sortKey, sortDir, month, year]);
+  }, [currentPage, pageSize, dateRangeInvalid, filterValues._search, filterValues.warehouseId, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuXuat, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, filterValues.isVoided, sortKey, sortDir]);
+  // month/year intentionally excluded: server fetch does not use them; filtering is client-side via refinedIssues useMemo below.
 
   useEffect(() => { fetchIssues(); }, [fetchIssues]);
-  useEffect(() => { setCurrentPage(1); }, [filterValues._search, filterValues.warehouseId, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuXuat, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, filterValues.isVoided, sortKey, sortDir, month, year, pageSize]);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const handleDelete = async (lyDo: string) => {
     if (!deleteTarget) return;
@@ -290,8 +298,8 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
         <table className="w-full min-w-[1050px] border-collapse">
           <thead>
             <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-              <th scope="col" aria-sort={sortKey==='maPhieuXuat' ? (sortDir==='asc'?'ascending':'descending'):'none'} className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200"><button type="button" aria-label="Sắp xếp theo mã phiếu" onClick={()=>{ if(sortKey==='maPhieuXuat') setSortDir(d=>d==='asc'?'desc':'asc'); else {setSortKey('maPhieuXuat'); setSortDir('desc');} }} className="inline-flex items-center gap-1 hover:text-gray-700">Mã phiếu {sortKey==='maPhieuXuat'?(sortDir==='asc'?'↑':'↓'):''}</button></th>
-              <th scope="col" aria-sort={sortKey==='ngayXuat' ? (sortDir==='asc'?'ascending':'descending'):'none'} className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200"><button type="button" aria-label="Sắp xếp theo ngày xuất" onClick={()=>{ if(sortKey==='ngayXuat') setSortDir(d=>d==='asc'?'desc':'asc'); else {setSortKey('ngayXuat'); setSortDir('desc');} }} className="inline-flex items-center gap-1 hover:text-gray-700">Ngày xuất {sortKey==='ngayXuat'?(sortDir==='asc'?'↑':'↓'):''}</button></th>
+              <th scope="col" aria-sort={sortKey==='maPhieuXuat' ? (sortDir==='asc'?'ascending':'descending'):'none'} className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200"><button type="button" aria-label="Sắp xếp theo mã phiếu" onClick={()=>{ if(sortKey==='maPhieuXuat') setSortDir(d=>d==='asc'?'desc':'asc'); else {setSortKey('maPhieuXuat'); setSortDir('desc');} setCurrentPage(1); }} className="inline-flex items-center gap-1 hover:text-gray-700">Mã phiếu {sortKey==='maPhieuXuat'?(sortDir==='asc'?'↑':'↓'):''}</button></th>
+              <th scope="col" aria-sort={sortKey==='ngayXuat' ? (sortDir==='asc'?'ascending':'descending'):'none'} className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200"><button type="button" aria-label="Sắp xếp theo ngày xuất" onClick={()=>{ if(sortKey==='ngayXuat') setSortDir(d=>d==='asc'?'desc':'asc'); else {setSortKey('ngayXuat'); setSortDir('desc');} setCurrentPage(1); }} className="inline-flex items-center gap-1 hover:text-gray-700">Ngày xuất {sortKey==='ngayXuat'?(sortDir==='asc'?'↑':'↓'):''}</button></th>
               <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Nhân viên</th>
               <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người đề nghị</th>
               <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Kho</th>
@@ -304,7 +312,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
           </thead>
           <tbody>
             {displayIssues.length === 0 ? (
-              (()=>{ const hasF = !!(filterValues._search||filterValues.maPhieuXuat||filterValues.tenNhanVien||filterValues.nguoiDeNghi||filterValues.boPhan||filterValues.warehouseId||filterValues.tinhTrang||filterValues.daIn||filterValues.fromNgay||filterValues.toNgay); return (
+              (()=>{ const hasF = !!(filterValues._search||filterValues.maPhieuXuat||filterValues.tenNhanVien||filterValues.nguoiDeNghi||filterValues.boPhan||filterValues.warehouseId||filterValues.tinhTrang||filterValues.daIn||filterValues.isVoided||filterValues.fromNgay||filterValues.toNgay); return (
               <tr>
                 <td colSpan={10} className="px-6 py-4 text-center text-gray-500">
                   {hasF ? (<span className="inline-flex items-center gap-2">Không khớp bộ lọc <button onClick={()=>setFilterValues({ _search:'',maPhieuXuat:'',tenNhanVien:'',nguoiDeNghi:'',boPhan:'',warehouseId:'',tinhTrang:'',daIn:'',isVoided:'',fromNgay:'',toNgay:'' })} className="px-2 py-1 text-xs border rounded hover:bg-gray-50">Xóa lọc</button></span>) : 'Chưa có phiếu xuất kho nào'}
@@ -438,7 +446,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
       {/* Mobile: one card per slip */}
       <div className="md:hidden space-y-3">
         {displayIssues.length === 0 ? (
-          (()=>{ const hasF2=!!(filterValues._search||filterValues.maPhieuXuat||filterValues.tenNhanVien||filterValues.nguoiDeNghi||filterValues.boPhan||filterValues.warehouseId||filterValues.tinhTrang||filterValues.daIn||filterValues.fromNgay||filterValues.toNgay); return hasF2 ? (<div className="flex flex-col items-center gap-2 rounded-lg border border-dashed bg-white px-4 py-6 text-center text-sm text-gray-500">Không khớp bộ lọc <button onClick={()=>setFilterValues({ _search:'',maPhieuXuat:'',tenNhanVien:'',nguoiDeNghi:'',boPhan:'',warehouseId:'',tinhTrang:'',daIn:'',isVoided:'',fromNgay:'',toNgay:'' })} className="px-3 py-1.5 text-xs border rounded hover:bg-gray-50">Xóa lọc</button></div>) : (<div className="rounded-lg border border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-500">Chưa có phiếu xuất kho nào</div>);})()
+          (()=>{ const hasF2=!!(filterValues._search||filterValues.maPhieuXuat||filterValues.tenNhanVien||filterValues.nguoiDeNghi||filterValues.boPhan||filterValues.warehouseId||filterValues.tinhTrang||filterValues.daIn||filterValues.isVoided||filterValues.fromNgay||filterValues.toNgay); return hasF2 ? (<div className="flex flex-col items-center gap-2 rounded-lg border border-dashed bg-white px-4 py-6 text-center text-sm text-gray-500">Không khớp bộ lọc <button onClick={()=>setFilterValues({ _search:'',maPhieuXuat:'',tenNhanVien:'',nguoiDeNghi:'',boPhan:'',warehouseId:'',tinhTrang:'',daIn:'',isVoided:'',fromNgay:'',toNgay:'' })} className="px-3 py-1.5 text-xs border rounded hover:bg-gray-50">Xóa lọc</button></div>) : (<div className="rounded-lg border border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-500">Chưa có phiếu xuất kho nào</div>);})()
         ) : (
           displayIssues.map((issue) => {
             const lines = getWarehouseSlipLines(issue);
@@ -501,7 +509,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
             Hiển thị
             <select
               value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
               className="rounded-md border border-gray-300 px-2 py-1 text-sm"
               aria-label="Số dòng mỗi trang"
             >

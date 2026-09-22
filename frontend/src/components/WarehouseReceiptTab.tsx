@@ -50,12 +50,9 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
   const [showBulkConfirm, setShowBulkConfirm] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
   const reqIdRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
   const detailSeqRef = useRef(0);
-  const [debouncedSearch, setDebouncedSearch] = useState(filterValues._search);
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(filterValues._search || ''), 300);
-    return () => clearTimeout(t);
-  }, [filterValues._search]);
+  // TODO: URL sync for _search + page (?search=&page=) — skipped as optional/complex; add useSearchParams sync to preserve filters on F5 if needed.
   const { id: urlReceiptId, open: openUrlReceipt, close: closeUrlReceipt, syncingRef: receiptSyncRef } = useUrlDetailId('receiptId');
   const { data: warehousesRaw } = useWarehouses();
   // useWarehouses returns the unwrapped body, whose shape the service leaves
@@ -91,7 +88,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
   const receiptFilterFields: FilterField[] = [
     // keep fast client filters but move heavy paginable ones to server: search/warehouse/date/sort
     { key: 'maPhieuNhap', label: 'Mã phiếu', type: 'text' },
-    { key: 'tenNhanVien', label: 'Nhân viên', type: 'select', options: tenNhanVienOptions },
+    { key: 'tenNhanVien', label: 'Nhân viên', type: 'combobox', options: tenNhanVienOptions, placeholder: 'Tất cả' },
     { key: 'nguoiDeNghi', label: 'Người đề nghị', type: 'text' },
     { key: 'boPhan', label: 'Bộ phận', type: 'select', options: [...BO_PHAN_OPTIONS] },
     { key: 'warehouseId', label: 'Kho', type: 'select', options: warehouseIdOptions },
@@ -148,6 +145,9 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
   }, [urlReceiptId, receipts]);
 
   const fetchReceipts = useCallback(async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     const cur = ++reqIdRef.current;
     const _dateInvalid = !!(dateRangeError);
     setLoading(true);
@@ -156,7 +156,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
       const response = await warehouseReceiptService.getAllWarehouseReceipts({
         page: currentPage,
         limit: pageSize,
-        search: debouncedSearch || undefined,
+        search: filterValues._search || undefined,
         warehouseId: warehouseIdFromName || undefined,
         fromNgay: _dateInvalid ? undefined : (filterValues.fromNgay || undefined),
         toNgay: _dateInvalid ? undefined : (filterValues.toNgay || undefined),
@@ -170,7 +170,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
         tinhTrang: filterValues.tinhTrang?.trim() || undefined,
         daIn: filterValues.daIn || undefined,
         isVoided: filterValues.isVoided || undefined,
-      } as any) as any;
+      } as any, { signal: controller.signal }) as any;
       if (cur !== reqIdRef.current) return;
       const payload = response?.data;
       const data = payload?.data ?? payload;
@@ -186,13 +186,15 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
         setTotalPages(pagination?.totalPages ?? Math.max(1, Math.ceil((pagination?.total ?? 0) / pageSize)));
       }
     } catch (error: any) {
+      if ((error as any)?.name === 'CanceledError' || (error as any)?.code === 'ERR_CANCELED' || controller.signal.aborted) return;
       if (cur !== reqIdRef.current) return;
       console.error('Error fetching receipts:', error);
       setLoadError(error.response?.data?.message || 'Không thể tải danh sách phiếu nhập kho');
     } finally {
       if (cur === reqIdRef.current) setLoading(false);
     }
-  }, [currentPage, pageSize, dateRangeError, filterValues._search, warehouseIdFromName, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuNhap, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, filterValues.isVoided, sortKey, sortDir, month, year]);
+  }, [currentPage, pageSize, dateRangeError, filterValues._search, warehouseIdFromName, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuNhap, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, filterValues.isVoided, sortKey, sortDir]);
+  // month/year intentionally excluded: server fetch does not use them; filtering is client-side via refinedReceipts useMemo below.
 
   /** Stock figures live in React Query; invalidating is enough to refresh them. */
   const refreshInventoryCaches = useCallback(() => {
@@ -205,10 +207,8 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
     fetchReceipts();
   }, [fetchReceipts]);
 
-  // Reset page when search/filter/sort/pageSize changes (like InboundPlanTab)
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filterValues._search, filterValues.warehouseId, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuNhap, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, filterValues.isVoided, sortKey, sortDir, month, year, pageSize]);
+  useEffect(() => () => abortRef.current?.abort(), []);
+
   const handleDelete = async (lyDo: string) => {
     if (!deleteTarget) return;
     const deletedId = deleteTarget.id;
@@ -327,8 +327,8 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
         <table className="w-full min-w-[1050px] border-collapse">
           <thead>
             <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-          <th scope="col" aria-sort={sortKey==='maPhieuNhap' ? (sortDir==='asc'?'ascending':'descending') : 'none'} className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200"><button type="button" aria-label="Sắp xếp theo mã phiếu" onClick={()=>{ if(sortKey==='maPhieuNhap') setSortDir(d=>d==='asc'?'desc':'asc'); else {setSortKey('maPhieuNhap'); setSortDir('desc');} }} className="inline-flex items-center gap-1 hover:text-gray-700">Mã phiếu {sortKey==='maPhieuNhap' ? (sortDir==='asc' ? '↑' : '↓') : ''}</button></th>
-              <th scope="col" aria-sort={sortKey==='ngayNhap' ? (sortDir==='asc'?'ascending':'descending') : 'none'} className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200"><button type="button" aria-label="Sắp xếp theo ngày nhập" onClick={()=>{ if(sortKey==='ngayNhap') setSortDir(d=>d==='asc'?'desc':'asc'); else {setSortKey('ngayNhap'); setSortDir('desc');} }} className="inline-flex items-center gap-1 hover:text-gray-700">Ngày nhập {sortKey==='ngayNhap' ? (sortDir==='asc' ? '↑' : '↓') : ''}</button></th>
+          <th scope="col" aria-sort={sortKey==='maPhieuNhap' ? (sortDir==='asc'?'ascending':'descending') : 'none'} className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200"><button type="button" aria-label="Sắp xếp theo mã phiếu" onClick={()=>{ if(sortKey==='maPhieuNhap') setSortDir(d=>d==='asc'?'desc':'asc'); else {setSortKey('maPhieuNhap'); setSortDir('desc');} setCurrentPage(1); }} className="inline-flex items-center gap-1 hover:text-gray-700">Mã phiếu {sortKey==='maPhieuNhap' ? (sortDir==='asc' ? '↑' : '↓') : ''}</button></th>
+              <th scope="col" aria-sort={sortKey==='ngayNhap' ? (sortDir==='asc'?'ascending':'descending') : 'none'} className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200"><button type="button" aria-label="Sắp xếp theo ngày nhập" onClick={()=>{ if(sortKey==='ngayNhap') setSortDir(d=>d==='asc'?'desc':'asc'); else {setSortKey('ngayNhap'); setSortDir('desc');} setCurrentPage(1); }} className="inline-flex items-center gap-1 hover:text-gray-700">Ngày nhập {sortKey==='ngayNhap' ? (sortDir==='asc' ? '↑' : '↓') : ''}</button></th>
               <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Nhân viên</th>
               <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Người đề nghị</th>
               <th scope="col" className="px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Kho</th>
@@ -341,7 +341,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
           </thead>
           <tbody>
             {displayReceipts.length === 0 ? (
-              (()=>{ const hasActiveFilter = !!(filterValues._search||filterValues.maPhieuNhap||filterValues.tenNhanVien||filterValues.nguoiDeNghi||filterValues.boPhan||filterValues.warehouseId||filterValues.tinhTrang||filterValues.daIn||filterValues.fromNgay||filterValues.toNgay); return (
+              (()=>{ const hasActiveFilter = !!(filterValues._search||filterValues.maPhieuNhap||filterValues.tenNhanVien||filterValues.nguoiDeNghi||filterValues.boPhan||filterValues.warehouseId||filterValues.tinhTrang||filterValues.daIn||filterValues.isVoided||filterValues.fromNgay||filterValues.toNgay); return (
               <tr>
                 <td colSpan={10} className="px-6 py-4 text-center text-gray-500">
                   {hasActiveFilter ? (<span className="inline-flex items-center gap-2">Không khớp bộ lọc <button onClick={()=>setFilterValues({ _search:'',maPhieuNhap:'',tenNhanVien:'',nguoiDeNghi:'',boPhan:'',warehouseId:'',tinhTrang:'',daIn:'',isVoided:'',fromNgay:'',toNgay:'' })} className="px-2 py-1 text-xs border rounded hover:bg-gray-50">Xóa lọc</button></span>) : 'Chưa có phiếu nhập kho nào'}
@@ -481,7 +481,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
       {/* Mobile: one card per slip — horizontal 10-col table is unusable on phones */}
       <div className="md:hidden space-y-3">
         {displayReceipts.length === 0 ? (
-          (()=>{ const hasF2=!!(filterValues._search||filterValues.maPhieuNhap||filterValues.tenNhanVien||filterValues.nguoiDeNghi||filterValues.boPhan||filterValues.warehouseId||filterValues.tinhTrang||filterValues.daIn||filterValues.fromNgay||filterValues.toNgay); return hasF2 ? (<div className="flex flex-col items-center gap-2 rounded-lg border border-dashed bg-white px-4 py-6 text-center text-sm text-gray-500">Không khớp bộ lọc <button onClick={()=>setFilterValues({ _search:'',maPhieuNhap:'',tenNhanVien:'',nguoiDeNghi:'',boPhan:'',warehouseId:'',tinhTrang:'',daIn:'',isVoided:'',fromNgay:'',toNgay:'' })} className="px-3 py-1.5 text-xs border rounded hover:bg-gray-50">Xóa lọc</button></div>) : (<div className="rounded-lg border border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-500">Chưa có phiếu nhập kho nào</div>);})()
+          (()=>{ const hasF2=!!(filterValues._search||filterValues.maPhieuNhap||filterValues.tenNhanVien||filterValues.nguoiDeNghi||filterValues.boPhan||filterValues.warehouseId||filterValues.tinhTrang||filterValues.daIn||filterValues.isVoided||filterValues.fromNgay||filterValues.toNgay); return hasF2 ? (<div className="flex flex-col items-center gap-2 rounded-lg border border-dashed bg-white px-4 py-6 text-center text-sm text-gray-500">Không khớp bộ lọc <button onClick={()=>setFilterValues({ _search:'',maPhieuNhap:'',tenNhanVien:'',nguoiDeNghi:'',boPhan:'',warehouseId:'',tinhTrang:'',daIn:'',isVoided:'',fromNgay:'',toNgay:'' })} className="px-3 py-1.5 text-xs border rounded hover:bg-gray-50">Xóa lọc</button></div>) : (<div className="rounded-lg border border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-500">Chưa có phiếu nhập kho nào</div>);})()
         ) : (
           displayReceipts.map((receipt) => {
             const lines = getWarehouseSlipLines(receipt);
@@ -544,7 +544,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
             Hiển thị
             <select
               value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
               className="rounded-md border border-gray-300 px-2 py-1 text-sm"
               aria-label="Số dòng mỗi trang"
             >

@@ -111,8 +111,8 @@ const warehouseReceiptService = {
     return apiClient.post('/warehouse-receipts', data);
   },
 
-  getAllWarehouseReceipts: async (params?: Record<string, unknown>) => {
-    return apiClient.get('/warehouse-receipts', { params: params as Record<string, string> });
+  getAllWarehouseReceipts: async (params?: Record<string, unknown>, config?: { signal?: AbortSignal }) => {
+    return apiClient.get('/warehouse-receipts', { params: params as Record<string, string>, signal: config?.signal } as any);
   },
 
   getWarehouseReceiptById: async (id: string) => {

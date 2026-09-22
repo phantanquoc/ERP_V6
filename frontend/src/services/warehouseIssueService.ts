@@ -105,8 +105,8 @@ const warehouseIssueService = {
     return apiClient.post('/warehouse-issues', data);
   },
 
-  getAllWarehouseIssues: async (params?: Record<string, unknown>) => {
-    return apiClient.get('/warehouse-issues', { params: params as Record<string, string> });
+  getAllWarehouseIssues: async (params?: Record<string, unknown>, config?: { signal?: AbortSignal }) => {
+    return apiClient.get('/warehouse-issues', { params: params as Record<string, string>, signal: config?.signal } as any);
   },
 
   getWarehouseIssueById: async (id: string) => {
