@@ -34,10 +34,32 @@ function coerceNumber(value: unknown): number | null {
   return isNaN(num) ? null : num;
 }
 
+export interface GetAllWarehousesParams {
+  search?: string;
+  limit?: number;
+}
+
 class WarehouseService {
-  async getAll() {
+  async getAll(params?: GetAllWarehousesParams) {
+    const search = params?.search?.trim() || undefined;
+    const rawLimit = params?.limit;
+    const take = rawLimit != null && Number.isFinite(rawLimit)
+      ? Math.min(Math.max(Math.floor(rawLimit), 1), 200)
+      : 100;
+
+    const where = search
+      ? {
+          OR: [
+            { tenKho: { contains: search, mode: 'insensitive' as const } },
+            { maKho: { contains: search, mode: 'insensitive' as const } },
+          ],
+        }
+      : undefined;
+
     return prisma.warehouses.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
+      take,
       include: {
         lots: {
           include: {
