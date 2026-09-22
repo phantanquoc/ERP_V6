@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, MoveRight, Package, Warehouse as WarehouseIcon, PackagePlus, Pencil, History, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, MoveRight, Package, Warehouse as WarehouseIcon, PackagePlus, Pencil, History, RefreshCw, Search, SearchX, Boxes, PackageOpen } from 'lucide-react';
 import type { Warehouse, LotProduct } from '../services/warehouseService';
 import warehouseService from '../services/warehouseService';
 import { warehouseKeys } from '../hooks/useWarehouses';
@@ -41,6 +41,8 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
   const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [warehouseQuery, setWarehouseQuery] = useState('');
+  const [lotQuery, setLotQuery] = useState('');
 
   // React Query hooks for warehouses
   const { data: warehousesData, isLoading: loading } = useWarehouses();
@@ -68,22 +70,28 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
   const { data: productsData } = useProducts({ page: 1, limit: 1000 });
   const products = productsData?.data || [];
 
-  // Sort warehouses by name (extract number and sort)
-  const sortWarehouses = (warehousesList: Warehouse[]) => {
+  const sortWarehouses = useCallback((warehousesList: Warehouse[]) => {
     return [...warehousesList].sort((a, b) => {
-      // Extract numbers from warehouse names
       const numA = parseInt(a.tenKho.replace(/\D/g, '')) || 0;
       const numB = parseInt(b.tenKho.replace(/\D/g, '')) || 0;
       if (numA !== numB) return numA - numB;
-      // If no numbers or same numbers, sort alphabetically
       return a.tenKho.localeCompare(b.tenKho);
     });
-  };
+  }, []);
 
   const warehouses = React.useMemo(() => {
     if (!warehousesData) return [];
     return sortWarehouses(warehousesData as Warehouse[]);
-  }, [warehousesData]);
+  }, [warehousesData, sortWarehouses]);
+
+  const filteredWarehouses = useMemo(() => {
+    const q = warehouseQuery.trim().toLowerCase();
+    if (!q) return warehouses;
+    return warehouses.filter((w) => `${w.tenKho} ${w.maKho} ${w.loaiKho ?? ''} ${w.diaChi ?? ''}`.toLowerCase().includes(q));
+  }, [warehouses, warehouseQuery]);
+
+  // Reset page when lot filter changes
+  useEffect(() => { setCurrentPage(1); }, [lotQuery]);
 
   // Dual-mode selection: controlled (parent owns id + callback) or internal state.
   // Every call site passes a Warehouse object or null, so the shim keeps the body unchanged.
@@ -247,7 +255,13 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
   };
 
   const handleDeleteWarehouse = async (id: string) => {
-    if (!confirm('Bạn có chắc chắn muốn xóa kho này?')) return;
+    const w = warehouses.find((x) => x.id === id);
+    const hasStock = (w?.lots ?? []).some((lot) => (lot.lotProducts ?? []).some((lp) => Number(lp.soLuong) > 0));
+    if (hasStock) {
+      toast.error('Không thể xóa kho khi còn tồn kho. Vui lòng xuất hết hàng trước.');
+      return;
+    }
+    if (!confirm('Bạn có chắc chắn muốn xóa kho này? Hành động không thể hoàn tác.')) return;
 
     try {
       await deleteWarehouse.mutateAsync(id);
@@ -256,7 +270,8 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
         setSelectedWarehouse(null);
       }
     } catch (error: any) {
-      toast.error(error instanceof Error ? error.message : 'Lỗi khi xóa kho');
+      const msg = (error as any)?.body?.message || error?.message || 'Lỗi khi xóa kho';
+      toast.error(msg);
     }
   };
 
@@ -280,13 +295,20 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
   };
 
   const handleDeleteLot = async (lotId: string) => {
-    if (!confirm('Bạn có chắc chắn muốn xóa lô này?')) return;
+    const lot = selectedWarehouse?.lots?.find((l) => l.id === lotId) ?? null;
+    const hasStock = (lot?.lotProducts ?? []).some((lp) => Number(lp.soLuong) > 0);
+    if (hasStock) {
+      toast.error('Không thể xóa lô khi còn tồn kho. Vui lòng xuất hết hàng trước.');
+      return;
+    }
+    if (!confirm(`Xóa lô "${lot?.tenLo ?? lotId}"? Hành động không thể hoàn tác.`)) return;
 
     try {
       await deleteLot.mutateAsync(lotId);
       toast.success('Xóa lô thành công');
     } catch (error: any) {
-      toast.error(error instanceof Error ? error.message : 'Lỗi khi xóa lô');
+      const msg = (error as any)?.body?.message || error?.message || 'Lỗi khi xóa lô';
+      toast.error(msg);
     }
   };
 
@@ -351,13 +373,23 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
   };
 
   const handleRemoveProduct = async (productId: string) => {
-    if (!confirm('Bạn có chắc chắn muốn xóa hàng hóa này khỏi lô?')) return;
+    let lp: LotProduct | null = null;
+    for (const lot of selectedWarehouse?.lots ?? []) {
+      const f = (lot.lotProducts ?? []).find((x) => x.id === productId);
+      if (f) { lp = f; break; }
+    }
+    if (lp && Number(lp.soLuong) > 0) {
+      toast.error('Không thể xóa kiện khi còn tồn kho (soLuong > 0). Vui lòng xuất hết hàng trước.');
+      return;
+    }
+    if (!confirm(`Xóa kiện "${lp?.maKien ?? productId.slice(-4)}"${lp?.internationalProduct?.tenSanPham ? ` — ${lp.internationalProduct.tenSanPham}` : ''}? Hành động không thể hoàn tác.`)) return;
 
     try {
       await removeProductFromLot.mutateAsync(productId);
       toast.success('Xóa hàng hóa thành công');
     } catch (error: any) {
-      toast.error(error instanceof Error ? error.message : 'Lỗi khi xóa hàng hóa');
+      const msg = (error as any)?.body?.message || error?.message || 'Lỗi khi xóa hàng hóa';
+      toast.error(msg);
     }
   };
 
@@ -437,7 +469,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
   };
 
   return (
-    <div>
+    <div className="space-y-4">
       {!hideTabs && (
         <>
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
@@ -448,11 +480,13 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
           <div className="bg-white rounded-lg shadow mb-6">
             <div className="border-b border-gray-200">
               <nav className="flex space-x-1 px-4 overflow-x-auto" aria-label="Warehouse Tabs">
-                {warehouses.map((warehouse) => (
+                {filteredWarehouses.map((warehouse: Warehouse) => (
                   <button
                     key={warehouse.id}
                     onClick={() => { setSelectedWarehouse(warehouse); setCurrentPage(1); }}
-                    className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2 ${
+                    aria-label={`Chọn kho ${warehouse.tenKho}`}
+                    aria-selected={selectedWarehouse?.id === warehouse.id}
+                    className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 rounded-t ${
                       selectedWarehouse?.id === warehouse.id
                         ? 'border-blue-500 text-blue-600 bg-blue-50/50'
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -476,41 +510,77 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
                 ))}
                 <button
                   onClick={openCreateWarehouseModal}
-                  className="whitespace-nowrap py-3 px-4 border-b-2 border-transparent font-medium text-sm text-green-600 hover:text-green-700 hover:border-green-400 hover:bg-green-50/50 transition-colors flex items-center gap-1.5"
+                  aria-label="Thêm kho"
+                  className="whitespace-nowrap py-3 px-4 border-b-2 border-transparent font-medium text-sm text-green-600 hover:text-green-700 hover:border-green-400 hover:bg-green-50/50 transition-colors flex items-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-1"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   Thêm kho
                 </button>
               </nav>
             </div>
+            {warehouses.length > 6 && (
+              <div className="px-4 py-2 border-t border-gray-100 bg-gray-50/50 flex items-center gap-2">
+                <div className="relative flex-1 max-w-xs">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                  <input
+                    value={warehouseQuery}
+                    onChange={(e) => setWarehouseQuery(e.target.value)}
+                    placeholder="Tìm kho, mã kho..."
+                    className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  />
+                </div>
+                {warehouseQuery && (
+                  <button onClick={() => setWarehouseQuery('')} className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 border border-gray-200 rounded-lg bg-white">Xóa</button>
+                )}
+                {warehouseQuery && filteredWarehouses.length === 0 && (
+                  <span className="text-xs text-gray-400 hidden sm:inline">Không khớp kho nào</span>
+                )}
+              </div>
+            )}
           </div>
         </>
       )}
 
-      {/* Nút Thêm kho + Đồng bộ sơ đồ khi ẩn tab strip (parent đã render tabs ngoài) */}
+      {/* Toolbar khi ẩn tab strip (parent đã render tabs ngoài) */}
       {hideTabs && (
-        <div className="flex justify-end gap-2 mb-2">
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          {warehouses.length > 6 && (
+            <>
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <input value={warehouseQuery} onChange={(e) => setWarehouseQuery(e.target.value)} placeholder="Tìm kho, mã kho..." className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+              </div>
+              {warehouseQuery && <button onClick={() => setWarehouseQuery('')} className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 border border-gray-200 rounded-lg bg-white">Xóa</button>}
+              <div className="flex-1 hidden sm:block" />
+            </>
+          )}
+          {warehouses.length <= 6 && <div className="flex-1" />}
+
           {canSyncLayouts && (
             <button
               onClick={async () => {
+                if (syncLayouts.isPending) return;
                 try {
                   const stats = await syncLayouts.mutateAsync();
                   toast.success(`Đồng bộ xong: ${stats.lotsCreated} lô mới, ${stats.slotsCreated} vị trí mới`);
                 } catch (error) {
-                  toast.error(error instanceof Error ? error.message : 'Lỗi khi đồng bộ sơ đồ');
+                  const msg = (error as any)?.body?.message || (error instanceof Error ? error.message : 'Lỗi khi đồng bộ sơ đồ');
+                  toast.error(msg);
                 }
               }}
               disabled={syncLayouts.isPending}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50 disabled:opacity-50"
+              aria-label="Đồng bộ sơ đồ CAD"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-8 text-sm font-medium text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
               title="Tạo đủ lô + vị trí kiện mặc định theo sơ đồ CAD (không xóa dữ liệu hiện có)"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${syncLayouts.isPending ? 'animate-spin' : ''}`} />
-              Đồng bộ sơ đồ
+              {syncLayouts.isPending ? 'Đang đồng bộ...' : 'Đồng bộ sơ đồ'}
             </button>
           )}
           <button
             onClick={openCreateWarehouseModal}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-600 border border-green-300 rounded-lg hover:bg-green-50"
+            aria-label="Thêm kho"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-8 text-sm font-medium text-green-600 border border-green-300 rounded-lg hover:bg-green-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-1"
           >
             <Plus className="w-3.5 h-3.5" />
             Thêm kho
@@ -520,7 +590,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
 
       {/* Warehouse Content */}
       {selectedWarehouse && (
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           {/* Warehouse Header — compact for narrow sidebar */}
           <div className="px-3 py-3 border-b border-gray-200 space-y-2">
             <div className="flex items-center justify-between gap-2">
@@ -536,22 +606,26 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
               <div className="flex items-center gap-1 shrink-0">
                 <button
                   onClick={() => setShowLotModal(true)}
-                  className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                  aria-label="Thêm lô"
                   title="Thêm lô"
+                  className="min-w-8 min-h-8 w-8 h-8 inline-flex items-center justify-center text-blue-600 hover:bg-blue-50 rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
                 >
                   <Plus className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => openEditWarehouseModal(selectedWarehouse)}
-                  className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
+                  aria-label="Sửa kho"
                   title="Sửa kho"
+                  className="min-w-8 min-h-8 w-8 h-8 inline-flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
                 >
                   <Pencil className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => handleDeleteWarehouse(selectedWarehouse.id)}
-                  className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                  disabled={deleteWarehouse.isPending}
+                  aria-label="Xóa kho"
                   title="Xóa kho"
+                  className="min-w-8 min-h-8 w-8 h-8 inline-flex items-center justify-center text-red-600 hover:bg-red-50 rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -568,8 +642,8 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
                 })()}
               </span>
               {selectedWarehouse.trangThai && (
-                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                  selectedWarehouse.trangThai === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border ${
+                  selectedWarehouse.trangThai === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-100 text-gray-600 border-gray-200'
                 }`}>
                   {selectedWarehouse.trangThai === 'active' ? 'Hoạt động' : selectedWarehouse.trangThai}
                 </span>
@@ -577,14 +651,50 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
             </div>
           </div>
 
+          {/* Lot search/filter */}
+          <div className="px-3 pt-3 flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              <input value={lotQuery} onChange={(e) => setLotQuery(e.target.value)} placeholder="Tìm lô, kiện, hàng hóa..." className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+            </div>
+            {lotQuery && (
+              <button onClick={() => setLotQuery('')} className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg bg-white text-gray-600 hover:bg-gray-50">
+                <SearchX className="w-3.5 h-3.5" /> Xóa lọc
+              </button>
+            )}
+          </div>
           {/* Lots */}
           <div className="p-3">
           {loading ? (
-            <p className="text-center text-gray-500 py-8">Đang tải...</p>
+            <div className="p-4 space-y-3" aria-busy="true" aria-label="Đang tải lô">
+              {[0,1,2].map((i) => (
+                <div key={i} className="border border-gray-200 rounded-lg overflow-hidden animate-pulse">
+                  <div className="h-10 bg-gray-100" />
+                  <div className="p-3 space-y-2">
+                    <div className="h-3 bg-gray-100 rounded w-3/4" />
+                    <div className="h-3 bg-gray-100 rounded w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : selectedWarehouse?.lots && selectedWarehouse.lots.length > 0 ? (
             <div className="space-y-2">
               {(() => {
-                const allLots = selectedWarehouse.lots;
+                const q = lotQuery.trim().toLowerCase();
+                const allLotsFiltered = !q ? (selectedWarehouse.lots ?? []) : (selectedWarehouse.lots ?? []).filter((lot) => {
+                  const hay = `${lot.tenLo} ${(lot.lotProducts ?? []).map((lp) => `${lp.maKien ?? ''} ${lp.internationalProduct?.tenSanPham ?? ''} ${lp.internationalProduct?.maSanPham ?? ''}`).join(' ')}`.toLowerCase();
+                  return hay.includes(q);
+                });
+                const allLots = allLotsFiltered;
+                if (allLots.length === 0 && q) {
+                  return (
+                    <div className="text-center py-8 px-4 border border-dashed rounded-xl bg-white">
+                      <SearchX className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                      <p className="text-sm text-gray-600">Không khớp bộ lọc lô/kiện</p>
+                      <button onClick={() => setLotQuery('')} className="mt-3 px-3 py-1.5 text-xs border border-gray-200 rounded-lg bg-white hover:bg-gray-50">Xóa lọc</button>
+                    </div>
+                  );
+                }
                 const lotsTotalPages = Math.ceil(allLots.length / itemsPerPage);
                 const paginatedLots = allLots.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
                 return (
@@ -617,15 +727,18 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
                     <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => openAddProductModal(lot.id)}
-                        className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors"
+                        aria-label={`Thêm hàng hóa vào ${lot.tenLo}`}
                         title="Thêm hàng hóa"
+                        className="min-w-8 min-h-8 w-8 h-8 inline-flex items-center justify-center text-green-600 hover:bg-green-50 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-1"
                       >
                         <PackagePlus className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => handleDeleteLot(lot.id)}
-                        className="p-1 text-red-500 hover:bg-red-50 rounded transition-colors"
+                        disabled={deleteLot.isPending}
+                        aria-label={`Xóa lô ${lot.tenLo}`}
                         title="Xóa lô"
+                        className="min-w-8 min-h-8 w-8 h-8 inline-flex items-center justify-center text-red-600 hover:bg-red-50 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -644,7 +757,15 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
                     return (
                     <ul className="divide-y divide-gray-100">
                       {visible.map((product) => (
-                        <li key={product.id} className="px-3 py-2 hover:bg-blue-50/40 transition-colors">
+                        <li
+                          key={product.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setHistoryLotProduct(product)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setHistoryLotProduct(product); } }}
+                          className="px-3 py-2 hover:bg-blue-50/40 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset cursor-pointer"
+                          aria-label={`Xem lịch sử kiện ${product.maKien ?? product.id.slice(-4)}`}
+                        >
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0 flex-1">
                               <p className="text-xs font-medium text-gray-900 truncate flex items-center gap-1.5">
@@ -658,30 +779,35 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
                               <button
-                                onClick={() => setHistoryLotProduct(product)}
-                                className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-semibold hover:bg-blue-100 transition-colors whitespace-nowrap"
+                                onClick={(e) => { e.stopPropagation(); setHistoryLotProduct(product); }}
+                                aria-label="Xem lịch sử nhập kho"
                                 title="Xem lịch sử nhập kho"
+                                className="px-1.5 py-0.5 min-h-8 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[10px] font-semibold hover:bg-blue-100 transition-colors whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
                               >
                                 {product.soLuong} {product.donViTinh}
                               </button>
                               <button
-                                onClick={() => openEditLotProductModal(product)}
-                                className="p-1 text-gray-500 hover:bg-gray-100 rounded transition-colors"
+                                onClick={(e) => { e.stopPropagation(); openEditLotProductModal(product); }}
+                                aria-label="Sửa kiện"
                                 title="Sửa kiện"
+                                className="min-w-8 min-h-8 w-8 h-8 inline-flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
                               >
                                 <Pencil className="w-3 h-3" />
                               </button>
                               <button
-                                onClick={() => openMoveModal(product)}
-                                className="p-1 text-blue-600 hover:bg-blue-100 rounded transition-colors"
+                                onClick={(e) => { e.stopPropagation(); openMoveModal(product); }}
+                                aria-label="Di chuyển sang lô khác"
                                 title="Di chuyển sang lô khác"
+                                className="min-w-8 min-h-8 w-8 h-8 inline-flex items-center justify-center text-blue-600 hover:bg-blue-100 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
                               >
                                 <MoveRight className="w-3 h-3" />
                               </button>
                               <button
-                                onClick={() => handleRemoveProduct(product.id)}
-                                className="p-1 text-red-500 hover:bg-red-100 rounded transition-colors"
+                                onClick={(e) => { e.stopPropagation(); handleRemoveProduct(product.id); }}
+                                disabled={removeProductFromLot.isPending}
+                                aria-label="Xóa hàng hóa"
                                 title="Xóa hàng hóa"
+                                className="min-w-8 min-h-8 w-8 h-8 inline-flex items-center justify-center text-red-600 hover:bg-red-50 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 <Trash2 className="w-3 h-3" />
                               </button>
@@ -737,12 +863,15 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
               })()}
             </div>
           ) : (
-            <div className="text-center py-12">
-              <WarehouseIcon className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-              <p className="text-gray-400 text-sm">Chưa có lô nào trong kho này</p>
+            <div className="text-center py-10 px-4 border border-dashed rounded-xl bg-gray-50/50">
+              <div className="w-12 h-12 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center mx-auto mb-3">
+                <Boxes className="w-6 h-6 text-blue-400" />
+              </div>
+              <p className="text-sm font-medium text-gray-700">Chưa có lô nào trong kho này</p>
+              <p className="text-xs text-gray-400 mt-1">Tạo lô để bắt đầu nhập kiện và quản lý tồn kho.</p>
               <button
                 onClick={() => setShowLotModal(true)}
-                className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium inline-flex items-center gap-1.5"
+                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium inline-flex items-center gap-1.5 shadow-sm"
               >
                 <Plus className="w-4 h-4" />
                 Thêm lô đầu tiên
@@ -751,6 +880,28 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
           )}
           </div>
         </div>
+      )}
+      {!selectedWarehouse && !loading && (
+        warehouses.length === 0 ? (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+            <div className="w-14 h-14 rounded-full bg-gray-50 border border-dashed flex items-center justify-center mx-auto mb-3">
+              <WarehouseIcon className="w-7 h-7 text-gray-300" />
+            </div>
+            <p className="text-sm font-medium text-gray-700">Chưa có kho nào</p>
+            <p className="text-xs text-gray-400 mt-1">Tạo kho đầu tiên để bắt đầu quản lý lô và kiện.</p>
+            <button onClick={openCreateWarehouseModal} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium inline-flex items-center gap-1.5 shadow-sm">
+              <Plus className="w-4 h-4" /> Tạo kho
+            </button>
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+            <div className="w-14 h-14 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center mx-auto mb-3">
+              <PackageOpen className="w-7 h-7 text-blue-400" />
+            </div>
+            <p className="text-sm font-medium text-gray-700">Chọn một kho để xem lô và kiện</p>
+            <p className="text-xs text-gray-400 mt-1">Dùng thanh tab kho phía trên hoặc tìm kiếm để chọn nhanh.</p>
+          </div>
+        )
       )}
 
       {/* Create Warehouse Modal */}
@@ -813,8 +964,8 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
               </div>
             </div>
             <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-200 shrink-0">
-              <button onClick={() => setShowWarehouseModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">Hủy</button>
-              <button onClick={handleCreateWarehouse} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">Tạo mới</button>
+              <button onClick={() => setShowWarehouseModal(false)} disabled={createWarehouse.isPending} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm disabled:opacity-50">Hủy</button>
+              <button onClick={handleCreateWarehouse} disabled={createWarehouse.isPending} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">{createWarehouse.isPending ? 'Đang tạo...' : 'Tạo mới'}</button>
             </div>
           </div>
       </Modal>
@@ -879,8 +1030,8 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
               </div>
             </div>
             <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-200 shrink-0">
-              <button onClick={() => setShowEditWarehouseModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">Hủy</button>
-              <button onClick={handleUpdateWarehouse} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">Cập nhật</button>
+              <button onClick={() => setShowEditWarehouseModal(false)} disabled={updateWarehouse.isPending} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm disabled:opacity-50">Hủy</button>
+              <button onClick={handleUpdateWarehouse} disabled={updateWarehouse.isPending} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">{updateWarehouse.isPending ? 'Đang cập nhật...' : 'Cập nhật'}</button>
             </div>
           </div>
       </Modal>
@@ -916,9 +1067,10 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
               </button>
               <button
                 onClick={handleCreateLot}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                disabled={createLot.isPending || !newLotName.trim()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Tạo mới
+                {createLot.isPending ? 'Đang tạo...' : 'Tạo mới'}
               </button>
             </div>
             </div>
@@ -1028,6 +1180,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
                 <button
                   onClick={handleAddProductToLot}
                   disabled={
+                    addProductToLot.isPending ||
                     !selectedProductId ||
                     !productQuantity ||
                     parseFloat(productQuantity) <= 0 ||
@@ -1035,7 +1188,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
                   }
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Thêm
+                  {addProductToLot.isPending ? 'Đang thêm...' : 'Thêm'}
                 </button>
               </div>
             </div>
@@ -1111,8 +1264,8 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
               </div>
             </div>
             <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-200 shrink-0">
-              <button onClick={() => { setShowEditLotProductModal(false); setEditingLotProduct(null); }} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">Hủy</button>
-              <button onClick={handleUpdateLotProduct} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">Cập nhật</button>
+              <button onClick={() => { setShowEditLotProductModal(false); setEditingLotProduct(null); }} disabled={updateLotProduct.isPending} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm disabled:opacity-50">Hủy</button>
+              <button onClick={handleUpdateLotProduct} disabled={updateLotProduct.isPending} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">{updateLotProduct.isPending ? 'Đang cập nhật...' : 'Cập nhật'}</button>
             </div>
           </div>
       </Modal>
@@ -1142,7 +1295,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">-- Chọn kho --</option>
-                {warehouses.map((warehouse) => (
+                {filteredWarehouses.map((warehouse: Warehouse) => (
                   <option key={warehouse.id} value={warehouse.id}>
                     {warehouse.tenKho}
                   </option>
@@ -1187,14 +1340,14 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
               </button>
               <button
                 onClick={handleMoveProduct}
-                disabled={!targetLotId}
+                disabled={!targetLotId || moveProductBetweenLots.isPending}
                 className={`px-4 py-2 rounded-lg ${
-                  targetLotId
+                  targetLotId && !moveProductBetweenLots.isPending
                     ? 'bg-blue-600 text-white hover:bg-blue-700'
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
               >
-                Di chuyển
+                {moveProductBetweenLots.isPending ? 'Đang di chuyển...' : 'Di chuyển'}
               </button>
             </div>
           </div>
@@ -1213,7 +1366,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
                 </p>
               )}
             </div>
-            <button onClick={() => setHistoryLotProduct(null)} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">✕</button>
+            <button onClick={() => setHistoryLotProduct(null)} aria-label="Đóng" className="min-w-8 min-h-8 w-8 h-8 inline-flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">✕</button>
           </div>
           <div className="overflow-y-auto flex-1 p-4">
             {historyLoading ? (
@@ -1254,7 +1407,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
                       const d = new Date(r.ngayNhap);
                       const ngayHien = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
                       return (
-                        <tr key={r.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
+                        <tr key={(r as any).itemId ?? `${r.id}-${idx}`} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
                           <td className="px-3 py-2.5 font-mono text-xs text-gray-600">{r.maPhieuNhap}</td>
                           <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{ngayHien}</td>
                           <td className="px-3 py-2.5 text-gray-700">{r.tenNhanVien}</td>
