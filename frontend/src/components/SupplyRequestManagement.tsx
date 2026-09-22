@@ -103,6 +103,33 @@ const getStatusLabel = (status: string) => {
   }
 };
 
+function isReceiptFullyReceived(request: SupplyRequest): boolean {
+  const prs = request.purchaseRequests ?? [];
+  const completed = prs.filter((pr) => pr.trangThai === 'Hoàn thành' && (pr.items?.length ?? 0) > 0);
+  if (completed.length === 0) return false;
+  const receipts = request.warehouseReceipts ?? [];
+  const nameKey = (v: unknown) => String(v ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+  for (const pr of completed) {
+    const already: Record<string, number> = {};
+    for (const r of receipts) {
+      if ((r as any).isVoided) continue;
+      if ((r as any).purchaseRequestId !== pr.id) continue;
+      for (const it of (r as any).items ?? []) {
+        const k = nameKey(it.tenSanPham);
+        if (!k) continue;
+        already[k] = (already[k] ?? 0) + Number(it.soLuongThucTe ?? 0);
+      }
+    }
+    for (const it of pr.items ?? []) {
+      const k = nameKey((it as any).tenHangHoa);
+      const bought = Number((it as any).soLuong ?? 0);
+      const got = already[k] ?? 0;
+      if (got + 1e-9 < bought) return false;
+    }
+  }
+  return true;
+}
+
 const getFulfillmentStatusLabel = (status?: string) => {
   switch (status) {
     case 'Đã cấp đủ': return 'Cấp đủ';
@@ -872,10 +899,8 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                           </button>
                         )}
 
-                        {/* Nhập kho chỉ hợp lệ khi thu mua đã thật sự mua hàng xong.
-                            "Đã duyệt mua" = admin mới duyệt, hàng chưa về → không cho nhập.
-                            "Đã nhập kho" giữ lại để nhập thêm đợt giao thứ 2. */}
-                        {['Đã mua hàng', 'Đã nhập kho'].includes(request.trangThai) && (
+                        {/* Nhập kho: chỉ khi đã mua hàng và còn YCMH chưa nhập đủ. Khi tất cả YCMH hoàn thành đã nhập đủ thì ẩn (tránh bấm nhầm). */}
+                        {['Đã mua hàng', 'Đã nhập kho'].includes(request.trangThai) && !isReceiptFullyReceived(request) && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();

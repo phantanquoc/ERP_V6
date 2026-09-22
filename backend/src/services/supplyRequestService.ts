@@ -193,7 +193,7 @@ class SupplyRequestService {
               convertedPurchaseRequest: { select: { id: true, maYeuCau: true } },
             },
           },
-          warehouseReceipts: { select: { id: true, maPhieuNhap: true, purchaseRequestId: true } },
+          warehouseReceipts: { select: { id: true, maPhieuNhap: true, purchaseRequestId: true, isVoided: true, items: { select: { tenSanPham: true, soLuongThucTe: true } } } },
         },
       }),
       prisma.supplyRequest.count({ where }),
@@ -245,7 +245,7 @@ class SupplyRequestService {
             convertedPurchaseRequest: { select: { id: true, maYeuCau: true } },
           },
         },
-        warehouseReceipts: { select: { id: true, maPhieuNhap: true, purchaseRequestId: true } },
+        warehouseReceipts: { select: { id: true, maPhieuNhap: true, purchaseRequestId: true, isVoided: true, items: { select: { tenSanPham: true, soLuongThucTe: true } } } },
       },
     });
 

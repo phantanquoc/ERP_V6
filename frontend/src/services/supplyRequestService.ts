@@ -88,7 +88,7 @@ export interface SupplyRequest {
     lyDoHuy?: string | null; ngayHuy?: string | null; nguoiHuy?: string | null;
     convertedPurchaseRequest?: { id: string; maYeuCau: string } | null;
   }>;
-  warehouseReceipts?: Array<{ id: string; maPhieuNhap: string; purchaseRequestId?: string | null }>;
+  warehouseReceipts?: Array<{ id: string; maPhieuNhap: string; purchaseRequestId?: string | null; isVoided?: boolean | null; items?: Array<{ tenSanPham: string; soLuongThucTe: number }> }>;
 }
 
 export interface CreateSupplyRequestRequest {
