@@ -38,7 +38,15 @@ export class LotProductController {
     try {
       await lotProductService.remove(req.params.id);
       res.json({ success: true, message: 'Xóa hàng hóa khỏi lô thành công' });
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.statusCode === 409) {
+        res.status(409).json({ success: false, message: error.message });
+        return;
+      }
+      if (error?.statusCode === 404) {
+        res.status(404).json({ success: false, message: error.message });
+        return;
+      }
       next(error);
     }
   }

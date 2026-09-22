@@ -137,6 +137,17 @@ class WarehouseService {
   }
 
   async delete(id: string) {
+    const withStock = await prisma.warehouses.findUnique({
+      where: { id },
+      include: { lots: { include: { lotProducts: { select: { soLuong: true } } } } },
+    });
+    if (!withStock) throw new NotFoundError('Không tìm thấy kho');
+    const hasStock = (withStock.lots ?? []).some((lot) =>
+      (lot.lotProducts ?? []).some((lp) => Number(lp.soLuong) > 0)
+    );
+    if (hasStock) {
+      throw new ConflictError('Không thể xóa kho khi còn tồn kho (soLuong > 0). Vui lòng xuất hết hàng trước khi xóa.');
+    }
     await prisma.warehouses.delete({ where: { id } });
   }
 }

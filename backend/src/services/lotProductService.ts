@@ -148,6 +148,11 @@ class LotProductService {
   }
 
   async remove(id: string) {
+    const existing = await prisma.lotProduct.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundError('Không tìm thấy kiện');
+    if (Number(existing.soLuong) > 0) {
+      throw new ConflictError('Không thể xóa kiện khi còn tồn kho (soLuong > 0). Vui lòng xuất hết hàng trước khi xóa.');
+    }
     await prisma.lotProduct.delete({ where: { id } });
   }
 

@@ -49,7 +49,15 @@ export const deleteWarehouse = async (req: Request, res: Response, next: NextFun
   try {
     await warehouseService.delete(req.params.id);
     res.json({ success: true, message: 'Xóa kho thành công' });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.statusCode === 409) {
+      res.status(409).json({ success: false, message: error.message });
+      return;
+    }
+    if (error?.statusCode === 404) {
+      res.status(404).json({ success: false, message: error.message });
+      return;
+    }
     next(error);
   }
 };
