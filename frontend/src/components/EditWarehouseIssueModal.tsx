@@ -13,7 +13,7 @@ interface EditWarehouseIssueModalProps {
   isOpen: boolean;
   issue: WarehouseIssue | null;
   onClose: () => void;
-  onSuccess?: () => void;
+  onSuccess?: (updated?: WarehouseIssue) => void;
 }
 
 interface EditIssueRow {
@@ -241,9 +241,10 @@ const EditWarehouseIssueModal: React.FC<EditWarehouseIssueModalProps> = ({
         };
       });
 
-      await warehouseIssueService.updateWarehouseIssue(issue.id, { ghiChu, lyDoChenhLech: lyDoChenhLech.trim() || undefined, nguoiDeNghi: nguoiDeNghi || undefined, maNguoiDeNghi: maNguoiDeNghi || undefined, boPhan: boPhan || undefined, lyDoXuatKho: lyDoXuatKho || undefined, items });
+      const res: any = await warehouseIssueService.updateWarehouseIssue(issue.id, { ghiChu, lyDoChenhLech: lyDoChenhLech.trim() || undefined, nguoiDeNghi: nguoiDeNghi || undefined, maNguoiDeNghi: maNguoiDeNghi || undefined, boPhan: boPhan || undefined, lyDoXuatKho: lyDoXuatKho || undefined, items });
+      const updated = res?.data?.data ?? res?.data ?? null;
       alert('Cập nhật phiếu xuất kho thành công!');
-      onSuccess?.();
+      onSuccess?.(updated as WarehouseIssue | undefined);
       onClose();
     } catch (error: any) {
       alert(error.response?.data?.message || 'Lỗi khi cập nhật phiếu xuất kho');

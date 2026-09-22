@@ -26,7 +26,7 @@ interface EditWarehouseReceiptModalProps {
   isOpen: boolean;
   receipt: WarehouseReceipt | null;
   onClose: () => void;
-  onSuccess?: () => void;
+  onSuccess?: (updated?: WarehouseReceipt) => void;
 }
 
 interface EditReceiptRow {
@@ -358,7 +358,7 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
         return [{ ...(row.id ? { id: row.id } : {}), lotProductId: singleKienId ?? '', tenSanPham: lotProduct?.internationalProduct?.tenSanPham || row.tenSanPham, warehouseId: row.warehouseId, tenKho: warehouse?.tenKho || '', lotId: (lotProduct as any)?.lotId ?? row.lotId, tenLo: lot?.tenLo || '', soLuongThucTe: row.soLuongNhap, soLuongYeuCau: row.soLuongYeuCau ?? undefined, donViTinh: lotProduct?.donViTinh || row.donViTinh, ghiChu: row.ghiChu, tinhTrang: tinhTrangVal, quyCach: row.quyCach || undefined }];
       });
 
-      await warehouseReceiptService.updateWarehouseReceipt(receipt.id, {
+      const res: any = await warehouseReceiptService.updateWarehouseReceipt(receipt.id, {
         ghiChu,
         lyDoChenhLech: lyDoChenhLech.trim() || undefined,
         mucDich: mucDich || undefined,
@@ -367,8 +367,9 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
         boPhan: boPhan || undefined,
         items,
       });
+      const updated = res?.data?.data ?? res?.data ?? null;
       alert('Cập nhật phiếu nhập kho thành công!');
-      onSuccess?.();
+      onSuccess?.(updated as WarehouseReceipt | undefined);
       onClose();
     } catch (error: any) {
       alert(error.response?.data?.message || 'Lỗi khi cập nhật phiếu nhập kho');
@@ -518,7 +519,7 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
                                   <div className="text-xs font-mono text-gray-600">{lp?.maKien ?? kid.slice(-6)}</div>
                                   <div className="text-[10px] text-gray-500">TT</div>
                                   <input type="number" value={per} onChange={(e) => { const next=[...row.perKienQty]; next[ki]=parseNumberInput(e.target.value); updateRow(index,{ perKienQty: next }); }} min={0} step={0.01} className="mt-1 w-full px-2 py-1 border border-gray-300 rounded text-sm" />
-                                  {row.soLuongYeuCau != null && (<><div className="text-[10px] text-gray-500 mt-1">KH</div><input type="number" value={perKH} onChange={(e) => { const next=[...(row.perKienYeuCau ?? row.perKienQty)]; next[ki]=parseNumberInput(e.target.value); const sum=row.perKienYeuCau ? next.reduce((a,b)=>a+b,0) : perKH; updateRow(index,{ perKienYeuCau: next, soLuongYeuCau: next.reduce((a,b)=>a+b,0) }); }} min={0} step={0.01} className="mt-1 w-full px-2 py-1 border border-gray-200 rounded text-sm bg-amber-50" /></>)}
+                                  {row.soLuongYeuCau != null && (<><div className="text-[10px] text-gray-500 mt-1">KH</div><input type="number" value={perKH} onChange={(e) => { const next=[...(row.perKienYeuCau ?? row.perKienQty)]; next[ki]=parseNumberInput(e.target.value); updateRow(index,{ perKienYeuCau: next, soLuongYeuCau: next.reduce((a,b)=>a+b,0) }); }} min={0} step={0.01} className="mt-1 w-full px-2 py-1 border border-gray-200 rounded text-sm bg-amber-50" /></>)}
                                   {over && <div className="text-xs text-red-600 mt-1">Vượt {max}</div>}
                                 </div>
                               );

@@ -50,6 +50,7 @@ export interface WarehouseReceipt {
   voidReason?: string | null;
   voidedAt?: string | null;
   voidedBy?: string | null;
+  voidedByName?: string | null;
   daIn?: boolean;
   inLanDauAt?: string | null;
   items?: WarehouseReceiptLine[];
