@@ -14,6 +14,7 @@ import { displayLoaiKho, displayMaHang, getUniqueSlipField, getWarehouseSlipLine
 import { warehouseKeys, useWarehouses } from '../hooks';
 import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
 import { TINH_TRANG_OPTIONS, BO_PHAN_OPTIONS } from '../constants/warehouseCatalogs';
+import { useUrlDetailId } from '../hooks/useUrlState';
 
 interface WarehouseIssueTabProps {
   month?: number;
@@ -35,7 +36,10 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
   const [deleting, setDeleting] = useState(false);
   const [voidTarget, setVoidTarget] = useState<WarehouseIssue | null>(null);
   const [voiding, setVoiding] = useState(false);
+  const [unvoidingId, setUnvoidingId] = useState<string | null>(null);
   const reqIdRef = useRef(0);
+  const detailSeqRef = useRef(0);
+  const { id: urlIssueId, open: openUrlIssue, close: closeUrlIssue, syncingRef: issueSyncRef } = useUrlDetailId('issueId');
   const ITEMS_PER_PAGE = 10;
   const [currentPage, setCurrentPage] = useState(1);
   const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maPhieuXuat: '', tenNhanVien: '', nguoiDeNghi: '', boPhan: '', warehouseId: '', tinhTrang: '', daIn: '', isVoided: '', fromNgay: '', toNgay: '' });
@@ -77,17 +81,47 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
 
   const dateRangeInvalid = !!(filterValues.fromNgay && filterValues.toNgay && filterValues.fromNgay > filterValues.toNgay);
 
-  const handleViewDetail = async (issue: WarehouseIssue) => {
+  const openIssueDetail = useCallback(async (issue: WarehouseIssue) => {
     setSelectedIssue(issue);
     setShowDetailModal(true);
+    const seq = ++detailSeqRef.current;
     try {
       const res = await warehouseIssueService.getWarehouseIssueById(issue.id) as any;
       const fresh = res?.data?.data ?? res?.data ?? res;
+      if (seq !== detailSeqRef.current) return;
       if (fresh?.id) setSelectedIssue(fresh as WarehouseIssue);
-    } catch {
-      // keep stale list item if fetch fails
-    }
-  };
+    } catch { /* keep stale */ }
+  }, []);
+
+  const handleViewDetail = useCallback(async (issue: WarehouseIssue) => {
+    openUrlIssue(issue.id);
+    await openIssueDetail(issue);
+  }, [openUrlIssue, openIssueDetail]);
+
+  const closeDetail = useCallback(() => {
+    closeUrlIssue();
+    setShowDetailModal(false);
+  }, [closeUrlIssue]);
+
+  // Deep-link / F5 / back-forward: ?issueId=xxx
+  useEffect(() => {
+    if (issueSyncRef.current) { issueSyncRef.current = false; return; }
+    if (!urlIssueId) { if (showDetailModal) setShowDetailModal(false); return; }
+    if (selectedIssue?.id === urlIssueId && showDetailModal) return;
+    const local = issues.find((r) => r.id === urlIssueId);
+    if (local) { void openIssueDetail(local); return; }
+    (async () => {
+      const seq = ++detailSeqRef.current;
+      try {
+        const res = await warehouseIssueService.getWarehouseIssueById(urlIssueId) as any;
+        const fresh = res?.data?.data ?? res?.data ?? res;
+        if (seq !== detailSeqRef.current) return;
+        if (fresh?.id) { setSelectedIssue(fresh as WarehouseIssue); setShowDetailModal(true); }
+      } catch { /* invalid id */ }
+    })();
+  // openIssueDetail stable; issues needed for local hit
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlIssueId, issues]);
 
   const fetchIssues = useCallback(async () => {
     const cur = ++reqIdRef.current;
@@ -140,11 +174,14 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
 
   const handleDelete = async (lyDo: string) => {
     if (!deleteTarget) return;
+    const deletedId = deleteTarget.id;
+    const wasDetail = selectedIssue?.id === deletedId;
     setDeleting(true);
     try {
-      await warehouseIssueService.deleteWarehouseIssue(deleteTarget.id, { lyDo });
+      await warehouseIssueService.deleteWarehouseIssue(deletedId, { lyDo });
       toast.success('Xóa phiếu xuất kho thành công!');
       setDeleteTarget(null);
+      if (wasDetail) closeDetail();
       fetchIssues();
       queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
       queryClient.invalidateQueries({ queryKey: warehouseKeys.lotProducts() });
@@ -157,10 +194,28 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
   };
   const handleVoid = async (reason: string) => {
     if (!voidTarget) return;
+    const targetId = voidTarget.id;
     setVoiding(true);
-    try { await warehouseIssueService.voidWarehouseIssue(voidTarget.id, { voidReason: reason }); toast.success('Đã vô hiệu phiếu xuất'); setVoidTarget(null); fetchIssues(); queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() }); queryClient.invalidateQueries({ queryKey: warehouseKeys.lotProducts() }); } catch (e: any) { toast.error(e.response?.data?.message || 'Lỗi khi vô hiệu phiếu'); } finally { setVoiding(false); }
+    try {
+      const res: any = await warehouseIssueService.voidWarehouseIssue(targetId, { voidReason: reason });
+      const updated = res?.data?.data ?? res?.data ?? null;
+      toast.success('Đã vô hiệu phiếu xuất'); setVoidTarget(null);
+      if (selectedIssue?.id === targetId && updated) setSelectedIssue(updated as WarehouseIssue);
+      else if (selectedIssue?.id === targetId) setSelectedIssue((prev) => prev ? ({ ...prev, isVoided: true, voidReason: reason } as any) : prev);
+      fetchIssues(); queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() }); queryClient.invalidateQueries({ queryKey: warehouseKeys.lotProducts() });
+    } catch (e: any) { toast.error(e.response?.data?.message || 'Lỗi khi vô hiệu phiếu'); } finally { setVoiding(false); }
   };
-  const handleUnvoid = async (id: string) => { try { await warehouseIssueService.unvoidWarehouseIssue(id); toast.success('Đã khôi phục phiếu'); fetchIssues(); queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() }); } catch (e: any) { toast.error(e.response?.data?.message || 'Lỗi khi khôi phục'); } };
+  const handleUnvoid = async (id: string) => {
+    if (unvoidingId) return; setUnvoidingId(id);
+    try {
+      const res: any = await warehouseIssueService.unvoidWarehouseIssue(id);
+      const updated = res?.data?.data ?? res?.data ?? null;
+      toast.success('Đã khôi phục phiếu');
+      if (selectedIssue?.id === id && updated) setSelectedIssue(updated as WarehouseIssue);
+      else if (selectedIssue?.id === id) setSelectedIssue((prev) => prev ? ({ ...prev, isVoided: false, voidReason: null } as any) : prev);
+      fetchIssues(); queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
+    } catch (e: any) { toast.error(e.response?.data?.message || 'Lỗi khi khôi phục'); } finally { setUnvoidingId(null); }
+  };
 
   const refinedIssues = React.useMemo(() => {
     if (!month && !year) return issues;
@@ -173,6 +228,17 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
   }, [issues, month, year]);
 
   const displayIssues = refinedIssues;
+
+  // Sync selected detail when list refreshes
+  useEffect(() => {
+    if (!selectedIssue) return;
+    const fresh = issues.find((x) => x.id === selectedIssue.id);
+    if (fresh) {
+      const a = (fresh as any).updatedAt ? new Date((fresh as any).updatedAt).getTime() : 0;
+      const b = (selectedIssue as any).updatedAt ? new Date((selectedIssue as any).updatedAt).getTime() : 0;
+      if (a > b) setSelectedIssue(fresh);
+    }
+  }, [issues]);
 
   useEffect(() => {
     setCurrentPage((page) => Math.min(Math.max(1, page), Math.max(1, totalPages)));
@@ -256,7 +322,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                       const isOver = line.soLuongYeuCau != null && line.soLuongThucTe != null && Math.abs(Number(line.soLuongYeuCau) - Number(line.soLuongThucTe)) > 1e-9;
                       const rowHl = isVoidedRow ? 'opacity-60 bg-gray-100' : isOver ? 'bg-amber-50 hover:bg-amber-100' : `${slipBg} hover:bg-blue-50`;
                       return (
-                      <tr key={line.id ?? lineIndex} className={`${rowHl} transition-colors`}>
+                      <tr key={line.id ?? lineIndex} onClick={() => handleViewDetail(issue)} className={`${rowHl} transition-colors cursor-pointer`}>
                         {lineIndex === 0 && (
                           <td rowSpan={lines.length} className={`px-4 py-3 whitespace-nowrap align-top text-sm font-medium text-gray-900 border-r border-gray-200 ${slipBorder}`}>
                             {issue.maPhieuXuat}{(issue as any).isVoided && <span className="ml-2 inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-gray-700">Đã vô hiệu</span>}
@@ -303,7 +369,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                         </td>
                         {lineIndex === 0 && (
                           <td rowSpan={lines.length} className={`px-4 py-3 whitespace-nowrap align-top text-sm text-gray-500 ${slipBorder}`}>
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
               <button
                 aria-label="Xem chi tiết phiếu xuất"
                 onClick={() => handleViewDetail(issue)}
@@ -315,23 +381,25 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                               <button
                                 aria-label="In phiếu xuất"
                                 onClick={() => { setPrintIssue(issue); setShowPrintView(true); }}
-                                className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
-                                title="In phiếu"
+                                disabled={(issue as any).isVoided}
+                                className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                title={(issue as any).isVoided ? 'Phiếu đã vô hiệu — không thể in' : 'In phiếu'}
                               >
                                 <Printer className="w-5 h-5" />
                               </button>
                               <button
                                 onClick={async () => { try { await warehouseIssueService.exportXlsx(issue.id); } catch (e: any) { toast.error(e.message || 'Lỗi xuất Excel'); } }}
                                 aria-label="Xuất Excel"
-                                className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                                title="Xuất Excel (BM03)"
+                                disabled={(issue as any).isVoided}
+                                className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                title={(issue as any).isVoided ? 'Phiếu đã vô hiệu' : 'Xuất Excel (BM03)'}
                               >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg>
                               </button>
                               {(issue as any).daIn && (
                                 <span className="ml-1 inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs text-green-700" title="Đã in/xuất">Đã in</span>
                               )}
-                              {(issue as any).isVoided ? <button onClick={() => handleUnvoid(issue.id)} className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors" title="Khôi phục"><RotateCcw className="w-5 h-5" /></button> : <button onClick={() => setVoidTarget(issue)} className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors" title="Vô hiệu hóa"><Ban className="w-5 h-5" /></button>}
+                              {(issue as any).isVoided ? <button onClick={() => handleUnvoid(issue.id)} disabled={unvoidingId === issue.id} className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors disabled:opacity-50" title="Khôi phục"><RotateCcw className="w-5 h-5" /></button> : <button onClick={() => setVoidTarget(issue)} disabled={issue.isLocked} className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed" title={issue.isLocked ? 'Phiếu đã khóa — không thể vô hiệu' : 'Vô hiệu hóa'}><Ban className="w-5 h-5" /></button>}
                               {!issue.isLocked && !((issue as any).isVoided) && (
                                 <>
                                   <button
@@ -374,7 +442,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
           displayIssues.map((issue) => {
             const lines = getWarehouseSlipLines(issue);
             return (
-              <div key={issue.id} className={`rounded-lg border p-3 shadow-sm ${(issue as any).isVoided ? "opacity-60 bg-gray-50 border-red-200" : "border-gray-200 bg-white"}`}>
+              <div key={issue.id} onClick={() => handleViewDetail(issue)} className={`rounded-lg border p-3 shadow-sm cursor-pointer ${(issue as any).isVoided ? "opacity-60 bg-gray-50 border-red-200" : "border-gray-200 bg-white"}`}>
                 <div className="flex items-start justify-between gap-2">
                   <span className="font-mono text-sm font-semibold text-gray-900">{issue.maPhieuXuat}{(issue as any).isVoided && <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700">Đã vô hiệu</span>}{lines.length > 1 && <span className="ml-1 text-xs font-normal text-gray-400">· {lines.length} dòng</span>}</span>
                   {issue.isLocked ? <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">Đã khóa</span> : (issue as any).daIn ? <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Đã in</span> : null}
@@ -401,11 +469,11 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                     </div>
                     );})}
                 </div>
-                <div className="mt-3 flex flex-wrap gap-1.5">
+                <div className="mt-3 flex flex-wrap gap-1.5" onClick={(e) => e.stopPropagation()}>
                   <button onClick={() => handleViewDetail(issue)} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700">Chi tiết</button>
-                  <button onClick={() => { setPrintIssue(issue); setShowPrintView(true); }} className="rounded border border-green-200 px-2.5 py-1 text-xs text-green-700">In</button>
-                  <button onClick={async () => { try { await warehouseIssueService.exportXlsx(issue.id); } catch (e: any) { toast.error(e.message || 'Lỗi xuất Excel'); } }} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700">Excel</button>
-                  {(issue as any).isVoided ? <button onClick={() => handleUnvoid(issue.id)} className="inline-flex items-center gap-1 rounded border border-green-200 px-2.5 py-1 text-xs text-green-700"><RotateCcw className="w-3.5 h-3.5" /> Khôi phục</button> : <button onClick={() => setVoidTarget(issue)} className="inline-flex items-center gap-1 rounded border border-red-200 px-2.5 py-1 text-xs text-red-700"><Ban className="w-3.5 h-3.5" /> Vô hiệu</button>}
+                  <button onClick={() => { setPrintIssue(issue); setShowPrintView(true); }} disabled={(issue as any).isVoided} className="rounded border border-green-200 px-2.5 py-1 text-xs text-green-700 disabled:opacity-30 disabled:cursor-not-allowed" title={(issue as any).isVoided ? 'Phiếu đã vô hiệu — không thể in' : 'In'}>In</button>
+                  <button onClick={async () => { try { await warehouseIssueService.exportXlsx(issue.id); } catch (e: any) { toast.error(e.message || 'Lỗi xuất Excel'); } }} disabled={(issue as any).isVoided} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700 disabled:opacity-30 disabled:cursor-not-allowed" title={(issue as any).isVoided ? 'Phiếu đã vô hiệu' : 'Excel'}>Excel</button>
+                  {(issue as any).isVoided ? <button onClick={() => handleUnvoid(issue.id)} disabled={unvoidingId === issue.id} className="inline-flex items-center gap-1 rounded border border-green-200 px-2.5 py-1 text-xs text-green-700 disabled:opacity-50"><RotateCcw className="w-3.5 h-3.5" /> Khôi phục</button> : <button onClick={() => setVoidTarget(issue)} disabled={issue.isLocked} className="inline-flex items-center gap-1 rounded border border-red-200 px-2.5 py-1 text-xs text-red-700 disabled:opacity-30 disabled:cursor-not-allowed" title={issue.isLocked ? 'Phiếu đã khóa' : undefined}><Ban className="w-3.5 h-3.5" /> Vô hiệu</button>}
                   {!issue.isLocked && !((issue as any).isVoided) && (
                     <>
                       <button onClick={() => setEditingIssue(issue)} className="rounded border border-amber-200 px-2.5 py-1 text-xs text-amber-700">Sửa</button>
@@ -463,14 +531,14 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
         </nav>
       )}
 
-      {/* Detail Modal */}
-      <Modal isOpen={showDetailModal && !!selectedIssue} onClose={() => setShowDetailModal(false)} showBackdrop closeOnBackdrop={true}>
+      {/* Detail Modal — deep-linked via ?issueId= */}
+      <Modal isOpen={showDetailModal && !!selectedIssue} onClose={closeDetail} showBackdrop closeOnBackdrop={true}>
         <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-1rem)] sm:max-w-[1100px] flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
             <h2 className="text-xl font-bold text-gray-900">Chi tiết phiếu xuất kho</h2>
             <button
               aria-label="Đóng chi tiết phiếu xuất"
-              onClick={() => setShowDetailModal(false)}
+              onClick={closeDetail}
               className="text-gray-400 hover:text-gray-600"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -482,7 +550,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
           {selectedIssue && (
             <div className="overflow-y-auto flex-1 p-6">
             {(selectedIssue as any).isVoided && (
-              <div className="mb-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700"><div className="font-semibold">Đã vô hiệu</div><div>Lý do: {(selectedIssue as any).voidReason || '—'}</div><div className="text-xs text-red-600">{(selectedIssue as any).voidedAt ? new Date((selectedIssue as any).voidedAt).toLocaleString('vi-VN') : ''} {(selectedIssue as any).voidedBy ? `· ${(selectedIssue as any).voidedBy}` : ''}</div></div>
+              <div className="mb-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700"><div className="font-semibold">Đã vô hiệu</div><div>Lý do: {(selectedIssue as any).voidReason || '—'}</div><div className="text-xs text-red-600">{(selectedIssue as any).voidedAt ? new Date((selectedIssue as any).voidedAt).toLocaleString('vi-VN') : ''} {(selectedIssue as any).voidedByName ? `· ${(selectedIssue as any).voidedByName}` : (selectedIssue as any).voidedBy ? `· ${(selectedIssue as any).voidedBy}` : ''}</div></div>
             )}
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
               <div className="flex items-center gap-2 text-red-800 font-semibold text-lg">
@@ -675,22 +743,60 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
             </div>
           )}
 
-          <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-200 shrink-0">
+          <div className="flex flex-wrap justify-end gap-2 px-6 py-4 border-t border-gray-200 shrink-0">
+            {(selectedIssue as any)?.isVoided ? (
+              <button
+                onClick={() => { if (selectedIssue) handleUnvoid(selectedIssue.id); }}
+                disabled={unvoidingId === selectedIssue?.id}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 inline-flex items-center gap-1.5"
+              >
+                <RotateCcw className="w-4 h-4" /> Khôi phục
+              </button>
+            ) : (
+              <button
+                onClick={() => { if (selectedIssue) setVoidTarget(selectedIssue); }}
+                disabled={!!selectedIssue?.isLocked}
+                title={selectedIssue?.isLocked ? 'Phiếu đã khóa — không thể vô hiệu' : undefined}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+              >
+                <Ban className="w-4 h-4" /> Vô hiệu
+              </button>
+            )}
+            {!selectedIssue?.isLocked && !(selectedIssue as any)?.isVoided && (
+              <>
+                <button
+                  onClick={() => { if (selectedIssue) setEditingIssue(selectedIssue); }}
+                  className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 inline-flex items-center gap-1.5"
+                >
+                  <Pencil className="w-4 h-4" /> Sửa
+                </button>
+                <button
+                  onClick={() => { if (selectedIssue) setDeleteTarget(selectedIssue); }}
+                  className="px-4 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 inline-flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-4 h-4" /> Xóa
+                </button>
+              </>
+            )}
             <button
               onClick={() => { setPrintIssue(selectedIssue); setShowPrintView(true); }}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              disabled={(selectedIssue as any)?.isVoided}
+              title={(selectedIssue as any)?.isVoided ? 'Phiếu đã vô hiệu — không thể in' : undefined}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               In phiếu
             </button>
             <button
               onClick={async () => { try { await warehouseIssueService.exportXlsx(selectedIssue!.id); } catch (e: any) { toast.error(e.message || 'Lỗi xuất Excel'); } }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              disabled={(selectedIssue as any)?.isVoided}
+              title={(selectedIssue as any)?.isVoided ? 'Phiếu đã vô hiệu' : undefined}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Xuất Excel
             </button>
             <button
               aria-label="Đóng chi tiết phiếu xuất"
-              onClick={() => setShowDetailModal(false)}
+              onClick={closeDetail}
               className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
             >
               Đóng
@@ -732,7 +838,20 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
         isOpen={!!editingIssue}
         issue={editingIssue}
         onClose={() => setEditingIssue(null)}
-        onSuccess={() => {
+        onSuccess={async (updated?: WarehouseIssue) => {
+          const editedId = editingIssue?.id ?? null;
+          if (editedId && selectedIssue?.id === editedId) {
+            if (updated?.id) {
+              setSelectedIssue(updated);
+            } else {
+              try {
+                const seq = ++detailSeqRef.current;
+                const res = await warehouseIssueService.getWarehouseIssueById(editedId) as any;
+                const fresh = res?.data?.data ?? res?.data ?? res;
+                if (seq === detailSeqRef.current && fresh?.id) setSelectedIssue(fresh as WarehouseIssue);
+              } catch { /* keep optimistic selected */ }
+            }
+          }
           fetchIssues();
           queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
         }}

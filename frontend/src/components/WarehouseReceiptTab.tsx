@@ -15,6 +15,7 @@ import { getUniqueSlipField, getWarehouseSlipLines, normalizeWarehouseListRespon
 void getUniqueSlipField;
 import { TINH_TRANG_OPTIONS, BO_PHAN_OPTIONS } from '../constants/warehouseCatalogs';
 import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
+import { useUrlDetailId } from '../hooks/useUrlState';
 
 interface WarehouseReceiptTabProps {
   month?: number;
@@ -38,6 +39,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
   const [deleting, setDeleting] = useState(false);
   const [voidTarget, setVoidTarget] = useState<WarehouseReceipt | null>(null);
   const [voiding, setVoiding] = useState(false);
+  const [unvoidingId, setUnvoidingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -47,6 +49,8 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
   const [showBulkConfirm, setShowBulkConfirm] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
   const reqIdRef = useRef(0);
+  const detailSeqRef = useRef(0);
+  const { id: urlReceiptId, open: openUrlReceipt, close: closeUrlReceipt, syncingRef: receiptSyncRef } = useUrlDetailId('receiptId');
   const { data: warehousesRaw } = useWarehouses();
   // useWarehouses returns the unwrapped body, whose shape the service leaves
   // untyped — normalize to an array the same way the sibling tabs do.
@@ -94,17 +98,48 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
 
   const dateRangeError = !!(filterValues.fromNgay && filterValues.toNgay && filterValues.fromNgay > filterValues.toNgay);
 
-  const handleViewDetail = async (receipt: WarehouseReceipt) => {
+  const openReceiptDetail = useCallback(async (receipt: WarehouseReceipt) => {
     setSelectedReceipt(receipt);
     setShowDetailModal(true);
+    const seq = ++detailSeqRef.current;
     try {
       const res = await warehouseReceiptService.getWarehouseReceiptById(receipt.id) as any;
       const fresh = res?.data?.data ?? res?.data ?? res;
+      if (seq !== detailSeqRef.current) return;
       if (fresh?.id) setSelectedReceipt(fresh as WarehouseReceipt);
-    } catch {
-      // keep stale list item if fetch fails
-    }
-  };
+    } catch { /* keep stale */ }
+  }, []);
+
+  const handleViewDetail = useCallback(async (receipt: WarehouseReceipt) => {
+    openUrlReceipt(receipt.id);
+    await openReceiptDetail(receipt);
+  }, [openUrlReceipt, openReceiptDetail]);
+
+  const closeDetail = useCallback(() => {
+    closeUrlReceipt();
+    setShowDetailModal(false);
+  }, [closeUrlReceipt]);
+
+  // Deep-link / F5 / back-forward: ?receiptId=xxx → mở chi tiết
+  useEffect(() => {
+    if (receiptSyncRef.current) { receiptSyncRef.current = false; return; }
+    if (!urlReceiptId) { if (showDetailModal) setShowDetailModal(false); return; }
+    if (selectedReceipt?.id === urlReceiptId && showDetailModal) return;
+    const local = receipts.find((r) => r.id === urlReceiptId);
+    if (local) { void openReceiptDetail(local); return; }
+    // Not on current page (pagination/filter): fetch directly
+    (async () => {
+      const seq = ++detailSeqRef.current;
+      try {
+        const res = await warehouseReceiptService.getWarehouseReceiptById(urlReceiptId) as any;
+        const fresh = res?.data?.data ?? res?.data ?? res;
+        if (seq !== detailSeqRef.current) return;
+        if (fresh?.id) { setSelectedReceipt(fresh as WarehouseReceipt); setShowDetailModal(true); }
+      } catch { /* invalid id — leave closed, don't loop */ }
+    })();
+  // openReceiptDetail stable; receipts needed for local hit
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlReceiptId, receipts]);
 
   const fetchReceipts = useCallback(async () => {
     const cur = ++reqIdRef.current;
@@ -170,11 +205,14 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
   }, [filterValues._search, filterValues.warehouseId, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuNhap, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, filterValues.isVoided, sortKey, sortDir, month, year]);
   const handleDelete = async (lyDo: string) => {
     if (!deleteTarget) return;
+    const deletedId = deleteTarget.id;
+    const wasDetail = selectedReceipt?.id === deletedId;
     setDeleting(true);
     try {
-      await warehouseReceiptService.deleteWarehouseReceipt(deleteTarget.id, { lyDo });
+      await warehouseReceiptService.deleteWarehouseReceipt(deletedId, { lyDo });
       toast.success('Xóa phiếu nhập kho thành công!');
       setDeleteTarget(null);
+      if (wasDetail) closeDetail();
       fetchReceipts();
       refreshInventoryCaches();
     } catch (error: any) {
@@ -185,17 +223,30 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
   };
   const handleVoid = async (reason: string) => {
     if (!voidTarget) return;
+    const targetId = voidTarget.id;
     setVoiding(true);
     try {
-      await warehouseReceiptService.voidWarehouseReceipt(voidTarget.id, { voidReason: reason });
+      const res: any = await warehouseReceiptService.voidWarehouseReceipt(targetId, { voidReason: reason });
+      const updated = res?.data?.data ?? res?.data ?? null;
       toast.success('Đã vô hiệu phiếu nhập');
       setVoidTarget(null);
+      if (selectedReceipt?.id === targetId && updated) setSelectedReceipt(updated as WarehouseReceipt);
+      else if (selectedReceipt?.id === targetId) setSelectedReceipt((prev) => prev ? ({ ...prev, isVoided: true, voidReason: reason } as any) : prev);
       fetchReceipts();
       refreshInventoryCaches();
     } catch (e: any) { toast.error(e.response?.data?.message || 'Lỗi khi vô hiệu phiếu'); } finally { setVoiding(false); }
   };
   const handleUnvoid = async (id: string) => {
-    try { await warehouseReceiptService.unvoidWarehouseReceipt(id); toast.success('Đã khôi phục phiếu'); fetchReceipts(); refreshInventoryCaches(); } catch (e: any) { toast.error(e.response?.data?.message || 'Lỗi khi khôi phục'); }
+    if (unvoidingId) return;
+    setUnvoidingId(id);
+    try {
+      const res: any = await warehouseReceiptService.unvoidWarehouseReceipt(id);
+      const updated = res?.data?.data ?? res?.data ?? null;
+      toast.success('Đã khôi phục phiếu');
+      if (selectedReceipt?.id === id && updated) setSelectedReceipt(updated as WarehouseReceipt);
+      else if (selectedReceipt?.id === id) setSelectedReceipt((prev) => prev ? ({ ...prev, isVoided: false, voidReason: null } as any) : prev);
+      fetchReceipts(); refreshInventoryCaches();
+    } catch (e: any) { toast.error(e.response?.data?.message || 'Lỗi khi khôi phục'); } finally { setUnvoidingId(null); }
   };
 
   // Server handles maPhieu/tenNhanVien/nguoiDeNghi/boPhan/tinhTrang/daIn — only month/year remains client-side.
@@ -211,6 +262,17 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
 
   // Server already sorts/paginates; refinedReceipts is the display set for this page.
   const displayReceipts = refinedReceipts;
+
+  // Sync selected detail when list refreshes (avoid stale detail after edit/void outside modal)
+  useEffect(() => {
+    if (!selectedReceipt) return;
+    const fresh = receipts.find((r) => r.id === selectedReceipt.id);
+    if (fresh) {
+      const a = fresh.updatedAt ? new Date(fresh.updatedAt).getTime() : 0;
+      const b = selectedReceipt.updatedAt ? new Date(selectedReceipt.updatedAt).getTime() : 0;
+      if (a > b) setSelectedReceipt(fresh);
+    }
+  }, [receipts]);
   const selectedReceiptLines = selectedReceipt ? getWarehouseSlipLines(selectedReceipt) : [];
 
   useEffect(() => {
@@ -292,7 +354,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                       const isOver = line.soLuongYeuCau != null && line.soLuongThucTe != null && Math.abs(Number(line.soLuongYeuCau) - Number(line.soLuongThucTe)) > 1e-9;
                       const rowHl = isVoidedRow ? 'opacity-60 bg-gray-100' : isOver ? 'bg-amber-50 hover:bg-amber-100' : `${slipBg} hover:bg-blue-50`;
                       return (
-                      <tr key={line.id ?? lineIndex} className={`${rowHl} transition-colors`}>
+                      <tr key={line.id ?? lineIndex} onClick={() => handleViewDetail(receipt)} className={`${rowHl} transition-colors cursor-pointer`}>
                         {lineIndex === 0 && (
                           <td rowSpan={lines.length} className={`px-4 py-3 whitespace-nowrap align-top text-sm font-medium text-gray-900 border-r border-gray-200 ${slipBorder}`}>
                             {receipt.maPhieuNhap}{(receipt as any).isVoided && <span className="ml-2 inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">Đã vô hiệu</span>}
@@ -336,7 +398,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                         </td>
                         {lineIndex === 0 && (
                           <td rowSpan={lines.length} className={`px-4 py-3 whitespace-nowrap align-top text-sm text-gray-500 ${slipBorder}`}>
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                               <button
                                 onClick={() => handleViewDetail(receipt)}
                                 aria-label="Xem chi tiết"
@@ -348,16 +410,18 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                               <button
                                 onClick={() => { setPrintReceipt(receipt); setShowPrintView(true); }}
                                 aria-label="In phiếu"
-                                className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors"
-                                title="In phiếu"
+                                disabled={(receipt as any).isVoided}
+                                className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                title={(receipt as any).isVoided ? 'Phiếu đã vô hiệu — không thể in' : 'In phiếu'}
                               >
                                 <Printer className="w-5 h-5" />
                               </button>
                               <button
                                 onClick={async () => { try { await warehouseReceiptService.exportXlsx(receipt.id); } catch (e: any) { toast.error(e.message || 'Lỗi xuất Excel'); } }}
                                 aria-label="Xuất Excel"
-                                className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                                title="Xuất Excel (BM01)"
+                                disabled={(receipt as any).isVoided}
+                                className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                title={(receipt as any).isVoided ? 'Phiếu đã vô hiệu' : 'Xuất Excel (BM01)'}
                               >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg>
                               </button>
@@ -365,9 +429,9 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                                 <span className="ml-1 inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs text-green-700" title="Đã in/xuất">Đã in</span>
                               )}
                               {(receipt as any).isVoided ? (
-                                <button onClick={() => handleUnvoid(receipt.id)} className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors" title="Khôi phục"><RotateCcw className="w-5 h-5" /></button>
+                                <button onClick={() => handleUnvoid(receipt.id)} disabled={unvoidingId === receipt.id} className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors disabled:opacity-50" title="Khôi phục"><RotateCcw className="w-5 h-5" /></button>
                               ) : (
-                                <button onClick={() => setVoidTarget(receipt)} className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors" title="Vô hiệu hóa"><Ban className="w-5 h-5" /></button>
+                                <button onClick={() => setVoidTarget(receipt)} disabled={receipt.isLocked} className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed" title={receipt.isLocked ? 'Phiếu đã khóa — không thể vô hiệu' : 'Vô hiệu hóa'}><Ban className="w-5 h-5" /></button>
                               )}
                               {!receipt.isLocked && !((receipt as any).isVoided) && (
                                 <>
@@ -416,7 +480,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
           displayReceipts.map((receipt) => {
             const lines = getWarehouseSlipLines(receipt);
             return (
-              <div key={receipt.id} className={`rounded-lg border p-3 shadow-sm ${(receipt as any).isVoided ? "opacity-60 bg-gray-50 border-red-200" : "border-gray-200 bg-white"}`}>
+              <div key={receipt.id} onClick={() => handleViewDetail(receipt)} className={`rounded-lg border p-3 shadow-sm cursor-pointer ${(receipt as any).isVoided ? "opacity-60 bg-gray-50 border-red-200" : "border-gray-200 bg-white"}`}>
                 <div className="flex items-start justify-between gap-2">
                   <span className="font-mono text-sm font-semibold text-gray-900">{receipt.maPhieuNhap}{(receipt as any).isVoided && <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700">Đã vô hiệu</span>}{lines.length > 1 && <span className="ml-1 text-xs font-normal text-gray-400">· {lines.length} dòng</span>}</span>
                   {receipt.isLocked ? <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">Đã khóa</span> : (receipt as any).daIn ? <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">Đã in</span> : null}
@@ -443,11 +507,11 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                     </div>
                     );})}
                 </div>
-                <div className="mt-3 flex flex-wrap gap-1.5">
+                <div className="mt-3 flex flex-wrap gap-1.5" onClick={(e) => e.stopPropagation()}>
                   <button onClick={() => handleViewDetail(receipt)} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700">Chi tiết</button>
-                  <button onClick={() => { setPrintReceipt(receipt); setShowPrintView(true); }} className="rounded border border-green-200 px-2.5 py-1 text-xs text-green-700">In</button>
-                  <button onClick={async () => { try { await warehouseReceiptService.exportXlsx(receipt.id); } catch (e: any) { toast.error(e.message || 'Lỗi xuất Excel'); } }} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700">Excel</button>
-                  {(receipt as any).isVoided ? <button onClick={() => handleUnvoid(receipt.id)} className="inline-flex items-center gap-1 rounded border border-green-200 px-2.5 py-1 text-xs text-green-700"><RotateCcw className="w-3.5 h-3.5" /> Khôi phục</button> : <button onClick={() => setVoidTarget(receipt)} className="inline-flex items-center gap-1 rounded border border-red-200 px-2.5 py-1 text-xs text-red-700"><Ban className="w-3.5 h-3.5" /> Vô hiệu</button>}
+                  <button onClick={() => { setPrintReceipt(receipt); setShowPrintView(true); }} disabled={(receipt as any).isVoided} className="rounded border border-green-200 px-2.5 py-1 text-xs text-green-700 disabled:opacity-30 disabled:cursor-not-allowed" title={(receipt as any).isVoided ? 'Phiếu đã vô hiệu — không thể in' : 'In'}>In</button>
+                  <button onClick={async () => { try { await warehouseReceiptService.exportXlsx(receipt.id); } catch (e: any) { toast.error(e.message || 'Lỗi xuất Excel'); } }} disabled={(receipt as any).isVoided} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700 disabled:opacity-30 disabled:cursor-not-allowed" title={(receipt as any).isVoided ? 'Phiếu đã vô hiệu' : 'Excel'}>Excel</button>
+                  {(receipt as any).isVoided ? <button onClick={() => handleUnvoid(receipt.id)} disabled={unvoidingId === receipt.id} className="inline-flex items-center gap-1 rounded border border-green-200 px-2.5 py-1 text-xs text-green-700 disabled:opacity-50"><RotateCcw className="w-3.5 h-3.5" /> Khôi phục</button> : <button onClick={() => setVoidTarget(receipt)} disabled={receipt.isLocked} className="inline-flex items-center gap-1 rounded border border-red-200 px-2.5 py-1 text-xs text-red-700 disabled:opacity-30 disabled:cursor-not-allowed" title={receipt.isLocked ? 'Phiếu đã khóa' : undefined}><Ban className="w-3.5 h-3.5" /> Vô hiệu</button>}
                   {!receipt.isLocked && !((receipt as any).isVoided) && (
                     <>
                       <button onClick={() => setEditingReceipt(receipt)} className="rounded border border-amber-200 px-2.5 py-1 text-xs text-amber-700">Sửa</button>
@@ -505,15 +569,15 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
         </nav>
       )}
 
-      {/* Detail Modal */}
-      <Modal isOpen={showDetailModal && !!selectedReceipt} onClose={() => setShowDetailModal(false)} showBackdrop closeOnBackdrop={true}>
+      {/* Detail Modal — deep-linked via ?receiptId= */}
+      <Modal isOpen={showDetailModal && !!selectedReceipt} onClose={closeDetail} showBackdrop closeOnBackdrop={true}>
         <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-1rem)] sm:max-w-[1100px] flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between border-b px-6 py-4 shrink-0">
               <h2 className="text-xl font-bold text-gray-900">Chi tiết phiếu nhập kho</h2>
               <button
                 type="button"
                 aria-label="Đóng chi tiết phiếu nhập"
-                onClick={() => setShowDetailModal(false)}
+                onClick={closeDetail}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -528,7 +592,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
               <div className="mb-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
                 <div className="font-semibold">Đã vô hiệu</div>
                 <div>Lý do: {(selectedReceipt as any).voidReason || '—'}</div>
-                <div className="text-xs text-red-600">{(selectedReceipt as any).voidedAt ? new Date((selectedReceipt as any).voidedAt).toLocaleString('vi-VN') : ''} {(selectedReceipt as any).voidedBy ? `· ${(selectedReceipt as any).voidedBy}` : ''}</div>
+                <div className="text-xs text-red-600">{(selectedReceipt as any).voidedAt ? new Date((selectedReceipt as any).voidedAt).toLocaleString('vi-VN') : ''} {(selectedReceipt as any).voidedByName ? `· ${(selectedReceipt as any).voidedByName}` : (selectedReceipt as any).voidedBy ? `· ${(selectedReceipt as any).voidedBy}` : ''}</div>
               </div>
             )}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
@@ -720,21 +784,59 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 mt-6">
+            <div className="flex flex-wrap justify-end gap-2 mt-6">
+              {(selectedReceipt as any).isVoided ? (
+                <button
+                  onClick={() => { if (selectedReceipt) handleUnvoid(selectedReceipt.id); }}
+                  disabled={unvoidingId === selectedReceipt?.id}
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 inline-flex items-center gap-1.5"
+                >
+                  <RotateCcw className="w-4 h-4" /> Khôi phục
+                </button>
+              ) : (
+                <button
+                  onClick={() => { if (selectedReceipt) setVoidTarget(selectedReceipt); }}
+                  disabled={!!selectedReceipt?.isLocked}
+                  title={selectedReceipt?.isLocked ? 'Phiếu đã khóa — không thể vô hiệu' : undefined}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+                >
+                  <Ban className="w-4 h-4" /> Vô hiệu
+                </button>
+              )}
+              {!selectedReceipt?.isLocked && !(selectedReceipt as any)?.isVoided && (
+                <>
+                  <button
+                    onClick={() => { if (selectedReceipt) setEditingReceipt(selectedReceipt); }}
+                    className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 inline-flex items-center gap-1.5"
+                  >
+                    <Pencil className="w-4 h-4" /> Sửa
+                  </button>
+                  <button
+                    onClick={() => { if (selectedReceipt) setDeleteTarget(selectedReceipt); }}
+                    className="px-4 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 inline-flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-4 h-4" /> Xóa
+                  </button>
+                </>
+              )}
               <button
                 onClick={() => { setPrintReceipt(selectedReceipt); setShowPrintView(true); }}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                disabled={(selectedReceipt as any)?.isVoided}
+                title={(selectedReceipt as any)?.isVoided ? 'Phiếu đã vô hiệu — không thể in' : undefined}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 In phiếu
               </button>
               <button
-                onClick={async () => { try { await warehouseReceiptService.exportXlsx(selectedReceipt.id); } catch (e: any) { toast.error(e.message || 'Lỗi xuất Excel'); } }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                onClick={async () => { try { await warehouseReceiptService.exportXlsx(selectedReceipt!.id); } catch (e: any) { toast.error(e.message || 'Lỗi xuất Excel'); } }}
+                disabled={(selectedReceipt as any)?.isVoided}
+                title={(selectedReceipt as any)?.isVoided ? 'Phiếu đã vô hiệu' : undefined}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Xuất Excel
               </button>
               <button
-                onClick={() => setShowDetailModal(false)}
+                onClick={closeDetail}
                 className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
               >
                 Đóng
@@ -779,7 +881,20 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
         isOpen={!!editingReceipt}
         receipt={editingReceipt}
         onClose={() => setEditingReceipt(null)}
-        onSuccess={() => {
+        onSuccess={async (updated?: WarehouseReceipt) => {
+          const editedId = editingReceipt?.id ?? null;
+          if (editedId && selectedReceipt?.id === editedId) {
+            if (updated?.id) {
+              setSelectedReceipt(updated);
+            } else {
+              try {
+                const seq = ++detailSeqRef.current;
+                const res = await warehouseReceiptService.getWarehouseReceiptById(editedId) as any;
+                const fresh = res?.data?.data ?? res?.data ?? res;
+                if (seq === detailSeqRef.current && fresh?.id) setSelectedReceipt(fresh as WarehouseReceipt);
+              } catch { /* keep optimistic selected */ }
+            }
+          }
           fetchReceipts();
           refreshInventoryCaches();
         }}
