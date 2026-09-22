@@ -605,13 +605,13 @@ class WarehouseReceiptService {
     const where: Record<string, unknown> = {};
     const andClauses: Record<string, unknown>[] = [];
 
-    // B2: warehouseId + tinhTrang via explicit AND so both must match (avoids overwrite / merge hacks)
+    // Fix cross-item bug: when both filters present they must match the SAME item
     if (params?.warehouseId?.trim() && params?.tinhTrang?.trim()) {
+      andClauses.push({ items: { some: { warehouseId: params.warehouseId, tinhTrang: params.tinhTrang.trim() } } });
+    } else if (params?.warehouseId?.trim()) {
       andClauses.push({ items: { some: { warehouseId: params.warehouseId } } });
+    } else if (params?.tinhTrang?.trim()) {
       andClauses.push({ items: { some: { tinhTrang: params.tinhTrang.trim() } } });
-    } else {
-      if (params?.warehouseId?.trim()) andClauses.push({ items: { some: { warehouseId: params.warehouseId } } });
-      if (params?.tinhTrang?.trim()) andClauses.push({ items: { some: { tinhTrang: params.tinhTrang.trim() } } });
     }
 
     // B1: server-side column filters so pagination total reflects them (FE was filtering client-side on 10 rows)
@@ -647,20 +647,23 @@ class WarehouseReceiptService {
     }
 
     if (params?.search?.trim()) {
-      const s = params.search.trim();
-      andClauses.push({
-        OR: [
-          { maPhieuNhap: { contains: s, mode: 'insensitive' as const } },
-          { tenNhanVien: { contains: s, mode: 'insensitive' as const } },
-          { maNhanVien: { contains: s, mode: 'insensitive' as const } },
-          { nguoiDeNghi: { contains: s, mode: 'insensitive' as const } },
-          { boPhan: { contains: s, mode: 'insensitive' as const } },
-          { items: { some: { tenSanPham: { contains: s, mode: 'insensitive' as const } } } },
-          { items: { some: { maKien: { contains: s, mode: 'insensitive' as const } } } },
-          { items: { some: { tenKho: { contains: s, mode: 'insensitive' as const } } } },
-          { items: { some: { tenLo: { contains: s, mode: 'insensitive' as const } } } },
-        ],
-      });
+      const s = params.search.trim().slice(0, 100);
+      if (s) {
+        const escaped = s.replace(/[\\%_]/g, '\\$&');
+        andClauses.push({
+          OR: [
+            { maPhieuNhap: { contains: escaped, mode: 'insensitive' as const } },
+            { tenNhanVien: { contains: escaped, mode: 'insensitive' as const } },
+            { maNhanVien: { contains: escaped, mode: 'insensitive' as const } },
+            { nguoiDeNghi: { contains: escaped, mode: 'insensitive' as const } },
+            { boPhan: { contains: escaped, mode: 'insensitive' as const } },
+            { items: { some: { tenSanPham: { contains: escaped, mode: 'insensitive' as const } } } },
+            { items: { some: { maKien: { contains: escaped, mode: 'insensitive' as const } } } },
+            { items: { some: { tenKho: { contains: escaped, mode: 'insensitive' as const } } } },
+            { items: { some: { tenLo: { contains: escaped, mode: 'insensitive' as const } } } },
+          ],
+        });
+      }
     }
 
     if (params?.purchaseRequestId?.trim()) (where as any).purchaseRequestId = params.purchaseRequestId.trim();
