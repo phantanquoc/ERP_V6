@@ -14,6 +14,7 @@ import {
   useSyncWarehouseLayouts,
 } from '../hooks';
 import { useProducts } from '../hooks';
+import { useDebounce } from '../hooks/useDebounce';
 import { parseNumberInputStr } from '../utils/numberInput';
 import { resolveWarehouseParam } from '../utils/warehouseParam';
 import Modal from './Modal';
@@ -43,6 +44,8 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
   const itemsPerPage = 10;
   const [warehouseQuery, setWarehouseQuery] = useState('');
   const [lotQuery, setLotQuery] = useState('');
+  const debouncedWarehouseQuery = useDebounce(warehouseQuery, 300);
+  const debouncedLotQuery = useDebounce(lotQuery, 300);
 
   // React Query hooks for warehouses
   const { data: warehousesData, isLoading: loading } = useWarehouses();
@@ -85,13 +88,13 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
   }, [warehousesData, sortWarehouses]);
 
   const filteredWarehouses = useMemo(() => {
-    const q = warehouseQuery.trim().toLowerCase();
+    const q = debouncedWarehouseQuery.trim().toLowerCase();
     if (!q) return warehouses;
     return warehouses.filter((w) => `${w.tenKho} ${w.maKho} ${w.loaiKho ?? ''} ${w.diaChi ?? ''}`.toLowerCase().includes(q));
-  }, [warehouses, warehouseQuery]);
+  }, [warehouses, debouncedWarehouseQuery]);
 
   // Reset page when lot filter changes
-  useEffect(() => { setCurrentPage(1); }, [lotQuery]);
+  useEffect(() => { setCurrentPage(1); }, [debouncedLotQuery]);
 
   // Dual-mode selection: controlled (parent owns id + callback) or internal state.
   // Every call site passes a Warehouse object or null, so the shim keeps the body unchanged.
@@ -680,7 +683,7 @@ const WarehouseManagement: React.FC<WarehouseManagementProps> = ({
           ) : selectedWarehouse?.lots && selectedWarehouse.lots.length > 0 ? (
             <div className="space-y-2">
               {(() => {
-                const q = lotQuery.trim().toLowerCase();
+                const q = debouncedLotQuery.trim().toLowerCase();
                 const allLotsFiltered = !q ? (selectedWarehouse.lots ?? []) : (selectedWarehouse.lots ?? []).filter((lot) => {
                   const hay = `${lot.tenLo} ${(lot.lotProducts ?? []).map((lp) => `${lp.maKien ?? ''} ${lp.internationalProduct?.tenSanPham ?? ''} ${lp.internationalProduct?.maSanPham ?? ''}`).join(' ')}`.toLowerCase();
                   return hay.includes(q);
