@@ -145,10 +145,12 @@ const ProductionWarehouse = () => {
     const p = new URLSearchParams(searchParams); p.set('outboundSubTab', v); setSearchParams(p, { replace: true });
   };
 
-  // Overview data states
+  // Overview data states — receipts/issues keep overview-specific pagination totals
   const [warehouses, setWarehouses] = useState<WarehouseType[]>([]);
-  const [receipts, setReceipts] = useState<any[]>([]);
-  const [issues, setIssues] = useState<any[]>([]);
+  const [overviewReceipts, setOverviewReceipts] = useState<any[]>([]);
+  const [overviewIssues, setOverviewIssues] = useState<any[]>([]);
+  const [overviewReceiptTotal, setOverviewReceiptTotal] = useState(0);
+  const [overviewIssueTotal, setOverviewIssueTotal] = useState(0);
   const [supplyRequests, setSupplyRequests] = useState<any[]>([]);
   const [loadingOverview, setLoadingOverview] = useState(true);
 
@@ -203,14 +205,30 @@ const ProductionWarehouse = () => {
   }, [searchParams]);
 
   // Fetch overview data — resilient: each call independent via Promise.allSettled
+  // Period filter is pushed to server (fromNgay/toNgay) so counts use pagination.total
+  // instead of the first 10 rows.
+  const periodRange = useMemo(() => {
+    if (!filterMonth && !filterYear) return null;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    if (filterMonth && filterYear) {
+      const lastDay = new Date(filterYear, filterMonth, 0).getDate();
+      return { fromNgay: `${filterYear}-${pad(filterMonth)}-01`, toNgay: `${filterYear}-${pad(filterMonth)}-${pad(lastDay)}` };
+    }
+    if (filterYear && !filterMonth) {
+      return { fromNgay: `${filterYear}-01-01`, toNgay: `${filterYear}-12-31` };
+    }
+    return null; // month-only: keep client-side filter (cannot map to single range)
+  }, [filterMonth, filterYear]);
+
   useEffect(() => {
     const fetchOverviewData = async () => {
       setLoadingOverview(true);
       try {
+        const periodParams = periodRange ? { fromNgay: periodRange.fromNgay, toNgay: periodRange.toNgay } : {};
         const [warehouseRes, receiptRes, issueRes, supplyRes] = await Promise.allSettled([
           warehouseService.getAllWarehouses(),
-          warehouseReceiptService.getAllWarehouseReceipts(),
-          warehouseIssueService.getAllWarehouseIssues(),
+          warehouseReceiptService.getAllWarehouseReceipts({ ...periodParams, page: 1, limit: 1 } as any),
+          warehouseIssueService.getAllWarehouseIssues({ ...periodParams, page: 1, limit: 1 } as any),
           supplyRequestService.getAllSupplyRequests(1, 1000)
         ]);
 
@@ -221,13 +239,17 @@ const ProductionWarehouse = () => {
         }
 
         if (receiptRes.status === 'fulfilled') {
-          setReceipts((receiptRes.value as any).data?.data || (receiptRes.value as any).data || []);
+          const v: any = receiptRes.value as any;
+          setOverviewReceipts(v?.data?.data ?? v?.data ?? []);
+          setOverviewReceiptTotal(v?.pagination?.total ?? v?.data?.pagination?.total ?? (Array.isArray(v?.data?.data ?? v?.data) ? (v?.data?.data ?? v?.data).length : 0));
         } else {
           console.error('Error fetching receipts:', receiptRes.reason);
         }
 
         if (issueRes.status === 'fulfilled') {
-          setIssues((issueRes.value as any).data?.data || (issueRes.value as any).data || []);
+          const v2: any = issueRes.value as any;
+          setOverviewIssues(v2?.data?.data ?? v2?.data ?? []);
+          setOverviewIssueTotal(v2?.pagination?.total ?? v2?.data?.pagination?.total ?? (Array.isArray(v2?.data?.data ?? v2?.data) ? (v2?.data?.data ?? v2?.data).length : 0));
         } else {
           console.error('Error fetching issues:', issueRes.reason);
         }
@@ -244,7 +266,7 @@ const ProductionWarehouse = () => {
       }
     };
     fetchOverviewData();
-  }, []);
+  }, [periodRange]);
 
   // Calculate overview stats
   const totalWarehouses = warehouses.length;
@@ -276,49 +298,36 @@ const ProductionWarehouse = () => {
 
   const formattedInventoryValue = new Intl.NumberFormat('vi-VN').format(totalInventoryValue) + ' đ';
 
-  // Period-filtered receipt/issue counts for cards
-  const filteredReceiptsForCards = receipts.filter((r) => {
-    if (filterMonth || filterYear) {
-      const date = new Date(r.ngayNhap || r.createdAt);
-      if (filterMonth && (date.getMonth() + 1) !== filterMonth) return false;
-      if (filterYear && date.getFullYear() !== filterYear) return false;
-    }
-    return true;
-  });
-  const filteredIssuesForCards = issues.filter((r) => {
-    if (filterMonth || filterYear) {
-      const date = new Date(r.ngayXuat || r.createdAt);
-      if (filterMonth && (date.getMonth() + 1) !== filterMonth) return false;
-      if (filterYear && date.getFullYear() !== filterYear) return false;
-    }
-    return true;
-  });
+  // Cards use overview totals from server pagination when period maps to a server range;
+  // for month-only (no server range) keep client filter on the single-page sample.
+  const isMonthOnlyCards = !!filterMonth && !filterYear;
+  const filteredOverviewReceipts = isMonthOnlyCards ? overviewReceipts.filter((r: any) => (new Date(r.ngayNhap || r.createdAt).getMonth() + 1) === filterMonth) : overviewReceipts;
+  const filteredOverviewIssues = isMonthOnlyCards ? overviewIssues.filter((r: any) => (new Date(r.ngayXuat || r.createdAt).getMonth() + 1) === filterMonth) : overviewIssues;
+  const totalReceipts = isMonthOnlyCards ? filteredOverviewReceipts.length : overviewReceiptTotal;
+  const totalIssues = isMonthOnlyCards ? filteredOverviewIssues.length : overviewIssueTotal;
 
-  const totalReceipts = filteredReceiptsForCards.length;
-  const totalIssues = filteredIssuesForCards.length;
-
-  // Top products by slip count (period-filtered)
+  // Top products by slip count — only meaningful on the fetched sample (1 row when paginated), keep as-is for month-only sample
   const topReceiptProducts = useMemo(() => {
     const countMap: Record<string, number> = {};
-    filteredReceiptsForCards.forEach((r) => {
-      const name = r.tenSanPham || r.productName;
+    filteredOverviewReceipts.forEach((r: any) => {
+      const name = r.tenSanPham || (r as any).productName;
       if (name) countMap[name] = (countMap[name] || 0) + 1;
     });
     return Object.entries(countMap)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3);
-  }, [filteredReceiptsForCards]);
+  }, [filteredOverviewReceipts]);
 
   const topIssueProducts = useMemo(() => {
     const countMap: Record<string, number> = {};
-    filteredIssuesForCards.forEach((r) => {
-      const name = r.tenSanPham || r.productName;
+    filteredOverviewIssues.forEach((r: any) => {
+      const name = r.tenSanPham || (r as any).productName;
       if (name) countMap[name] = (countMap[name] || 0) + 1;
     });
     return Object.entries(countMap)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3);
-  }, [filteredIssuesForCards]);
+  }, [filteredOverviewIssues]);
 
   const totalSupplyRequests = supplyRequests.length;
 
@@ -422,15 +431,15 @@ const ProductionWarehouse = () => {
     if (!urlDetailId) return;
     const match =
       warehouses.find((w) => w?.id === urlDetailId) ??
-      (receipts as any[]).find((r) => r?.id === urlDetailId) ??
-      (issues as any[]).find((i) => i?.id === urlDetailId) ??
+      (overviewReceipts as any[]).find((r) => r?.id === urlDetailId) ??
+      (overviewIssues as any[]).find((i) => i?.id === urlDetailId) ??
       (supplyRequests as any[]).find((s) => s?.id === urlDetailId);
     if (match) {
       setSelectedItem(match);
       setIsDetailModalOpen(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlDetailId, warehouses, receipts, issues, supplyRequests]);
+  }, [urlDetailId, warehouses, overviewReceipts, overviewIssues, supplyRequests]);
 
   const closeDetailModal = () => {
     popDetailId();
@@ -443,11 +452,11 @@ const ProductionWarehouse = () => {
   // Derive available years from data
   const availableYears = useMemo(() => {
     const years = new Set<number>();
-    receipts.forEach((r) => {
+    overviewReceipts.forEach((r: any) => {
       const y = new Date(r.ngayNhap || r.createdAt).getFullYear();
       if (y) years.add(y);
     });
-    issues.forEach((r) => {
+    overviewIssues.forEach((r: any) => {
       const y = new Date(r.ngayXuat || r.createdAt).getFullYear();
       if (y) years.add(y);
     });
@@ -456,7 +465,7 @@ const ProductionWarehouse = () => {
     years.add(now);
     years.add(now - 1);
     return Array.from(years).sort((a, b) => b - a);
-  }, [receipts, issues]);
+  }, [overviewReceipts, overviewIssues]);
 
   const tabs = [
     {
