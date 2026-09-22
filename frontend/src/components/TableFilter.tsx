@@ -241,20 +241,28 @@ const TableFilter: React.FC<TableFilterProps> = ({
   const [searchDraft, setSearchDraft] = useState(values._search || '');
   const debouncedDraft = useDebounce(searchDraft, 300);
 
+  // Fix stale closure: keep latest values/onChange synchronously (no useEffect delay)
+  const valuesRef = useRef(values);
+  valuesRef.current = values;
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
   // Sync when parent clears/sets _search externally (e.g. Xóa lọc)
+  // IMPORTANT: exclude searchDraft from deps — otherwise typing triggers setSearchDraft
+  // in same render cycle and input loses the keystroke (flicker).
   useEffect(() => {
-    if ((values._search || '') !== searchDraft && (values._search || '') !== debouncedDraft) {
+    if ((values._search || '') !== debouncedDraft) {
       setSearchDraft(values._search || '');
     }
-  }, [values._search, searchDraft, debouncedDraft]);
+  }, [values._search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (debouncedDraft !== (values._search || '')) {
-      onChange({ ...values, _search: debouncedDraft });
+    if (debouncedDraft !== (valuesRef.current._search || '')) {
+      onChangeRef.current({ ...valuesRef.current, _search: debouncedDraft });
     }
-    // values/onChange intentionally not in deps — only sync when debouncedDraft vs _search diverges
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedDraft, values._search]);
+  }, [debouncedDraft]);
+
+
 
   const activeFilters = useMemo(() => {
     return Object.entries(values).filter(([key, val]) => val !== '' && key !== '_search');
