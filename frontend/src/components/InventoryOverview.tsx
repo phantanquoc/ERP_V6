@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ChevronDown, ChevronRight, Package, Download, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, RefreshCw } from 'lucide-react';
 import TableFilter, { FilterField } from './TableFilter';
+import PaginationBar from './common/PaginationBar';
 import { useInventoryOverview } from '../hooks/useInventory';
 import { useWarehouses } from '../hooks/useWarehouses';
 import { useUnitOptions } from '../hooks/useLookups';
@@ -8,7 +9,6 @@ import type { InventoryFilters } from '../services/inventoryService';
 import internationalProductService from '../services/internationalProductService';
 
 const LOW_STOCK_THRESHOLD = 10;
-const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 type SortField = 'maSanPham' | 'tenSanPham' | 'loaiSanPham' | 'tongTonKho' | 'giaThanhTB' | 'giaTriTon';
 
@@ -348,62 +348,16 @@ const InventoryOverview: React.FC = () => {
 
       {/* Pagination */}
       {pagination && (
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-600">
-              {totalProducts > 0
-                ? `Hiển thị ${(pagination.page - 1) * pagination.limit + 1}–${Math.min(pagination.page * pagination.limit, pagination.total)} / ${pagination.total} hàng hóa`
-                : 'Không có hàng hóa'}
-            </span>
-            <select
-              value={pageSize}
-              onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
-              className="text-sm border border-gray-300 rounded-md px-2 py-1 bg-white"
-            >
-              {PAGE_SIZE_OPTIONS.map((size) => (
-                <option key={size} value={size}>{size}/trang</option>
-              ))}
-            </select>
-          </div>
-          {pagination.totalPages > 1 && (
-            <nav aria-label="Phân trang tồn kho" className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-              <button
-                type="button"
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={pagination.page === 1}
-                className="px-3 py-1.5 min-h-[32px] text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Trước
-              </button>
-              {Array.from({ length: pagination.totalPages }, (_, i) => i + 1)
-                .filter((page) => page === 1 || page === pagination.totalPages || Math.abs(page - pagination.page) <= 2)
-                .map((page, idx, arr) => (
-                  <React.Fragment key={page}>
-                    {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
-                    <button
-                      type="button"
-                      aria-current={page === pagination.page ? 'page' : undefined}
-                      aria-label={`Trang ${page}`}
-                      onClick={() => setCurrentPage(page)}
-                      className={`px-3 py-1.5 min-h-[32px] min-w-[32px] text-sm rounded-md ${
-                        page === pagination.page ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  </React.Fragment>
-                ))}
-              <button
-                type="button"
-                onClick={() => setCurrentPage((p) => Math.min(pagination.totalPages, p + 1))}
-                disabled={pagination.page === pagination.totalPages}
-                className="px-3 py-1.5 min-h-[32px] text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Sau
-              </button>
-            </nav>
-          )}
-        </div>
+        <PaginationBar
+          page={pagination.page}
+          limit={pagination.limit}
+          total={pagination.total}
+          totalPages={pagination.totalPages}
+          onPageChange={setCurrentPage}
+          onLimitChange={(limit) => { setPageSize(limit); setCurrentPage(1); }}
+          label="hàng hóa"
+          ariaLabel="Phân trang tồn kho"
+        />
       )}
     </div>
   );

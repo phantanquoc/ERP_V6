@@ -10,6 +10,7 @@ import CreateWarehouseReceiptModal from './CreateWarehouseReceiptModal';
 import { useQueryClient } from '@tanstack/react-query';
 import warehouseReceiptService, { WarehouseReceipt } from '../services/warehouseReceiptService';
 import TableFilter, { FilterField } from './TableFilter';
+import PaginationBar from './common/PaginationBar';
 import { warehouseKeys, useWarehouses } from '../hooks';
 import { getUniqueSlipField, getWarehouseSlipLines, normalizeWarehouseListResponse, displayMaHang, displayLoaiKho } from '../utils/warehouseSlipLines';
 void getUniqueSlipField;
@@ -149,7 +150,26 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
     const controller = new AbortController();
     abortRef.current = controller;
     const cur = ++reqIdRef.current;
-    const _dateInvalid = !!(dateRangeError);
+    // Period filter from page header (month/year) — push to server so pagination stays accurate.
+    // Priority: explicit fromNgay/toNgay filter (filterValues) wins; otherwise derive from month/year.
+    let periodFromNgay: string | undefined;
+    let periodToNgay: string | undefined;
+    if (filterValues.fromNgay || filterValues.toNgay) {
+      // User picked explicit date range — month/year is secondary; let explicit values pass through below
+    } else if (month && year) {
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const lastDay = new Date(year, month, 0).getDate();
+      periodFromNgay = `${year}-${pad(month)}-01`;
+      periodToNgay = `${year}-${pad(month)}-${pad(lastDay)}`;
+    } else if (year && !month) {
+      periodFromNgay = `${year}-01-01`;
+      periodToNgay = `${year}-12-31`;
+    } else if (month && !year) {
+      // Month-only cannot map to a single server range — keep client-side filter (refinedReceipts)
+    }
+    const effectiveFromNgay = filterValues.fromNgay || periodFromNgay;
+    const effectiveToNgay = filterValues.toNgay || periodToNgay;
+    const effectiveDateInvalid = !!(effectiveFromNgay && effectiveToNgay && effectiveFromNgay > effectiveToNgay);
     setLoading(true);
     setLoadError(null);
     try {
@@ -158,8 +178,8 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
         limit: pageSize,
         search: filterValues._search || undefined,
         warehouseId: warehouseIdFromName || undefined,
-        fromNgay: _dateInvalid ? undefined : (filterValues.fromNgay || undefined),
-        toNgay: _dateInvalid ? undefined : (filterValues.toNgay || undefined),
+        fromNgay: effectiveDateInvalid ? undefined : (effectiveFromNgay || undefined),
+        toNgay: effectiveDateInvalid ? undefined : (effectiveToNgay || undefined),
         sortBy: sortKey,
         sortOrder: sortDir,
         maPhieu: filterValues.maPhieuNhap?.trim() || undefined,
@@ -172,11 +192,13 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
         isVoided: filterValues.isVoided || undefined,
       } as any, { signal: controller.signal }) as any;
       if (cur !== reqIdRef.current) return;
-      const payload = response?.data;
+      const raw: any = response as any;
+      const payload = raw?.data;
       const data = payload?.data ?? payload;
-      const pagination = payload?.pagination;
+      // ApiResponse puts pagination at top level (response.pagination); keep fallback for legacy shape
+      const pagination = raw?.pagination ?? (payload as any)?.pagination;
       // Backward compat: backend may return bare array if pagination not triggered
-      if (Array.isArray(payload)) {
+      if (Array.isArray(payload) && !pagination) {
         setReceipts(normalizeWarehouseListResponse<WarehouseReceipt>(payload));
         setTotal(payload.length);
         setTotalPages(Math.ceil(payload.length / pageSize) || 1);
@@ -193,8 +215,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
     } finally {
       if (cur === reqIdRef.current) setLoading(false);
     }
-  }, [currentPage, pageSize, dateRangeError, filterValues._search, warehouseIdFromName, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuNhap, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, filterValues.isVoided, sortKey, sortDir]);
-  // month/year intentionally excluded: server fetch does not use them; filtering is client-side via refinedReceipts useMemo below.
+  }, [currentPage, pageSize, dateRangeError, filterValues._search, warehouseIdFromName, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuNhap, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, filterValues.isVoided, sortKey, sortDir, month, year]);
 
   /** Stock figures live in React Query; invalidating is enough to refresh them. */
   const refreshInventoryCaches = useCallback(() => {
@@ -255,18 +276,14 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
     } catch (e: any) { toast.error(e.response?.data?.message || 'Lỗi khi khôi phục'); } finally { setUnvoidingId(null); }
   };
 
-  // Server handles maPhieu/tenNhanVien/nguoiDeNghi/boPhan/tinhTrang/daIn — only month/year remains client-side.
+  // Month/year period is now pushed to server as fromNgay/toNgay (except month-only which has no single range).
+  // Keep client filter only for month-only case; otherwise server already filtered and total/totalPages are accurate.
   const refinedReceipts = useMemo(() => {
-    if (!month && !year) return receipts;
-    return receipts.filter((r) => {
-      const date = new Date(r.ngayNhap);
-      if (month && (date.getMonth() + 1) !== month) return false;
-      if (year && date.getFullYear() !== year) return false;
-      return true;
-    });
+    if (month && !year) {
+      return receipts.filter((r) => (new Date(r.ngayNhap).getMonth() + 1) === month);
+    }
+    return receipts;
   }, [receipts, month, year]);
-
-  // Server already sorts/paginates; refinedReceipts is the display set for this page.
   const displayReceipts = refinedReceipts;
 
   // Sync selected detail when list refreshes (avoid stale detail after edit/void outside modal)
@@ -531,69 +548,16 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
         )}
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
-        <span className="text-sm text-gray-600">
-          {total === 0
-            ? 'Chưa có phiếu nào'
-            : totalPages > 1
-              ? `Hiển thị ${(currentPage - 1) * pageSize + 1}–${Math.min(currentPage * pageSize, total)} / ${total} phiếu — Mặc định 10 phiếu/trang, bấm số trang để xem tiếp`
-              : `Hiển thị ${total} / ${total} phiếu — đã hiển thị tất cả`}
-        </span>
-        <div className="flex items-center gap-3">
-          <label className="flex items-center gap-1.5 text-sm text-gray-600">
-            Hiển thị
-            <select
-              value={pageSize}
-              onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
-              className="rounded-md border border-gray-300 px-2 py-1 text-sm"
-              aria-label="Số dòng mỗi trang"
-            >
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-            </select>
-            /trang
-          </label>
-          {totalPages > 1 && (
-            <nav aria-label="Phân trang phiếu nhập" className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-              <button
-                type="button"
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1.5 min-h-[32px] text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Trước
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1)
-                .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
-                .map((page, idx, arr) => (
-                  <React.Fragment key={page}>
-                    {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
-                    <button
-                      type="button"
-                      aria-current={page === currentPage ? 'page' : undefined}
-                      aria-label={`Trang ${page}`}
-                      onClick={() => setCurrentPage(page)}
-                      className={`px-3 py-1.5 min-h-[32px] min-w-[32px] text-sm rounded-md ${
-                        page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  </React.Fragment>
-                ))}
-              <button
-                type="button"
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1.5 min-h-[32px] text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Sau
-              </button>
-            </nav>
-          )}
-        </div>
-      </div>
+      <PaginationBar
+        page={currentPage}
+        limit={pageSize}
+        total={total}
+        totalPages={totalPages}
+        onPageChange={setCurrentPage}
+        onLimitChange={(limit) => { setPageSize(limit); setCurrentPage(1); }}
+        label="phiếu"
+        ariaLabel="Phân trang phiếu nhập"
+      />
 
       {/* Detail Modal — deep-linked via ?receiptId= */}
       <Modal isOpen={showDetailModal && !!selectedReceipt} onClose={closeDetail} showBackdrop closeOnBackdrop={true}>

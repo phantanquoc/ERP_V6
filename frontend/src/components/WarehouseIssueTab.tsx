@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import toast from 'react-hot-toast';
 import { Plus, FileText, Eye, Pencil, Trash2, Printer, Ban, RotateCcw } from 'lucide-react';
 import TableFilter, { FilterField } from './TableFilter';
+import PaginationBar from './common/PaginationBar';
 import Modal from './Modal';
 import CancelWithReasonModal from './common/CancelWithReasonModal';
 import WarehouseSlipPrintView from './WarehouseSlipPrintView';
@@ -131,7 +132,25 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
     const controller = new AbortController();
     abortRef.current = controller;
     const cur = ++reqIdRef.current;
-    const _dateInvalid = !!(dateRangeInvalid);
+    // Period filter from page header (month/year) — push to server so pagination stays accurate.
+    let periodFromNgay: string | undefined;
+    let periodToNgay: string | undefined;
+    if (filterValues.fromNgay || filterValues.toNgay) {
+      // Explicit date range wins
+    } else if (month && year) {
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const lastDay = new Date(year, month, 0).getDate();
+      periodFromNgay = `${year}-${pad(month)}-01`;
+      periodToNgay = `${year}-${pad(month)}-${pad(lastDay)}`;
+    } else if (year && !month) {
+      periodFromNgay = `${year}-01-01`;
+      periodToNgay = `${year}-12-31`;
+    } else if (month && !year) {
+      // Month-only cannot map to a single server range — keep client filter
+    }
+    const effectiveFromNgay = filterValues.fromNgay || periodFromNgay;
+    const effectiveToNgay = filterValues.toNgay || periodToNgay;
+    const effectiveDateInvalid = !!(effectiveFromNgay && effectiveToNgay && effectiveFromNgay > effectiveToNgay);
     setLoading(true);
     setLoadError(null);
     try {
@@ -140,8 +159,8 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
         limit: pageSize,
         search: filterValues._search || undefined,
         warehouseId: filterValues.warehouseId || undefined,
-        fromNgay: _dateInvalid ? undefined : (filterValues.fromNgay || undefined),
-        toNgay: _dateInvalid ? undefined : (filterValues.toNgay || undefined),
+        fromNgay: effectiveDateInvalid ? undefined : (effectiveFromNgay || undefined),
+        toNgay: effectiveDateInvalid ? undefined : (effectiveToNgay || undefined),
         sortBy: sortKey,
         sortOrder: sortDir,
         maPhieu: filterValues.maPhieuXuat?.trim() || undefined,
@@ -154,10 +173,11 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
         isVoided: filterValues.isVoided || undefined,
       } as any, { signal: controller.signal }) as any;
       if (cur !== reqIdRef.current) return;
-      const payload = response?.data;
+      const raw: any = response as any;
+      const payload = raw?.data;
       const data = payload?.data ?? payload;
-      const pagination = payload?.pagination;
-      if (Array.isArray(payload)) {
+      const pagination = raw?.pagination ?? (payload as any)?.pagination;
+      if (Array.isArray(payload) && !pagination) {
         setIssues(normalizeWarehouseListResponse<WarehouseIssue>(payload));
         setTotal(payload.length);
         setTotalPages(Math.ceil(payload.length / pageSize) || 1);
@@ -174,8 +194,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
     } finally {
       if (cur === reqIdRef.current) setLoading(false);
     }
-  }, [currentPage, pageSize, dateRangeInvalid, filterValues._search, filterValues.warehouseId, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuXuat, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, filterValues.isVoided, sortKey, sortDir]);
-  // month/year intentionally excluded: server fetch does not use them; filtering is client-side via refinedIssues useMemo below.
+  }, [currentPage, pageSize, dateRangeInvalid, filterValues._search, filterValues.warehouseId, filterValues.fromNgay, filterValues.toNgay, filterValues.maPhieuXuat, filterValues.tenNhanVien, filterValues.nguoiDeNghi, filterValues.boPhan, filterValues.tinhTrang, filterValues.daIn, filterValues.isVoided, sortKey, sortDir, month, year]);
 
   useEffect(() => { fetchIssues(); }, [fetchIssues]);
 
@@ -226,16 +245,13 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
     } catch (e: any) { toast.error(e.response?.data?.message || 'Lỗi khi khôi phục'); } finally { setUnvoidingId(null); }
   };
 
+  // Month/year period is now pushed to server as fromNgay/toNgay (except month-only which has no single range).
   const refinedIssues = React.useMemo(() => {
-    if (!month && !year) return issues;
-    return issues.filter((issue) => {
-      const date = new Date(issue.ngayXuat);
-      if (month && (date.getMonth() + 1) !== month) return false;
-      if (year && date.getFullYear() !== year) return false;
-      return true;
-    });
+    if (month && !year) {
+      return issues.filter((issue) => (new Date(issue.ngayXuat).getMonth() + 1) === month);
+    }
+    return issues;
   }, [issues, month, year]);
-
   const displayIssues = refinedIssues;
 
   // Sync selected detail when list refreshes
@@ -496,69 +512,16 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
         )}
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 px-2">
-        <span className="text-sm text-gray-600">
-          {total === 0
-            ? 'Chưa có phiếu nào'
-            : totalPages > 1
-              ? `Hiển thị ${(currentPage - 1) * pageSize + 1}–${Math.min(currentPage * pageSize, total)} / ${total} phiếu — Mặc định 10 phiếu/trang, bấm số trang để xem tiếp`
-              : `Hiển thị ${total} / ${total} phiếu — đã hiển thị tất cả`}
-        </span>
-        <div className="flex items-center gap-3">
-          <label className="flex items-center gap-1.5 text-sm text-gray-600">
-            Hiển thị
-            <select
-              value={pageSize}
-              onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
-              className="rounded-md border border-gray-300 px-2 py-1 text-sm"
-              aria-label="Số dòng mỗi trang"
-            >
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-            </select>
-            /trang
-          </label>
-          {totalPages > 1 && (
-            <nav aria-label="Phân trang phiếu xuất" className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-              <button
-                type="button"
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1.5 min-h-[32px] text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Trước
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1)
-                .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
-                .map((page, idx, arr) => (
-                  <React.Fragment key={page}>
-                    {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
-                    <button
-                      type="button"
-                      aria-current={page === currentPage ? 'page' : undefined}
-                      aria-label={`Trang ${page}`}
-                      onClick={() => setCurrentPage(page)}
-                      className={`px-3 py-1.5 min-h-[32px] min-w-[32px] text-sm rounded-md ${
-                        page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  </React.Fragment>
-                ))}
-              <button
-                type="button"
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1.5 min-h-[32px] text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Sau
-              </button>
-            </nav>
-          )}
-        </div>
-      </div>
+      <PaginationBar
+        page={currentPage}
+        limit={pageSize}
+        total={total}
+        totalPages={totalPages}
+        onPageChange={setCurrentPage}
+        onLimitChange={(limit) => { setPageSize(limit); setCurrentPage(1); }}
+        label="phiếu"
+        ariaLabel="Phân trang phiếu xuất"
+      />
 
       {/* Detail Modal — deep-linked via ?issueId= */}
       <Modal isOpen={showDetailModal && !!selectedIssue} onClose={closeDetail} showBackdrop closeOnBackdrop={true}>
