@@ -182,8 +182,8 @@ export const voidWarehouseReceipt = async (req: Request, res: Response, next: Ne
   try {
     const { id } = req.params;
     const { voidReason } = req.body as { voidReason: string };
-    const userId = (req as any).user?.id as string | undefined;
-    const result = await warehouseReceiptService.void(id, { voidReason, userId });
+    const user = (req as any).user as { id: string; role: string } | undefined;
+    const result = await warehouseReceiptService.void(id, { voidReason, userId: user?.id, userRole: user?.role });
     res.status(200).json({ success: true, message: 'Vô hiệu phiếu nhập thành công', data: result });
   } catch (error: any) {
     if (error instanceof ValidationError) { res.status(400).json({ success: false, message: error.message }); return; }
@@ -196,7 +196,8 @@ export const voidWarehouseReceipt = async (req: Request, res: Response, next: Ne
 export const unvoidWarehouseReceipt = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { id } = req.params;
-    const result = await warehouseReceiptService.unvoid(id);
+    const user = (req as any).user as { id: string; role: string } | undefined;
+    const result = await warehouseReceiptService.unvoid(id, { userId: user?.id, userRole: user?.role });
     res.status(200).json({ success: true, message: 'Khôi phục phiếu nhập thành công', data: result });
   } catch (error: any) {
     if (error instanceof ValidationError) { res.status(400).json({ success: false, message: error.message }); return; }

@@ -2,8 +2,8 @@ import prisma from '@config/database';
 import { ValidationError } from '@utils/errors';
 import { AuditEntityType, AuditAction } from '@utils/auditLog';
 
-const VALID_ENTITY_TYPES: AuditEntityType[] = ['QuotationRequest', 'Quotation', 'Order', 'ExportCost', 'Process'];
-const VALID_ACTIONS: AuditAction[] = ['CREATE', 'UPDATE', 'DELETE', 'STATUS_CHANGE', 'PRICE_UNLOCK'];
+const VALID_ENTITY_TYPES: AuditEntityType[] = ['QuotationRequest', 'Quotation', 'Order', 'ExportCost', 'Process', 'WarehouseReceipt', 'WarehouseIssue'];
+const VALID_ACTIONS: AuditAction[] = ['CREATE', 'UPDATE', 'DELETE', 'STATUS_CHANGE', 'PRICE_UNLOCK', 'VOID', 'UNVOID'];
 
 export interface ListAuditParams {
   entityType?: string;

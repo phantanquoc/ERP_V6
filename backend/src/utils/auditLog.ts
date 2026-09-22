@@ -2,8 +2,8 @@ import prisma from '@config/database';
 
 // ── Entity type and action unions ─────────────────────────────────────────────
 
-export type AuditEntityType = 'QuotationRequest' | 'Quotation' | 'Order' | 'ExportCost' | 'Process';
-export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'STATUS_CHANGE' | 'PRICE_UNLOCK';
+export type AuditEntityType = 'QuotationRequest' | 'Quotation' | 'Order' | 'ExportCost' | 'Process' | 'WarehouseReceipt' | 'WarehouseIssue';
+export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'STATUS_CHANGE' | 'PRICE_UNLOCK' | 'VOID' | 'UNVOID';
 
 export interface RecordAuditParams {
   entityType: AuditEntityType;

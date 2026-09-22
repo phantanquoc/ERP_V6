@@ -533,6 +533,8 @@ class WarehouseIssueService {
       prisma.warehouseIssue.count({ where }),
     ]);
 
+    await this.attachVoidedByNames(issues as any[]);
+
     const data = issues.map((issue: any) => {
       const { materialEvaluation, outboundPlan, items, ...rest } = issue;
       return {
@@ -562,6 +564,7 @@ class WarehouseIssueService {
     if (!issue) {
       throw new NotFoundError('Không tìm thấy phiếu xuất kho');
     }
+    if ((issue as any).voidedBy) await this.attachVoidedByNames([issue as any]);
     const { materialEvaluation, outboundPlan, items, ...rest } = issue as any;
     return {
       ...rest,
@@ -737,6 +740,10 @@ class WarehouseIssueService {
     });
     if (!existing) {
       throw new NotFoundError('Không tìm thấy phiếu xuất kho');
+    }
+
+    if ((existing as any).isVoided) {
+      throw new ConflictError('Không thể sửa phiếu đã vô hiệu — hãy khôi phục trước');
     }
 
     // Both locks live on the header: supply-request-linked OR evaluation-generated.
@@ -928,6 +935,10 @@ class WarehouseIssueService {
       throw new NotFoundError('Không tìm thấy phiếu xuất kho');
     }
 
+    if ((existing as any).isVoided) {
+      throw new ConflictError('Không thể xóa phiếu đã vô hiệu — hãy khôi phục trước');
+    }
+
     if (existing.supplyRequestId) {
       throw new ConflictError('Không thể sửa/xóa phiếu gắn với yêu cầu cung cấp');
     }
@@ -958,14 +969,28 @@ class WarehouseIssueService {
 
   // ─── Soft-void ────────────────────────────────────────────────────────────
 
-  async void(id: string, opts: { voidReason: string; userId?: string }) {
+  private async attachVoidedByNames(rows: any[]): Promise<void> {
+    const ids = [...new Set(rows.map((r) => r.voidedBy).filter((v: any) => typeof v === 'string' && v))] as string[];
+    if (ids.length === 0) return;
+    try {
+      const users = await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, firstName: true, lastName: true, email: true } });
+      const byId = new Map(users.map((u) => [u.id, `${(u.firstName ?? '').trim()} ${(u.lastName ?? '').trim()}`.trim() || u.email]));
+      for (const r of rows) if (r.voidedBy) r.voidedByName = byId.get(r.voidedBy) ?? null;
+    } catch {}
+  }
+
+  async void(id: string, opts: { voidReason: string; userId?: string; userRole?: string }) {
     const reason = (opts.voidReason ?? '').trim();
     if (!reason) throw new ValidationError('Lý do vô hiệu là bắt buộc');
     return prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM business.warehouse_issues WHERE id = ${id} FOR UPDATE`;
-      const existing = await tx.warehouseIssue.findUnique({ where: { id }, include: { items: true } });
+      const existing = await tx.warehouseIssue.findUnique({ where: { id }, include: { items: true, materialEvaluation: { select: { id: true } } } });
       if (!existing) throw new NotFoundError('Không tìm thấy phiếu xuất kho');
       if ((existing as any).isVoided) throw new ConflictError('Phiếu đã vô hiệu');
+      if ((existing as any).supplyRequestId) throw new ConflictError('Không thể vô hiệu phiếu đã gắn yêu cầu cung cấp');
+      if ((existing as any).materialEvaluation) {
+        throw new ConflictError('Không thể vô hiệu phiếu xuất do đánh giá nguyên liệu tạo');
+      }
       const stored = (existing as any).items ?? [] as any[];
       if (stored.length > 0) {
         const totalsByPackage = this.sumByPackage(stored);
@@ -978,17 +1003,39 @@ class WarehouseIssueService {
         data: { isVoided: true, voidReason: reason, voidedAt: new Date(), voidedBy: opts.userId ?? null } as any,
         include: { items: slipItemInclude, outboundPlan: { select: { lyDoChenhLech: true } }, materialEvaluation: { select: { id: true } } },
       });
+      try {
+        const { recordAudit } = await import('@utils/auditLog');
+        await recordAudit({
+          entityType: 'WarehouseIssue',
+          entityId: id,
+          action: 'VOID',
+          actorId: opts.userId ?? 'system',
+          actorRole: opts.userRole ?? 'UNKNOWN',
+          note: reason,
+          after: { maPhieuXuat: (existing as any).maPhieuXuat, itemCount: stored.length, voidedAt: new Date().toISOString() },
+        });
+      } catch {}
+      const outboundPlanIdVoid = (existing as any).outboundPlanId as string | undefined;
+      if (outboundPlanIdVoid) {
+        try {
+          const mod = await import('./outboundPlanService');
+          const svc: any = (mod as any).default ?? mod;
+          if (svc?.recomputeAfterVoid) await svc.recomputeAfterVoid(outboundPlanIdVoid, reason, tx as any);
+        } catch (e) { console.error('[warehouseIssue] recomputeAfterVoid failed', e); }
+      }
       const { materialEvaluation, outboundPlan, items, ...rest } = updated as any;
       return { ...rest, outboundPlan, items: resolveSlipItems(items), materialEvaluation, isLocked: !!updated.supplyRequestId || !!materialEvaluation };
     });
   }
 
-  async unvoid(id: string) {
+  async unvoid(id: string, opts?: { userId?: string; userRole?: string }) {
     return prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM business.warehouse_issues WHERE id = ${id} FOR UPDATE`;
-      const existing = await tx.warehouseIssue.findUnique({ where: { id }, include: { items: true } });
+      const existing = await tx.warehouseIssue.findUnique({ where: { id }, include: { items: true, materialEvaluation: { select: { id: true } } } });
       if (!existing) throw new NotFoundError('Không tìm thấy phiếu xuất kho');
       if (!(existing as any).isVoided) throw new ConflictError('Phiếu chưa vô hiệu');
+      if ((existing as any).supplyRequestId) throw new ConflictError('Không thể khôi phục phiếu đã gắn yêu cầu cung cấp');
+      if ((existing as any).materialEvaluation) throw new ConflictError('Không thể khôi phục phiếu do đánh giá nguyên liệu tạo');
       const stored = (existing as any).items ?? [] as any[];
       if (stored.length > 0) {
         const reversals = this.sumByPackage(stored);
@@ -1007,6 +1054,19 @@ class WarehouseIssueService {
         data: { isVoided: false, voidReason: null, voidedAt: null, voidedBy: null } as any,
         include: { items: slipItemInclude, outboundPlan: { select: { lyDoChenhLech: true } }, materialEvaluation: { select: { id: true } } },
       });
+      try {
+        const { recordAudit } = await import('@utils/auditLog');
+        const prevReason = (existing as any).voidReason as string | null | undefined;
+        await recordAudit({
+          entityType: 'WarehouseIssue',
+          entityId: id,
+          action: 'UNVOID',
+          actorId: opts?.userId ?? 'system',
+          actorRole: opts?.userRole ?? 'UNKNOWN',
+          note: prevReason ? `Khôi phục — lý do vô hiệu trước đó: ${prevReason}` : 'Khôi phục phiếu',
+          before: { voidReason: prevReason, voidedAt: (existing as any).voidedAt, voidedBy: (existing as any).voidedBy },
+        });
+      } catch {}
       const { materialEvaluation, outboundPlan, items, ...rest } = updated as any;
       return { ...rest, outboundPlan, items: resolveSlipItems(items), materialEvaluation, isLocked: !!updated.supplyRequestId || !!materialEvaluation };
     });

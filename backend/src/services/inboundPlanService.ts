@@ -282,6 +282,7 @@ async function onReceiptCreated(inboundPlanId: string, tx?: any) {
   );
   let receivedQty = 0;
   for (const r of (plan as any).receipts ?? []) {
+    if ((r as any).isVoided) continue;
     if (r.tongSoLuongThucTe && Number(r.tongSoLuongThucTe) > 0) receivedQty += Number(r.tongSoLuongThucTe);
     else if (r.items) receivedQty += (r.items as any[]).reduce((s: number, li: any) => s + Number(li.soLuongThucTe ?? 0), 0);
   }
@@ -311,6 +312,39 @@ async function onReceiptCreated(inboundPlanId: string, tx?: any) {
   }
 }
 
+async function recomputeAfterVoid(inboundPlanId: string, voidReason: string | null | undefined, tx?: any) {
+  const db: any = tx ?? prisma;
+  const plan = await db.inboundPlan.findUnique({
+    where: { id: inboundPlanId },
+    include: {
+      purchaseRequest: { include: { items: true } },
+      receipts: { include: { items: true } },
+    } as any,
+  });
+  if (!plan) return;
+  if ((plan as any).trangThai === 'Đã hủy') return;
+  // Only revert Đã nhập — other states are already not terminal
+  if ((plan as any).trangThai !== 'Đã nhập') return;
+
+  const plannedQty = ((plan as any).purchaseRequest?.items ?? []).reduce(
+    (sum: number, it: any) => sum + Number(it.soLuong ?? 0), 0);
+  let effectiveReceived = 0;
+  for (const r of (plan as any).receipts ?? []) {
+    if ((r as any).isVoided) continue;
+    if (r.tongSoLuongThucTe && Number(r.tongSoLuongThucTe) > 0) effectiveReceived += Number(r.tongSoLuongThucTe);
+    else if (r.items) effectiveReceived += (r.items as any[]).reduce((s: number, li: any) => s + Number(li.soLuongThucTe ?? 0), 0);
+  }
+
+  if (plannedQty > 0 && effectiveReceived + 1e-9 < plannedQty) {
+    const isOverdue = (plan as any).ngayDuKien && new Date((plan as any).ngayDuKien) < new Date();
+    const target = isOverdue ? 'Quá hạn' : 'Chờ nhập';
+    await db.inboundPlan.update({ where: { id: inboundPlanId }, data: { trangThai: target } });
+    await db.inboundPlanLog.create({
+      data: { inboundPlanId, hanhDong: `Hoàn tác — phiếu vô hiệu (${target})`, lyDo: voidReason ? `Vô hiệu phiếu: ${voidReason}. Còn ${effectiveReceived}/${plannedQty}` : `Vô hiệu phiếu. Còn ${effectiveReceived}/${plannedQty}` },
+    });
+  }
+}
+
 export default {
   getAllInboundPlans,
   getInboundPlanById,
@@ -318,4 +352,5 @@ export default {
   cancelInboundPlan,
   markReceived,
   onReceiptCreated,
+  recomputeAfterVoid,
 };

@@ -266,10 +266,26 @@ async function markReceived(
   return (txClient ?? prisma).outboundPlan.findUnique({ where: { id }, include: OUTBOUND_INCLUDE as any });
 }
 
+async function recomputeAfterVoid(outboundPlanId: string, voidReason: string | null | undefined, tx?: any) {
+  const db: any = tx ?? prisma;
+  const plan = await db.outboundPlan.findUnique({ where: { id: outboundPlanId } });
+  if (!plan) return;
+  if ((plan as any).trangThai === 'Đã hủy') return;
+  if ((plan as any).trangThai !== 'Đã xuất') return;
+  // Revert Đã xuất → Chờ xuất/Quá hạn based on ngayDuKien
+  const isOverdue = (plan as any).ngayDuKien && new Date((plan as any).ngayDuKien) < new Date();
+  const target = isOverdue ? 'Quá hạn' : 'Chờ xuất';
+  await db.outboundPlan.update({ where: { id: outboundPlanId }, data: { trangThai: target } });
+  await db.outboundPlanLog.create({
+    data: { outboundPlanId, hanhDong: `Hoàn tác — phiếu xuất vô hiệu (${target})`, lyDo: voidReason ? `Vô hiệu phiếu xuất: ${voidReason}` : 'Vô hiệu phiếu xuất' },
+  });
+}
+
 export default {
   getAllOutboundPlans,
   getOutboundPlanById,
   updateOutboundPlan,
   cancelOutboundPlan,
   markReceived,
+  recomputeAfterVoid,
 };
