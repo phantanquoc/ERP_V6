@@ -2,6 +2,8 @@ import { Router } from 'express';
 import inventoryController from '@controllers/inventoryController';
 import { authenticate } from '@middlewares/auth';
 import { requireRule } from '@middlewares/requireRule';
+import { zodValidateQuery } from '@middlewares/zodValidation';
+import { inventoryOverviewQuerySchema } from '@schemas';
 
 const router = Router();
 
@@ -54,6 +56,6 @@ router.use(authenticate);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/overview', requireRule('inventory', 'READ'), inventoryController.getInventoryOverview);
+router.get('/overview', requireRule('inventory', 'READ'), zodValidateQuery(inventoryOverviewQuerySchema), inventoryController.getInventoryOverview);
 
 export default router;

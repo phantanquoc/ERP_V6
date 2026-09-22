@@ -80,7 +80,16 @@ export const getAllWarehouseIssues = async (req: Request, res: Response, next: N
       includeVoided: req.query.includeVoided as string | undefined,
       isVoided: req.query.isVoided as string | undefined,
     } as any);
-    const hasPaging = req.query.page !== undefined || req.query.limit !== undefined || req.query.search !== undefined || req.query.warehouseId !== undefined || req.query.fromNgay !== undefined || req.query.toNgay !== undefined || req.query.sortBy !== undefined || req.query.sortOrder !== undefined || req.query.warehouse !== undefined || req.query.sortKey !== undefined || req.query.sortDir !== undefined || req.query.maPhieu !== undefined || req.query.maPhieuXuat !== undefined || req.query.tenNhanVien !== undefined || req.query.nguoiDeNghi !== undefined || req.query.boPhan !== undefined || req.query.tinhTrang !== undefined || req.query.daIn !== undefined || req.query.isVoided !== undefined || req.query.includeVoided !== undefined;
+    const hasSearch = !!(req.query.search && String(req.query.search).trim());
+    const truthy = (v: unknown) => v !== undefined && v !== null && String(v).trim() !== '';
+    const hasPaging = hasSearch
+      || truthy(req.query.page) || truthy(req.query.limit)
+      || truthy(req.query.warehouseId) || truthy(req.query.fromNgay) || truthy(req.query.toNgay)
+      || truthy(req.query.sortBy) || truthy(req.query.sortOrder)
+      || truthy(req.query.warehouse) || truthy(req.query.sortKey) || truthy(req.query.sortDir)
+      || truthy(req.query.maPhieu) || truthy(req.query.maPhieuXuat)
+      || truthy(req.query.tenNhanVien) || truthy(req.query.nguoiDeNghi) || truthy(req.query.boPhan)
+      || truthy(req.query.tinhTrang) || truthy(req.query.daIn) || truthy(req.query.isVoided) || truthy(req.query.includeVoided);
     if (!hasPaging) {
       res.status(200).json({ success: true, data: result.data });
       return;

@@ -2,9 +2,12 @@ import { Request, Response, NextFunction } from 'express';
 import warehouseService from '@services/warehouseService';
 import { syncAllWarehouseLayouts } from '@services/warehouseLayoutSyncService';
 
-export const getAllWarehouses = async (_req: Request, res: Response, next: NextFunction) => {
+export const getAllWarehouses = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const warehouses = await warehouseService.getAll();
+    const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+    const limitRaw = req.query.limit;
+    const limit = limitRaw != null && String(limitRaw).trim() !== '' ? Number(limitRaw) : undefined;
+    const warehouses = await warehouseService.getAll({ search, limit });
     res.json({ success: true, data: warehouses });
   } catch (error) {
     next(error);

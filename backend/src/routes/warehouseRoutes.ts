@@ -10,8 +10,15 @@ import {
 import lotController from '@controllers/lotController';
 
 const { getLotsByWarehouse } = lotController;
+import { z } from 'zod';
 import { authenticate } from '@middlewares/auth';
 import { requireRule } from '@middlewares/requireRule';
+import { zodValidateQuery } from '@middlewares/zodValidation';
+
+const listWarehousesQuerySchema = z.object({
+  search: z.string().trim().max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+});
 
 const router = Router();
 
@@ -29,7 +36,7 @@ router.use(authenticate);
  *       200:
  *         description: Danh sách kho
  */
-router.get('/', requireRule('warehouses', 'READ'), getAllWarehouses);
+router.get('/', requireRule('warehouses', 'READ'), zodValidateQuery(listWarehousesQuerySchema), getAllWarehouses);
 
 /**
  * @swagger

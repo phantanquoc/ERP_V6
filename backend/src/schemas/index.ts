@@ -620,3 +620,66 @@ export const voidIssueSchema = z.object({
 export type VoidReceiptInput = z.infer<typeof voidReceiptSchema>;
 export type VoidIssueInput = z.infer<typeof voidIssueSchema>;
 
+// ==================== WAREHOUSE LIST QUERY SCHEMAS (GET /) ====================
+// Validates query params for list endpoints. .passthrough() keeps unknown/alias
+// keys (warehouse, sortKey, maPhieuNhap...) so legacy callers still work.
+// page/limit use coerce because query values arrive as strings.
+const warehouseListBaseFields = {
+  search: z.string().trim().max(100).optional(),
+  page: z.coerce.number().int().min(1).max(1000).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  warehouseId: z.string().optional(),
+  warehouse: z.string().optional(),
+  fromNgay: z.string().optional(),
+  toNgay: z.string().optional(),
+  sortBy: z.string().optional(),
+  sortOrder: z.enum(['asc', 'desc']).optional(),
+  sortKey: z.string().optional(),
+  sortDir: z.enum(['asc', 'desc']).optional(),
+  maPhieu: z.string().trim().max(50).optional(),
+  maPhieuNhap: z.string().trim().max(50).optional(),
+  maPhieuXuat: z.string().trim().max(50).optional(),
+  tenNhanVien: z.string().trim().max(100).optional(),
+  nguoiDeNghi: z.string().trim().max(100).optional(),
+  boPhan: z.string().trim().max(100).optional(),
+  tinhTrang: z.string().trim().max(100).optional(),
+  daIn: z.string().optional(),
+  isVoided: z.string().optional(),
+  includeVoided: z.string().optional(),
+  purchaseRequestId: z.string().optional(),
+  inboundPlanId: z.string().optional(),
+  outboundPlanId: z.string().optional(),
+};
+
+export const warehouseReceiptListQuerySchema = z.object({
+  ...warehouseListBaseFields,
+  sortBy: z.enum(['ngayNhap', 'maPhieuNhap', 'createdAt']).optional().or(z.string().optional()),
+  sortOrder: z.enum(['asc', 'desc']).optional(),
+}).passthrough();
+
+export const warehouseIssueListQuerySchema = z.object({
+  ...warehouseListBaseFields,
+  sortBy: z.enum(['ngayXuat', 'maPhieuXuat', 'createdAt']).optional().or(z.string().optional()),
+  sortOrder: z.enum(['asc', 'desc']).optional(),
+}).passthrough();
+
+// Back-compat alias used in task description
+export const warehouseListQuerySchema = warehouseReceiptListQuerySchema;
+
+export const inventoryOverviewQuerySchema = z.object({
+  search: z.string().trim().max(100).optional(),
+  loaiSanPham: z.string().trim().max(100).optional(),
+  warehouseId: z.string().optional(),
+  donViTinh: z.string().trim().max(100).optional(),
+  hasStock: z.enum(['true', 'false']).optional().or(z.boolean().optional()),
+  stockStatus: z.enum(['all', 'low', 'normal']).optional(),
+  sortBy: z.enum(['maSanPham', 'tenSanPham', 'loaiSanPham', 'tongTonKho', 'giaThanhTB', 'giaTriTon']).optional(),
+  sortOrder: z.enum(['asc', 'desc']).optional(),
+  page: z.coerce.number().int().min(1).max(1000).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+}).passthrough();
+
+export type WarehouseReceiptListQuery = z.infer<typeof warehouseReceiptListQuerySchema>;
+export type WarehouseIssueListQuery = z.infer<typeof warehouseIssueListQuerySchema>;
+export type InventoryOverviewQuery = z.infer<typeof inventoryOverviewQuerySchema>;
+

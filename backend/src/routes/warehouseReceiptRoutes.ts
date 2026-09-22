@@ -13,8 +13,8 @@ import {
 } from '../controllers/warehouseReceiptController';
 import { authenticate } from '@middlewares/auth';
 import { requireRule } from '@middlewares/requireRule';
-import { zodValidate } from '@middlewares/zodValidation';
-import { createReceiptSchema, updateReceiptSchema, voidReceiptSchema } from '@schemas';
+import { zodValidate, zodValidateQuery } from '@middlewares/zodValidation';
+import { createReceiptSchema, updateReceiptSchema, voidReceiptSchema, warehouseReceiptListQuerySchema } from '@schemas';
 const router = express.Router();
 
 router.use(authenticate);
@@ -23,7 +23,7 @@ router.get('/generate-code', generateReceiptCode);
 
 router.post('/', requireRule('warehouse-receipts', 'CREATE'), zodValidate(createReceiptSchema), createWarehouseReceipt);
 
-router.get('/', getAllWarehouseReceipts);
+router.get('/', zodValidateQuery(warehouseReceiptListQuerySchema), getAllWarehouseReceipts);
 router.get('/:id', getWarehouseReceiptById);
 router.get('/:id/export-xlsx', exportReceiptXlsxHandler);
 router.post('/:id/mark-printed', requireRule('warehouse-receipts', 'CREATE'), markReceiptPrinted);
