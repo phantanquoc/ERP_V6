@@ -2,6 +2,9 @@ import { Response, NextFunction } from 'express';
 import type { AuthenticatedRequest } from '@types';
 import sparePartService from '@services/sparePartService';
 import { getFileUrl } from '@middlewares/upload';
+import notificationService from '@services/notificationService';
+import { NotificationEvent } from '@types';
+import logger from '@config/logger';
 import { z } from 'zod';
 
 const sparePartCreateSchema = z.object({
@@ -76,6 +79,15 @@ class SparePartController {
       };
 
       const part = await sparePartService.create(data);
+      if (part?.id) {
+        try {
+          await notificationService.notify(NotificationEvent.SPARE_PART_CREATED, {
+            actorUserId: req.user?.id,
+            entityId: part.id,
+            metadata: { maLinhKien: (part as any)?.maLinhKien, tenLinhKien: (part as any)?.tenLinhKien },
+          });
+        } catch (e) { logger.warn('[SparePartController] notify SPARE_PART_CREATED failed', e); }
+      }
       res.status(201).json({ success: true, data: part, message: 'Tạo linh kiện thành công' });
     } catch (error) {
       next(error);
@@ -102,6 +114,13 @@ class SparePartController {
       Object.keys(data).forEach(k => data[k] === undefined && delete data[k]);
 
       const part = await sparePartService.update(req.params.id, data);
+      try {
+        await notificationService.notify(NotificationEvent.SPARE_PART_UPDATED, {
+          actorUserId: req.user?.id,
+          entityId: req.params.id,
+          metadata: { maLinhKien: (part as any)?.maLinhKien, tenLinhKien: (part as any)?.tenLinhKien },
+        });
+      } catch (e) { logger.warn('[SparePartController] notify SPARE_PART_UPDATED failed', e); }
       res.json({ success: true, data: part, message: 'Cập nhật linh kiện thành công' });
     } catch (error) {
       next(error);
@@ -110,7 +129,16 @@ class SparePartController {
 
   async remove(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
+      let meta: Record<string, unknown> = {};
+      try { const p = await sparePartService.getById(req.params.id); meta = { maLinhKien: (p as any)?.maLinhKien, tenLinhKien: (p as any)?.tenLinhKien }; } catch (_) { /* ignore */ }
       await sparePartService.delete(req.params.id);
+      try {
+        await notificationService.notify(NotificationEvent.SPARE_PART_DELETED, {
+          actorUserId: req.user?.id,
+          entityId: req.params.id,
+          metadata: meta,
+        });
+      } catch (e) { logger.warn('[SparePartController] notify SPARE_PART_DELETED failed', e); }
       res.json({ success: true, message: 'Xóa linh kiện thành công' });
     } catch (error) {
       next(error);

@@ -233,12 +233,14 @@ class MachineSystemDetailService {
     });
   }
 
-  async getTree(machineSystemId: string) {
+  async getTree(machineSystemId: string, limit: number = 500) {
     await this.ensureMachineSystem(machineSystemId);
+    const take = Math.min(Math.max(limit, 1), 2000);
     return prisma.machineSystemDetail.findMany({
       where: { machineSystemId },
       orderBy: [{ thuTu: 'asc' }, { createdAt: 'asc' }],
       include: detailInclude,
+      take,
     });
   }
 

@@ -102,7 +102,14 @@ export const requireTechnicalAccessWithRoles = (
       res.status(401).json({ success: false, message: 'Chưa xác thực' });
       return;
     }
-    if (req.user.role !== UserRole.ADMIN && !allowedRoles.includes(req.user.role as UserRole)) {
+    if (req.user.role === UserRole.ADMIN) {
+      return technicalCheck(req, res, next);
+    }
+    const primaryRoleAllowed = allowedRoles.includes(req.user.role as UserRole);
+    const secondaryRoleAllowed = (req.user.secondaryDepartments ?? []).some((entry) =>
+      allowedRoles.includes(entry.role as UserRole),
+    );
+    if (!primaryRoleAllowed && !secondaryRoleAllowed) {
       res.status(403).json({ success: false, message: 'Truy cập bị từ chối: Không đủ quyền' });
       return;
     }

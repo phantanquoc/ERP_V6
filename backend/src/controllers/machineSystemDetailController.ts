@@ -2,6 +2,9 @@ import { Response, NextFunction } from 'express';
 import type { AuthenticatedRequest } from '@types';
 import machineSystemDetailService from '@services/machineSystemDetailService';
 import { getFileUrl } from '@middlewares/upload';
+import notificationService from '@services/notificationService';
+import { NotificationEvent } from '@types';
+import logger from '@config/logger';
 
 const parseBoolean = (value: unknown): boolean | undefined => {
   if (value === undefined) return undefined;
@@ -88,6 +91,15 @@ class MachineSystemDetailController {
         hoatDong: isAdmin ? parseBoolean(picked.hoatDong) : undefined,
         fileDinhKem: req.file ? getFileUrl('machine-system-details', req.file.filename) : undefined,
       } as Parameters<typeof machineSystemDetailService.create>[0]);
+      if (detail?.id) {
+        try {
+          await notificationService.notify(NotificationEvent.MACHINE_SYSTEM_DETAIL_CREATED, {
+            actorUserId: req.user?.id,
+            entityId: detail.id,
+            metadata: { maChiTiet: (detail as any)?.maChiTiet, tenChiTiet: (detail as any)?.tenChiTiet },
+          });
+        } catch (e) { logger.warn('[MachineSystemDetailController] notify MACHINE_SYSTEM_DETAIL_CREATED failed', e); }
+      }
       res.status(201).json({ success: true, data: detail, message: 'Tạo chi tiết hệ thống máy thành công' });
     } catch (error) {
       next(error);
@@ -109,6 +121,13 @@ class MachineSystemDetailController {
       // Remove undefined to avoid overwriting with undefined
       Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
       const detail = await machineSystemDetailService.update(req.params.id, payload as Parameters<typeof machineSystemDetailService.update>[1]);
+      try {
+        await notificationService.notify(NotificationEvent.MACHINE_SYSTEM_DETAIL_UPDATED, {
+          actorUserId: req.user?.id,
+          entityId: req.params.id,
+          metadata: { maChiTiet: (detail as any)?.maChiTiet, tenChiTiet: (detail as any)?.tenChiTiet },
+        });
+      } catch (e) { logger.warn('[MachineSystemDetailController] notify MACHINE_SYSTEM_DETAIL_UPDATED failed', e); }
       res.json({ success: true, data: detail, message: 'Cập nhật chi tiết hệ thống máy thành công' });
     } catch (error) {
       next(error);
@@ -126,7 +145,16 @@ class MachineSystemDetailController {
 
   async remove(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
+      let meta: Record<string, unknown> = {};
+      try { const d = await machineSystemDetailService.getById(req.params.id); meta = { maChiTiet: (d as any)?.maChiTiet, tenChiTiet: (d as any)?.tenChiTiet }; } catch (_) { /* ignore */ }
       await machineSystemDetailService.delete(req.params.id);
+      try {
+        await notificationService.notify(NotificationEvent.MACHINE_SYSTEM_DETAIL_DELETED, {
+          actorUserId: req.user?.id,
+          entityId: req.params.id,
+          metadata: meta,
+        });
+      } catch (e) { logger.warn('[MachineSystemDetailController] notify MACHINE_SYSTEM_DETAIL_DELETED failed', e); }
       res.json({ success: true, message: 'Xóa chi tiết hệ thống máy thành công' });
     } catch (error) {
       next(error);

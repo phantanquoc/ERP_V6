@@ -2,10 +2,41 @@ import { Response, NextFunction } from 'express';
 import qualityEvaluationService from '@services/qualityEvaluationService';
 import type { AuthenticatedRequest, ApiResponse } from '@types';
 import { getFileUrl } from '@middlewares/upload';
+import { z } from 'zod';
 
 interface RequestWithFile extends AuthenticatedRequest {
   file?: Express.Multer.File;
 }
+
+const qeCreateSchema = z.object({
+  maChien: z.string().min(1, 'maChien là bắt buộc'),
+  thoiGianChien: z.string().min(1, 'thoiGianChien là bắt buộc'),
+  tenHangHoa: z.string().min(1, 'tenHangHoa là bắt buộc'),
+  mauSac: z.string().optional(),
+  machineSystemId: z.string().optional().nullable(),
+  finishedProductId: z.string().optional().nullable(),
+  materialEvaluationId: z.string().optional().nullable(),
+  muiHuong: z.string().optional(),
+  huongVi: z.string().optional(),
+  doNgot: z.string().optional(),
+  doGion: z.string().optional(),
+  danhGiaTongQuan: z.string().optional(),
+  deXuatDieuChinh: z.string().optional(),
+  nguoiThucHien: z.string().optional(),
+});
+
+const qeUpdateSchema = z.object({
+  mauSac: z.string().optional(),
+  muiHuong: z.string().optional(),
+  huongVi: z.string().optional(),
+  doNgot: z.string().optional(),
+  doGion: z.string().optional(),
+  danhGiaTongQuan: z.string().optional(),
+  deXuatDieuChinh: z.string().optional(),
+  nguoiThucHien: z.string().optional(),
+  tenHangHoa: z.string().optional(),
+  thoiGianChien: z.string().optional(),
+});
 
 export class QualityEvaluationController {
   async exportToExcel(_req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -60,12 +91,9 @@ export class QualityEvaluationController {
   async createQualityEvaluation(req: RequestWithFile, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = req.user?.id;
-      const data = req.body;
-
-      // Handle file upload
-      if (req.file) {
-        data.fileDinhKem = getFileUrl('quality-evaluations', req.file.filename);
-      }
+      const parsed = qeCreateSchema.parse(req.body);
+      const data: Record<string, unknown> = { ...parsed };
+      if (req.file) data.fileDinhKem = getFileUrl('quality-evaluations', req.file.filename);
 
       const evaluation = await qualityEvaluationService.createQualityEvaluation(data, userId);
 
@@ -83,12 +111,10 @@ export class QualityEvaluationController {
     try {
       const id = req.params.id as string;
       const userId = req.user?.id;
-      const data = req.body;
-
-      // Handle file upload
-      if (req.file) {
-        data.fileDinhKem = getFileUrl('quality-evaluations', req.file.filename);
-      }
+      const parsed = qeUpdateSchema.parse(req.body);
+      const data: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(parsed)) if (v !== undefined) data[k] = v;
+      if (req.file) data.fileDinhKem = getFileUrl('quality-evaluations', req.file.filename);
 
       const evaluation = await qualityEvaluationService.updateQualityEvaluation(id, data, userId);
 
@@ -119,4 +145,3 @@ export class QualityEvaluationController {
 }
 
 export default new QualityEvaluationController();
-

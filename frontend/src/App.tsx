@@ -333,7 +333,7 @@ function App() {
             <Route path="/my-notifications" element={<MyNotifications />} />
 
             {/* Evaluation Calibration — ADMIN and DEPARTMENT_HEAD only */}
-            <Route path="/dashboard/evaluation-calibration" element={<EvaluationCalibrationPage />} />
+            <Route path="/dashboard/evaluation-calibration" element={<AdminRoute allowDepartmentHead><EvaluationCalibrationPage /></AdminRoute>} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

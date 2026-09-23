@@ -22,10 +22,10 @@ router.use(authenticate);
 router.get('/', technicalAccess, faultRecordController.getAll.bind(faultRecordController));
 router.get('/export/excel', technicalAccess, faultRecordController.exportExcel.bind(faultRecordController));
 // New aggregate endpoints must come BEFORE /:id to avoid route shadowing
-router.get('/recurrence', faultRecordController.checkRecurrence.bind(faultRecordController));
-router.get('/stats', faultRecordController.getStats.bind(faultRecordController));
-router.get('/heatmap', faultRecordController.getHeatmap.bind(faultRecordController));
-router.get('/typeahead', faultRecordController.getForTypeahead.bind(faultRecordController));
+router.get('/recurrence', technicalAccess, faultRecordController.checkRecurrence.bind(faultRecordController));
+router.get('/stats', technicalAccess, faultRecordController.getStats.bind(faultRecordController));
+router.get('/heatmap', technicalAccess, faultRecordController.getHeatmap.bind(faultRecordController));
+router.get('/typeahead', technicalAccess, faultRecordController.getForTypeahead.bind(faultRecordController));
 router.get('/:id', technicalAccess, faultRecordController.getById.bind(faultRecordController));
 router.post('/', technicalAccess, upload, faultRecordController.create.bind(faultRecordController));
 
@@ -35,7 +35,7 @@ router.post('/:id/mark-resolved', markResolvedAccess, faultRecordController.mark
 // POST /:id/mark-recurred — ADMIN, DEPARTMENT_HEAD in technical/mechanical
 router.post('/:id/mark-recurred', markRecurredAccess, faultRecordController.markRecurred.bind(faultRecordController));
 // GET /:id/status-history — any authenticated user
-router.get('/:id/status-history', faultRecordController.getStatusHistory.bind(faultRecordController));
+router.get('/:id/status-history', technicalAccess, faultRecordController.getStatusHistory.bind(faultRecordController));
 
 // Mutating operations remain restricted to technical-mechanical users
 router.put('/:id', technicalAccess, upload, faultRecordController.update.bind(faultRecordController));

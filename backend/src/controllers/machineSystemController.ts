@@ -3,9 +3,59 @@ import type { AuthenticatedRequest } from '@types';
 import machineSystemService from '@services/machineSystemService';
 import { getFileUrl } from '@middlewares/upload';
 import { MachineStatus, MachineSystemCategory } from '@prisma/client';
+import { z } from 'zod';
 import notificationService from '@services/notificationService';
 import { NotificationEvent } from '@types';
 import logger from '@config/logger';
+
+
+const machineSystemCreateSchema = z.object({
+  khuVuc: z.string().min(1, 'khuVuc là bắt buộc'),
+  viTri: z.string().min(1, 'viTri là bắt buộc'),
+  maHeThong: z.string().min(1, 'maHeThong là bắt buộc'),
+  tenHeThong: z.string().min(1, 'tenHeThong là bắt buộc'),
+  chucNang: z.string().optional(),
+  loaiHeThong: z.nativeEnum(MachineSystemCategory).optional(),
+  maThietBi: z.string().optional().nullable(),
+  tenThietBi: z.string().optional().nullable(),
+  nhiemVu: z.string().optional().nullable(),
+  maNguoiThucHien: z.string().optional().nullable(),
+  nguoiThucHien: z.string().optional().nullable(),
+  hoatDong: z.union([z.boolean(), z.string()]).optional(),
+});
+
+const machineSystemUpdateSchema = z.object({
+  khuVuc: z.string().min(1).optional(),
+  viTri: z.string().min(1).optional(),
+  maHeThong: z.string().min(1).optional(),
+  tenHeThong: z.string().min(1).optional(),
+  chucNang: z.string().optional(),
+  loaiHeThong: z.nativeEnum(MachineSystemCategory).optional(),
+  maThietBi: z.string().optional().nullable(),
+  tenThietBi: z.string().optional().nullable(),
+  nhiemVu: z.string().optional().nullable(),
+  maNguoiThucHien: z.string().optional().nullable(),
+  nguoiThucHien: z.string().optional().nullable(),
+  hoatDong: z.union([z.boolean(), z.string()]).optional(),
+});
+
+const cloneSchema = z.object({
+  maHeThong: z.string().min(1, 'maHeThong là bắt buộc'),
+  tenHeThong: z.string().min(1, 'tenHeThong là bắt buộc'),
+  khuVuc: z.string().optional(),
+  viTri: z.string().optional(),
+});
+
+const statusSchema = z.object({
+  trangThaiMoi: z.nativeEnum(MachineStatus),
+  nguyenNhan: z.string().min(1, 'nguyenNhan là bắt buộc'),
+  ghiChu: z.string().optional(),
+});
+
+function parseHoatDong(v: unknown): boolean | undefined {
+  if (v === undefined) return undefined;
+  return v === true || v === 'true';
+}
 
 class MachineSystemController {
   async getAll(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -41,19 +91,20 @@ class MachineSystemController {
 
   async create(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
+      const parsed = machineSystemCreateSchema.parse(req.body);
       const data = {
-        khuVuc: req.body.khuVuc,
-        viTri: req.body.viTri,
-        maHeThong: req.body.maHeThong,
-        tenHeThong: req.body.tenHeThong,
-        chucNang: req.body.chucNang ?? '',
-        loaiHeThong: (req.body.loaiHeThong as MachineSystemCategory) || MachineSystemCategory.KHAC,
-        maThietBi: req.body.maThietBi,
-        tenThietBi: req.body.tenThietBi,
-        nhiemVu: req.body.nhiemVu,
-        maNguoiThucHien: req.body.maNguoiThucHien,
-        nguoiThucHien: req.body.nguoiThucHien,
-        hoatDong: req.body.hoatDong !== undefined ? req.body.hoatDong === 'true' || req.body.hoatDong === true : undefined,
+        khuVuc: parsed.khuVuc,
+        viTri: parsed.viTri,
+        maHeThong: parsed.maHeThong,
+        tenHeThong: parsed.tenHeThong,
+        chucNang: parsed.chucNang ?? '',
+        loaiHeThong: (parsed.loaiHeThong as MachineSystemCategory) || MachineSystemCategory.KHAC,
+        maThietBi: parsed.maThietBi ?? undefined,
+        tenThietBi: parsed.tenThietBi ?? undefined,
+        nhiemVu: parsed.nhiemVu ?? undefined,
+        maNguoiThucHien: parsed.maNguoiThucHien ?? undefined,
+        nguoiThucHien: parsed.nguoiThucHien ?? undefined,
+        hoatDong: parseHoatDong(parsed.hoatDong),
         fileDinhKem: req.file ? getFileUrl('machine-systems', req.file.filename) : undefined,
       };
 
@@ -74,29 +125,14 @@ class MachineSystemController {
   async update(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       // Strip trangThai — status changes must go through POST /:id/status
-      const { trangThai: _stripped, ...bodyWithoutStatus } = req.body as Record<string, unknown> & { trangThai?: unknown };
-
-      const data: Record<string, unknown> = {
-        khuVuc: bodyWithoutStatus.khuVuc,
-        viTri: bodyWithoutStatus.viTri,
-        maHeThong: bodyWithoutStatus.maHeThong,
-        tenHeThong: bodyWithoutStatus.tenHeThong,
-        chucNang: bodyWithoutStatus.chucNang,
-        loaiHeThong: bodyWithoutStatus.loaiHeThong as MachineSystemCategory | undefined,
-        maThietBi: bodyWithoutStatus.maThietBi,
-        tenThietBi: bodyWithoutStatus.tenThietBi,
-        nhiemVu: bodyWithoutStatus.nhiemVu,
-        maNguoiThucHien: bodyWithoutStatus.maNguoiThucHien,
-        nguoiThucHien: bodyWithoutStatus.nguoiThucHien,
-      };
-
-      if (bodyWithoutStatus.hoatDong !== undefined) {
-        data.hoatDong = bodyWithoutStatus.hoatDong === 'true' || bodyWithoutStatus.hoatDong === true;
+      const { trangThai: _stripped, ...raw } = req.body as Record<string, unknown> & { trangThai?: unknown };
+      const parsed = machineSystemUpdateSchema.parse(raw);
+      const data: Record<string, unknown> = {};
+      for (const k of ['khuVuc','viTri','maHeThong','tenHeThong','chucNang','loaiHeThong','maThietBi','tenThietBi','nhiemVu','maNguoiThucHien','nguoiThucHien'] as const) {
+        if ((parsed as Record<string, unknown>)[k] !== undefined) data[k] = (parsed as Record<string, unknown>)[k];
       }
-
-      if (req.file) {
-        data.fileDinhKem = getFileUrl('machine-systems', req.file.filename);
-      }
+      if (parsed.hoatDong !== undefined) data.hoatDong = parseHoatDong(parsed.hoatDong);
+      if (req.file) data.fileDinhKem = getFileUrl('machine-systems', req.file.filename);
 
       const system = await machineSystemService.updateMachineSystem(req.params.id, data);
       try {
@@ -173,19 +209,16 @@ class MachineSystemController {
 
   async clone(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { maHeThong, tenHeThong, khuVuc, viTri } = req.body as {
-        maHeThong: string;
-        tenHeThong: string;
-        khuVuc?: string;
-        viTri?: string;
-      };
-
-      if (!maHeThong || !tenHeThong) {
-        res.status(400).json({ success: false, message: 'maHeThong và tenHeThong là bắt buộc khi nhân bản' });
-        return;
-      }
+      const { maHeThong, tenHeThong, khuVuc, viTri } = cloneSchema.parse(req.body);
 
       const result = await machineSystemService.clone(req.params.id, { maHeThong, tenHeThong, khuVuc, viTri });
+      try {
+        await notificationService.notify(NotificationEvent.MACHINE_SYSTEM_CLONED, {
+          actorUserId: req.user?.id,
+          entityId: (result as any)?.id ?? req.params.id,
+          metadata: { maHeThong, tenHeThong, sourceMaHeThong: req.params.id },
+        });
+      } catch (e) { logger.warn('[MachineSystemController] notify MACHINE_SYSTEM_CLONED failed', e); }
       res.status(201).json({ success: true, data: result, message: 'Nhân bản hệ thống máy thành công' });
     } catch (error) {
       next(error);
@@ -212,16 +245,7 @@ class MachineSystemController {
 
   async updateStatus(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { trangThaiMoi, nguyenNhan, ghiChu } = req.body as {
-        trangThaiMoi: MachineStatus;
-        nguyenNhan: string;
-        ghiChu?: string;
-      };
-
-      if (!trangThaiMoi || !Object.values(MachineStatus).includes(trangThaiMoi)) {
-        res.status(400).json({ success: false, message: 'Trạng thái máy không hợp lệ' });
-        return;
-      }
+      const { trangThaiMoi, nguyenNhan, ghiChu } = statusSchema.parse(req.body);
 
       const nguoiCapNhat = req.user
         ? `${(req.user as { lastName?: string }).lastName ?? ''} ${(req.user as { firstName?: string }).firstName ?? ''}`.trim()
@@ -234,6 +258,13 @@ class MachineSystemController {
         nguoiCapNhat,
         ghiChu,
       );
+      try {
+        await notificationService.notify(NotificationEvent.MACHINE_SYSTEM_STATUS_UPDATED, {
+          actorUserId: req.user?.id,
+          entityId: req.params.id,
+          metadata: { maHeThong: (updated as any)?.maHeThong, tenHeThong: (updated as any)?.tenHeThong, trangThaiMoi },
+        });
+      } catch (e) { logger.warn('[MachineSystemController] notify MACHINE_SYSTEM_STATUS_UPDATED failed', e); }
       res.json({ success: true, data: updated, message: 'Cập nhật trạng thái máy thành công' });
     } catch (error) {
       next(error);

@@ -162,13 +162,15 @@ class MachineSystemService {
    * Returns active production machines: loaiHeThong ∈ categories, trangThai = HOAT_DONG.
    * This is the single source of truth used by createBulkSystemOperations and the frontend.
    */
-  async getActiveProductionMachines(categories: MachineSystemCategory[]) {
+  async getActiveProductionMachines(categories: MachineSystemCategory[], limit: number = 200) {
+    const take = Math.min(Math.max(limit, 1), 500);
     return prisma.machineSystem.findMany({
       where: {
         trangThai: 'HOAT_DONG',
         loaiHeThong: { in: categories },
       },
       orderBy: { maHeThong: 'asc' },
+      take,
     });
   }
 
@@ -206,12 +208,30 @@ class MachineSystemService {
 
   async deleteMachineSystem(id: string) {
     await this.getMachineSystemById(id);
-    const [faultCount, repairItemCount, planCount] = await Promise.all([
+    const [
+      faultCount, repairItemCount, planCount, faultTemplateCount, maintenanceRecordCount,
+      statusLogCount, systemOperationCount, finishedProductCount, qualityEvalCount,
+      handoverItemCount, planItemCount, detailCount, cloneCount,
+    ] = await Promise.all([
       prisma.faultRecord.count({ where: { machineSystemId: id } }),
       prisma.repairRequestItem.count({ where: { machineSystemId: id } }),
       prisma.maintenancePlan.count({ where: { machineSystemId: id } }),
+      prisma.faultTemplate.count({ where: { machineSystemId: id } }),
+      prisma.maintenanceRecord.count({ where: { machineSystemId: id } }),
+      prisma.machineStatusLog.count({ where: { machineSystemId: id } }),
+      prisma.systemOperation.count({ where: { machineSystemId: id } }),
+      prisma.finishedProduct.count({ where: { machineSystemId: id } }),
+      prisma.qualityEvaluation.count({ where: { machineSystemId: id } }),
+      prisma.acceptanceHandoverItem.count({ where: { machineSystemId: id } }),
+      // MaintenancePlanItem via plan
+      prisma.maintenancePlanItem.count({ where: { maintenancePlan: { machineSystemId: id } } }),
+      prisma.machineSystemDetail.count({ where: { machineSystemId: id } }),
+      prisma.machineSystem.count({ where: { parentSystemId: id } }),
     ]);
-    if (faultCount + repairItemCount + planCount > 0) {
+    const total = faultCount + repairItemCount + planCount + faultTemplateCount + maintenanceRecordCount
+      + statusLogCount + systemOperationCount + finishedProductCount + qualityEvalCount
+      + handoverItemCount + planItemCount + detailCount + cloneCount;
+    if (total > 0) {
       throw new ConflictError('Không thể xóa hệ thống đang được sử dụng');
     }
     return prisma.machineSystem.delete({ where: { id } });
@@ -234,17 +254,17 @@ class MachineSystemService {
     });
     if (!source) throw new NotFoundError('Không tìm thấy hệ thống máy nguồn');
 
-    // Pre-check: destination maHeThong must not already exist
-    const existing = await prisma.machineSystem.findUnique({
-      where: { maHeThong: overrides.maHeThong },
-    });
-    if (existing) {
-      throw new ConflictError(
-        `Mã hệ thống "${overrides.maHeThong}" đã tồn tại, vui lòng chọn mã khác`
-      );
-    }
-
-    return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    try {
+      return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      // Pre-check inside transaction to prevent concurrent duplicate
+      const existing = await tx.machineSystem.findUnique({
+        where: { maHeThong: overrides.maHeThong },
+      });
+      if (existing) {
+        throw new ConflictError(
+          `Mã hệ thống "${overrides.maHeThong}" đã tồn tại, vui lòng chọn mã khác`
+        );
+      }
       // Create the new machine system
       const newSystem = await tx.machineSystem.create({
         data: {
@@ -331,6 +351,12 @@ class MachineSystemService {
         include: { details: { orderBy: { thuTu: 'asc' } } },
       });
     });
+    } catch (e: unknown) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        throw new ConflictError(`Mã hệ thống "${overrides.maHeThong}" đã tồn tại, vui lòng chọn mã khác`);
+      }
+      throw e;
+    }
   }
 
   /**
@@ -505,8 +531,9 @@ class MachineSystemService {
     });
   }
 
-  async exportToExcel() {
-    const data = await prisma.machineSystem.findMany({ orderBy: { createdAt: 'desc' } });
+  async exportToExcel(limit: number = 500) {
+    const take = Math.min(Math.max(limit, 1), 5000);
+    const data = await prisma.machineSystem.findMany({ orderBy: { createdAt: 'desc' }, take });
 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Hệ thống máy');

@@ -104,12 +104,19 @@ class SparePartService {
     return prisma.sparePart.update({ where: { id }, data });
   }
 
-  /** Decrement stock by qty; throws if insufficient. */
+  /** Decrement stock by qty atomically; throws if insufficient (TOCTOU-safe). */
   async decrementStock(id: string, qty: number) {
     if (qty <= 0) throw new ValidationError('Số lượng trừ phải lớn hơn 0');
-    const part = await this.getById(id);
-    if (part.soLuongTon < qty) throw new ValidationError('Không đủ tồn kho để trừ');
-    return prisma.sparePart.update({ where: { id }, data: { soLuongTon: part.soLuongTon - qty } });
+    const result = await prisma.sparePart.updateMany({
+      where: { id, soLuongTon: { gte: qty } },
+      data: { soLuongTon: { decrement: qty } },
+    });
+    if (result.count === 0) {
+      const exists = await prisma.sparePart.findUnique({ where: { id }, select: { id: true } });
+      if (!exists) throw new NotFoundError('Không tìm thấy linh kiện');
+      throw new ValidationError('Không đủ tồn kho để trừ');
+    }
+    return prisma.sparePart.findUnique({ where: { id } }) as Promise<NonNullable<Awaited<ReturnType<typeof prisma.sparePart.findUnique>>>>;
   }
 
   async delete(id: string) {
@@ -117,7 +124,8 @@ class SparePartService {
     return prisma.sparePart.delete({ where: { id } });
   }
 
-  async exportToExcel(filters?: { search?: string; trangThai?: string; loai?: string }) {
+  async exportToExcel(filters?: { search?: string; trangThai?: string; loai?: string }, limit: number = 500) {
+    const take = Math.min(Math.max(limit, 1), 5000);
     const where: Record<string, unknown> = {};
     if (filters?.trangThai) where.trangThai = filters.trangThai;
     if (filters?.loai) where.loai = filters.loai;
@@ -128,7 +136,7 @@ class SparePartService {
       ];
     }
 
-    const data = await prisma.sparePart.findMany({ where, orderBy: { createdAt: 'desc' } });
+    const data = await prisma.sparePart.findMany({ where, orderBy: { createdAt: 'desc' }, take });
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Danh sách linh kiện');
 

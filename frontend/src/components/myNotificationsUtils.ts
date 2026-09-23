@@ -57,6 +57,7 @@ export const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   PRODUCTION_REPORT: 'Báo cáo sản xuất',
   PROJECT_APPROVAL: 'Duyệt dự án',
   FAULT_RECORD: 'Ghi nhận lỗi',
+  TECHNICAL_UPDATE: 'Cập nhật kỹ thuật',
   PRICING: 'Giá thành',
 };
 
@@ -111,6 +112,11 @@ export const NOTIFICATION_TYPE_GROUPS: NotificationGroup[] = [
     key: 'orderWarehouse',
     label: 'Đơn hàng & Kho',
     types: ['ORDER', 'WAREHOUSE', 'INVOICE', 'DEBT', 'PRICING'],
+  },
+  {
+    key: 'technical',
+    label: 'Kỹ thuật',
+    types: ['TECHNICAL_UPDATE'],
   },
   {
     key: 'other',
@@ -180,6 +186,8 @@ export function getNotificationIcon(type: string): React.ReactNode {
       return React.createElement(AlertCircle, { className: 'w-4 h-4 text-red-600' });
     case 'PROJECT_APPROVAL':
       return React.createElement(CheckCircle, { className: 'w-4 h-4 text-blue-600' });
+    case 'TECHNICAL_UPDATE':
+      return React.createElement(Wrench, { className: 'w-4 h-4 text-slate-600' });
     case 'PRICING':
       return React.createElement(DollarSign, { className: 'w-4 h-4 text-amber-600' });
     default:
@@ -321,6 +329,13 @@ export function resolveDeepLink(notification: NotificationForLink): string | nul
       return faultRecordId
         ? `/technical/quality?tab=repairAndFault&faultRecordId=${faultRecordId}`
         : '/technical/quality?tab=repairAndFault';
+    }
+
+    case 'TECHNICAL_UPDATE': {
+      const entityId = meta.entityId as string | undefined;
+      const hash = entityId ? `#${entityId}` : '';
+      // Route to technical quality page; tab selection is handled by the deep-link hash
+      return `/technical/quality?tab=maintenance${hash}`;
     }
 
     case 'PRICING': {

@@ -283,53 +283,54 @@ class MaintenancePlanService {
     if (month < 1 || month > 12) throw new ValidationError('Tháng phải từ 1-12');
     if (lanThu < 1) throw new ValidationError('Lần thứ phải từ 1 trở lên');
 
-    const item = await prisma.maintenancePlanItem.findFirst({
-      where: { id: itemId, maintenancePlanId: planId },
-      include: { maintenancePlan: { select: { machineSystemId: true } } },
-    });
-    if (!item) throw new NotFoundError('Không tìm thấy mục bảo dưỡng');
+    const log = await prisma.$transaction(async (tx) => {
+      const item = await tx.maintenancePlanItem.findFirst({
+        where: { id: itemId, maintenancePlanId: planId },
+        include: { maintenancePlan: { select: { machineSystemId: true } } },
+      });
+      if (!item) throw new NotFoundError('Không tìm thấy mục bảo dưỡng');
 
-    const existing = await prisma.maintenancePlanItemLog.findUnique({
-      where: { maintenancePlanItemId_thang_lanThu: { maintenancePlanItemId: itemId, thang: month, lanThu } },
-    });
-
-    let log;
-    if (existing) {
-      const newHoanThanh = !existing.hoanThanh;
-      log = await prisma.maintenancePlanItemLog.update({
-        where: { id: existing.id },
-        data: {
-          hoanThanh: newHoanThanh,
-          ghiChu: ghiChu !== undefined ? ghiChu : existing.ghiChu,
-          nguoiThucHien: nguoiThucHien !== undefined ? nguoiThucHien : existing.nguoiThucHien,
-          nguoiPhu: nguoiPhu !== undefined ? nguoiPhu : existing.nguoiPhu,
-          ngayThucHien: newHoanThanh ? new Date() : null,
-        },
+      const existing = await tx.maintenancePlanItemLog.findUnique({
+        where: { maintenancePlanItemId_thang_lanThu: { maintenancePlanItemId: itemId, thang: month, lanThu } },
       });
 
-      if (newHoanThanh) {
-        await this.createAutoRecord(item, log);
+      let currentLog;
+      if (existing) {
+        const newHoanThanh = !existing.hoanThanh;
+        currentLog = await tx.maintenancePlanItemLog.update({
+          where: { id: existing.id },
+          data: {
+            hoanThanh: newHoanThanh,
+            ghiChu: ghiChu !== undefined ? ghiChu : existing.ghiChu,
+            nguoiThucHien: nguoiThucHien !== undefined ? nguoiThucHien : existing.nguoiThucHien,
+            nguoiPhu: nguoiPhu !== undefined ? nguoiPhu : existing.nguoiPhu,
+            ngayThucHien: newHoanThanh ? new Date() : null,
+          },
+        });
+        if (newHoanThanh) {
+          await this.createAutoRecordTx(tx, item, currentLog);
+        } else {
+          await tx.maintenanceRecord.deleteMany({ where: { sourceLogId: currentLog.id } });
+        }
       } else {
-        await this.deleteAutoRecord(log.id);
+        currentLog = await tx.maintenancePlanItemLog.create({
+          data: {
+            maintenancePlanItemId: itemId,
+            thang: month,
+            lanThu,
+            hoanThanh: true,
+            ghiChu: ghiChu || null,
+            nguoiThucHien: nguoiThucHien || null,
+            nguoiPhu: nguoiPhu ?? [],
+            ngayThucHien: new Date(),
+          },
+        });
+        await this.createAutoRecordTx(tx, item, currentLog);
       }
-    } else {
-      log = await prisma.maintenancePlanItemLog.create({
-        data: {
-          maintenancePlanItemId: itemId,
-          thang: month,
-          lanThu,
-          hoanThanh: true,
-          ghiChu: ghiChu || null,
-          nguoiThucHien: nguoiThucHien || null,
-          nguoiPhu: nguoiPhu ?? [],
-          ngayThucHien: new Date(),
-        },
-      });
+      return currentLog;
+    });
 
-      await this.createAutoRecord(item, log);
-    }
-
-    // Auto status transition
+    // Auto status transition outside transaction (must not fail toggle)
     await this.checkAndUpdatePlanStatus(planId);
 
     return log;
@@ -384,46 +385,34 @@ class MaintenancePlanService {
     }
   }
 
-  private async createAutoRecord(
+  private async createAutoRecordTx(
+    tx: Prisma.TransactionClient,
     item: { id: string; maintenancePlanId: string; machineSystemDetailId: string; noiDung: string; maintenancePlan: { machineSystemId: string } },
     log: { id: string; nguoiThucHien: string | null; ngayThucHien: Date | null; nguoiPhu?: string[] },
   ) {
-    try {
-      const year = new Date().getFullYear();
-      const last = await prisma.maintenanceRecord.findFirst({
-        where: { maBienBan: yearlyCodeWhere('BBBD', year) },
-        orderBy: { maBienBan: 'desc' },
-        select: { maBienBan: true },
-      });
-      const maBienBan = nextYearlyCode(last?.maBienBan ?? null, 'BBBD', year);
-
-      await prisma.maintenanceRecord.create({
-        data: {
-          maBienBan,
-          maintenancePlanId: item.maintenancePlanId,
-          machineSystemId: item.maintenancePlan.machineSystemId,
-          machineSystemDetailId: item.machineSystemDetailId,
-          loai: 'Bảo dưỡng',
-          noiDung: item.noiDung,
-          tinhTrangTruoc: '(Chưa cập nhật)',
-          tinhTrangSau: '(Chưa cập nhật)',
-          nguoiThucHien: log.nguoiThucHien || 'Chưa xác định',
-          nguoiPhu: log.nguoiPhu ?? [],
-          ngayThucHien: log.ngayThucHien || new Date(),
-          sourceLogId: log.id,
-        },
-      });
-    } catch (_) {
-      // Auto-record creation must not fail the toggle operation
-    }
-  }
-
-  private async deleteAutoRecord(logId: string) {
-    try {
-      await prisma.maintenanceRecord.deleteMany({ where: { sourceLogId: logId } });
-    } catch (_) {
-      // Cleanup failure must not fail the toggle operation
-    }
+    const year = new Date().getFullYear();
+    const last = await tx.maintenanceRecord.findFirst({
+      where: { maBienBan: yearlyCodeWhere('BBBD', year) },
+      orderBy: { maBienBan: 'desc' },
+      select: { maBienBan: true },
+    });
+    const maBienBan = nextYearlyCode(last?.maBienBan ?? null, 'BBBD', year);
+    await tx.maintenanceRecord.create({
+      data: {
+        maBienBan,
+        maintenancePlanId: item.maintenancePlanId,
+        machineSystemId: item.maintenancePlan.machineSystemId,
+        machineSystemDetailId: item.machineSystemDetailId,
+        loai: 'Bảo dưỡng',
+        noiDung: item.noiDung,
+        tinhTrangTruoc: '(Chưa cập nhật)',
+        tinhTrangSau: '(Chưa cập nhật)',
+        nguoiThucHien: log.nguoiThucHien || 'Chưa xác định',
+        nguoiPhu: log.nguoiPhu ?? [],
+        ngayThucHien: log.ngayThucHien || new Date(),
+        sourceLogId: log.id,
+      },
+    });
   }
 
   async updateLogNote(logId: string, data: { ghiChu?: string; nguoiThucHien?: string; nguoiPhu?: string[] }) {

@@ -3,9 +3,15 @@ import type { AuthenticatedRequest } from '@types';
 import faultRecordService from '@services/faultRecordService';
 import { getFileUrl } from '@middlewares/upload';
 import { FaultRecordStatus } from '@prisma/client';
+import { ValidationError } from '@utils/errors';
 import notificationService from '@services/notificationService';
 import { NotificationEvent } from '@types';
 import logger from '@config/logger';
+
+function safeParseJson(value: unknown, field: string): unknown {
+  if (typeof value !== 'string') return value;
+  try { return JSON.parse(value); } catch { throw new ValidationError(`${field} không hợp lệ (JSON parse thất bại)`); }
+}
 
 class FaultRecordController {
   async getAll(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -61,7 +67,7 @@ class FaultRecordController {
         userRole: req.user?.role,
         userId: req.user?.id,
         repairSteps: req.body.repairSteps
-          ? (typeof req.body.repairSteps === 'string' ? JSON.parse(req.body.repairSteps) : req.body.repairSteps)
+          ? safeParseJson(req.body.repairSteps, 'repairSteps') as any
           : undefined,
       };
 

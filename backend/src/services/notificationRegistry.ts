@@ -844,6 +844,233 @@ const entries: NotificationEventDef[] = [
       return [...new Set([...technical, ...admins])];
     },
   },
+  // ── Technical: Machine System — clone & status ──
+  {
+    event: NotificationEvent.MACHINE_SYSTEM_CLONED,
+    notificationType: NotificationType.TECHNICAL_UPDATE,
+    buildMessage: (ctx) => ({
+      title: 'Nhân bản hệ thống máy',
+      message: `Hệ thống "${ctx.metadata?.tenHeThong ?? ctx.metadata?.maHeThong ?? ''}" đã được nhân bản từ ${ctx.metadata?.sourceMaHeThong ?? ''}.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.MACHINE_SYSTEM_STATUS_UPDATED,
+    notificationType: NotificationType.TECHNICAL_UPDATE,
+    buildMessage: (ctx) => ({
+      title: 'Cập nhật trạng thái hệ thống máy',
+      message: `Hệ thống "${ctx.metadata?.tenHeThong ?? ctx.metadata?.maHeThong ?? ''}" chuyển trạng thái: ${ctx.metadata?.trangThaiMoi ?? ''}.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+  // ── Technical: Machine System Detail ──
+  {
+    event: NotificationEvent.MACHINE_SYSTEM_DETAIL_CREATED,
+    notificationType: NotificationType.TECHNICAL_UPDATE,
+    buildMessage: (ctx) => ({
+      title: 'Chi tiết hệ thống máy mới',
+      message: `Chi tiết "${ctx.metadata?.tenChiTiet ?? ctx.metadata?.maChiTiet ?? ''}" đã được tạo.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.MACHINE_SYSTEM_DETAIL_UPDATED,
+    notificationType: NotificationType.TECHNICAL_UPDATE,
+    buildMessage: (ctx) => ({
+      title: 'Chi tiết hệ thống máy cập nhật',
+      message: `Chi tiết "${ctx.metadata?.tenChiTiet ?? ctx.metadata?.maChiTiet ?? ''}" đã được cập nhật.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.MACHINE_SYSTEM_DETAIL_DELETED,
+    notificationType: NotificationType.TECHNICAL_UPDATE,
+    buildMessage: (ctx) => ({
+      title: 'Chi tiết hệ thống máy đã xóa',
+      message: `Chi tiết "${ctx.metadata?.tenChiTiet ?? ctx.metadata?.maChiTiet ?? ''}" đã bị xóa.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+  // ── Technical: Maintenance Plan extended ──
+  {
+    event: NotificationEvent.MAINTENANCE_PLAN_DELETED,
+    notificationType: NotificationType.TECHNICAL_UPDATE,
+    buildMessage: (ctx) => ({
+      title: 'Kế hoạch bảo dưỡng đã xóa',
+      message: `Kế hoạch ${ctx.metadata?.maKeHoach ?? ''} đã bị xóa.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.MAINTENANCE_PLAN_MONTH_TOGGLED,
+    notificationType: NotificationType.TECHNICAL_UPDATE,
+    buildMessage: (ctx) => ({
+      title: 'Cập nhật tiến độ bảo dưỡng',
+      message: `Kế hoạch ${ctx.metadata?.maKeHoach ?? ''} — tháng ${ctx.metadata?.month ?? ''} đã được cập nhật.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.MAINTENANCE_PLAN_SYNCED,
+    notificationType: NotificationType.TECHNICAL_UPDATE,
+    buildMessage: (ctx) => ({
+      title: 'Đồng bộ kế hoạch bảo dưỡng',
+      message: `Kế hoạch ${ctx.metadata?.maKeHoach ?? ''} đã đồng bộ linh kiện.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+  // ── Technical: Maintenance Record ──
+  {
+    event: NotificationEvent.MAINTENANCE_RECORD_CREATED,
+    notificationType: NotificationType.TECHNICAL_UPDATE,
+    buildMessage: (ctx) => ({
+      title: 'Biên bản bảo dưỡng mới',
+      message: `Biên bản ${ctx.metadata?.maBienBan ?? ''} đã được tạo.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.MAINTENANCE_RECORD_UPDATED,
+    notificationType: NotificationType.TECHNICAL_UPDATE,
+    buildMessage: (ctx) => ({
+      title: 'Biên bản bảo dưỡng cập nhật',
+      message: `Biên bản ${ctx.metadata?.maBienBan ?? ''} đã được cập nhật.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.MAINTENANCE_RECORD_DELETED,
+    notificationType: NotificationType.TECHNICAL_UPDATE,
+    buildMessage: (ctx) => ({
+      title: 'Biên bản bảo dưỡng đã xóa',
+      message: `Biên bản ${ctx.metadata?.maBienBan ?? ''} đã bị xóa.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+  // ── Technical: Spare Part ──
+  {
+    event: NotificationEvent.SPARE_PART_CREATED,
+    notificationType: NotificationType.TECHNICAL_UPDATE,
+    buildMessage: (ctx) => ({
+      title: 'Linh kiện mới',
+      message: `Linh kiện "${ctx.metadata?.tenLinhKien ?? ctx.metadata?.maLinhKien ?? ''}" đã được tạo.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.SPARE_PART_UPDATED,
+    notificationType: NotificationType.TECHNICAL_UPDATE,
+    buildMessage: (ctx) => ({
+      title: 'Linh kiện cập nhật',
+      message: `Linh kiện "${ctx.metadata?.tenLinhKien ?? ctx.metadata?.maLinhKien ?? ''}" đã được cập nhật.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.SPARE_PART_DELETED,
+    notificationType: NotificationType.TECHNICAL_UPDATE,
+    buildMessage: (ctx) => ({
+      title: 'Linh kiện đã xóa',
+      message: `Linh kiện "${ctx.metadata?.tenLinhKien ?? ctx.metadata?.maLinhKien ?? ''}" đã bị xóa.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+  // ── Technical: System Operation ──
+  {
+    event: NotificationEvent.SYSTEM_OPERATION_CREATED,
+    notificationType: NotificationType.TECHNICAL_UPDATE,
+    buildMessage: (ctx) => ({
+      title: 'Thông số vận hành mới',
+      message: `Thông số vận hành ${ctx.metadata?.maChien ?? ''} đã được tạo.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.SYSTEM_OPERATION_UPDATED,
+    notificationType: NotificationType.TECHNICAL_UPDATE,
+    buildMessage: (ctx) => ({
+      title: 'Thông số vận hành cập nhật',
+      message: `Thông số vận hành ${ctx.metadata?.maChien ?? ''} đã được cập nhật.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.SYSTEM_OPERATION_DELETED,
+    notificationType: NotificationType.TECHNICAL_UPDATE,
+    buildMessage: (ctx) => ({
+      title: 'Thông số vận hành đã xóa',
+      message: `Thông số vận hành ${ctx.metadata?.maChien ?? ''} đã bị xóa.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
 
   // ── Pricing Department ──
   {

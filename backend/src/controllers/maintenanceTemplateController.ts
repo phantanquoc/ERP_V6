@@ -7,6 +7,16 @@ const parseBoolean = (value: unknown): boolean | undefined => {
   return value === true || value === 'true';
 };
 
+const ALLOWED_FIELDS = ['machineSystemDetailId', 'noiDung', 'tanSuat', 'toThucHien'] as const;
+const ADMIN_ONLY_FIELDS = ['hoatDong'] as const;
+
+function pickAllowed(body: Record<string, unknown>, isAdmin: boolean): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of ALLOWED_FIELDS) if (k in body) out[k] = body[k];
+  if (isAdmin) for (const k of ADMIN_ONLY_FIELDS) if (k in body) out[k] = body[k];
+  return out;
+}
+
 class MaintenanceTemplateController {
   async list(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -35,7 +45,9 @@ class MaintenanceTemplateController {
 
   async create(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const template = await maintenanceTemplateService.create(req.body);
+      const isAdmin = (req as unknown as { user?: { role?: string } }).user?.role === 'ADMIN';
+      const picked = pickAllowed(req.body as Record<string, unknown>, isAdmin);
+      const template = await maintenanceTemplateService.create(picked as unknown as Parameters<typeof maintenanceTemplateService.create>[0]);
       res.status(201).json({ success: true, data: template, message: 'Tạo template bảo dưỡng thành công' });
     } catch (error) {
       next(error);
@@ -44,10 +56,10 @@ class MaintenanceTemplateController {
 
   async update(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const template = await maintenanceTemplateService.update(req.params.id, {
-        ...req.body,
-        hoatDong: parseBoolean(req.body.hoatDong),
-      });
+      const isAdmin = (req as unknown as { user?: { role?: string } }).user?.role === 'ADMIN';
+      const picked = pickAllowed(req.body as Record<string, unknown>, isAdmin);
+      if ('hoatDong' in picked) (picked as Record<string, unknown>).hoatDong = parseBoolean(picked.hoatDong);
+      const template = await maintenanceTemplateService.update(req.params.id, picked as Parameters<typeof maintenanceTemplateService.update>[1]);
       res.json({ success: true, data: template, message: 'Cập nhật template thành công' });
     } catch (error) {
       next(error);
