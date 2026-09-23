@@ -71,7 +71,7 @@ class WarehouseService {
                 giaThanh: true,
                 maKien: true,
                 internationalProductId: true,
-                internationalProduct: { select: { id: true, tenSanPham: true, maSanPham: true } },
+                internationalProduct: { select: { id: true, tenSanPham: true, maSanPham: true, loaiSanPham: true } },
                 slotId: true,
                 slot: { select: { id: true, zone: true, code: true } },
               },
