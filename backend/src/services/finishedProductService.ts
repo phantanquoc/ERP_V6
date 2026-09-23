@@ -557,17 +557,24 @@ export class FinishedProductService {
       });
     }
 
-    await prisma.finishedProduct.update({
-      where: { id: finishedProductId },
-      data: { daNhapKho: true },
-    });
-
-    const receipt = await warehouseReceiptService.create({
+    // Atomic: daNhapKho flag + receipt creation must succeed or fail together.
+    // Uses createWithClient inside the same interactive transaction so a receipt
+    // failure rolls back the flag (previously the flag was set before create).
+    const maPhieuNhap = await warehouseReceiptService.generateCode();
+    const normalized: any = {
       employeeId: userId,
       maNhanVien,
       tenNhanVien,
       ghiChu: 'Nhập kho thành phẩm từ mẻ sản xuất',
       items,
+    };
+    let receipt: any;
+    await prisma.$transaction(async (tx) => {
+      await tx.finishedProduct.update({
+        where: { id: finishedProductId },
+        data: { daNhapKho: true },
+      });
+      receipt = await warehouseReceiptService.createWithClient(normalized, items as any, maPhieuNhap, tx);
     });
 
     return [receipt];

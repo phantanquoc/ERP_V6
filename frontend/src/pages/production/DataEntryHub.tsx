@@ -1,16 +1,58 @@
-import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { markTab } from '../../utils/kioskSession';
-import { Package, Leaf, Gauge } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { markTab, isKioskTab, hasKioskSession, KIOSK_EXPIRED_EVENT } from '../../utils/kioskSession';
+import { Package, Leaf, Gauge, AlertTriangle } from 'lucide-react';
 import abfLogo from '@assets/abf-logo.png';
 import koolaLogo from '@assets/koola-logo.png';
 
+const NotActivatedScreen: React.FC = () => (
+  <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+    <div className="bg-white rounded-lg shadow-sm border p-8 max-w-md w-full text-center">
+      <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+      <h2 className="text-lg font-semibold text-gray-800 mb-2">Phiên chưa được kích hoạt</h2>
+      <p className="text-gray-600">Nhờ admin mở lại trang này từ hệ thống ERP.</p>
+    </div>
+  </div>
+);
+
+const ExpiredScreen: React.FC = () => (
+  <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+    <div className="bg-white rounded-lg shadow-sm border p-8 max-w-md w-full text-center">
+      <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+      <h2 className="text-lg font-semibold text-gray-800 mb-2">Phiên hết hạn</h2>
+      <p className="text-gray-600">Nhờ admin mở lại trang này từ hệ thống ERP.</p>
+    </div>
+  </div>
+);
+
 const DataEntryHub: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [kioskExpired, setKioskExpired] = useState(false);
 
   useEffect(() => {
     markTab();
-  });
+    const paramKey = searchParams.get('deviceKey');
+    if (paramKey) {
+      void (async () => {
+        const { getDeviceKey, validateAndSetDeviceKey, clearDeviceKey } = await import('../../utils/kioskSession');
+        if (!getDeviceKey()) {
+          const ok = await validateAndSetDeviceKey(paramKey);
+          if (!ok) clearDeviceKey();
+        }
+      })();
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const handler = () => setKioskExpired(true);
+    window.addEventListener(KIOSK_EXPIRED_EVENT, handler);
+    return () => window.removeEventListener(KIOSK_EXPIRED_EVENT, handler);
+  }, []);
+
+  if (!isKioskTab() && !hasKioskSession()) return <NotActivatedScreen />;
+  if (kioskExpired) return <ExpiredScreen />;
+  if (isKioskTab() && !hasKioskSession()) return <NotActivatedScreen />;
 
   const entryTypes: { key: string; title: string; description: string; icon: React.ElementType; route: string; color: string; disabled?: boolean }[] = [
     {

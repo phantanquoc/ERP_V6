@@ -41,7 +41,7 @@ router.use(authenticate);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/', productionProcessController.getAllProductionProcesses);
+router.get('/', requireRule('production-processes', 'READ'), productionProcessController.getAllProductionProcesses);
 
 /**
  * @swagger
@@ -93,7 +93,7 @@ router.post(
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/upload-file', uploadProductionProcessFile, productionProcessController.uploadFile);
+router.post('/upload-file', requireRule('production-processes', 'CREATE'), uploadProductionProcessFile, productionProcessController.uploadFile);
 
 /**
  * @swagger
@@ -124,7 +124,7 @@ router.post('/upload-file', uploadProductionProcessFile, productionProcessContro
  *       404:
  *         description: Không tìm thấy quy trình sản xuất
  */
-router.get('/export/excel/:id', productionProcessController.exportToExcel);
+router.get('/export/excel/:id', requireRule('production-processes', 'READ'), productionProcessController.exportToExcel);
 
 /**
  * @swagger
@@ -149,7 +149,7 @@ router.get('/export/excel/:id', productionProcessController.exportToExcel);
  *       404:
  *         description: Không tìm thấy quy trình sản xuất
  */
-router.get('/:id', productionProcessController.getProductionProcessById);
+router.get('/:id', requireRule('production-processes', 'READ'), productionProcessController.getProductionProcessById);
 
 /**
  * @swagger
@@ -209,7 +209,7 @@ router.put(
  *       404:
  *         description: Không tìm thấy quy trình sản xuất
  */
-router.post('/:id/sync', productionProcessController.syncFromTemplate);
+router.post('/:id/sync', requireRule('production-processes', 'UPDATE'), productionProcessController.syncFromTemplate);
 
 /**
  * @swagger

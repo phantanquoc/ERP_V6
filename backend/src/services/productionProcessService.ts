@@ -243,76 +243,78 @@ class ProductionProcessService {
       throw new NotFoundError('Production process not found');
     }
 
-    // Delete existing flowchart if exists
-    if (existingProcess.flowchart) {
-      await prisma.productionFlowchart.delete({
-        where: { id: existingProcess.flowchart.id },
-      });
-    }
+    // Atomic: delete old flowchart + create new one in one transaction.
+    // Previously deleteMany/delete ran outside tx — if createMany failed, old data was already gone.
+    const updatedProcess = await prisma.$transaction(async (tx) => {
+      if (existingProcess.flowchart) {
+        await tx.productionFlowchart.delete({
+          where: { id: existingProcess.flowchart.id },
+        });
+      }
 
-    // Create new flowchart
-    const updatedProcess = await prisma.productionProcess.update({
-      where: { id },
-      data: {
-        tenQuyTrinhSanXuat: data.tenQuyTrinhSanXuat,
-        maNVSanXuat: data.maNVSanXuat,
-        tenNVSanXuat: data.tenNVSanXuat,
-        khoiLuong: data.khoiLuong,
-        thoiGian: data.thoiGian,
-        materialStandardId: data.materialStandardId,
-        sanPhamDauRa: data.sanPhamDauRa,
-        tongNguyenLieuCanSanXuat: data.tongNguyenLieuCanSanXuat,
-        soGioLamTrong1Ngay: data.soGioLamTrong1Ngay,
-        flowchart: {
-          create: {
-            sections: {
-              create: data.flowchart.sections.map((section) => ({
-                phanDoan: section.phanDoan,
-                tenPhanDoan: section.tenPhanDoan,
-                noiDungCongViec: section.noiDungCongViec,
-                fileUrl: section.fileUrl,
-                stt: section.stt,
-                costs: {
-                  create: section.costs.map((cost) => ({
-                    loaiChiPhi: cost.loaiChiPhi,
-                    tenChiPhi: cost.tenChiPhi,
-                    donVi: cost.donVi,
-                    dinhMucLaoDong: cost.dinhMucLaoDong,
-                    donViDinhMucLaoDong: cost.donViDinhMucLaoDong,
-                    soLuongNguyenLieu: cost.soLuongNguyenLieu,
-                    soPhutThucHien: cost.soPhutThucHien,
-                    soLuongKeHoach: cost.soLuongKeHoach,
-                    soLuongThucTe: cost.soLuongThucTe,
-                  })),
-                },
-                files: {
-                  create: section.files?.map((file, fileIndex) => ({
-                    url: file.url,
-                    fileName: file.fileName,
-                    description: file.description,
-                    order: fileIndex,
-                    uploadedById: file.uploadedById || null,
-                    uploadedAt: file.uploadedAt ? new Date(file.uploadedAt) : new Date(),
-                  })) || [],
-                },
-              })),
-            },
-          },
-        },
-      },
-      include: {
-        process: true,
-        flowchart: {
-          include: {
-            sections: {
-              include: {
-                costs: true,
-                files: { orderBy: { order: 'asc' } },
+      return tx.productionProcess.update({
+        where: { id },
+        data: {
+          tenQuyTrinhSanXuat: data.tenQuyTrinhSanXuat,
+          maNVSanXuat: data.maNVSanXuat,
+          tenNVSanXuat: data.tenNVSanXuat,
+          khoiLuong: data.khoiLuong,
+          thoiGian: data.thoiGian,
+          materialStandardId: data.materialStandardId,
+          sanPhamDauRa: data.sanPhamDauRa,
+          tongNguyenLieuCanSanXuat: data.tongNguyenLieuCanSanXuat,
+          soGioLamTrong1Ngay: data.soGioLamTrong1Ngay,
+          flowchart: {
+            create: {
+              sections: {
+                create: data.flowchart.sections.map((section) => ({
+                  phanDoan: section.phanDoan,
+                  tenPhanDoan: section.tenPhanDoan,
+                  noiDungCongViec: section.noiDungCongViec,
+                  fileUrl: section.fileUrl,
+                  stt: section.stt,
+                  costs: {
+                    create: section.costs.map((cost) => ({
+                      loaiChiPhi: cost.loaiChiPhi,
+                      tenChiPhi: cost.tenChiPhi,
+                      donVi: cost.donVi,
+                      dinhMucLaoDong: cost.dinhMucLaoDong,
+                      donViDinhMucLaoDong: cost.donViDinhMucLaoDong,
+                      soLuongNguyenLieu: cost.soLuongNguyenLieu,
+                      soPhutThucHien: cost.soPhutThucHien,
+                      soLuongKeHoach: cost.soLuongKeHoach,
+                      soLuongThucTe: cost.soLuongThucTe,
+                    })),
+                  },
+                  files: {
+                    create: section.files?.map((file, fileIndex) => ({
+                      url: file.url,
+                      fileName: file.fileName,
+                      description: file.description,
+                      order: fileIndex,
+                      uploadedById: file.uploadedById || null,
+                      uploadedAt: file.uploadedAt ? new Date(file.uploadedAt) : new Date(),
+                    })) || [],
+                  },
+                })),
               },
             },
           },
         },
-      },
+        include: {
+          process: true,
+          flowchart: {
+            include: {
+              sections: {
+                include: {
+                  costs: true,
+                  files: { orderBy: { order: 'asc' } },
+                },
+              },
+            },
+          },
+        },
+      });
     });
 
     return updatedProcess;

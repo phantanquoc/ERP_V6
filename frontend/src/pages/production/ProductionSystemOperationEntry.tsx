@@ -273,12 +273,16 @@ const ProductionSystemOperationEntry: React.FC = () => {
     isLoading: isLoadingAttended,
   } = useAttendedOperatorsByShift(productionDate, selectedShift, 'SYSTEM_OPERATION');
 
-  // Mark tab as kiosk on mount + capture device key from URL
+  // Mark tab as kiosk + validate device key from URL via backend
   useEffect(() => {
     markTab();
     const paramKey = searchParams.get('deviceKey');
     if (paramKey && !getDeviceKey()) {
-      setDeviceKey(paramKey);
+      void (async () => {
+        const { validateAndSetDeviceKey, clearDeviceKey } = await import('../../utils/kioskSession');
+        const ok = await validateAndSetDeviceKey(paramKey);
+        if (!ok) clearDeviceKey();
+      })();
     }
   }, [searchParams]);
 
@@ -575,9 +579,12 @@ const ProductionSystemOperationEntry: React.FC = () => {
           />
           <button
             disabled={!deviceKeyInput.trim()}
-            onClick={() => {
-              setDeviceKey(deviceKeyInput.trim());
+            onClick={async () => {
+              const candidate = deviceKeyInput.trim();
               setDeviceKeyInput('');
+              const { validateAndSetDeviceKey } = await import('../../utils/kioskSession');
+              const ok = await validateAndSetDeviceKey(candidate);
+              if (!ok) toast.error('Device key không hợp lệ');
             }}
             className="w-full min-h-[48px] bg-blue-600 text-white rounded-lg font-medium disabled:opacity-40"
           >

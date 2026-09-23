@@ -501,12 +501,21 @@ const ProductionDataEntry: React.FC = () => {
   // How many cells a running save has left to go, so a 60-cell save is not a blank wait.
   const [saveProgress, setSaveProgress] = useState<{ done: number; total: number } | null>(null);
 
-  // Mark this tab as kiosk on mount + read device key from URL query param
+  // Mark this tab as kiosk on mount + validate device key from URL query param via backend
   useEffect(() => {
     markTab();
     const paramKey = searchParams.get('deviceKey');
     if (paramKey && !getDeviceKey()) {
-      setDeviceKey(paramKey);
+      // Validate against backend before persisting — never trust arbitrary strings
+      void (async () => {
+        const { validateAndSetDeviceKey } = await import('../../utils/kioskSession');
+        const ok = await validateAndSetDeviceKey(paramKey);
+        if (!ok) {
+          // Invalid key — ensure nothing is stored, NotActivatedScreen will show
+          const { clearDeviceKey } = await import('../../utils/kioskSession');
+          clearDeviceKey();
+        }
+      })();
     }
   }, [searchParams]);
 
@@ -1020,7 +1029,13 @@ const ProductionDataEntry: React.FC = () => {
           />
           <button
             disabled={!deviceKeyInput.trim()}
-            onClick={() => { setDeviceKey(deviceKeyInput.trim()); setDeviceKeyInput(''); }}
+            onClick={async () => {
+              const candidate = deviceKeyInput.trim();
+              setDeviceKeyInput('');
+              const { validateAndSetDeviceKey } = await import('../../utils/kioskSession');
+              const ok = await validateAndSetDeviceKey(candidate);
+              if (!ok) toast.error('Device key không hợp lệ');
+            }}
             className="w-full min-h-[48px] bg-blue-600 text-white rounded-lg font-medium disabled:opacity-40"
           >
             Xác nhận

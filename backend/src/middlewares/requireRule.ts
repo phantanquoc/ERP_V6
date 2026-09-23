@@ -99,6 +99,12 @@ async function loadRecordOwner(resourceCode: string, recordId: string): Promise<
 export function requireRule(resourceCode: string, action: string) {
   return async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
+      // Kiosk device bypass — device key already validated by deviceOrJwtAuth
+      if ((req as AuthenticatedRequest).isKioskDevice) {
+        next();
+        return;
+      }
+
       if (!req.user) {
         res.status(401).json({ success: false, message: 'Chưa xác thực' });
         return;

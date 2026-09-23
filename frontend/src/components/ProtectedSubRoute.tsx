@@ -34,9 +34,12 @@ const ProtectedSubRoute: React.FC<ProtectedSubRouteProps> = ({
   };
   const subResource = SUB_MODULE_RESOURCE_MAP[department];
   const canRead = subResource ? canIfConfigured(subResource, 'READ') : null;
-  const hasAccess = canRead === false
-    ? false
-    : hasSubModuleAccess(
+  // RULE_ALLOW explicit grant bypasses hasSubModuleAccess (EXPLICIT_SOURCES); RULE_DENY still blocks
+  const hasAccess = canRead === true
+    ? true
+    : canRead === false
+      ? false
+      : hasSubModuleAccess(
     department,
     subModule,
     user.department,

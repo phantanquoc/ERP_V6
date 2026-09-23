@@ -47,6 +47,7 @@ const uploadMaterialEvaluation = createSingleUploadMiddleware('material-evaluati
 router.get(
   '/',
   deviceOrJwtAuth('DATA_ENTRY'),
+  requireRule('material-evaluations', 'READ'),
   materialEvaluationController.getAllMaterialEvaluations
 );
 
@@ -81,6 +82,7 @@ router.get(
 router.get(
   '/schedule',
   deviceOrJwtAuth('DATA_ENTRY'),
+  requireRule('material-evaluations', 'READ'),
   materialEvaluationController.getDailySchedule
 );
 
@@ -173,6 +175,7 @@ router.get(
 router.get(
   '/:id',
   deviceOrJwtAuth('DATA_ENTRY'),
+  requireRule('material-evaluations', 'READ'),
   materialEvaluationController.getMaterialEvaluationById
 );
 
@@ -204,6 +207,7 @@ router.get(
 router.post(
   '/',
   deviceOrJwtAuth('DATA_ENTRY'),
+  requireRule('material-evaluations', 'CREATE'),
   uploadMaterialEvaluation,
   zodValidate(createMaterialEvaluationSchema),
   materialEvaluationController.createMaterialEvaluation

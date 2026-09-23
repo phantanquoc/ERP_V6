@@ -73,6 +73,7 @@ router.get(
 router.get(
   '/ma-chien/:maChien',
   deviceOrJwtAuth('DATA_ENTRY'),
+  requireRule('system-operations', 'READ'),
   systemOperationController.getSystemOperationsByMaChien
 );
 
@@ -201,6 +202,7 @@ router.post(
 router.patch(
   '/:id',
   deviceOrJwtAuth('DATA_ENTRY'),
+  requireRule('system-operations', 'UPDATE'),
   zodValidate(updateSystemOperationSchema),
   systemOperationController.updateSystemOperation
 );

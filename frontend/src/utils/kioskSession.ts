@@ -27,9 +27,18 @@ export function setDeviceKey(key: string): void {
   localStorage.setItem(KIOSK_DEVICE_KEY, key);
 }
 
-/** Get stored device key (localStorage first, env fallback for build-time config) */
+/** Get stored device key — localStorage only. Env fallback removed to prevent bypass. */
 export function getDeviceKey(): string | null {
-  return localStorage.getItem(KIOSK_DEVICE_KEY) || import.meta.env.VITE_DATA_ENTRY_DEVICE_KEY || null;
+  const stored = localStorage.getItem(KIOSK_DEVICE_KEY);
+  if (stored) return stored;
+  // Dev-only fallback with explicit warning — never in production builds
+  if (import.meta.env.DEV && import.meta.env.VITE_DATA_ENTRY_DEVICE_KEY) {
+    console.warn(
+      '[kioskSession] Using VITE_DATA_ENTRY_DEVICE_KEY fallback — dev only. Do NOT set this in production.',
+    );
+    return import.meta.env.VITE_DATA_ENTRY_DEVICE_KEY as string;
+  }
+  return null;
 }
 
 /** Remove stored device key */
@@ -88,9 +97,31 @@ export function isKioskTab(): boolean {
 
 // ─── Session check ────────────────────────────────────────────────────────────
 
-/** Returns true if a device key is available (localStorage or env fallback) */
+/** Returns true if a device key is available (localStorage or dev-only env fallback) */
 export function hasKioskSession(): boolean {
   return !!getDeviceKey();
+}
+
+/**
+ * Validate a candidate device key with the backend before persisting.
+ * Returns true if the key was accepted. Never stores an unvalidated key.
+ */
+export async function validateAndSetDeviceKey(candidate: string): Promise<boolean> {
+  const trimmed = candidate.trim();
+  if (!trimmed) return false;
+  try {
+    const { API_BASE_URL } = await import('../config/api');
+    const res = await fetch(`${API_BASE_URL}/face-attendance/kiosk/validate-device`, {
+      headers: { 'x-device-key': trimmed },
+    });
+    const data: unknown = await res.json();
+    const valid = (data as { data?: { valid?: boolean } })?.data?.valid === true;
+    if (!valid) return false;
+    setDeviceKey(trimmed);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // ─── Deactivation ─────────────────────────────────────────────────────────────
