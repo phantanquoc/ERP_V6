@@ -15,6 +15,8 @@ import { displayLoaiKho, displayMaHang, getUniqueSlipField, getWarehouseSlipLine
 import { warehouseKeys, useWarehouses } from '../hooks';
 import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
 import { TINH_TRANG_OPTIONS, BO_PHAN_OPTIONS } from '../constants/warehouseCatalogs';
+import { useAuth } from '../contexts/AuthContext';
+import { UserRole } from '../types/auth';
 import { useUrlDetailId } from '../hooks/useUrlState';
 
 interface WarehouseIssueTabProps {
@@ -24,6 +26,8 @@ interface WarehouseIssueTabProps {
 
 const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isAdmin = user?.role === UserRole.ADMIN;
   const [issues, setIssues] = useState<WarehouseIssue[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -424,7 +428,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                               {(issue as any).daIn && (
                                 <span className="ml-1 inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs text-green-700" title="Đã in/xuất">Đã in</span>
                               )}
-                              {(issue as any).isVoided ? <button onClick={() => handleUnvoid(issue.id)} disabled={unvoidingId === issue.id} className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors disabled:opacity-50" title="Khôi phục"><RotateCcw className="w-5 h-5" /></button> : <button onClick={() => setVoidTarget(issue)} disabled={issue.isLocked} className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed" title={issue.isLocked ? 'Phiếu đã khóa — không thể vô hiệu' : 'Vô hiệu hóa'}><Ban className="w-5 h-5" /></button>}
+                              {(issue as any).isVoided ? <button onClick={() => handleUnvoid(issue.id)} disabled={unvoidingId === issue.id} className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors disabled:opacity-50" title="Khôi phục"><RotateCcw className="w-5 h-5" /></button> : <button onClick={() => setVoidTarget(issue)} disabled={issue.isLocked && !isAdmin} className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed" title={issue.isLocked ? (isAdmin ? 'ADMIN: Phiếu đã khóa nhưng bạn có thể vô hiệu (sẽ gỡ liên kết YCC)' : 'Phiếu đã khóa — không thể vô hiệu') : 'Vô hiệu hóa'}><Ban className="w-5 h-5" /></button>}
                               {!issue.isLocked && !((issue as any).isVoided) && (
                                 <>
                                   <button
@@ -498,7 +502,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                   <button onClick={() => handleViewDetail(issue)} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700">Chi tiết</button>
                   <button onClick={() => { setPrintIssue(issue); setShowPrintView(true); }} disabled={(issue as any).isVoided} className="rounded border border-green-200 px-2.5 py-1 text-xs text-green-700 disabled:opacity-30 disabled:cursor-not-allowed" title={(issue as any).isVoided ? 'Phiếu đã vô hiệu — không thể in' : 'In'}>In</button>
                   <button onClick={async () => { try { await warehouseIssueService.exportXlsx(issue.id); } catch (e: any) { toast.error(e.message || 'Lỗi xuất Excel'); } }} disabled={(issue as any).isVoided} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700 disabled:opacity-30 disabled:cursor-not-allowed" title={(issue as any).isVoided ? 'Phiếu đã vô hiệu' : 'Excel'}>Excel</button>
-                  {(issue as any).isVoided ? <button onClick={() => handleUnvoid(issue.id)} disabled={unvoidingId === issue.id} className="inline-flex items-center gap-1 rounded border border-green-200 px-2.5 py-1 text-xs text-green-700 disabled:opacity-50"><RotateCcw className="w-3.5 h-3.5" /> Khôi phục</button> : <button onClick={() => setVoidTarget(issue)} disabled={issue.isLocked} className="inline-flex items-center gap-1 rounded border border-red-200 px-2.5 py-1 text-xs text-red-700 disabled:opacity-30 disabled:cursor-not-allowed" title={issue.isLocked ? 'Phiếu đã khóa' : undefined}><Ban className="w-3.5 h-3.5" /> Vô hiệu</button>}
+                  {(issue as any).isVoided ? <button onClick={() => handleUnvoid(issue.id)} disabled={unvoidingId === issue.id} className="inline-flex items-center gap-1 rounded border border-green-200 px-2.5 py-1 text-xs text-green-700 disabled:opacity-50"><RotateCcw className="w-3.5 h-3.5" /> Khôi phục</button> : <button onClick={() => setVoidTarget(issue)} disabled={issue.isLocked && !isAdmin} className="inline-flex items-center gap-1 rounded border border-red-200 px-2.5 py-1 text-xs text-red-700 disabled:opacity-30 disabled:cursor-not-allowed" title={issue.isLocked ? 'Phiếu đã khóa' : undefined}><Ban className="w-3.5 h-3.5" /> Vô hiệu</button>}
                   {!issue.isLocked && !((issue as any).isVoided) && (
                     <>
                       <button onClick={() => setEditingIssue(issue)} className="rounded border border-amber-200 px-2.5 py-1 text-xs text-amber-700">Sửa</button>
@@ -747,8 +751,8 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
             ) : (
               <button
                 onClick={() => { if (selectedIssue) setVoidTarget(selectedIssue); }}
-                disabled={!!selectedIssue?.isLocked}
-                title={selectedIssue?.isLocked ? 'Phiếu đã khóa — không thể vô hiệu' : undefined}
+                disabled={!!selectedIssue?.isLocked && !isAdmin}
+                title={selectedIssue?.isLocked ? (isAdmin ? 'ADMIN: Phiếu đã khóa nhưng bạn có thể vô hiệu' : 'Phiếu đã khóa — không thể vô hiệu') : undefined}
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
               >
                 <Ban className="w-4 h-4" /> Vô hiệu

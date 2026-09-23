@@ -16,6 +16,8 @@ import { getUniqueSlipField, getWarehouseSlipLines, normalizeWarehouseListRespon
 void getUniqueSlipField;
 import { TINH_TRANG_OPTIONS, BO_PHAN_OPTIONS } from '../constants/warehouseCatalogs';
 import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
+import { useAuth } from '../contexts/AuthContext';
+import { UserRole } from '../types/auth';
 import { useUrlDetailId } from '../hooks/useUrlState';
 
 interface WarehouseReceiptTabProps {
@@ -27,6 +29,8 @@ const ITEMS_PER_PAGE = 10;
 
 const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }) => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isAdmin = user?.role === UserRole.ADMIN;
   const [receipts, setReceipts] = useState<WarehouseReceipt[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -454,7 +458,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                               {(receipt as any).isVoided ? (
                                 <button onClick={() => handleUnvoid(receipt.id)} disabled={unvoidingId === receipt.id} className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors disabled:opacity-50" title="Khôi phục"><RotateCcw className="w-5 h-5" /></button>
                               ) : (
-                                <button onClick={() => setVoidTarget(receipt)} disabled={receipt.isLocked} className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed" title={receipt.isLocked ? 'Phiếu đã khóa — không thể vô hiệu' : 'Vô hiệu hóa'}><Ban className="w-5 h-5" /></button>
+                                <button onClick={() => setVoidTarget(receipt)} disabled={receipt.isLocked && !isAdmin} className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed" title={receipt.isLocked ? (isAdmin ? 'ADMIN: Phiếu đã khóa nhưng bạn có thể vô hiệu (sẽ gỡ liên kết YCC)' : 'Phiếu đã khóa — không thể vô hiệu') : 'Vô hiệu hóa'}><Ban className="w-5 h-5" /></button>
                               )}
                               {!receipt.isLocked && !((receipt as any).isVoided) && (
                                 <>
@@ -534,7 +538,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                   <button onClick={() => handleViewDetail(receipt)} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700">Chi tiết</button>
                   <button onClick={() => { setPrintReceipt(receipt); setShowPrintView(true); }} disabled={(receipt as any).isVoided} className="rounded border border-green-200 px-2.5 py-1 text-xs text-green-700 disabled:opacity-30 disabled:cursor-not-allowed" title={(receipt as any).isVoided ? 'Phiếu đã vô hiệu — không thể in' : 'In'}>In</button>
                   <button onClick={async () => { try { await warehouseReceiptService.exportXlsx(receipt.id); } catch (e: any) { toast.error(e.message || 'Lỗi xuất Excel'); } }} disabled={(receipt as any).isVoided} className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-700 disabled:opacity-30 disabled:cursor-not-allowed" title={(receipt as any).isVoided ? 'Phiếu đã vô hiệu' : 'Excel'}>Excel</button>
-                  {(receipt as any).isVoided ? <button onClick={() => handleUnvoid(receipt.id)} disabled={unvoidingId === receipt.id} className="inline-flex items-center gap-1 rounded border border-green-200 px-2.5 py-1 text-xs text-green-700 disabled:opacity-50"><RotateCcw className="w-3.5 h-3.5" /> Khôi phục</button> : <button onClick={() => setVoidTarget(receipt)} disabled={receipt.isLocked} className="inline-flex items-center gap-1 rounded border border-red-200 px-2.5 py-1 text-xs text-red-700 disabled:opacity-30 disabled:cursor-not-allowed" title={receipt.isLocked ? 'Phiếu đã khóa' : undefined}><Ban className="w-3.5 h-3.5" /> Vô hiệu</button>}
+                  {(receipt as any).isVoided ? <button onClick={() => handleUnvoid(receipt.id)} disabled={unvoidingId === receipt.id} className="inline-flex items-center gap-1 rounded border border-green-200 px-2.5 py-1 text-xs text-green-700 disabled:opacity-50"><RotateCcw className="w-3.5 h-3.5" /> Khôi phục</button> : <button onClick={() => setVoidTarget(receipt)} disabled={receipt.isLocked && !isAdmin} className="inline-flex items-center gap-1 rounded border border-red-200 px-2.5 py-1 text-xs text-red-700 disabled:opacity-30 disabled:cursor-not-allowed" title={receipt.isLocked ? 'Phiếu đã khóa' : undefined}><Ban className="w-3.5 h-3.5" /> Vô hiệu</button>}
                   {!receipt.isLocked && !((receipt as any).isVoided) && (
                     <>
                       <button onClick={() => setEditingReceipt(receipt)} className="rounded border border-amber-200 px-2.5 py-1 text-xs text-amber-700">Sửa</button>
@@ -786,8 +790,8 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
               ) : (
                 <button
                   onClick={() => { if (selectedReceipt) setVoidTarget(selectedReceipt); }}
-                  disabled={!!selectedReceipt?.isLocked}
-                  title={selectedReceipt?.isLocked ? 'Phiếu đã khóa — không thể vô hiệu' : undefined}
+                  disabled={!!selectedReceipt?.isLocked && !isAdmin}
+                  title={selectedReceipt?.isLocked ? (isAdmin ? 'ADMIN: Phiếu đã khóa nhưng bạn có thể vô hiệu' : 'Phiếu đã khóa — không thể vô hiệu') : undefined}
                   className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
                 >
                   <Ban className="w-4 h-4" /> Vô hiệu

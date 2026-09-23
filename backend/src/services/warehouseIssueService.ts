@@ -990,7 +990,24 @@ class WarehouseIssueService {
       const existing = await tx.warehouseIssue.findUnique({ where: { id }, include: { items: true, materialEvaluation: { select: { id: true } } } });
       if (!existing) throw new NotFoundError('Không tìm thấy phiếu xuất kho');
       if ((existing as any).isVoided) throw new ConflictError('Phiếu đã vô hiệu');
-      if ((existing as any).supplyRequestId) throw new ConflictError('Không thể vô hiệu phiếu đã gắn yêu cầu cung cấp');
+      if ((existing as any).supplyRequestId && opts.userRole !== 'ADMIN') throw new ConflictError('Không thể vô hiệu phiếu đã gắn yêu cầu cung cấp');
+      if ((existing as any).supplyRequestId && opts.userRole === 'ADMIN') {
+        const beforeSr = (existing as any).supplyRequestId as string;
+        await (tx as any).warehouseIssue.update({ where: { id }, data: { supplyRequestId: null } as any });
+        try {
+          const { recordAudit } = await import('@utils/auditLog');
+          await recordAudit({
+            entityType: 'WarehouseIssue',
+            entityId: id,
+            action: 'VOID_DETACH_SUPPLY_REQUEST',
+            actorId: opts.userId ?? 'system',
+            actorRole: opts.userRole ?? 'UNKNOWN',
+            note: `ADMIN detach supplyRequestId ${beforeSr} trước khi vô hiệu`,
+            before: { supplyRequestId: beforeSr },
+            after: { supplyRequestId: null },
+          } as any);
+        } catch {}
+      }
       if ((existing as any).materialEvaluation) {
         throw new ConflictError('Không thể vô hiệu phiếu xuất do đánh giá nguyên liệu tạo');
       }
