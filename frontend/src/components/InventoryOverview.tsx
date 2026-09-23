@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ChevronDown, ChevronRight, Package, Download, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, RefreshCw } from 'lucide-react';
 import TableFilter, { FilterField } from './TableFilter';
 import PaginationBar from './common/PaginationBar';
@@ -18,9 +19,14 @@ const InventoryOverview: React.FC = () => {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [sortField, setSortField] = useState<SortField>('maSanPham');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [searchParamsInv, setSearchParamsInv] = useSearchParams();
+  const inventoryScrollTo = (searchParamsInv.get('inventoryScrollTo') || '').trim();
+  const initialLoai = (searchParamsInv.get('loaiSanPham') || '').trim();
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const hasScrolledRef = useRef<string | null>(null);
   const [filterValues, setFilterValues] = useState<Record<string, string>>({
     _search: '',
-    loaiSanPham: '',
+    loaiSanPham: initialLoai,
     warehouseId: '',
     donViTinh: '',
     stockStatus: '',
@@ -63,6 +69,52 @@ const InventoryOverview: React.FC = () => {
 
   const items = data?.data ?? [];
   const pagination = data?.pagination;
+
+  // Deep-link from Card 3: ?inventoryScrollTo=<maSanPham|productId> → filter to that product so it lands on page 1, then scroll.
+  // After user clears the filter (Xóa lọc / Xóa chip), drop the URL param so it does not re-seed on next render.
+  const clearInventoryScrollTo = () => {
+    if (!searchParamsInv.get('inventoryScrollTo')) return;
+    const next = new URLSearchParams(searchParamsInv);
+    next.delete('inventoryScrollTo');
+    setSearchParamsInv(next, { replace: true });
+    hasScrolledRef.current = null;
+  };
+
+  useEffect(() => {
+    if (!inventoryScrollTo) return;
+    // Don't overwrite if user already searched for that key
+    if (filterValues._search === inventoryScrollTo) return;
+    // If current page already contains the product, scrolling effect below handles it — still seed search so paginated results narrow if needed on next fetch.
+    // Seed search only once per distinct deep-link value.
+    if (hasScrolledRef.current === `seed:${inventoryScrollTo}`) return;
+    hasScrolledRef.current = `seed:${inventoryScrollTo}`;
+    setFilterValues((prev) => ({ ...prev, _search: inventoryScrollTo }));
+    setCurrentPage(1);
+  }, [inventoryScrollTo, filterValues._search]);
+
+  // Scroll to + highlight the matching row once it is rendered
+  useEffect(() => {
+    if (!inventoryScrollTo || isLoading || items.length === 0) return;
+    const key = inventoryScrollTo.toLowerCase();
+    const target = (items as any[]).find((it) =>
+      String(it.maSanPham ?? '').toLowerCase() === key ||
+      String(it.id ?? '').toLowerCase() === key ||
+      String(it.maSanPham ?? '').toLowerCase().includes(key)
+    );
+    if (!target) return;
+    // Avoid re-scrolling same target
+    if (hasScrolledRef.current === `done:${target.id}`) return;
+    hasScrolledRef.current = `done:${target.id}`;
+    setHighlightedId(target.id);
+    // Expand row so detail is visible if needed? Just highlight; user can expand.
+    requestAnimationFrame(() => {
+      const el = document.querySelector(`[data-inventory-row="${target.id}"]`) as HTMLElement | null
+        || document.querySelector(`[data-ma-san-pham="${CSS.escape(String(target.maSanPham))}"]`) as HTMLElement | null;
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    const t = window.setTimeout(() => setHighlightedId(null), 2800);
+    return () => window.clearTimeout(t);
+  }, [inventoryScrollTo, items, isLoading]);
 
   const toggleRow = (id: string) => {
     setExpandedRows((prev) => {
@@ -109,9 +161,44 @@ const InventoryOverview: React.FC = () => {
   ];
 
   const handleFilterChange = (vals: Record<string, string>) => {
+    // User explicitly cleared/changed filters — if _search was driven by deep-link, drop that param
+    if ((filterValues._search || '') !== '' && (vals._search || '') === '' && inventoryScrollTo) {
+      clearInventoryScrollTo();
+    }
+    // loaiSanPham driven by Card 4 drill-down: if user clears that filter, also drop URL param
+    if ((filterValues.loaiSanPham || '') !== '' && (vals.loaiSanPham || '') === '' && searchParamsInv.get('loaiSanPham')) {
+      const next = new URLSearchParams(searchParamsInv);
+      next.delete('loaiSanPham');
+      setSearchParamsInv(next, { replace: true });
+    }
     setFilterValues(vals);
     setCurrentPage(1);
   };
+
+  // Sync ?loaiSanPham deep-link from Card 4 while already on inventory tab
+  useEffect(() => {
+    const live = (searchParamsInv.get('loaiSanPham') || '').trim();
+    // Only react to an actual navigation that carries the param (or explicitly cleared it from overview)
+    // If InventoryOverview itself mounts fresh, initial state already equals initialLoai; skip.
+    // Detect a change vs current filterValues via a ref guard to avoid loop.
+    if (live !== (filterValues.loaiSanPham || '')) {
+      // When URL has the param, treat it as a card drill-down even if inventory tab stays mounted
+      // Check that the change is externally driven (searchParams actually has the key or we cleared intentionally)
+      // For "clear" case (Tổng): overview writes loaiSanPham=null which deletes the key → live=''
+      const hasKey = searchParamsInv.has('loaiSanPham');
+      // Only apply if URL either has the key, or we previously had a loaiSanPham from a drill-down.
+      // We track whether the last loaiSanPham came from URL vs user; simplest: apply whenever searchParams changed
+      // but avoid clobbering user's manual filter right after they changed it. Use a microtask guard:
+      // if live came from overview, it will differ from current filterValues; apply it.
+      // To avoid overriding a user pick within the same tick, only apply when live !== filterValues.loaiSanPham
+      // and searchParams mutation is the source — which is exactly this condition.
+      // For Tổng (clear), hasKey=false and live='' will clear the filter, which is desired.
+      if (hasKey || filterValues.loaiSanPham !== '') {
+        setFilterValues((prev) => prev.loaiSanPham === live ? prev : { ...prev, loaiSanPham: live });
+        setCurrentPage(1);
+      }
+    }
+  }, [searchParamsInv]);
 
   const formatNumber = (n: number) => new Intl.NumberFormat('vi-VN').format(n);
   const formatMoney = (n: number | null | undefined) =>
@@ -229,7 +316,15 @@ const InventoryOverview: React.FC = () => {
             <div className="mt-4 flex flex-col items-center gap-3 text-sm text-gray-500 py-8 text-center border border-dashed rounded-lg">
               <span>Không khớp bộ lọc</span>
               <button
-                onClick={() => setFilterValues({ _search: '', loaiSanPham: '', warehouseId: '', donViTinh: '', stockStatus: '' })}
+                onClick={() => {
+                  clearInventoryScrollTo();
+                  const next = new URLSearchParams(searchParamsInv);
+                  next.delete('loaiSanPham');
+                  // Only write URL if that key existed (Card 4 drill-down)
+                  if (searchParamsInv.get('loaiSanPham')) setSearchParamsInv(next, { replace: true });
+                  setFilterValues({ _search: '', loaiSanPham: '', warehouseId: '', donViTinh: '', stockStatus: '' });
+                  setCurrentPage(1);
+                }}
                 className="px-3 py-1.5 rounded-lg border border-gray-300 text-xs text-gray-600 hover:bg-gray-50"
               >
                 Xóa lọc
@@ -272,10 +367,13 @@ const InventoryOverview: React.FC = () => {
                     const isExpanded = expandedRows.has(item.id);
                     const hasDetails = item.chiTietTheoKho.length > 0;
 
+                    const isHighlighted = highlightedId === item.id;
                     return (
                       <React.Fragment key={item.id}>
                         <tr
-                          className={`hover:bg-blue-50 transition-colors cursor-pointer ${getStockBg(item.tongTonKho)} ${isExpanded ? 'bg-blue-50/50' : ''}`}
+                          data-inventory-row={item.id}
+                          data-ma-san-pham={item.maSanPham}
+                          className={`hover:bg-blue-50 transition-colors cursor-pointer ${getStockBg(item.tongTonKho)} ${isExpanded ? 'bg-blue-50/50' : ''} ${isHighlighted ? 'ring-2 ring-amber-400 ring-inset bg-amber-50' : ''}`}
                           onClick={() => hasDetails && toggleRow(item.id)}
                         >
                           <td className="px-3 py-2.5 text-center border-r border-gray-200">

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Trash2, Package, PackageOpen, ShoppingCart, Download, X, ClipboardCheck, PackagePlus, Plus, PackageCheck, AlertTriangle, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useUrlDetailId } from '../hooks/useUrlState';
+import { useSearchParams } from 'react-router-dom';
 import supplyRequestService, { SupplyRequest } from '../services/supplyRequestService';
 import { useAuth } from '../contexts/AuthContext';
 import { can, isCachedPermissionsLoaded } from '../utils/permissions';
@@ -188,6 +189,20 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   const { user } = useAuth();
   // (useUrlDetailId internally uses useSearchParams)
   const { id: urlDetailId, open: pushDetailId, close: popDetailId, syncingRef } = useUrlDetailId('supplyRequestId');
+  const [searchParams] = useSearchParams();
+  // Card drill-down from ProductionWarehouse overview: ?supplyStatus=pending|inTransit|fulfilled,
+  // ?supplyPriority=Cao, ?supplyOverdue=1 — applied once as initial filter then left user-editable.
+  const initialSupplyStatus = searchParams.get('supplyStatus');
+  const initialSupplyPriority = searchParams.get('supplyPriority');
+  const initialSupplyOverdue = searchParams.get('supplyOverdue');
+  void initialSupplyOverdue; // consumed by overdue filter effect below (kept for future bucket expansion)
+  const initBucket = (() => {
+    if (!initialSupplyStatus) return '';
+    if (initialSupplyStatus === 'pending') return 'Chưa cung cấp';
+    if (initialSupplyStatus === 'inTransit') return 'Đã mua hàng';
+    if (initialSupplyStatus === 'fulfilled') return 'Đã cung cấp';
+    return initialSupplyStatus;
+  })();
   // Rule Matrix: fallback to role check until my-permissions loaded
   const _roleEdit = user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD || user?.role === UserRole.TEAM_LEAD;
   const _roleAdmin = user?.role === UserRole.ADMIN;
@@ -196,7 +211,30 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   const canCancel = isCachedPermissionsLoaded() ? can('supply-requests', 'UPDATE', user?.role) : _roleEdit; // CANCEL maps to UPDATE
   const [requests, setRequests] = useState<SupplyRequest[]>([]);
   const [loading, setLoading] = useState(false);
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maYeuCau: '', tenNhanVien: '', boPhan: '', phanLoai: '', trangThai: '', mucDoUuTien: '' });
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({
+    _search: '',
+    maYeuCau: '',
+    tenNhanVien: '',
+    boPhan: '',
+    phanLoai: '',
+    trangThai: initBucket,
+    mucDoUuTien: initialSupplyPriority ?? '',
+  });
+  // Keep filters in sync when user clicks another bucket while already on this tab
+  useEffect(() => {
+    const s = searchParams.get('supplyStatus');
+    const p = searchParams.get('supplyPriority');
+    const nextBucket = !s ? '' : s === 'pending' ? 'Chưa cung cấp' : s === 'inTransit' ? 'Đã mua hàng' : s === 'fulfilled' ? 'Đã cung cấp' : s;
+    // Only push when the URL actually carries a card drill-down (at least one of the three keys present)
+    const hasDrill = searchParams.has('supplyStatus') || searchParams.has('supplyPriority') || searchParams.has('supplyOverdue');
+    if (!hasDrill) return;
+    setFilterValues((prev) => {
+      const next = { ...prev, trangThai: nextBucket, mucDoUuTien: p ?? '' };
+      if (next.trangThai === prev.trangThai && next.mucDoUuTien === prev.mucDoUuTien) return prev;
+      return next;
+    });
+    setCurrentPage(1);
+  }, [searchParams]);
   const { data: phanLoaiVatTuOptions } = useLookups(LOOKUP_GROUPS.PHAN_LOAI_VAT_TU);
   const supplyFilterFields: FilterField[] = [
     { key: 'maYeuCau', label: 'Mã yêu cầu', type: 'text' },
@@ -765,8 +803,22 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   };
 
   // Filtering is server-side (see serverFilters) — `requests` is already the
-  // filtered+paginated slice, so render it directly.
-  const filteredRequests = requests;
+  // filtered+paginated slice, so render it directly. Overdue drill-down (?supplyOverdue=1)
+  // has no server filter yet — apply client-side on the current page as best-effort.
+  const isOverdueDrill = searchParams.get('supplyOverdue') === '1';
+  const filteredRequests = React.useMemo(() => {
+    if (!isOverdueDrill) return requests;
+    const now = Date.now();
+    const fulfilledSet = new Set(['Đã cung cấp', 'Đã cấp đủ', 'Đã cấp một phần']);
+    return requests.filter((r) => {
+      if (fulfilledSet.has(r.trangThai)) return false;
+      const raw = (r as any).hanXuLy || (r as any).ngayDuKien;
+      let dl: number | null = null;
+      if (raw) { const d = new Date(raw).getTime(); if (!Number.isNaN(d)) dl = d; }
+      else { const baseRaw = (r as any).ngayYeuCau || r.createdAt; const b = baseRaw ? new Date(baseRaw).getTime() : NaN; if (!Number.isNaN(b)) dl = b + 7*24*60*60*1000; }
+      return dl !== null && dl < now;
+    });
+  }, [requests, isOverdueDrill]);
 
   return (
     <div>
