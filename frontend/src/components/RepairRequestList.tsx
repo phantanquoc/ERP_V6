@@ -105,8 +105,8 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
 
   // Auto-open view modal when ?repairRequestId= is in URL (deep-link from notifications)
   const [searchParams, setSearchParams] = useSearchParams();
+  const repairRequestId = searchParams.get('repairRequestId');
   useEffect(() => {
-    const repairRequestId = searchParams.get('repairRequestId');
     if (!repairRequestId) return;
     let cancelled = false;
     repairRequestService
@@ -128,7 +128,7 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams.get('repairRequestId')]);
+  }, [repairRequestId]);
 
   const remove = async (record: RepairRequest) => {
     if (!confirm(`Xóa yêu cầu ${record.maYeuCau}?`)) return;

@@ -17,15 +17,15 @@ export const checkAccess = (options: AccessControlOptions = {}) => {
         return;
       }
 
+      if (req.user.role === 'ADMIN') {
+        next();
+        return;
+      }
+
       const { allowedRoles = [], checkDepartment = false, checkSubDepartment = false } = options;
 
       if (allowedRoles.length > 0 && !allowedRoles.includes(req.user.role)) {
         res.status(403).json({ success: false, message: 'Truy cập bị từ chối: Không đủ quyền' });
-        return;
-      }
-
-      if (req.user.role === 'ADMIN') {
-        next();
         return;
       }
 

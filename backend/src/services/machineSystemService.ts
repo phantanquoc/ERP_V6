@@ -85,19 +85,19 @@ const CATEGORY_PREFIX_MAP: Record<MachineSystemCategory, string> = {
 class MachineSystemService {
   async generateCode(loaiHeThong: MachineSystemCategory): Promise<string> {
     const prefix = CATEGORY_PREFIX_MAP[loaiHeThong];
-    const lastSystem = await prisma.machineSystem.findFirst({
+    // Fix H2: fetch all codes with this prefix and find numeric max instead of
+    // lexicographic desc sort (which fails for 100 vs 99: "99" > "100" as string).
+    // NOTE: race condition remains if two concurrent requests generate the same
+    // code — caller (controller) should catch P2002 ConflictError and retry.
+    const all = await prisma.machineSystem.findMany({
       where: { maHeThong: { startsWith: `${prefix}-` } },
-      orderBy: { maHeThong: 'desc' },
       select: { maHeThong: true },
     });
-
-    if (!lastSystem) {
-      return `${prefix}-001`;
-    }
-
-    const parts = lastSystem.maHeThong.split('-');
-    const lastNum = parseInt(parts[1] ?? '0', 10);
-    const nextNum = lastNum + 1;
+    if (all.length === 0) return `${prefix}-001`;
+    const maxNum = Math.max(
+      ...all.map((s) => parseInt(s.maHeThong.split('-')[1] ?? '0', 10)),
+    );
+    const nextNum = (isNaN(maxNum) ? 0 : maxNum) + 1;
     return `${prefix}-${String(nextNum).padStart(3, '0')}`;
   }
 
@@ -106,12 +106,12 @@ class MachineSystemService {
   }
 
   async getDistinctField(field: 'khuVuc' | 'viTri'): Promise<string[]> {
-    const results = await prisma.$queryRaw<{ value: string }[]>`
-      SELECT DISTINCT ${field} as value
-      FROM business.machine_systems
-      WHERE ${field} IS NOT NULL AND ${field} != ''
-      ORDER BY value ASC
-    `;
+    const allowed: readonly string[] = ['khuVuc', 'viTri'];
+    if (!allowed.includes(field)) throw new ValidationError('Field không hợp lệ');
+    const col = field === 'khuVuc' ? '"khuVuc"' : '"viTri"';
+    const results = await prisma.$queryRawUnsafe<{ value: string }[]>(
+      `SELECT DISTINCT ${col} as value FROM "business"."machine_systems" WHERE ${col} IS NOT NULL AND ${col} != '' ORDER BY value ASC`,
+    );
     return results.map((r) => r.value).filter((v) => v.length > 0);
   }
 
@@ -173,16 +173,47 @@ class MachineSystemService {
   }
 
   async createMachineSystem(data: CreateMachineSystemData) {
-    return prisma.machineSystem.create({ data });
+    if (!data.maHeThong?.trim() || !data.tenHeThong?.trim()) {
+      throw new ValidationError('Mã hệ thống và tên hệ thống là bắt buộc');
+    }
+    try {
+      return await prisma.machineSystem.create({ data });
+    } catch (e: unknown) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        throw new ConflictError('Mã hệ thống đã tồn tại');
+      }
+      throw e;
+    }
   }
 
   async updateMachineSystem(id: string, data: UpdateMachineSystemData) {
     await this.getMachineSystemById(id);
-    return prisma.machineSystem.update({ where: { id }, data });
+    if (data.maHeThong !== undefined && !data.maHeThong.trim()) {
+      throw new ValidationError('Mã hệ thống không được để trống');
+    }
+    if (data.tenHeThong !== undefined && !data.tenHeThong.trim()) {
+      throw new ValidationError('Tên hệ thống không được để trống');
+    }
+    try {
+      return await prisma.machineSystem.update({ where: { id }, data });
+    } catch (e: unknown) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        throw new ConflictError('Mã hệ thống đã tồn tại');
+      }
+      throw e;
+    }
   }
 
   async deleteMachineSystem(id: string) {
     await this.getMachineSystemById(id);
+    const [faultCount, repairItemCount, planCount] = await Promise.all([
+      prisma.faultRecord.count({ where: { machineSystemId: id } }),
+      prisma.repairRequestItem.count({ where: { machineSystemId: id } }),
+      prisma.maintenancePlan.count({ where: { machineSystemId: id } }),
+    ]);
+    if (faultCount + repairItemCount + planCount > 0) {
+      throw new ConflictError('Không thể xóa hệ thống đang được sử dụng');
+    }
     return prisma.machineSystem.delete({ where: { id } });
   }
 

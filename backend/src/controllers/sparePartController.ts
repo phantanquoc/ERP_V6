@@ -2,6 +2,29 @@ import { Response, NextFunction } from 'express';
 import type { AuthenticatedRequest } from '@types';
 import sparePartService from '@services/sparePartService';
 import { getFileUrl } from '@middlewares/upload';
+import { z } from 'zod';
+
+const sparePartCreateSchema = z.object({
+  tenLinhKien: z.string().min(1, 'Tên linh kiện là bắt buộc'),
+  loai: z.string().min(1, 'Loại là bắt buộc'),
+  donVi: z.string().min(1, 'Đơn vị là bắt buộc'),
+  soLuongTon: z.union([z.number(), z.string()]).optional(),
+  giaNhap: z.union([z.number(), z.string()]).optional(),
+  nhaCungCap: z.string().optional().nullable(),
+  trangThai: z.string().optional().nullable(),
+  ngayMua: z.string().optional().nullable(),
+});
+
+const sparePartUpdateSchema = z.object({
+  tenLinhKien: z.string().min(1).optional(),
+  loai: z.string().min(1).optional(),
+  donVi: z.string().min(1).optional(),
+  soLuongTon: z.union([z.number(), z.string()]).optional(),
+  giaNhap: z.union([z.number(), z.string()]).optional(),
+  nhaCungCap: z.string().optional().nullable(),
+  trangThai: z.string().optional().nullable(),
+  ngayMua: z.string().optional().nullable(),
+});
 
 class SparePartController {
   async getAll(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -39,15 +62,16 @@ class SparePartController {
 
   async create(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
+      const parsed = sparePartCreateSchema.parse(req.body);
       const data = {
-        tenLinhKien: req.body.tenLinhKien,
-        loai: req.body.loai,
-        donVi: req.body.donVi,
-        soLuongTon: req.body.soLuongTon !== undefined ? parseInt(req.body.soLuongTon) : undefined,
-        giaNhap: req.body.giaNhap !== undefined ? parseFloat(req.body.giaNhap) : undefined,
-        nhaCungCap: req.body.nhaCungCap,
-        trangThai: req.body.trangThai,
-        ngayMua: req.body.ngayMua ? new Date(req.body.ngayMua) : undefined,
+        tenLinhKien: parsed.tenLinhKien,
+        loai: parsed.loai,
+        donVi: parsed.donVi,
+        soLuongTon: parsed.soLuongTon !== undefined && parsed.soLuongTon !== '' ? parseInt(String(parsed.soLuongTon), 10) : undefined,
+        giaNhap: parsed.giaNhap !== undefined && parsed.giaNhap !== '' ? parseFloat(String(parsed.giaNhap)) : undefined,
+        nhaCungCap: parsed.nhaCungCap ?? undefined,
+        trangThai: parsed.trangThai ?? undefined,
+        ngayMua: parsed.ngayMua ? new Date(parsed.ngayMua) : undefined,
         fileDinhKem: req.file ? getFileUrl('spare-parts', req.file.filename) : undefined,
       };
 
@@ -60,17 +84,18 @@ class SparePartController {
 
   async update(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
+      const parsed = sparePartUpdateSchema.parse(req.body);
       const data: Record<string, unknown> = {
-        tenLinhKien: req.body.tenLinhKien,
-        loai: req.body.loai,
-        donVi: req.body.donVi,
-        nhaCungCap: req.body.nhaCungCap,
-        trangThai: req.body.trangThai,
-        ngayMua: req.body.ngayMua ? new Date(req.body.ngayMua) : undefined,
+        tenLinhKien: parsed.tenLinhKien,
+        loai: parsed.loai,
+        donVi: parsed.donVi,
+        nhaCungCap: parsed.nhaCungCap,
+        trangThai: parsed.trangThai,
+        ngayMua: parsed.ngayMua ? new Date(parsed.ngayMua) : undefined,
       };
 
-      if (req.body.soLuongTon !== undefined) data.soLuongTon = parseInt(req.body.soLuongTon);
-      if (req.body.giaNhap !== undefined) data.giaNhap = parseFloat(req.body.giaNhap);
+      if (parsed.soLuongTon !== undefined && parsed.soLuongTon !== '') data.soLuongTon = parseInt(String(parsed.soLuongTon), 10);
+      if (parsed.giaNhap !== undefined && parsed.giaNhap !== '') data.giaNhap = parseFloat(String(parsed.giaNhap));
       if (req.file) data.fileDinhKem = getFileUrl('spare-parts', req.file.filename);
 
       // Remove undefined values

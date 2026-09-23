@@ -342,15 +342,15 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
 
   // Auto-open view modal when ?faultRecordId= is in URL (deep-link from notifications)
   const [searchParams, setSearchParams] = useSearchParams();
+  const faultRecordId = searchParams.get('faultRecordId');
   useEffect(() => {
-    const faultRecordId = searchParams.get('faultRecordId');
     if (!faultRecordId) return;
     setPendingViewId(faultRecordId);
     const next = new URLSearchParams(searchParams);
     next.delete('faultRecordId');
     setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams.get('faultRecordId')]);
+  }, [faultRecordId]);
 
   // 6.1: close typeahead dropdown on outside click
   useEffect(() => {

@@ -30,7 +30,7 @@ const ProtectedSubRoute: React.FC<ProtectedSubRouteProps> = ({
     accounting: 'invoices',
     purchasing: 'supply-requests',
     production: 'finished-products',
-    technical: 'repair-requests',
+    technical: 'fault-records',
   };
   const subResource = SUB_MODULE_RESOURCE_MAP[department];
   const canRead = subResource ? canIfConfigured(subResource, 'READ') : null;

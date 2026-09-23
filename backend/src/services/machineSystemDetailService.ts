@@ -70,12 +70,20 @@ class MachineSystemDetailService {
     const type = this.parseDetailType(loaiChiTiet);
     if (!type) throw new ValidationError('Loại chi tiết không hợp lệ');
     const prefix = DETAIL_TYPE_PREFIX[type];
-    const last = await prisma.machineSystemDetail.findFirst({
+    // Fix lexicographic bug: fetch all codes with prefix and find numeric max
+    // (race on concurrent generate still possible — caller should catch P2002 ConflictError)
+    const all = await prisma.machineSystemDetail.findMany({
       where: { maChiTiet: staticCodeWhere(prefix) },
-      orderBy: { maChiTiet: 'desc' },
       select: { maChiTiet: true },
     });
-    return nextStaticCode(last?.maChiTiet ?? null, prefix);
+    if (all.length === 0) return nextStaticCode(null, prefix);
+    const maxNum = Math.max(
+      ...all.map((r) => parseInt(r.maChiTiet.slice(prefix.length + 1) ?? '0', 10)),
+    );
+    const maxCode = all.find((r) => parseInt(r.maChiTiet.slice(prefix.length + 1) ?? '0', 10) === maxNum)?.maChiTiet ?? null;
+    // Use nextStaticCode against the numerically-max code to keep pad logic centralized
+    if (!maxCode || isNaN(maxNum)) return nextStaticCode(null, prefix);
+    return nextStaticCode(maxCode, prefix);
   }
 
   private async ensureMachineSystem(machineSystemId: string, tx: Prisma.TransactionClient = prisma) {
@@ -236,14 +244,18 @@ class MachineSystemDetailService {
 
   async delete(id: string) {
     await this.getById(id);
-    const [faultRecords, faultTemplates, repairItems, handoverItems] = await Promise.all([
+    const [faultRecords, faultTemplates, repairItems, handoverItems, maintenanceTemplates, planItems, maintenanceRecords, childDetails] = await Promise.all([
       prisma.faultRecord.count({ where: { machineSystemDetailId: id } }),
       prisma.faultTemplate.count({ where: { machineSystemDetailId: id } }),
       prisma.repairRequestItem.count({ where: { machineSystemDetailId: id } }),
       prisma.acceptanceHandoverItem.count({ where: { machineSystemDetailId: id } }),
+      prisma.maintenanceTemplate.count({ where: { machineSystemDetailId: id } }),
+      prisma.maintenancePlanItem.count({ where: { machineSystemDetailId: id } }),
+      prisma.maintenanceRecord.count({ where: { machineSystemDetailId: id } }),
+      prisma.machineSystemDetail.count({ where: { parentDetailId: id } }),
     ]);
 
-    if (faultRecords + faultTemplates + repairItems + handoverItems > 0) {
+    if (faultRecords + faultTemplates + repairItems + handoverItems + maintenanceTemplates + planItems + maintenanceRecords + childDetails > 0) {
       throw new ConflictError('Chi tiết hệ thống máy đã được sử dụng, vui lòng ngừng hoạt động thay vì xóa');
     }
 

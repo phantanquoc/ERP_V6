@@ -4,6 +4,19 @@ import { getPaginationParams } from '@utils/helpers';
 import { NotFoundError, ValidationError, ConflictError } from '@utils/errors';
 import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 
+export const MAINTENANCE_PLAN_STATUS_ORDER: string[] = ['Đang thực hiện', 'Hoàn thành'];
+
+export function advanceMaintenancePlanStatus(current: string, next: string): string {
+  if (next === current) return current;
+  const curIdx = MAINTENANCE_PLAN_STATUS_ORDER.indexOf(current);
+  const nextIdx = MAINTENANCE_PLAN_STATUS_ORDER.indexOf(next);
+  if (curIdx === -1 || nextIdx === -1) {
+    throw new ValidationError(`Trạng thái kế hoạch không hợp lệ: ${next}`);
+  }
+  if (nextIdx === curIdx + 1) return next;
+  throw new ValidationError(`Không thể chuyển trạng thái kế hoạch từ ${current} sang ${next}`);
+}
+
 const FREQUENCY_TIMES: Record<string, number> = {
   HANG_NGAY: 22,
   HANG_TUAN: 4,
@@ -172,7 +185,10 @@ class MaintenancePlanService {
   }
 
   async update(id: string, data: UpdateMaintenancePlanData) {
-    await this.getById(id);
+    const existing = await this.getById(id);
+    if (data.trangThai !== undefined && data.trangThai !== existing.trangThai) {
+      data.trangThai = advanceMaintenancePlanStatus(existing.trangThai, data.trangThai);
+    }
 
     await prisma.$transaction(async (tx) => {
       await tx.maintenancePlan.update({

@@ -198,12 +198,12 @@ router.delete('/:id', authenticate, requireRule('repair-requests', 'DELETE'), re
 /**
  * POST /:id/start-repair — CHO_XU_LY → DANG_SUA_CHUA
  */
-router.post('/:id/start-repair', authenticate, requireRule('repair-requests', 'DELETE'), repairRequestController.startRepair);
+router.post('/:id/start-repair', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.startRepair);
 
 /**
  * POST /:id/cancel — any non-terminal → DA_HUY
  */
-router.post('/:id/cancel', authenticate, requireRule('repair-requests', 'CREATE'), repairRequestController.cancel);
+router.post('/:id/cancel', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.cancel);
 
 /**
  * GET /:id/status-history — audit log

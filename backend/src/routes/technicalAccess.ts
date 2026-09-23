@@ -20,12 +20,31 @@ async function getDepartmentCode(departmentId?: string | null): Promise<string |
   return department?.code ?? null;
 }
 
+async function getSubDepartmentCode(subDepartmentId?: string | null): Promise<string | null> {
+  if (!subDepartmentId) return null;
+  const subDepartment = await prisma.subDepartment.findUnique({
+    where: { id: subDepartmentId },
+    select: { code: true },
+  });
+  return subDepartment?.code ?? null;
+}
+
 async function canAccessViaEntry(
   entry: SecondaryDepartmentEntry | { departmentId?: string | null; subDepartmentId?: string | null; role: string },
-  _allowedSubDepartmentCodes: string[],
+  allowedSubDepartmentCodes: string[],
 ): Promise<boolean> {
   const departmentCode = await getDepartmentCode(entry.departmentId);
-  return departmentCode === TECHNICAL_DEPARTMENT_CODE;
+  if (departmentCode !== TECHNICAL_DEPARTMENT_CODE) return false;
+
+  if (allowedSubDepartmentCodes.length === 0) return true;
+
+  // allowedSubDepartmentCodes non-empty → must also verify sub-department
+  if (!entry.subDepartmentId) return false;
+
+  const subDepartmentCode = await getSubDepartmentCode(entry.subDepartmentId);
+  if (!subDepartmentCode) return false;
+
+  return allowedSubDepartmentCodes.includes(subDepartmentCode);
 }
 
 export const requireTechnicalAccess = (...allowedSubDepartmentCodes: string[]) => {

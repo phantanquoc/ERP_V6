@@ -34,8 +34,10 @@ const TechnicalQuality = () => {
   const tabParam = searchParams.get('tab');
   const subParam = searchParams.get('sub');
   const initialTab = isTabType(tabParam) ? tabParam : 'machineSystems';
-  const initialRepair = isRepairFaultView(subParam) ? subParam : 'repair';
-  const initialParts = isPartsOrdersView(subParam) ? subParam : 'parts';
+  // subParam declared above — guarded initial values below
+  // Only respect sub when its parent tab is active — avoids cross-tab pollution on direct links
+  const initialRepair = tabParam === 'repairAndFault' && isRepairFaultView(subParam) ? subParam : 'repair';
+  const initialParts = tabParam === 'partsAndOrders' && isPartsOrdersView(subParam) ? subParam : 'parts';
 
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   const [repairFaultView, setRepairFaultView] = useState<RepairFaultView>(initialRepair);
@@ -65,7 +67,8 @@ const TechnicalQuality = () => {
   const pushParams = useCallback((nextTab: TabType, nextSub?: string | null) => {
     const next = new URLSearchParams(searchParams);
     next.set('tab', nextTab);
-    if (nextSub) next.set('sub', nextSub);
+    const needsSub = nextTab === 'repairAndFault' || nextTab === 'partsAndOrders';
+    if (needsSub && nextSub) next.set('sub', nextSub);
     else next.delete('sub');
     syncingRef.current = true;
     setSearchParams(next, { replace: true });

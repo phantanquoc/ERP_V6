@@ -16,10 +16,44 @@ import { CircularProgress, ProgressBar } from '../design-system/Progress';
 import { LoadingSkeleton } from '../design-system/States';
 
 // ── Constants ──
-const STATUS_COLORS = ['#10B981', '#F59E0B', '#EF4444', '#6B7280', '#3B82F6', '#8B5CF6'];
+const MACHINE_HEALTH_GOOD = 80;
+const MACHINE_HEALTH_WARN = 60;
+
+// Map status value -> color (not position-indexed)
+const STATUS_COLOR_MAP: Record<string, string> = {
+  'Chờ xử lý': '#F59E0B',
+  'Đang xử lý': '#3B82F6',
+  'Hoàn thành': '#10B981',
+  'Đã hủy': '#EF4444',
+  'Tạm dừng': '#6B7280',
+  'Chờ duyệt': '#8B5CF6',
+};
+const STATUS_FALLBACK_COLORS = ['#10B981', '#F59E0B', '#EF4444', '#6B7280', '#3B82F6', '#8B5CF6'];
+function statusColor(status: string, fallbackIndex: number): string {
+  return STATUS_COLOR_MAP[status] ?? STATUS_FALLBACK_COLORS[fallbackIndex % STATUS_FALLBACK_COLORS.length];
+}
 const MACHINE_COLORS = ['#10B981', '#EF4444'];
-const FAULT_COLORS = ['#F59E0B', '#10B981', '#EF4444'];
-const PROJECT_COLORS = ['#6B7280', '#3B82F6', '#10B981', '#F59E0B'];
+const FAULT_COLOR_MAP: Record<string, string> = {
+  // keep known fault statuses mapped; fallback by index
+  'Đang theo dõi': '#F59E0B',
+  'Đã xử lý': '#10B981',
+  'Tái phát': '#EF4444',
+};
+const FAULT_FALLBACK_COLORS = ['#F59E0B', '#10B981', '#EF4444'];
+function faultColor(status: string, i: number): string {
+  return FAULT_COLOR_MAP[status] ?? FAULT_FALLBACK_COLORS[i % FAULT_FALLBACK_COLORS.length];
+}
+const PROJECT_COLOR_MAP: Record<string, string> = {
+  'Lên kế hoạch': '#6B7280',
+  'Chờ duyệt': '#8B5CF6',
+  'Đang thực hiện': '#3B82F6',
+  'Hoàn thành': '#10B981',
+  'Tạm dừng': '#F59E0B',
+};
+const PROJECT_FALLBACK_COLORS = ['#6B7280', '#3B82F6', '#10B981', '#F59E0B'];
+function projectColor(status: string, i: number): string {
+  return PROJECT_COLOR_MAP[status] ?? PROJECT_FALLBACK_COLORS[i % PROJECT_FALLBACK_COLORS.length];
+}
 
 const fallbackSummary: TechnicalSummary = {
   qlhtm: {
@@ -74,7 +108,7 @@ const NavCard: React.FC<{ title: string; desc: string; icon: React.ReactNode; to
 // ══════════════════════════════════════════════════════════════
 const TechnicalManagement = () => {
   const { user } = useAuth();
-  const { data, isLoading, isError, refetch } = useTechnicalSummary();
+  const { data, isLoading, isFetching, isError, error, refetch } = useTechnicalSummary();
   const summary = data?.data ?? fallbackSummary;
 
   const canOpen = (subModule: string) =>
@@ -94,7 +128,7 @@ const TechnicalManagement = () => {
   // ── Chart data ──
   const machineDonutData = [
     { name: 'Hoạt động', value: summary.qlhtm.machineSystems.active },
-    { name: 'Ngừng HĐ', value: summary.qlhtm.machineSystems.total - summary.qlhtm.machineSystems.active },
+    { name: 'Ngừng HĐ', value: Math.max(0, summary.qlhtm.machineSystems.total - summary.qlhtm.machineSystems.active) },
   ];
 
   const faultDonutData = summary.coDien.faultRecordsByStatus.map((item) => ({
@@ -105,20 +139,25 @@ const TechnicalManagement = () => {
   const repairSegments = summary.repairHandovers.repairRequestsByStatus.map((item, i) => ({
     label: item.trangThai,
     value: item.total,
-    color: STATUS_COLORS[i % STATUS_COLORS.length],
+    color: statusColor(item.trangThai, i),
   }));
 
-  const machineDot = machineActiveRate >= 80 ? 'bg-emerald-500' : machineActiveRate >= 60 ? 'bg-amber-400' : 'bg-red-500';
+  const machineDot = machineActiveRate >= MACHINE_HEALTH_GOOD ? 'bg-emerald-500' : machineActiveRate >= MACHINE_HEALTH_WARN ? 'bg-amber-400' : 'bg-red-500';
 
   if (isLoading) return <LoadingSkeleton />;
 
-  if (isError) return (
-    <div className="flex flex-col items-center justify-center py-20">
-      <AlertTriangle className="w-10 h-10 text-red-400 mb-3" />
-      <p className="text-gray-600 mb-2">Không thể tải dữ liệu tổng quan</p>
-      <button onClick={() => refetch()} className="text-sm text-blue-600 hover:text-blue-800">Thử lại</button>
-    </div>
-  );
+  if (isError) {
+    const apiErr = error as unknown as { statusCode?: number; message?: string } | null;
+    const isForbidden = apiErr?.statusCode === 403;
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <AlertTriangle className="w-10 h-10 text-red-400 mb-3" />
+        <p className="text-gray-600 mb-1">{isForbidden ? 'Bạn không có quyền xem tổng quan kỹ thuật' : 'Không thể tải dữ liệu tổng quan'}</p>
+        {apiErr?.message && <p className="text-xs text-gray-400 mb-2">{apiErr.message}{apiErr.statusCode ? ` (${apiErr.statusCode})` : ''}</p>}
+        <button onClick={() => refetch()} className="text-sm text-blue-600 hover:text-blue-800">Thử lại</button>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -130,11 +169,11 @@ const TechnicalManagement = () => {
         actions={
           <button
             onClick={() => refetch()}
-            disabled={isLoading}
+            disabled={isFetching}
             className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 bg-white rounded-lg px-3 py-2 hover:bg-gray-50 hover:border-gray-200 disabled:opacity-50 transition-colors shadow-sm"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            {isLoading ? 'Đang tải...' : 'Làm mới'}
+            <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+            {isFetching ? 'Đang tải...' : 'Làm mới'}
           </button>
         }
       />
@@ -242,7 +281,7 @@ const TechnicalManagement = () => {
             {summary.repairHandovers.repairRequestsByStatus.map((item, i) => (
               <div key={item.trangThai} className="text-center p-2 bg-gray-50 rounded-lg">
                 <div className="flex items-center justify-center gap-1 mb-1">
-                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: STATUS_COLORS[i % STATUS_COLORS.length] }} />
+                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: statusColor(item.trangThai, i) }} />
                   <span className="text-xs text-gray-500">{item.trangThai}</span>
                 </div>
                 <span className="text-lg font-bold text-gray-800">{item.total}</span>
@@ -271,7 +310,7 @@ const TechnicalManagement = () => {
               {summary.coDien.faultRecordsByStatus.map((item, i) => (
                 <div key={item.trangThai} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: FAULT_COLORS[i % FAULT_COLORS.length] }} />
+                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: faultColor(item.trangThai, i) }} />
                     <span className="text-sm text-gray-700">{item.trangThai}</span>
                   </div>
                   <span className="text-lg font-bold text-gray-800">{item.total}</span>
@@ -295,7 +334,7 @@ const TechnicalManagement = () => {
                       dataKey="value"
                     >
                       {faultDonutData.map((_, i) => (
-                        <Cell key={i} fill={FAULT_COLORS[i % FAULT_COLORS.length]} />
+                        <Cell key={i} fill={faultColor((faultDonutData[i] as any)?.name ?? '', i)} />
                       ))}
                     </Pie>
                     <Tooltip
@@ -333,7 +372,7 @@ const TechnicalManagement = () => {
               {summary.projects.projectsByStatus.map((item, i) => (
                 <div key={item.trangThai} className="text-center p-2 bg-gray-50 rounded-lg">
                   <div className="flex items-center justify-center gap-1 mb-1">
-                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: PROJECT_COLORS[i % PROJECT_COLORS.length] }} />
+                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: projectColor(item.trangThai, i) }} />
                     <span className="text-xs text-gray-500">{item.trangThai}</span>
                   </div>
                   <span className="text-base font-bold text-gray-800">{item.total}</span>
@@ -351,16 +390,22 @@ const TechnicalManagement = () => {
       </div>
 
       {/* ── NAV CARDS ── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[
+      {(() => {
+        const filteredCards = [
           { key: 'quality', title: 'Đảm bảo & Cải tiến', desc: 'Hệ thống máy, sửa chữa, lỗi, bảo dưỡng, linh kiện', icon: <Settings className="w-5 h-5" />, path: '/technical/quality' },
           { key: 'projects', title: 'Phòng phát triển', desc: 'Dự án, giai đoạn, công việc', icon: <Layers3 className="w-5 h-5" />, path: '/technical/projects' },
-        ]
-          .filter((item) => canOpen(item.key))
-          .map((item) => (
-            <NavCard key={item.key} title={item.title} desc={item.desc} icon={item.icon} to={item.path} />
-          ))}
-      </div>
+        ].filter((item) => canOpen(item.key));
+        return (
+          <>
+            {filteredCards.length === 0 && <div className="text-center py-8 text-gray-500">Bạn chưa được phân quyền truy cập module kỹ thuật. Vui lòng liên hệ quản trị.</div>}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {filteredCards.map((item) => (
+                <NavCard key={item.key} title={item.title} desc={item.desc} icon={item.icon} to={item.path} />
+              ))}
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
 };

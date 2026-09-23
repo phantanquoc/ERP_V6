@@ -2,6 +2,9 @@ import { Response, NextFunction } from 'express';
 import type { AuthenticatedRequest } from '@types';
 import maintenancePlanService from '@services/maintenancePlanService';
 import { getFileUrl } from '@middlewares/upload';
+import notificationService from '@services/notificationService';
+import { NotificationEvent } from '@types';
+import logger from '@config/logger';
 
 class MaintenancePlanController {
   async list(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -48,6 +51,13 @@ class MaintenancePlanController {
         fileDinhKem: req.file ? getFileUrl('maintenance-plans', req.file.filename) : undefined,
         userId: req.user?.id,
       });
+      try {
+        await notificationService.notify(NotificationEvent.MAINTENANCE_PLAN_CREATED, {
+          actorUserId: req.user?.id,
+          entityId: plan?.id ?? '',
+          metadata: { maKeHoach: (plan as any)?.maKeHoach, nam: (plan as any)?.nam },
+        });
+      } catch (e) { logger.warn('[MaintenancePlanController] notify MAINTENANCE_PLAN_CREATED failed', e); }
       res.status(201).json({ success: true, data: plan, message: 'Tạo kế hoạch bảo dưỡng thành công' });
     } catch (error) {
       next(error);
@@ -64,6 +74,13 @@ class MaintenancePlanController {
         items,
         fileDinhKem: req.file ? getFileUrl('maintenance-plans', req.file.filename) : req.body.fileDinhKem,
       });
+      try {
+        await notificationService.notify(NotificationEvent.MAINTENANCE_PLAN_UPDATED, {
+          actorUserId: req.user?.id,
+          entityId: req.params.id,
+          metadata: { maKeHoach: (plan as any)?.maKeHoach },
+        });
+      } catch (e) { logger.warn('[MaintenancePlanController] notify MAINTENANCE_PLAN_UPDATED failed', e); }
       res.json({ success: true, data: plan, message: 'Cập nhật kế hoạch thành công' });
     } catch (error) {
       next(error);

@@ -3,6 +3,9 @@ import type { AuthenticatedRequest } from '@types';
 import machineSystemService from '@services/machineSystemService';
 import { getFileUrl } from '@middlewares/upload';
 import { MachineStatus, MachineSystemCategory } from '@prisma/client';
+import notificationService from '@services/notificationService';
+import { NotificationEvent } from '@types';
+import logger from '@config/logger';
 
 class MachineSystemController {
   async getAll(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -55,6 +58,13 @@ class MachineSystemController {
       };
 
       const system = await machineSystemService.createMachineSystem(data);
+      try {
+        await notificationService.notify(NotificationEvent.MACHINE_SYSTEM_CREATED, {
+          actorUserId: req.user?.id,
+          entityId: system.id,
+          metadata: { maHeThong: system.maHeThong, tenHeThong: system.tenHeThong },
+        });
+      } catch (e) { logger.warn('[MachineSystemController] notify MACHINE_SYSTEM_CREATED failed', e); }
       res.status(201).json({ success: true, data: system, message: 'Tạo hệ thống máy thành công' });
     } catch (error) {
       next(error);
@@ -89,6 +99,13 @@ class MachineSystemController {
       }
 
       const system = await machineSystemService.updateMachineSystem(req.params.id, data);
+      try {
+        await notificationService.notify(NotificationEvent.MACHINE_SYSTEM_UPDATED, {
+          actorUserId: req.user?.id,
+          entityId: system.id,
+          metadata: { maHeThong: system.maHeThong, tenHeThong: system.tenHeThong },
+        });
+      } catch (e) { logger.warn('[MachineSystemController] notify MACHINE_SYSTEM_UPDATED failed', e); }
       res.json({ success: true, data: system, message: 'Cập nhật hệ thống máy thành công' });
     } catch (error) {
       next(error);
@@ -97,7 +114,19 @@ class MachineSystemController {
 
   async remove(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
+      let deletedInfo: { maHeThong?: string; tenHeThong?: string } = {};
+      try {
+        const existing = await machineSystemService.getMachineSystemById(req.params.id);
+        deletedInfo = { maHeThong: existing.maHeThong, tenHeThong: existing.tenHeThong };
+      } catch (_) { /* ignore */ }
       await machineSystemService.deleteMachineSystem(req.params.id);
+      try {
+        await notificationService.notify(NotificationEvent.MACHINE_SYSTEM_DELETED, {
+          actorUserId: req.user?.id,
+          entityId: req.params.id,
+          metadata: deletedInfo,
+        });
+      } catch (e) { logger.warn('[MachineSystemController] notify MACHINE_SYSTEM_DELETED failed', e); }
       res.json({ success: true, message: 'Xóa hệ thống máy thành công' });
     } catch (error) {
       next(error);

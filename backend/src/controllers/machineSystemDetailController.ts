@@ -8,6 +8,30 @@ const parseBoolean = (value: unknown): boolean | undefined => {
   return value === true || value === 'true';
 };
 
+// Whitelist for mass-assignment protection
+const ALLOWED_FIELDS = [
+  'machineSystemId',
+  'loaiChiTiet',
+  'tenChiTiet',
+  'moTa',
+  'viTri',
+  'maNguoiPhuTrach',
+  'nguoiPhuTrach',
+  'parentDetailId',
+  'thuTu',
+] as const;
+
+const ADMIN_ONLY_FIELDS = ['maChiTiet', 'hoatDong', 'trangThai'] as const;
+
+function pickAllowed(body: Record<string, unknown>, isAdmin: boolean): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of ALLOWED_FIELDS) if (k in body) out[k] = body[k];
+  if (isAdmin) {
+    for (const k of ADMIN_ONLY_FIELDS) if (k in body) out[k] = body[k];
+  }
+  return out;
+}
+
 class MachineSystemDetailController {
   async generateCode(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -55,13 +79,15 @@ class MachineSystemDetailController {
 
   async create(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
+      const isAdmin = (req as unknown as { user?: { role?: string } }).user?.role === 'ADMIN';
+      const picked = pickAllowed(req.body as Record<string, unknown>, isAdmin);
       const detail = await machineSystemDetailService.create({
-        ...req.body,
-        parentDetailId: req.body.parentDetailId || null,
-        thuTu: req.body.thuTu !== undefined ? parseInt(req.body.thuTu, 10) : undefined,
-        hoatDong: parseBoolean(req.body.hoatDong),
+        ...picked,
+        parentDetailId: (picked.parentDetailId as string) || null,
+        thuTu: picked.thuTu !== undefined ? parseInt(String(picked.thuTu), 10) : undefined,
+        hoatDong: isAdmin ? parseBoolean(picked.hoatDong) : undefined,
         fileDinhKem: req.file ? getFileUrl('machine-system-details', req.file.filename) : undefined,
-      });
+      } as Parameters<typeof machineSystemDetailService.create>[0]);
       res.status(201).json({ success: true, data: detail, message: 'Tạo chi tiết hệ thống máy thành công' });
     } catch (error) {
       next(error);
@@ -70,13 +96,19 @@ class MachineSystemDetailController {
 
   async update(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const detail = await machineSystemDetailService.update(req.params.id, {
-        ...req.body,
-        parentDetailId: req.body.parentDetailId === '' ? null : req.body.parentDetailId,
-        thuTu: req.body.thuTu !== undefined ? parseInt(req.body.thuTu, 10) : undefined,
-        hoatDong: parseBoolean(req.body.hoatDong),
+      const isAdmin = (req as unknown as { user?: { role?: string } }).user?.role === 'ADMIN';
+      const picked = pickAllowed(req.body as Record<string, unknown>, isAdmin);
+      // parentDetailId empty string -> null
+      if ('parentDetailId' in picked && picked.parentDetailId === '') picked.parentDetailId = null;
+      const payload: Record<string, unknown> = {
+        ...picked,
+        thuTu: picked.thuTu !== undefined ? parseInt(String(picked.thuTu), 10) : undefined,
         fileDinhKem: req.file ? getFileUrl('machine-system-details', req.file.filename) : undefined,
-      });
+      };
+      if ('hoatDong' in picked) payload.hoatDong = parseBoolean(picked.hoatDong);
+      // Remove undefined to avoid overwriting with undefined
+      Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
+      const detail = await machineSystemDetailService.update(req.params.id, payload as Parameters<typeof machineSystemDetailService.update>[1]);
       res.json({ success: true, data: detail, message: 'Cập nhật chi tiết hệ thống máy thành công' });
     } catch (error) {
       next(error);

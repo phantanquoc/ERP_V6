@@ -3,6 +3,9 @@ import type { AuthenticatedRequest } from '@types';
 import faultRecordService from '@services/faultRecordService';
 import { getFileUrl } from '@middlewares/upload';
 import { FaultRecordStatus } from '@prisma/client';
+import notificationService from '@services/notificationService';
+import { NotificationEvent } from '@types';
+import logger from '@config/logger';
 
 class FaultRecordController {
   async getAll(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -90,6 +93,13 @@ class FaultRecordController {
       }
 
       const record = await faultRecordService.updateFaultRecord(req.params.id, data);
+      try {
+        await notificationService.notify(NotificationEvent.FAULT_RECORD_UPDATED, {
+          actorUserId: req.user?.id,
+          entityId: record.id,
+          metadata: { maLoi: record.maLoi, tenLoi: record.tenLoi },
+        });
+      } catch (e) { logger.warn('[FaultRecordController] notify FAULT_RECORD_UPDATED failed', e); }
       res.json({ success: true, data: record, message: 'Cập nhật bản ghi lỗi thành công' });
     } catch (error) {
       next(error);

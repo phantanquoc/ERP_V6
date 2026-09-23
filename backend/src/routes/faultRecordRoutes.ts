@@ -19,16 +19,15 @@ const markRecurredAccess = requireTechnicalAccessWithRoles(
 
 router.use(authenticate);
 
-// Read-only + create: open to all authenticated users
-router.get('/', faultRecordController.getAll.bind(faultRecordController));
-router.get('/export/excel', faultRecordController.exportExcel.bind(faultRecordController));
+router.get('/', technicalAccess, faultRecordController.getAll.bind(faultRecordController));
+router.get('/export/excel', technicalAccess, faultRecordController.exportExcel.bind(faultRecordController));
 // New aggregate endpoints must come BEFORE /:id to avoid route shadowing
 router.get('/recurrence', faultRecordController.checkRecurrence.bind(faultRecordController));
 router.get('/stats', faultRecordController.getStats.bind(faultRecordController));
 router.get('/heatmap', faultRecordController.getHeatmap.bind(faultRecordController));
 router.get('/typeahead', faultRecordController.getForTypeahead.bind(faultRecordController));
-router.get('/:id', faultRecordController.getById.bind(faultRecordController));
-router.post('/', upload, faultRecordController.create.bind(faultRecordController));
+router.get('/:id', technicalAccess, faultRecordController.getById.bind(faultRecordController));
+router.post('/', technicalAccess, upload, faultRecordController.create.bind(faultRecordController));
 
 // ── New lifecycle endpoints (Task 4.3) ────────────────────────────────────────
 // POST /:id/mark-resolved — ADMIN, DEPARTMENT_HEAD, TEAM_LEAD in technical/mechanical

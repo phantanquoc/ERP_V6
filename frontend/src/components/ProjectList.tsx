@@ -123,9 +123,24 @@ const statusBadge = (status: string) => {
   return 'bg-gray-100 text-gray-700 border-gray-200';
 };
 
-const formatDate = (value?: string | null) => value ? new Date(value).toLocaleDateString('vi-VN') : '—';
+function phaseCostTotals(phase: { tasks?: Array<{ costs?: Array<{ thanhTienKeHoach?: number | null; thanhTienThucTe?: number | null }> }> }) {
+  const costs = (phase.tasks ?? []).flatMap((task) => task.costs ?? []);
+  const kh = costs.reduce((s, c) => s + (c.thanhTienKeHoach ?? 0), 0);
+  const tt = costs.reduce((s, c) => s + (c.thanhTienThucTe ?? 0), 0);
+  return { kh, tt };
+}
+
+const formatDate = (value?: string | null) => {
+  if (!value) return '—';
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('vi-VN');
+};
 const dateInput = (value?: string | null) => value?.split('T')[0] ?? '';
-const clampProgress = (value: string | number | undefined) => Math.max(0, Math.min(100, Number(value) || 0));
+const clampProgress = (value: string | number | undefined) => {
+  if (value === '' || value === undefined || value === null) return 0;
+  const n = Number(value);
+  return Math.max(0, Math.min(100, isNaN(n) ? 0 : n));
+};
 
 const ProjectList = () => {
   const { user } = useAuth();
@@ -162,7 +177,7 @@ const ProjectList = () => {
   const approveProject = useApproveProject();
   const rejectProject = useRejectProject();
   const usersQuery = useUsers({ limit: 100 });
-  const adminUsers = useMemo(() => (usersQuery.data?.data ?? []).filter((u: any) => u.role === 'ADMIN'), [usersQuery.data]);
+  const adminUsers = useMemo(() => (usersQuery.data?.data ?? []).filter((u: any) => String(u.role ?? '').toUpperCase() === 'ADMIN'), [usersQuery.data]);
 
   const [projectModal, setProjectModal] = useState<{ mode: ModalMode; project?: Project } | null>(null);
   const [projectForm, setProjectForm] = useState<CreateProjectRequest>(emptyProject());
@@ -688,7 +703,7 @@ const ProjectList = () => {
                   </div>
                 )}
 
-                {selectedProject.trangThai === 'Chờ duyệt' && !hasRejection && user?.role !== 'admin' && !isCreator && (
+                {selectedProject.trangThai === 'Chờ duyệt' && !hasRejection && String(user?.role ?? '').toLowerCase() !== 'admin' && !isCreator && (
                   <div className="rounded-md border border-purple-200 bg-purple-50 px-4 py-2.5">
                     <p className="text-sm text-purple-800">Đang chờ admin phê duyệt kế hoạch.</p>
                   </div>
@@ -752,7 +767,7 @@ const ProjectList = () => {
                             <span className={`text-gray-500 transition-transform ${collapsedPhases.has(phase.id) ? '' : 'rotate-90'}`}>&#9654;</span>
                             <span className="font-semibold text-gray-900">{phase.thuTu}. {phase.tenGiaiDoan}</span>
                             <span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadge(phase.trangThai)}`}>{phase.trangThai}</span>
-                            {((phase.tasks ?? []).flatMap((t) => t.costs ?? []).reduce((s, c) => s + (c.thanhTienKeHoach ?? 0), 0) > 0 || (phase.tasks ?? []).flatMap((t) => t.costs ?? []).reduce((s, c) => s + (c.thanhTienThucTe ?? 0), 0) > 0) && <span className="text-xs text-gray-500 bg-white border border-gray-200 rounded-full px-2 py-0.5">KH: {fmtCurrency((phase.tasks ?? []).flatMap((t) => t.costs ?? []).reduce((s, c) => s + (c.thanhTienKeHoach ?? 0), 0))}đ | TT: <span className={(phase.tasks ?? []).flatMap((t) => t.costs ?? []).reduce((s, c) => s + (c.thanhTienThucTe ?? 0), 0) > (phase.tasks ?? []).flatMap((t) => t.costs ?? []).reduce((s, c) => s + (c.thanhTienKeHoach ?? 0), 0) ? 'text-red-600' : 'text-green-600'}>{fmtCurrency((phase.tasks ?? []).flatMap((t) => t.costs ?? []).reduce((s, c) => s + (c.thanhTienThucTe ?? 0), 0))}đ</span></span>}
+                            {(() => { const { kh, tt } = phaseCostTotals(phase); return kh > 0 || tt > 0 ? <span className="text-xs text-gray-500 bg-white border border-gray-200 rounded-full px-2 py-0.5">KH: {fmtCurrency(kh)}đ | TT: <span className={tt > kh ? 'text-red-600' : 'text-green-600'}>{fmtCurrency(tt)}đ</span></span> : null; })()}
                             <span className="text-xs text-gray-400">{(phase.tasks ?? []).length} cv</span>
                           </div>
                           <div className="mt-1 flex items-center gap-2">

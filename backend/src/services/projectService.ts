@@ -242,17 +242,12 @@ class ProjectService {
   }
 
   async update(id: string, data: UpdateProjectData, userId: string, role: string) {
+    if ((data as Record<string, unknown>).trangThai !== undefined || (data as Record<string, unknown>).status !== undefined) {
+      throw new ValidationError('Không được cập nhật trạng thái qua API này. Vui lòng dùng quy trình duyệt (submit-approval / approve / reject).');
+    }
     const project = await this.getById(id);
     if (role !== 'ADMIN' && project.nguoiTaoId !== userId) {
       throw new AuthorizationError('Bạn không có quyền chỉnh sửa dự án này');
-    }
-    if (data.trangThai && data.trangThai !== project.trangThai) {
-      if (role !== 'ADMIN' && project.nguoiTaoId !== userId) {
-        throw new AuthorizationError('Chỉ admin hoặc người tạo mới được chuyển trạng thái dự án');
-      }
-      if (data.trangThai === 'Đang thực hiện' && (project.trangThai === 'Lên kế hoạch' || project.trangThai === 'Chờ duyệt')) {
-        throw new ValidationError('Phải qua quy trình duyệt để chuyển sang Đang thực hiện');
-      }
     }
     return prisma.project.update({
       where: { id },

@@ -210,13 +210,13 @@ const MachineSystemList = () => {
     sortBy: 'maHeThong',
     sortOrder: 'asc',
   });
-  const [detailFilters] = useState<MachineSystemDetailFilters>({
+  const [detailFilters, setDetailFilters] = useState<MachineSystemDetailFilters>({
     page: 1,
     limit: 10,
     sortBy: 'thuTu',
     sortOrder: 'asc',
   });
-  const [systemPageIndex] = useState(0);
+  // systemPageIndex removed — activeSystemId now memoized from allSystems[0]
 
   const systemsQuery = useMachineSystems(systemFilters);
   const allSystemsQuery = useMachineSystems({ page: 1, limit: 200, hoatDong: true, sortBy: 'maHeThong', sortOrder: 'asc' });
@@ -313,7 +313,7 @@ const MachineSystemList = () => {
     }
   }, [systemModal?.mode, systemForm.loaiHeThong]);
 
-  const activeSystemId = detailFilters.machineSystemId ?? allSystems[systemPageIndex]?.id;
+  const activeSystemId = useMemo(() => detailFilters.machineSystemId ?? allSystems[0]?.id, [detailFilters.machineSystemId, allSystems]);
   const detailTreeQuery = useDetailTree(activeSystemId);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
@@ -548,7 +548,7 @@ const MachineSystemList = () => {
               ) : systems.length === 0 ? (
                 <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-400">Chưa có hệ thống phù hợp.</td></tr>
               ) : systems.map((system) => (
-                <tr key={system.id} onClick={() => setDrawerSystemId(system.id)} className="border-l-2 border-l-transparent hover:bg-blue-100 hover:border-l-blue-500 cursor-pointer transition-all">
+                <tr key={system.id} onClick={() => { setDetailFilters((f) => ({ ...f, machineSystemId: system.id })); setDrawerSystemId(system.id); }} className="border-l-2 border-l-transparent hover:bg-blue-100 hover:border-l-blue-500 cursor-pointer transition-all">
                   <td className="px-3 py-2.5 sticky left-0 bg-white z-10 font-mono text-xs text-blue-700 font-medium">{system.maHeThong}</td>
                   <td className="px-3 py-2.5 font-medium text-gray-900">{system.tenHeThong}</td>
                   <td className="px-3 py-2.5 text-gray-600 text-xs">{MACHINE_SYSTEM_CATEGORIES.find(c => c.value === system.loaiHeThong)?.label ?? system.loaiHeThong}</td>

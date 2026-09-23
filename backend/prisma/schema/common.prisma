@@ -978,6 +978,9 @@ enum HalfDayPeriod {
 }
 
 model RepairRequest {
+  // TODO(cuid-migration): id is Int autoincrement for legacy data; migrate to String @id @default(cuid())
+  // in a dedicated migration after auditing all Int FK refs (RepairRequestStatusLog, AcceptanceHandover, RepairRequestItem).
+  // Breaking change — do NOT change type without migration.
   id               Int                 @id @default(autoincrement())
   ngayThang        DateTime            @default(now())
   maYeuCau         String              @unique

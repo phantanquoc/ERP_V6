@@ -1,6 +1,6 @@
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
-import { NotFoundError } from '@utils/errors';
+import { NotFoundError, ValidationError } from '@utils/errors';
 import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import ExcelJS from 'exceljs';
 
@@ -74,6 +74,9 @@ class SparePartService {
   }
 
   async create(data: CreateSparePartData) {
+    if (data.soLuongTon !== undefined && data.soLuongTon < 0) {
+      throw new ValidationError('Số lượng tồn không được âm');
+    }
     const maLinhKien = await this.generateCode(data.loai);
     return prisma.sparePart.create({
       data: {
@@ -93,7 +96,20 @@ class SparePartService {
 
   async update(id: string, data: UpdateSparePartData) {
     await this.getById(id);
+    if (data.soLuongTon !== undefined) {
+      if (data.soLuongTon < 0) throw new ValidationError('Số lượng tồn không được âm');
+      // Guard: decrement must not exceed current stock when caller sends absolute value smaller than needed elsewhere — handled by non-negative check above.
+      // If business logic needs delta-based decrement, use decrementStock().
+    }
     return prisma.sparePart.update({ where: { id }, data });
+  }
+
+  /** Decrement stock by qty; throws if insufficient. */
+  async decrementStock(id: string, qty: number) {
+    if (qty <= 0) throw new ValidationError('Số lượng trừ phải lớn hơn 0');
+    const part = await this.getById(id);
+    if (part.soLuongTon < qty) throw new ValidationError('Không đủ tồn kho để trừ');
+    return prisma.sparePart.update({ where: { id }, data: { soLuongTon: part.soLuongTon - qty } });
   }
 
   async delete(id: string) {

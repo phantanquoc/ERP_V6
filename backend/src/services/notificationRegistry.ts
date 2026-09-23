@@ -763,6 +763,88 @@ const entries: NotificationEventDef[] = [
     },
   },
 
+  // ── Technical: Machine System ──
+  {
+    event: NotificationEvent.MACHINE_SYSTEM_CREATED,
+    notificationType: NotificationType.TECHNICAL_UPDATE,
+    buildMessage: (ctx) => ({
+      title: 'Hệ thống máy mới',
+      message: `Hệ thống "${ctx.metadata?.tenHeThong ?? ctx.metadata?.maHeThong ?? ''}" đã được tạo.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.MACHINE_SYSTEM_UPDATED,
+    notificationType: NotificationType.TECHNICAL_UPDATE,
+    buildMessage: (ctx) => ({
+      title: 'Hệ thống máy cập nhật',
+      message: `Hệ thống "${ctx.metadata?.tenHeThong ?? ctx.metadata?.maHeThong ?? ''}" đã được cập nhật.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.MACHINE_SYSTEM_DELETED,
+    notificationType: NotificationType.TECHNICAL_UPDATE,
+    buildMessage: (ctx) => ({
+      title: 'Hệ thống máy đã xóa',
+      message: `Hệ thống "${ctx.metadata?.tenHeThong ?? ctx.metadata?.maHeThong ?? ''}" đã bị xóa.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+  // ── Technical: Maintenance Plan ──
+  {
+    event: NotificationEvent.MAINTENANCE_PLAN_CREATED,
+    notificationType: NotificationType.TECHNICAL_UPDATE,
+    buildMessage: (ctx) => ({
+      title: 'Kế hoạch bảo dưỡng mới',
+      message: `Kế hoạch ${ctx.metadata?.maKeHoach ?? ''} năm ${ctx.metadata?.nam ?? ''} đã được tạo.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.MAINTENANCE_PLAN_UPDATED,
+    notificationType: NotificationType.TECHNICAL_UPDATE,
+    buildMessage: (ctx) => ({
+      title: 'Kế hoạch bảo dưỡng cập nhật',
+      message: `Kế hoạch ${ctx.metadata?.maKeHoach ?? ''} đã được cập nhật.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+  // ── Technical: Fault Record Updated ──
+  {
+    event: NotificationEvent.FAULT_RECORD_UPDATED,
+    notificationType: NotificationType.FAULT_RECORD,
+    buildMessage: (ctx) => ({
+      title: 'Bản ghi lỗi cập nhật',
+      message: `Bản ghi lỗi ${ctx.metadata?.maLoi ?? ctx.metadata?.tenLoi ?? ''} đã được cập nhật.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+
   // ── Pricing Department ──
   {
     event: NotificationEvent.QUOTATION_REQUEST_CREATED,

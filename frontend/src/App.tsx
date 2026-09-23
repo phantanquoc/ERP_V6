@@ -278,7 +278,7 @@ function App() {
                 <TechnicalQuality />
               </ProtectedSubRoute>
             } />
-            <Route path="/technical/mechanical" element={<Navigate to="/technical/quality?tab=repairAndFault" replace />} />
+            <Route path="/technical/mechanical" element={<ProtectedModuleRoute module="technical"><ProtectedSubRoute department="technical" subModule="mechanical"><Navigate to="/technical/quality?tab=repairAndFault" replace /></ProtectedSubRoute></ProtectedModuleRoute>} />
             <Route path="/technical/projects" element={
               <ProtectedSubRoute department="technical" subModule="projects">
                 <TechnicalProjects />
@@ -334,7 +334,9 @@ function App() {
 
             {/* Evaluation Calibration — ADMIN and DEPARTMENT_HEAD only */}
             <Route path="/dashboard/evaluation-calibration" element={<EvaluationCalibrationPage />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Route>
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
         </Suspense>
         </SystemSettingsProvider>

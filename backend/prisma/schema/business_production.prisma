@@ -293,7 +293,7 @@ model Supplier {
 }
 
 model warehouses {
-  id              String            @id
+  id              String            @id @default(cuid())
   maKho           String            @unique
   tenKho          String
   loaiKho         String?

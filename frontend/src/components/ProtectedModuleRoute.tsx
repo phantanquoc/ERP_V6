@@ -84,7 +84,7 @@ const ProtectedModuleRoute: React.FC<ProtectedModuleRouteProps> = ({
     module,
     user.role,
     user.department,
-    user.secondaryDepartments ?? user.secondaryDepartments
+    user.secondaryDepartments
   );
 
   if (!hasAccess) {

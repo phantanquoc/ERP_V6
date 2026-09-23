@@ -1,5 +1,5 @@
 function stripDiacritics(s: string): string {
-  return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
 export const CANONICAL_BO_PHAN: string[] = [
@@ -10,6 +10,7 @@ export const CANONICAL_BO_PHAN: string[] = [
   'Bộ phận kế toán',
   'Bộ phận tổng hợp',
   'Ban giám đốc',
+  'Bộ phận thu mua',
 ];
 
 const NORMALIZED_MAP: Record<string, string> = {
@@ -33,6 +34,9 @@ const NORMALIZED_MAP: Record<string, string> = {
   'bo phan tong hop': 'Bộ phận tổng hợp',
   'admin': 'Ban giám đốc',
   'ban giam doc': 'Ban giám đốc',
+  'purchasing': 'Bộ phận thu mua',
+  'thu mua': 'Bộ phận thu mua',
+  'bo phan thu mua': 'Bộ phận thu mua',
 };
 
 export function normalizeBoPhan(raw: string | null | undefined): string {
