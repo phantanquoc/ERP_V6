@@ -1326,9 +1326,10 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                           <div className="text-xs text-gray-500 mb-1">Phiếu nhập kho</div>
                           <div className="flex flex-wrap gap-2">
                             {selectedRequest.warehouseReceipts.map((wr) => (
-                              <span key={wr.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-white border border-gray-200">
-                                <PackagePlus className="h-3 w-3 text-green-600" />
-                                <span className="font-medium text-gray-800">{wr.maPhieuNhap}</span>
+                              <span key={wr.id} className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs border ${wr.isVoided ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-gray-200'}`}>
+                                <PackagePlus className={`h-3 w-3 ${wr.isVoided ? 'text-red-500' : 'text-green-600'}`} />
+                                <span className="font-medium">{wr.maPhieuNhap}</span>
+                                {wr.isVoided && <span className="ml-1 text-[10px] font-bold">Đã vô hiệu</span>}
                               </span>
                             ))}
                           </div>

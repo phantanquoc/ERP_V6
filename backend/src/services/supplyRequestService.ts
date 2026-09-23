@@ -193,11 +193,33 @@ class SupplyRequestService {
               convertedPurchaseRequest: { select: { id: true, maYeuCau: true } },
             },
           },
-          warehouseReceipts: { select: { id: true, maPhieuNhap: true, purchaseRequestId: true, isVoided: true, items: { select: { tenSanPham: true, soLuongThucTe: true } } } },
+          warehouseReceipts: { select: { id: true, maPhieuNhap: true, purchaseRequestId: true, isVoided: true, voidReason: true, items: { select: { tenSanPham: true, soLuongThucTe: true } } } },
         },
       }),
       prisma.supplyRequest.count({ where }),
     ]);
+
+    // Merge voided-but-detached via purchaseRequestId for list view as well (so expanded row shows Lien ket correctly after ADMIN void)
+    const prIdsList = new Set<string>();
+    for (const sr of data as any[]) for (const pr of sr.purchaseRequests ?? []) if (pr.id) prIdsList.add(pr.id);
+    if (prIdsList.size > 0) {
+      const viaPRList = await prisma.warehouseReceipt.findMany({
+        where: { purchaseRequestId: { in: Array.from(prIdsList) } },
+        select: { id: true, maPhieuNhap: true, purchaseRequestId: true, isVoided: true, voidReason: true, items: { select: { tenSanPham: true, soLuongThucTe: true } } },
+      } as any);
+      const byPr = new Map<string, any[]>();
+      for (const r of viaPRList as any[]) {
+        const k = (r as any).purchaseRequestId as string;
+        if (!byPr.has(k)) byPr.set(k, []);
+        byPr.get(k)!.push(r);
+      }
+      for (const sr of data as any[]) {
+        const merged = new Map<string, any>();
+        for (const r of sr.warehouseReceipts ?? []) merged.set(r.id, r);
+        for (const pr of sr.purchaseRequests ?? []) for (const r of byPr.get(pr.id) ?? []) if (!merged.has(r.id)) merged.set(r.id, r);
+        sr.warehouseReceipts = Array.from(merged.values());
+      }
+    }
 
     return {
       data,
@@ -245,12 +267,26 @@ class SupplyRequestService {
             convertedPurchaseRequest: { select: { id: true, maYeuCau: true } },
           },
         },
-        warehouseReceipts: { select: { id: true, maPhieuNhap: true, purchaseRequestId: true, isVoided: true, items: { select: { tenSanPham: true, soLuongThucTe: true } } } },
+        warehouseReceipts: { select: { id: true, maPhieuNhap: true, purchaseRequestId: true, isVoided: true, voidReason: true, items: { select: { tenSanPham: true, soLuongThucTe: true } } } },
       },
     });
 
     if (!supplyRequest) {
       throw new NotFoundError('Supply request not found');
+    }
+
+    // A: voided-but-detached receipts (46/47) have supplyRequestId nulled by ADMIN void
+    // but still carry purchaseRequestId -> merge them back so Lien ket still shows with badge
+    const prIds = (supplyRequest.purchaseRequests ?? []).map((pr: any) => pr.id).filter(Boolean) as string[];
+    if (prIds.length > 0) {
+      const viaPR = await prisma.warehouseReceipt.findMany({
+        where: { purchaseRequestId: { in: prIds } },
+        select: { id: true, maPhieuNhap: true, purchaseRequestId: true, isVoided: true, voidReason: true, items: { select: { tenSanPham: true, soLuongThucTe: true } } },
+      } as any);
+      const byId = new Map<string, any>();
+      for (const r of (supplyRequest as any).warehouseReceipts ?? []) byId.set(r.id, r);
+      for (const r of viaPR as any[]) if (!byId.has(r.id)) byId.set(r.id, r);
+      (supplyRequest as any).warehouseReceipts = Array.from(byId.values());
     }
 
     return supplyRequest;
