@@ -72,11 +72,52 @@ export class DocsController {
   async getDocContent(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { slug } = req.params;
-      const doc = DOC_MAP.find(d => d.slug === slug);
 
+      // Path traversal guard: only allow [a-z0-9-] slugs
+      if (!slug || !/^[a-z0-9-]+$/.test(slug)) {
+        res.status(400).json({ success: false, message: 'Slug tài liệu không hợp lệ' });
+        return;
+      }
+
+      const doc = DOC_MAP.find(d => d.slug === slug);
       if (!doc) { res.status(404).json({ success: false, message: 'Không tìm thấy tài liệu' }); return; }
 
+      // Department check (IDOR) — same logic as listDocs
+      const userId = req.user?.id;
+      if (!userId) { res.status(401).json({ success: false, message: 'Unauthorized' }); return; }
+
+      const userRecord = await docsService.getUserWithDepartments(userId);
+      if (!userRecord) { res.status(404).json({ success: false, message: 'Không tìm thấy người dùng' }); return; }
+
+      const isAdmin = userRecord.role === 'ADMIN';
+      if (!isAdmin && doc.departmentCode !== null) {
+        const allDeptIds: string[] = [];
+        if (userRecord.departmentId) allDeptIds.push(userRecord.departmentId);
+        for (const sd of userRecord.secondaryDepartments) {
+          if (sd.departmentId && !allDeptIds.includes(sd.departmentId)) allDeptIds.push(sd.departmentId);
+        }
+        const deptIdToCode = await docsService.getDepartmentCodes(allDeptIds);
+        const userPermCodes: string[] = [];
+        const primaryDeptCode = userRecord.departmentId ? deptIdToCode[userRecord.departmentId] : null;
+        if (primaryDeptCode && DEPT_CODE_TO_PERM[primaryDeptCode]) userPermCodes.push(DEPT_CODE_TO_PERM[primaryDeptCode]);
+        for (const sd of userRecord.secondaryDepartments) {
+          const code = deptIdToCode[sd.departmentId];
+          const mapped = code ? DEPT_CODE_TO_PERM[code] : null;
+          if (mapped && !userPermCodes.includes(mapped)) userPermCodes.push(mapped);
+        }
+        if (!userPermCodes.includes(doc.departmentCode)) {
+          res.status(403).json({ success: false, message: 'Không có quyền truy cập tài liệu này' });
+          return;
+        }
+      }
+
       const filePath = path.join(DOCS_DIR, `${slug}.md`);
+      // Resolve and ensure inside DOCS_DIR to block traversal via symlink tricks
+      const resolved = path.resolve(filePath);
+      if (!resolved.startsWith(path.resolve(DOCS_DIR) + path.sep) && resolved !== path.resolve(path.join(DOCS_DIR, `${slug}.md`))) {
+        res.status(400).json({ success: false, message: 'Slug tài liệu không hợp lệ' });
+        return;
+      }
       if (!fs.existsSync(filePath)) { res.status(404).json({ success: false, message: 'Không tìm thấy file tài liệu' }); return; }
 
       const content = fs.readFileSync(filePath, 'utf-8');

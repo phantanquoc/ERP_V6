@@ -364,7 +364,7 @@ const entries: NotificationEventDef[] = [
     notificationType: NotificationType.LOW_STOCK_ALERT,
     buildMessage: (ctx) => ({
       title: 'Cảnh báo tồn kho thấp',
-      message: `Hàng hóa ${ctx.metadata?.tenSanPham ?? ''} đang dưới ngưỡng tồn kho tối thiểu (còn ${ctx.metadata?.currentStock ?? 0} ${ctx.metadata?.donViTinh ?? ''}).`,
+      message: `Hàng hóa ${(ctx.metadata?.tenSanPham ?? ctx.metadata?.productName ?? '') as string} đang dưới ngưỡng tồn kho tối thiểu (còn ${ctx.metadata?.currentStock ?? 0} ${ctx.metadata?.donViTinh ?? ''}).`,
     }),
     resolveRecipients: async (ctx) => {
       const warehouse = await getEmployeeIdsBySubDeptCode('SUBDEPT_PRODUCTION_WAREHOUSE');
@@ -1069,6 +1069,168 @@ const entries: NotificationEventDef[] = [
       const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
       const admins = await getAdminEmployeeIds(ctx.actorUserId);
       return [...new Set([...technical, ...admins])];
+    },
+  },
+
+
+  // ── Production: Finished Product ──
+  {
+    event: NotificationEvent.FINISHED_PRODUCT_CREATED,
+    notificationType: NotificationType.FINISHED_PRODUCT,
+    buildMessage: (ctx) => ({
+      title: 'Thành phẩm mới',
+      message: `Thành phẩm ${ctx.metadata?.maChien ?? ''} — ${ctx.metadata?.tenHangHoa ?? ''} đã được tạo.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const prod = await getEmployeeIdsByDeptCode('DEPT_PRODUCTION');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...prod, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.FINISHED_PRODUCT_UPDATED,
+    notificationType: NotificationType.FINISHED_PRODUCT,
+    buildMessage: (ctx) => ({
+      title: 'Thành phẩm cập nhật',
+      message: `Thành phẩm ${ctx.metadata?.maChien ?? ''} đã được cập nhật.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const prod = await getEmployeeIdsByDeptCode('DEPT_PRODUCTION');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...prod, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.FINISHED_PRODUCT_CONFIRMED,
+    notificationType: NotificationType.FINISHED_PRODUCT,
+    buildMessage: (ctx) => ({
+      title: 'Thành phẩm đã nhập kho',
+      message: `Thành phẩm ${ctx.metadata?.maChien ?? ''} đã được xác nhận nhập kho.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const prod = await getEmployeeIdsByDeptCode('DEPT_PRODUCTION');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...prod, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.FINISHED_PRODUCT_DELETED,
+    notificationType: NotificationType.FINISHED_PRODUCT,
+    buildMessage: (ctx) => ({
+      title: 'Thành phẩm đã xóa',
+      message: `Thành phẩm ${ctx.metadata?.maChien ?? ''} đã bị xóa.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const prod = await getEmployeeIdsByDeptCode('DEPT_PRODUCTION');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...prod, ...admins])];
+    },
+  },
+  // ── Production: Material Evaluation ──
+  {
+    event: NotificationEvent.MATERIAL_EVALUATION_CREATED,
+    notificationType: NotificationType.MATERIAL_EVALUATION,
+    buildMessage: (ctx) => ({
+      title: 'Đánh giá nguyên liệu mới',
+      message: `Đánh giá nguyên liệu ${ctx.metadata?.maChien ?? ''} — ${ctx.metadata?.tenHangHoa ?? ''} đã được tạo.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const prod = await getEmployeeIdsByDeptCode('DEPT_PRODUCTION');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...prod, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.MATERIAL_EVALUATION_UPDATED,
+    notificationType: NotificationType.MATERIAL_EVALUATION,
+    buildMessage: (ctx) => ({
+      title: 'Đánh giá nguyên liệu cập nhật',
+      message: `Đánh giá nguyên liệu ${ctx.metadata?.maChien ?? ''} đã được cập nhật.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const prod = await getEmployeeIdsByDeptCode('DEPT_PRODUCTION');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...prod, ...admins])];
+    },
+  },
+  // ── Production: Quality Evaluation ──
+  {
+    event: NotificationEvent.QUALITY_EVALUATION_CREATED,
+    notificationType: NotificationType.QUALITY_EVALUATION,
+    buildMessage: (ctx) => ({
+      title: 'Đánh giá chất lượng mới',
+      message: `Đánh giá chất lượng ${ctx.metadata?.maChien ?? ''} — ${ctx.metadata?.tenHangHoa ?? ''} đã được tạo.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const prod = await getEmployeeIdsByDeptCode('DEPT_PRODUCTION');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...prod, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.QUALITY_EVALUATION_UPDATED,
+    notificationType: NotificationType.QUALITY_EVALUATION,
+    buildMessage: (ctx) => ({
+      title: 'Đánh giá chất lượng cập nhật',
+      message: `Đánh giá chất lượng ${ctx.metadata?.maChien ?? ''} đã được cập nhật.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const prod = await getEmployeeIdsByDeptCode('DEPT_PRODUCTION');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...prod, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.QUALITY_EVALUATION_DELETED,
+    notificationType: NotificationType.QUALITY_EVALUATION,
+    buildMessage: (ctx) => ({
+      title: 'Đánh giá chất lượng đã xóa',
+      message: `Đánh giá chất lượng ${ctx.metadata?.maChien ?? ''} đã bị xóa.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const prod = await getEmployeeIdsByDeptCode('DEPT_PRODUCTION');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...prod, ...admins])];
+    },
+  },
+  // ── Production: Internal Inspection ──
+  {
+    event: NotificationEvent.INTERNAL_INSPECTION_CREATED,
+    notificationType: NotificationType.INTERNAL_INSPECTION,
+    buildMessage: (ctx) => ({
+      title: 'Kiểm tra nội bộ mới',
+      message: `Kiểm tra nội bộ ${ctx.metadata?.maKiemTra ?? ctx.metadata?.maChien ?? ''} đã được tạo.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const prod = await getEmployeeIdsByDeptCode('DEPT_PRODUCTION');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...prod, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.INTERNAL_INSPECTION_UPDATED,
+    notificationType: NotificationType.INTERNAL_INSPECTION,
+    buildMessage: (ctx) => ({
+      title: 'Kiểm tra nội bộ cập nhật',
+      message: `Kiểm tra nội bộ ${ctx.metadata?.maKiemTra ?? ''} đã được cập nhật.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const prod = await getEmployeeIdsByDeptCode('DEPT_PRODUCTION');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...prod, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.INTERNAL_INSPECTION_DELETED,
+    notificationType: NotificationType.INTERNAL_INSPECTION,
+    buildMessage: (ctx) => ({
+      title: 'Kiểm tra nội bộ đã xóa',
+      message: `Kiểm tra nội bộ ${ctx.metadata?.maKiemTra ?? ''} đã bị xóa.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const prod = await getEmployeeIdsByDeptCode('DEPT_PRODUCTION');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...prod, ...admins])];
     },
   },
 

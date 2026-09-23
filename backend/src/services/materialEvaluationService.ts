@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import prisma from '@config/database';
-import { NotFoundError, ValidationError } from '@utils/errors';
+import { ConflictError, NotFoundError, ValidationError } from '@utils/errors';
 import systemOperationService from '@services/systemOperationService';
 import warehouseIssueService from '@services/warehouseIssueService';
 import { computeHeaderTotals } from '@utils/warehouseSlipLines';
@@ -131,6 +131,7 @@ export class MaterialEvaluationService {
    * Task 6.3 — the slip service owns `PX` code generation. Duplicating the query
    * here let the two implementations drift; a single owner cannot.
    */
+  // @ts-ignore TS6133 keep for backwards compat — delegate to warehouseIssueService
   private generateWarehouseIssueCode(): Promise<string> {
     return warehouseIssueService.generateCode();
   }
@@ -161,10 +162,43 @@ export class MaterialEvaluationService {
     return this.createForSelectedCode(data, thoiGianChien, userId);
   }
 
+  private resolveLotInputs(data: any, khoiLuong: number): Array<{ lotProductId: string; quantity: number }> | null {
+    if (Array.isArray(data.lotProducts) && data.lotProducts.length > 0) {
+      return data.lotProducts.map((it: any) => ({
+        lotProductId: String(it.lotProductId),
+        quantity: Number(it.quantity ?? it.soLuong ?? it.khoiLuong),
+      }));
+    }
+    if (Array.isArray(data.lotProductIds) && data.lotProductIds.length > 0) {
+      const ids: string[] = data.lotProductIds.map((v: any) => String(v));
+      if (ids.length === 1) return [{ lotProductId: ids[0], quantity: khoiLuong }];
+      // Equal split when caller sends only ids without per-lot quantities
+      const per = khoiLuong / ids.length;
+      return ids.map((id) => ({ lotProductId: id, quantity: per }));
+    }
+    if (data.lotProductId) {
+      return [{ lotProductId: String(data.lotProductId), quantity: khoiLuong }];
+    }
+    return null;
+  }
+
+  private async resolveEmployeeId(data: any, userId?: string, tx?: Prisma.TransactionClient): Promise<string> {
+    if (data.employeeId) return String(data.employeeId);
+    if (userId) {
+      const client: any = tx ?? prisma;
+      const emp = await client.employee.findUnique({ where: { userId }, select: { id: true } });
+      if (emp?.id) return emp.id;
+      // Fallback to userId itself if no Employee row (kiosk path resolves earlier)
+      return String(userId);
+    }
+    throw new ValidationError('Thiếu employeeId — không xác định được người tạo phiếu xuất');
+  }
+
   /** Creates a MaterialEvaluation for an already-selected schedule code. */
   private async createForSelectedCode(data: any, thoiGianChien: Date, userId?: string) {
-    // If lotProductId is provided, run the transactional create with WarehouseIssue
-    if (data.lotProductId) {
+    const khoiLuong = parseFloat(data.khoiLuong);
+    const hasLot = this.resolveLotInputs(data, khoiLuong);
+    if (hasLot && hasLot.length > 0) {
       return this.createWithWarehouseLink(data, thoiGianChien, userId);
     }
 
@@ -225,110 +259,122 @@ export class MaterialEvaluationService {
 
   private async createWithWarehouseLink(data: any, thoiGianChien: Date, userId?: string) {
     const khoiLuong = parseFloat(data.khoiLuong);
+    const lotInputs = this.resolveLotInputs(data, khoiLuong);
+    if (!lotInputs || lotInputs.length === 0) throw new ValidationError('Thiếu kiện hàng để xuất nguyên liệu');
+    // Validate per-lot quantities
+    for (const it of lotInputs) {
+      if (!it.lotProductId || !Number.isFinite(it.quantity) || it.quantity <= 0) {
+        throw new ValidationError(`Số lượng cho kiện ${it.lotProductId ?? '?'} không hợp lệ`);
+      }
+    }
+    const sumQty = lotInputs.reduce((s, it) => s + it.quantity, 0);
+    if (Math.abs(sumQty - khoiLuong) > 1e-6 && lotInputs.length > 1) {
+      // Allow caller to send explicit per-lot quantities that must sum to khoiLuong
+      throw new ValidationError(`Tổng số lượng các kiện (${sumQty}) phải bằng khối lượng mẻ (${khoiLuong})`);
+    }
 
-    // Generate WarehouseIssue code BEFORE the transaction (uses a query)
-    const maPhieuXuat = await this.generateWarehouseIssueCode();
+    const createInTx = async (tx: Prisma.TransactionClient) => {
+      const maPhieuXuat = await warehouseIssueService.generateCode(tx as any);
 
-    const evaluation = await prisma.$transaction(async (tx) => {
-      // 1. Read LotProduct inside the transaction for consistency
-      const lotProduct = await tx.lotProduct.findUnique({
-        where: { id: data.lotProductId },
-        include: {
-          internationalProduct: true,
-          lot: { include: { warehouse: true } },
-        },
+      // 1. Load all LotProducts inside tx
+      const lotProducts = await tx.lotProduct.findMany({
+        where: { id: { in: lotInputs.map((i) => i.lotProductId) } },
+        include: { internationalProduct: true, lot: { include: { warehouse: true } } },
       });
-
-      if (!lotProduct) {
-        throw new NotFoundError('Không tìm thấy kiện hàng trong kho');
+      const byId = new Map(lotProducts.map((lp) => [lp.id, lp]));
+      for (const it of lotInputs) {
+        const lp = byId.get(it.lotProductId);
+        if (!lp) throw new NotFoundError(`Không tìm thấy kiện hàng ${it.lotProductId}`);
+        if ((lp as any).donViTinh !== 'Kg') {
+          throw new ValidationError(`Kiện ${it.lotProductId} phải có đơn vị Kg, hiện tại: ${(lp as any).donViTinh}`);
+        }
       }
 
-      // Guard: only Kg units are allowed for material evaluation
-      if (lotProduct.donViTinh !== 'Kg') {
-        throw new ValidationError(
-          `Kiện hàng phải có đơn vị tính Kg để dùng cho đánh giá nguyên liệu. Đơn vị hiện tại: ${lotProduct.donViTinh}`
-        );
-      }
+      // Resolve employeeId correctly (no internationalProductId fallback)
+      const employeeId = await this.resolveEmployeeId(data, userId, tx);
 
-      // 2. Validate stock
-      if (lotProduct.soLuong < khoiLuong) {
-        throw new ValidationError(
-          `Số lượng tồn kho không đủ. Tồn hiện tại: ${lotProduct.soLuong} ${lotProduct.donViTinh}`
-        );
-      }
-
-      const soLuongTruoc = lotProduct.soLuong;
-      const soLuongSau = soLuongTruoc - khoiLuong;
-
-      // 3. Build ghiChu with required prefix
       const ngayXuat = thoiGianChien;
       const dd = String(ngayXuat.getDate()).padStart(2, '0');
       const mm = String(ngayXuat.getMonth() + 1).padStart(2, '0');
       const yyyy = ngayXuat.getFullYear();
       const ghiChu = `[TỰ ĐỘNG] Xuất nguyên liệu cho mẻ chiên ${data.maChien} ngày ${dd}/${mm}/${yyyy}`;
 
-      // 4. Create the WarehouseIssue header plus EXACTLY ONE line (task 6.1).
-      //
-      // Quantity and both stock snapshots live on the line; the header carries only
-      // the derived totals. The deprecated header columns are still mirrored so a
-      // not-yet-migrated reader sees a coherent single-commodity view instead of
-      // `null` — the same mirroring `warehouseIssueService` performs.
-      //
-      // One evaluation still maps to one slip: `MaterialEvaluation.warehouseIssueId`
-      // stays a unique header reference. Multiple raw-material packages per
-      // evaluation is a separate change (17.3), not something this line shape
-      // silently enables here.
-      const line = {
-        stt: 1,
-        lotProductId: lotProduct.id,
-        tenSanPham: lotProduct.internationalProduct?.tenSanPham ?? '',
-        donViTinh: lotProduct.donViTinh,
-        warehouseId: lotProduct.lot.warehouseId,
-        tenKho: lotProduct.lot.warehouse?.tenKho ?? '',
-        lotId: lotProduct.lotId,
-        tenLo: lotProduct.lot.tenLo,
-        soLuongYeuCau: khoiLuong,
-        soLuongThucTe: khoiLuong,
-        soLuongTruoc,
-        soLuongSau,
-        ghiChu,
-      };
+      // 2. Atomic decrement per package (TOCTOU-safe)
+      for (const it of lotInputs) {
+        const res = await tx.lotProduct.updateMany({
+          where: { id: it.lotProductId, soLuong: { gte: it.quantity } },
+          data: { soLuong: { decrement: it.quantity } },
+        });
+        if (res.count === 0) {
+          const lp = byId.get(it.lotProductId)!;
+          throw new ValidationError(`Số lượng tồn kho kiện ${it.lotProductId} không đủ. Tồn ${ (lp as any).soLuong}, cần ${it.quantity}`);
+        }
+      }
+      // Re-read for snapshots
+      const after = await tx.lotProduct.findMany({ where: { id: { in: lotInputs.map((i) => i.lotProductId) } } });
+      const afterById = new Map(after.map((r) => [r.id, r]));
 
-      const warehouseIssue = await tx.warehouseIssue.create({
-        data: {
-          maPhieuXuat,
-          employeeId: data.employeeId ?? lotProduct.internationalProductId ?? '', // fallback
-          maNhanVien: data.maNhanVien ?? '',
-          tenNhanVien: data.tenNhanVien ?? data.nguoiThucHien ?? '',
-          ghiChu,
-          ...computeHeaderTotals([line]),
-          // Deprecated single-commodity mirror of the one line.
-          warehouseId: line.warehouseId,
-          tenKho: line.tenKho,
-          lotId: line.lotId,
-          tenLo: line.tenLo,
-          lotProductId: line.lotProductId,
-          tenSanPham: line.tenSanPham,
-          donViTinh: line.donViTinh,
+      const lines = lotInputs.map((it, idx) => {
+        const lp = byId.get(it.lotProductId)! as any;
+        const cur = afterById.get(it.lotProductId)! as any;
+        const soLuongSau = cur.soLuong;
+        const soLuongTruoc = soLuongSau + it.quantity;
+        return {
+          stt: idx + 1,
+          lotProductId: it.lotProductId,
+          tenSanPham: lp.internationalProduct?.tenSanPham ?? '',
+          donViTinh: lp.donViTinh,
+          warehouseId: lp.lot.warehouseId,
+          tenKho: lp.lot.warehouse?.tenKho ?? '',
+          lotId: lp.lotId,
+          tenLo: lp.lot.tenLo,
+          soLuongYeuCau: it.quantity,
+          soLuongThucTe: it.quantity,
           soLuongTruoc,
-          soLuongXuat: khoiLuong,
           soLuongSau,
-          items: { create: [line] },
-        },
+          ghiChu,
+        };
       });
 
-      // 5. Decrement LotProduct.soLuong
-      await tx.lotProduct.update({
-        where: { id: lotProduct.id },
-        data: { soLuong: soLuongSau },
-      });
+      const first = lines[0];
+      let warehouseIssue: any;
+      try {
+        warehouseIssue = await tx.warehouseIssue.create({
+          data: {
+            maPhieuXuat,
+            employeeId,
+            maNhanVien: data.maNhanVien ?? '',
+            tenNhanVien: data.tenNhanVien ?? data.nguoiThucHien ?? '',
+            ghiChu,
+            ...computeHeaderTotals(lines),
+            warehouseId: first.warehouseId,
+            tenKho: first.tenKho,
+            lotId: first.lotId,
+            tenLo: first.tenLo,
+            lotProductId: first.lotProductId,
+            tenSanPham: first.tenSanPham,
+            donViTinh: first.donViTinh,
+            soLuongTruoc: first.soLuongTruoc,
+            soLuongXuat: khoiLuong,
+            soLuongSau: first.soLuongSau,
+            items: { create: lines },
+          },
+        });
+      } catch (e: any) {
+        if (e?.code === 'P2002') throw new ConflictError(`Trùng mã phiếu xuất ${maPhieuXuat}, vui lòng thử lại`);
+        throw e;
+      }
 
-      // 6. Build snapshot fields
-      const tenHangHoa = lotProduct.internationalProduct?.tenSanPham ?? '';
-      const maSanPham = lotProduct.internationalProduct?.maSanPham ?? '';
-      const soLoKien = lotProduct.maKien ?? `${lotProduct.lot.tenLo}-${lotProduct.id.slice(-4)}`;
+      const primary = byId.get(lotInputs[0].lotProductId)! as any;
+      const tenHangHoa = primary.internationalProduct?.tenSanPham ?? '';
+      const maSanPham = primary.internationalProduct?.maSanPham ?? '';
+      const soLoKien = lotInputs.length === 1
+        ? (primary.maKien ?? `${primary.lot.tenLo}-${primary.id.slice(-4)}`)
+        : lotInputs.map((it) => {
+            const lp2 = byId.get(it.lotProductId)! as any;
+            return lp2.maKien ?? `${lp2.lot.tenLo}-${lp2.id.slice(-4)}`;
+          }).join(', ');
 
-      // 7. Create MaterialEvaluation with both FKs
       const newEvaluation = await tx.materialEvaluation.create({
         data: {
           maChien: data.maChien,
@@ -349,20 +395,24 @@ export class MaterialEvaluationService {
           fileDinhKem: data.fileDinhKem,
           nguoiThucHien: data.nguoiThucHien,
           ca: data.ca != null ? parseInt(data.ca) : null,
-          lotProductId: lotProduct.id,
+          lotProductId: lotInputs[0].lotProductId,
           warehouseIssueId: warehouseIssue.id,
           createdById: userId ?? null,
         },
       });
-
       return newEvaluation;
-    });
+    };
 
-    // Non-fatal side effect (post-transaction): seed production child rows for every
-    // active machine. Kept outside the transaction to isolate seeding from the warehouse
-    // issue — a seeder failure must not roll back a valid stock issue.
+    // Retry once on P2002 code collision
+    let evaluation: any;
+    try {
+      evaluation = await prisma.$transaction(createInTx);
+    } catch (e: any) {
+      if (e instanceof ConflictError && String(e.message).includes('Trùng mã phiếu')) {
+        evaluation = await prisma.$transaction(createInTx);
+      } else throw e;
+    }
     await this.seedProductionChildRows(evaluation.maChien, evaluation.thoiGianChien);
-
     return evaluation;
   }
 
@@ -488,41 +538,24 @@ export class MaterialEvaluationService {
         });
 
         if (warehouseIssue) {
-          // Refund stock only if LotProduct still exists
-          if (existing.lotProductId) {
-            const lotProduct = await tx.lotProduct.findUnique({
-              where: { id: existing.lotProductId },
-            });
-
-            if (lotProduct) {
-              // Task 6.2 — the quantity is read from the issue's LINES, summed over
-              // every line that drew from this package. The header's `soLuongXuat` is
-              // a deprecated nullable mirror: reading it yields `null`/`undefined` for
-              // a multi-line slip, and `lotProduct.soLuong + undefined` is `NaN`, which
-              // Postgres accepts into a Float column without complaint. Silently
-              // skipping the refund instead (the Batch A null-guard) is equally wrong —
-              // it loses stock. So: sum the lines, then assert the result is finite.
-              const refund = (warehouseIssue.items ?? [])
-                .filter((line) => line.lotProductId === existing.lotProductId)
-                .reduce((sum, line) => sum + Number(line.soLuongThucTe), 0);
-
-              if (!Number.isFinite(refund)) {
-                throw new ValidationError(
-                  `Không xác định được số lượng hoàn kho từ phiếu xuất ${warehouseIssue.maPhieuXuat}`
-                );
-              }
-
+          // Refund stock for ALL packages in the slip (multi-lot support).
+          // Aggregate refunds by lotProductId from lines so each package gets correct total.
+          const refundsByLot = new Map<string, number>();
+          for (const line of (warehouseIssue.items ?? []) as any[]) {
+            refundsByLot.set(line.lotProductId, (refundsByLot.get(line.lotProductId) ?? 0) + Number(line.soLuongThucTe));
+          }
+          if (refundsByLot.size > 0) {
+            if ([...refundsByLot.values()].some((v) => !Number.isFinite(v))) {
+              throw new ValidationError(`Không xác định được số lượng hoàn kho từ phiếu xuất ${warehouseIssue.maPhieuXuat}`);
+            }
+            for (const [lotProductId, refund] of refundsByLot) {
+              const lotProduct = await tx.lotProduct.findUnique({ where: { id: lotProductId } });
+              if (!lotProduct) continue;
               const soLuong = lotProduct.soLuong + refund;
               if (!Number.isFinite(soLuong)) {
-                throw new ValidationError(
-                  `Số lượng tồn kho sau hoàn không hợp lệ cho kiện hàng ${existing.lotProductId}`
-                );
+                throw new ValidationError(`Số lượng tồn kho sau hoàn không hợp lệ cho kiện hàng ${lotProductId}`);
               }
-
-              await tx.lotProduct.update({
-                where: { id: existing.lotProductId },
-                data: { soLuong },
-              });
+              await tx.lotProduct.update({ where: { id: lotProductId }, data: { soLuong } });
             }
           }
 

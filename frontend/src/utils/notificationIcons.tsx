@@ -78,6 +78,16 @@ export const getNotificationIcon = (type: string): React.ReactNode => {
       return <BarChart3 className="w-4 h-4 text-cyan-600" />;
     case 'TECHNICAL_UPDATE':
       return <Wrench className="w-4 h-4 text-slate-600" />;
+    case 'SYSTEM_OPERATION':
+      return <Wrench className="w-4 h-4 text-cyan-600" />;
+    case 'FINISHED_PRODUCT':
+      return <PackageCheck className="w-4 h-4 text-emerald-600" />;
+    case 'MATERIAL_EVALUATION':
+      return <ClipboardList className="w-4 h-4 text-amber-600" />;
+    case 'QUALITY_EVALUATION':
+      return <CheckCircle className="w-4 h-4 text-green-600" />;
+    case 'INTERNAL_INSPECTION':
+      return <AlertCircle className="w-4 h-4 text-blue-600" />;
     default:
       return <AlertCircle className="w-4 h-4 text-gray-600" />;
   }

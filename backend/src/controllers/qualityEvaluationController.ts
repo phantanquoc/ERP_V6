@@ -2,6 +2,9 @@ import { Response, NextFunction } from 'express';
 import qualityEvaluationService from '@services/qualityEvaluationService';
 import type { AuthenticatedRequest, ApiResponse } from '@types';
 import { getFileUrl } from '@middlewares/upload';
+import notificationService from '@services/notificationService';
+import { NotificationEvent } from '@types';
+import logger from '@config/logger';
 import { z } from 'zod';
 
 interface RequestWithFile extends AuthenticatedRequest {
@@ -96,6 +99,13 @@ export class QualityEvaluationController {
       if (req.file) data.fileDinhKem = getFileUrl('quality-evaluations', req.file.filename);
 
       const evaluation = await qualityEvaluationService.createQualityEvaluation(data, userId);
+      try {
+        await notificationService.notify(NotificationEvent.QUALITY_EVALUATION_CREATED, {
+          actorUserId: userId,
+          entityId: (evaluation as any).id,
+          metadata: { maChien: (evaluation as any).maChien, tenHangHoa: (evaluation as any).tenHangHoa },
+        });
+      } catch (e) { logger.warn('[QualityEvaluationController] notify QUALITY_EVALUATION_CREATED failed', e); }
 
       res.status(201).json({
         success: true,
@@ -117,6 +127,13 @@ export class QualityEvaluationController {
       if (req.file) data.fileDinhKem = getFileUrl('quality-evaluations', req.file.filename);
 
       const evaluation = await qualityEvaluationService.updateQualityEvaluation(id, data, userId);
+      try {
+        await notificationService.notify(NotificationEvent.QUALITY_EVALUATION_UPDATED, {
+          actorUserId: userId,
+          entityId: id,
+          metadata: { maChien: (evaluation as any).maChien, tenHangHoa: (evaluation as any).tenHangHoa },
+        });
+      } catch (e) { logger.warn('[QualityEvaluationController] notify QUALITY_EVALUATION_UPDATED failed', e); }
 
       res.json({
         success: true,
@@ -131,7 +148,10 @@ export class QualityEvaluationController {
   async deleteQualityEvaluation(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = req.params.id as string;
+      let _qeMeta: Record<string, unknown> = {};
+      try { const _qe = await qualityEvaluationService.getQualityEvaluationById(id); _qeMeta = { maChien: (_qe as any).maChien, tenHangHoa: (_qe as any).tenHangHoa }; } catch (_) {}
       const result = await qualityEvaluationService.deleteQualityEvaluation(id);
+      try { await notificationService.notify(NotificationEvent.QUALITY_EVALUATION_DELETED, { actorUserId: (req as any).user?.id, entityId: id, metadata: _qeMeta }); } catch (e) { logger.warn('[QualityEvaluationController] notify QUALITY_EVALUATION_DELETED failed', e); }
 
       res.json({
         success: true,

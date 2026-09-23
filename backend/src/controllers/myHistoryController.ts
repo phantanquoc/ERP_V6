@@ -2,7 +2,7 @@ import { Response, NextFunction } from 'express';
 import { z } from 'zod';
 import type { AuthenticatedRequest } from '@types';
 import { getMyHistory } from '@services/myHistoryService';
-import { ValidationError } from '@utils/errors';
+import { AuthorizationError, ValidationError } from '@utils/errors';
 
 // ─── Zod schema ───────────────────────────────────────────────────────────────
 
@@ -86,6 +86,13 @@ export async function getUserHistoryHandler(
 ): Promise<void> {
   try {
     const targetUserId = req.params.userId;
+
+    // IDOR guard: EMPLOYEE/TEAM_LEAD cannot view another user's history
+    const caller = req.user!;
+    const privileged = ['ADMIN', 'DEPARTMENT_HEAD'].includes(caller.role);
+    if (targetUserId !== caller.id && !privileged) {
+      throw new AuthorizationError('Bạn không có quyền xem lịch sử của người dùng khác');
+    }
 
     const params = parseQuery(req.query as Record<string, unknown>);
     const result = await getMyHistory({

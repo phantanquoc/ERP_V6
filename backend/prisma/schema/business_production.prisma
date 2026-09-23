@@ -48,6 +48,7 @@ model SupplyRequest {
   warehouseIssues       WarehouseIssue[]
   outboundPlans         OutboundPlan[]
 
+  @@index([employeeId])
   @@index([trangThai])
   @@map("supply_requests")
   @@schema("business")
@@ -136,11 +137,12 @@ model ReplenishmentRequest {
   createdAt                  DateTime                   @default(now())
   updatedAt                  DateTime                   @updatedAt
   employee                   Employee                   @relation(fields: [employeeId], references: [id])
-  supplyRequest              SupplyRequest?             @relation(fields: [supplyRequestId], references: [id])
+  supplyRequest              SupplyRequest?             @relation(fields: [supplyRequestId], references: [id], onDelete: SetNull)
   convertedPurchaseRequest   PurchaseRequest?           @relation("ReplenishmentToPurchase", fields: [convertedPurchaseRequestId], references: [id], onDelete: SetNull)
   items                      ReplenishmentRequestItem[]
   decisions                  SupplyRequestDecision[]
 
+  @@index([employeeId])
   @@index([supplyRequestId])
   @@index([trangThai])
   @@index([phanLoaiGroup])
@@ -449,13 +451,18 @@ model LotProduct {
   updatedAt              DateTime               @updatedAt
   // Giá thành/đơn vị (VND). 0 = chưa nhập giá (không dùng placeholder 100.000 nữa).
   giaThanh               Float?                 @default(0)
-  internationalProduct   InternationalProduct?  @relation(fields: [internationalProductId], references: [id], onDelete: Cascade)
+  internationalProduct   InternationalProduct?  @relation(fields: [internationalProductId], references: [id], onDelete: Restrict)
   lot                    Lot                    @relation(fields: [lotId], references: [id], onDelete: Cascade)
   slot                   WarehouseSlot?         @relation(fields: [slotId], references: [id], onDelete: SetNull)
   materialEvaluations    MaterialEvaluation[]
   warehouseReceipts      WarehouseReceiptItem[]
   warehouseIssues        WarehouseIssueItem[]
 
+  // Note: maKien nullable — PostgreSQL treats NULL != NULL, so @@unique([lotId, maKien])
+  // does NOT prevent duplicate (lotId, NULL) rows. Enforce uniqueness for
+  // non-null maKien via a partial unique index WHERE maKien IS NOT NULL in
+  // the migration (or a service-level guard). Making maKien required would
+  // break fixed kiện pre-created without a product (see comment above).
   @@unique([lotId, maKien])
   @@index([lotId])
   @@index([internationalProductId])
@@ -867,6 +874,9 @@ model FinishedProductEntryHistory {
 }
 
 model QualityEvaluation {
+  // TODO(cuid-migration): id is @default(uuid()) for legacy data; migrate to cuid() in a
+  // dedicated migration after auditing all FK refs (LotProduct consumers, etc.).
+  // Breaking change — do NOT change type without migration.
   id            String    @id @default(uuid())
   maChien       String
   thoiGianChien String
@@ -923,6 +933,8 @@ model QualityEvaluation {
 }
 
 model ProductionReport {
+  // TODO(cuid-migration): id is @default(uuid()) for legacy data; migrate to cuid() in a
+  // dedicated migration after auditing all FK refs. Breaking change — do NOT change without migration.
   id                            String  @id @default(uuid())
   ngayThang                     String // Ngày tháng
   tongSoTuaSanXuat              Int     @default(0) // Tổng số tua sản xuất/ngày

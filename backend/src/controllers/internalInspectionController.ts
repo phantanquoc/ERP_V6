@@ -1,6 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import internalInspectionService from '@services/internalInspectionService';
 import type { AuthenticatedRequest } from '@types';
+import notificationService from '@services/notificationService';
+import { NotificationEvent } from '@types';
+import logger from '@config/logger';
 
 export class InternalInspectionController {
   async exportToExcel(_req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -61,6 +64,13 @@ export class InternalInspectionController {
       const authReq = req as unknown as AuthenticatedRequest;
 
       const inspection = await internalInspectionService.createInspection(data, authReq.user?.id);
+      try {
+        await notificationService.notify(NotificationEvent.INTERNAL_INSPECTION_CREATED, {
+          actorUserId: authReq.user?.id,
+          entityId: (inspection as any).id,
+          metadata: { maKiemTra: (inspection as any).maKiemTra ?? (inspection as any).maChien ?? '', maChien: (inspection as any).maChien ?? '' },
+        });
+      } catch (e) { logger.warn('[InternalInspectionController] notify INTERNAL_INSPECTION_CREATED failed', e); }
 
       res.status(201).json({
         success: true,
@@ -79,6 +89,13 @@ export class InternalInspectionController {
       const data = req.body;
 
       const inspection = await internalInspectionService.updateInspection(id, data);
+      try {
+        await notificationService.notify(NotificationEvent.INTERNAL_INSPECTION_UPDATED, {
+          actorUserId: (req as any).user?.id,
+          entityId: id,
+          metadata: { maKiemTra: (inspection as any).maKiemTra ?? '', maChien: (inspection as any).maChien ?? '' },
+        });
+      } catch (e) { logger.warn('[InternalInspectionController] notify INTERNAL_INSPECTION_UPDATED failed', e); }
 
       res.json({
         success: true,
@@ -95,7 +112,10 @@ export class InternalInspectionController {
     try {
       const id = req.params.id as string;
 
+      let _inspMeta: Record<string, unknown> = {};
+      try { const _insp = await internalInspectionService.getInspectionById(id); _inspMeta = { maKiemTra: (_insp as any).maKiemTra ?? '', maChien: (_insp as any).maChien ?? '' }; } catch (_) {}
       await internalInspectionService.deleteInspection(id);
+      try { await notificationService.notify(NotificationEvent.INTERNAL_INSPECTION_DELETED, { actorUserId: (req as any).user?.id, entityId: id, metadata: _inspMeta }); } catch (e) { logger.warn('[InternalInspectionController] notify INTERNAL_INSPECTION_DELETED failed', e); }
 
       res.json({
         success: true,

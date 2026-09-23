@@ -1,4 +1,5 @@
 import prisma from '@config/database';
+import logger from '@config/logger';
 import { NotFoundError, ValidationError } from '@utils/errors';
 import { computeKpiDeduction, computeOvertimePay } from '@utils/payroll';
 import ExcelJS from 'exceljs';
@@ -798,10 +799,14 @@ export class PayrollService {
     const employeeIds = payrolls.map((p) => p.employeeId);
     const period = `${year}-${String(month).padStart(2, '0')}`;
 
-    await notificationService.notify(NotificationEvent.PAYROLL_PUBLISHED, {
-      targetEmployeeIds: employeeIds,
-      metadata: { month, year, period },
-    });
+    try {
+      await notificationService.notify(NotificationEvent.PAYROLL_PUBLISHED, {
+        targetEmployeeIds: employeeIds,
+        metadata: { month, year, period },
+      });
+    } catch (err) {
+      logger.warn({ err, month, year }, '[Payroll] sendPayrollNotifications failed (non-blocking)');
+    }
 
     return { count: employeeIds.length };
   }

@@ -214,61 +214,56 @@ class QuotationService {
       khoiLuongTuongUng: item.khoiLuongTuongUng ? parseFloat(item.khoiLuongTuongUng) : null,
     })) || [];
 
-    // Create quotation
-    const quotation = await prisma.quotation.create({
-      data: {
-        maBaoGia: data.maBaoGia,
-        quotationRequestId: data.quotationRequestId,
-        maYeuCauBaoGia: quotationRequest.maYeuCauBaoGia,
-        customerId: quotationRequest.customerId,
-        maKhachHang: quotationRequest.maKhachHang,
-        tenKhachHang: quotationRequest.tenKhachHang,
-        productId: firstItem.productId,
-        tenSanPham: firstItem.tenSanPham,
-        khoiLuong: firstItem.soLuong,
-        donViTinh: firstItem.donViTinh,
-        materialStandardId: data.materialStandardId || null,
-        maDinhMuc: materialStandard?.maDinhMuc || null,
-        tenDinhMuc: materialStandard?.tenDinhMuc || null,
-        tiLeThuHoi: data.tiLeThuHoi ? parseFloat(data.tiLeThuHoi) : null,
-        sanPhamDauRa: data.sanPhamDauRa || null,
-        thanhPhamTonKho: data.thanhPhamTonKho ? parseFloat(data.thanhPhamTonKho) : null,
-        tongThanhPhamCanSxThem: data.tongThanhPhamCanSxThem ? parseFloat(data.tongThanhPhamCanSxThem) : null,
-        tongNguyenLieuCanSanXuat: data.tongNguyenLieuCanSanXuat ? parseFloat(data.tongNguyenLieuCanSanXuat) : null,
-        nguyenLieuTonKho: data.nguyenLieuTonKho ? parseFloat(data.nguyenLieuTonKho) : null,
-        nguyenLieuCanNhapThem: data.nguyenLieuCanNhapThem ? parseFloat(data.nguyenLieuCanNhapThem) : null,
-        tinhTrang: data.tinhTrang || 'DRAFT',
-        ghiChu: data.ghiChu || null,
-        items: quotationItemsData.length > 0 ? {
-          create: quotationItemsData,
-        } : undefined,
-      },
-      include: {
-        quotationRequest: {
-          include: {
-            items: true,
-          },
-        },
-        items: true,
-      },
-    });
-
-    // Advance the linked quotation request to DA_BAO_GIA (task 2.5)
-    // bypass: true — quotation creation is the authoritative event; skip forward-only enforcement
-    // so CHO_XU_LY → DA_BAO_GIA (a 2-step jump) is allowed here
+    // Validate transition before transaction (bypass allows CHO_XU_LY → DA_BAO_GIA jump)
+    let shouldAdvance = false;
     try {
-      advanceQuotationRequestStatus(
-        quotationRequest.status as any,
-        'DA_BAO_GIA',
-        { bypass: true }
-      );
-      await prisma.quotationRequest.update({
-        where: { id: data.quotationRequestId },
-        data: { status: PrismaQRStatus.DA_BAO_GIA },
-      });
+      advanceQuotationRequestStatus(quotationRequest.status as any, 'DA_BAO_GIA', { bypass: true });
+      shouldAdvance = true;
     } catch {
-      // If transition is invalid (e.g. already HUY), log but don't fail quotation creation
+      // already HUY etc — don't advance, but don't fail quotation creation
     }
+
+    // Atomic: quotation + request status must succeed/rollback together (P0)
+    const quotation = await prisma.$transaction(async (tx) => {
+      const created = await tx.quotation.create({
+        data: {
+          maBaoGia: data.maBaoGia,
+          quotationRequestId: data.quotationRequestId,
+          maYeuCauBaoGia: quotationRequest.maYeuCauBaoGia,
+          customerId: quotationRequest.customerId,
+          maKhachHang: quotationRequest.maKhachHang,
+          tenKhachHang: quotationRequest.tenKhachHang,
+          productId: firstItem.productId,
+          tenSanPham: firstItem.tenSanPham,
+          khoiLuong: firstItem.soLuong,
+          donViTinh: firstItem.donViTinh,
+          materialStandardId: data.materialStandardId || null,
+          maDinhMuc: materialStandard?.maDinhMuc || null,
+          tenDinhMuc: materialStandard?.tenDinhMuc || null,
+          tiLeThuHoi: data.tiLeThuHoi ? parseFloat(data.tiLeThuHoi) : null,
+          sanPhamDauRa: data.sanPhamDauRa || null,
+          thanhPhamTonKho: data.thanhPhamTonKho ? parseFloat(data.thanhPhamTonKho) : null,
+          tongThanhPhamCanSxThem: data.tongThanhPhamCanSxThem ? parseFloat(data.tongThanhPhamCanSxThem) : null,
+          tongNguyenLieuCanSanXuat: data.tongNguyenLieuCanSanXuat ? parseFloat(data.tongNguyenLieuCanSanXuat) : null,
+          nguyenLieuTonKho: data.nguyenLieuTonKho ? parseFloat(data.nguyenLieuTonKho) : null,
+          nguyenLieuCanNhapThem: data.nguyenLieuCanNhapThem ? parseFloat(data.nguyenLieuCanNhapThem) : null,
+          tinhTrang: data.tinhTrang || 'DRAFT',
+          ghiChu: data.ghiChu || null,
+          items: quotationItemsData.length > 0 ? { create: quotationItemsData } : undefined,
+        },
+        include: {
+          quotationRequest: { include: { items: true } },
+          items: true,
+        },
+      });
+      if (shouldAdvance) {
+        await tx.quotationRequest.update({
+          where: { id: data.quotationRequestId },
+          data: { status: PrismaQRStatus.DA_BAO_GIA },
+        });
+      }
+      return created;
+    });
 
     // Fire-and-forget: audit log (task 5.5)
     recordAudit({

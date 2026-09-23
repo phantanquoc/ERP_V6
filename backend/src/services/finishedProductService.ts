@@ -374,38 +374,36 @@ export class FinishedProductService {
       nguoiThucHien,
     };
 
-    const product = await prisma.finishedProduct.upsert({
-      where: { maChien_ngaySanXuat_machineSystemId: { maChien, ngaySanXuat, machineSystemId } },
-      update: updateData,
-      create: {
-        maChien,
-        machineSystemId,
-        ngaySanXuat,
-        thoiGianChien: materialEval?.thoiGianChien ?? thoiGianChienDate,
-        tenHangHoa: rest.tenHangHoa || materialEval?.tenHangHoa || '',
-        maSanPham: rest.maSanPham ?? materialEval?.maSanPham ?? null,
-        khoiLuong: rest.khoiLuong ?? 0,
-        materialEvaluationId: materialEval?.id ?? null,
-        ...createData,
-        createdById: userId ?? null,
-      },
-    });
+    // Upsert + entryHistory in single transaction: eliminates N+1 (50 batches = 50 round-trips -> 1 tx)
+    // and guarantees FinishedProduct and its attribution rows commit atomically.
+    const product = await prisma.$transaction(async (tx) => {
+      const fp = await tx.finishedProduct.upsert({
+        where: { maChien_ngaySanXuat_machineSystemId: { maChien, ngaySanXuat, machineSystemId } },
+        update: updateData,
+        create: {
+          maChien,
+          machineSystemId,
+          ngaySanXuat,
+          thoiGianChien: materialEval?.thoiGianChien ?? thoiGianChienDate,
+          tenHangHoa: rest.tenHangHoa || materialEval?.tenHangHoa || '',
+          maSanPham: rest.maSanPham ?? materialEval?.maSanPham ?? null,
+          khoiLuong: rest.khoiLuong ?? 0,
+          materialEvaluationId: materialEval?.id ?? null,
+          ...createData,
+          createdById: userId ?? null,
+        },
+      });
 
-    // Persist per-grade entry-history rows (non-fatal: attribution failure must not fail save)
-    if (Array.isArray(entryHistory) && entryHistory.length > 0) {
-      try {
-        for (const entry of entryHistory) {
-          if (!entry.grade || entry.khoiLuong == null) continue;
-          // Replace semantics: delete existing record for this FP+grade, then create new
-          await prisma.finishedProductEntryHistory.deleteMany({
-            where: {
-              finishedProductId: product.id,
-              grade: entry.grade,
-            },
+      if (Array.isArray(entryHistory) && entryHistory.length > 0) {
+        const validEntries = entryHistory.filter((e: any) => e.grade && e.khoiLuong != null);
+        if (validEntries.length > 0) {
+          const grades = validEntries.map((e: any) => e.grade);
+          await tx.finishedProductEntryHistory.deleteMany({
+            where: { finishedProductId: fp.id, grade: { in: grades } },
           });
-          await prisma.finishedProductEntryHistory.create({
-            data: {
-              finishedProductId: product.id,
+          await tx.finishedProductEntryHistory.createMany({
+            data: validEntries.map((entry: any) => ({
+              finishedProductId: fp.id,
               maChien,
               ngaySanXuat,
               machineSystemId,
@@ -414,14 +412,12 @@ export class FinishedProductService {
               employeeId: entry.employeeId ?? null,
               employeeName: entry.employeeName ?? null,
               enteredAt: new Date(),
-            },
+            })),
           });
         }
-      } catch (err) {
-        // Attribution failure must not fail the main save
-        console.error('[finishedProductService] Entry history write failed:', err);
       }
-    }
+      return fp;
+    });
 
     return product;
   }

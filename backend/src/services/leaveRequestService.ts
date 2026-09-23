@@ -234,25 +234,33 @@ export class LeaveRequestService {
    * Create notification for Quality Personnel department
    */
   private async createNotificationForQualityPersonnel(leaveRequest: any) {
-    const employeeName = `${leaveRequest.employee.user.lastName} ${leaveRequest.employee.user.firstName}`;
-    const leaveTypeLabel = this.getLeaveTypeLabel(leaveRequest.leaveType);
+    try {
+      const employeeName = `${leaveRequest.employee.user.lastName} ${leaveRequest.employee.user.firstName}`;
+      const leaveTypeLabel = this.getLeaveTypeLabel(leaveRequest.leaveType);
 
-    await notificationService.notify(NotificationEvent.LEAVE_REQUEST_SUBMITTED, {
-      actorUserId: leaveRequest.employee.userId,
-      entityId: leaveRequest.id,
-      metadata: { employeeName, leaveTypeLabel, leaveRequestId: leaveRequest.id },
-    });
+      await notificationService.notify(NotificationEvent.LEAVE_REQUEST_SUBMITTED, {
+        actorUserId: leaveRequest.employee.userId,
+        entityId: leaveRequest.id,
+        metadata: { employeeName, leaveTypeLabel, leaveRequestId: leaveRequest.id },
+      });
+    } catch (err) {
+      logger.warn('[LeaveRequest] notify LEAVE_REQUEST_SUBMITTED failed (non-blocking)', { err, leaveRequestId: leaveRequest.id });
+    }
   }
 
   /**
    * Create notification for employee
    */
   private async createNotificationForEmployee(leaveRequest: any, status: 'APPROVED' | 'REJECTED') {
-    await notificationService.notify(NotificationEvent.LEAVE_REQUEST_RESPONDED, {
-      targetEmployeeIds: [leaveRequest.employeeId],
-      entityId: leaveRequest.id,
-      metadata: { status, leaveCode: leaveRequest.code, leaveRequestId: leaveRequest.id },
-    });
+    try {
+      await notificationService.notify(NotificationEvent.LEAVE_REQUEST_RESPONDED, {
+        targetEmployeeIds: [leaveRequest.employeeId],
+        entityId: leaveRequest.id,
+        metadata: { status, leaveCode: leaveRequest.code, leaveRequestId: leaveRequest.id },
+      });
+    } catch (err) {
+      logger.warn('[LeaveRequest] notify LEAVE_REQUEST_RESPONDED failed (non-blocking)', { err, leaveRequestId: leaveRequest.id });
+    }
   }
 
   /**

@@ -222,19 +222,14 @@ class QuotationCalculatorService {
       ? data.generalCostGroups
       : Prisma.JsonNull;
 
-    // Delete existing products, costs
-    await prisma.quotationCalculatorProduct.deleteMany({
-      where: { calculatorId },
-    });
-    await prisma.quotationCalculatorGeneralCost.deleteMany({
-      where: { calculatorId },
-    });
-    await prisma.quotationCalculatorExportCost.deleteMany({
-      where: { calculatorId },
-    });
+    // Atomic: delete + recreate must be in one transaction — crash between delete and
+    // update would otherwise leave the calculator empty (P0 data loss).
+    const calculator = await prisma.$transaction(async (tx) => {
+      await tx.quotationCalculatorProduct.deleteMany({ where: { calculatorId } });
+      await tx.quotationCalculatorGeneralCost.deleteMany({ where: { calculatorId } });
+      await tx.quotationCalculatorExportCost.deleteMany({ where: { calculatorId } });
 
-    // Update calculator with new data
-    const calculator = await prisma.quotationCalculator.update({
+      return tx.quotationCalculator.update({
       where: { id: calculatorId },
       data: {
         phanTramThue: data.phanTramThue,
@@ -326,6 +321,7 @@ class QuotationCalculatorService {
         generalCosts: true,
         exportCosts: true,
       },
+      });
     });
 
     return calculator;

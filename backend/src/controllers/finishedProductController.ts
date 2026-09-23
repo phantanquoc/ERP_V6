@@ -4,6 +4,9 @@ import type { AuthenticatedRequest } from '@types';
 import { getFileUrl } from '@middlewares/upload';
 import { ValidationError } from '@utils/errors';
 import prisma from '@config/database';
+import notificationService from '@services/notificationService';
+import { NotificationEvent } from '@types';
+import logger from '@config/logger';
 
 interface RequestWithFile extends AuthenticatedRequest {
   file?: Express.Multer.File;
@@ -58,6 +61,13 @@ export class FinishedProductController {
       }
 
       const product = await finishedProductService.createFinishedProduct(data, userId);
+      try {
+        await notificationService.notify(NotificationEvent.FINISHED_PRODUCT_CREATED, {
+          actorUserId: userId,
+          entityId: (product as any).id,
+          metadata: { maChien: (product as any).maChien, tenHangHoa: (product as any).tenHangHoa, ngayNhap: (product as any).thoiGianChien ?? (product as any).createdAt },
+        });
+      } catch (e) { logger.warn('[FinishedProductController] notify FINISHED_PRODUCT_CREATED failed', e); }
 
       res.status(201).json({
         success: true,
@@ -81,6 +91,13 @@ export class FinishedProductController {
       }
 
       const product = await finishedProductService.updateFinishedProduct(id, data, userId);
+      try {
+        await notificationService.notify(NotificationEvent.FINISHED_PRODUCT_UPDATED, {
+          actorUserId: userId,
+          entityId: id,
+          metadata: { maChien: (product as any).maChien, tenHangHoa: (product as any).tenHangHoa },
+        });
+      } catch (e) { logger.warn('[FinishedProductController] notify FINISHED_PRODUCT_UPDATED failed', e); }
 
       res.json({
         success: true,
@@ -95,8 +112,13 @@ export class FinishedProductController {
   async deleteFinishedProduct(req: Request, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
+      let _fpMeta: Record<string, unknown> = {};
+      try { const _fp = await finishedProductService.getFinishedProductById(id); _fpMeta = { maChien: (_fp as any).maChien, tenHangHoa: (_fp as any).tenHangHoa }; } catch (_) {}
       const result = await finishedProductService.deleteFinishedProduct(id);
 
+      try {
+        await notificationService.notify(NotificationEvent.FINISHED_PRODUCT_DELETED, { actorUserId: (req as any).user?.id, entityId: id, metadata: _fpMeta });
+      } catch (e) { logger.warn('[FinishedProductController] notify FINISHED_PRODUCT_DELETED failed', e); }
       res.json({
         success: true,
         ...result,
@@ -137,6 +159,14 @@ export class FinishedProductController {
         rows,
         employeeId,
       );
+      try {
+        const _fp = await finishedProductService.getFinishedProductById(finishedProductId).catch(() => null);
+        await notificationService.notify(NotificationEvent.FINISHED_PRODUCT_CONFIRMED, {
+          actorUserId: employeeId,
+          entityId: finishedProductId,
+          metadata: { maChien: (_fp as any)?.maChien ?? '', tenHangHoa: (_fp as any)?.tenHangHoa ?? '' },
+        });
+      } catch (e) { logger.warn('[FinishedProductController] notify FINISHED_PRODUCT_CONFIRMED failed', e); }
 
       res.status(201).json({
         success: true,

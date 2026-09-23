@@ -58,6 +58,11 @@ export const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   PROJECT_APPROVAL: 'Duyệt dự án',
   FAULT_RECORD: 'Ghi nhận lỗi',
   TECHNICAL_UPDATE: 'Cập nhật kỹ thuật',
+  SYSTEM_OPERATION: 'Vận hành hệ thống',
+  FINISHED_PRODUCT: 'Thành phẩm',
+  MATERIAL_EVALUATION: 'Đánh giá nguyên liệu',
+  QUALITY_EVALUATION: 'Đánh giá chất lượng',
+  INTERNAL_INSPECTION: 'Kiểm tra nội bộ',
   PRICING: 'Giá thành',
 };
 
@@ -112,6 +117,11 @@ export const NOTIFICATION_TYPE_GROUPS: NotificationGroup[] = [
     key: 'orderWarehouse',
     label: 'Đơn hàng & Kho',
     types: ['ORDER', 'WAREHOUSE', 'INVOICE', 'DEBT', 'PRICING'],
+  },
+  {
+    key: 'production',
+    label: 'Sản xuất',
+    types: ['FINISHED_PRODUCT', 'MATERIAL_EVALUATION', 'QUALITY_EVALUATION', 'INTERNAL_INSPECTION', 'SYSTEM_OPERATION'],
   },
   {
     key: 'technical',
@@ -186,6 +196,16 @@ export function getNotificationIcon(type: string): React.ReactNode {
       return React.createElement(AlertCircle, { className: 'w-4 h-4 text-red-600' });
     case 'PROJECT_APPROVAL':
       return React.createElement(CheckCircle, { className: 'w-4 h-4 text-blue-600' });
+    case 'SYSTEM_OPERATION':
+      return React.createElement(Wrench, { className: 'w-4 h-4 text-cyan-600' });
+    case 'FINISHED_PRODUCT':
+      return React.createElement(PackageCheck, { className: 'w-4 h-4 text-emerald-600' });
+    case 'MATERIAL_EVALUATION':
+      return React.createElement(ClipboardList, { className: 'w-4 h-4 text-amber-600' });
+    case 'QUALITY_EVALUATION':
+      return React.createElement(CheckCircle, { className: 'w-4 h-4 text-green-600' });
+    case 'INTERNAL_INSPECTION':
+      return React.createElement(AlertCircle, { className: 'w-4 h-4 text-blue-600' });
     case 'TECHNICAL_UPDATE':
       return React.createElement(Wrench, { className: 'w-4 h-4 text-slate-600' });
     case 'PRICING':
@@ -331,6 +351,28 @@ export function resolveDeepLink(notification: NotificationForLink): string | nul
         : '/technical/quality?tab=repairAndFault';
     }
 
+    case 'SYSTEM_OPERATION': {
+      return `/production/data${meta.maChien ? `?maChien=${encodeURIComponent(String(meta.maChien))}` : ''}`;
+    }
+    case 'FINISHED_PRODUCT': {
+      return meta.maChien
+        ? `/production/data?maChien=${encodeURIComponent(String(meta.maChien))}`
+        : '/production/data';
+    }
+    case 'MATERIAL_EVALUATION': {
+      return meta.maChien
+        ? `/production/data?maChien=${encodeURIComponent(String(meta.maChien))}`
+        : '/production/data';
+    }
+    case 'QUALITY_EVALUATION': {
+      return meta.maChien
+        ? `/production/management?maChien=${encodeURIComponent(String(meta.maChien))}`
+        : '/production/management';
+    }
+    case 'INTERNAL_INSPECTION': {
+      const iid = (meta.maKiemTra as string | undefined) ?? (meta.entityId as string | undefined);
+      return iid ? `/technical/quality?inspectionId=${encodeURIComponent(iid)}` : '/technical/quality';
+    }
     case 'TECHNICAL_UPDATE': {
       const entityId = meta.entityId as string | undefined;
       const hash = entityId ? `#${entityId}` : '';

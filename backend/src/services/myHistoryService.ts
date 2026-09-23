@@ -604,28 +604,19 @@ async function fetchCustomerFeedbacks(userId: string, dateWhere: any): Promise<H
   }));
 }
 
-async function fetchInvoices(dateWhere: any): Promise<HistoryItem[]> {
-  const rows = await prisma.invoice.findMany({
-    where: { ...(dateWhere ? { createdAt: dateWhere } : {}) },
-    select: { id: true, soHoaDon: true, customerId: true, trangThai: true, createdAt: true, customer: { select: { tenCongTy: true } } },
-    orderBy: { createdAt: 'desc' },
-  });
-  return rows.map((r) => ({
-    entityType: 'invoice',
-    entityId: r.id,
-    group: 'Phiếu' as HistoryGroup,
-    title: `Hóa đơn ${r.soHoaDon} - ${r.customer?.tenCongTy || 'N/A'}`,
-    code: r.soHoaDon,
-    status: r.trangThai,
-    createdAt: r.createdAt,
-    role: 'creator' as const,
-    routeHint: `/accounting/admin?tab=invoices`,
-  }));
+async function fetchInvoices(userId: string, dateWhere: any): Promise<HistoryItem[]> {
+  // Invoice model has no createdById/employeeId owner column (nhanVienLap is free-text).
+  // Without an owner field we cannot scope to the caller — returning all rows leaks
+  // every invoice to every user (P0). Until a createdById column is added, return
+  // no rows for personal history rather than leaking. Keep Promise.all contract.
+  void userId; void dateWhere;
+  return [];
 }
 
-async function fetchTaxReports(dateWhere: any): Promise<HistoryItem[]> {
+async function fetchTaxReports(employeeId: string, dateWhere: any): Promise<HistoryItem[]> {
+  if (!employeeId) return [];
   const rows = await prisma.taxReport.findMany({
-    where: { ...(dateWhere ? { createdAt: dateWhere } : {}) },
+    where: { order: { employeeId }, ...(dateWhere ? { createdAt: dateWhere } : {}) },
     select: { id: true, maDonHang: true, tenHangHoa: true, trangThai: true, createdAt: true },
     orderBy: { createdAt: 'desc' },
   });
@@ -804,10 +795,10 @@ export async function getMyHistory(params: MyHistoryQuery): Promise<MyHistoryRes
     branches.push(safeWrap(fetchCustomerFeedbacks(userId, dateWhere), 'customer-feedback'));
   }
   if (shouldQuery(types, 'invoice')) {
-    branches.push(safeWrap(fetchInvoices(dateWhere), 'invoice'));
+    branches.push(safeWrap(fetchInvoices(userId, dateWhere), 'invoice'));
   }
-  if (shouldQuery(types, 'tax-report')) {
-    branches.push(safeWrap(fetchTaxReports(dateWhere), 'tax-report'));
+  if (shouldQuery(types, 'tax-report') && employeeId) {
+    branches.push(safeWrap(fetchTaxReports(employeeId, dateWhere), 'tax-report'));
   }
   if (shouldQuery(types, 'private-feedback')) {
     branches.push(safeWrap(fetchPrivateFeedbacks(userId, dateWhere), 'private-feedback'));

@@ -234,6 +234,7 @@ class ReorderRuleService {
           metadata: {
             productId: rule.internationalProductId,
             productName,
+            tenSanPham: productName,
             productCode,
             currentStock,
             minStock: rule.minStock,

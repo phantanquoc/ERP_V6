@@ -5,6 +5,9 @@ import { getFileUrl } from '@middlewares/upload';
 import { ValidationError } from '@utils/errors';
 import prisma from '@config/database';
 import { getDailySchedule, getScheduleForShift } from '@utils/dailyFryBatchSchedule';
+import notificationService from '@services/notificationService';
+import { NotificationEvent } from '@types';
+import logger from '@config/logger';
 import { getProductionDay } from '@utils/productionDay';
 
 interface RequestWithFile extends AuthenticatedRequest {
@@ -117,6 +120,13 @@ export class MaterialEvaluationController {
       }
 
       const evaluation = await materialEvaluationService.createMaterialEvaluation(data, userId);
+      try {
+        await notificationService.notify(NotificationEvent.MATERIAL_EVALUATION_CREATED, {
+          actorUserId: userId,
+          entityId: (evaluation as any).id,
+          metadata: { maChien: (evaluation as any).maChien, tenHangHoa: (evaluation as any).tenHangHoa },
+        });
+      } catch (e) { logger.warn('[MaterialEvaluationController] notify MATERIAL_EVALUATION_CREATED failed', e); }
 
       res.status(201).json({
         success: true,
@@ -139,6 +149,13 @@ export class MaterialEvaluationController {
       }
 
       const evaluation = await materialEvaluationService.updateMaterialEvaluation(id, data);
+      try {
+        await notificationService.notify(NotificationEvent.MATERIAL_EVALUATION_UPDATED, {
+          actorUserId: (req as any).user?.id,
+          entityId: id,
+          metadata: { maChien: (evaluation as any).maChien, tenHangHoa: (evaluation as any).tenHangHoa },
+        });
+      } catch (e) { logger.warn('[MaterialEvaluationController] notify MATERIAL_EVALUATION_UPDATED failed', e); }
 
       res.json({
         success: true,
