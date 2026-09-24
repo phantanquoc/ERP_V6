@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useUrlTab } from '../../hooks/useUrlState';
+import { useState, useEffect, useCallback } from 'react';
+import { useUrlTab, useUrlStringParam } from '../../hooks/useUrlState';
 import {
   Factory,
   Calendar,
@@ -52,8 +52,11 @@ const ProductionDepartment = () => {
     'processList',
     TAB_SCOPED_PARAMS,
   );
-  const [selectedMaChien, setSelectedMaChien] = useState<string>('');
-  const [selectedThoiGianChien, setSelectedThoiGianChien] = useState<string>('');
+  const [selectedMaChien, setSelectedMaChien] = useUrlStringParam('maChien', '');
+  const [selectedThoiGianChien, setSelectedThoiGianChien] = useUrlStringParam('thoiGianChien', '');
+  const [systemId] = useUrlStringParam('systemId', '');
+  const [lotId] = useUrlStringParam('lotId', '');
+  void systemId; void lotId;
 
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -88,11 +91,11 @@ const ProductionDepartment = () => {
     }
   };
 
-  const handleCreateSystemOperation = (maChien: string, thoiGianChien: string) => {
+  const handleCreateSystemOperation = useCallback((maChien: string, thoiGianChien: string) => {
     setSelectedMaChien(maChien);
     setSelectedThoiGianChien(thoiGianChien);
-    setActiveTab('systemOperation');
-  };
+    setActiveTab('systemOperation', { maChien, thoiGianChien } as any);
+  }, [setSelectedMaChien, setSelectedThoiGianChien, setActiveTab]);
 
 
 

@@ -46,12 +46,12 @@ const VALID_TABS: TabType[] = ['supplyRequest', 'inventory', 'inbound', 'outboun
  * (overview modal opened from the cards above the tabs).
  */
 const TAB_SCOPED_PARAMS: Record<TabType, readonly string[]> = {
-  supplyRequest: ['supplyRequestId', 'supplyStatus', 'supplyPriority', 'supplyOverdue'],
-  inventory: ['inventoryScrollTo', 'loaiSanPham'],
-  inbound: ['receiptId', 'inboundSubTab'],
-  outbound: ['issueId', 'outboundSubTab'],
-  products: ['internationalProductId'],
-  warehouseManagement: ['warehouseId', 'lotProductId'],
+  supplyRequest: ['supplyRequestId', 'supplyStatus', 'supplyPriority', 'supplyOverdue', 'q', 'status', 'page', 'sortBy', 'sortOrder'],
+  inventory: ['inventoryScrollTo', 'loaiSanPham', 'q', 'status', 'page', 'lotId', 'sortBy', 'sortOrder'],
+  inbound: ['receiptId', 'inboundSubTab', 'q', 'status', 'page', 'lotId', 'sortBy', 'sortOrder', 'in_q', 'in_status', 'in_page', 'in_lotId', 'in_sortBy', 'in_sortOrder', 'in_plan_q', 'in_plan_status', 'in_plan_page'],
+  outbound: ['issueId', 'outboundSubTab', 'q', 'status', 'page', 'lotId', 'sortBy', 'sortOrder', 'out_q', 'out_status', 'out_page', 'out_lotId', 'out_sortBy', 'out_sortOrder', 'out_plan_q', 'out_plan_status', 'out_plan_page'],
+  products: ['internationalProductId', 'q', 'status', 'page', 'lotId', 'sortBy', 'sortOrder'],
+  warehouseManagement: ['warehouseId', 'lotProductId', 'q', 'status', 'page', 'lotId', 'sortBy', 'sortOrder'],
 };
 
 // ── MiniSparkline: pure SVG, no deps, CSP-safe ──

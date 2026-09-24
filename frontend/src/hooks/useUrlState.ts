@@ -129,3 +129,96 @@ export function useUrlDetailId(paramKey: string) {
 
   return { id, open, close, syncingRef } as const;
 }
+/**
+ * Single string param synced to URL (?key=value).
+ * - Reads initial from searchParams, falls back to defaultValue.
+ * - Writes with replace:true, deletes key when value is empty/null.
+ * - Back/forward syncs via effect guarded by ref.
+ * - Returns [value, setValue].
+ */
+export function useUrlStringParam(
+  key: string,
+  defaultValue: string,
+  opts?: { validate?: (v: string) => boolean },
+) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const syncingRef = useRef(false);
+  const raw = searchParams.get(key);
+  const valid = raw !== null && raw !== "" && (!opts?.validate || opts.validate(raw));
+  const [value, setValueInner] = useState<string>(valid ? raw! : defaultValue);
+
+  useEffect(() => {
+    if (syncingRef.current) { syncingRef.current = false; return; }
+    const next = searchParams.get(key);
+    if (next === null || next === "") {
+      if (value !== defaultValue) setValueInner(defaultValue);
+    } else if (opts?.validate && !opts.validate(next)) {
+      // invalid param ignored, keep current value but clean URL lazily on next set
+    } else if (next !== value) {
+      setValueInner(next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  const setValue = useCallback((next: string) => {
+    setValueInner(next);
+    const params = new URLSearchParams(searchParams);
+    if (!next) params.delete(key);
+    else params.set(key, next);
+    syncingRef.current = true;
+    setSearchParams(params, { replace: true });
+  }, [searchParams, setSearchParams, key]);
+
+  return [value, setValue] as const;
+}
+
+/**
+ * Generic filter bag synced to URL with optional prefix to scope per tab/sub-tab.
+ * Each key maps to ?<prefix><key>=value. Empty values delete the param.
+ */
+export function useUrlFilters<T extends Record<string, string>>(
+  defaults: T,
+  opts?: { prefix?: string },
+) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const prefix = opts?.prefix ?? "";
+  const syncingRef = useRef(false);
+
+  const getValues = useCallback((): T => {
+    const out: Record<string, string> = { ...defaults };
+    for (const k of Object.keys(defaults)) {
+      const v = searchParams.get(prefix + k);
+      if (v !== null) out[k] = v;
+    }
+    return out as T;
+  }, [searchParams, prefix, defaults]);
+
+  const [values, setValuesInner] = useState<T>(() => getValues());
+
+  useEffect(() => {
+    if (syncingRef.current) { syncingRef.current = false; return; }
+    const next = getValues();
+    const changed = Object.keys(defaults).some(k => next[k] !== values[k]);
+    if (changed) setValuesInner(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  const setValues = useCallback((patch: Partial<T> | ((prev: T) => T)) => {
+    setValuesInner(prev => {
+      const next = typeof patch === "function" ? (patch as (p: T) => T)(prev) : { ...prev, ...patch } as T;
+      const params = new URLSearchParams(searchParams);
+      for (const k of Object.keys(defaults)) {
+        const v = next[k];
+        const key = prefix + k;
+        if (!v) params.delete(key);
+        else params.set(key, v);
+      }
+      syncingRef.current = true;
+      setSearchParams(params, { replace: true });
+      return next;
+    });
+  }, [searchParams, setSearchParams, prefix, defaults]);
+
+  return [values, setValues] as const;
+}
+

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useUrlFilters } from '../../hooks/useUrlState';
 import toast from 'react-hot-toast';
 import { Plus, CalendarClock, XCircle, Pencil, AlertTriangle, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import outboundPlanService, { OutboundPlan } from '../../services/outboundPlanService';
@@ -37,12 +38,17 @@ const OutboundPlanTab: React.FC = () => {
   const [plans, setPlans] = useState<OutboundPlan[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [currentPage, setCurrentPage] = useState(1);
+  const currentPage = Math.max(1, parseInt(urlFilters.page || '1', 10) || 1);
+  const setCurrentPage = (v: number | ((p: number) => number)) => { const next = typeof v === 'function' ? (v as (p:number)=>number)(currentPage) : v; setUrlFilters({ page: String(next) }); };
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', trangThai: '', warehouseId: '', fromNgay: '', toNgay: '' });
-  const [sortKey, setSortKey] = useState<SortKey>('createdAt');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [urlFilters, setUrlFilters] = useUrlFilters({ _search: '', trangThai: '', warehouseId: '', fromNgay: '', toNgay: '', page: '1', sortBy: 'createdAt', sortOrder: 'desc' }, { prefix: 'out_plan_' });
+  const filterValues = { _search: urlFilters._search, trangThai: urlFilters.trangThai, warehouseId: urlFilters.warehouseId, fromNgay: urlFilters.fromNgay, toNgay: urlFilters.toNgay } as Record<string, string>;
+  const setFilterValues = (vals: Record<string, string>) => setUrlFilters({ _search: vals._search ?? '', trangThai: vals.trangThai ?? '', warehouseId: vals.warehouseId ?? '', fromNgay: vals.fromNgay ?? '', toNgay: vals.toNgay ?? '', page: '1' });
+  const sortKey = (urlFilters.sortBy as SortKey) || 'createdAt';
+  const sortDir = (urlFilters.sortOrder as 'asc' | 'desc') || 'desc';
+  const setSortKey = (k: SortKey) => setUrlFilters({ sortBy: k });
+  const setSortDir = (d: 'asc' | 'desc') => setUrlFilters({ sortOrder: d });
   const [editingPlan, setEditingPlan] = useState<OutboundPlan | null>(null);
   const [editDate, setEditDate] = useState('');
   const [editReason, setEditReason] = useState('');
@@ -93,7 +99,7 @@ const OutboundPlanTab: React.FC = () => {
   }, [filterValues._search, filterValues.trangThai, filterValues.warehouseId, filterValues.fromNgay, filterValues.toNgay, isOverdueFilter, currentPage, sortKey, sortDir]);
 
   useEffect(() => { fetchPlans(); }, [fetchPlans]);
-  useEffect(() => { setCurrentPage(1); }, [filterValues._search, filterValues.trangThai, filterValues.warehouseId, filterValues.fromNgay, filterValues.toNgay]);
+  useEffect(() => { /* see inbound */ }, []);
   useEffect(() => {
     setCurrentPage((page) => Math.min(Math.max(1, page), Math.max(1, totalPages)));
   }, [totalPages]);

@@ -18,7 +18,7 @@ import { TINH_TRANG_OPTIONS, BO_PHAN_OPTIONS } from '../constants/warehouseCatal
 import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types/auth';
-import { useUrlDetailId } from '../hooks/useUrlState';
+import { useUrlDetailId, useUrlFilters } from '../hooks/useUrlState';
 
 interface WarehouseReceiptTabProps {
   month?: number;
@@ -48,10 +48,15 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
   const [unvoidingId, setUnvoidingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maPhieuNhap: '', tenNhanVien: '', nguoiDeNghi: '', boPhan: '', warehouseId: '', tinhTrang: '', daIn: '', isVoided: '', fromNgay: '', toNgay: '' });
-  const [sortKey, setSortKey] = useState<'ngayNhap' | 'maPhieuNhap'>('ngayNhap');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [urlF, setUrlF] = useUrlFilters({ _search: '', maPhieuNhap: '', tenNhanVien: '', nguoiDeNghi: '', boPhan: '', warehouseId: '', tinhTrang: '', daIn: '', isVoided: '', fromNgay: '', toNgay: '', page: '1', sortBy: 'ngayNhap', sortOrder: 'desc' }, { prefix: 'in_' });
+  const currentPage = Math.max(1, parseInt(urlF.page || '1', 10) || 1);
+  const setCurrentPage = (v: number | ((p:number)=>number)) => { const n = typeof v === 'function' ? (v as (p:number)=>number)(currentPage) : v; setUrlF({ page: String(n) }); };
+  const filterValues: Record<string, string> = { _search: urlF._search, maPhieuNhap: urlF.maPhieuNhap, tenNhanVien: urlF.tenNhanVien, nguoiDeNghi: urlF.nguoiDeNghi, boPhan: urlF.boPhan, warehouseId: urlF.warehouseId, tinhTrang: urlF.tinhTrang, daIn: urlF.daIn, isVoided: urlF.isVoided, fromNgay: urlF.fromNgay, toNgay: urlF.toNgay };
+  const setFilterValues = (vals: Record<string, string>) => setUrlF({ _search: vals._search ?? '', maPhieuNhap: vals.maPhieuNhap ?? '', tenNhanVien: vals.tenNhanVien ?? '', nguoiDeNghi: vals.nguoiDeNghi ?? '', boPhan: vals.boPhan ?? '', warehouseId: vals.warehouseId ?? '', tinhTrang: vals.tinhTrang ?? '', daIn: vals.daIn ?? '', isVoided: vals.isVoided ?? '', fromNgay: vals.fromNgay ?? '', toNgay: vals.toNgay ?? '', page: '1' });
+  const sortKey = (urlF.sortBy as 'ngayNhap' | 'maPhieuNhap') || 'ngayNhap';
+  const sortDir = (urlF.sortOrder as 'asc' | 'desc') || 'desc';
+  const setSortKey = (k: 'ngayNhap' | 'maPhieuNhap') => setUrlF({ sortBy: k });
+  const setSortDir = (d: 'asc' | 'desc') => setUrlF({ sortOrder: d });
   const [showBulkConfirm, setShowBulkConfirm] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
   const reqIdRef = useRef(0);

@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { useUrlTab } from '../../hooks/useUrlState';
+import { useMemo, useCallback } from 'react';
+import { useUrlTab, useUrlStringParam } from '../../hooks/useUrlState';
 import {
   ClipboardCheck,
   TrendingUp,
@@ -37,12 +37,9 @@ const tabs: { key: Tab; label: string; icon: JSX.Element }[] = [
 /**
  * Detail params OWNED by each tab — dropped on tab switch by useUrlTab.
  *
- * Empty across the board: none of the four tab bodies below reads a detail id
- * from the URL. The table stays as the single place to declare one the moment a
- * child gains a deep link.
- *
- * Params NOT listed are page-level and survive a tab switch — `productionDay`
- * is held in component state here, so nothing URL-backed needs protecting.
+ * maChien/thoiGianChien are cross-tab handoff (materialEvaluation -> systemOperation)
+ * and systemId/lotId are detail focus — deliberately NOT scoped so the handoff
+ * survives the tab switch. Only per-tab detail ids would be listed here.
  */
 const TAB_SCOPED_PARAMS: Record<Tab, readonly string[]> = {
   materialEvaluation: [],
@@ -51,6 +48,10 @@ const TAB_SCOPED_PARAMS: Record<Tab, readonly string[]> = {
   qualityEvaluation: [],
 };
 
+const NGAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const isValidNgay = (v: string) => NGAY_RE.test(v) && !Number.isNaN(new Date(v).getTime());
+
+
 const ProductionData = () => {
   const { value: activeTab, set: setActiveTab } = useUrlTab<Tab>(
     'tab',
@@ -58,18 +59,20 @@ const ProductionData = () => {
     'materialEvaluation',
     TAB_SCOPED_PARAMS,
   );
-  const [selectedMaChien, setSelectedMaChien] = useState('');
-  const [selectedThoiGianChien, setSelectedThoiGianChien] = useState('');
-
-  // Production day filter — defaults to current production day (respects 06:30 boundary)
   const defaultProductionDay = useMemo(() => getCurrentProductionDay(), []);
-  const [productionDay, setProductionDay] = useState<string>(defaultProductionDay);
+  const [productionDay, setProductionDay] = useUrlStringParam('ngay', defaultProductionDay, { validate: isValidNgay });
+  const [selectedMaChien, setSelectedMaChien] = useUrlStringParam('maChien', '');
+  const [selectedThoiGianChien, setSelectedThoiGianChien] = useUrlStringParam('thoiGianChien', '');
+  // Optional detail focus (?systemId=&lotId=) — page-level, not tab-scoped
+  const [systemId] = useUrlStringParam('systemId', '');
+  const [lotId] = useUrlStringParam('lotId', '');
+  void systemId; void lotId;
 
-  const handleCreateSystemOperation = (maChien: string, thoiGianChien: string) => {
+  const handleCreateSystemOperation = useCallback((maChien: string, thoiGianChien: string) => {
     setSelectedMaChien(maChien);
     setSelectedThoiGianChien(thoiGianChien);
-    setActiveTab('systemOperation');
-  };
+    setActiveTab('systemOperation', { maChien, thoiGianChien } as any);
+  }, [setSelectedMaChien, setSelectedThoiGianChien, setActiveTab]);
 
   return (
     <div className="space-y-5">

@@ -17,7 +17,7 @@ import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
 import { TINH_TRANG_OPTIONS, BO_PHAN_OPTIONS } from '../constants/warehouseCatalogs';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types/auth';
-import { useUrlDetailId } from '../hooks/useUrlState';
+import { useUrlDetailId, useUrlFilters } from '../hooks/useUrlState';
 
 interface WarehouseIssueTabProps {
   month?: number;
@@ -49,10 +49,15 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
   const { id: urlIssueId, open: openUrlIssue, close: closeUrlIssue, syncingRef: issueSyncRef } = useUrlDetailId('issueId');
   const ITEMS_PER_PAGE = 10;
   const [pageSize, setPageSize] = useState<number>(ITEMS_PER_PAGE);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maPhieuXuat: '', tenNhanVien: '', nguoiDeNghi: '', boPhan: '', warehouseId: '', tinhTrang: '', daIn: '', isVoided: '', fromNgay: '', toNgay: '' });
-  const [sortKey, setSortKey] = useState<'ngayXuat' | 'maPhieuXuat'>('ngayXuat');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [urlF2, setUrlF2] = useUrlFilters({ _search: '', maPhieuXuat: '', tenNhanVien: '', nguoiDeNghi: '', boPhan: '', warehouseId: '', tinhTrang: '', daIn: '', isVoided: '', fromNgay: '', toNgay: '', page: '1', sortBy: 'ngayXuat', sortOrder: 'desc' }, { prefix: 'out_' });
+  const currentPage = Math.max(1, parseInt(urlF2.page || '1', 10) || 1);
+  const setCurrentPage = (v: number | ((p:number)=>number)) => { const n = typeof v === 'function' ? (v as (p:number)=>number)(currentPage) : v; setUrlF2({ page: String(n) }); };
+  const filterValues: Record<string, string> = { _search: urlF2._search, maPhieuXuat: urlF2.maPhieuXuat, tenNhanVien: urlF2.tenNhanVien, nguoiDeNghi: urlF2.nguoiDeNghi, boPhan: urlF2.boPhan, warehouseId: urlF2.warehouseId, tinhTrang: urlF2.tinhTrang, daIn: urlF2.daIn, isVoided: urlF2.isVoided, fromNgay: urlF2.fromNgay, toNgay: urlF2.toNgay };
+  const setFilterValues = (vals: Record<string, string>) => setUrlF2({ _search: vals._search ?? '', maPhieuXuat: vals.maPhieuXuat ?? '', tenNhanVien: vals.tenNhanVien ?? '', nguoiDeNghi: vals.nguoiDeNghi ?? '', boPhan: vals.boPhan ?? '', warehouseId: vals.warehouseId ?? '', tinhTrang: vals.tinhTrang ?? '', daIn: vals.daIn ?? '', isVoided: vals.isVoided ?? '', fromNgay: vals.fromNgay ?? '', toNgay: vals.toNgay ?? '', page: '1' });
+  const sortKey = (urlF2.sortBy as 'ngayXuat' | 'maPhieuXuat') || 'ngayXuat';
+  const sortDir = (urlF2.sortOrder as 'asc' | 'desc') || 'desc';
+  const setSortKey = (k: 'ngayXuat' | 'maPhieuXuat') => setUrlF2({ sortBy: k });
+  const setSortDir = (d: 'asc' | 'desc') => setUrlF2({ sortOrder: d });
   const [showBulkConfirm, setShowBulkConfirm] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
   const [total, setTotal] = useState(0);
