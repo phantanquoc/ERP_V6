@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Copy, Edit, Eye, Plus, Power, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import Modal from './Modal';
@@ -10,6 +11,7 @@ import {
   useDeleteMachineSystemDetail,
   useDetailTree,
   useDistinctMachineSystemFields,
+  useMachineSystemDetail,
   useMachineSystems,
   useNextMachineSystemCode,
   useUpdateMachineSystem,
@@ -204,19 +206,88 @@ const machineStatusBadge = (status?: MachineStatus | null) => {
 };
 
 const MachineSystemList = () => {
-  const [systemFilters, setSystemFilters] = useState<MachineSystemFilters>({
-    page: 1,
-    limit: 10,
-    sortBy: 'maHeThong',
-    sortOrder: 'asc',
-  });
-  const [detailFilters, setDetailFilters] = useState<MachineSystemDetailFilters>({
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const q = searchParams.get('q');
+  const hoatDongParam = searchParams.get('hoatDong');
+  const sortByParam = searchParams.get('sortBy');
+  const sortOrderParam = searchParams.get('sortOrder');
+  const pageParam = searchParams.get('page');
+  const limitParam = searchParams.get('limit');
+  const systemIdParam = searchParams.get('systemId');
+  const detailIdParam = searchParams.get('detailId');
+
+  const parseHoatDong = (v: string | null): boolean | undefined => {
+    if (v === 'true') return true;
+    if (v === 'false') return false;
+    return undefined;
+  };
+
+  const [systemFilters, setSystemFilters] = useState<MachineSystemFilters>(() => ({
+    page: Math.max(1, parseInt(pageParam ?? '1', 10) || 1),
+    limit: Math.max(1, parseInt(limitParam ?? '10', 10) || 10),
+    sortBy: (sortByParam as MachineSystemFilters['sortBy']) ?? 'maHeThong',
+    sortOrder: (sortOrderParam === 'desc' ? 'desc' : 'asc'),
+    search: q ?? undefined,
+    hoatDong: parseHoatDong(hoatDongParam),
+  }));
+  const [detailFilters, setDetailFilters] = useState<MachineSystemDetailFilters>(() => ({
     page: 1,
     limit: 10,
     sortBy: 'thuTu',
     sortOrder: 'asc',
-  });
-  // systemPageIndex removed — activeSystemId now memoized from allSystems[0]
+    machineSystemId: systemIdParam ?? undefined,
+  }));
+
+  const [searchInput, setSearchInput] = useState(q ?? '');
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncingRef = useRef(false);
+  const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
+  const detailIdQuery = useMachineSystemDetail(detailIdParam ?? '');
+
+  const pushSystemFilters = useCallback((next: MachineSystemFilters) => {
+    syncingRef.current = true;
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev);
+      if (next.search) params.set('q', next.search);
+      else params.delete('q');
+      if (next.hoatDong !== undefined) params.set('hoatDong', String(next.hoatDong));
+      else params.delete('hoatDong');
+      params.set('sortBy', next.sortBy ?? 'maHeThong');
+      params.set('sortOrder', next.sortOrder ?? 'asc');
+      params.set('page', String(next.page ?? 1));
+      params.set('limit', String(next.limit ?? 10));
+      return params;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const pushSystemId = useCallback((id: string | null) => {
+    syncingRef.current = true;
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev);
+      if (id) params.set('systemId', id);
+      else params.delete('systemId');
+      return params;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const pushDetailId = useCallback((id: string) => {
+    syncingRef.current = true;
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev);
+      params.set('detailId', id);
+      return params;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const clearDetailIdParam = useCallback(() => {
+    syncingRef.current = true;
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev);
+      params.delete('detailId');
+      return params;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   const systemsQuery = useMachineSystems(systemFilters);
   const allSystemsQuery = useMachineSystems({ page: 1, limit: 200, hoatDong: true, sortBy: 'maHeThong', sortOrder: 'asc' });
@@ -313,6 +384,74 @@ const MachineSystemList = () => {
     }
   }, [systemModal?.mode, systemForm.loaiHeThong]);
 
+  // Debounce search -> filters -> URL (300ms)
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      setSystemFilters((prev) => {
+        const nextSearch = searchInput || undefined;
+        if (prev.search === nextSearch) return prev;
+        const next = { ...prev, search: nextSearch, page: 1 };
+        pushSystemFilters(next);
+        return next;
+      });
+    }, 300);
+    return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); };
+  }, [searchInput, pushSystemFilters]);
+
+  useEffect(() => {
+    const nextQ = q ?? '';
+    if (nextQ !== searchInput) setSearchInput(nextQ);
+  }, [q]);
+
+  useEffect(() => {
+    if (syncingRef.current) { syncingRef.current = false; return; }
+    const nextSearch = q ?? undefined;
+    const nextHoatDong = parseHoatDong(hoatDongParam);
+    const nextSortBy = (sortByParam as MachineSystemFilters['sortBy']) ?? 'maHeThong';
+    const nextSortOrder = (sortOrderParam === 'desc' ? 'desc' : 'asc') as MachineSystemFilters['sortOrder'];
+    const nextPage = Math.max(1, parseInt(pageParam ?? '1', 10) || 1);
+    const nextLimit = Math.max(1, parseInt(limitParam ?? '10', 10) || 10);
+    const nextSystemId = systemIdParam ?? undefined;
+    setSystemFilters((prev) => {
+      if (prev.search === nextSearch && prev.hoatDong === nextHoatDong && prev.sortBy === nextSortBy && prev.sortOrder === nextSortOrder && prev.page === nextPage && prev.limit === nextLimit) return prev;
+      return { ...prev, search: nextSearch, hoatDong: nextHoatDong, sortBy: nextSortBy, sortOrder: nextSortOrder, page: nextPage, limit: nextLimit };
+    });
+    setDetailFilters((prev) => {
+      if (prev.machineSystemId === nextSystemId) return prev;
+      return { ...prev, machineSystemId: nextSystemId };
+    });
+  }, [q, hoatDongParam, sortByParam, sortOrderParam, pageParam, limitParam, systemIdParam]);
+
+  const handleRowClick = useCallback((system: MachineSystem) => {
+    setDetailFilters((prev) => ({ ...prev, machineSystemId: system.id }));
+    pushSystemId(system.id);
+    setDrawerSystemId(system.id);
+  }, [pushSystemId]);
+
+  const handleClearSystemSelection = useCallback(() => {
+    setDetailFilters((prev) => ({ ...prev, machineSystemId: undefined }));
+    pushSystemId(null);
+  }, [pushSystemId]);
+
+  // Deep-link scroll for systemId
+  const systemIdWarnedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!systemIdParam) return;
+    if (systemsQuery.isLoading || allSystemsQuery.isLoading) return;
+    const exists = allSystems.some((s) => s.id === systemIdParam) || systems.some((s) => s.id === systemIdParam);
+    if (!exists) {
+      if (systemIdWarnedRef.current !== systemIdParam) {
+        systemIdWarnedRef.current = systemIdParam;
+        toast.error('Không tìm thấy hệ thống yêu cầu');
+      }
+      return;
+    }
+    systemIdWarnedRef.current = null;
+    const el = rowRefs.current.get(systemIdParam);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [systemIdParam, systems, allSystems]);
+
   const activeSystemId = useMemo(() => detailFilters.machineSystemId ?? allSystems[0]?.id, [detailFilters.machineSystemId, allSystems]);
   const detailTreeQuery = useDetailTree(activeSystemId);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -374,6 +513,55 @@ const MachineSystemList = () => {
 
   const collapseAll = () => setExpandedIds(new Set());
 
+  // detailId -> modal + ancestor expansion (after treeItemsSource/expandedIds are defined)
+  const detailIdWarnedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!detailIdParam) {
+      setDetailModal((prev) => (prev?.mode === 'view' ? null : prev));
+      return;
+    }
+    if (detailModal?.record?.id === detailIdParam) return;
+    const inTree = treeItemsSource?.find((d) => d.id === detailIdParam);
+    if (inTree) {
+      if (inTree.machineSystemId) setDetailFilters((prev) => prev.machineSystemId === inTree.machineSystemId ? prev : { ...prev, machineSystemId: inTree.machineSystemId });
+      const parentMap = new Map<string, string | null>();
+      treeItemsSource!.forEach((d) => parentMap.set(d.id, d.parentDetailId ?? null));
+      const ancestors: string[] = [];
+      let cur: string | null = inTree.parentDetailId ?? null;
+      while (cur) { ancestors.push(cur); cur = parentMap.get(cur) ?? null; }
+      if (ancestors.length) setExpandedIds((prev) => { const next = new Set(prev); ancestors.forEach((a) => next.add(a)); return next; });
+      setDetailModal({ mode: 'view', record: inTree });
+      detailIdWarnedRef.current = null;
+      return;
+    }
+  }, [detailIdParam, treeItemsSource]);
+
+  useEffect(() => {
+    if (!detailIdParam) return;
+    if (detailModal?.record?.id === detailIdParam) return;
+    if (treeItemsSource?.some((d) => d.id === detailIdParam)) return;
+    if (detailIdQuery.isLoading) return;
+    const fetched = detailIdQuery.data?.data;
+    if (fetched && fetched.id === detailIdParam) {
+      if (fetched.machineSystemId) setDetailFilters((prev) => prev.machineSystemId === fetched.machineSystemId ? prev : { ...prev, machineSystemId: fetched.machineSystemId });
+      setDetailModal({ mode: 'view', record: fetched });
+      detailIdWarnedRef.current = null;
+      return;
+    }
+    if (detailIdQuery.isError || (detailIdQuery.data && !fetched)) {
+      if (detailIdWarnedRef.current !== detailIdParam) {
+        detailIdWarnedRef.current = detailIdParam;
+        toast.error('Không tìm thấy chi tiết yêu cầu');
+      }
+    }
+  }, [detailIdParam, detailIdQuery.data, detailIdQuery.isLoading, detailIdQuery.isError]);
+
+  const handleDetailModalClose = useCallback(() => {
+    const closingView = detailModal?.mode === 'view' && detailModal?.record?.id === detailIdParam;
+    setDetailModal(null);
+    if (closingView || detailIdParam) clearDetailIdParam();
+  }, [detailModal, detailIdParam, clearDetailIdParam]);
+
   const openSystemModal = (mode: Mode, record?: MachineSystem) => {
     setError('');
     setSystemModal({ mode, record });
@@ -394,6 +582,7 @@ const MachineSystemList = () => {
 
   const openDetailModal = (mode: Mode, record?: MachineSystemDetail) => {
     setDetailModal({ mode, record });
+    if (mode === 'view' && record?.id) pushDetailId(record.id);
   };
 
   const saveSystem = async (event: FormEvent) => {
@@ -488,15 +677,18 @@ const MachineSystemList = () => {
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
               <input
-                value={systemFilters.search ?? ''}
-                onChange={(event) => setSystemFilters((filters) => ({ ...filters, search: event.target.value, page: 1 }))}
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
                 placeholder="Tìm hệ thống"
                 className="w-56 rounded-md border border-gray-300 py-2 pl-8 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <select
               value={systemFilters.hoatDong === undefined ? '' : String(systemFilters.hoatDong)}
-              onChange={(event) => setSystemFilters((filters) => ({ ...filters, hoatDong: event.target.value === '' ? undefined : event.target.value === 'true', page: 1 }))}
+              onChange={(event) => {
+                const hoatDong = event.target.value === '' ? undefined : event.target.value === 'true';
+                setSystemFilters((prev) => { const next = { ...prev, hoatDong, page: 1 }; pushSystemFilters(next); return next; });
+              }}
               className="rounded-md border border-gray-300 px-3 py-2 text-sm"
             >
               <option value="">Tất cả trạng thái</option>
@@ -505,14 +697,17 @@ const MachineSystemList = () => {
             </select>
             <select
               value={systemFilters.sortBy}
-              onChange={(event) => setSystemFilters((filters) => ({ ...filters, sortBy: event.target.value as MachineSystemFilters['sortBy'], page: 1 }))}
+              onChange={(event) => {
+                const sortBy = event.target.value as MachineSystemFilters['sortBy'];
+                setSystemFilters((prev) => { const next = { ...prev, sortBy, page: 1 }; pushSystemFilters(next); return next; });
+              }}
               className="rounded-md border border-gray-300 px-3 py-2 text-sm"
             >
               {SYSTEM_SORTS.map((sort) => <option key={sort.value} value={sort.value}>{sort.label}</option>)}
             </select>
             <button
               type="button"
-              onClick={() => setSystemFilters((filters) => ({ ...filters, sortOrder: filters.sortOrder === 'asc' ? 'desc' : 'asc', page: 1 }))}
+              onClick={() => { setSystemFilters((prev) => { const next: typeof prev = { ...prev, sortOrder: (prev.sortOrder === 'asc' ? 'desc' : 'asc'), page: 1 }; pushSystemFilters(next); return next; }); }}
               className="rounded-md border border-gray-300 px-3 py-2 text-sm"
             >
               {systemFilters.sortOrder === 'asc' ? 'Tăng' : 'Giảm'}
@@ -547,8 +742,10 @@ const MachineSystemList = () => {
                 <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr>
               ) : systems.length === 0 ? (
                 <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-400">Chưa có hệ thống phù hợp.</td></tr>
-              ) : systems.map((system) => (
-                <tr key={system.id} onClick={() => { setDetailFilters((f) => ({ ...f, machineSystemId: system.id })); setDrawerSystemId(system.id); }} className="border-l-2 border-l-transparent hover:bg-blue-100 hover:border-l-blue-500 cursor-pointer transition-all">
+              ) : systems.map((system) => {
+                const isSelected = detailFilters.machineSystemId === system.id;
+                return (
+                <tr key={system.id} ref={(el) => { if (el) rowRefs.current.set(system.id, el); else rowRefs.current.delete(system.id); }} onClick={() => handleRowClick(system)} className={`border-l-2 cursor-pointer transition-all ${isSelected ? 'bg-amber-50 border-l-amber-500 ring-1 ring-amber-300' : 'border-l-transparent hover:bg-blue-100 hover:border-l-blue-500'}`}>
                   <td className="px-3 py-2.5 sticky left-0 bg-white z-10 font-mono text-xs text-blue-700 font-medium">{system.maHeThong}</td>
                   <td className="px-3 py-2.5 font-medium text-gray-900">{system.tenHeThong}</td>
                   <td className="px-3 py-2.5 text-gray-600 text-xs">{MACHINE_SYSTEM_CATEGORIES.find(c => c.value === system.loaiHeThong)?.label ?? system.loaiHeThong}</td>
@@ -574,11 +771,12 @@ const MachineSystemList = () => {
                     />
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
-        {renderPager(systemPagination, systemFilters.page ?? 1, (page) => setSystemFilters((filters) => ({ ...filters, page })))}
+        {renderPager(systemPagination, systemFilters.page ?? 1, (page) => { const next = { ...systemFilters, page }; pushSystemFilters(next); setSystemFilters(next); })}
       </section>
 
       {detailFilters.machineSystemId && (selectedSystem = allSystems.find((system) => system.id === detailFilters.machineSystemId)) && (
@@ -589,13 +787,16 @@ const MachineSystemList = () => {
               <h2 className="mt-1 text-base font-semibold text-gray-900">{selectedSystem.maHeThong} — {selectedSystem.tenHeThong}</h2>
               <p className="text-xs text-gray-500">Cây thiết bị, cụm, linh kiện và điểm kiểm tra của máy đang chọn.</p>
             </div>
-            <button
-              type="button"
-              onClick={() => setDrawerSystemId(selectedSystem.id)}
-              className="inline-flex w-fit items-center gap-1.5 rounded-md border border-blue-300 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
-            >
-              <Eye className="h-4 w-4" /> Mở hồ sơ máy
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setDrawerSystemId(selectedSystem.id)}
+                className="inline-flex w-fit items-center gap-1.5 rounded-md border border-blue-300 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+              >
+                <Eye className="h-4 w-4" /> Mở hồ sơ máy
+              </button>
+              <button type="button" onClick={handleClearSystemSelection} className="inline-flex w-fit items-center gap-1.5 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"><X className="h-4 w-4" /> Đóng</button>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <div className="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-1.5">
@@ -837,7 +1038,7 @@ const MachineSystemList = () => {
         mode={detailModal?.mode ?? 'create'}
         record={detailModal?.record}
         allSystems={allSystems}
-        onClose={() => setDetailModal(null)}
+        onClose={handleDetailModalClose}
       />
 
       <MachineSummaryDrawer machineSystemId={drawerSystemId} onClose={() => setDrawerSystemId(null)} />
