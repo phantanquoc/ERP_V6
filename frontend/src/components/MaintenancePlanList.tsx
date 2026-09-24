@@ -1,4 +1,6 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import maintenancePlanService from '../services/maintenancePlanService';
 import toast from 'react-hot-toast';
 import { Plus, Eye, Pencil, Trash2, Check, ChevronLeft, ChevronRight, Download, RefreshCw } from 'lucide-react';
 import { useMaintenancePlans, useToggleMonth, useDeleteMaintenancePlan, useUpdateLogNote, useSyncDetails } from '../hooks/useMaintenancePlans';
@@ -138,11 +140,28 @@ interface MaintenancePlanListProps {
 }
 
 const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps = {}) => {
-  const [page, setPage] = useState(1);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedSystemId, setSelectedSystemId] = useState(lockedMachineSystemId ?? '');
-  const [selectedTrangThai, setSelectedTrangThai] = useState('');
-  const [modalMode, setModalMode] = useState<ModalMode>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const syncingRef = useRef(false);
+
+  const getParam = (k: string) => searchParams.get(k);
+
+  const initPage = Math.max(1, Number(getParam('page') ?? '1') || 1);
+  const initNam = Number(getParam('nam') ?? '') || new Date().getFullYear();
+  const initQ = getParam('q') ?? '';
+  const initTrangThai = getParam('trangThai') ?? '';
+  const initMachineSystemId = lockedMachineSystemId ?? (getParam('machineSystemId') ?? '');
+  const initPlanId = getParam('planId');
+  const initPlanMonth = Number(getParam('planMonth') ?? '') || null;
+  const initMode = getParam('mode') as ModalMode | null;
+
+  const [page, setPage] = useState(initPage);
+  const [selectedYear, setSelectedYear] = useState(initNam);
+  const [search, setSearch] = useState(initQ);
+  const [appliedSearch, setAppliedSearch] = useState(initQ);
+  const [selectedSystemId, setSelectedSystemId] = useState(initMachineSystemId);
+  const [selectedTrangThai, setSelectedTrangThai] = useState(initTrangThai);
+  const [highlightPlanMonth, setHighlightPlanMonth] = useState<number | null>(initPlanMonth && initPlanMonth >= 1 && initPlanMonth <= 12 ? initPlanMonth : null);
+  const [modalMode, setModalMode] = useState<ModalMode>(initMode && ['create','view','edit'].includes(initMode) ? initMode : null);
   const [viewingPlan, setViewingPlan] = useState<MaintenancePlan | null>(null);
   const [logModal, setLogModal] = useState<LogModalState | null>(null);
 
@@ -153,13 +172,56 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
     }
   }, [lockedMachineSystemId]);
 
+  const updateParams = useCallback((patch: Record<string, string | null>) => {
+    const next = new URLSearchParams(searchParams);
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === null || v === '') next.delete(k);
+      else next.set(k, v);
+    }
+    syncingRef.current = true;
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  // Debounce search -> URL
+  useEffect(() => {
+    if (search === appliedSearch) return;
+    const t = setTimeout(() => {
+      setAppliedSearch(search);
+      setPage(1);
+      updateParams({ q: search || null, page: null });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [search, appliedSearch, updateParams]);
+
+  // URL -> state sync (back/reload/share) — do not duplicate ?sub
+  useEffect(() => {
+    if (syncingRef.current) { syncingRef.current = false; return; }
+    const p = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
+    const nam = Number(searchParams.get('nam') ?? '') || null;
+    const q = searchParams.get('q') ?? '';
+    const tt = searchParams.get('trangThai') ?? '';
+    const msId = searchParams.get('machineSystemId') ?? '';
+    const planMonth = Number(searchParams.get('planMonth') ?? '') || null;
+    const mode = searchParams.get('mode') as ModalMode | null;
+    if (p !== page) setPage(p);
+    if (nam !== null && nam !== selectedYear) setSelectedYear(nam);
+    if (q !== appliedSearch) { setAppliedSearch(q); setSearch(q); }
+    if (tt !== selectedTrangThai) setSelectedTrangThai(tt);
+    if (!lockedMachineSystemId && msId !== selectedSystemId) setSelectedSystemId(msId);
+    if (planMonth !== highlightPlanMonth && planMonth !== null && planMonth >= 1 && planMonth <= 12) setHighlightPlanMonth(planMonth);
+    if (planMonth === null && highlightPlanMonth !== null && !searchParams.get('planMonth')) setHighlightPlanMonth(null);
+    if (mode !== modalMode && mode && ['create','view','edit'].includes(mode)) setModalMode(mode);
+    if (!mode && modalMode) { /* keep until user closes */ }
+  }, [searchParams]);
+
   const filters = useMemo(() => ({
     page,
     limit: 5,
     nam: selectedYear,
+    ...(appliedSearch && { search: appliedSearch }),
     ...(selectedSystemId && { machineSystemId: selectedSystemId }),
     ...(selectedTrangThai && { trangThai: selectedTrangThai }),
-  }), [page, selectedYear, selectedSystemId, selectedTrangThai]);
+  }), [page, selectedYear, appliedSearch, selectedSystemId, selectedTrangThai]);
 
   const { data: plansResponse, isLoading } = useMaintenancePlans(filters);
   const { data: systemsResponse } = useMachineSystems({ page: 1, limit: 200, hoatDong: true });
@@ -171,6 +233,39 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
   const plans = plansResponse?.data ?? [];
   const pagination = plansResponse?.pagination;
   const systems = systemsResponse?.data ?? [];
+
+  // Deep-link ?planId -> open detail (view) and highlight
+  useEffect(() => {
+    const planId = searchParams.get('planId');
+    if (!planId) return;
+    if (viewingPlan?.id === planId) return;
+    const found = plans.find((pl: MaintenancePlan) => pl.id === planId);
+    if (found) {
+      setViewingPlan(found);
+      if (!modalMode) setModalMode('view');
+      return;
+    }
+    // Fetch if not in current page
+    let cancelled = false;
+    maintenancePlanService.getById(planId).then((res: any) => {
+      if (cancelled) return;
+      const plan = res?.data ?? res;
+      if (plan?.id) {
+        setViewingPlan(plan as MaintenancePlan);
+        if (!modalMode) setModalMode('view');
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [searchParams.get('planId'), plans]);
+
+  // Keep viewingPlan in sync when plans refresh (e.g., after toggle)
+  useEffect(() => {
+    if (!viewingPlan) return;
+    const updated = plans.find((pl: MaintenancePlan) => pl.id === viewingPlan.id);
+    if (updated) setViewingPlan(updated);
+  }, [plans]);
+
+  void initPlanId;
 
   const handleToggle = (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string, nguoiPhu?: string[]) => {
     toggleMonth.mutate({ planId, itemId, month, lanThu, nguoiThucHien, nguoiPhu }, {
@@ -194,8 +289,43 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
     }
   };
 
+  const openPlanView = (plan: MaintenancePlan) => {
+    setViewingPlan(plan);
+    setModalMode('view');
+    updateParams({ planId: plan.id, mode: 'view' });
+  };
+  const openPlanEdit = (plan: MaintenancePlan) => {
+    setViewingPlan(plan);
+    setModalMode('edit');
+    updateParams({ planId: plan.id, mode: 'edit' });
+  };
+  const openCreate = () => {
+    setViewingPlan(null);
+    setModalMode('create');
+    updateParams({ mode: 'create', planId: null, planMonth: null });
+  };
+  const closePlanModal = () => {
+    setModalMode(null);
+    setViewingPlan(null);
+    const next = new URLSearchParams(searchParams);
+    next.delete('mode');
+    next.delete('planId');
+    // keep planMonth? spec says focus, so keep until explicit change; but clear on close view
+    // Do not delete planMonth automatically - let user navigate
+    syncingRef.current = true;
+    setSearchParams(next, { replace: true });
+  };
+
+  const handleToggleWithFocus = (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string, nguoiPhu?: string[]) => {
+    handleToggle(planId, itemId, month, lanThu, nguoiThucHien, nguoiPhu);
+    setHighlightPlanMonth(month);
+    updateParams({ planId, planMonth: String(month) });
+  };
+
   const handleOpenLogModal = (state: LogModalState) => {
     setLogModal(state);
+    setHighlightPlanMonth(state.month);
+    updateParams({ planId: state.planId, planMonth: String(state.month) });
   };
 
   return (
@@ -203,9 +333,17 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
       {/* Toolbar */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
+          <input
+            type="text"
+            placeholder="Tìm kế hoạch..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && (setAppliedSearch(search), setPage(1), updateParams({ q: search || null, page: null }))}
+            className="px-3 py-2 text-sm border border-gray-300 rounded-lg w-40"
+          />
           <select
             value={selectedYear}
-            onChange={(e) => { setSelectedYear(Number(e.target.value)); setPage(1); }}
+            onChange={(e) => { const v = Number(e.target.value); setSelectedYear(v); setPage(1); updateParams({ nam: String(v), page: null }); }}
             className="px-3 py-2 text-sm border border-gray-300 rounded-lg"
           >
             {[2024, 2025, 2026, 2027].map((y) => (
@@ -215,7 +353,7 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
           {!lockedMachineSystemId && (
             <select
               value={selectedSystemId}
-              onChange={(e) => { setSelectedSystemId(e.target.value); setPage(1); }}
+              onChange={(e) => { const v = e.target.value; setSelectedSystemId(v); setPage(1); updateParams({ machineSystemId: v || null, page: null }); }}
               className="px-3 py-2 text-sm border border-gray-300 rounded-lg"
             >
               <option value="">Tất cả hệ thống</option>
@@ -226,7 +364,7 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
           )}
           <select
             value={selectedTrangThai}
-            onChange={(e) => { setSelectedTrangThai(e.target.value); setPage(1); }}
+            onChange={(e) => { const v = e.target.value; setSelectedTrangThai(v); setPage(1); updateParams({ trangThai: v || null, page: null }); }}
             className="px-3 py-2 text-sm border border-gray-300 rounded-lg"
           >
             <option value="">Tất cả trạng thái</option>
@@ -235,7 +373,7 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
           </select>
         </div>
         <button
-          onClick={() => setModalMode('create')}
+          onClick={openCreate}
           className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
         >
           <Plus className="w-4 h-4" /> Tạo kế hoạch
@@ -252,10 +390,12 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
           <PlanCard
             key={plan.id}
             plan={plan}
-            onToggle={handleToggle}
+            onToggle={handleToggleWithFocus}
             onOpenLogModal={handleOpenLogModal}
-            onView={() => { setViewingPlan(plan); setModalMode('view'); }}
-            onEdit={() => { setViewingPlan(plan); setModalMode('edit'); }}
+            highlightMonth={highlightPlanMonth}
+            isHighlighted={searchParams.get('planId') === plan.id}
+            onView={() => openPlanView(plan)}
+            onEdit={() => openPlanEdit(plan)}
             onDelete={() => handleDelete(plan.id)}
             onSync={() => syncDetails.mutate(plan.id, {
               onSuccess: () => toast.success('Đồng bộ linh kiện thành công'),
@@ -269,11 +409,11 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
       {/* Pagination */}
       {pagination && pagination.totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 pt-2">
-          <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-30">
+          <button onClick={() => { const np = Math.max(1, page - 1); setPage(np); updateParams({ page: String(np) }); }} disabled={page === 1} className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-30">
             <ChevronLeft className="w-4 h-4" />
           </button>
           <span className="text-sm text-gray-600">Trang {page} / {pagination.totalPages}</span>
-          <button onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))} disabled={page === pagination.totalPages} className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-30">
+          <button onClick={() => { const np = Math.min(pagination.totalPages, page + 1); setPage(np); updateParams({ page: String(np) }); }} disabled={page === pagination.totalPages} className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-30">
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
@@ -282,7 +422,7 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
       {/* Modal */}
       {modalMode === 'create' && (
         <MaintenancePlanForm
-          onClose={() => setModalMode(null)}
+          onClose={closePlanModal}
           systems={systems}
           year={selectedYear}
           lockedMachineSystemId={lockedMachineSystemId}
@@ -290,7 +430,7 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
       )}
       {modalMode === 'view' && viewingPlan && (
         <MaintenancePlanForm
-          onClose={() => { setModalMode(null); setViewingPlan(null); }}
+          onClose={closePlanModal}
           systems={systems}
           year={selectedYear}
           plan={viewingPlan}
@@ -300,7 +440,7 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
       )}
       {modalMode === 'edit' && viewingPlan && (
         <MaintenancePlanForm
-          onClose={() => { setModalMode(null); setViewingPlan(null); }}
+          onClose={closePlanModal}
           systems={systems}
           year={selectedYear}
           plan={viewingPlan}
@@ -342,9 +482,11 @@ interface PlanCardProps {
   onDelete: () => void;
   onSync: () => void;
   isSyncing: boolean;
+  highlightMonth?: number | null;
+  isHighlighted?: boolean;
 }
 
-const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, onSync, isSyncing }: PlanCardProps) => {
+const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, onSync, isSyncing, highlightMonth, isHighlighted }: PlanCardProps) => {
   const { completed, total } = calculatePlanProgress(plan.items ?? []);
   const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
 
@@ -391,7 +533,7 @@ const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, on
   }
 
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
+    <div className={`border rounded-lg overflow-hidden ${isHighlighted ? "border-blue-400 ring-1 ring-blue-200" : "border-gray-200"}`} data-plan-id={plan.id} data-highlight-month={highlightMonth ?? ""}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
         <div>
@@ -494,6 +636,7 @@ const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, on
                   onToggle={onToggle}
                   onOpenLogModal={onOpenLogModal}
                   indent={indent}
+                  highlightMonth={highlightMonth}
                 />
               );
             })}
@@ -527,9 +670,10 @@ interface PlanItemRowProps {
   onToggle: (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string, nguoiPhu?: string[]) => void;
   onOpenLogModal: (state: LogModalState) => void;
   indent?: boolean;
+  highlightMonth?: number | null;
 }
 
-const PlanItemRow = ({ planId, item, nguoiLap, onToggle, onOpenLogModal, indent }: PlanItemRowProps) => {
+const PlanItemRow = ({ planId, item, nguoiLap, onToggle, onOpenLogModal, indent, highlightMonth }: PlanItemRowProps) => {
   const applicableMonths = getApplicableMonths(item.tanSuat, item.thangBatDau ?? 1);
   const timesPerMonth = getTimesPerMonth(item.tanSuat);
   const logs = item.logs ?? [];
@@ -565,11 +709,12 @@ const PlanItemRow = ({ planId, item, nguoiLap, onToggle, onOpenLogModal, indent 
         const isSuggested = isApplicable && m === suggestedMonth;
         const monthLogs = logs.filter((l) => l.thang === m);
         return (
-          <td key={m} className={`px-1 py-2 ${isCurrentMonth ? 'bg-blue-50/30' : ''}`}>
+          <td key={m} className={`px-1 py-2 ${isCurrentMonth ? 'bg-blue-50/30' : ''} ${highlightMonth === m ? 'ring-2 ring-amber-300 ring-inset' : ''}`}>
             <MonthCell
               planId={planId}
               itemId={item.id}
               month={m}
+              isHighlighted={highlightMonth === m}
               timesPerMonth={timesPerMonth}
               logs={monthLogs}
               noiDung={item.noiDung}
@@ -598,11 +743,12 @@ interface MonthCellProps {
   nguoiLap: string;
   isApplicable: boolean;
   isSuggested: boolean;
+  isHighlighted?: boolean;
   onToggle: (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string, nguoiPhu?: string[]) => void;
   onOpenLogModal: (state: LogModalState) => void;
 }
 
-const MonthCell = ({ planId, itemId, month, timesPerMonth, logs, noiDung, tenThietBi, nguoiLap, isApplicable, isSuggested, onToggle: _onToggle, onOpenLogModal }: MonthCellProps) => {
+const MonthCell = ({ planId, itemId, month, timesPerMonth, logs, noiDung, tenThietBi, nguoiLap, isApplicable, isSuggested, isHighlighted, onToggle: _onToggle, onOpenLogModal }: MonthCellProps) => {
   const openModal = () => {
     onOpenLogModal({ planId, itemId, month, timesPerMonth, noiDung, tenThietBi, nguoiLap });
   };

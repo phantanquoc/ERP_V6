@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { Plus, Edit, Trash2, X, Download, Search } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Download, Search, ChevronDown } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getFileUrl } from '../config/api';
 import { can, isCachedPermissionsLoaded } from '../utils/permissions';
@@ -42,15 +43,31 @@ const trangThaiBadge = (tt: string) => {
   return 'bg-gray-100 text-gray-600';
 };
 
+type SortBy = 'maLinhKien' | 'tenLinhKien' | 'soLuongTon' | 'createdAt';
+type SortOrder = 'asc' | 'desc';
+
 const SparePartList = () => {
   const { user } = useAuth();
-  const [currentPage, setCurrentPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // URL → state init
+  const initQ = searchParams.get('q') ?? '';
+  const initLoai = searchParams.get('loai') ?? '';
+  const initTrangThai = searchParams.get('trangThai') ?? '';
+  const initPage = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
+  const initSortBy = (searchParams.get('sortBy') as SortBy) ?? '' as SortBy | '';
+  const initSortOrder = (searchParams.get('sortOrder') as SortOrder) ?? 'asc';
+  const initPartId = searchParams.get('partId');
+
   const itemsPerPage = 10;
 
-  const [search, setSearch] = useState('');
-  const [appliedSearch, setAppliedSearch] = useState('');
-  const [filterLoai, setFilterLoai] = useState('');
-  const [filterTrangThai, setFilterTrangThai] = useState('');
+  const [currentPage, setCurrentPage] = useState(initPage);
+  const [search, setSearch] = useState(initQ);
+  const [appliedSearch, setAppliedSearch] = useState(initQ);
+  const [filterLoai, setFilterLoai] = useState(initLoai);
+  const [filterTrangThai, setFilterTrangThai] = useState(initTrangThai);
+  const [sortBy, setSortBy] = useState<SortBy | ''>(initSortBy as SortBy | '');
+  const [sortOrder, setSortOrder] = useState<SortOrder>(initSortOrder as SortOrder);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewMode, setIsViewMode] = useState(false);
@@ -70,10 +87,52 @@ const SparePartList = () => {
 
   const isTechnical = user?.department === 'technical' ||
     user?.secondaryDepartments?.some(d => d.departmentCode === 'technical');
-  // Rule Matrix: spare-parts resource
   const _baseWrite = user?.role === UserRole.ADMIN || isTechnical;
   const canWrite = isCachedPermissionsLoaded() ? can('spare-parts', 'CREATE', user?.role as string) || can('spare-parts', 'UPDATE', user?.role as string) : _baseWrite;
   const canDelete = isCachedPermissionsLoaded() ? can('spare-parts', 'DELETE', user?.role as string) : (user?.role === UserRole.ADMIN || isTechnical);
+
+  // URL sync helpers
+  const syncingRef = useRef(false);
+
+  const updateParams = useCallback((patch: Record<string, string | null>) => {
+    const next = new URLSearchParams(searchParams);
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === null || v === '') next.delete(k);
+      else next.set(k, v);
+    }
+    syncingRef.current = true;
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  // URL → state sync (back/reload/share)
+  useEffect(() => {
+    if (syncingRef.current) { syncingRef.current = false; return; }
+    const q = searchParams.get('q') ?? '';
+    const loai = searchParams.get('loai') ?? '';
+    const trangThai = searchParams.get('trangThai') ?? '';
+    const page = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
+    const sb = (searchParams.get('sortBy') as SortBy) ?? '';
+    const so = (searchParams.get('sortOrder') as SortOrder) ?? 'asc';
+    if (q !== appliedSearch) { setAppliedSearch(q); setSearch(q); }
+    if (loai !== filterLoai) setFilterLoai(loai);
+    if (trangThai !== filterTrangThai) setFilterTrangThai(trangThai);
+    if (page !== currentPage) setCurrentPage(page);
+    if ((sb as string) !== (sortBy as string)) setSortBy(sb as SortBy | '');
+    if (so !== sortOrder) setSortOrder(so);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // Debounce search -> URL + appliedSearch
+  useEffect(() => {
+    if (search === appliedSearch) return;
+    const t = setTimeout(() => {
+      setAppliedSearch(search);
+      setCurrentPage(1);
+      updateParams({ q: search || null, page: null });
+    }, 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   const filters = useMemo(() => ({
     page: currentPage,
@@ -84,12 +143,62 @@ const SparePartList = () => {
   }), [currentPage, appliedSearch, filterLoai, filterTrangThai]);
 
   const { data: queryResult, isLoading: loading } = useSpareParts(filters);
-  const parts: SparePart[] = useMemo(() => {
+  const rawParts: SparePart[] = useMemo(() => {
     const result = queryResult as any;
     return Array.isArray(result?.data) ? result.data : Array.isArray(result) ? result : [];
   }, [queryResult]);
+
+  // Client sort (backend may ignore sortBy/sortOrder)
+  const parts: SparePart[] = useMemo(() => {
+    if (!sortBy) return rawParts;
+    const sorted = [...rawParts].sort((a: any, b: any) => {
+      const av = a[sortBy];
+      const bv = b[sortBy];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (typeof av === 'number' && typeof bv === 'number') return av - bv;
+      return String(av).localeCompare(String(bv), 'vi');
+    });
+    return sortOrder === 'desc' ? sorted.reverse() : sorted;
+  }, [rawParts, sortBy, sortOrder]);
+
   const totalPages = (queryResult as any)?.pagination?.totalPages ?? 1;
   const total = (queryResult as any)?.pagination?.total ?? parts.length;
+
+  // Deep-link ?partId -> open detail modal (fetch if not on current page)
+  useEffect(() => {
+    const partId = searchParams.get('partId');
+    if (!partId) {
+      // URL has no partId -> close modal if it was opened via deep-link
+      if (isModalOpen && isViewMode && editingPart?.id && !rawParts.find(p => p.id === editingPart.id)) {
+        // keep modal if user opened via row locally without URL? but spec says URL drives modal
+      }
+      return;
+    }
+    // Already open correct part
+    if (isModalOpen && editingPart?.id === partId) return;
+    const found = rawParts.find(p => p.id === partId);
+    if (found) {
+      setEditingPart(found);
+      setIsViewMode(true);
+      setIsModalOpen(true);
+      return;
+    }
+    // Not on current page -> fetch by id
+    let cancelled = false;
+    sparePartService.getById(partId).then((res: any) => {
+      if (cancelled) return;
+      const part = res?.data ?? res;
+      if (part?.id) {
+        setEditingPart(part as SparePart);
+        setIsViewMode(true);
+        setIsModalOpen(true);
+      }
+    }).catch(() => {/* ignore invalid partId */});
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.get('partId'), rawParts]);
 
   const createMutation = useCreateSparePart();
   const updateMutation = useUpdateSparePart();
@@ -126,6 +235,25 @@ const SparePartList = () => {
     setEditingPart(part);
     setIsViewMode(true);
     setIsModalOpen(true);
+    updateParams({ partId: part.id });
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    // Delay clearing editingPart to allow exit animation
+    setTimeout(() => {
+      setEditingPart(null);
+      setIsViewMode(false);
+    }, 100);
+    if (searchParams.get('partId')) updateParams({ partId: null });
+  };
+
+  const handleSort = (field: SortBy) => {
+    const nextOrder: SortOrder = sortBy === field && sortOrder === 'asc' ? 'desc' : 'asc';
+    const nextBy: SortBy | '' = field;
+    setSortBy(nextBy);
+    setSortOrder(nextOrder);
+    updateParams({ sortBy: field, sortOrder: nextOrder });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -159,6 +287,7 @@ const SparePartList = () => {
     try {
       await deleteMutation.mutateAsync(id);
       toast.success('Đã xóa linh kiện');
+      if (searchParams.get('partId') === id) updateParams({ partId: null });
     } catch (error: any) {
       toast.error(error instanceof Error ? error.message : 'Lỗi khi xóa');
     }
@@ -186,6 +315,22 @@ const SparePartList = () => {
 
   const loaiLabel = (v: string) => LOAI_OPTIONS.find(o => o.value === v)?.label ?? v;
 
+  const SortIcon = ({ field }: { field: SortBy }) => {
+    if (sortBy !== field) return <ChevronDown size={12} className="opacity-30" />;
+    return <span className="text-blue-600 text-xs">{sortOrder === 'asc' ? '▲' : '▼'}</span>;
+  };
+
+  // Init partId from URL on mount already handled via effect above; need to ensure deep-link works even before data loads
+  // Also handle browser back closing modal
+  useEffect(() => {
+    if (!searchParams.get('partId') && isModalOpen && isViewMode) {
+      setIsModalOpen(false);
+    }
+  }, [searchParams.get('partId')]);
+
+  // Suppress unused var warning for initPartId (used to seed state)
+  void initPartId;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -212,18 +357,18 @@ const SparePartList = () => {
             placeholder="Tìm mã, tên linh kiện..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && (setCurrentPage(1), setAppliedSearch(search))}
+            onKeyDown={e => e.key === 'Enter' && (setCurrentPage(1), setAppliedSearch(search), updateParams({ q: search || null, page: null }))}
             className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <button onClick={() => { setCurrentPage(1); setAppliedSearch(search); }} className="px-3 py-2 text-sm bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200">
+          <button onClick={() => { setCurrentPage(1); setAppliedSearch(search); updateParams({ q: search || null, page: null }); }} className="px-3 py-2 text-sm bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200">
             <Search size={16} />
           </button>
         </div>
-        <select value={filterLoai} onChange={e => { setFilterLoai(e.target.value); setCurrentPage(1); }} className="px-3 py-2 text-sm border border-gray-300 rounded-lg">
+        <select value={filterLoai} onChange={e => { const v = e.target.value; setFilterLoai(v); setCurrentPage(1); updateParams({ loai: v || null, page: null }); }} className="px-3 py-2 text-sm border border-gray-300 rounded-lg">
           <option value="">Tất cả loại</option>
           {LOAI_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        <select value={filterTrangThai} onChange={e => { setFilterTrangThai(e.target.value); setCurrentPage(1); }} className="px-3 py-2 text-sm border border-gray-300 rounded-lg">
+        <select value={filterTrangThai} onChange={e => { const v = e.target.value; setFilterTrangThai(v); setCurrentPage(1); updateParams({ trangThai: v || null, page: null }); }} className="px-3 py-2 text-sm border border-gray-300 rounded-lg">
           <option value="">Tất cả trạng thái</option>
           {TRANG_THAI_OPTIONS.map(v => <option key={v} value={v}>{v}</option>)}
         </select>
@@ -234,11 +379,11 @@ const SparePartList = () => {
           <table className="w-full text-sm min-w-[700px]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-3 py-2.5 text-left font-medium text-gray-500 text-xs sticky left-0 bg-gray-50 z-10 min-w-[100px]">Mã linh kiện</th>
-                <th className="px-3 py-2.5 text-left font-medium text-gray-500 text-xs min-w-[150px]">Tên linh kiện</th>
+                <th onClick={() => handleSort('maLinhKien')} className="px-3 py-2.5 text-left font-medium text-gray-500 text-xs sticky left-0 bg-gray-50 z-10 min-w-[100px] cursor-pointer select-none hover:text-gray-700">Mã linh kiện <SortIcon field="maLinhKien" /></th>
+                <th onClick={() => handleSort('tenLinhKien')} className="px-3 py-2.5 text-left font-medium text-gray-500 text-xs min-w-[150px] cursor-pointer select-none hover:text-gray-700">Tên linh kiện <SortIcon field="tenLinhKien" /></th>
                 <th className="px-3 py-2.5 text-left font-medium text-gray-500 text-xs min-w-[80px]">Loại</th>
                 <th className="px-3 py-2.5 text-left font-medium text-gray-500 text-xs min-w-[60px]">Đơn vị</th>
-                <th className="px-3 py-2.5 text-left font-medium text-gray-500 text-xs min-w-[60px]">SL tồn</th>
+                <th onClick={() => handleSort('soLuongTon')} className="px-3 py-2.5 text-left font-medium text-gray-500 text-xs min-w-[60px] cursor-pointer select-none hover:text-gray-700">SL tồn <SortIcon field="soLuongTon" /></th>
                 <th className="px-3 py-2.5 text-left font-medium text-gray-500 text-xs min-w-[120px]">Nhà cung cấp</th>
                 <th className="px-3 py-2.5 text-left font-medium text-gray-500 text-xs min-w-[100px]">Trạng thái</th>
                 <th className="px-3 py-2.5 text-right font-medium text-gray-500 text-xs sticky right-0 bg-gray-50 z-10 min-w-[90px]">Thao tác</th>
@@ -250,7 +395,7 @@ const SparePartList = () => {
               ) : parts.length === 0 ? (
                 <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">Không có dữ liệu</td></tr>
               ) : parts.map((part) => (
-                <tr key={part.id} onClick={() => openViewModal(part)} className="border-l-2 border-l-transparent hover:bg-blue-100 hover:border-l-blue-500 cursor-pointer transition-all">
+                <tr key={part.id} onClick={() => openViewModal(part)} className={`border-l-2 cursor-pointer transition-all ${searchParams.get('partId') === part.id ? 'bg-blue-50 border-l-blue-600' : 'border-l-transparent hover:bg-blue-100 hover:border-l-blue-500'}`}>
                   <td className="px-3 py-2.5 sticky left-0 bg-white z-10 font-mono text-xs text-blue-700 font-medium">{part.maLinhKien}</td>
                   <td className="px-3 py-2.5 font-medium text-gray-800">{part.tenLinhKien}</td>
                   <td className="px-3 py-2.5 text-gray-600 text-xs">{loaiLabel(part.loai)}</td>
@@ -279,21 +424,21 @@ const SparePartList = () => {
           <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
             <p className="text-sm text-gray-500">Trang {currentPage} / {totalPages}</p>
             <div className="flex gap-1">
-              <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-40">Trước</button>
-              <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-40">Sau</button>
+              <button disabled={currentPage === 1} onClick={() => { const np = currentPage - 1; setCurrentPage(np); updateParams({ page: String(np) }); }} className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-40">Trước</button>
+              <button disabled={currentPage === totalPages} onClick={() => { const np = currentPage + 1; setCurrentPage(np); updateParams({ page: String(np) }); }} className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-40">Sau</button>
             </div>
           </div>
         )}
       </div>
 
       {/* Modal */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} showBackdrop>
+      <Modal isOpen={isModalOpen} onClose={closeModal} showBackdrop>
         <div className="bg-white rounded-xl shadow-xl w-full max-w-lg flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between p-5 border-b shrink-0">
             <h3 className="font-semibold text-gray-800">
               {isViewMode ? 'Chi tiết linh kiện' : editingPart ? 'Chỉnh sửa linh kiện' : 'Thêm linh kiện mới'}
             </h3>
-            <button onClick={() => setIsModalOpen(false)} className="p-1.5 hover:bg-gray-100 rounded"><X size={18} /></button>
+            <button onClick={closeModal} className="p-1.5 hover:bg-gray-100 rounded"><X size={18} /></button>
           </div>
 
           <div className="overflow-y-auto flex-1">
@@ -318,7 +463,7 @@ const SparePartList = () => {
                   </div>
                 )}
                 <div className="flex justify-end gap-2 pt-2">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Đóng</button>
+                  <button type="button" onClick={closeModal} className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Đóng</button>
                   {canWrite && (
                     <button type="button" onClick={() => openEditModal(editingPart)} className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700">Chỉnh sửa</button>
                   )}
@@ -385,7 +530,7 @@ const SparePartList = () => {
                   />
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Hủy</button>
+                  <button type="button" onClick={closeModal} className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Hủy</button>
                   <button type="submit" className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700">{editingPart ? 'Cập nhật' : 'Thêm mới'}</button>
                 </div>
               </form>

@@ -1,4 +1,6 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import maintenanceRecordService from '../services/maintenanceRecordService';
 import toast from 'react-hot-toast';
 import { Plus, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useMaintenanceRecords, useDeleteMaintenanceRecord } from '../hooks/useMaintenanceRecords';
@@ -13,10 +15,19 @@ interface MaintenanceRecordListProps {
 }
 
 const MaintenanceRecordList = ({ lockedMachineSystemId }: MaintenanceRecordListProps = {}) => {
-  const [page, setPage] = useState(1);
-  const [loaiFilter, setLoaiFilter] = useState('');
-  const [systemFilter, setSystemFilter] = useState(lockedMachineSystemId ?? '');
-  const [search, setSearch] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const syncingRef = useRef(false);
+  const initPage = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
+  const initSearch = searchParams.get('q') ?? '';
+  const initLoai = searchParams.get('loai') ?? '';
+  const initSystem = lockedMachineSystemId ?? (searchParams.get('machineSystemId') ?? '');
+  const initRecordId = searchParams.get('recordId');
+  void initRecordId;
+  const [page, setPage] = useState(initPage);
+  const [loaiFilter, setLoaiFilter] = useState(initLoai);
+  const [systemFilter, setSystemFilter] = useState(initSystem);
+  const [search, setSearch] = useState(initSearch);
+  const [appliedSearch, setAppliedSearch] = useState(initSearch);
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [selectedRecord, setSelectedRecord] = useState<MaintenanceRecord | null>(null);
 
@@ -27,13 +38,45 @@ const MaintenanceRecordList = ({ lockedMachineSystemId }: MaintenanceRecordListP
     }
   }, [lockedMachineSystemId]);
 
+  const updateParams = useCallback((patch: Record<string, string | null>) => {
+    const next = new URLSearchParams(searchParams);
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === null || v === '') next.delete(k);
+      else next.set(k, v);
+    }
+    syncingRef.current = true;
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (search === appliedSearch) return;
+    const t = setTimeout(() => {
+      setAppliedSearch(search);
+      setPage(1);
+      updateParams({ q: search || null, page: null });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [search, appliedSearch, updateParams]);
+
+  useEffect(() => {
+    if (syncingRef.current) { syncingRef.current = false; return; }
+    const p = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
+    const q = searchParams.get('q') ?? '';
+    const loai = searchParams.get('loai') ?? '';
+    const msId = searchParams.get('machineSystemId') ?? '';
+    if (p !== page) setPage(p);
+    if (q !== appliedSearch) { setAppliedSearch(q); setSearch(q); }
+    if (loai !== loaiFilter) setLoaiFilter(loai);
+    if (!lockedMachineSystemId && msId !== systemFilter) setSystemFilter(msId);
+  }, [searchParams]);
+
   const filters = useMemo(() => ({
     page,
     limit: 10,
     ...(loaiFilter && { loai: loaiFilter }),
     ...(systemFilter && { machineSystemId: systemFilter }),
-    ...(search && { search }),
-  }), [page, loaiFilter, systemFilter, search]);
+    ...(appliedSearch && { search: appliedSearch }),
+  }), [page, loaiFilter, systemFilter, appliedSearch]);
 
   const { data: recordsResponse, isLoading } = useMaintenanceRecords(filters);
   const { data: systemsResponse } = useMachineSystems({ page: 1, limit: 200, hoatDong: true });
@@ -42,6 +85,21 @@ const MaintenanceRecordList = ({ lockedMachineSystemId }: MaintenanceRecordListP
   const records = recordsResponse?.data ?? [];
   const pagination = recordsResponse?.pagination;
   const systems = systemsResponse?.data ?? [];
+
+  useEffect(() => {
+    const recordId = searchParams.get('recordId');
+    if (!recordId) return;
+    if (selectedRecord?.id === recordId) return;
+    const found = records.find((r: MaintenanceRecord) => r.id === recordId);
+    if (found) { setSelectedRecord(found); setModalMode('view'); return; }
+    let cancelled = false;
+    maintenanceRecordService.getById(recordId).then((res: any) => {
+      if (cancelled) return;
+      const rec = res?.data ?? res;
+      if (rec?.id) { setSelectedRecord(rec as MaintenanceRecord); setModalMode('view'); }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [searchParams.get('recordId'), records]);
 
   const handleDelete = (id: string) => {
     if (confirm('Bạn có chắc muốn xóa biên bản này?')) {
@@ -56,6 +114,12 @@ const MaintenanceRecordList = ({ lockedMachineSystemId }: MaintenanceRecordListP
   const openView = (record: MaintenanceRecord) => {
     setSelectedRecord(record);
     setModalMode('view');
+    updateParams({ recordId: record.id });
+  };
+  const closeRecordModal = () => {
+    setModalMode(null);
+    setSelectedRecord(null);
+    if (searchParams.get('recordId')) updateParams({ recordId: null });
   };
 
   return (
@@ -67,12 +131,13 @@ const MaintenanceRecordList = ({ lockedMachineSystemId }: MaintenanceRecordListP
             type="text"
             placeholder="Tìm kiếm..."
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && (setAppliedSearch(search), setPage(1), updateParams({ q: search || null, page: null }))}
             className="px-3 py-2 text-sm border border-gray-300 rounded-lg w-48"
           />
           <select
             value={loaiFilter}
-            onChange={(e) => { setLoaiFilter(e.target.value); setPage(1); }}
+            onChange={(e) => { const v = e.target.value; setLoaiFilter(v); setPage(1); updateParams({ loai: v || null, page: null }); }}
             className="px-3 py-2 text-sm border border-gray-300 rounded-lg"
           >
             <option value="">Tất cả loại</option>
@@ -82,7 +147,7 @@ const MaintenanceRecordList = ({ lockedMachineSystemId }: MaintenanceRecordListP
           {!lockedMachineSystemId && (
             <select
               value={systemFilter}
-              onChange={(e) => { setSystemFilter(e.target.value); setPage(1); }}
+              onChange={(e) => { const v = e.target.value; setSystemFilter(v); setPage(1); updateParams({ machineSystemId: v || null, page: null }); }}
               className="px-3 py-2 text-sm border border-gray-300 rounded-lg"
             >
               <option value="">Tất cả hệ thống</option>
@@ -122,7 +187,7 @@ const MaintenanceRecordList = ({ lockedMachineSystemId }: MaintenanceRecordListP
               <tr><td colSpan={8} className="text-center py-8 text-gray-500">Chưa có biên bản nào</td></tr>
             ) : (
               records.map((r: MaintenanceRecord) => (
-                <tr key={r.id} onClick={() => openView(r)} className="border-b border-gray-100 border-l-2 border-l-transparent hover:bg-blue-100 hover:border-l-blue-500 cursor-pointer transition-all">
+                <tr key={r.id} onClick={() => openView(r)} className={`border-b border-gray-100 border-l-2 cursor-pointer transition-all ${searchParams.get("recordId") === r.id ? "bg-blue-50 border-l-blue-600" : "border-l-transparent hover:bg-blue-100 hover:border-l-blue-500"}`} >
                   <td className="px-3 py-2 text-gray-900 font-medium">
                     {r.maBienBan}
                     {r.sourceLogId && (
@@ -165,11 +230,11 @@ const MaintenanceRecordList = ({ lockedMachineSystemId }: MaintenanceRecordListP
       {/* Pagination */}
       {pagination && pagination.totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 pt-2">
-          <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-30">
+          <button onClick={() => { const np = Math.max(1, page - 1); setPage(np); updateParams({ page: String(np) }); }} disabled={page === 1} className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-30">
             <ChevronLeft className="w-4 h-4" />
           </button>
           <span className="text-sm text-gray-600">Trang {page} / {pagination.totalPages}</span>
-          <button onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))} disabled={page === pagination.totalPages} className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-30">
+          <button onClick={() => { const np = Math.min(pagination.totalPages, page + 1); setPage(np); updateParams({ page: String(np) }); }} disabled={page === pagination.totalPages} className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-30">
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
@@ -181,7 +246,7 @@ const MaintenanceRecordList = ({ lockedMachineSystemId }: MaintenanceRecordListP
           mode={modalMode === 'create' ? 'create' : modalMode === 'edit' ? 'edit' : 'view'}
           record={selectedRecord}
           systems={systems}
-          onClose={() => { setModalMode(null); setSelectedRecord(null); }}
+          onClose={closeRecordModal}
           lockedMachineSystemId={lockedMachineSystemId}
           onEdit={() => setModalMode('edit')}
         />
