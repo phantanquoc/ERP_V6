@@ -43,6 +43,9 @@ const TechnicalQuality = () => {
   const [repairFaultView, setRepairFaultView] = useState<RepairFaultView>(initialRepair);
   const [partsOrdersView, setPartsOrdersView] = useState<PartsOrdersView>(initialParts);
 
+  const deepFaultId = searchParams.get('faultId') ?? searchParams.get('faultRecordId');
+  const deepRepairId = searchParams.get('repairId') ?? searchParams.get('repairRequestId');
+
   // Single URL → state sync. State → URL is via explicit setters (no second effect to avoid loop).
   const syncingRef = useRef(false);
 
@@ -54,18 +57,30 @@ const TechnicalQuality = () => {
       syncingRef.current = false;
       return;
     }
+    // Cross-tab deep-link: ?faultId/?repairId force repairAndFault with correct sub
+    if ((deepFaultId || deepRepairId) && activeTab !== 'repairAndFault') {
+      setActiveTab('repairAndFault');
+    }
+    if (deepFaultId && repairFaultView !== 'fault') {
+      setRepairFaultView('fault');
+      return;
+    }
+    if (deepRepairId && !deepFaultId && repairFaultView !== 'repair') {
+      setRepairFaultView('repair');
+      return;
+    }
     const nextTab = urlTab;
     const nextSub = urlSub;
-    if (isTabType(nextTab) && nextTab !== activeTab) {
+    if (isTabType(nextTab) && nextTab !== activeTab && !deepFaultId && !deepRepairId) {
       setActiveTab(nextTab);
     }
-    if (nextTab === 'repairAndFault' && isRepairFaultView(nextSub) && nextSub !== repairFaultView) {
+    if (nextTab === 'repairAndFault' && isRepairFaultView(nextSub) && nextSub !== repairFaultView && !deepFaultId && !deepRepairId) {
       setRepairFaultView(nextSub);
     }
     if (nextTab === 'partsAndOrders' && isPartsOrdersView(nextSub) && nextSub !== partsOrdersView) {
       setPartsOrdersView(nextSub);
     }
-  }, [urlTab, urlSub]);
+  }, [urlTab, urlSub, deepFaultId, deepRepairId]);
 
   const pushParams = useCallback((nextTab: TabType, nextSub?: string | null) => {
     const next = new URLSearchParams(searchParams);

@@ -226,6 +226,49 @@ interface FaultRecordListProps {
   lockedMachineSystemId?: string;
 }
 
+// Deep-link helpers — Phase 2A
+const VALID_SORT_BY = new Set(['maLoi', 'tenLoi', 'mucDo', 'trangThai', 'ngayPhatHien', 'createdAt']);
+const VALID_SORT_ORDER = new Set(['asc', 'desc']);
+const parsePage = (v: string | null, fallback: number) => {
+  const n = v ? parseInt(v, 10) : NaN;
+  return Number.isFinite(n) && n >= 1 ? n : fallback;
+};
+const parseLimit = (v: string | null, fallback: number) => {
+  const n = v ? parseInt(v, 10) : NaN;
+  return Number.isFinite(n) && n >= 1 && n <= 100 ? n : fallback;
+};
+const parseFaultRecordFiltersFromUrl = (sp: URLSearchParams, lockedMachineSystemId?: string): FaultRecordFilters => {
+  const q = sp.get('q');
+  const status = sp.get('status');
+  const mucDo = sp.get('mucDo');
+  const sortBy = sp.get('sortBy');
+  const sortOrder = sp.get('sortOrder');
+  const page = parsePage(sp.get('page'), 1);
+  const limit = parseLimit(sp.get('limit'), 10);
+  // Preserve locked system: URL value is used only when not locked
+  const rawMachineSystemId = sp.get('machineSystemId');
+  const machineSystemId = lockedMachineSystemId ?? (rawMachineSystemId || undefined);
+  const machineSystemDetailId = sp.get('machineSystemDetailId') || undefined;
+  const out: FaultRecordFilters = { page, limit, sortBy: 'createdAt', sortOrder: 'desc' };
+  if (q) out.search = q;
+  if (status && (RECORD_STATUS_VALUES as string[]).includes(status)) out.trangThai = status as FaultRecordStatus;
+  if (mucDo && SEVERITIES.includes(mucDo)) out.mucDo = mucDo;
+  if (machineSystemId) out.machineSystemId = machineSystemId;
+  if (machineSystemDetailId) out.machineSystemDetailId = machineSystemDetailId;
+  if (sortBy && VALID_SORT_BY.has(sortBy)) out.sortBy = sortBy as FaultRecordFilters['sortBy'];
+  if (sortOrder && VALID_SORT_ORDER.has(sortOrder)) out.sortOrder = sortOrder as FaultRecordFilters['sortOrder'];
+  // Legacy aliases: ?search -> ?q, ?trangThai -> ?status (read for backwards compat, normalized to new keys on write)
+  if (!out.search) {
+    const legacySearch = sp.get('search');
+    if (legacySearch) out.search = legacySearch;
+  }
+  if (!out.trangThai) {
+    const legacyStatus = sp.get('trangThai');
+    if (legacyStatus && (RECORD_STATUS_VALUES as string[]).includes(legacyStatus)) out.trangThai = legacyStatus as FaultRecordStatus;
+  }
+  return out;
+};
+
 const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) => {
   const { user } = useAuth();
   const reporter = user ? `${user.lastName} ${user.firstName}`.trim() : '';
@@ -236,8 +279,22 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
   const _baseMutate = user?.role === UserRole.ADMIN || isTechnical;
   const canMutate = isCachedPermissionsLoaded() ? (can('fault-records', 'CREATE', user?.role as string) || can('fault-records', 'UPDATE', user?.role as string)) : _baseMutate;
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filterSyncRef = useRef(false);
+  const detailSyncRef = useRef(false);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [searchInput, setSearchInput] = useState(() => {
+    const sp = new URLSearchParams(window.location.search);
+    return sp.get('q') ?? sp.get('search') ?? '';
+  });
+
   const [view, setView] = useState<ViewMode>('records');
-  const [recordFilters, setRecordFilters] = useState<FaultRecordFilters>({ page: 1, limit: 10, sortBy: 'createdAt', sortOrder: 'desc', machineSystemId: lockedMachineSystemId });
+  const [recordFilters, setRecordFilters] = useState<FaultRecordFilters>(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const init = parseFaultRecordFiltersFromUrl(sp, lockedMachineSystemId);
+    if (lockedMachineSystemId) init.machineSystemId = lockedMachineSystemId;
+    return init;
+  });
   const [templateFilters, setTemplateFilters] = useState<FaultTemplateFilters>({ page: 1, limit: 10, sortBy: 'createdAt', sortOrder: 'desc', machineSystemId: lockedMachineSystemId });
 
   // A3: heatmap collapsible tracks its own open state for lazy-loading
@@ -328,6 +385,123 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
       nguoiPhatHien: record.nguoiPhatHien,
       ngayPhatHien: record.ngayPhatHien?.split('T')[0] ?? '',
     } : emptyRecordForm(reporter, lockedMachineSystemId ?? ''));
+    // URL side effects: view -> ?faultId, create -> ?create=fault (optional), edit -> no URL param
+    if (mode === 'view' && record?.id) pushFaultId(record.id);
+    else if (mode === 'create') pushCreateFault();
+  };
+  const closeRecordModal = () => {
+    const wasView = recordModal?.mode === 'view';
+    const wasCreate = recordModal?.mode === 'create';
+    setRecordModal(null);
+    // Clear whichever URL param we set; defer so state settles before navigation effect reads it
+    if (wasView) clearFaultId();
+    if (wasCreate) clearCreateFault();
+  };
+
+  // Phase 2A: recordFilters -> URL (filter/search/pagination/sort). Guarded so our own write does not echo.
+  useEffect(() => {
+    // Never sync when locked (machine filter is forced by parent, not URL-driven)
+    // but still allow other params to sync — skip only machine keys if locked.
+    const next = new URLSearchParams(searchParams);
+    let changed = false;
+    const setOrDelete = (key: string, value: string | undefined, legacyKey?: string) => {
+      if (legacyKey) next.delete(legacyKey);
+      if (value) { if (next.get(key) !== value) { next.set(key, value); changed = true; } }
+      else if (next.has(key)) { next.delete(key); changed = true; }
+    };
+    const searchVal = (recordFilters.search ?? '').trim();
+    setOrDelete('q', searchVal || undefined, 'search');
+    setOrDelete('status', recordFilters.trangThai || undefined, 'trangThai');
+    setOrDelete('mucDo', recordFilters.mucDo || undefined);
+    // machine filters are URL-visible only when not locked
+    if (!lockedMachineSystemId) {
+      setOrDelete('machineSystemId', recordFilters.machineSystemId || undefined);
+      setOrDelete('machineSystemDetailId', recordFilters.machineSystemDetailId || undefined);
+    } else {
+      // ensure stale machine params do not linger in URL when locked
+      if (next.has('machineSystemId')) { next.delete('machineSystemId'); changed = true; }
+      if (next.has('machineSystemDetailId') && !recordFilters.machineSystemDetailId) {
+        // keep if user picked a detail within the locked system
+      }
+    }
+    const pageVal = String(recordFilters.page ?? 1);
+    const limitVal = String(recordFilters.limit ?? 10);
+    const sortByVal = recordFilters.sortBy ?? 'createdAt';
+    const sortOrderVal = recordFilters.sortOrder ?? 'desc';
+    // Only write pagination/sort when non-default to keep URL tidy, but treat missing as default on read
+    if ((next.get('page') ?? '1') !== pageVal) { if (pageVal === '1') next.delete('page'); else next.set('page', pageVal); changed = true; }
+    if ((next.get('limit') ?? '10') !== limitVal) { if (limitVal === '10') next.delete('limit'); else next.set('limit', limitVal); changed = true; }
+    if ((next.get('sortBy') ?? 'createdAt') !== sortByVal) { if (sortByVal === 'createdAt') next.delete('sortBy'); else next.set('sortBy', sortByVal); changed = true; }
+    if ((next.get('sortOrder') ?? 'desc') !== sortOrderVal) { if (sortOrderVal === 'desc') next.delete('sortOrder'); else next.set('sortOrder', sortOrderVal); changed = true; }
+    if (!changed) return;
+    filterSyncRef.current = true;
+    setSearchParams(next, { replace: true });
+  }, [recordFilters]);
+
+  // Phase 2A: URL -> recordFilters + searchInput (back/forward, shared links, manual edit)
+  useEffect(() => {
+    if (filterSyncRef.current) { filterSyncRef.current = false; return; }
+    const nextFilters = parseFaultRecordFiltersFromUrl(searchParams, lockedMachineSystemId);
+    // Preserve locked id if present
+    if (lockedMachineSystemId) nextFilters.machineSystemId = lockedMachineSystemId;
+    let needsUpdate = false;
+    // shallow compare significant keys
+    const keys: (keyof FaultRecordFilters)[] = ['search', 'trangThai', 'mucDo', 'machineSystemId', 'machineSystemDetailId', 'page', 'limit', 'sortBy', 'sortOrder'];
+    for (const k of keys) {
+      if ((nextFilters[k] ?? undefined) !== (recordFilters[k] ?? undefined)) { needsUpdate = true; break; }
+    }
+    if (needsUpdate) setRecordFilters(nextFilters);
+    const urlSearch = searchParams.get('q') ?? searchParams.get('search') ?? '';
+    if (urlSearch !== searchInput) setSearchInput(urlSearch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // Phase 2A: debounced searchInput -> recordFilters.search
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      const trimmed = searchInput.trim();
+      setRecordFilters((f) => {
+        const cur = (f.search ?? '').trim();
+        if (cur === trimmed) return f;
+        return { ...f, search: trimmed || undefined, page: 1 };
+      });
+    }, 300);
+    return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); };
+  }, [searchInput]);
+
+  // Phase 2A: detail deep-link ?faultId (+ legacy ?faultRecordId), ?create=fault, and pending fetch
+  const pushFaultId = (id: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('faultId', id);
+    next.delete('faultRecordId');
+    if (next.get('sub') !== 'fault') next.set('sub', 'fault');
+    if (next.get('tab') !== 'repairAndFault') next.set('tab', 'repairAndFault');
+    detailSyncRef.current = true;
+    setSearchParams(next);
+  };
+  const clearFaultId = () => {
+    if (!searchParams.has('faultId') && !searchParams.has('faultRecordId')) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete('faultId');
+    next.delete('faultRecordId');
+    detailSyncRef.current = true;
+    setSearchParams(next, { replace: true });
+  };
+  const pushCreateFault = () => {
+    const next = new URLSearchParams(searchParams);
+    next.set('create', 'fault');
+    if (next.get('sub') !== 'fault') next.set('sub', 'fault');
+    if (next.get('tab') !== 'repairAndFault') next.set('tab', 'repairAndFault');
+    detailSyncRef.current = true;
+    setSearchParams(next);
+  };
+  const clearCreateFault = () => {
+    if (!searchParams.has('create')) return;
+    const next = new URLSearchParams(searchParams);
+    if (next.get('create') === 'fault') next.delete('create');
+    detailSyncRef.current = true;
+    setSearchParams(next, { replace: true });
   };
 
   // A4: once the pending record is fetched, open the view modal
@@ -340,17 +514,42 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingViewId, pendingViewQuery.data]);
 
-  // Auto-open view modal when ?faultRecordId= is in URL (deep-link from notifications)
-  const [searchParams, setSearchParams] = useSearchParams();
-  const faultRecordId = searchParams.get('faultRecordId');
+  const faultIdParam = searchParams.get('faultId');
+  const faultRecordIdParam = searchParams.get('faultRecordId');
+  const faultIdResolved = faultIdParam ?? faultRecordIdParam;
+  // Deep-link: ?faultId (preferred) or legacy ?faultRecordId; keep in sync with modal open/close and back/forward
   useEffect(() => {
-    if (!faultRecordId) return;
-    setPendingViewId(faultRecordId);
-    const next = new URLSearchParams(searchParams);
-    next.delete('faultRecordId');
-    setSearchParams(next, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [faultRecordId]);
+    if (detailSyncRef.current) { detailSyncRef.current = false; return; }
+    const faultId = faultIdResolved;
+    if (!faultId) {
+      if (recordModal?.mode === 'view' && recordModal.record?.id) {
+        setRecordModal(null);
+      }
+      return;
+    }
+    if (recordModal?.mode === 'view' && recordModal.record?.id === faultId) return;
+    if (pendingViewId === faultId) return;
+    if (searchParams.has('faultRecordId') && !searchParams.has('faultId')) {
+      const next = new URLSearchParams(searchParams);
+      next.set('faultId', faultId);
+      next.delete('faultRecordId');
+      detailSyncRef.current = true;
+      setSearchParams(next, { replace: true });
+    }
+    setPendingViewId(faultId);
+  }, [faultIdParam, faultRecordIdParam]);
+
+  const createParam = searchParams.get('create');
+  // ?create=fault -> open create modal; clearing it closes
+  useEffect(() => {
+    if (detailSyncRef.current) { detailSyncRef.current = false; return; }
+    const createVal = createParam;
+    if (createVal === 'fault') {
+      if (!recordModal || recordModal.mode !== 'create') openRecordModal('create');
+    } else {
+      if (recordModal?.mode === 'create') setRecordModal(null);
+    }
+  }, [createParam]);
 
   // 6.1: close typeahead dropdown on outside click
   useEffect(() => {
@@ -453,7 +652,7 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
           : payload;
         await createRecord.mutateAsync({ data: autoPayload, file: selectedFile ?? undefined });
       }
-      setRecordModal(null);
+      closeRecordModal();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không lưu được bản ghi lỗi');
     }
@@ -711,7 +910,7 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
             <div className="flex flex-wrap gap-2">
               <div className="relative flex-1 min-w-[160px]">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-                <input value={recordFilters.search ?? ''} onChange={(event) => setRecordFilters((filters) => ({ ...filters, search: event.target.value, page: 1 }))} placeholder="Tìm mã, tên lỗi..." className="w-full rounded-md border border-gray-300 py-2 pl-8 pr-3 text-sm" />
+                <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Tìm mã, tên lỗi..." className="w-full rounded-md border border-gray-300 py-2 pl-8 pr-3 text-sm" />
               </div>
               <select value={recordFilters.machineSystemId ?? ''} onChange={(event) => setRecordFilters((filters) => ({ ...filters, machineSystemId: event.target.value || undefined, machineSystemDetailId: undefined, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm" disabled={!!lockedMachineSystemId} hidden={!!lockedMachineSystemId}>
                 <option value="">Tất cả hệ thống</option>
@@ -893,11 +1092,11 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
       )}
 
       {/* Record create/edit/view modal */}
-      <Modal isOpen={!!recordModal} onClose={() => setRecordModal(null)} showBackdrop closeOnBackdrop>
+      <Modal isOpen={!!recordModal} onClose={closeRecordModal} showBackdrop closeOnBackdrop>
         <div className="flex modal-viewport-h w-full max-w-3xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
           <div className="flex items-center justify-between border-b px-4 py-3">
             <h3 className="text-base font-semibold text-gray-900">{recordModal?.mode === 'view' ? 'Chi tiết bản ghi lỗi' : recordModal?.record ? 'Sửa bản ghi lỗi' : 'Thêm bản ghi lỗi'}</h3>
-            <button title="Đóng" onClick={() => setRecordModal(null)} className="rounded p-1.5 text-gray-500 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+            <button title="Đóng" onClick={closeRecordModal} className="rounded p-1.5 text-gray-500 hover:bg-gray-100"><X className="h-4 w-4" /></button>
           </div>
           <form onSubmit={saveRecord} className="flex-1 space-y-3 overflow-y-auto p-4 text-sm">
             {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-700">{error}</div>}
@@ -908,8 +1107,8 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
                 machineSystemDetailId={createMachineSystemDetailId}
                 onMarkRecurrence={() => {/* server handles status — banner is informational only */}}
                 onOpenRecord={(id) => {
-                  setRecordModal(null);
-                  setPendingViewId(id);
+                  closeRecordModal();
+                  pushFaultId(id);
                 }}
               />
             )}
@@ -1123,7 +1322,7 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
               )}
             </div>
             <div className="flex justify-end gap-2 border-t pt-3">
-              <button type="button" onClick={() => setRecordModal(null)} className="rounded-md border border-gray-300 px-4 py-2">{recordModal?.mode === 'view' ? 'Đóng' : 'Hủy'}</button>
+              <button type="button" onClick={closeRecordModal} className="rounded-md border border-gray-300 px-4 py-2">{recordModal?.mode === 'view' ? 'Đóng' : 'Hủy'}</button>
               {recordModal?.mode !== 'view' && <button type="submit" className="rounded-md bg-blue-600 px-4 py-2 font-medium text-white">Lưu</button>}
             </div>
           </form>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useSearchParams } from 'react-router-dom';
 import { Ban, CheckCircle, Edit, Eye, History, Plus, Search, Trash2, Wrench, X } from 'lucide-react';
@@ -49,8 +49,41 @@ interface RepairRequestListProps {
 
 const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {}) => {
   const { user } = useAuth();
-  const isAdmin = isCachedPermissionsLoaded() ? can('repair-requests', 'DELETE', user?.role as string) : user?.role === UserRole.ADMIN; // isAdmin also used for delete gating; fallback to legacy check
-  const [filters, setFilters] = useState({ page: 1, limit: lockedMachineSystemId ? 200 : 10, search: '', trangThai: '' });
+  const isAdmin = isCachedPermissionsLoaded() ? can('repair-requests', 'DELETE', user?.role as string) : user?.role === UserRole.ADMIN;
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filterSyncRef = useRef(false);
+  const detailSyncRef = useRef(false);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const VALID_REPAIR_STATUS = new Set(Object.keys(STATUS_LABELS));
+  const parseRepairPage = (v: string | null, fallback: number) => {
+    const n = v ? parseInt(v, 10) : NaN;
+    return Number.isFinite(n) && n >= 1 ? n : fallback;
+  };
+  const parseRepairLimit = (v: string | null, fallback: number) => {
+    const n = v ? parseInt(v, 10) : NaN;
+    return Number.isFinite(n) && n >= 1 && n <= 100 ? n : fallback;
+  };
+  const parseRepairFiltersFromUrl = (sp: URLSearchParams): { page: number; limit: number; search: string; trangThai: string } => {
+    const q = sp.get('q') ?? sp.get('search') ?? '';
+    const status = sp.get('status') ?? sp.get('trangThai') ?? '';
+    const page = parseRepairPage(sp.get('page'), 1);
+    const limit = parseRepairLimit(sp.get('limit'), lockedMachineSystemId ? 200 : 10);
+    const normalizedStatus = VALID_REPAIR_STATUS.has(status) ? status : '';
+    return { page, limit, search: q, trangThai: normalizedStatus };
+  };
+  // Initialize from URL so reload/share restores filters + pagination
+  const initialParsed = (() => {
+    const sp = new URLSearchParams(window.location.search);
+    const q = sp.get('q') ?? sp.get('search') ?? '';
+    const status = sp.get('status') ?? sp.get('trangThai') ?? '';
+    const page = parseRepairPage(sp.get('page'), 1);
+    const limit = parseRepairLimit(sp.get('limit'), lockedMachineSystemId ? 200 : 10);
+    const normalizedStatus = VALID_REPAIR_STATUS.has(status) ? status : '';
+    return { page, limit, search: q, trangThai: normalizedStatus };
+  })();
+  const [filters, setFilters] = useState(initialParsed);
+  const [searchInput, setSearchInput] = useState(initialParsed.search);
 
   // 9.3: date range for stats dashboard (default last 90 days)
   const today = new Date().toISOString().split('T')[0];
@@ -101,34 +134,127 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
 
   const openModal = (mode: ModalMode, record?: RepairRequest) => {
     setModal({ mode, record });
+    if (mode === 'view' && record?.id != null) {
+      const next = new URLSearchParams(searchParams);
+      next.set('repairId', String(record.id));
+      next.delete('repairRequestId');
+      if (next.get('sub') !== 'repair') next.set('sub', 'repair');
+      if (next.get('tab') !== 'repairAndFault') next.set('tab', 'repairAndFault');
+      detailSyncRef.current = true;
+      setSearchParams(next);
+    } else if (mode === 'create') {
+      const next = new URLSearchParams(searchParams);
+      next.set('create', 'repair');
+      if (next.get('sub') !== 'repair') next.set('sub', 'repair');
+      if (next.get('tab') !== 'repairAndFault') next.set('tab', 'repairAndFault');
+      detailSyncRef.current = true;
+      setSearchParams(next);
+    }
+  };
+  const closeModal = () => {
+    const wasView = modal?.mode === 'view';
+    const wasCreate = modal?.mode === 'create';
+    setModal(null);
+    if (wasView && (searchParams.has('repairId') || searchParams.has('repairRequestId'))) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('repairId');
+      next.delete('repairRequestId');
+      detailSyncRef.current = true;
+      setSearchParams(next, { replace: true });
+    }
+    if (wasCreate && searchParams.get('create') === 'repair') {
+      const next = new URLSearchParams(searchParams);
+      next.delete('create');
+      detailSyncRef.current = true;
+      setSearchParams(next, { replace: true });
+    }
   };
 
-  // Auto-open view modal when ?repairRequestId= is in URL (deep-link from notifications)
-  const [searchParams, setSearchParams] = useSearchParams();
-  const repairRequestId = searchParams.get('repairRequestId');
+  // filters -> URL (filter/search/pagination). Guarded so own write does not echo.
   useEffect(() => {
-    if (!repairRequestId) return;
-    let cancelled = false;
-    repairRequestService
-      .getById(repairRequestId)
-      .then((res) => {
-        if (cancelled) return;
-        const record = res?.data;
-        if (record && record.id) {
-          openModal('view', record);
-        }
-        const next = new URLSearchParams(searchParams);
-        next.delete('repairRequestId');
-        setSearchParams(next, { replace: true });
-      })
-      .catch((err) => {
-        console.error('Error loading repair request from URL:', err);
-      });
-    return () => {
-      cancelled = true;
+    const next = new URLSearchParams(searchParams);
+    let changed = false;
+    const setOrDelete = (key: string, value: string | undefined, legacyKey?: string) => {
+      if (legacyKey) next.delete(legacyKey);
+      if (value) { if (next.get(key) !== value) { next.set(key, value); changed = true; } }
+      else if (next.has(key)) { next.delete(key); changed = true; }
     };
+    const trimmed = (filters.search ?? '').trim();
+    setOrDelete('q', trimmed || undefined, 'search');
+    setOrDelete('status', filters.trangThai || undefined, 'trangThai');
+    const defaultLimit = lockedMachineSystemId ? 200 : 10;
+    const pageVal = String(filters.page ?? 1);
+    const limitVal = String(filters.limit ?? defaultLimit);
+    if ((next.get('page') ?? '1') !== pageVal) { if (pageVal === '1') next.delete('page'); else next.set('page', pageVal); changed = true; }
+    if ((next.get('limit') ?? String(defaultLimit)) !== limitVal) { if (Number(limitVal) === defaultLimit) next.delete('limit'); else next.set('limit', limitVal); changed = true; }
+    if (!changed) return;
+    filterSyncRef.current = true;
+    setSearchParams(next, { replace: true });
+  }, [filters]);
+
+  // URL -> filters + searchInput (back/forward, shared links)
+  useEffect(() => {
+    if (filterSyncRef.current) { filterSyncRef.current = false; return; }
+    const parsed = parseRepairFiltersFromUrl(searchParams);
+    const urlQ = parsed.search;
+    const normalizedStatus = parsed.trangThai;
+    const page = parsed.page;
+    const limit = parsed.limit;
+    let needs = false;
+    if ((filters.search ?? '') !== urlQ) needs = true;
+    if ((filters.trangThai ?? '') !== normalizedStatus) needs = true;
+    if (filters.page !== page || filters.limit !== limit) needs = true;
+    if (needs) setFilters({ page, limit, search: urlQ, trangThai: normalizedStatus });
+    if (searchInput !== urlQ) setSearchInput(urlQ);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [repairRequestId]);
+  }, [searchParams]);
+
+  // debounced searchInput -> filters.search
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      const trimmed = searchInput.trim();
+      setFilters((f) => {
+        if ((f.search ?? '') === trimmed) return f;
+        return { ...f, search: trimmed, page: 1 };
+      });
+    }, 300);
+    return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); };
+  }, [searchInput]);
+
+  const repairIdParam = searchParams.get('repairId');
+  const repairRequestIdParam = searchParams.get('repairRequestId');
+  const createParam = searchParams.get('create');
+  // Deep-link: ?repairId (preferred) or legacy ?repairRequestId; ?create=repair
+  useEffect(() => {
+    if (detailSyncRef.current) { detailSyncRef.current = false; return; }
+    const createVal = createParam;
+    if (createVal === 'repair') {
+      if (!modal || modal.mode !== 'create') setModal({ mode: 'create' });
+    } else if (modal?.mode === 'create') {
+      setModal(null);
+    }
+    const repairId = repairIdParam ?? repairRequestIdParam;
+    if (!repairId) {
+      if (modal?.mode === 'view' && modal.record?.id != null) setModal(null);
+      return;
+    }
+    if (modal?.mode === 'view' && String(modal.record?.id) === String(repairId)) return;
+    let cancelled = false;
+    repairRequestService.getById(repairId).then((res) => {
+      if (cancelled) return;
+      const record = res?.data;
+      if (record?.id != null) setModal({ mode: 'view', record });
+      if (searchParams.has('repairRequestId') && !searchParams.has('repairId')) {
+        const next = new URLSearchParams(searchParams);
+        next.set('repairId', String(repairId));
+        next.delete('repairRequestId');
+        detailSyncRef.current = true;
+        setSearchParams(next, { replace: true });
+      }
+    }).catch((err) => { console.error('Error loading repair request from URL:', err); });
+    return () => { cancelled = true; };
+  }, [repairIdParam, repairRequestIdParam, createParam]);
 
   const remove = async (record: RepairRequest) => {
     if (!confirm(`Xóa yêu cầu ${record.maYeuCau}?`)) return;
@@ -364,7 +490,7 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
         <div className="flex flex-wrap gap-2 border-b border-gray-200 p-3">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-            <input value={filters.search} onChange={(event) => setFilters((value) => ({ ...value, search: event.target.value, page: 1 }))} placeholder="Tìm yêu cầu" className="w-56 rounded-md border border-gray-300 py-2 pl-8 pr-3 text-sm" />
+            <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Tìm yêu cầu" className="w-56 rounded-md border border-gray-300 py-2 pl-8 pr-3 text-sm" />
           </div>
           <select value={filters.trangThai} onChange={(event) => setFilters((value) => ({ ...value, trangThai: event.target.value, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
             <option value="">Tất cả trạng thái</option>
@@ -513,11 +639,11 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
 
       <RepairRequestFormModal
         isOpen={!!modal}
-        onClose={() => setModal(null)}
+        onClose={closeModal}
         mode={modal?.mode ?? 'create'}
         record={modal?.record}
         lockedMachineSystemId={lockedMachineSystemId}
-        onSaved={() => setModal(null)}
+        onSaved={closeModal}
         onEdit={() => {
           if (modal?.record) {
             setModal({ mode: 'edit', record: modal.record });
