@@ -11,10 +11,12 @@ import purchaseRequestService from '../services/purchaseRequestService';
 export interface ConfirmPriceTarget {
   id: string;
   maYeuCau: string;
+  lyDoChenhLech?: string | null;
   items?: Array<{
     id: string;
     tenHangHoa: string;
     soLuong: number;
+    soLuongThucTe?: number | null;
     donViTinh?: string;
     giaDuKien?: number | null;
     giaThucTe?: number | null;
@@ -24,42 +26,23 @@ export interface ConfirmPriceTarget {
 interface ConfirmActualPriceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  /** YCMH ở trạng thái `Đã duyệt`. */
   purchaseRequest: ConfirmPriceTarget | null;
   onSuccess?: () => void;
-  /**
-   * When true this modal is the "Đã mua xong" action: the primary button reads
-   * "Xác nhận & Đã mua xong" and the parent completes the request (Hoàn thành)
-   * in onSuccess, right after the price write succeeds. Keeps the two steps in
-   * one flow so an arrival can never be closed without its actual price.
-   */
   thenComplete?: boolean;
 }
 
 interface PriceRow {
   id: string;
   tenHangHoa: string;
-  soLuong: number;
   donViTinh: string;
-  /** Giá dự kiến / kế hoạch — chỉ để đối chiếu, không sửa. */
+  soLuong: number;
+  soLuongThucTe: string;
   giaDuKien: number | null;
-  /** Giá thực tế; khởi tạo = giaThucTe đã lưu, nếu chưa có thì = giaDuKien. */
   giaThucTe: string;
 }
 
 const money = (n: number) => n.toLocaleString('vi-VN');
 
-/**
- * Purchasing confirms what was actually paid per line once the YCMH is approved and
- * the goods are known.
- *
- * Every row is pre-filled with its estimate, so the common case (price held) is a
- * single click rather than re-keying the table — that is the point of the whole
- * step. Only the actual price is editable: the estimate is the baseline the actual
- * is compared against, and changing it here would destroy the comparison.
- *
- * Confirming does not move the YCMH to `Hoàn thành`; that stays a separate action.
- */
 const ConfirmActualPriceModal: React.FC<ConfirmActualPriceModalProps> = ({
   isOpen,
   onClose,
@@ -68,23 +51,35 @@ const ConfirmActualPriceModal: React.FC<ConfirmActualPriceModalProps> = ({
   thenComplete = false,
 }) => {
   const [rows, setRows] = useState<PriceRow[]>([]);
+  const [lyDoChenhLech, setLyDoChenhLech] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen || !purchaseRequest) return;
     setError(null);
+    setLyDoChenhLech(purchaseRequest.lyDoChenhLech ?? '');
     setRows(
       (purchaseRequest.items ?? []).map((item) => ({
         id: item.id,
         tenHangHoa: item.tenHangHoa,
         soLuong: Number(item.soLuong ?? 0),
+        soLuongThucTe: String(item.soLuongThucTe ?? item.soLuong ?? ''),
         donViTinh: item.donViTinh ?? '',
         giaDuKien: item.giaDuKien ?? null,
         giaThucTe: String(item.giaThucTe ?? item.giaDuKien ?? ''),
       })),
     );
   }, [isOpen, purchaseRequest]);
+
+  const hasQtyDiff = useMemo(() => {
+    for (const r of rows) {
+      const tt = Number(r.soLuongThucTe);
+      if (!Number.isFinite(tt)) continue;
+      if (Math.abs(tt - Number(r.soLuong)) > 1e-9) return true;
+    }
+    return false;
+  }, [rows]);
 
   const totals = useMemo(() => {
     let duKien = 0;
@@ -93,8 +88,10 @@ const ConfirmActualPriceModal: React.FC<ConfirmActualPriceModalProps> = ({
     for (const row of rows) {
       duKien += (row.giaDuKien ?? 0) * row.soLuong;
       const price = Number(row.giaThucTe);
+      const qty = Number(row.soLuongThucTe);
       if (!Number.isFinite(price) || price <= 0) invalid = true;
-      thucTe += (Number.isFinite(price) ? price : 0) * row.soLuong;
+      if (!Number.isFinite(qty) || qty <= 0) invalid = true;
+      thucTe += (Number.isFinite(price) ? price : 0) * (Number.isFinite(qty) ? qty : 0);
     }
     return { duKien, thucTe, invalid, equal: Math.abs(thucTe - duKien) < 1e-9 };
   }, [rows]);
@@ -104,19 +101,27 @@ const ConfirmActualPriceModal: React.FC<ConfirmActualPriceModalProps> = ({
   const handleSubmit = async () => {
     setError(null);
     if (totals.invalid) {
-      setError('Giá thực tế của mỗi dòng phải lớn hơn 0');
+      setError('Giá và số lượng thực tế của mỗi dòng phải lớn hơn 0');
+      return;
+    }
+    if (hasQtyDiff && !lyDoChenhLech.trim()) {
+      setError('Vui lòng nhập lý do chênh lệch khi số lượng thực tế khác kế hoạch');
       return;
     }
     setSaving(true);
     try {
       await purchaseRequestService.confirmActualPrice(
         purchaseRequest.id,
-        rows.map((row) => ({ id: row.id, giaThucTe: Number(row.giaThucTe) })),
+        rows.map((row) => ({ id: row.id, giaThucTe: Number(row.giaThucTe), soLuongThucTe: Number(row.soLuongThucTe) })),
+        hasQtyDiff ? lyDoChenhLech.trim() : null,
       );
+      if (thenComplete) {
+        await purchaseRequestService.updatePurchaseRequest(purchaseRequest.id, { trangThai: 'Hoàn thành' } as any);
+      }
       onSuccess?.();
       onClose();
     } catch (err: any) {
-      setError(err?.response?.data?.message ?? 'Không xác nhận được giá thực tế');
+      setError(err?.response?.data?.message ?? 'Không xác nhận được giá/số lượng thực tế');
     } finally {
       setSaving(false);
     }
@@ -124,15 +129,15 @@ const ConfirmActualPriceModal: React.FC<ConfirmActualPriceModalProps> = ({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} closeOnBackdrop ariaLabel="Xác nhận giá thực tế">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[92vh] flex flex-col" onClick={(e) => e.stopPropagation()} role="document">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[92vh] flex flex-col" onClick={(e) => e.stopPropagation()} role="document">
         <div className="flex items-start justify-between gap-3 px-6 py-4 border-b border-gray-200 shrink-0">
           <div>
             <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
               <BadgeCheck className="w-5 h-5 text-green-600" />
-              Xác nhận giá thực tế
+              Xác nhận giá & số lượng thực tế
             </h2>
             <p className="text-sm text-gray-500 mt-0.5">
-              {purchaseRequest.maYeuCau} · hàng đã về, cần chốt số tiền thực trả cho từng mặt hàng
+              {purchaseRequest.maYeuCau} · hàng đã về, cần chốt số tiền và số lượng thực trả cho từng mặt hàng
               {thenComplete && ' — xác nhận sẽ đóng phiếu (Hoàn thành) và báo kho nhập hàng luôn'}
             </p>
           </div>
@@ -143,7 +148,7 @@ const ConfirmActualPriceModal: React.FC<ConfirmActualPriceModalProps> = ({
 
         <div className="px-6 py-4 overflow-y-auto flex-1 space-y-4">
           <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
-            Giá thực tế đang để mặc định bằng giá kế hoạch — chỉ cần sửa những dòng thay đổi so với báo giá.
+            Giá/SL thực tế đang để mặc định bằng kế hoạch — chỉ cần sửa những dòng thay đổi.
           </div>
 
           {error && (
@@ -154,29 +159,44 @@ const ConfirmActualPriceModal: React.FC<ConfirmActualPriceModalProps> = ({
           )}
 
           <div className="border border-gray-200 rounded-lg overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
+            <table className="w-full min-w-[820px] text-sm">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-3 py-2 text-left font-medium text-gray-600 w-8">STT</th>
                   <th className="px-3 py-2 text-left font-medium text-gray-600">Tên hàng hoá</th>
-                  <th className="px-3 py-2 text-right font-medium text-gray-600">Số lượng</th>
                   <th className="px-3 py-2 text-left font-medium text-gray-600">ĐVT</th>
-                  <th className="px-3 py-2 text-right font-medium text-gray-600">Giá kế hoạch</th>
-                  <th className="px-3 py-2 text-right font-medium text-gray-600 w-40">Giá thực tế</th>
+                  <th className="px-3 py-2 text-right font-medium text-gray-600 w-24">SL KH</th>
+                  <th className="px-3 py-2 text-right font-medium text-gray-600 w-28">SL TT</th>
+                  <th className="px-3 py-2 text-right font-medium text-gray-600">Giá KH</th>
+                  <th className="px-3 py-2 text-right font-medium text-gray-600 w-36">Giá TT</th>
                   <th className="px-3 py-2 text-right font-medium text-gray-600">Thành tiền</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {rows.map((row, idx) => {
                   const price = Number(row.giaThucTe);
-                  const valid = Number.isFinite(price) && price > 0;
-                  const differsFromPlan = valid && row.giaDuKien !== null && Math.abs(price - row.giaDuKien) > 1e-9;
+                  const qty = Number(row.soLuongThucTe);
+                  const validPrice = Number.isFinite(price) && price > 0;
+                  const validQty = Number.isFinite(qty) && qty > 0;
+                  const valid = validPrice && validQty;
+                  const differs = (valid && row.giaDuKien !== null && Math.abs(price - row.giaDuKien) > 1e-9) || Math.abs(qty - row.soLuong) > 1e-9;
                   return (
-                    <tr key={row.id} className={differsFromPlan ? 'bg-amber-50/40' : undefined}>
+                    <tr key={row.id} className={differs ? 'bg-amber-50/40' : undefined}>
                       <td className="px-3 py-2 text-gray-500">{idx + 1}</td>
                       <td className="px-3 py-2 font-medium text-gray-800">{row.tenHangHoa}</td>
-                      <td className="px-3 py-2 text-right">{money(row.soLuong)}</td>
                       <td className="px-3 py-2 text-gray-600">{row.donViTinh || '—'}</td>
+                      <td className="px-3 py-2 text-right text-gray-500">{money(row.soLuong)}</td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={row.soLuongThucTe}
+                          onChange={(e) => setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, soLuongThucTe: e.target.value } : r)))}
+                          aria-label={`Số lượng thực tế ${row.tenHangHoa}`}
+                          className={`w-full px-2 py-1 text-right border rounded focus:outline-none focus:ring-2 focus:ring-green-500 ${validQty ? 'border-gray-300' : 'border-red-400 bg-red-50'}`}
+                        />
+                      </td>
                       <td className="px-3 py-2 text-right text-gray-500">
                         {row.giaDuKien != null ? `${money(row.giaDuKien)}đ` : '—'}
                       </td>
@@ -191,12 +211,12 @@ const ConfirmActualPriceModal: React.FC<ConfirmActualPriceModalProps> = ({
                           }
                           aria-label={`Giá thực tế ${row.tenHangHoa}`}
                           className={`w-full px-2 py-1 text-right border rounded focus:outline-none focus:ring-2 focus:ring-green-500 ${
-                            valid ? 'border-gray-300' : 'border-red-400 bg-red-50'
+                            validPrice ? 'border-gray-300' : 'border-red-400 bg-red-50'
                           }`}
                         />
                       </td>
                       <td className="px-3 py-2 text-right font-medium text-gray-800">
-                        {valid ? `${money(price * row.soLuong)}đ` : '—'}
+                        {valid ? `${money(price * qty)}đ` : '—'}
                       </td>
                     </tr>
                   );
@@ -204,23 +224,57 @@ const ConfirmActualPriceModal: React.FC<ConfirmActualPriceModalProps> = ({
               </tbody>
               <tfoot>
                 <tr className="bg-gray-100 font-semibold border-t border-gray-200">
-                  <td colSpan={6} className="px-3 py-2 text-right">
+                  <td colSpan={7} className="px-3 py-2 text-right">
                     Tổng kế hoạch {money(totals.duKien)}đ · Tổng thực tế
                   </td>
-                  <td className={`px-3 py-2 text-right ${totals.equal ? '' : 'text-amber-700'}`}>
+                  <td
+                    className={`px-3 py-2 text-right ${totals.equal ? '' : totals.thucTe > totals.duKien ? 'text-red-600' : 'text-green-600'}`}
+                  >
                     {money(totals.thucTe)}đ
+                    {!totals.equal &&
+                      (() => {
+                        const diff = totals.thucTe - totals.duKien;
+                        const sign = diff > 0 ? '+' : '-';
+                        const colorClass = diff > 0 ? 'text-red-600' : 'text-green-600';
+                        return <span className={`ml-1 font-normal ${colorClass}`}>({sign}{money(Math.abs(diff))}đ)</span>;
+                      })()}
                   </td>
                 </tr>
               </tfoot>
             </table>
           </div>
 
-          {!totals.equal && (
-            <p className="text-xs text-gray-500">
-              Tổng thực tế lệch tổng kế hoạch {money(Math.abs(totals.thucTe - totals.duKien))}đ — xác nhận sẽ cập nhật
-              giá vốn của các mặt hàng này trong danh mục theo bình quân gia quyền.
-            </p>
+          {hasQtyDiff && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Lý do chênh lệch <span className="text-red-500">*</span></label>
+              <textarea
+                value={lyDoChenhLech}
+                onChange={(e) => setLyDoChenhLech(e.target.value)}
+                rows={2}
+                placeholder="Nhập lý do khi số lượng thực tế khác kế hoạch..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
           )}
+
+          {!totals.equal &&
+            (() => {
+              const diff = totals.thucTe - totals.duKien;
+              const sign = diff > 0 ? '+' : '-';
+              const colorClass = diff > 0 ? 'text-red-600' : 'text-green-600';
+              const verb = diff > 0 ? 'tăng' : 'giảm';
+              return (
+                <p className="text-xs text-gray-500">
+                  Tổng thực tế {verb}{' '}
+                  <span className={`font-semibold ${colorClass}`}>
+                    {sign}
+                    {money(Math.abs(diff))}đ
+                  </span>{' '}
+                  so với kế hoạch — xác nhận sẽ cập nhật giá vốn của các mặt hàng này trong danh mục theo bình quân gia
+                  quyền.
+                </p>
+              );
+            })()}
         </div>
 
         <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50 shrink-0 rounded-b-lg">

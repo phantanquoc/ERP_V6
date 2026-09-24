@@ -247,15 +247,20 @@ export default function PurchaseRequestSubTabs({
                 <td className="px-4 py-4 text-sm text-gray-900 max-w-xs">
                   {item.items && item.items.length > 0 ? (
                     <div className="space-y-0.5">
-                      {item.items.map((subItem: any, i: number) => (
-                        <div key={i} className="text-xs">
-                          <span className="font-medium">{subItem.tenHangHoa}</span>
-                          <span className="text-gray-400 ml-1">
-                            x{subItem.soLuong} {subItem.donViTinh}
-                          </span>
-                          {subItem.giaDuKien && <span className="text-green-600 ml-1">{Number(subItem.giaDuKien).toLocaleString('vi-VN')}đ</span>}
-                        </div>
-                      ))}
+                      {item.items.map((subItem: any, i: number) => {
+                          const qKH = Number(subItem.soLuong) || 0;
+                          const qTTraw = subItem.soLuongThucTe;
+                          const hasDiff = qTTraw != null && Math.abs(Number(qTTraw) - qKH) > 1e-9;
+                          return (
+                          <div key={i} className="text-xs">
+                            <span className="font-medium">{subItem.tenHangHoa}</span>
+                            <span className="text-gray-400 ml-1">
+                              x{qKH}{hasDiff ? `→${Number(qTTraw)}` : ''} {subItem.donViTinh}
+                            </span>
+                            {subItem.giaDuKien && <span className="text-green-600 ml-1">{Number(subItem.giaDuKien).toLocaleString('vi-VN')}đ</span>}
+                            {hasDiff && <span className="ml-1 px-1 py-0.5 rounded text-[10px] bg-amber-100 text-amber-700 border border-amber-200">lệch</span>}
+                          </div>
+                        );})}
                     </div>
                   ) : (
                     <span className="text-gray-400">{item.tenHangHoa || '-'}</span>

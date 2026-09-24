@@ -982,7 +982,7 @@ const PurchasingEquipment = () => {
           isActualPriceConfirmed={isActualPriceConfirmed}
           onEdit={(pr) => { closePurchaseRequestDetail(); openEditPurchaseRequest(pr); }}
           onCancel={(pr) => { closePurchaseRequestDetail(); handleCancelPurchaseRequest(pr); }}
-          onConfirmPrice={(pr) => { setConfirmActualPriceTarget(pr); setShowConfirmActualPrice(true); }}
+          onConfirmPrice={(pr) => { setConfirmActualPriceTarget(pr); setCompleteAfterPriceConfirm(true); setShowConfirmActualPrice(true); }}
           onViewInboundPlan={(pr) => {
             const kh = pr.inboundPlan?.maKeHoach;
             toast(kh ? `Kế hoạch nhập kho: ${kh}` : 'Chưa có kế hoạch nhập kho', { icon: '📦' });
@@ -996,15 +996,7 @@ const PurchasingEquipment = () => {
           thenComplete={completeAfterPriceConfirm}
           onClose={() => { setShowConfirmActualPrice(false); setConfirmActualPriceTarget(null); setCompleteAfterPriceConfirm(false); }}
           purchaseRequest={confirmActualPriceTarget}
-          onSuccess={async () => {
-            if (completeAfterPriceConfirm && confirmActualPriceTarget) {
-              try {
-                await purchaseRequestService.updatePurchaseRequest(confirmActualPriceTarget.id, { trangThai: 'Hoàn thành' });
-                toast.success('Đã chốt giá thực tế và đóng phiếu — đã báo kho nhập hàng');
-              } catch (e: any) {
-                toast.error(e?.response?.data?.message || 'Đã lưu giá nhưng đóng phiếu thất bại');
-              }
-            }
+          onSuccess={() => {
             setCompleteAfterPriceConfirm(false);
             setConfirmActualPriceTarget(null);
             setShowConfirmActualPrice(false);

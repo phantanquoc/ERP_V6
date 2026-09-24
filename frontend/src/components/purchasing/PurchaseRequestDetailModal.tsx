@@ -49,11 +49,12 @@ export default function PurchaseRequestDetailModal({
     if (!pr?.items?.length) return { duKien: 0, thucTe: 0, hasThucTe: false };
     let duKien = 0, thucTe = 0;
     let hasThucTe = false;
-    for (const it of pr.items) {
-      const q = Number(it.soLuong) || 0;
-      duKien += q * (Number(it.giaDuKien) || 0);
+    for (const it of pr.items as any[]) {
+      const qKH = Number(it.soLuong) || 0;
+      const qTT = Number((it as any).soLuongThucTe ?? qKH) || 0;
+      duKien += qKH * (Number(it.giaDuKien) || 0);
       if (it.giaThucTe != null && Number(it.giaThucTe) > 0) {
-        thucTe += q * Number(it.giaThucTe);
+        thucTe += qTT * Number(it.giaThucTe);
         hasThucTe = true;
       }
     }
@@ -205,29 +206,35 @@ export default function PurchaseRequestDetailModal({
               <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2">
                 <label className="block text-sm font-medium text-gray-500 mb-2">Danh sách hàng hóa</label>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[760px] text-sm">
+                  <table className="w-full min-w-[840px] text-sm">
                     <thead>
                       <tr className="border-b border-gray-200">
                         <th className="text-left py-2 px-2 font-medium text-gray-600">STT</th>
                         <th className="text-left py-2 px-2 font-medium text-gray-600">Phân loại</th>
                         <th className="text-left py-2 px-2 font-medium text-gray-600">Tên hàng hoá</th>
-                        <th className="text-right py-2 px-2 font-medium text-gray-600">Số lượng</th>
+                        <th className="text-right py-2 px-2 font-medium text-gray-600">SL KH</th>
+                        <th className="text-right py-2 px-2 font-medium text-gray-600">SL TT</th>
                         <th className="text-left py-2 px-2 font-medium text-gray-600">ĐVT</th>
                         <th className="text-left py-2 px-2 font-medium text-gray-600">Nhà cung cấp</th>
-                        <th className="text-right py-2 px-2 font-medium text-gray-600">Giá kế hoạch</th>
-                        <th className="text-right py-2 px-2 font-medium text-gray-600">Giá thực tế</th>
+                        <th className="text-right py-2 px-2 font-medium text-gray-600">Giá KH</th>
+                        <th className="text-right py-2 px-2 font-medium text-gray-600">Giá TT</th>
                         <th className="text-right py-2 px-2 font-medium text-gray-600">Thành tiền</th>
                       </tr>
                     </thead>
                     <tbody>
                       {pr.items.map((item: any, i: number) => {
-                        const price = item.giaThucTe ?? item.giaDuKien;
+                        const qKH = Number(item.soLuong) || 0;
+                        const qTTraw = item.soLuongThucTe;
+                        const qTT = qTTraw != null ? Number(qTTraw) : qKH;
+                        const priceTT = item.giaThucTe ?? item.giaDuKien;
+                        const hasQtyDiff = qTTraw != null && Math.abs(qTT - qKH) > 1e-9;
                         return (
                           <tr key={item.id ?? i} className="border-b border-gray-100">
                             <td className="py-2 px-2">{i + 1}</td>
                             <td className="py-2 px-2">{item.phanLoai}</td>
-                            <td className="py-2 px-2 font-medium">{item.tenHangHoa}</td>
-                            <td className="py-2 px-2 text-right">{item.soLuong}</td>
+                            <td className="py-2 px-2 font-medium">{item.tenHangHoa}{hasQtyDiff && <span className="ml-1 inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200">lệch {qTT - qKH > 0 ? '+' : ''}{qTT - qKH}</span>}</td>
+                            <td className="py-2 px-2 text-right text-gray-500">{qKH}</td>
+                            <td className={`py-2 px-2 text-right ${hasQtyDiff ? 'font-medium text-amber-700' : item.soLuongThucTe != null ? 'text-gray-800' : 'text-gray-400 italic'}`}>{item.soLuongThucTe != null ? String(qTT) : '—'}</td>
                             <td className="py-2 px-2">{item.donViTinh}</td>
                             <td className="py-2 px-2 text-blue-600" title={item.supplier ? `${item.supplier.tenNhaCungCap}${item.supplier.soDienThoai ? ' · ' + item.supplier.soDienThoai : ''}` : ''}>
                               {item.supplier?.tenNhaCungCap || '—'}
@@ -237,22 +244,22 @@ export default function PurchaseRequestDetailModal({
                             <td className={`py-2 px-2 text-right ${item.giaThucTe ? 'font-medium text-green-700' : 'text-gray-400 italic'}`}>
                               {item.giaThucTe ? Number(item.giaThucTe).toLocaleString('vi-VN') + 'đ' : 'chưa chốt'}
                             </td>
-                            <td className="py-2 px-2 text-right font-medium">{price ? (Number(price) * item.soLuong).toLocaleString('vi-VN') + 'đ' : '—'}</td>
+                            <td className="py-2 px-2 text-right font-medium">{priceTT ? (Number(priceTT) * qTT).toLocaleString('vi-VN') + 'đ' : '—'}</td>
                           </tr>
                         );
                       })}
                       <tr className="bg-gray-100 font-bold">
-                        <td colSpan={6} className="py-2 px-2 text-right">Tổng dự kiến:</td>
+                        <td colSpan={7} className="py-2 px-2 text-right">Tổng dự kiến:</td>
                         <td colSpan={3} className="py-2 px-2 text-right text-gray-700">{totals.duKien ? totals.duKien.toLocaleString('vi-VN') + 'đ' : '—'}</td>
                       </tr>
                       {totals.hasThucTe && (
                         <>
                           <tr className="bg-green-50 font-bold">
-                            <td colSpan={6} className="py-2 px-2 text-right">Tổng thực tế:</td>
+                            <td colSpan={7} className="py-2 px-2 text-right">Tổng thực tế:</td>
                             <td colSpan={3} className="py-2 px-2 text-right text-green-700">{totals.thucTe.toLocaleString('vi-VN')}đ</td>
                           </tr>
                           <tr className="bg-white font-medium">
-                            <td colSpan={6} className="py-2 px-2 text-right text-gray-500">Chênh lệch:</td>
+                            <td colSpan={7} className="py-2 px-2 text-right text-gray-500">Chênh lệch:</td>
                             <td colSpan={3} className={`py-2 px-2 text-right ${totals.thucTe - totals.duKien > 0 ? 'text-red-600' : totals.thucTe - totals.duKien < 0 ? 'text-green-600' : 'text-gray-500'}`}>
                               {(totals.thucTe - totals.duKien > 0 ? '+' : '') + (totals.thucTe - totals.duKien).toLocaleString('vi-VN')}đ
                             </td>
@@ -287,6 +294,12 @@ export default function PurchaseRequestDetailModal({
               <label className="block text-sm font-medium text-gray-500 mb-1">Ghi chú thu mua</label>
               {pr.ghiChuMuaHang ? <p className="text-sm text-gray-900">{pr.ghiChuMuaHang}</p> : <p className="text-sm text-gray-400 italic">Chưa có ghi chú thu mua</p>}
             </div>
+            {pr.lyDoChenhLech && (
+              <div className="bg-amber-50 p-4 rounded-lg col-span-1 sm:col-span-2 border border-amber-200">
+                <label className="block text-sm font-medium text-amber-700 mb-1">Lý do chênh lệch số lượng</label>
+                <p className="text-sm text-gray-800 whitespace-pre-wrap">{pr.lyDoChenhLech}</p>
+              </div>
+            )}
             {pr.lyDoHuy && (
               <div className="bg-red-50 p-4 rounded-lg col-span-1 sm:col-span-2 border border-red-200">
                 <label className="block text-sm font-medium text-red-600 mb-1">Lý do hủy</label>
@@ -326,9 +339,9 @@ export default function PurchaseRequestDetailModal({
               </button>
             )}
             {showPriceConfirm && (
-              <button type="button" onClick={() => onConfirmPrice(pr)} className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 flex items-center gap-2">
-                <BadgeCheck className="w-4 h-4" /> Xác nhận giá thực tế
-                {!isActualPriceConfirmed(pr) && <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-white text-amber-700">chưa chốt</span>}
+              <button type="button" onClick={() => onConfirmPrice(pr)} className="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 flex items-center gap-2">
+                <BadgeCheck className="w-4 h-4" /> Xác nhận & Đã mua xong
+                {!isActualPriceConfirmed(pr) && <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-white text-emerald-700">chưa chốt</span>}
               </button>
             )}
             {showCancel && (

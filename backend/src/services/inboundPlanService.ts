@@ -277,7 +277,7 @@ async function onReceiptCreated(inboundPlanId: string, tx?: any) {
   if ((plan as any).trangThai === 'Đã nhập' || (plan as any).trangThai === 'Đã hủy') return;
 
   const plannedQty = ((plan as any).purchaseRequest?.items ?? []).reduce(
-    (sum: number, it: any) => sum + Number(it.soLuong ?? 0),
+    (sum: number, it: any) => sum + Number(it.soLuongThucTe ?? it.soLuong ?? 0),
     0,
   );
   let receivedQty = 0;
@@ -327,7 +327,7 @@ async function recomputeAfterVoid(inboundPlanId: string, voidReason: string | nu
   if ((plan as any).trangThai !== 'Đã nhập') return;
 
   const plannedQty = ((plan as any).purchaseRequest?.items ?? []).reduce(
-    (sum: number, it: any) => sum + Number(it.soLuong ?? 0), 0);
+    (sum: number, it: any) => sum + Number(it.soLuongThucTe ?? it.soLuong ?? 0), 0);
   let effectiveReceived = 0;
   for (const r of (plan as any).receipts ?? []) {
     if ((r as any).isVoided) continue;

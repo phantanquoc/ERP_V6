@@ -7,6 +7,8 @@ export interface PurchaseRequestItem {
   phanLoai: string;
   tenHangHoa: string;
   soLuong: number;
+  /** Số lượng thực tế thu mua xác nhận khi hàng về (mặc định lấy soLuong). */
+  soLuongThucTe?: number | null;
   donViTinh: string;
   nhaCungCapId?: string;
   /** Giá dự kiến — báo trên YCBS, sao y khi convert → YCMH. UI hiển thị "Giá kế hoạch" khi Đã duyệt. */
@@ -38,6 +40,8 @@ export interface PurchaseRequest {
   lyDoHuy?: string;
   ngayHuy?: string;
   nguoiHuy?: string;
+  /** Quantity discrepancy reason when any soLuongThucTe != soLuong */
+  lyDoChenhLech?: string | null;
   supplyRequestId?: string;
   nhaCungCapId?: string;
   giaDuKien?: number;
@@ -197,8 +201,8 @@ class PurchaseRequestService {
    * reprices the commodity in the catalogue (weighted average) — it does not change
    * `trangThai`, so `Hoàn thành` stays a separate action and is not gated on this.
    */
-  async confirmActualPrice(id: string, items: Array<{ id: string; giaThucTe?: number | null }>) {
-    const response = await apiClient.post(`/purchase-requests/${id}/confirm-actual-price`, { items });
+  async confirmActualPrice(id: string, items: Array<{ id: string; giaThucTe?: number | null; soLuongThucTe?: number | null }>, lyDoChenhLech?: string | null) {
+    const response = await apiClient.post(`/purchase-requests/${id}/confirm-actual-price`, { items, ...(lyDoChenhLech != null ? { lyDoChenhLech } : {}) });
     return response;
   }
 

@@ -132,15 +132,15 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
     for (const it of (pr?.items ?? [])) {
       const key = nameKeyOf(it.tenHangHoa);
       if (!key) continue;
-      bought[key] = (bought[key] ?? 0) + (Number(it.soLuong) || 0);
+      bought[key] = (bought[key] ?? 0) + (Number((it as any).soLuongThucTe ?? (it as any).soLuong) || 0);
     }
     setPurchasedByItem(bought);
+    setLyDoChenhLech((pr as any)?.lyDoChenhLech ?? '');
+    setLyDoChenhLechError(null);
     setRows(
       (pr?.items ?? []).map((it) => {
-        const key = nameKeyOf(it.tenHangHoa);
-        const srItem = (supplyRequest?.items ?? []).find((i) => nameKeyOf(i.tenGoi) === key);
-        const kh = Number(srItem?.soLuong ?? it.soLuong) || 0;
-        const tt = Number(it.soLuong) || 0;
+        const kh = Number((it as any).soLuong) || 0;
+        const tt = Number((it as any).soLuongThucTe ?? (it as any).soLuong) || 0;
         return {
           ...emptyRow(),
           tenSanPham: it.tenHangHoa,
@@ -150,8 +150,8 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
           lotKeHoach: '',
           donGiaKeHoach: (it as any).giaDuKien ?? null,
           soKienKeHoach: '',
-          donViTinh: it.donViTinh || srItem?.donViTinh || '',
-          phanLoai: srItem?.phanLoai || '',
+          donViTinh: it.donViTinh || (supplyRequest?.items ?? []).find((i) => nameKeyOf(i.tenGoi) === nameKeyOf(it.tenHangHoa))?.donViTinh || '',
+          phanLoai: (supplyRequest?.items ?? []).find((i) => nameKeyOf(i.tenGoi) === nameKeyOf(it.tenHangHoa))?.phanLoai || '',
           ghiChu: `Nhập kho theo ${pr?.maYeuCau ?? ''} - ${it.tenHangHoa}`,
         };
       }),
@@ -179,7 +179,8 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
       const warehouseData = warehouseResponse.data?.data ?? warehouseResponse.data ?? [];
       setWarehouses(Array.isArray(warehouseData) ? warehouseData : []);
       setCode((codeResponse.data as { code: string }).code);
-      setLyDoChenhLech('');
+      const prForPrefill = inboundPlan?.purchaseRequest as any;
+      setLyDoChenhLech(prForPrefill?.lyDoChenhLech ?? '');
       setLyDoChenhLechError(null);
       // InboundPlan prefill takes priority over supplyRequest
       if (inboundPlan) {
@@ -200,10 +201,11 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
         setLinkedPurchaseRequestId(pr?.id ?? null);
         const prefRows: ReceiptRow[] = prItems.map((it: any) => {
           const kh = Number(it.soLuong) || 0;
+          const tt = Number(it.soLuongThucTe ?? it.soLuong) || 0;
           return {
             ...emptyRow(),
             tenSanPham: it.tenHangHoa,
-            soLuong: kh,
+            soLuong: tt,
             soLuongYeuCau: kh,
             donViTinh: it.donViTinh || '',
             phanLoai: it.phanLoai || '',

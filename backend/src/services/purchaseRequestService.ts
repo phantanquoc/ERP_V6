@@ -508,6 +508,7 @@ class PurchaseRequestService {
     ngayDuKienNhap?: string | Date | null;
     warehouseId?: string | null;
     ghiChuVanChuyen?: string | null;
+    lyDoChenhLech?: string | null;
   }) {
     const existingRequest = await prisma.purchaseRequest.findUnique({
       where: { id },
@@ -589,6 +590,78 @@ class PurchaseRequestService {
       }
     }
 
+    // 3.1-3.2 — Gate Đã duyệt→Hoàn thành: every item needs giaThucTe>0 && soLuongThucTe>0,
+    // and when any soLuongThucTe != soLuong require lyDoChenhLech (effective submitted or stored).
+    // Must reject 400 BEFORE any write.
+    if (data.trangThai === 'Hoàn thành' && existingRequest.trangThai === 'Đã duyệt') {
+      const priorItemsForGate = await prisma.purchaseRequestItem.findMany({
+        where: { purchaseRequestId: id },
+        select: { id: true, tenHangHoa: true, soLuong: true, giaThucTe: true, soLuongThucTe: true },
+      });
+      const gateGiaById = new Map(priorItemsForGate.map((p) => [p.id, p.giaThucTe]));
+      const gateGiaByName = new Map(priorItemsForGate.map((p) => [p.tenHangHoa.toLowerCase(), p.giaThucTe]));
+      const gateQtyById = new Map(priorItemsForGate.map((p) => [p.id, p.soLuongThucTe]));
+      const gateQtyByName = new Map(priorItemsForGate.map((p) => [p.tenHangHoa.toLowerCase(), p.soLuongThucTe]));
+
+      // Build effective item list to validate
+      const effectiveForGate: Array<{ tenHangHoa: string; soLuong: number; giaThucTe: number | null; soLuongThucTe: number | null }> = [];
+      const incomingItems = (data as any).items as Array<any> | undefined;
+      if (incomingItems && Array.isArray(incomingItems) && incomingItems.length > 0) {
+        for (const it of incomingItems) {
+          const plannedQty = typeof it.soLuong === 'string' ? parseFloat(it.soLuong) : Number(it.soLuong);
+          const rawGiaEff = (it as any).giaThucTe;
+          const rawQtyEff = (it as any).soLuongThucTe;
+          const itemId = (it as any).id as string | undefined;
+          const carriedGia = rawGiaEff !== undefined && rawGiaEff !== null && rawGiaEff !== ''
+            ? (typeof rawGiaEff === 'string' ? parseFloat(rawGiaEff) : Number(rawGiaEff))
+            : (itemId ? gateGiaById.get(itemId) : undefined) ?? gateGiaByName.get(String(it.tenHangHoa ?? '').toLowerCase()) ?? null;
+          const carriedQty = rawQtyEff !== undefined && rawQtyEff !== null && rawQtyEff !== ''
+            ? (typeof rawQtyEff === 'string' ? parseFloat(rawQtyEff) : Number(rawQtyEff))
+            : (itemId ? gateQtyById.get(itemId) : undefined) ?? gateQtyByName.get(String(it.tenHangHoa ?? '').toLowerCase()) ?? null;
+          effectiveForGate.push({
+            tenHangHoa: String(it.tenHangHoa ?? ''),
+            soLuong: Number.isFinite(plannedQty) ? plannedQty : 0,
+            giaThucTe: carriedGia as number | null,
+            soLuongThucTe: carriedQty as number | null,
+          });
+        }
+      } else {
+        for (const p of priorItemsForGate) {
+          effectiveForGate.push({
+            tenHangHoa: p.tenHangHoa,
+            soLuong: p.soLuong,
+            giaThucTe: p.giaThucTe as number | null,
+            soLuongThucTe: p.soLuongThucTe as number | null,
+          });
+        }
+      }
+
+      if (effectiveForGate.length === 0) {
+        throw new ValidationError('Không thể hoàn thành yêu cầu không có hàng hóa');
+      }
+      for (const eff of effectiveForGate) {
+        const g = eff.giaThucTe;
+        if (g === null || g === undefined || !Number.isFinite(Number(g)) || Number(g) <= 0) {
+          throw new ValidationError(`Dòng "${eff.tenHangHoa}" chưa có giá thực tế — cần xác nhận giá trước khi hoàn thành`);
+        }
+        const q = eff.soLuongThucTe;
+        if (q === null || q === undefined || !Number.isFinite(Number(q)) || Number(q) <= 0) {
+          throw new ValidationError(`Dòng "${eff.tenHangHoa}" chưa có số lượng thực tế — cần xác nhận số lượng trước khi hoàn thành`);
+        }
+      }
+      const hasQtyDiff = effectiveForGate.some((e) => Math.abs(Number(e.soLuongThucTe) - Number(e.soLuong)) > 1e-9);
+      if (hasQtyDiff) {
+        const submittedReason = (data as any).lyDoChenhLech;
+        const storedReason = (existingRequest as any).lyDoChenhLech as string | null | undefined;
+        const effectiveReason = submittedReason !== undefined && submittedReason !== null
+          ? String(submittedReason).trim()
+          : (storedReason ? String(storedReason).trim() : '');
+        if (!effectiveReason) {
+          throw new ValidationError('Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.');
+        }
+      }
+    }
+
     // Guard: approval/rejection requires pricing approver (called via controller with actorId)
     // 3.3 — __actorUserId is required; no silent pass on undefined
     const _actorIdForGuard = (data as any).__actorUserId as string | undefined;
@@ -640,6 +713,23 @@ class PurchaseRequestService {
       const d = new Date(updateData.ngayDuKienNhap);
       if (!isNaN(d.getTime())) updateData.ngayDuKienNhap = d;
     }
+    // lyDoChenhLech: only touch when caller explicitly sent it; normalize ''/whitespace -> null, keep string trim
+    if ((data as any).lyDoChenhLech !== undefined) {
+      const rawR = (data as any).lyDoChenhLech;
+      if (rawR === null || rawR === '' || (typeof rawR === 'string' && rawR.trim() === '')) {
+        // For Đã duyệt→Hoàn thành with diff the gate above would already have rejected empty;
+        // for other transitions an explicit empty means "clear" -> null. To preserve when
+        // caller omitted we never enter this branch (undefined).
+        updateData.lyDoChenhLech = null;
+      } else {
+        updateData.lyDoChenhLech = String(rawR).trim();
+      }
+    }
+    // If caller omitted lyDoChenhLech entirely (undefined) we leave updateData without the key,
+    // so Prisma does not overwrite stored value — this satisfies "preserve when caller omits and no new diff".
+    // (When there IS a new diff and caller omitted, gate above already validated effective stored non-empty,
+    // and leaving key absent keeps stored value.)
+
     // Coerce numeric fields sent as strings from FormData
     if (typeof updateData.giaDuKien === 'string') {
       updateData.giaDuKien = updateData.giaDuKien === '' ? null : parseFloat(updateData.giaDuKien);
@@ -652,16 +742,17 @@ class PurchaseRequestService {
 
     if (items && Array.isArray(items)) {
       purchaseRequest = await prisma.$transaction(async (tx) => {
-        // Preserve confirmed actual price across the delete-then-recreate: an
-        // edit after Đã duyệt must never wipe a giaThucTe that already fed the
-        // catalog cost basis. Keyed by the incoming item's id (the row being
-        // replaced); name is the fallback for legacy single-row edits without id.
+        // Preserve confirmed actual price/qty across the delete-then-recreate: an
+        // edit after Đã duyệt must never wipe giaThucTe/soLuongThucTe that confirmActualPrice booked.
+        // Keyed by the incoming item's id (the row being replaced); name is the fallback.
         const prior = await tx.purchaseRequestItem.findMany({
           where: { purchaseRequestId: id },
-          select: { id: true, tenHangHoa: true, giaThucTe: true },
+          select: { id: true, tenHangHoa: true, giaThucTe: true, soLuongThucTe: true },
         });
         const giaThucTeById = new Map(prior.map((p) => [p.id, p.giaThucTe]));
         const giaThucTeByName = new Map(prior.map((p) => [p.tenHangHoa.toLowerCase(), p.giaThucTe]));
+        const soLuongThucTeById = new Map(prior.map((p) => [p.id, (p as any).soLuongThucTe]));
+        const soLuongThucTeByName = new Map(prior.map((p) => [p.tenHangHoa.toLowerCase(), (p as any).soLuongThucTe]));
         await tx.purchaseRequestItem.deleteMany({ where: { purchaseRequestId: id } });
         await tx.purchaseRequestItem.createMany({
           data: items.map((item: PurchaseRequestItemInput) => {
@@ -673,10 +764,20 @@ class PurchaseRequestService {
                 ? parseFloat(rawGia) || null
                 : rawGia;
             const itemId = (item as any).id as string | undefined;
+            const rawGiaThucTe = (item as any).giaThucTe;
+            const rawSoLuongThucTe = (item as any).soLuongThucTe;
             const carriedGiaThucTe =
-              (itemId ? giaThucTeById.get(itemId) : undefined) ??
-              giaThucTeByName.get(item.tenHangHoa.toLowerCase()) ??
-              null;
+              rawGiaThucTe !== undefined && rawGiaThucTe !== null && rawGiaThucTe !== ''
+                ? (typeof rawGiaThucTe === 'string' ? parseFloat(rawGiaThucTe) : Number(rawGiaThucTe))
+                : (itemId ? giaThucTeById.get(itemId) : undefined) ??
+                  giaThucTeByName.get(item.tenHangHoa.toLowerCase()) ??
+                  null;
+            const carriedSoLuongThucTe =
+              rawSoLuongThucTe !== undefined && rawSoLuongThucTe !== null && rawSoLuongThucTe !== ''
+                ? (typeof rawSoLuongThucTe === 'string' ? parseFloat(rawSoLuongThucTe) : Number(rawSoLuongThucTe))
+                : (itemId ? soLuongThucTeById.get(itemId) : undefined) ??
+                  soLuongThucTeByName.get(String(item.tenHangHoa ?? '').toLowerCase()) ??
+                  null;
             return {
               purchaseRequestId: id,
               phanLoai: item.phanLoai,
@@ -686,6 +787,7 @@ class PurchaseRequestService {
               nhaCungCapId: item.nhaCungCapId || null,
               giaDuKien,
               giaThucTe: carriedGiaThucTe,
+              soLuongThucTe: carriedSoLuongThucTe,
             };
           }),
         });
@@ -1217,8 +1319,9 @@ class PurchaseRequestService {
    */
   async confirmActualPrice(
     id: string,
-    items: Array<{ id: string; giaThucTe?: number | null }>,
+    items: Array<{ id: string; giaThucTe?: number | null; soLuongThucTe?: number | null }>,
     actorUserId?: string,
+    lyDoChenhLech?: string | null,
   ) {
     await this.assertCanConfirmActualPrice(actorUserId);
 
@@ -1233,22 +1336,51 @@ class PurchaseRequestService {
       );
     }
 
-    // Client may send a subset; a line it omits keeps its existing actual price
-    // (so "confirm everything at once" and "re-confirm one corrected line" both work).
-    const submitted = new Map((items ?? []).map((it) => [String(it.id), it.giaThucTe]));
-    const plan: Array<{ item: { id: string; tenHangHoa: string; soLuong: number }; giaThucTe: number }> = [];
+    // Reject re-confirm when non-voided WarehouseReceipt exists for PR
+    const existingReceipt = await prisma.warehouseReceipt.findFirst({
+      where: { purchaseRequestId: id, isVoided: false },
+      select: { id: true },
+    });
+    if (existingReceipt) {
+      throw new ValidationError('Không thể xác nhận lại — đã có phiếu nhập kho cho yêu cầu này');
+    }
+
+    // Merge submitted subset with stored confirmed values; default soLuongThucTe to soLuong when still null
+    const submittedMap = new Map((items ?? []).map((it) => [String(it.id), it]));
+    const plan: Array<{ item: { id: string; tenHangHoa: string; soLuong: number }; giaThucTe: number; soLuongThucTe: number }> = [];
     for (const line of request.items) {
-      const provided = submitted.get(line.id);
-      const chosen = provided === undefined || provided === null ? line.giaThucTe ?? line.giaDuKien : provided;
-      if (chosen === null || chosen === undefined) {
+      const sub = submittedMap.get(line.id) as { giaThucTe?: number | null; soLuongThucTe?: number | null } | undefined;
+
+      const providedGia = sub?.giaThucTe;
+      const chosenGia = providedGia === undefined || providedGia === null ? (line as any).giaThucTe ?? (line as any).giaDuKien : providedGia;
+      if (chosenGia === null || chosenGia === undefined) {
         throw new ValidationError(`Dòng "${line.tenHangHoa}" chưa có giá thực tế và không có giá dự kiến để lấy làm mặc định`);
       }
-      const n = Number(chosen);
-      if (!Number.isFinite(n) || n <= 0) {
+      const nGia = Number(chosenGia);
+      if (!Number.isFinite(nGia) || nGia <= 0) {
         throw new ValidationError(`Giá thực tế của "${line.tenHangHoa}" phải lớn hơn 0`);
       }
-      plan.push({ item: line, giaThucTe: n });
+
+      const providedQty = sub?.soLuongThucTe;
+      const chosenQtyRaw = providedQty === undefined || providedQty === null ? (line as any).soLuongThucTe ?? line.soLuong : providedQty;
+      if (chosenQtyRaw === null || chosenQtyRaw === undefined) {
+        throw new ValidationError(`Dòng "${line.tenHangHoa}" chưa có số lượng thực tế`);
+      }
+      const nQty = Number(chosenQtyRaw);
+      if (!Number.isFinite(nQty) || nQty <= 0) {
+        throw new ValidationError(`Số lượng thực tế của "${line.tenHangHoa}" phải lớn hơn 0`);
+      }
+
+      plan.push({ item: line, giaThucTe: nGia, soLuongThucTe: nQty });
     }
+
+    // When any soLuongThucTe != soLuong (epsilon 1e-9) require lyDoChenhLech.trim() non-empty (400)
+    const hasDiff = plan.some((p) => Math.abs(p.soLuongThucTe - p.item.soLuong) > 1e-9);
+    const trimmedReason = lyDoChenhLech != null ? String(lyDoChenhLech).trim() : '';
+    if (hasDiff && !trimmedReason) {
+      throw new ValidationError('Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.');
+    }
+    const headerLyDo = hasDiff ? trimmedReason : null;
 
     return prisma.$transaction(async (tx) => {
       // Sequential per line: two lines can name the same commodity, and the average
@@ -1258,7 +1390,7 @@ class PurchaseRequestService {
       for (const entry of plan) {
         await tx.purchaseRequestItem.update({
           where: { id: entry.item.id },
-          data: { giaThucTe: entry.giaThucTe },
+          data: { giaThucTe: entry.giaThucTe, soLuongThucTe: entry.soLuongThucTe },
         });
 
         const product = await tx.internationalProduct.findFirst({
@@ -1274,7 +1406,7 @@ class PurchaseRequestService {
         const stockBefore = onHand._sum.soLuong ?? 0;
         const priceBefore = avgByCatalogId.get(product.id) ?? product.giaThanh ?? 0;
 
-        const boughtQty = Number(entry.item.soLuong ?? 0);
+        const boughtQty = Number(entry.soLuongThucTe ?? 0);
         // Nothing on hand yet, or no prior basis: the purchase IS the price.
         const nextPrice = stockBefore > 0 && priceBefore > 0
           ? (priceBefore * stockBefore + entry.giaThucTe * boughtQty) / (stockBefore + boughtQty)
@@ -1287,12 +1419,10 @@ class PurchaseRequestService {
       }
 
       // Same TOCTOU shape as submitForApproval: a concurrent status flip loses.
-      // Touch updatedAt only — the header's legacy `giaDuKien` stays the estimate,
-      // overwriting it with the actual total would silently destroy the baseline
-      // that the estimate-vs-actual comparison depends on.
+      // Persist header lyDoChenhLech together with updatedAt in same transaction.
       const marked = await tx.purchaseRequest.updateMany({
         where: { id, trangThai: 'Đã duyệt' },
-        data: { updatedAt: new Date() },
+        data: { updatedAt: new Date(), lyDoChenhLech: headerLyDo },
       });
       if (marked.count === 0) {
         throw new ValidationError('Yêu cầu đã rời trạng thái "Đã duyệt" trong lúc xác nhận, vui lòng thử lại');

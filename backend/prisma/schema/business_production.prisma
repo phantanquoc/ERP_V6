@@ -214,6 +214,8 @@ model PurchaseRequest {
   warehouseId          String?
   warehouse            warehouses?             @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
   ghiChuVanChuyen      String?
+  // Discrepancy reason when confirmed actual quantity differs from planned quantity
+  lyDoChenhLech        String?
   employee             Employee                @relation(fields: [employeeId], references: [id])
   supplyRequest        SupplyRequest?          @relation(fields: [supplyRequestId], references: [id])
   supplier             Supplier?               @relation(fields: [nhaCungCapId], references: [id])
@@ -253,6 +255,8 @@ model PurchaseRequestItem {
    * InternationalProduct.giaThanh được cập nhật bằng bình quân gia quyền.
    */
   giaThucTe         Float?
+  // Actual delivered quantity confirmed at purchasing boundary; null = not yet confirmed, defaults to soLuong on confirm
+  soLuongThucTe     Float?
   supplier          Supplier?       @relation("PurchaseRequestItemSupplier", fields: [nhaCungCapId], references: [id])
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt

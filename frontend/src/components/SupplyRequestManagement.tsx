@@ -1654,6 +1654,19 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                     <Package className="h-3.5 w-3.5" />
                     Tạo xuất kho
                   </button>
+                  {['Đã mua hàng', 'Đã nhập kho'].includes(selectedRequest.trangThai) && !isReceiptFullyReceived(selectedRequest) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      closeDetailModal();
+                      setShowWarehouseReceiptModal(true);
+                    }}
+                    className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center gap-1.5"
+                  >
+                    <PackagePlus className="h-3.5 w-3.5" />
+                    Tạo nhập kho
+                  </button>
+                  )}
                   {!(selectedRequest.replenishmentRequests?.some((rr) => rr.trangThai !== 'Đã hủy'))
                     && !(selectedRequest.purchaseRequests?.length)
                     && !isPurchasing(selectedRequest.trangThai) && (

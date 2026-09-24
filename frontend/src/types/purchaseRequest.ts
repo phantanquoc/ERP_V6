@@ -8,6 +8,7 @@ export interface PurchaseRequestItem {
   id: string;
   tenHangHoa: string;
   soLuong: number;
+  soLuongThucTe?: number | null;
   donViTinh: string;
   phanLoai: string;
   giaDuKien?: number | null;
@@ -46,6 +47,7 @@ export interface PurchaseRequest {
   lyDoHuy?: string | null;
   ngayHuy?: string | null;
   nguoiHuy?: string | null;
+  lyDoChenhLech?: string | null;
   createdAt: string;
   updatedAt: string;
   items?: PurchaseRequestItem[];

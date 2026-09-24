@@ -802,7 +802,7 @@ class WarehouseReceiptService {
         maYeuCau: true,
         trangThai: true,
         supplyRequestId: true,
-        items: { select: { tenHangHoa: true, soLuong: true, donViTinh: true } },
+        items: { select: { tenHangHoa: true, soLuong: true, soLuongThucTe: true, donViTinh: true } },
       },
     });
     if (!pr) throw new NotFoundError('Không tìm thấy yêu cầu mua hàng để nhập');
@@ -825,7 +825,7 @@ class WarehouseReceiptService {
       if (!key) continue;
       const prev = purchased.get(key);
       purchased.set(key, {
-        qty: (prev?.qty ?? 0) + Number(line.soLuong ?? 0),
+        qty: (prev?.qty ?? 0) + Number((line as any).soLuongThucTe ?? line.soLuong ?? 0),
         tenHangHoa: line.tenHangHoa,
         donViTinh: line.donViTinh ?? prev?.donViTinh ?? '',
       });
@@ -1093,7 +1093,7 @@ class WarehouseReceiptService {
 
     const pr = await tx.purchaseRequest.findUnique({
       where: { id: purchaseRequestId },
-      select: { items: { select: { tenHangHoa: true, soLuong: true, giaDuKien: true, giaThucTe: true } } },
+      select: { items: { select: { tenHangHoa: true, soLuong: true, soLuongThucTe: true, giaDuKien: true, giaThucTe: true } } },
     });
     if (!pr) return;
 
@@ -1102,7 +1102,7 @@ class WarehouseReceiptService {
     const valueByCommodity = new Map<string, number>();
     for (const item of pr.items ?? []) {
       const key = norm(item.tenHangHoa);
-      const qty = Number(item.soLuong ?? 0);
+      const qty = Number((item as any).soLuongThucTe ?? item.soLuong ?? 0);
       const price = item.giaThucTe ?? item.giaDuKien ?? 0;
       if (!key || qty <= 0 || price <= 0) continue;
       qtyByCommodity.set(key, (qtyByCommodity.get(key) ?? 0) + qty);
