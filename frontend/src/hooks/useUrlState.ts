@@ -203,20 +203,27 @@ export function useUrlFilters<T extends Record<string, string>>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
+  const valuesRef = useRef(values);
+  valuesRef.current = values;
+
   const setValues = useCallback((patch: Partial<T> | ((prev: T) => T)) => {
-    setValuesInner(prev => {
-      const next = typeof patch === "function" ? (patch as (p: T) => T)(prev) : { ...prev, ...patch } as T;
-      const params = new URLSearchParams(searchParams);
-      for (const k of Object.keys(defaults)) {
-        const v = next[k];
-        const key = prefix + k;
-        if (!v) params.delete(key);
-        else params.set(key, v);
-      }
-      syncingRef.current = true;
-      setSearchParams(params, { replace: true });
-      return next;
-    });
+    // DO NOT call setSearchParams inside setValuesInner's functional updater —
+    // that nests a BrowserRouter update inside the caller's render phase and
+    // triggers "Cannot update a component (BrowserRouter) while rendering".
+    // Compute next from the freshest values ref, then issue both updates
+    // sequentially outside any updater.
+    const prev = valuesRef.current;
+    const next = typeof patch === "function" ? (patch as (p: T) => T)(prev) : ({ ...prev, ...patch } as T);
+    const params = new URLSearchParams(searchParams);
+    for (const k of Object.keys(defaults)) {
+      const v = next[k];
+      const key = prefix + k;
+      if (!v) params.delete(key);
+      else params.set(key, v);
+    }
+    syncingRef.current = true;
+    setSearchParams(params, { replace: true });
+    setValuesInner(next);
   }, [searchParams, setSearchParams, prefix, defaults]);
 
   return [values, setValues] as const;

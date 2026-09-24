@@ -168,7 +168,15 @@ class ApiClient {
       }
 
       return data;
-    } catch (error) {
+    } catch (error: any) {
+      // Abort/Cancel là hành vi có chủ đích (StrictMode double-mount, đổi filter/page)
+      // — không log như lỗi để tránh flood console và làm nhiễu lỗi thật.
+      const isAbort =
+        error?.name === 'AbortError' ||
+        error?.name === 'CanceledError' ||
+        error?.code === 'ERR_CANCELED' ||
+        (typeof error?.message === 'string' && error.message.toLowerCase().includes('aborted'));
+      if (isAbort) throw error;
       console.error(`API Error [${endpoint}]:`, error);
       throw error;
     }

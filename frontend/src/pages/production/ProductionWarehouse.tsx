@@ -45,13 +45,30 @@ const VALID_TABS: TabType[] = ['supplyRequest', 'inventory', 'inbound', 'outboun
  * `warehouseMonth`/`warehouseYear` (period filter) and `warehouseDetailId`
  * (overview modal opened from the cards above the tabs).
  */
+/**
+ * Real URL keys are `prefix + defaultKey`, e.g. useUrlFilters({ _search, maPhieuNhap, ... }, {prefix:'in_'})
+ * writes `in__search`, `in_maPhieuNhap`, … — the previous table listed `in_q`/`in_status` etc which
+ * never matched, so nothing was ever deleted on tab switch and params leaked across tabs.
+ */
 const TAB_SCOPED_PARAMS: Record<TabType, readonly string[]> = {
-  supplyRequest: ['supplyRequestId', 'supplyStatus', 'supplyPriority', 'supplyOverdue', 'q', 'status', 'page', 'sortBy', 'sortOrder'],
-  inventory: ['inventoryScrollTo', 'loaiSanPham', 'q', 'status', 'page', 'lotId', 'sortBy', 'sortOrder'],
-  inbound: ['receiptId', 'inboundSubTab', 'q', 'status', 'page', 'lotId', 'sortBy', 'sortOrder', 'in_q', 'in_status', 'in_page', 'in_lotId', 'in_sortBy', 'in_sortOrder', 'in_plan_q', 'in_plan_status', 'in_plan_page'],
-  outbound: ['issueId', 'outboundSubTab', 'q', 'status', 'page', 'lotId', 'sortBy', 'sortOrder', 'out_q', 'out_status', 'out_page', 'out_lotId', 'out_sortBy', 'out_sortOrder', 'out_plan_q', 'out_plan_status', 'out_plan_page'],
-  products: ['internationalProductId', 'q', 'status', 'page', 'lotId', 'sortBy', 'sortOrder'],
-  warehouseManagement: ['warehouseId', 'lotProductId', 'q', 'status', 'page', 'lotId', 'sortBy', 'sortOrder'],
+  supplyRequest: ['supplyRequestId', 'supplyStatus', 'supplyPriority', 'supplyOverdue'],
+  inventory: ['inventoryScrollTo', 'loaiSanPham'],
+  inbound: [
+    'receiptId', 'inboundSubTab',
+    // WarehouseReceiptTab — prefix 'in_'
+    'in__search', 'in_maPhieuNhap', 'in_tenNhanVien', 'in_nguoiDeNghi', 'in_boPhan', 'in_warehouseId', 'in_tinhTrang', 'in_daIn', 'in_isVoided', 'in_fromNgay', 'in_toNgay', 'in_page', 'in_sortBy', 'in_sortOrder',
+    // InboundPlanTab — prefix 'in_plan_'
+    'in_plan__search', 'in_plan_trangThai', 'in_plan_warehouseId', 'in_plan_fromNgay', 'in_plan_toNgay', 'in_plan_page', 'in_plan_sortBy', 'in_plan_sortOrder',
+  ],
+  outbound: [
+    'issueId', 'outboundSubTab',
+    // WarehouseIssueTab — prefix 'out_'
+    'out__search', 'out_maPhieuXuat', 'out_tenNhanVien', 'out_nguoiDeNghi', 'out_boPhan', 'out_warehouseId', 'out_tinhTrang', 'out_daIn', 'out_isVoided', 'out_fromNgay', 'out_toNgay', 'out_page', 'out_sortBy', 'out_sortOrder',
+    // OutboundPlanTab — prefix 'out_plan_'
+    'out_plan__search', 'out_plan_trangThai', 'out_plan_warehouseId', 'out_plan_fromNgay', 'out_plan_toNgay', 'out_plan_page', 'out_plan_sortBy', 'out_plan_sortOrder',
+  ],
+  products: [],
+  warehouseManagement: ['warehouseId'],
 };
 
 // ── MiniSparkline: pure SVG, no deps, CSP-safe ──
@@ -201,13 +218,29 @@ const ProductionWarehouse = () => {
   const { value: activeTab, set: setActiveTab, searchParams, setSearchParams } = useUrlTab<TabType>('tab', (v): v is TabType => VALID_TABS.includes(v as TabType), 'supplyRequest', TAB_SCOPED_PARAMS);
 
   // Sub tabs for inbound/outbound — synced to URL ?inboundSubTab / ?outboundSubTab
+  // in_* / in_plan_* (and out_* / out_plan_*) use distinct prefixes so they do NOT
+  // collide — both sets can stay in the URL and each view reads only its own.
+  // Only the detail id of the sibling is dropped so an orphan ?receiptId does
+  // not re-open its modal when you return to the other sub-tab. Filters are
+  // intentionally preserved per sub-tab; deleting them would make the user lose
+  // their search when toggling plan ↔ list.
   const inboundSubTab = (searchParams.get('inboundSubTab') === 'list' ? 'list' : 'plan') as 'plan' | 'list';
   const outboundSubTab = (searchParams.get('outboundSubTab') === 'list' ? 'list' : 'plan') as 'plan' | 'list';
   const setInboundSubTab = (v: 'plan' | 'list') => {
-    const p = new URLSearchParams(searchParams); p.set('inboundSubTab', v); setSearchParams(p, { replace: true });
+    const p = new URLSearchParams(searchParams);
+    p.set('inboundSubTab', v);
+    // Drop only the sibling's detail id — filters stay so each sub-tab remembers its own search.
+    if (v === 'plan') p.delete('receiptId');
+    else {
+      // leaving plan → entering list: no plan detail id exists, nothing to drop
+    }
+    setSearchParams(p, { replace: true });
   };
   const setOutboundSubTab = (v: 'plan' | 'list') => {
-    const p = new URLSearchParams(searchParams); p.set('outboundSubTab', v); setSearchParams(p, { replace: true });
+    const p = new URLSearchParams(searchParams);
+    p.set('outboundSubTab', v);
+    if (v === 'plan') p.delete('issueId');
+    setSearchParams(p, { replace: true });
   };
 
   // Overview data states — receipts/issues keep overview-specific pagination totals
