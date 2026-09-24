@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useProductionEmployees } from '../hooks/useProductionEmployees';
 import { useActiveFryerMachineSystems } from '../hooks/useMachineSystemDetails';
 import { productionDayRange } from '../utils/productionDay';
+import { useSearchParams } from 'react-router-dom';
 
 interface FormData {
   maChien: string;
@@ -59,8 +60,39 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
     nguoiThucHien: '',
   });
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maChien: '', trangThai: '' });
+  const [currentPage, setCurrentPage] = useState(() => {
+    const sp = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const p = sp ? parseInt(sp.get('page') || '1') : 1; return isNaN(p) || p < 1 ? 1 : p;
+  });
+  const [filterValues, setFilterValues] = useState<Record<string, string>>(() => {
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search);
+      return { _search: sp.get('q') ?? '', maChien: sp.get('maChien') ?? '', trangThai: sp.get('status') ?? '', ngay: sp.get('ngay') ?? '' };
+    }
+    return { _search: '', maChien: '', trangThai: '', ngay: '' };
+  });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlOpId = searchParams.get('opId');
+  const opSyncRef = React.useRef(false);
+  useEffect(() => {
+    if (opSyncRef.current) { opSyncRef.current = false; return; }
+    const p = new URLSearchParams(searchParams);
+    const sd = (k: string, v: string) => { if (v) p.set(k, v); else p.delete(k); };
+    sd('q', filterValues._search || ''); sd('maChien', filterValues.maChien || '');
+    sd('status', filterValues.trangThai || ''); sd('ngay', (filterValues as any).ngay || '');
+    sd('page', currentPage > 1 ? String(currentPage) : ''); sd('machine', selectedMachineSystemId || '');
+    opSyncRef.current = true; setSearchParams(p, { replace: true });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterValues._search, filterValues.maChien, filterValues.trangThai, (filterValues as any).ngay, currentPage, selectedMachineSystemId]);
+  const openOpUrl = React.useCallback((id: string) => {
+    const p = new URLSearchParams(searchParams); p.set('opId', id);
+    opSyncRef.current = true; setSearchParams(p, { replace: false });
+  }, [searchParams, setSearchParams]);
+  const closeOpUrl = React.useCallback(() => {
+    if (!searchParams.has('opId')) return;
+    const p = new URLSearchParams(searchParams); p.delete('opId');
+    opSyncRef.current = true; setSearchParams(p, { replace: true });
+  }, [searchParams, setSearchParams]);
   const itemsPerPage = 10;
 
   const operationFilterFields: FilterField[] = [
@@ -127,6 +159,18 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
       console.error('Lỗi tải danh sách mã chiên:', err);
     }
   };
+  // Deep-link ?opId= → auto-open on load / back
+  useEffect(() => {
+    if (!urlOpId || operations.length === 0) return;
+    const found = operations.find(o => o.id === urlOpId);
+    if (found) { setSelectedOperation(found); setIsViewModalOpen(true); }
+    else {
+      systemOperationService.getSystemOperationById(urlOpId).then(rec => {
+        if (rec?.id) { setSelectedOperation(rec as any); setIsViewModalOpen(true); }
+      }).catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlOpId, operations]);
 
   const formatDateTime = (datetime: string) => {
     if (!datetime) return '-';
@@ -210,6 +254,7 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
         ghiChu: operation.ghiChu ?? '',
         nguoiThucHien: operation.nguoiThucHien || currentUserName,
       });
+      openOpUrl(operation.id);
     } else {
       setIsEditing(false);
       setSelectedOperation(null);
@@ -235,11 +280,13 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
     setIsModalOpen(false);
     setSelectedOperation(null);
     setIsEditing(false);
+    closeOpUrl();
   };
 
   const handleViewDetail = (operation: SystemOperation) => {
     setSelectedOperation(operation);
     setIsViewModalOpen(true);
+    openOpUrl(operation.id);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -855,12 +902,12 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
       </Modal>
 
       {/* View Detail Modal */}
-      <Modal isOpen={isViewModalOpen && !!selectedOperation} onClose={() => setIsViewModalOpen(false)} showBackdrop closeOnBackdrop={true}>
+      <Modal isOpen={isViewModalOpen && !!selectedOperation} onClose={() => { setIsViewModalOpen(false); closeOpUrl(); }} showBackdrop closeOnBackdrop={true}>
         <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center p-6 border-b shrink-0">
               <h2 className="text-xl font-bold">Chi tiết thông số vận hành</h2>
               <button
-                onClick={() => setIsViewModalOpen(false)}
+                onClick={() => { setIsViewModalOpen(false); closeOpUrl(); }}
                 className="text-gray-500 hover:text-gray-700"
               >
                 <X className="w-6 h-6" />
@@ -999,16 +1046,18 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
 
             <div className="flex justify-end gap-3 p-6 border-t">
               <button
-                onClick={() => setIsViewModalOpen(false)}
+                onClick={() => { setIsViewModalOpen(false); closeOpUrl(); }}
                 className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
               >
                 Đóng
               </button>
               <button
                 onClick={() => {
+                  const op = selectedOperation!;
                   setIsViewModalOpen(false);
                   setIsEditing(true);
                   setIsModalOpen(true);
+                  openOpUrl(op.id);
                 }}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
               >

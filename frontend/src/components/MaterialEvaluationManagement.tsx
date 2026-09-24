@@ -20,6 +20,7 @@ import { materialEvaluationKeys } from '../hooks/useProductionEntities';
 import { warehouseIssueKeys } from '../hooks/useWarehouseIssues';
 import { useDailyFrySchedule } from '../hooks/useDailyFrySchedule';
 import { productionDayRange, getCurrentProductionDay } from '../utils/productionDay';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
 
@@ -67,7 +68,41 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maChien: '', tenHangHoa: '' });
+  const [filterValues, setFilterValues] = useState<Record<string, string>>(() => {
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search);
+      return { _search: sp.get('q') ?? '', maChien: sp.get('maChien') ?? '', tenHangHoa: sp.get('tenHangHoa') ?? '', ngay: sp.get('ngay') ?? '', ca: sp.get('ca') ?? '' };
+    }
+    return { _search: '', maChien: '', tenHangHoa: '', ngay: '', ca: '' };
+  });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlEvalId = searchParams.get('evalId');
+  const urlMode = searchParams.get('mode') as 'view' | 'edit' | 'create' | null;
+  const evalSyncRef = React.useRef(false);
+  const filterSyncRef = React.useRef(false);
+  // push filter/search to URL (replace)
+  useEffect(() => {
+    if (evalSyncRef.current) { evalSyncRef.current = false; return; }
+    const params = new URLSearchParams(searchParams);
+    const setOrDel = (k: string, v: string) => { if (v) params.set(k, v); else params.delete(k); };
+    setOrDel('q', filterValues._search || '');
+    setOrDel('maChien', filterValues.maChien || '');
+    setOrDel('ngay', (filterValues as any).ngay || '');
+    setOrDel('ca', (filterValues as any).ca || '');
+    // keep evalId/mode untouched here
+    filterSyncRef.current = true;
+    setSearchParams(params, { replace: true });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterValues._search, filterValues.maChien, (filterValues as any).ngay, (filterValues as any).ca]);
+  const openEvalUrl = React.useCallback((id: string, mode: string) => {
+    const p = new URLSearchParams(searchParams); p.set('evalId', id); p.set('mode', mode);
+    evalSyncRef.current = true; setSearchParams(p, { replace: false });
+  }, [searchParams, setSearchParams]);
+  const closeEvalUrl = React.useCallback(() => {
+    if (!searchParams.has('evalId') && !searchParams.has('mode')) return;
+    const p = new URLSearchParams(searchParams); p.delete('evalId'); p.delete('mode');
+    evalSyncRef.current = true; setSearchParams(p, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   // Delete modal state
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -181,6 +216,24 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
     loadEvaluations();
     loadCriteria();
   }, [currentProductionDay]);
+  // Deep-link: ?evalId=&mode= → auto-open detail/edit/create on load / back
+  useEffect(() => {
+    if (filterSyncRef.current) { filterSyncRef.current = false; return; }
+    if (!urlEvalId && urlMode !== 'create') return;
+    if (urlMode === 'create') { if (!isModalOpen) handleOpenModal(); return; }
+    if (!urlEvalId || evaluations.length === 0) return;
+    const found = evaluations.find(e => e.id === urlEvalId);
+    if (!found) {
+      materialEvaluationService.getMaterialEvaluationById(urlEvalId).then((ev: any) => {
+        const rec = (ev?.data ?? ev) as MaterialEvaluation; if (!rec?.id) return;
+        if (urlMode === 'edit') handleOpenModal(rec); else { setSelectedEvaluation(rec); setIsViewModalOpen(true); }
+      }).catch(() => {});
+      return;
+    }
+    if (urlMode === 'edit') { if (!isModalOpen || selectedEvaluation?.id !== found.id) handleOpenModal(found); }
+    else if (urlMode === 'view') { if (!isViewModalOpen || selectedEvaluation?.id !== found.id) { setSelectedEvaluation(found); setIsViewModalOpen(true); } }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlEvalId, urlMode, evaluations]);
 
 
   const loadEvaluations = async () => {
@@ -331,8 +384,6 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
     if (evaluation) {
       setIsEditing(true);
       setSelectedEvaluation(evaluation);
-
-      // Convert datetime to datetime-local format without timezone conversion
       let thoiGianChienLocal = '';
       if (evaluation.thoiGianChien) {
         const date = new Date(evaluation.thoiGianChien);
@@ -343,39 +394,18 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
         const minutes = String(date.getMinutes()).padStart(2, '0');
         thoiGianChienLocal = `${year}-${month}-${day}T${hours}:${minutes}`;
       }
-
-      setFormData({
-        ...evaluation,
-        thoiGianChien: thoiGianChienLocal,
-        ca: evaluation.ca ?? null,
-      });
+      setFormData({ ...evaluation, thoiGianChien: thoiGianChienLocal, ca: evaluation.ca ?? null });
+      setIsModalOpen(true);
+      openEvalUrl(evaluation.id, 'edit');
     } else {
       setIsEditing(false);
       setSelectedEvaluation(null);
-
-      const nguoiThucHien = user
-        ? `${user.lastName || ''} ${user.firstName || ''}`.trim()
-        : '';
-
-      // Batch code is now selected from schedule — no auto-generation
-      setFormData({
-        maChien: '',
-        thoiGianChien: '',
-        tenHangHoa: '',
-        soLoKien: '',
-        khoiLuong: 0,
-        soLanNgam: 0,
-        nhietDoNuocTruocNgam: 0,
-        nhietDoNuocSauVot: 0,
-        thoiGianNgam: 0,
-        brixNuocNgam: 0,
-        danhGiaTruocNgam: '',
-        danhGiaSauNgam: '',
-        nguoiThucHien,
-        ca: null,
-      });
+      const nguoiThucHien = user ? `${user.lastName || ''} ${user.firstName || ''}`.trim() : '';
+      setFormData({ maChien: '', thoiGianChien: '', tenHangHoa: '', soLoKien: '', khoiLuong: 0, soLanNgam: 0, nhietDoNuocTruocNgam: 0, nhietDoNuocSauVot: 0, thoiGianNgam: 0, brixNuocNgam: 0, danhGiaTruocNgam: '', danhGiaSauNgam: '', nguoiThucHien, ca: null });
+      setIsModalOpen(true);
+      const p = new URLSearchParams(searchParams); p.set('mode', 'create'); p.delete('evalId');
+      evalSyncRef.current = true; setSearchParams(p, { replace: false });
     }
-    setIsModalOpen(true);
   };
 
   /**
@@ -432,6 +462,8 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
       ca: row.shift,
     });
     setIsModalOpen(true);
+    const p2 = new URLSearchParams(searchParams); p2.set('mode', 'create'); p2.set('maChien', row.code); p2.delete('evalId');
+    evalSyncRef.current = true; setSearchParams(p2, { replace: false });
   };
 
   const handleCloseModal = () => {
@@ -443,11 +475,13 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
     setLotId('');
     setLotProductId('');
     setKhoiLuongError('');
+    closeEvalUrl();
   };
 
   const handleViewDetail = (evaluation: MaterialEvaluation) => {
     setSelectedEvaluation(evaluation);
     setIsViewModalOpen(true);
+    openEvalUrl(evaluation.id, 'view');
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -1379,12 +1413,12 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
         </Modal>
 
       {/* View Detail Modal */}
-      <Modal isOpen={isViewModalOpen && !!selectedEvaluation} onClose={() => setIsViewModalOpen(false)} showBackdrop closeOnBackdrop={true}>
+      <Modal isOpen={isViewModalOpen && !!selectedEvaluation} onClose={() => { setIsViewModalOpen(false); closeEvalUrl(); }} showBackdrop closeOnBackdrop={true}>
         <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
           <div className="flex justify-between items-center px-3 py-2 sm:px-6 sm:py-4 border-b shrink-0">
               <h2 className="text-xl font-bold">Chi tiết đánh giá nguyên liệu</h2>
               <button
-                onClick={() => setIsViewModalOpen(false)}
+                onClick={() => { setIsViewModalOpen(false); closeEvalUrl(); }}
                 className="text-gray-500 hover:text-gray-700"
               >
                 <X className="w-6 h-6" />
@@ -1480,16 +1514,18 @@ const MaterialEvaluationManagement: React.FC<MaterialEvaluationManagementProps> 
 
               <div className="flex justify-end gap-3 mt-6 shrink-0">
                 <button
-                  onClick={() => setIsViewModalOpen(false)}
+                  onClick={() => { setIsViewModalOpen(false); closeEvalUrl(); }}
                   className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
                 >
                   Đóng
                 </button>
                 <button
                   onClick={() => {
+                    const ev = selectedEvaluation!;
                     setIsViewModalOpen(false);
                     setIsEditing(true);
                     setIsModalOpen(true);
+                    openEvalUrl(ev.id, 'edit');
                   }}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                 >

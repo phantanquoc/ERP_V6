@@ -11,6 +11,7 @@ import { useActiveFryerMachineSystems } from '../hooks/useMachineSystemDetails';
 import { useQueryClient } from '@tanstack/react-query';
 import { finishedProductKeys } from '../hooks/useFinishedProducts';
 import { productionDayRange } from '../utils/productionDay';
+import { useSearchParams } from 'react-router-dom';
 
 // Special constant for "Tổng các máy" tab
 const TOTAL_ALL_MACHINES = '__TOTAL_ALL_MACHINES__';
@@ -191,8 +192,48 @@ const FinishedProductManagement: React.FC<FinishedProductManagementProps> = ({ p
   const [selectedProduct, setSelectedProduct] = useState<FinishedProduct | null>(null);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [selectedProductForReceipt, setSelectedProductForReceipt] = useState<FinishedProduct | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({ _search: '', maChien: '', tenHangHoa: '' });
+  const [currentPage, setCurrentPage] = useState(() => {
+    const sp = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const p = sp ? parseInt(sp.get('page') || '1') : 1; return isNaN(p) || p < 1 ? 1 : p;
+  });
+  const [filterValues, setFilterValues] = useState<Record<string, string>>(() => {
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search);
+      return { _search: sp.get('q') ?? '', maChien: sp.get('maChien') ?? '', tenHangHoa: sp.get('tenHangHoa') ?? '' };
+    }
+    return { _search: '', maChien: '', tenHangHoa: '' };
+  });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlFinishedId = searchParams.get('finishedId');
+  const urlReceiptFor = searchParams.get('receiptFor');
+  const fpSyncRef = React.useRef(false);
+  useEffect(() => {
+    if (fpSyncRef.current) { fpSyncRef.current = false; return; }
+    const p = new URLSearchParams(searchParams);
+    const sd = (k: string, v: string) => { if (v) p.set(k, v); else p.delete(k); };
+    sd('q', filterValues._search || ''); sd('maChien', filterValues.maChien || '');
+    sd('tenHangHoa', filterValues.tenHangHoa || ''); sd('page', currentPage > 1 ? String(currentPage) : '');
+    fpSyncRef.current = true; setSearchParams(p, { replace: true });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterValues._search, filterValues.maChien, filterValues.tenHangHoa, currentPage]);
+  const openFinishedUrl = React.useCallback((id: string) => {
+    const p = new URLSearchParams(searchParams); p.set('finishedId', id);
+    fpSyncRef.current = true; setSearchParams(p, { replace: false });
+  }, [searchParams, setSearchParams]);
+  const closeFinishedUrl = React.useCallback(() => {
+    if (!searchParams.has('finishedId')) return;
+    const p = new URLSearchParams(searchParams); p.delete('finishedId');
+    fpSyncRef.current = true; setSearchParams(p, { replace: true });
+  }, [searchParams, setSearchParams]);
+  const openReceiptUrl = React.useCallback((id: string) => {
+    const p = new URLSearchParams(searchParams); p.set('receiptFor', id);
+    fpSyncRef.current = true; setSearchParams(p, { replace: false });
+  }, [searchParams, setSearchParams]);
+  const closeReceiptUrl = React.useCallback(() => {
+    if (!searchParams.has('receiptFor')) return;
+    const p = new URLSearchParams(searchParams); p.delete('receiptFor');
+    fpSyncRef.current = true; setSearchParams(p, { replace: true });
+  }, [searchParams, setSearchParams]);
   const itemsPerPage = 10;
 
   const productFilterFields: FilterField[] = [
@@ -294,6 +335,25 @@ const FinishedProductManagement: React.FC<FinishedProductManagementProps> = ({ p
       setLoading(false);
     }
   };
+  // Deep-link ?finishedId= / ?receiptFor=
+  useEffect(() => {
+    const id = urlFinishedId || urlReceiptFor;
+    const isReceipt = !!urlReceiptFor;
+    if (!id) return;
+    const pool = [...products, ...allProducts];
+    const found = pool.find(p => p.id === id);
+    if (found) {
+      if (isReceipt) { setSelectedProductForReceipt(found); setIsReceiptModalOpen(true); }
+      else { setSelectedProduct(found); setIsViewModalOpen(true); }
+    } else {
+      finishedProductService.getFinishedProductById(id).then(rec => {
+        const r = (rec as any)?.data ?? rec as FinishedProduct; if (!r?.id) return;
+        if (isReceipt) { setSelectedProductForReceipt(r); setIsReceiptModalOpen(true); }
+        else { setSelectedProduct(r); setIsViewModalOpen(true); }
+      }).catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlFinishedId, urlReceiptFor, products, allProducts]);
 
   // Helper function to get machine status label (for FinishedProduct saved status)
   const getMachineStatusLabel = (status?: string): string => {
@@ -801,6 +861,7 @@ const FinishedProductManagement: React.FC<FinishedProductManagementProps> = ({ p
   const handleView = (product: FinishedProduct) => {
     setSelectedProduct(product);
     setIsViewModalOpen(true);
+    openFinishedUrl(product.id);
   };
 
   const handleFormChange = (field: string, value: string | number) => {
@@ -1162,7 +1223,7 @@ const FinishedProductManagement: React.FC<FinishedProductManagementProps> = ({ p
                       <td className="px-3 py-2 sm:px-6 sm:py-4">
                         <div className="flex items-center justify-center gap-3">
                           <button
-                            onClick={(e) => { e.stopPropagation(); setSelectedProductForReceipt(product); setIsReceiptModalOpen(true); }}
+                            onClick={(e) => { e.stopPropagation(); setSelectedProductForReceipt(product); setIsReceiptModalOpen(true); openReceiptUrl(product.id); }}
                             className="p-1.5 text-indigo-600 hover:bg-indigo-100 rounded-md transition-colors"
                             title="Nhập kho"
                           >
@@ -1237,7 +1298,7 @@ const FinishedProductManagement: React.FC<FinishedProductManagementProps> = ({ p
       <FinishedProductViewModal
         isOpen={isViewModalOpen}
         product={selectedProduct}
-        onClose={() => setIsViewModalOpen(false)}
+        onClose={() => { setIsViewModalOpen(false); closeFinishedUrl(); }}
         onEdit={handleOpenModal}
       />
 
@@ -1248,10 +1309,12 @@ const FinishedProductManagement: React.FC<FinishedProductManagementProps> = ({ p
         onClose={() => {
           setIsReceiptModalOpen(false);
           setSelectedProductForReceipt(null);
+          closeReceiptUrl();
         }}
         onSuccess={() => {
           setIsReceiptModalOpen(false);
           setSelectedProductForReceipt(null);
+          closeReceiptUrl();
           loadProducts();
         }}
       />
