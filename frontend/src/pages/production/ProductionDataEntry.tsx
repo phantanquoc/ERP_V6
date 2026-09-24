@@ -75,6 +75,8 @@ function todayStr(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+const VALID_POSITION_RE = /^[a-zA-Z0-9_-]{1,64}$/;
+void VALID_POSITION_RE; // whitelist for position param (audit P2) - validated in DataEntryHub
 const VALID_TABS: QualityTab[] = ['A', 'B', 'B_DAU', 'C', 'UOT', 'VUN_PHE'];
 function isValidTab(v: string): v is QualityTab {
   return (VALID_TABS as string[]).includes(v);

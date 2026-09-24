@@ -24,9 +24,11 @@ const isTabType = (value: string | null): value is TabType =>
 
 type RepairFaultView = 'repair' | 'fault';
 type PartsOrdersView = 'parts' | 'orders';
+type MaintenanceView = 'plans' | 'records';
 
 const isRepairFaultView = (v: string | null): v is RepairFaultView => v === 'repair' || v === 'fault';
 const isPartsOrdersView = (v: string | null): v is PartsOrdersView => v === 'parts' || v === 'orders';
+const isMaintenanceView = (v: string | null): v is MaintenanceView => v === 'plans' || v === 'records';
 
 const TechnicalQuality = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -38,10 +40,12 @@ const TechnicalQuality = () => {
   // Only respect sub when its parent tab is active — avoids cross-tab pollution on direct links
   const initialRepair = tabParam === 'repairAndFault' && isRepairFaultView(subParam) ? subParam : 'repair';
   const initialParts = tabParam === 'partsAndOrders' && isPartsOrdersView(subParam) ? subParam : 'parts';
+  const initialMaintenance: MaintenanceView = tabParam === 'maintenance' && isMaintenanceView(subParam) ? subParam : 'plans';
 
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   const [repairFaultView, setRepairFaultView] = useState<RepairFaultView>(initialRepair);
   const [partsOrdersView, setPartsOrdersView] = useState<PartsOrdersView>(initialParts);
+  const [maintenanceView, setMaintenanceView] = useState<MaintenanceView>(initialMaintenance);
 
   const deepFaultId = searchParams.get('faultId') ?? searchParams.get('faultRecordId');
   const deepRepairId = searchParams.get('repairId') ?? searchParams.get('repairRequestId');
@@ -80,12 +84,15 @@ const TechnicalQuality = () => {
     if (nextTab === 'partsAndOrders' && isPartsOrdersView(nextSub) && nextSub !== partsOrdersView) {
       setPartsOrdersView(nextSub);
     }
+    if (nextTab === 'maintenance' && isMaintenanceView(nextSub) && nextSub !== maintenanceView) {
+      setMaintenanceView(nextSub);
+    }
   }, [urlTab, urlSub, deepFaultId, deepRepairId]);
 
   const pushParams = useCallback((nextTab: TabType, nextSub?: string | null) => {
     const next = new URLSearchParams(searchParams);
     next.set('tab', nextTab);
-    const needsSub = nextTab === 'repairAndFault' || nextTab === 'partsAndOrders';
+    const needsSub = nextTab === 'repairAndFault' || nextTab === 'partsAndOrders' || nextTab === 'maintenance';
     if (needsSub && nextSub) next.set('sub', nextSub);
     else next.delete('sub');
     syncingRef.current = true;
@@ -98,6 +105,7 @@ const TechnicalQuality = () => {
     const subForTab =
       tab === 'repairAndFault' ? repairFaultView
       : tab === 'partsAndOrders' ? partsOrdersView
+      : tab === 'maintenance' ? maintenanceView
       : null;
     pushParams(tab, subForTab);
   };
@@ -110,6 +118,11 @@ const TechnicalQuality = () => {
   const handlePartsView = (v: PartsOrdersView) => {
     setPartsOrdersView(v);
     pushParams('partsAndOrders', v);
+  };
+
+  const handleMaintenanceView = (v: MaintenanceView) => {
+    setMaintenanceView(v);
+    pushParams('maintenance', v);
   };
 
   return (
@@ -180,7 +193,7 @@ const TechnicalQuality = () => {
 
       {activeTab === 'maintenance' && (
         <SectionCard bodyClassName="">
-          <MaintenanceTab />
+          <MaintenanceTab activeView={maintenanceView} onViewChange={handleMaintenanceView} />
         </SectionCard>
       )}
 

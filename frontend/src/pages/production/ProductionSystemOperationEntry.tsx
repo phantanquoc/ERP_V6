@@ -31,6 +31,7 @@ import {
   useSystemOperationsByMaChien,
   useUpdateSystemOperationEntry,
 } from '../../hooks/useProductionDataEntry';
+import systemOperationService from '../../services/systemOperationService';
 import type { SystemOperation } from '../../services/systemOperationService';
 import { useAttendedOperatorsByShift } from '../../hooks/useAttendedOperators';
 import { useAuth } from '../../contexts/AuthContext';
@@ -265,7 +266,45 @@ const ProductionSystemOperationEntry: React.FC = () => {
   const [step, setStep] = useState<WizardStep>('batch');
   const [selectedMaChien, setSelectedMaChien] = useState<string>(() => urlMaChien ?? '');
   const [selectedMachineSystemId, setSelectedMachineSystemId] = useState<string>(() => machineParam ?? '');
-  void urlOpId; // TODO: wire opId deep-link to fetch/open (P2 from audit)
+  const opIdHandledRef = useRef<string | null>(null);
+  // Deep-link ?opId -> fetch operation, hydrate form and jump to form step
+  useEffect(() => {
+    if (!urlOpId) { opIdHandledRef.current = null; return; }
+    if (opIdHandledRef.current === urlOpId) return;
+    let cancelled = false;
+    // Validate opId format (cuid-like)
+    if (!/^[a-z0-9]{20,30}$/i.test(urlOpId) && !/^[a-z0-9_-]{10,}$/i.test(urlOpId)) return;
+    systemOperationService.getSystemOperationById(urlOpId).then((op: SystemOperation) => {
+      if (cancelled || !op) return;
+      opIdHandledRef.current = urlOpId;
+      if (op.maChien) setSelectedMaChien(op.maChien);
+      if ((op as any).machineSystemId) setSelectedMachineSystemId((op as any).machineSystemId);
+      // Validate date/ca/position from op if URL missing them
+      if (op.thoiGianChien) {
+        const d = new Date(op.thoiGianChien);
+        const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(ds) && !urlNgay) setProductionDate(ds);
+      }
+      setForm({
+        giaiDoan1ThoiGian: op.giaiDoan1?.thoiGian ?? 0,
+        giaiDoan1NhietDo: op.giaiDoan1?.nhietDo ?? 0,
+        giaiDoan1ApSuat: op.giaiDoan1?.apSuat ?? 0,
+        giaiDoan2ThoiGian: op.giaiDoan2?.thoiGian ?? 0,
+        giaiDoan2NhietDo: op.giaiDoan2?.nhietDo ?? 0,
+        giaiDoan2ApSuat: op.giaiDoan2?.apSuat ?? 0,
+        giaiDoan3ThoiGian: op.giaiDoan3?.thoiGian ?? 0,
+        giaiDoan3NhietDo: op.giaiDoan3?.nhietDo ?? 0,
+        giaiDoan3ApSuat: op.giaiDoan3?.apSuat ?? 0,
+        giaiDoan4ThoiGian: op.giaiDoan4?.thoiGian ?? 0,
+        giaiDoan4NhietDo: op.giaiDoan4?.nhietDo ?? 0,
+        giaiDoan4ApSuat: op.giaiDoan4?.apSuat ?? 0,
+        khoiLuongDauVao: op.khoiLuongDauVao ?? 0,
+        tongThoiGianSay: op.tongThoiGianSay ?? 0,
+      });
+      setStep('form');
+    }).catch(() => { /* invalid opId ignored */ });
+    return () => { cancelled = true; };
+  }, [urlOpId]);
   const [form, setForm] = useState<FormData>(emptyForm);
   const [deviceKeyInput, setDeviceKeyInput] = useState('');
 

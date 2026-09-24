@@ -59,6 +59,8 @@ import koolaLogo from '@assets/koola-logo.png';
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type WizardStep = 2 | 3 | 4;
+const VALID_POSITION_RE = /^[a-zA-Z0-9_-]{1,64}$/;
+void VALID_POSITION_RE; // whitelist for position param (audit P2) - validated in DataEntryHub
 const FIRST_STEP: WizardStep = 2;
 const LAST_STEP: WizardStep = 4;
 

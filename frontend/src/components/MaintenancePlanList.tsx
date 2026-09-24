@@ -233,16 +233,35 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
   const plans = plansResponse?.data ?? [];
   const pagination = plansResponse?.pagination;
   const systems = systemsResponse?.data ?? [];
+  const planRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const openedPlanIdRef = useRef<string | null>(null);
 
-  // Deep-link ?planId -> open detail (view) and highlight
+  // Deep-link ?planId -> open detail (view), highlight and scroll to card
   useEffect(() => {
     const planId = searchParams.get('planId');
-    if (!planId) return;
+    if (!planId) { openedPlanIdRef.current = null; return; }
+    if (openedPlanIdRef.current === planId && viewingPlan?.id === planId) return;
     if (viewingPlan?.id === planId) return;
+    const highlightAndScroll = (id: string, month: number | null) => {
+      requestAnimationFrame(() => {
+        const el = planRefs.current.get(id);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          if (month && month >= 1 && month <= 12) {
+            const monthEl = el.querySelector(`[data-month="${month}"]`);
+            if (monthEl) (monthEl as HTMLElement).scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+          }
+        }
+      });
+    };
+    const monthParam = Number(searchParams.get('planMonth') ?? '') || null;
+    const validMonth = monthParam && monthParam >= 1 && monthParam <= 12 ? monthParam : null;
     const found = plans.find((pl: MaintenancePlan) => pl.id === planId);
     if (found) {
       setViewingPlan(found);
       if (!modalMode) setModalMode('view');
+      openedPlanIdRef.current = planId;
+      highlightAndScroll(planId, validMonth);
       return;
     }
     // Fetch if not in current page
@@ -253,10 +272,12 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
       if (plan?.id) {
         setViewingPlan(plan as MaintenancePlan);
         if (!modalMode) setModalMode('view');
+        openedPlanIdRef.current = planId;
+        highlightAndScroll(planId, validMonth);
       }
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [searchParams.get('planId'), plans]);
+  }, [searchParams.get('planId'), searchParams.get('planMonth'), plans]);
 
   // Keep viewingPlan in sync when plans refresh (e.g., after toggle)
   useEffect(() => {
@@ -394,6 +415,10 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
             onOpenLogModal={handleOpenLogModal}
             highlightMonth={highlightPlanMonth}
             isHighlighted={searchParams.get('planId') === plan.id}
+            registerRef={(el) => {
+              if (el) planRefs.current.set(plan.id, el);
+              else planRefs.current.delete(plan.id);
+            }}
             onView={() => openPlanView(plan)}
             onEdit={() => openPlanEdit(plan)}
             onDelete={() => handleDelete(plan.id)}
@@ -484,9 +509,10 @@ interface PlanCardProps {
   isSyncing: boolean;
   highlightMonth?: number | null;
   isHighlighted?: boolean;
+  registerRef?: (el: HTMLDivElement | null) => void;
 }
 
-const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, onSync, isSyncing, highlightMonth, isHighlighted }: PlanCardProps) => {
+const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, onSync, isSyncing, highlightMonth, isHighlighted, registerRef }: PlanCardProps) => {
   const { completed, total } = calculatePlanProgress(plan.items ?? []);
   const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
 
@@ -533,7 +559,7 @@ const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, on
   }
 
   return (
-    <div className={`border rounded-lg overflow-hidden ${isHighlighted ? "border-blue-400 ring-1 ring-blue-200" : "border-gray-200"}`} data-plan-id={plan.id} data-highlight-month={highlightMonth ?? ""}>
+    <div ref={registerRef} className={`border rounded-lg overflow-hidden ${isHighlighted ? "border-blue-400 ring-1 ring-blue-200" : "border-gray-200"}`} data-plan-id={plan.id} data-highlight-month={highlightMonth ?? ""}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
         <div>
