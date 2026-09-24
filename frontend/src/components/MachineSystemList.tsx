@@ -8,7 +8,6 @@ import {
   useCreateMachineSystem,
   useDeleteMachineSystem,
   useDistinctMachineSystemFields,
-  useMachineSystemDetail,
   useMachineSystems,
   useNextMachineSystemCode,
   useUpdateMachineSystem,
@@ -16,14 +15,12 @@ import {
 import { useEmployeesForAssignment, type EmployeeOption } from '../hooks/useEmployeesForAssignment';
 import MachineSummaryDrawer from './MachineSummaryDrawer';
 import MachineStatusUpdateDialog from './MachineStatusUpdateDialog';
-import MachineSystemDetailFormModal from './MachineSystemDetailFormModal';
 import ResponsiveRowActions from './ResponsiveRowActions';
 import type {
   CreateMachineSystemRequest,
   MachineStatus,
   MachineSystem,
   MachineSystemCategory,
-  MachineSystemDetail,
   MachineSystemDetailFilters,
   MachineSystemFilters,
 } from '../services/machineSystemService';
@@ -201,7 +198,6 @@ const MachineSystemList = () => {
   const pageParam = searchParams.get('page');
   const limitParam = searchParams.get('limit');
   const systemIdParam = searchParams.get('systemId');
-  const detailIdParam = searchParams.get('detailId');
 
   const parseHoatDong = (v: string | null): boolean | undefined => {
     if (v === 'true') return true;
@@ -229,7 +225,6 @@ const MachineSystemList = () => {
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncingRef = useRef(false);
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
-  const detailIdQuery = useMachineSystemDetail(detailIdParam ?? '');
 
   const pushSystemFilters = useCallback((next: MachineSystemFilters) => {
     syncingRef.current = true;
@@ -251,17 +246,17 @@ const MachineSystemList = () => {
     syncingRef.current = true;
     setSearchParams((prev) => {
       const params = new URLSearchParams(prev);
-      if (id) params.set('systemId', id);
-      else params.delete('systemId');
-      return params;
-    }, { replace: true });
-  }, [setSearchParams]);
-
-  const clearDetailIdParam = useCallback(() => {
-    syncingRef.current = true;
-    setSearchParams((prev) => {
-      const params = new URLSearchParams(prev);
-      params.delete('detailId');
+      if (id) {
+        params.set('systemId', id);
+        params.set('drawer', 'open');
+        if (!params.has('drawerTab')) params.set('drawerTab', 'general');
+      } else {
+        params.delete('systemId');
+        params.delete('drawer');
+        params.delete('drawerTab');
+        params.delete('detailId');
+        params.delete('detailMode');
+      }
       return params;
     }, { replace: true });
   }, [setSearchParams]);
@@ -279,7 +274,6 @@ const MachineSystemList = () => {
   const systemPagination = systemsQuery.data?.pagination;
 
   const [systemModal, setSystemModal] = useState<{ mode: Mode; record?: MachineSystem } | null>(null);
-  const [detailModal, setDetailModal] = useState<{ mode: Mode; record?: MachineSystemDetail } | null>(null);
   const [systemForm, setSystemForm] = useState<SystemForm>(emptySystemForm());
   const [error, setError] = useState('');
   const [drawerSystemId, setDrawerSystemId] = useState<string | null>(null);
@@ -400,14 +394,42 @@ const MachineSystemList = () => {
 
   const handleRowClick = useCallback((system: MachineSystem) => {
     setDetailFilters((prev) => ({ ...prev, machineSystemId: system.id }));
-    pushSystemId(system.id);
     setDrawerSystemId(system.id);
+    pushSystemId(system.id);
   }, [pushSystemId]);
 
   const handleClearSystemSelection = useCallback(() => {
     setDetailFilters((prev) => ({ ...prev, machineSystemId: undefined }));
+    setDrawerSystemId(null);
     pushSystemId(null);
   }, [pushSystemId]);
+
+  // Hydrate drawer from URL (reload / shared link) — not for click path (click sets drawer directly)
+  useEffect(() => {
+    const urlDrawer = searchParams.get('drawer');
+    const urlSystemId = searchParams.get('systemId');
+    if (syncingRef.current) { syncingRef.current = false; return; }
+    if (urlDrawer === 'open' && urlSystemId) {
+      setDrawerSystemId((prev) => (prev === urlSystemId ? prev : urlSystemId));
+      setDetailFilters((prev) => (prev.machineSystemId === urlSystemId ? prev : { ...prev, machineSystemId: urlSystemId }));
+    } else if (!urlDrawer && !urlSystemId && drawerSystemId) {
+      setDrawerSystemId(null);
+    } else if (urlSystemId && !urlDrawer && drawerSystemId !== urlSystemId) {
+      setDrawerSystemId(urlSystemId);
+    }
+  }, [searchParams]);
+
+  // Hydrate systemModal from URL (shared link / reload)
+  useEffect(() => {
+    const m = searchParams.get('systemModal');
+    const mid = searchParams.get('systemModalId');
+    if (!m) { if (systemModal) setSystemModal(null); return; }
+    if (m === 'create' && systemModal?.mode !== 'create') openSystemModal('create');
+    else if ((m === 'edit' || m === 'view') && mid && systemModal?.record?.id !== mid) {
+      const found = systems.find((s) => s.id === mid) ?? allSystems.find((s) => s.id === mid);
+      if (found) openSystemModal(m as Mode, found);
+    }
+  }, [searchParams]);
 
   // Deep-link scroll for systemId
   const systemIdWarnedRef = useRef<string | null>(null);
@@ -427,36 +449,6 @@ const MachineSystemList = () => {
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [systemIdParam, systems, allSystems]);
 
-  // detailId -> modal (inline tree removed — drawer owns tree)
-  const detailIdWarnedRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!detailIdParam) {
-      setDetailModal((prev) => (prev?.mode === 'view' ? null : prev));
-      return;
-    }
-    if (detailModal?.record?.id === detailIdParam) return;
-    if (detailIdQuery.isLoading) return;
-    const fetched = detailIdQuery.data?.data;
-    if (fetched && fetched.id === detailIdParam) {
-      if (fetched.machineSystemId) setDetailFilters((prev) => prev.machineSystemId === fetched.machineSystemId ? prev : { ...prev, machineSystemId: fetched.machineSystemId });
-      setDetailModal({ mode: 'view', record: fetched });
-      detailIdWarnedRef.current = null;
-      return;
-    }
-    if (detailIdQuery.isError || (detailIdQuery.data && !fetched)) {
-      if (detailIdWarnedRef.current !== detailIdParam) {
-        detailIdWarnedRef.current = detailIdParam;
-        toast.error('Không tìm thấy chi tiết yêu cầu');
-      }
-    }
-  }, [detailIdParam, detailIdQuery.data, detailIdQuery.isLoading, detailIdQuery.isError]);
-
-  const handleDetailModalClose = useCallback(() => {
-    const closingView = detailModal?.mode === 'view' && detailModal?.record?.id === detailIdParam;
-    setDetailModal(null);
-    if (closingView || detailIdParam) clearDetailIdParam();
-  }, [detailModal, detailIdParam, clearDetailIdParam]);
-
   const openSystemModal = (mode: Mode, record?: MachineSystem) => {
     setError('');
     setSystemModal({ mode, record });
@@ -474,6 +466,23 @@ const MachineSystemList = () => {
     } : emptySystemForm());
     setFetchedCode('');
   };
+  // Deep-link-aware wrappers — UI nên gọi 2 hàm này thay vì openSystemModal/close trực tiếp
+  const openSystemModalWithDeepLink: typeof openSystemModal = useCallback((mode, record) => {
+    syncingRef.current = true;
+    setSearchParams((prev) => {
+      const p = new URLSearchParams(prev);
+      if (mode === 'edit' && record) { p.set('systemModal', 'edit'); p.set('systemModalId', record.id); }
+      else if (mode === 'create') { p.set('systemModal', 'create'); p.delete('systemModalId'); }
+      else if (mode === 'view' && record) { p.set('systemModal', 'view'); p.set('systemModalId', record.id); }
+      return p;
+    }, { replace: true });
+    openSystemModal(mode, record);
+  }, [setSearchParams]) as typeof openSystemModal;
+  const closeSystemModalWithClear = useCallback(() => {
+    setSystemModal(null);
+    syncingRef.current = true;
+    setSearchParams((prev) => { const p = new URLSearchParams(prev); p.delete('systemModal'); p.delete('systemModalId'); return p; }, { replace: true });
+  }, [setSearchParams]);
 
   const saveSystem = async (event: FormEvent) => {
     event.preventDefault();
@@ -484,7 +493,7 @@ const MachineSystemList = () => {
       } else {
         await createSystem.mutateAsync({ data: systemForm });
       }
-      setSystemModal(null);
+      closeSystemModalWithClear();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không lưu được hệ thống');
     }
@@ -582,7 +591,7 @@ const MachineSystemList = () => {
             </button>
             <button
               type="button"
-              onClick={() => openSystemModal('create')}
+              onClick={() => openSystemModalWithDeepLink('create')}
               className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
             >
               <Plus className="h-4 w-4" /> Thêm hệ thống
@@ -631,7 +640,7 @@ const MachineSystemList = () => {
                   <td className="px-3 py-2.5 sticky right-0 bg-white z-10" onClick={(e) => e.stopPropagation()}>
                     <ResponsiveRowActions
                       actions={[
-                        { key: 'edit', label: 'Sửa hệ thống', icon: <Edit className="h-4 w-4" />, onClick: () => openSystemModal('edit', system), tone: 'success' },
+                        { key: 'edit', label: 'Sửa hệ thống', icon: <Edit className="h-4 w-4" />, onClick: () => openSystemModalWithDeepLink('edit', system), tone: 'success' },
                         { key: 'clone', label: 'Nhân bản hệ thống', icon: <Copy className="h-4 w-4" />, onClick: () => setCloneDialog({ system, maHeThong: system.maHeThong + '-COPY', tenHeThong: system.tenHeThong + ' (bản sao)' }), tone: 'default' },
                         { key: 'status', label: 'Cập nhật trạng thái', icon: <RefreshCw className="h-4 w-4" />, onClick: () => setStatusUpdateSystemId(system.id), tone: 'warning' },
                         { key: 'delete', label: 'Xóa hệ thống', icon: <Trash2 className="h-4 w-4" />, onClick: () => removeSystem(system), tone: 'danger' },
@@ -651,19 +660,19 @@ const MachineSystemList = () => {
         <div className="flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm">
           <span className="text-gray-600">Đang xem: <span className="font-medium text-gray-900">{allSystems.find((s) => s.id === detailFilters.machineSystemId)?.tenHeThong ?? detailFilters.machineSystemId}</span> — mở Hồ sơ máy để xem cây linh kiện, trạng thái, bảo dưỡng.</span>
           <div className="flex gap-2">
-            <button type="button" onClick={() => detailFilters.machineSystemId && setDrawerSystemId(detailFilters.machineSystemId)} className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"><Eye className="h-3.5 w-3.5" /> Mở hồ sơ máy</button>
+            <button type="button" onClick={() => detailFilters.machineSystemId && pushSystemId(detailFilters.machineSystemId)} className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"><Eye className="h-3.5 w-3.5" /> Mở hồ sơ máy</button>
             <button type="button" onClick={handleClearSystemSelection} className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"><X className="h-3.5 w-3.5" /></button>
           </div>
         </div>
       )}
 
-      <Modal isOpen={!!systemModal} onClose={() => setSystemModal(null)} showBackdrop>
+      <Modal isOpen={!!systemModal} onClose={closeSystemModalWithClear} showBackdrop>
         <div className="flex modal-viewport-h w-full max-w-3xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
           <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
             <h3 className="text-base font-semibold text-gray-900">
               {systemModal?.mode === 'view' ? 'Chi tiết hệ thống' : systemModal?.record ? 'Sửa hệ thống' : 'Thêm hệ thống'}
             </h3>
-            <button type="button" title="Đóng" onClick={() => setSystemModal(null)} className="rounded p-1.5 text-gray-500 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+            <button type="button" title="Đóng" onClick={closeSystemModalWithClear} className="rounded p-1.5 text-gray-500 hover:bg-gray-100"><X className="h-4 w-4" /></button>
           </div>
           <form onSubmit={saveSystem} className="flex-1 space-y-3 overflow-y-auto p-4 text-sm">
             {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-700">{error}</div>}
@@ -811,7 +820,7 @@ const MachineSystemList = () => {
               <div className="border-t border-gray-200 pt-3">
                 <button
                   type="button"
-                  onClick={() => { setSystemModal(null); setDrawerSystemId(systemModal.record!.id); }}
+                  onClick={() => { closeSystemModalWithClear(); pushSystemId(systemModal.record!.id); }}
                   className="inline-flex items-center gap-1.5 rounded-md border border-blue-300 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-50"
                 >
                   <Eye className="h-4 w-4" /> Xem tổng quan hệ thống
@@ -819,22 +828,14 @@ const MachineSystemList = () => {
               </div>
             )}
             <div className="flex justify-end gap-2 border-t border-gray-200 pt-3">
-              <button type="button" onClick={() => setSystemModal(null)} className="rounded-md border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50">{systemModal?.mode === 'view' ? 'Đóng' : 'Hủy'}</button>
+              <button type="button" onClick={closeSystemModalWithClear} className="rounded-md border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50">{systemModal?.mode === 'view' ? 'Đóng' : 'Hủy'}</button>
               {systemModal?.mode !== 'view' && <button type="submit" className="rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700">Lưu</button>}
             </div>
           </form>
         </div>
       </Modal>
 
-      <MachineSystemDetailFormModal
-        isOpen={!!detailModal}
-        mode={detailModal?.mode ?? 'create'}
-        record={detailModal?.record}
-        allSystems={allSystems}
-        onClose={handleDetailModalClose}
-      />
-
-      <MachineSummaryDrawer machineSystemId={drawerSystemId} onClose={() => setDrawerSystemId(null)} />
+      <MachineSummaryDrawer machineSystemId={drawerSystemId} onClose={handleClearSystemSelection} />
 
       <MachineStatusUpdateDialog
         machineSystemId={statusUpdateSystemId}

@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { AlertTriangle, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ClipboardCheck, Edit, Eye, History, Info, Plus, Power, RefreshCw, Settings2, Trash2, Wrench, X } from 'lucide-react';
 import Portal from './Portal';
-import { useDeactivateMachineSystemDetail, useDeleteMachineSystemDetail, useDetailTree, useMachineSystemSummary, useMachineSystems } from '../hooks/useMachineSystemDetails';
+import { useDeactivateMachineSystemDetail, useDeleteMachineSystemDetail, useDetailTree, useMachineSystemDetail, useMachineSystemSummary, useMachineSystems } from '../hooks/useMachineSystemDetails';
 import type { MachineStatus, MachineSystem, MachineSystemDetail, MachineSystemCategory } from '../services/machineSystemService';
 import MachineStatusLogList from './MachineStatusLogList';
 import MachineStatusUpdateDialog from './MachineStatusUpdateDialog';
@@ -144,6 +144,9 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [detailModal, setDetailModal] = useState<{ mode: 'create' | 'edit' | 'view'; record?: MachineSystemDetail } | null>(null);
+  const detailIdParam = searchParams.get('detailId');
+  const detailModeParam = searchParams.get('detailMode');
+  const detailIdQuery = useMachineSystemDetail(detailIdParam ?? '');
   const { data: summaryResp, isLoading } = useMachineSystemSummary(machineSystemId ?? '', 10);
   const detailTreeQuery = useDetailTree(machineSystemId ?? undefined);
   const deactivateDetail = useDeactivateMachineSystemDetail();
@@ -163,21 +166,30 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
   const handoverCount = summary?.handoverItems?.length ?? 0;
 
   const pushDrawerTab = useCallback((tab: ProfileTab) => {
-    const next = new URLSearchParams(searchParams);
-    next.set('drawer', 'open');
-    next.set('drawerTab', tab);
     syncingRef.current = true;
-    setSearchParams(next, { replace: true });
-  }, [searchParams, setSearchParams]);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('drawer', 'open');
+      next.set('drawerTab', tab);
+      // Preserve systemId / detailId already in URL; ensure systemId present when drawer open
+      if (machineSystemId && !next.get('systemId')) next.set('systemId', machineSystemId);
+      return next;
+    }, { replace: true });
+  }, [machineSystemId, setSearchParams]);
 
   const handleDrawerClose = useCallback(() => {
-    const next = new URLSearchParams(searchParams);
-    next.delete('drawer');
-    next.delete('drawerTab');
     syncingRef.current = true;
-    setSearchParams(next, { replace: true });
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('drawer');
+      next.delete('drawerTab');
+      next.delete('systemId');
+      next.delete('detailId');
+      next.delete('detailMode');
+      return next;
+    }, { replace: true });
     onClose();
-  }, [searchParams, setSearchParams, onClose]);
+  }, [setSearchParams, onClose]);
 
   const handleTabChange = useCallback((tab: ProfileTab) => {
     setActiveTab(tab);
@@ -233,8 +245,79 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
   };
 
   const openDetailModal = (mode: 'create' | 'edit' | 'view', record?: MachineSystemDetail) => {
+    if ((mode === 'view' || mode === 'edit') && record?.id) {
+      syncingRef.current = true;
+      setSearchParams((prev) => {
+        const p = new URLSearchParams(prev);
+        p.set('detailId', record.id);
+        p.set('detailMode', mode);
+        return p;
+      }, { replace: true });
+    }
     setDetailModal({ mode, record });
   };
+
+  const closeDetailModal = useCallback(() => {
+    setDetailModal(null);
+    syncingRef.current = true;
+    setSearchParams((prev) => {
+      const p = new URLSearchParams(prev);
+      p.delete('detailId');
+      p.delete('detailMode');
+      return p;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  // Hydrate detail modal from URL (reload / shared link) — expand ancestors after tree loads
+  const detailHydratedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isOpen || !treeItems) return;
+    if (syncingRef.current) { syncingRef.current = false; return; }
+    if (!detailIdParam) {
+      if (detailModal?.record?.id) setDetailModal(null);
+      detailHydratedRef.current = null;
+      return;
+    }
+    if (detailModal?.record?.id === detailIdParam || detailHydratedRef.current === detailIdParam) return;
+    // Try resolve from tree first (no fetch needed)
+    const fromTree = treeItems.find((t) => t.id === detailIdParam);
+    const mode = detailModeParam === 'edit' ? 'edit' as const : 'view' as const;
+    if (fromTree) {
+      const parentMap = new Map<string, string | null>();
+      treeItems.forEach((t) => parentMap.set(t.id, t.parentDetailId ?? null));
+      const ancestors: string[] = [];
+      let cur: string | null = fromTree.parentDetailId ?? null;
+      while (cur) { ancestors.push(cur); cur = parentMap.get(cur) ?? null; }
+      if (ancestors.length) setExpandedIds((prev) => { const n = new Set(prev); ancestors.forEach((a) => n.add(a)); return n; });
+      setActiveTab('details');
+      setDetailModal({ mode, record: fromTree });
+      detailHydratedRef.current = detailIdParam;
+      return;
+    }
+    if (detailIdQuery.isLoading) return;
+    const fetched = detailIdQuery.data?.data;
+    if (fetched && fetched.id === detailIdParam) {
+      const parentMap = new Map<string, string | null>();
+      treeItems.forEach((t) => parentMap.set(t.id, t.parentDetailId ?? null));
+      const ancestors: string[] = [];
+      let cur: string | null = (fetched as any).parentDetailId ?? null;
+      while (cur) { ancestors.push(cur); cur = parentMap.get(cur) ?? null; }
+      if (ancestors.length) setExpandedIds((prev) => { const n = new Set(prev); ancestors.forEach((a) => n.add(a)); return n; });
+      setActiveTab('details');
+      setDetailModal({ mode, record: fetched as any });
+      detailHydratedRef.current = detailIdParam;
+      return;
+    }
+    if (detailIdQuery.isError && detailHydratedRef.current !== detailIdParam) {
+      detailHydratedRef.current = detailIdParam;
+      toast.error('Không tìm thấy chi tiết yêu cầu');
+    }
+  }, [isOpen, treeItems, detailIdParam, detailModeParam, detailModal, detailIdQuery.data, detailIdQuery.isLoading, detailIdQuery.isError]);
+
+  useEffect(() => {
+    if (syncingRef.current) { syncingRef.current = false; return; }
+    if (!detailIdParam && detailModal) setDetailModal(null);
+  }, [detailIdParam]);
 
   const removeDetail = async (record: MachineSystemDetail) => {
     if (!confirm(`Xóa chi tiết ${record.maChiTiet}? Nếu đã phát sinh dữ liệu, hãy dừng hoạt động thay vì xóa.`)) return;
@@ -568,7 +651,7 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
         record={detailModal?.record}
         lockedMachineSystemId={machineSystemId ?? undefined}
         allSystems={allSystemsForModal}
-        onClose={() => setDetailModal(null)}
+        onClose={closeDetailModal}
       />
       <MachineStatusUpdateDialog
         machineSystemId={statusDialogOpen ? machineSystemId : null}
