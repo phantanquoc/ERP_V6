@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ChevronRight, ChevronDown, Diamond, Flag } from 'lucide-react';
 import type { ProjectPhase, ProjectTask } from '../services/projectService';
 
@@ -73,7 +74,41 @@ const getMonthMarkers = (start: Date, end: Date, totalDays: number) => {
 };
 
 const ProjectGantt: React.FC<Props> = ({ ngayBatDau, ngayKetThuc, phases }) => {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [expanded, setExpanded] = useState<Set<string>>(() => {
+    const raw = searchParams.get('expandedPhases');
+    return raw ? new Set(raw.split(',').filter(Boolean)) : new Set();
+  });
+  const ganttView = searchParams.get('ganttView');
+
+  const syncExpanded = (next: Set<string>) => {
+    const sp = new URLSearchParams(searchParams);
+    if (next.size > 0) sp.set('expandedPhases', Array.from(next).join(','));
+    else sp.delete('expandedPhases');
+    setSearchParams(sp, { replace: true });
+  };
+  const syncGanttView = (expandedAll: boolean) => {
+    const sp = new URLSearchParams(searchParams);
+    if (expandedAll) sp.set('ganttView', 'expanded');
+    else sp.delete('ganttView');
+    setSearchParams(sp, { replace: true });
+  };
+
+  useEffect(() => {
+    const raw = searchParams.get('expandedPhases');
+    const fromUrl = raw ? new Set(raw.split(',').filter(Boolean)) : new Set<string>();
+    // only sync if differs to avoid loops
+    const cur = Array.from(expanded).sort().join(',');
+    const nxt = Array.from(fromUrl).sort().join(',');
+    if (cur !== nxt) setExpanded(fromUrl as Set<string>);
+  }, [searchParams.get('expandedPhases')]);
+
+  // hydrate expanded on mount if ?ganttView=expanded and no explicit list
+  useEffect(() => {
+    if (ganttView === 'expanded' && expanded.size === 0 && phases.length > 0) {
+      setExpanded(new Set(phases.map(p => p.id)));
+    }
+  }, []);
   const start = new Date(ngayBatDau);
   const end = ngayKetThuc ? new Date(ngayKetThuc) : new Date(start.getTime() + 90 * 86400000);
   const totalDays = daysBetween(start, end);
@@ -87,12 +122,13 @@ const ProjectGantt: React.FC<Props> = ({ ngayBatDau, ngayKetThuc, phases }) => {
     setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(phaseId)) { next.delete(phaseId); } else { next.add(phaseId); }
+      syncExpanded(next);
       return next;
     });
   };
 
-  const expandAll = () => setExpanded(new Set(phases.map((p) => p.id)));
-  const collapseAll = () => setExpanded(new Set());
+  const expandAll = () => { const all = new Set(phases.map((p) => p.id)); setExpanded(all); syncExpanded(all); syncGanttView(true); };
+  const collapseAll = () => { setExpanded(new Set()); syncExpanded(new Set()); syncGanttView(false); };
 
   const getBarPct = (sd?: string | null, ed?: string | null) => {
     if (!sd || !ed) return null;

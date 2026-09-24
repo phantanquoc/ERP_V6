@@ -15,6 +15,8 @@ interface ProjectCostsProps {
   projectId: string;
   phases: ProjectPhase[];
   canWrite: boolean;
+  focusedCostId?: string;
+  onSelectCost?: (costId: string | null) => void;
 }
 
 const emptyCost = (): CreateProjectCostRequest => ({
@@ -36,7 +38,7 @@ const fmt = (val?: number | null) =>
 const isOver = (kh?: number | null, tt?: number | null) =>
   kh != null && tt != null && tt > kh;
 
-const ProjectCosts = ({ projectId, phases, canWrite }: ProjectCostsProps) => {
+const ProjectCosts = ({ projectId, phases, canWrite, focusedCostId, onSelectCost }: ProjectCostsProps) => {
   const costsQuery = useProjectCosts(projectId);
   const addCost = useAddProjectCost();
   const editCost = useUpdateProjectCost();
@@ -230,7 +232,7 @@ const ProjectCosts = ({ projectId, phases, canWrite }: ProjectCostsProps) => {
                     </td>
                   </tr>
                 ) : costs.map((cost) => (
-                  <tr key={cost.id} className="hover:bg-gray-50/50">
+                  <tr key={cost.id} onClick={() => onSelectCost?.(cost.id)} className={`cursor-pointer ${focusedCostId===cost.id ? 'bg-blue-50 ring-1 ring-blue-300' : 'hover:bg-gray-50/50'}`}>
                     <td className="px-3 py-2 text-gray-900 font-medium">{cost.loaiChiPhi}</td>
                     <td className="px-3 py-2 text-gray-700">{cost.tenChiPhi || '—'}</td>
                     <td className="px-3 py-2 text-gray-600">{cost.donVi || '—'}</td>
