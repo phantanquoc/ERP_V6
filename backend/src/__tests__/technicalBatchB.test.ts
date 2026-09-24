@@ -32,6 +32,14 @@ const mockPrisma: any = {
   project: { findUnique: jest.fn(), count: jest.fn(), groupBy: jest.fn() },
   projectPhase: { findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), groupBy: jest.fn() },
   projectTask: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn(), count: jest.fn() },
+  maintenanceTemplate: { findMany: jest.fn(), findUnique: jest.fn(), count: jest.fn().mockResolvedValue(0), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
+  maintenancePlan: { findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
+  maintenancePlanItem: { findMany: jest.fn(), count: jest.fn().mockResolvedValue(0), createMany: jest.fn(), deleteMany: jest.fn() },
+  maintenanceRecord: { findMany: jest.fn(), count: jest.fn().mockResolvedValue(0), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
+  finishedProduct: { findMany: jest.fn(), count: jest.fn() },
+  qualityEvaluation: { findMany: jest.fn(), count: jest.fn() },
+  machineStatusLog: { findMany: jest.fn(), count: jest.fn(), create: jest.fn() },
+  systemOperation: { findMany: jest.fn(), count: jest.fn() },
 };
 
 jest.mock('@config/database', () => ({
@@ -63,6 +71,15 @@ beforeEach(() => {
     if (typeof arg === 'function') return (arg as (tx: any) => unknown)(mockPrisma);
     return Promise.all(arg as Promise<unknown>[]);
   });
+  // Defaults for all count delegates (undefined would make sum NaN and skip ConflictError)
+  mockPrisma.faultRecord.count.mockResolvedValue(0);
+  mockPrisma.faultTemplate.count.mockResolvedValue(0);
+  mockPrisma.repairRequestItem.count.mockResolvedValue(0);
+  mockPrisma.acceptanceHandoverItem.count.mockResolvedValue(0);
+  mockPrisma.maintenanceTemplate.count.mockResolvedValue(0);
+  mockPrisma.maintenancePlanItem.count.mockResolvedValue(0);
+  mockPrisma.maintenanceRecord.count.mockResolvedValue(0);
+  mockPrisma.machineSystemDetail.count.mockResolvedValue(0);
 });
 
 describe('technical Batch B services', () => {

@@ -2,11 +2,13 @@
  * Batch E — 7.1 supply replenishment routing
  * Verifies: single/batch shortage grouping per phanLoai bucket,
  * ownership = SR.requester (not warehouse keeper), transaction atomicity,
- * one triggeredPurchaseRequestId per bucket (shared), Chờ bổ sung bridge,
+ * one triggeredReplenishmentRequestId per bucket (shared), Chờ bổ sung bridge,
  * and rollback on PR creation failure.
  */
 
 const mockTx: any = {
+  replenishmentRequest: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+  replenishmentRequestItem: { createMany: jest.fn() },
   supplyRequestItem: { update: jest.fn(), findUnique: jest.fn() },
   supplyRequest: { findUnique: jest.fn(), update: jest.fn() },
   purchaseRequest: { create: jest.fn(), findFirst: jest.fn() },
@@ -20,6 +22,8 @@ jest.mock('@config/database', () => ({
     supplyRequestItem: { findUnique: jest.fn(), findMany: jest.fn() },
     supplyRequest: { findUnique: jest.fn(), findMany: jest.fn() },
     purchaseRequest: { findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
+    replenishmentRequest: { findFirst: jest.fn(), create: jest.fn() },
+    replenishmentRequestItem: { createMany: jest.fn() },
     employee: { findUnique: jest.fn() },
     warehouses: { findUnique: jest.fn() },
     lot: { findUnique: jest.fn() },
@@ -94,10 +98,10 @@ beforeEach(() => {
   // mockTx defaults below are re-applied for every test.
   jest.resetAllMocks();
   (prismaMock.$transaction as jest.Mock).mockImplementation((fn: any) => fn(mockTx));
-  mockTx.purchaseRequest.create.mockImplementation(({ data }: any) =>
+  mockTx.replenishmentRequest.create.mockImplementation(({ data }: any) =>
     Promise.resolve({ id: `pr-${data.maYeuCau}-${Math.random().toString(36).slice(2, 6)}`, maYeuCau: data.maYeuCau, ...data })
   );
-  mockTx.purchaseRequestItem.createMany.mockResolvedValue({ count: 1 });
+  mockTx.replenishmentRequestItem.createMany.mockResolvedValue({ count: 1 });
   mockTx.supplyRequestItem.update.mockResolvedValue({});
   mockTx.supplyRequestDecision.create.mockResolvedValue({});
   mockTx.supplyRequest.findUnique.mockResolvedValue({ trangThai: 'Chưa cung cấp' });
@@ -117,12 +121,11 @@ describe('supplyRequestService.partialFulfill — replenishment routing', () => 
       routeShortageToPurchase: true,
     });
 
-    expect(mockTx.purchaseRequest.create).toHaveBeenCalledTimes(1);
-    const prData = mockTx.purchaseRequest.create.mock.calls[0][0].data;
+    expect(mockTx.replenishmentRequest.create).toHaveBeenCalledTimes(1);
+    const prData = mockTx.replenishmentRequest.create.mock.calls[0][0].data;
     expect(prData.employeeId).toBe('emp-requester');
     expect(prData.maNhanVien).toBe('NV-REQ');
     expect(prData.tenNhanVien).toBe('Nguyen Requester');
-    expect(prData.sourceType).toBe('SHORTAGE');
     expect(prData.trangThai).toBe('Chờ báo giá');
     expect(prData.supplyRequestId).toBe('sr-1');
     // decidedBy stays on decision, not on PR
@@ -131,7 +134,7 @@ describe('supplyRequestService.partialFulfill — replenishment routing', () => 
     );
   });
 
-  it('decisions in same bucket share triggeredPurchaseRequestId; SR bridges to Chờ bổ sung', async () => {
+  it('decisions in same bucket share triggeredReplenishmentRequestId; SR bridges to Chờ bổ sung', async () => {
     (prismaMock.supplyRequestItem.findUnique as jest.Mock).mockResolvedValue(item());
     (prismaMock.supplyRequestItem.findMany as jest.Mock).mockResolvedValue([
       { soLuong: 100, fulfilledQty: 40, fulfillmentStatus: 'Đã cấp một phần' },
@@ -141,8 +144,8 @@ describe('supplyRequestService.partialFulfill — replenishment routing', () => 
       decidedByEmployeeId: 'emp-warehouse',
     });
     const decisionData = mockTx.supplyRequestDecision.create.mock.calls[0][0].data;
-    void (mockTx.purchaseRequest.create.mock.calls[0][0].data as unknown);
-    expect(decisionData.triggeredPurchaseRequestId).toBeTruthy();
+    void (mockTx.replenishmentRequest.create.mock.calls[0][0].data as unknown);
+    expect(decisionData.triggeredReplenishmentRequestId).toBeTruthy();
     expect(mockTx.supplyRequest.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: { trangThai: 'Chờ bổ sung' } })
     );
@@ -157,9 +160,9 @@ describe('supplyRequestService.partialFulfill — replenishment routing', () => 
       fulfilledQty: 100,
       decidedByEmployeeId: 'emp-warehouse',
     });
-    expect(mockTx.purchaseRequest.create).not.toHaveBeenCalled();
+    expect(mockTx.replenishmentRequest.create).not.toHaveBeenCalled();
     expect(mockTx.supplyRequestDecision.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ decision: 'Cấp đủ', triggeredPurchaseRequestId: null }) })
+      expect.objectContaining({ data: expect.objectContaining({ decision: 'Cấp đủ', triggeredReplenishmentRequestId: null }) })
     );
   });
 
@@ -168,8 +171,8 @@ describe('supplyRequestService.partialFulfill — replenishment routing', () => 
     (prismaMock.$transaction as jest.Mock).mockImplementation(async (fn: any) => {
       const tx = {
         ...mockTx,
-        purchaseRequest: {
-          ...mockTx.purchaseRequest,
+        replenishmentRequest: {
+          ...mockTx.replenishmentRequest,
           create: jest.fn().mockRejectedValue(new Error('DB down')),
         },
       };
@@ -209,18 +212,17 @@ describe('supplyRequestService.batchFulfill — bucket grouping', () => {
     ]);
 
     expect(result.success).toBe(true);
-    expect(mockTx.purchaseRequest.create).toHaveBeenCalledTimes(2);
+    expect(mockTx.replenishmentRequest.create).toHaveBeenCalledTimes(2);
     // materials bucket has 2 items, equipment has 1
-    const counts = mockTx.purchaseRequestItem.createMany.mock.calls.map((c: any) => c[0].data.length).sort();
+    const counts = mockTx.replenishmentRequestItem.createMany.mock.calls.map((c: any) => c[0].data.length).sort();
     expect(counts).toEqual([1, 2]);
     // all PRs owned by requester
-    for (const call of mockTx.purchaseRequest.create.mock.calls) {
+    for (const call of mockTx.replenishmentRequest.create.mock.calls) {
       expect(call[0].data.employeeId).toBe('emp-requester');
-      expect(call[0].data.sourceType).toBe('SHORTAGE');
     }
   });
 
-  it('lines in same bucket share the same triggeredPurchaseRequestId', async () => {
+  it('lines in same bucket share the same triggeredReplenishmentRequestId', async () => {
     const items = batchItems().slice(0, 2); // both MATERIALS
     (prismaMock.supplyRequestItem.findMany as jest.Mock)
       .mockResolvedValueOnce(items)
@@ -233,13 +235,13 @@ describe('supplyRequestService.batchFulfill — bucket grouping', () => {
       { itemId: 'item-b', fulfilledQty: 20, decidedByEmployeeId: 'emp-wh' },
     ]);
 
-    expect(mockTx.purchaseRequest.create).toHaveBeenCalledTimes(1);
-    const prId = (await mockTx.purchaseRequest.create.mock.results[0].value).id;
+    expect(mockTx.replenishmentRequest.create).toHaveBeenCalledTimes(1);
+    const prId = (await mockTx.replenishmentRequest.create.mock.results[0].value).id;
     const decisionCalls = mockTx.supplyRequestDecision.create.mock.calls;
     // both decisions carry the same PR id (one bucket)
     expect(decisionCalls).toHaveLength(2);
-    expect(decisionCalls[0][0].data.triggeredPurchaseRequestId).toBe(prId);
-    expect(decisionCalls[1][0].data.triggeredPurchaseRequestId).toBe(prId);
+    expect(decisionCalls[0][0].data.triggeredReplenishmentRequestId).toBe(prId);
+    expect(decisionCalls[1][0].data.triggeredReplenishmentRequestId).toBe(prId);
   });
 
   it('no shortage creates no PR', async () => {
@@ -254,6 +256,6 @@ describe('supplyRequestService.batchFulfill — bucket grouping', () => {
       { itemId: 'item-a', fulfilledQty: 10, decidedByEmployeeId: 'emp-wh' },
     ]);
 
-    expect(mockTx.purchaseRequest.create).not.toHaveBeenCalled();
+    expect(mockTx.replenishmentRequest.create).not.toHaveBeenCalled();
   });
 });

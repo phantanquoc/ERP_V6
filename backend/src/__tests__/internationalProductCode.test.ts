@@ -91,7 +91,7 @@ describe('generateProductCode', () => {
 describe('createProduct', () => {
   it('keeps a hand-edited code instead of overwriting it with a suggestion', async () => {
     db.internationalProduct.findUnique.mockResolvedValue(null);
-    db.internationalProduct.create.mockImplementation(({ data }: any) => data);
+    db.internationalProduct.create.mockImplementation(({ data }: any) => Promise.resolve(data));
 
     const result = await service.createProduct({
       maSanPham: 'NLT-099-TUCHON',
@@ -107,7 +107,7 @@ describe('createProduct', () => {
   it('suggests a code when the client leaves the field empty', async () => {
     db.internationalProduct.findMany.mockResolvedValue([]);
     db.internationalProduct.findUnique.mockResolvedValue(null);
-    db.internationalProduct.create.mockImplementation(({ data }: any) => data);
+    db.internationalProduct.create.mockImplementation(({ data }: any) => Promise.resolve(data));
 
     const result = await service.createProduct({
       maSanPham: '',
@@ -294,7 +294,7 @@ describe('renameCategory', () => {
 describe('writable-field whitelist', () => {
   it('drops unknown keys instead of passing them to Prisma', async () => {
     db.internationalProduct.findUnique.mockResolvedValue(null);
-    db.internationalProduct.create.mockImplementation(({ data }: any) => data);
+    db.internationalProduct.create.mockImplementation(({ data }: any) => Promise.resolve(data));
 
     await service.createProduct({
       maSanPham: 'BB-001-X',

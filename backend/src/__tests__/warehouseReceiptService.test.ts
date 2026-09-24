@@ -36,6 +36,16 @@ const mockTx = {
   lot: {
     findUnique: jest.fn(),
   },
+  purchaseRequest: {
+    findUnique: jest.fn().mockResolvedValue(null),
+  },
+  inboundPlan: {
+    findUnique: jest.fn().mockResolvedValue(null),
+    update: jest.fn(),
+  },
+  lookup: {
+    findFirst: jest.fn().mockResolvedValue({ id: 'lk' }),
+  },
 };
 
 jest.mock('@config/database', () => ({
@@ -45,6 +55,7 @@ jest.mock('@config/database', () => ({
       findUnique: jest.fn(),
       findFirst: jest.fn(),
       findMany: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
     },
     warehouseReceiptItem: {
       findMany: jest.fn(),
@@ -54,6 +65,19 @@ jest.mock('@config/database', () => ({
       findMany: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn(),
+    },
+    purchaseRequest: {
+      findUnique: jest.fn(),
+    },
+    inboundPlan: {
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
+    user: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    lookup: {
+      findFirst: jest.fn().mockResolvedValue({ id: 'lk' }),
     },
     $transaction: jest.fn((fn: any) => fn(mockTx)),
   },
@@ -306,6 +330,7 @@ describe('warehouseReceiptService.update', () => {
 
     const result = await warehouseReceiptService.update('r1', {
       items: [line({ id: 'it1', soLuongThucTe: 15 })],
+      lyDoChenhLech: 'TT khac KH',
     });
 
     expect(result.tongSoLuongThucTe).toBe(15);
@@ -405,7 +430,7 @@ describe('warehouseReceiptService.update', () => {
     mockTx.lotProduct.findMany.mockResolvedValue(balanceRows([{ id: 'lp1', soLuong: 30 }]));
 
     await expect(
-      warehouseReceiptService.update('r1', { items: [line({ id: 'it1', soLuongThucTe: 10 })] })
+      warehouseReceiptService.update('r1', { items: [line({ id: 'it1', soLuongThucTe: 10 })], lyDoChenhLech: 'test' })
     ).rejects.toThrow('không đủ');
 
     expect(mockTx.lotProduct.update).not.toHaveBeenCalled();
@@ -571,7 +596,7 @@ describe('warehouseReceiptService.getAll', () => {
     expect(list[0].items).toHaveLength(2);
     expect(list[0].isLocked).toBe(false);
     const findManyArgs = (prismaMock.warehouseReceipt.findMany as jest.Mock).mock.calls[0][0];
-    expect(findManyArgs.include.items).toEqual({ orderBy: { stt: 'asc' } });
+    expect(findManyArgs.include.items.orderBy).toEqual({ stt: 'asc' });
   });
 });
 

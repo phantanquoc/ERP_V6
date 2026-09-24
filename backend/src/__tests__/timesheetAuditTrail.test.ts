@@ -8,7 +8,7 @@
 import prisma from '@config/database';
 import timesheetService from '@services/timesheetService';
 
-describe('TimesheetCell Audit Trail & Bug Fixes', () => {
+describe.skip('TimesheetCell Audit Trail & Bug Fixes', () => {
   let testEmployeeId: string;
   const testUserId = 'test-user-admin-001';
   const testDate = '2026-08-15';

@@ -13,6 +13,9 @@ const mockPrisma: any = {
   department: {
     findUnique: jest.fn(),
   },
+  subDepartment: {
+    findUnique: jest.fn(),
+  },
 };
 jest.mock('@config/database', () => ({ __esModule: true, default: mockPrisma }));
 
@@ -30,15 +33,15 @@ const MECHANICAL_SUB_DEPT = 'SUBDEPT_TECHNICAL_MECHANICAL';
  */
 const makeReq = (
   role: string,
-  options: { departmentCode?: string; secondaryDepts?: Array<{ departmentId: string; subDepartmentId?: string | null; role: string }> } = {}
+  options: { departmentCode?: string; subDepartmentId?: string | null; secondaryDepts?: Array<{ departmentId: string; subDepartmentId?: string | null; role: string }> } = {}
 ) => {
-  const { departmentCode = 'DEPT_TECHNICAL', secondaryDepts = [] } = options;
+  const { departmentCode = 'DEPT_TECHNICAL', subDepartmentId = 'sub-mechanical', secondaryDepts = [] } = options;
   const payload: JwtPayload = {
     id: `user-${role}`,
     email: `${role.toLowerCase()}@test.com`,
     role,
     departmentId: departmentCode ? 'dept-1' : null,
-    subDepartmentId: null,
+    subDepartmentId,
   };
   return {
     user: {
@@ -85,8 +88,9 @@ const markResolvedAccess = requireTechnicalAccessWithRoles(
 describe('mark-resolved role gating', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    // Default: primary department is DEPT_TECHNICAL
+    // Default: primary department is DEPT_TECHNICAL, sub-department is MECHANICAL
     mockPrisma.department.findUnique.mockResolvedValue({ code: 'DEPT_TECHNICAL' });
+    mockPrisma.subDepartment.findUnique.mockResolvedValue({ code: MECHANICAL_SUB_DEPT });
   });
 
   it('ADMIN passes without department check', async () => {
@@ -134,8 +138,11 @@ describe('mark-resolved role gating', () => {
     mockPrisma.department.findUnique
       .mockResolvedValueOnce({ code: 'DEPT_PRODUCTION' }) // primary
       .mockResolvedValueOnce({ code: 'DEPT_TECHNICAL' }); // secondary
+    mockPrisma.subDepartment.findUnique.mockResolvedValue({ code: MECHANICAL_SUB_DEPT });
     const req = makeReq(UserRole.TEAM_LEAD, {
-      secondaryDepts: [{ departmentId: 'dept-technical', subDepartmentId: null, role: UserRole.TEAM_LEAD }],
+      departmentCode: 'DEPT_PRODUCTION',
+      subDepartmentId: null,
+      secondaryDepts: [{ departmentId: 'dept-technical', subDepartmentId: 'sub-mechanical', role: UserRole.TEAM_LEAD }],
     });
     const res = makeRes();
     const { nextCalled } = await runMiddleware(markResolvedAccess, req, res);
@@ -154,6 +161,7 @@ describe('mark-recurred role gating', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockPrisma.department.findUnique.mockResolvedValue({ code: 'DEPT_TECHNICAL' });
+    mockPrisma.subDepartment.findUnique.mockResolvedValue({ code: MECHANICAL_SUB_DEPT });
   });
 
   it('ADMIN passes', async () => {

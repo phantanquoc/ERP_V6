@@ -3,12 +3,16 @@ import prisma from '@config/database';
 // ─── Mock prisma ─────────────────────────────────────────────────────────────
 jest.mock('@config/database', () => {
   const tx = {
-    warehouseIssue: { create: jest.fn().mockResolvedValue({ id: 'wi-1' }) },
-    lotProduct: { update: jest.fn().mockResolvedValue({}), findUnique: jest.fn() },
+    warehouseIssue: { create: jest.fn().mockResolvedValue({ id: 'wi-1' }), findFirst: jest.fn().mockResolvedValue(null) },
+    lotProduct: { update: jest.fn().mockResolvedValue({}), findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
     materialEvaluation: { create: jest.fn(), update: jest.fn() },
-    finishedProduct: { create: jest.fn(), deleteMany: jest.fn() },
+    finishedProduct: { create: jest.fn(), deleteMany: jest.fn(), upsert: jest.fn().mockResolvedValue({ id: 'fp-1', maChien: 'MC-05' }) },
     qualityEvaluation: { create: jest.fn(), deleteMany: jest.fn() },
     systemOperation: { create: jest.fn() },
+    replenishmentRequest: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+    replenishmentRequestItem: { createMany: jest.fn() },
+    finishedProductEntryHistory: { deleteMany: jest.fn(), create: jest.fn(), createMany: jest.fn() },
+    employee: { findUnique: jest.fn().mockResolvedValue(null) },
   };
   return {
     __esModule: true,
@@ -16,7 +20,7 @@ jest.mock('@config/database', () => {
       $transaction: jest.fn((cb: any) => cb(tx)),
       __tx: tx,
       materialEvaluation: { create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn() },
-      finishedProduct: { create: jest.fn(), upsert: jest.fn() },
+      finishedProduct: { create: jest.fn(), upsert: jest.fn().mockResolvedValue({ id: 'fp-1', maChien: 'MC-05' }) },
       lotProduct: { findUnique: jest.fn() },
       warehouseIssue: { findFirst: jest.fn().mockResolvedValue(null), count: jest.fn().mockResolvedValue(0) },
       user: { findUnique: jest.fn().mockResolvedValue(null) },
@@ -33,11 +37,7 @@ jest.mock('@config/logger', () => ({
 
 const mocked = prisma as unknown as {
   $transaction: jest.Mock;
-  __tx: {
-    materialEvaluation: { create: jest.Mock };
-    warehouseIssue: { create: jest.Mock };
-    lotProduct: { update: jest.Mock; findUnique: jest.Mock };
-  };
+  __tx: any;
   materialEvaluation: { create: jest.Mock; findFirst: jest.Mock };
   finishedProduct: { upsert: jest.Mock };
   lotProduct: { findUnique: jest.Mock };
@@ -80,7 +80,7 @@ describe('maSanPham persisted on entry records', () => {
   });
 
   it('stores the commodity code taken from the warehouse package', async () => {
-    mocked.__tx.lotProduct.findUnique.mockResolvedValue(LOT_PRODUCT);
+    (mocked.__tx as any).lotProduct.findMany.mockResolvedValue([LOT_PRODUCT]);
     const { default: service } = await import('@services/materialEvaluationService');
 
     await service.createMaterialEvaluation(
@@ -88,14 +88,13 @@ describe('maSanPham persisted on entry records', () => {
       'user-1',
     );
 
-    const created = mocked.__tx.materialEvaluation.create.mock.calls[0]?.[0];
+    const created = (mocked.__tx as any).materialEvaluation.create.mock.calls[0]?.[0];
     expect(created.data.maSanPham).toBe('NLD-001-MDSLB');
-    // The name snapshot must keep working alongside the new code column.
     expect(created.data.tenHangHoa).toBe('Mít đông sấy Lá Bàng');
   });
 
   it('stores the package code as the package reference rather than a CUID fragment', async () => {
-    mocked.__tx.lotProduct.findUnique.mockResolvedValue(LOT_PRODUCT);
+    (mocked.__tx as any).lotProduct.findMany.mockResolvedValue([LOT_PRODUCT]);
     const { default: service } = await import('@services/materialEvaluationService');
 
     await service.createMaterialEvaluation(
@@ -103,7 +102,7 @@ describe('maSanPham persisted on entry records', () => {
       'user-1',
     );
 
-    const created = mocked.__tx.materialEvaluation.create.mock.calls[0]?.[0];
+    const created = (mocked.__tx as any).materialEvaluation.create.mock.calls[0]?.[0];
     expect(created.data.soLoKien).toBe('Lô Nguyên Liệu-s6hp');
   });
 
@@ -149,7 +148,7 @@ describe('upsertByBatchMachine — commodity code on the output board', () => {
       'user-1',
     );
 
-    const call = mocked.finishedProduct.upsert.mock.calls[0]?.[0];
+    const call = (mocked.__tx as any).finishedProduct.upsert.mock.calls[0]?.[0];
     expect(call.create.maSanPham).toBe('NLD-001-MDSLB');
   });
 
@@ -167,7 +166,7 @@ describe('upsertByBatchMachine — commodity code on the output board', () => {
       'user-1',
     );
 
-    const call = mocked.finishedProduct.upsert.mock.calls[0]?.[0];
+    const call = (mocked.__tx as any).finishedProduct.upsert.mock.calls[0]?.[0];
     expect(call.create.maSanPham).toBeNull();
   });
 });

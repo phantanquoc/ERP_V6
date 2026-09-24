@@ -15,6 +15,7 @@ const mockPrisma: any = {
     count: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     delete: jest.fn(),
   },
   faultRecordStatusLog: {
@@ -45,6 +46,7 @@ import { ValidationError, NotFoundError } from '@utils/errors';
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockPrisma.faultRecord.updateMany.mockResolvedValue({ count: 1 });
 });
 
 // ─── markResolved ──────────────────────────────────────────────────────────────
@@ -62,8 +64,8 @@ describe('faultRecordService.markResolved', () => {
 
     await expect(faultRecordService.markResolved('fr-1', 'user-1', 'Test reason')).resolves.not.toThrow();
 
-    expect(mockPrisma.faultRecord.update).toHaveBeenCalledWith({
-      where: { id: 'fr-1' },
+    expect(mockPrisma.faultRecord.updateMany).toHaveBeenCalledWith({
+      where: { id: 'fr-1', trangThai: FaultRecordStatus.DANG_THEO_DOI },
       data: expect.objectContaining({
         trangThai: FaultRecordStatus.DA_XU_LY,
         ngayXuLy: expect.any(Date),
@@ -165,8 +167,8 @@ describe('faultRecordService.markRecurred', () => {
 
     await faultRecordService.markRecurred('fr-4', 'user-1');
 
-    expect(mockPrisma.faultRecord.update).toHaveBeenCalledWith({
-      where: { id: 'fr-4' },
+    expect(mockPrisma.faultRecord.updateMany).toHaveBeenCalledWith({
+      where: { id: 'fr-4', trangThai: FaultRecordStatus.DA_XU_LY },
       data: expect.objectContaining({
         trangThai: FaultRecordStatus.TAI_PHAT,
         ngayXuLy: null,

@@ -36,6 +36,7 @@ jest.mock('@config/database', () => ({
       findUnique: jest.fn(),
       findFirst: jest.fn(),
       findMany: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
     },
     lotProduct: {
       findMany: jest.fn(),
@@ -43,6 +44,8 @@ jest.mock('@config/database', () => ({
       update: jest.fn(),
       updateMany: jest.fn(),
     },
+    user: { findMany: jest.fn().mockResolvedValue([]) },
+    lookup: { findFirst: jest.fn().mockResolvedValue({ id: 'lk' }) },
     $transaction: jest.fn((fn: any) => fn(mockTx)),
   },
 }));
@@ -270,6 +273,7 @@ describe('warehouseIssueService.update', () => {
 
     await warehouseIssueService.update('i1', {
       items: [line('lp1', 8, { id: 'it1' })],
+      lyDoChenhLech: 'ly do',
     });
 
     // 20 + 5 refunded = 25, netOut = 8 - 5 = 3.
@@ -297,6 +301,7 @@ describe('warehouseIssueService.update', () => {
 
     await warehouseIssueService.update('i1', {
       items: [line('lp1', 95, { id: 'it1' })],
+      lyDoChenhLech: 'ly do',
     });
 
     expect(mockTx.lotProduct.updateMany).toHaveBeenCalledWith({
@@ -360,6 +365,7 @@ describe('warehouseIssueService.update', () => {
       warehouseIssueService.update('i1', {
         // 110 available after refund, but 60 + 60 = 120 demanded.
         items: [line('lp1', 60, { id: 'it1' }), line('lp1', 60)],
+        lyDoChenhLech: 'ly do',
       })
     ).rejects.toThrow('Số lượng tồn kho');
 
@@ -511,7 +517,7 @@ describe('warehouseIssueService.getAll / getById', () => {
     // so a list without lines silently hides every other commodity.
     expect(list[0].items).toHaveLength(2);
     const findManyArgs = (prismaMock.warehouseIssue.findMany as jest.Mock).mock.calls[0][0];
-    expect(findManyArgs.include.items).toEqual({ orderBy: { stt: 'asc' } });
+    expect(findManyArgs.include.items.orderBy).toEqual({ stt: 'asc' });
   });
 
   it('includes lines on detail', async () => {

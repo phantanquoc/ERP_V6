@@ -418,7 +418,8 @@ export class EmployeeEvaluationController {
       const evaluationId = req.params.id as string;
       const userId = req.user?.id ?? '';
       const userRole = req.user?.role ?? '';
-      const userDepartmentIds = req.userDepartmentIds;
+      const rawDept = (req as any).userDepartmentIds ?? (req as any).userDepartmentId;
+      const userDepartmentIds = rawDept ?? null;
 
       const data = await getAuditLog(prisma, evaluationId, userId, userRole, userDepartmentIds);
 

@@ -16,6 +16,7 @@ jest.mock('@config/database', () => ({
       delete: jest.fn(),
       count: jest.fn(),
     },
+    evaluationDetail: { count: jest.fn().mockResolvedValue(0) },
     $transaction: jest.fn(),
   },
 }));

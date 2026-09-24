@@ -55,6 +55,27 @@ const mockPrisma: any = {
   },
   maintenanceRecord: {
     findMany: jest.fn(),
+    count: jest.fn(),
+  },
+  maintenancePlan: {
+    findMany: jest.fn().mockResolvedValue([]),
+    count: jest.fn(),
+  },
+  maintenancePlanItem: {
+    findMany: jest.fn(),
+    count: jest.fn(),
+  },
+  maintenanceTemplate: {
+    findMany: jest.fn(),
+    count: jest.fn(),
+  },
+  finishedProduct: {
+    findMany: jest.fn().mockResolvedValue([]),
+    count: jest.fn(),
+  },
+  qualityEvaluation: {
+    findMany: jest.fn().mockResolvedValue([]),
+    count: jest.fn(),
   },
   acceptanceHandover: {
     findFirst: jest.fn(),
@@ -79,6 +100,9 @@ import { NotFoundError, ValidationError } from '@utils/errors';
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockPrisma.maintenancePlan.findMany.mockResolvedValue([]);
+  mockPrisma.finishedProduct.findMany.mockResolvedValue([]);
+  mockPrisma.qualityEvaluation.findMany.mockResolvedValue([]);
 });
 
 describe('MachineSystemService — getSummary', () => {

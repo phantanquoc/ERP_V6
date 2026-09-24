@@ -181,7 +181,8 @@ describe('suggestProductCode', () => {
     const code1 = suggestProductCode({ tenSanPham: 'Hàng hóa mới', loaiSanPham: 'Phụ liệu', existingCodes: existing });
     const code2 = suggestProductCode({ tenSanPham: 'Hàng khác', loaiSanPham: 'Nhiên liệu', existingCodes: [...existing, code1] });
     // Both get globally unique sequences: 11 and 12
-    expect(code1).toBe('PL-011-SPM');
+    // "Hàng hóa mới" abbreviates to HHM (H/H/M), not SPM
+    expect(code1).toBe('PL-011-HHM');
     expect(code2).toBe('NL-012-HK');
   });
 

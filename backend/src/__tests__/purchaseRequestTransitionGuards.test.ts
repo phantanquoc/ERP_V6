@@ -17,6 +17,9 @@ const mockTxItems = {
 const mockTx = {
   purchaseRequestItem: mockTxItems.purchaseRequestItem,
   purchaseRequest: mockTxItems.purchaseRequest,
+  inboundPlan: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'ip-1' }), update: jest.fn() },
+  inboundPlanLog: { create: jest.fn().mockResolvedValue({}) },
+  purchaseRequestItem_update: jest.fn(),
 } as any;
 
 jest.mock('@config/database', () => ({
@@ -40,9 +43,17 @@ jest.mock('@config/database', () => ({
     },
     supplier: { findMany: jest.fn() },
     supplyRequest: { findUnique: jest.fn(), update: jest.fn() },
-    employee: { findMany: jest.fn(), findUnique: jest.fn() },
+    employee: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn() },
     user: { findUnique: jest.fn() },
     userSecondaryDepartment: { findMany: jest.fn() },
+    inboundPlan: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn() },
+    inboundPlanLog: { create: jest.fn() },
+    warehouses: { findUnique: jest.fn().mockResolvedValue(null) },
+    warehouseReceipt: { findFirst: jest.fn().mockResolvedValue(null) },
+    internationalProduct: { findFirst: jest.fn().mockResolvedValue(null), update: jest.fn() },
+    lotProduct: { aggregate: jest.fn().mockResolvedValue({ _sum: { soLuong: 0 } }) },
+    department: { findMany: jest.fn().mockResolvedValue([]) },
+    replenishmentRequest: { findFirst: jest.fn().mockResolvedValue(null), update: jest.fn() },
     $transaction: jest.fn((fn: any) => fn(mockTx)),
   },
 }));
@@ -105,6 +116,19 @@ beforeEach(() => {
   );
   mockTx.purchaseRequest.create.mockImplementation(({ data }: any) => Promise.resolve({ id: 'pr-new', ...data } as any));
   mockTx.purchaseRequest.update.mockImplementation(({ where, data }: any) => Promise.resolve({ id: where.id, ...data, employeeId: 'emp-req' } as any));
+  // Default gate data: valid so downstream Hoan thanh gate passes when not testing gate failures
+  (prismaMock.inboundPlan.findUnique as jest.Mock).mockResolvedValue(null);
+  (prismaMock.inboundPlan.findFirst as jest.Mock).mockResolvedValue(null);
+  if ((mockTx as any).inboundPlan) {
+    ((mockTx as any).inboundPlan.findUnique as jest.Mock).mockResolvedValue(null);
+    ((mockTx as any).inboundPlan.findFirst as jest.Mock).mockResolvedValue(null);
+  }
+  (prismaMock.purchaseRequestItem.findMany as jest.Mock).mockResolvedValue([
+    { id: 'pri-1', tenHangHoa: 'Xoai', soLuong: 10, giaThucTe: 1000, soLuongThucTe: 10 },
+  ] as any);
+  mockTxItems.purchaseRequestItem.findMany.mockResolvedValue([
+    { id: 'pri-1', tenHangHoa: 'Xoai', giaThucTe: 1000, soLuongThucTe: 10 } as any,
+  ] as any);
 });
 
 describe('ALLOWED_TRANSITIONS matrix', () => {
@@ -142,10 +166,22 @@ describe('ALLOWED_TRANSITIONS matrix', () => {
       ['Đã duyệt', 'Hoàn thành'],
     ];
     for (const [from, to] of ok) {
-      (prismaMock.purchaseRequest.findUnique as jest.Mock).mockResolvedValue(prRow(from));
+      // Gate for Hoan thanh: DB has giaThucTe + soLuongThucTe == soLuong (no diff, no reason needed)
+      const extraForGate = to === 'Hoàn thành' ? { lyDoChenhLech: null, ngayYeuCau: new Date('2026-01-01') } : {};
+      (prismaMock.purchaseRequest.findUnique as jest.Mock).mockResolvedValue(prRow(from, extraForGate));
       (prismaMock.purchaseRequest.update as jest.Mock).mockResolvedValue({ id: 'pr-1', trangThai: to });
+      if (to === 'Hoàn thành') {
+        (prismaMock.inboundPlan.findUnique as jest.Mock).mockResolvedValue(null);
+  (prismaMock.inboundPlan.findFirst as jest.Mock).mockResolvedValue(null);
+  if ((mockTx as any).inboundPlan) {
+    ((mockTx as any).inboundPlan.findUnique as jest.Mock).mockResolvedValue(null);
+    ((mockTx as any).inboundPlan.findFirst as jest.Mock).mockResolvedValue(null);
+  }
+  (prismaMock.purchaseRequestItem.findMany as jest.Mock).mockResolvedValue([
+          { id: 'pri-1', tenHangHoa: 'Xoai', soLuong: 10, giaThucTe: 1200, soLuongThucTe: 10 },
+        ] as any);
+      }
       (prismaMock.user.findUnique as jest.Mock).mockResolvedValue({ id: 'u-1', role: 'ADMIN' });
-      // approval states require actor check; Hoan thanh requires prior Đã duyệt (satisfied)
       const payload: any = { trangThai: to, __actorUserId: 'u-1' };
       if (to === 'Đã duyệt') { payload.nguoiDuyet = 'Admin'; payload.ngayDuyet = new Date().toISOString(); }
       await expect(purchaseRequestService.updatePurchaseRequest('pr-1', payload)).resolves.toBeDefined();
@@ -153,8 +189,8 @@ describe('ALLOWED_TRANSITIONS matrix', () => {
   });
 });
 
-describe('item/pricing lock — only Hoàn thành locks, Đã duyệt is editable', () => {
-  it.each(['Hoàn thành'] as const)('rejects items mutation when status is %s', async (status) => {
+describe('item/pricing lock — Hoàn thành + Đã hủy lock, Đã duyệt is editable', () => {
+  it.each(['Hoàn thành', 'Đã hủy'] as const)('rejects items mutation when status is %s', async (status) => {
     (prismaMock.purchaseRequest.findUnique as jest.Mock).mockResolvedValue(prRow(status));
     await expect(
       purchaseRequestService.updatePurchaseRequest('pr-1', { items: [{ phanLoai: 'Nguyên liệu', tenHangHoa: 'X', soLuong: 1, donViTinh: 'Kg' }] } as any)
@@ -163,6 +199,13 @@ describe('item/pricing lock — only Hoàn thành locks, Đã duyệt is editabl
 
   it('rejects pricing field mutation when status is Hoàn thành', async () => {
     (prismaMock.purchaseRequest.findUnique as jest.Mock).mockResolvedValue(prRow('Hoàn thành'));
+    await expect(
+      purchaseRequestService.updatePurchaseRequest('pr-1', { giaDuKien: 999 } as any)
+    ).rejects.toMatchObject({ name: 'ValidationError' });
+  });
+
+  it('rejects pricing/schedule mutation when status is Đã hủy', async () => {
+    (prismaMock.purchaseRequest.findUnique as jest.Mock).mockResolvedValue(prRow('Đã hủy'));
     await expect(
       purchaseRequestService.updatePurchaseRequest('pr-1', { giaDuKien: 999 } as any)
     ).rejects.toMatchObject({ name: 'ValidationError' });
@@ -181,7 +224,7 @@ describe('item/pricing lock — only Hoàn thành locks, Đã duyệt is editabl
     (prismaMock.purchaseRequest.findUnique as jest.Mock).mockResolvedValue(
       prRow('Đã duyệt', { items: [{ id: 'pri-1', nhaCungCapId: 'sup-1', giaDuKien: 1000, giaThucTe: 9000, soLuong: 10, phanLoai: 'Nguyên liệu', tenHangHoa: 'Xoai', donViTinh: 'Kg', supplier: { id: 'sup-1' } }] } as any)
     );
-    mockTxItems.purchaseRequestItem.findMany.mockResolvedValue([{ id: 'pri-1', tenHangHoa: 'Xoai', giaThucTe: 9000 }] as any);
+    mockTxItems.purchaseRequestItem.findMany.mockResolvedValue([{ id: 'pri-1', tenHangHoa: 'Xoai', giaThucTe: 9000, soLuongThucTe: 10 }] as any);
     await purchaseRequestService.updatePurchaseRequest('pr-1', {
       items: [{ id: 'pri-1', phanLoai: 'Nguyên liệu', tenHangHoa: 'Xoai', soLuong: 10, donViTinh: 'Kg', giaDuKien: 1200, nhaCungCapId: 'sup-1' }],
     } as any);
@@ -221,6 +264,159 @@ describe('submitForApproval', () => {
     expect((prismaMock.purchaseRequest.updateMany as jest.Mock)).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ trangThai: 'Chờ báo giá' }) })
     );
+  });
+});
+
+describe('Hoàn thành gate — giaThucTe>0 + soLuongThucTe>0 + lyDoChenhLech when TT != KH', () => {
+  function gateRow(extra: Record<string, unknown> = {}) {
+    return prRow('Đã duyệt', { lyDoChenhLech: null, ngayYeuCau: new Date('2026-01-01'), ...extra });
+  }
+
+  it('blocks Hoàn thành when giaThucTe is missing/zero', async () => {
+    (prismaMock.purchaseRequest.findUnique as jest.Mock).mockResolvedValue(gateRow());
+    (prismaMock.inboundPlan.findUnique as jest.Mock).mockResolvedValue(null);
+  (prismaMock.inboundPlan.findFirst as jest.Mock).mockResolvedValue(null);
+  if ((mockTx as any).inboundPlan) {
+    ((mockTx as any).inboundPlan.findUnique as jest.Mock).mockResolvedValue(null);
+    ((mockTx as any).inboundPlan.findFirst as jest.Mock).mockResolvedValue(null);
+  }
+  (prismaMock.purchaseRequestItem.findMany as jest.Mock).mockResolvedValue([
+      { id: 'pri-1', tenHangHoa: 'Xoai', soLuong: 10, giaThucTe: null, soLuongThucTe: 10 },
+    ] as any);
+    (prismaMock.user.findUnique as jest.Mock).mockResolvedValue({ id: 'u-1', role: 'ADMIN' });
+    await expect(
+      purchaseRequestService.updatePurchaseRequest('pr-1', { trangThai: 'Hoàn thành', __actorUserId: 'u-1' } as any)
+    ).rejects.toMatchObject({ name: 'ValidationError' });
+  });
+
+  it('blocks Hoàn thành when soLuongThucTe is missing/zero', async () => {
+    (prismaMock.purchaseRequest.findUnique as jest.Mock).mockResolvedValue(gateRow());
+    (prismaMock.inboundPlan.findUnique as jest.Mock).mockResolvedValue(null);
+  (prismaMock.inboundPlan.findFirst as jest.Mock).mockResolvedValue(null);
+  if ((mockTx as any).inboundPlan) {
+    ((mockTx as any).inboundPlan.findUnique as jest.Mock).mockResolvedValue(null);
+    ((mockTx as any).inboundPlan.findFirst as jest.Mock).mockResolvedValue(null);
+  }
+  (prismaMock.purchaseRequestItem.findMany as jest.Mock).mockResolvedValue([
+      { id: 'pri-1', tenHangHoa: 'Xoai', soLuong: 10, giaThucTe: 1000, soLuongThucTe: null },
+    ] as any);
+    (prismaMock.user.findUnique as jest.Mock).mockResolvedValue({ id: 'u-1', role: 'ADMIN' });
+    await expect(
+      purchaseRequestService.updatePurchaseRequest('pr-1', { trangThai: 'Hoàn thành', __actorUserId: 'u-1' } as any)
+    ).rejects.toMatchObject({ name: 'ValidationError' });
+  });
+
+  it('blocks Hoàn thành when TT != KH and lyDoChenhLech is missing (submitted and stored both empty)', async () => {
+    (prismaMock.purchaseRequest.findUnique as jest.Mock).mockResolvedValue(gateRow({ lyDoChenhLech: null }));
+    (prismaMock.inboundPlan.findUnique as jest.Mock).mockResolvedValue(null);
+  (prismaMock.inboundPlan.findFirst as jest.Mock).mockResolvedValue(null);
+  if ((mockTx as any).inboundPlan) {
+    ((mockTx as any).inboundPlan.findUnique as jest.Mock).mockResolvedValue(null);
+    ((mockTx as any).inboundPlan.findFirst as jest.Mock).mockResolvedValue(null);
+  }
+  (prismaMock.purchaseRequestItem.findMany as jest.Mock).mockResolvedValue([
+      { id: 'pri-1', tenHangHoa: 'Xoai', soLuong: 10, giaThucTe: 1000, soLuongThucTe: 8 },
+    ] as any);
+    (prismaMock.user.findUnique as jest.Mock).mockResolvedValue({ id: 'u-1', role: 'ADMIN' });
+    await expect(
+      purchaseRequestService.updatePurchaseRequest('pr-1', { trangThai: 'Hoàn thành', __actorUserId: 'u-1' } as any)
+    ).rejects.toMatchObject({ name: 'ValidationError' });
+  });
+
+  it('blocks Hoàn thành when lyDoChenhLech is whitespace only', async () => {
+    (prismaMock.purchaseRequest.findUnique as jest.Mock).mockResolvedValue(gateRow({ lyDoChenhLech: null }));
+    (prismaMock.inboundPlan.findUnique as jest.Mock).mockResolvedValue(null);
+  (prismaMock.inboundPlan.findFirst as jest.Mock).mockResolvedValue(null);
+  if ((mockTx as any).inboundPlan) {
+    ((mockTx as any).inboundPlan.findUnique as jest.Mock).mockResolvedValue(null);
+    ((mockTx as any).inboundPlan.findFirst as jest.Mock).mockResolvedValue(null);
+  }
+  (prismaMock.purchaseRequestItem.findMany as jest.Mock).mockResolvedValue([
+      { id: 'pri-1', tenHangHoa: 'Xoai', soLuong: 10, giaThucTe: 1000, soLuongThucTe: 8 },
+    ] as any);
+    (prismaMock.user.findUnique as jest.Mock).mockResolvedValue({ id: 'u-1', role: 'ADMIN' });
+    await expect(
+      purchaseRequestService.updatePurchaseRequest('pr-1', { trangThai: 'Hoàn thành', lyDoChenhLech: '   ', __actorUserId: 'u-1' } as any)
+    ).rejects.toMatchObject({ name: 'ValidationError' });
+  });
+
+  it('allows Hoàn thành with diff when lyDoChenhLech is supplied in payload', async () => {
+    (prismaMock.purchaseRequest.findUnique as jest.Mock).mockResolvedValue(gateRow({ lyDoChenhLech: null }));
+    (prismaMock.inboundPlan.findUnique as jest.Mock).mockResolvedValue(null);
+  (prismaMock.inboundPlan.findFirst as jest.Mock).mockResolvedValue(null);
+  if ((mockTx as any).inboundPlan) {
+    ((mockTx as any).inboundPlan.findUnique as jest.Mock).mockResolvedValue(null);
+    ((mockTx as any).inboundPlan.findFirst as jest.Mock).mockResolvedValue(null);
+  }
+  (prismaMock.purchaseRequestItem.findMany as jest.Mock).mockResolvedValue([
+      { id: 'pri-1', tenHangHoa: 'Xoai', soLuong: 10, giaThucTe: 1000, soLuongThucTe: 8 },
+    ] as any);
+    (prismaMock.purchaseRequest.update as jest.Mock).mockResolvedValue({ id: 'pr-1', trangThai: 'Hoàn thành' });
+    (prismaMock.user.findUnique as jest.Mock).mockResolvedValue({ id: 'u-1', role: 'ADMIN' });
+    await expect(
+      purchaseRequestService.updatePurchaseRequest('pr-1', { trangThai: 'Hoàn thành', lyDoChenhLech: 'Hao hut van chuyen', __actorUserId: 'u-1' } as any)
+    ).resolves.toBeDefined();
+  });
+
+  it('allows Hoàn thành with diff when lyDoChenhLech already stored (payload omits field)', async () => {
+    (prismaMock.purchaseRequest.findUnique as jest.Mock).mockResolvedValue(gateRow({ lyDoChenhLech: 'Giao thieu do NCC' }));
+    (prismaMock.inboundPlan.findUnique as jest.Mock).mockResolvedValue(null);
+  (prismaMock.inboundPlan.findFirst as jest.Mock).mockResolvedValue(null);
+  if ((mockTx as any).inboundPlan) {
+    ((mockTx as any).inboundPlan.findUnique as jest.Mock).mockResolvedValue(null);
+    ((mockTx as any).inboundPlan.findFirst as jest.Mock).mockResolvedValue(null);
+  }
+  (prismaMock.purchaseRequestItem.findMany as jest.Mock).mockResolvedValue([
+      { id: 'pri-1', tenHangHoa: 'Xoai', soLuong: 10, giaThucTe: 1000, soLuongThucTe: 12 },
+    ] as any);
+    (prismaMock.purchaseRequest.update as jest.Mock).mockResolvedValue({ id: 'pr-1', trangThai: 'Hoàn thành' });
+    (prismaMock.user.findUnique as jest.Mock).mockResolvedValue({ id: 'u-1', role: 'ADMIN' });
+    await expect(
+      purchaseRequestService.updatePurchaseRequest('pr-1', { trangThai: 'Hoàn thành', __actorUserId: 'u-1' } as any)
+    ).resolves.toBeDefined();
+  });
+
+  it('allows Hoàn thành when TT == KH and no lyDo needed', async () => {
+    (prismaMock.purchaseRequest.findUnique as jest.Mock).mockResolvedValue(gateRow({ lyDoChenhLech: null }));
+    (prismaMock.inboundPlan.findUnique as jest.Mock).mockResolvedValue(null);
+  (prismaMock.inboundPlan.findFirst as jest.Mock).mockResolvedValue(null);
+  if ((mockTx as any).inboundPlan) {
+    ((mockTx as any).inboundPlan.findUnique as jest.Mock).mockResolvedValue(null);
+    ((mockTx as any).inboundPlan.findFirst as jest.Mock).mockResolvedValue(null);
+  }
+  (prismaMock.purchaseRequestItem.findMany as jest.Mock).mockResolvedValue([
+      { id: 'pri-1', tenHangHoa: 'Xoai', soLuong: 10, giaThucTe: 1000, soLuongThucTe: 10 },
+    ] as any);
+    (prismaMock.purchaseRequest.update as jest.Mock).mockResolvedValue({ id: 'pr-1', trangThai: 'Hoàn thành' });
+    (prismaMock.user.findUnique as jest.Mock).mockResolvedValue({ id: 'u-1', role: 'ADMIN' });
+    await expect(
+      purchaseRequestService.updatePurchaseRequest('pr-1', { trangThai: 'Hoàn thành', __actorUserId: 'u-1' } as any)
+    ).resolves.toBeDefined();
+  });
+
+  it('uses effective items (carried giaThucTe/soLuongThucTe) when payload includes items', async () => {
+    (prismaMock.purchaseRequest.findUnique as jest.Mock).mockResolvedValue(gateRow({ lyDoChenhLech: null }));
+    (prismaMock.inboundPlan.findUnique as jest.Mock).mockResolvedValue(null);
+  (prismaMock.inboundPlan.findFirst as jest.Mock).mockResolvedValue(null);
+  if ((mockTx as any).inboundPlan) {
+    ((mockTx as any).inboundPlan.findUnique as jest.Mock).mockResolvedValue(null);
+    ((mockTx as any).inboundPlan.findFirst as jest.Mock).mockResolvedValue(null);
+  }
+  (prismaMock.purchaseRequestItem.findMany as jest.Mock).mockResolvedValue([
+      { id: 'pri-1', tenHangHoa: 'Xoai', soLuong: 10, giaThucTe: 1000, soLuongThucTe: 10 },
+    ] as any);
+    mockTxItems.purchaseRequestItem.findMany.mockResolvedValue([
+      { id: 'pri-1', tenHangHoa: 'Xoai', giaThucTe: 1000, soLuongThucTe: 10 },
+    ] as any);
+    (prismaMock.user.findUnique as jest.Mock).mockResolvedValue({ id: 'u-1', role: 'ADMIN' });
+    await expect(
+      purchaseRequestService.updatePurchaseRequest('pr-1', {
+        trangThai: 'Hoàn thành',
+        items: [{ id: 'pri-1', phanLoai: 'Nguyên liệu', tenHangHoa: 'Xoai', soLuong: 10, donViTinh: 'Kg', giaDuKien: 1000 }],
+        lyDoChenhLech: 'Khong can vi TT==KH carry',
+        __actorUserId: 'u-1',
+      } as any)
+    ).resolves.toBeDefined();
   });
 });
 

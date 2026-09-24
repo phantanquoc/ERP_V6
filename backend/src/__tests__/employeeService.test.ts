@@ -98,7 +98,7 @@ describe('getEmployeeById', () => {
     expect(mockedPrisma.employee.findUnique).toHaveBeenCalledWith({
       where: { id: 'emp-1' },
       include: {
-        user: { select: { email: true, firstName: true, lastName: true, isActive: true, departmentId: true } },
+        user: { select: { email: true, firstName: true, lastName: true, isActive: true, departmentId: true, role: true } },
         position: true,
         positionLevel: true,
         subDepartment: true,
