@@ -37,17 +37,17 @@ const InboundPlanTab: React.FC = () => {
   const [plans, setPlans] = useState<InboundPlan[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [urlFilters, setUrlFilters] = useUrlFilters({ _search: '', trangThai: '', warehouseId: '', fromNgay: '', toNgay: '', page: '1', sortBy: 'createdAt', sortOrder: 'desc' }, { prefix: 'in_plan_' });
   const currentPage = Math.max(1, parseInt(urlFilters.page || '1', 10) || 1);
   const setCurrentPage = (v: number | ((p: number) => number)) => { const next = typeof v === 'function' ? (v as (p:number)=>number)(currentPage) : v; setUrlFilters({ page: String(next) }); };
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [urlFilters, setUrlFilters] = useUrlFilters({ _search: '', trangThai: '', warehouseId: '', fromNgay: '', toNgay: '', page: '1', sortBy: 'createdAt', sortOrder: 'desc' }, { prefix: 'in_plan_' });
   const filterValues = { _search: urlFilters._search, trangThai: urlFilters.trangThai, warehouseId: urlFilters.warehouseId, fromNgay: urlFilters.fromNgay, toNgay: urlFilters.toNgay } as Record<string, string>;
   const setFilterValues = (vals: Record<string, string>) => setUrlFilters({ _search: vals._search ?? '', trangThai: vals.trangThai ?? '', warehouseId: vals.warehouseId ?? '', fromNgay: vals.fromNgay ?? '', toNgay: vals.toNgay ?? '', page: '1' });
   const sortKey = (urlFilters.sortBy as SortKey) || 'createdAt';
   const sortDir = (urlFilters.sortOrder as 'asc' | 'desc') || 'desc';
   const setSortKey = (k: SortKey) => setUrlFilters({ sortBy: k });
-  const setSortDir = (d: 'asc' | 'desc') => setUrlFilters({ sortOrder: d });
+  const setSortDir = (d: 'asc' | 'desc') => setUrlFilters({ sortOrder: d as 'asc' | 'desc' });
   const [editingPlan, setEditingPlan] = useState<InboundPlan | null>(null);
   const [editDate, setEditDate] = useState('');
   const [editReason, setEditReason] = useState('');
@@ -106,7 +106,7 @@ const InboundPlanTab: React.FC = () => {
   }, [totalPages]);
 
   const toggleSort = (key: SortKey) => {
-    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    if (sortKey === key) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
     else { setSortKey(key); setSortDir('desc'); }
   };
 

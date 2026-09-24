@@ -748,7 +748,7 @@ interface MonthCellProps {
   onOpenLogModal: (state: LogModalState) => void;
 }
 
-const MonthCell = ({ planId, itemId, month, timesPerMonth, logs, noiDung, tenThietBi, nguoiLap, isApplicable, isSuggested, isHighlighted, onToggle: _onToggle, onOpenLogModal }: MonthCellProps) => {
+const MonthCell = ({ planId, itemId, month, timesPerMonth, logs, noiDung, tenThietBi, nguoiLap, isApplicable, isSuggested, isHighlighted: _isHighlighted, onToggle: _onToggle, onOpenLogModal }: MonthCellProps) => {
   const openModal = () => {
     onOpenLogModal({ planId, itemId, month, timesPerMonth, noiDung, tenThietBi, nguoiLap });
   };

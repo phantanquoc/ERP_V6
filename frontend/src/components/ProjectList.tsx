@@ -236,20 +236,27 @@ const ProjectList = () => {
     setTimeout(() => { deepLinkSyncingRef.current = false; }, 0);
   }, [deepProjectId, deepPhaseId, deepTaskId, selectedProjectId, highlightPhaseId, highlightTaskId]);
 
+  const selectedProjectQuery = useProject(selectedProjectId);
+  const unphasedTasksQuery = useProjectUnphasedTasks(selectedProjectId);
+  const approvalsQuery = useProjectApprovals(selectedProjectId);
+  const projects = projectsQuery.data?.data ?? [];
+  const pagination = projectsQuery.data?.pagination;
+  const selectedProject = selectedProjectQuery.data?.data;
+
   // Scroll+temporary highlight when deep phase/task resolves (after project detail loads)
   useEffect(() => {
     if (!selectedProject || !highlightPhaseId) return;
     const el = document.getElementById(`phase-${highlightPhaseId}`);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    const t = setTimeout(() => setHighlightPhaseId(null), 3500);
-    return () => clearTimeout(t);
+    const tt = setTimeout(() => setHighlightPhaseId(null), 3500);
+    return () => clearTimeout(tt);
   }, [selectedProject, highlightPhaseId]);
   useEffect(() => {
     if (!selectedProject || !highlightTaskId) return;
     const el = document.getElementById(`task-${highlightTaskId}`);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    const t = setTimeout(() => setHighlightTaskId(null), 3500);
-    return () => clearTimeout(t);
+    const tt = setTimeout(() => setHighlightTaskId(null), 3500);
+    return () => clearTimeout(tt);
   }, [selectedProject, highlightTaskId]);
 
   const togglePhaseCollapse = (phaseId: string) => {
@@ -269,12 +276,7 @@ const ProjectList = () => {
     return result;
   };
 
-  const selectedProjectQuery = useProject(selectedProjectId);
-  const unphasedTasksQuery = useProjectUnphasedTasks(selectedProjectId);
-  const approvalsQuery = useProjectApprovals(selectedProjectId);
-  const projects = projectsQuery.data?.data ?? [];
-  const pagination = projectsQuery.data?.pagination;
-  const selectedProject = selectedProjectQuery.data?.data;
+
   const phases = useMemo(
     () => [...(selectedProject?.phases ?? [])].sort((a, b) => a.thuTu - b.thuTu),
     [selectedProject?.phases]
