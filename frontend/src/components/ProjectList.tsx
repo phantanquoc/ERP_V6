@@ -1,4 +1,4 @@
-import React, { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react';
+import React, { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { ArrowDown, ArrowUp, Diamond, Edit, GripVertical, Plus, Search, Trash2, X } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, useDroppable } from '@dnd-kit/core';
@@ -144,7 +144,7 @@ const clampProgress = (value: string | number | undefined) => {
 
 const ProjectList = () => {
   const { user } = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const isTechnical = user?.department === 'technical' ||
     user?.secondaryDepartments?.some(d => d.departmentCode === 'technical');
   // Rule Matrix: projects resource — fallback to legacy check until loaded
@@ -200,14 +200,57 @@ const ProjectList = () => {
   const [collapsedPhases, setCollapsedPhases] = useState<Set<string>>(new Set());
   const [taskFilter, setTaskFilter] = useState({ search: '', status: '', person: '' });
 
+  // Deep-link entity params — extracted before effects (safe pattern, no filter break).
+  // Phase 1: only sync entity IDs (projectId/phaseId/taskId). Filter/pagination ?q=&page=&status= is phase 2.
+  const deepProjectId = searchParams.get('projectId');
+  const deepPhaseId = searchParams.get('phaseId');
+  const deepTaskId = searchParams.get('taskId');
+  const deepLinkSyncingRef = useRef(false);
+  const [highlightPhaseId, setHighlightPhaseId] = useState<string | null>(null);
+  const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null);
+
+  // Deep-link: ?projectId -> open detail; ?phaseId -> expand+focus phase; ?taskId -> focus task (needs projectId+phaseId)
   useEffect(() => {
-    const pid = searchParams.get('projectId');
-    if (pid) {
-      setSelectedProjectId(pid);
-      searchParams.delete('projectId');
-      setSearchParams(searchParams, { replace: true });
+    if (deepLinkSyncingRef.current) return;
+    if (!deepProjectId) return;
+    const needsSync =
+      deepProjectId !== selectedProjectId ||
+      (!!deepPhaseId && deepPhaseId !== highlightPhaseId) ||
+      (!!deepTaskId && deepTaskId !== highlightTaskId);
+    if (!needsSync) return;
+    deepLinkSyncingRef.current = true;
+    if (deepProjectId !== selectedProjectId) setSelectedProjectId(deepProjectId);
+    if (deepPhaseId) {
+      setHighlightPhaseId(deepPhaseId);
+      setCollapsedPhases((prev) => { const n = new Set(prev); n.delete(deepPhaseId); return n; });
+      // Keep overview/gantt/costs if already there; otherwise prefer phases for phase focus, updates for task focus
+      if (deepTaskId) setDetailTab('updates');
+      else setDetailTab((prev) => (prev === 'overview' || prev === 'gantt' || prev === 'costs' ? prev : 'phases'));
     }
-  }, []);
+    if (deepTaskId) {
+      setHighlightTaskId(deepTaskId);
+      if (deepPhaseId) setCollapsedPhases((prev) => { const n = new Set(prev); n.delete(deepPhaseId); return n; });
+      else setDetailTab('updates');
+    }
+    // URL stays shareable; do not delete params. Release guard next tick.
+    setTimeout(() => { deepLinkSyncingRef.current = false; }, 0);
+  }, [deepProjectId, deepPhaseId, deepTaskId, selectedProjectId, highlightPhaseId, highlightTaskId]);
+
+  // Scroll+temporary highlight when deep phase/task resolves (after project detail loads)
+  useEffect(() => {
+    if (!selectedProject || !highlightPhaseId) return;
+    const el = document.getElementById(`phase-${highlightPhaseId}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const t = setTimeout(() => setHighlightPhaseId(null), 3500);
+    return () => clearTimeout(t);
+  }, [selectedProject, highlightPhaseId]);
+  useEffect(() => {
+    if (!selectedProject || !highlightTaskId) return;
+    const el = document.getElementById(`task-${highlightTaskId}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const t = setTimeout(() => setHighlightTaskId(null), 3500);
+    return () => clearTimeout(t);
+  }, [selectedProject, highlightTaskId]);
 
   const togglePhaseCollapse = (phaseId: string) => {
     setCollapsedPhases((prev) => { const next = new Set(prev); if (next.has(phaseId)) { next.delete(phaseId); } else { next.add(phaseId); } return next; });
@@ -606,7 +649,7 @@ const ProjectList = () => {
               ) : projects.length === 0 ? (
                 <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Chưa có dự án phù hợp.</td></tr>
               ) : projects.map((project) => (
-                <tr key={project.id} className="hover:bg-gray-50/50 cursor-pointer transition-colors" onClick={() => { setSelectedProjectId(project.id); setDetailTab('overview'); }}>
+                <tr key={project.id} className={`cursor-pointer transition-colors ${deepProjectId === project.id ? 'bg-blue-50 ring-1 ring-inset ring-blue-200' : 'hover:bg-gray-50/50'}`} onClick={() => { setSelectedProjectId(project.id); setDetailTab('overview'); }}>
                   <td className="px-3 py-2.5 sticky left-0 bg-white z-10 font-mono text-xs text-blue-700 font-medium">{project.maDuAn}</td>
                   <td className="px-3 py-2.5 font-medium text-gray-900">{project.tenDuAn}</td>
                   <td className="px-3 py-2.5"><span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadge(project.trangThai)}`}>{project.trangThai}</span></td>
@@ -760,7 +803,7 @@ const ProjectList = () => {
                   {phases.length === 0 ? (
                     <div className="rounded-md border border-gray-200 px-3 py-6 text-center text-gray-500">Chưa có giai đoạn.</div>
                   ) : phases.map((phase) => (
-                    <div key={phase.id} className="rounded-lg border border-gray-200">
+                    <div key={phase.id} id={`phase-${phase.id}`} className={`rounded-lg border ${highlightPhaseId === phase.id ? 'ring-2 ring-blue-400 border-blue-300' : 'border-gray-200'}`}>
                       <div onClick={() => togglePhaseCollapse(phase.id)} className="flex flex-col gap-2 border-b bg-gray-50 px-3 py-2 cursor-pointer select-none lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
@@ -782,7 +825,7 @@ const ProjectList = () => {
                           {canWrite(selectedProject) && <button title="Thêm phát sinh" onClick={() => { setError(''); setPhatSinhForm({ tieuDe: '', nguoiPhuTrach: '', mucDoUuTien: '', ghiChu: '' }); setPhatSinhModal({ projectPhaseId: phase.id }); }} className="rounded p-1.5 text-gray-500 hover:bg-white hover:text-blue-600"><Plus className="h-4 w-4" /></button>}
                         </div>
                       </div>
-                      {!collapsedPhases.has(phase.id) && <GroupedTasksRenderer phase={{ ...phase, tasks: filterTasks(phase.tasks ?? []), taskGroups: phase.taskGroups }} canWrite={canWrite(selectedProject)} viewMode="actual" projectId={selectedProject.id} onEditTask={(task) => openTaskModal('edit', phase.id, task)} onDeleteTask={removeTask} onMoveTask={(taskId, dir) => moveTask(taskId, dir, phase.tasks ?? [], phase.id)} onDragEnd={(event) => handleTaskDragEnd(event, phase.tasks ?? [], phase.id)} onEditGroup={(group) => openTaskGroupModal('edit', phase.id, group)} onDeleteGroup={deleteGroup} onAddTaskToGroup={(groupId) => { openTaskModal('create', phase.id); setTaskForm((f) => ({ ...f, projectTaskGroupId: groupId })); }} onMoveGroup={(groupId, dir) => moveGroup(phase.id, groupId, dir)} onStatusChange={quickStatusChange} onTaskMoveToGroup={moveTaskToGroup} />}
+                      {!collapsedPhases.has(phase.id) && <GroupedTasksRenderer phase={{ ...phase, tasks: filterTasks(phase.tasks ?? []), taskGroups: phase.taskGroups }} canWrite={canWrite(selectedProject)} viewMode="actual" projectId={selectedProject.id} onEditTask={(task) => openTaskModal('edit', phase.id, task)} onDeleteTask={removeTask} onMoveTask={(taskId, dir) => moveTask(taskId, dir, phase.tasks ?? [], phase.id)} onDragEnd={(event) => handleTaskDragEnd(event, phase.tasks ?? [], phase.id)} onEditGroup={(group) => openTaskGroupModal('edit', phase.id, group)} onDeleteGroup={deleteGroup} onAddTaskToGroup={(groupId) => { openTaskModal('create', phase.id); setTaskForm((f) => ({ ...f, projectTaskGroupId: groupId })); }} onMoveGroup={(groupId, dir) => moveGroup(phase.id, groupId, dir)} onStatusChange={quickStatusChange} onTaskMoveToGroup={moveTaskToGroup} highlightTaskId={highlightTaskId} />}
                     </div>
                   ))}</div>
 
@@ -791,7 +834,7 @@ const ProjectList = () => {
                     <h4 className="font-semibold text-gray-900">Công việc chưa phân giai đoạn</h4>
                     {canWrite(selectedProject) && <button onClick={() => { setError(''); setPhatSinhForm({ tieuDe: '', nguoiPhuTrach: '', mucDoUuTien: '', ghiChu: '' }); setPhatSinhModal({ projectPhaseId: null }); }} className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs"><Plus className="h-3.5 w-3.5" /> Thêm phát sinh</button>}
                   </div>
-                  <TaskTable tasks={filterTasks(unphasedTasks)} canWrite={canWrite(selectedProject)} onEdit={(task) => openTaskModal('edit', null, task)} onDelete={removeTask as any} viewMode="actual" projectId={selectedProject.id} onMoveTask={(taskId, dir) => moveTask(taskId, dir, unphasedTasks, null)} onDragEnd={(event: any) => handleTaskDragEnd(event, unphasedTasks, null)} phaseId={null} onStatusChange={quickStatusChange} />
+                  <TaskTable tasks={filterTasks(unphasedTasks)} canWrite={canWrite(selectedProject)} onEdit={(task) => openTaskModal('edit', null, task)} onDelete={removeTask as any} viewMode="actual" projectId={selectedProject.id} onMoveTask={(taskId, dir) => moveTask(taskId, dir, unphasedTasks, null)} onDragEnd={(event: any) => handleTaskDragEnd(event, unphasedTasks, null)} phaseId={null} onStatusChange={quickStatusChange} highlightTaskId={highlightTaskId} />
                 </div>
                 </>
                 )}
@@ -810,8 +853,8 @@ const ProjectList = () => {
                   <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handlePhaseDragEnd}>
                     <SortableContext items={phases.map((p) => p.id)} strategy={verticalListSortingStrategy}>
                       {phases.map((phase, phaseIndex) => (
-                      <SortablePhaseItem key={phase.id} phase={phase} phaseIndex={phaseIndex} phasesLength={phases.length} canWrite={!isPlanLocked && canWrite(selectedProject)} onMovePhase={movePhase} onEditPhase={openPhaseModal} onAddTask={openTaskModal} onAddTaskGroup={(phaseId) => openTaskGroupModal('create', phaseId)} onRemovePhase={removePhase}>
-                        <GroupedTasksRenderer phase={phase} canWrite={!isPlanLocked && canWrite(selectedProject)} viewMode="plan" projectId={selectedProject.id} onEditTask={(task) => openTaskModal('edit', phase.id, task)} onDeleteTask={removeTask} onMoveTask={(taskId, dir) => moveTask(taskId, dir, phase.tasks ?? [], phase.id)} onDragEnd={(event) => handleTaskDragEnd(event, phase.tasks ?? [], phase.id)} onEditGroup={(group) => openTaskGroupModal('edit', phase.id, group)} onDeleteGroup={deleteGroup} onAddTaskToGroup={(groupId) => { openTaskModal('create', phase.id); setTaskForm((f) => ({ ...f, projectTaskGroupId: groupId })); }} onMoveGroup={(groupId, dir) => moveGroup(phase.id, groupId, dir)} onTaskMoveToGroup={moveTaskToGroup} />
+                      <SortablePhaseItem key={phase.id} phase={phase} phaseIndex={phaseIndex} phasesLength={phases.length} canWrite={!isPlanLocked && canWrite(selectedProject)} onMovePhase={movePhase} onEditPhase={openPhaseModal} onAddTask={openTaskModal} onAddTaskGroup={(phaseId) => openTaskGroupModal('create', phaseId)} onRemovePhase={removePhase} highlightId={highlightPhaseId}>
+                        <GroupedTasksRenderer phase={phase} canWrite={!isPlanLocked && canWrite(selectedProject)} viewMode="plan" projectId={selectedProject.id} onEditTask={(task) => openTaskModal('edit', phase.id, task)} onDeleteTask={removeTask} onMoveTask={(taskId, dir) => moveTask(taskId, dir, phase.tasks ?? [], phase.id)} onDragEnd={(event) => handleTaskDragEnd(event, phase.tasks ?? [], phase.id)} onEditGroup={(group) => openTaskGroupModal('edit', phase.id, group)} onDeleteGroup={deleteGroup} onAddTaskToGroup={(groupId) => { openTaskModal('create', phase.id); setTaskForm((f) => ({ ...f, projectTaskGroupId: groupId })); }} onMoveGroup={(groupId, dir) => moveGroup(phase.id, groupId, dir)} onTaskMoveToGroup={moveTaskToGroup} highlightTaskId={highlightTaskId} />
                       </SortablePhaseItem>
                       ))}
                     </SortableContext>
@@ -824,7 +867,7 @@ const ProjectList = () => {
                     <h4 className="font-semibold text-gray-900">Công việc chưa phân giai đoạn</h4>
                     {!isPlanLocked && canWrite(selectedProject) && <button onClick={() => openTaskModal('create', null)} className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs"><Plus className="h-3.5 w-3.5" /> Thêm</button>}
                   </div>
-                  <TaskTable tasks={unphasedTasks} canWrite={!isPlanLocked && canWrite(selectedProject)} onEdit={(task) => openTaskModal('edit', null, task)} onDelete={removeTask} viewMode="plan" projectId={selectedProject.id} onMoveTask={(taskId, dir) => moveTask(taskId, dir, unphasedTasks, null)} onDragEnd={(event) => handleTaskDragEnd(event, unphasedTasks, null)} />
+                  <TaskTable tasks={unphasedTasks} canWrite={!isPlanLocked && canWrite(selectedProject)} onEdit={(task) => openTaskModal('edit', null, task)} onDelete={removeTask} viewMode="plan" projectId={selectedProject.id} onMoveTask={(taskId, dir) => moveTask(taskId, dir, unphasedTasks, null)} onDragEnd={(event) => handleTaskDragEnd(event, unphasedTasks, null)} highlightTaskId={highlightTaskId} />
                 </div>
                 </>
                 )}
@@ -993,11 +1036,12 @@ const priorityBadge = (priority?: string | null) => {
 
 const COST_CATEGORIES = ['Nhân công', 'Vật tư', 'Phụ liệu', 'Khác'];
 
-const TaskRow = ({ task, isPlan, colCount, canWrite, onEdit, onDelete, projectId, onMoveTask, taskIndex, tasksLength, onStatusChange }: {
+const TaskRow = ({ task, isPlan, colCount, canWrite, onEdit, onDelete, projectId, onMoveTask, taskIndex, tasksLength, onStatusChange, highlight }: {
   task: ProjectTask; isPlan: boolean; colCount: number; canWrite: boolean;
   onEdit: (t: ProjectTask) => void; onDelete: (t: ProjectTask) => void; projectId?: string;
   onMoveTask?: (taskId: string, direction: -1 | 1) => void; taskIndex: number; tasksLength: number;
   onStatusChange?: (taskId: string, newStatus: string) => void;
+  highlight?: boolean;
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: task.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
@@ -1061,11 +1105,12 @@ const TaskRow = ({ task, isPlan, colCount, canWrite, onEdit, onDelete, projectId
     const diff = new Date(task.deadline!).getTime() - Date.now();
     return diff > 0 && diff < 3 * 24 * 60 * 60 * 1000;
   })();
-  const rowBg = isLate ? 'bg-red-50 hover:bg-red-100' : isNearDeadline ? 'bg-yellow-50 hover:bg-yellow-100' : 'hover:bg-gray-50';
+  const baseBg = isLate ? 'bg-red-50 hover:bg-red-100' : isNearDeadline ? 'bg-yellow-50 hover:bg-yellow-100' : 'hover:bg-gray-50';
+  const rowBg = highlight ? 'bg-blue-50 ring-1 ring-inset ring-blue-300' : baseBg;
 
   return (
     <>
-      <tr ref={setNodeRef} style={style} className={rowBg}>
+      <tr id={`task-${task.id}`} ref={setNodeRef} style={style} className={rowBg}>
         <td className="px-3 py-2 text-gray-600">
           <span className="flex items-center gap-1">
             {canWrite && onMoveTask && <span {...attributes} {...listeners} className="cursor-grab text-gray-400 hover:text-gray-600"><GripVertical className="h-3.5 w-3.5" /></span>}
@@ -1247,7 +1292,7 @@ const TaskRow = ({ task, isPlan, colCount, canWrite, onEdit, onDelete, projectId
   );
 };
 
-const SortablePhaseItem = ({ phase, phaseIndex, phasesLength, canWrite, onMovePhase, onEditPhase, onAddTask, onAddTaskGroup, onRemovePhase, children }: {
+const SortablePhaseItem = ({ phase, phaseIndex, phasesLength, canWrite, onMovePhase, onEditPhase, onAddTask, onAddTaskGroup, onRemovePhase, children, highlightId }: {
   phase: ProjectPhase; phaseIndex: number; phasesLength: number; canWrite: boolean;
   onMovePhase: (phaseId: string, direction: -1 | 1) => void;
   onEditPhase: (mode: 'edit', phase: ProjectPhase) => void;
@@ -1255,12 +1300,13 @@ const SortablePhaseItem = ({ phase, phaseIndex, phasesLength, canWrite, onMovePh
   onAddTaskGroup: (phaseId: string) => void;
   onRemovePhase: (phase: ProjectPhase) => void;
   children: ReactNode;
+  highlightId?: string | null;
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: phase.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
 
   return (
-    <div ref={setNodeRef} style={style} className="rounded-lg border border-gray-200">
+    <div id={`phase-${phase.id}`} ref={setNodeRef} style={style} className={`rounded-lg border ${highlightId === phase.id ? 'ring-2 ring-blue-400 border-blue-300' : 'border-gray-200'}`}>
       <div className="flex flex-col gap-2 border-b bg-gray-50 px-3 py-2 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -1306,6 +1352,7 @@ const GroupedTasksRenderer = ({
   onMoveGroup,
   onStatusChange,
   onTaskMoveToGroup,
+  highlightTaskId,
 }: {
   phase: ProjectPhase;
   canWrite: boolean;
@@ -1321,6 +1368,7 @@ const GroupedTasksRenderer = ({
   onMoveGroup?: (groupId: string, direction: -1 | 1) => void;
   onStatusChange?: (taskId: string, newStatus: string) => void;
   onTaskMoveToGroup?: (taskId: string, newGroupId: string | null) => void;
+  highlightTaskId?: string | null;
 }) => {
   const groups = [...(phase.taskGroups ?? [])].sort((a, b) => a.thuTu - b.thuTu);
   const allTasks = phase.tasks ?? [];
@@ -1371,7 +1419,7 @@ const GroupedTasksRenderer = ({
 
   // Early return AFTER hooks (Rules of Hooks: hooks must not be called conditionally)
   if (!hasGroups) {
-    return <TaskTable tasks={allTasks} canWrite={canWrite} onEdit={onEditTask} onDelete={onDeleteTask} viewMode={viewMode} projectId={projectId} onMoveTask={onMoveTask} onDragEnd={onDragEnd} onStatusChange={onStatusChange} />;
+    return <TaskTable tasks={allTasks} canWrite={canWrite} onEdit={onEditTask} onDelete={onDeleteTask} viewMode={viewMode} projectId={projectId} onMoveTask={onMoveTask} onDragEnd={onDragEnd} onStatusChange={onStatusChange} highlightTaskId={highlightTaskId} />;
   }
 
   const isPlan = viewMode === 'plan';
@@ -1439,7 +1487,7 @@ const GroupedTasksRenderer = ({
                     {section.tasks.length === 0 ? (
                       <tr><td colSpan={colCount} className="px-3 py-3 text-center text-gray-400 text-xs">Kéo công việc vào đây</td></tr>
                     ) : section.tasks.map((task, idx) => (
-                      <TaskRow key={task.id} task={task} isPlan={isPlan} colCount={colCount} canWrite={canWrite} onEdit={onEditTask} onDelete={onDeleteTask} projectId={projectId} onMoveTask={onMoveTask} taskIndex={idx} tasksLength={section.tasks.length} onStatusChange={onStatusChange} />
+                      <TaskRow key={task.id} task={task} isPlan={isPlan} colCount={colCount} canWrite={canWrite} onEdit={onEditTask} onDelete={onDeleteTask} projectId={projectId} onMoveTask={onMoveTask} taskIndex={idx} tasksLength={section.tasks.length} onStatusChange={onStatusChange} highlight={highlightTaskId === task.id} />
                     ))}
                   </React.Fragment>
                 );
@@ -1463,6 +1511,7 @@ const TaskTable = ({
   onDragEnd,
   phaseId: _phaseId,
   onStatusChange,
+  highlightTaskId,
 }: {
   tasks: ProjectTask[];
   canWrite: boolean;
@@ -1474,6 +1523,7 @@ const TaskTable = ({
   onDragEnd?: (event: any) => void;
   phaseId?: string | null;
   onStatusChange?: (taskId: string, newStatus: string) => void;
+  highlightTaskId?: string | null;
 }) => {
   const isPlan = viewMode === 'plan';
   const colCount = isPlan ? (canWrite ? 6 : 5) : (canWrite ? 9 : 8);
@@ -1487,7 +1537,7 @@ const TaskTable = ({
       {tasks.length === 0 ? (
         <tr><td colSpan={colCount} className="px-3 py-4 text-center text-gray-500">Chưa có công việc.</td></tr>
       ) : tasks.map((task, idx) => (
-        <TaskRow key={task.id} task={task} isPlan={isPlan} colCount={colCount} canWrite={canWrite} onEdit={onEdit} onDelete={onDelete} projectId={projectId} onMoveTask={onMoveTask} taskIndex={idx} tasksLength={tasks.length} onStatusChange={onStatusChange} />
+        <TaskRow key={task.id} task={task} isPlan={isPlan} colCount={colCount} canWrite={canWrite} onEdit={onEdit} onDelete={onDelete} projectId={projectId} onMoveTask={onMoveTask} taskIndex={idx} tasksLength={tasks.length} onStatusChange={onStatusChange} highlight={highlightTaskId === task.id} />
       ))}
     </tbody>
   );
