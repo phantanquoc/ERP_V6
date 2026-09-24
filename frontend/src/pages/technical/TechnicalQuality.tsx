@@ -46,13 +46,16 @@ const TechnicalQuality = () => {
   // Single URL → state sync. State → URL is via explicit setters (no second effect to avoid loop).
   const syncingRef = useRef(false);
 
+  // Extract before effect so deps are stable strings, not inline searchParams.get() calls
+  const urlTab = searchParams.get('tab');
+  const urlSub = searchParams.get('sub');
   useEffect(() => {
     if (syncingRef.current) {
       syncingRef.current = false;
       return;
     }
-    const nextTab = searchParams.get('tab');
-    const nextSub = searchParams.get('sub');
+    const nextTab = urlTab;
+    const nextSub = urlSub;
     if (isTabType(nextTab) && nextTab !== activeTab) {
       setActiveTab(nextTab);
     }
@@ -62,7 +65,7 @@ const TechnicalQuality = () => {
     if (nextTab === 'partsAndOrders' && isPartsOrdersView(nextSub) && nextSub !== partsOrdersView) {
       setPartsOrdersView(nextSub);
     }
-  }, [searchParams]);
+  }, [urlTab, urlSub]);
 
   const pushParams = useCallback((nextTab: TabType, nextSub?: string | null) => {
     const next = new URLSearchParams(searchParams);

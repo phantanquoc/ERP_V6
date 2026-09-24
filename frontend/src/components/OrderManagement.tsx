@@ -160,8 +160,9 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
 
   // Auto-open view modal when ?orderId= is in URL (deep-link from notifications)
   const [searchParams, setSearchParams] = useSearchParams();
+  const orderIdParam = searchParams.get('orderId');
   useEffect(() => {
-    const orderId = searchParams.get('orderId');
+    const orderId = orderIdParam;
     if (!orderId) return;
     let cancelled = false;
     orderService
@@ -183,7 +184,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams.get('orderId')]);
+  }, [orderIdParam]);
 
   const handleEdit = (order: Order) => {
     setSelectedOrder(order);

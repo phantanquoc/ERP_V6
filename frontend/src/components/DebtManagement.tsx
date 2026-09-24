@@ -106,8 +106,9 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ month, year }) => {
 
   // Auto-open view modal when ?debtId= is in URL (deep-link from notifications)
   const [searchParams, setSearchParams] = useSearchParams();
+  const debtIdParam = searchParams.get('debtId');
   useEffect(() => {
-    const debtId = searchParams.get('debtId');
+    const debtId = debtIdParam;
     if (!debtId) return;
     let cancelled = false;
     debtService
@@ -129,7 +130,7 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ month, year }) => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams.get('debtId')]);
+  }, [debtIdParam]);
 
   const handleEdit = (debt: Debt) => {
     setSelectedDebt(debt);

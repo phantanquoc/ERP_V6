@@ -383,8 +383,9 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
   };
 
   const [searchParams, setSearchParams] = useSearchParams();
+  const quotationRequestIdParam = searchParams.get('quotationRequestId');
   useEffect(() => {
-    const quotationRequestId = searchParams.get('quotationRequestId');
+    const quotationRequestId = quotationRequestIdParam;
     if (!quotationRequestId) return;
     let cancelled = false;
     quotationRequestService.getQuotationRequestById(quotationRequestId).then((res: any) => {
@@ -401,7 +402,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams.get('quotationRequestId')]);
+  }, [quotationRequestIdParam]);
 
   const resetForm = () => {
     setFormData({

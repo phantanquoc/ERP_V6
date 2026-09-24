@@ -288,8 +288,9 @@ const InvoiceManagement: React.FC<InvoiceManagementProps> = ({ month, year }) =>
 
   // Auto-open view modal when ?invoiceId= is in URL (deep-link from notifications)
   const [searchParams, setSearchParams] = useSearchParams();
+  const invoiceIdParam = searchParams.get('invoiceId');
   useEffect(() => {
-    const invoiceId = searchParams.get('invoiceId');
+    const invoiceId = invoiceIdParam;
     if (!invoiceId) return;
     let cancelled = false;
     invoiceService
@@ -310,7 +311,7 @@ const InvoiceManagement: React.FC<InvoiceManagementProps> = ({ month, year }) =>
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams.get('invoiceId')]);
+  }, [invoiceIdParam]);
 
   const handleDeleteClick = async (invoice: Invoice) => {
     if (window.confirm(`Bạn có chắc muốn xóa hóa đơn ${invoice.soHoaDon}?`)) {

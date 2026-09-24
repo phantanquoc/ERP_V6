@@ -104,8 +104,9 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
   };
 
   const [searchParams, setSearchParams] = useSearchParams();
+  const quotationIdParam = searchParams.get('quotationId');
   useEffect(() => {
-    const quotationId = searchParams.get('quotationId');
+    const quotationId = quotationIdParam;
     if (!quotationId) return;
     let cancelled = false;
     quotationService.getQuotationById(quotationId).then((res: any) => {
@@ -122,7 +123,7 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams.get('quotationId')]);
+  }, [quotationIdParam]);
 
   const handleEdit = (quotation: Quotation) => {
     setSelectedQuotation(quotation);
