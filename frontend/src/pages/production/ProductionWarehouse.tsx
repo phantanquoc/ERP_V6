@@ -227,20 +227,20 @@ const ProductionWarehouse = () => {
   const inboundSubTab = (searchParams.get('inboundSubTab') === 'list' ? 'list' : 'plan') as 'plan' | 'list';
   const outboundSubTab = (searchParams.get('outboundSubTab') === 'list' ? 'list' : 'plan') as 'plan' | 'list';
   const setInboundSubTab = (v: 'plan' | 'list') => {
-    const p = new URLSearchParams(searchParams);
-    p.set('inboundSubTab', v);
-    // Drop only the sibling's detail id — filters stay so each sub-tab remembers its own search.
-    if (v === 'plan') p.delete('receiptId');
-    else {
-      // leaving plan → entering list: no plan detail id exists, nothing to drop
-    }
-    setSearchParams(p, { replace: true });
+    setSearchParams((prev) => {
+      const p = new URLSearchParams(prev);
+      p.set('inboundSubTab', v);
+      if (v === 'plan') p.delete('receiptId');
+      return p;
+    }, { replace: true });
   };
   const setOutboundSubTab = (v: 'plan' | 'list') => {
-    const p = new URLSearchParams(searchParams);
-    p.set('outboundSubTab', v);
-    if (v === 'plan') p.delete('issueId');
-    setSearchParams(p, { replace: true });
+    setSearchParams((prev) => {
+      const p = new URLSearchParams(prev);
+      p.set('outboundSubTab', v);
+      if (v === 'plan') p.delete('issueId');
+      return p;
+    }, { replace: true });
   };
 
   // Overview data states — receipts/issues keep overview-specific pagination totals

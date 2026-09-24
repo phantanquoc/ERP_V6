@@ -65,32 +65,34 @@ export function useUrlTab<T extends string>(
   // for its tab + period pair. Pass `null` to delete a key.
   const set = useCallback(
     (next: T, extraParams?: Record<string, string | null>) => {
+      // Functional updater: always read freshest searchParams so a concurrent
+      // sub-tab write (inboundSubTab/outboundSubTab) that landed one tick earlier
+      // is not clobbered by a stale closure.
+      setSearchParams((prev) => {
+        const params = new URLSearchParams(prev);
+        const isTopTabSwitch = next !== value;
+        params.set(paramKey, next);
+        if (isTopTabSwitch) {
+          const table = scopedRef.current;
+          if (table) {
+            const keep = new Set(table[next] ?? []);
+            for (const tab of Object.keys(table) as T[]) {
+              for (const key of table[tab] ?? []) if (!keep.has(key)) params.delete(key);
+            }
+          }
+        }
+        if (extraParams) {
+          for (const [key, v] of Object.entries(extraParams)) {
+            if (v === null) params.delete(key);
+            else params.set(key, v);
+          }
+        }
+        return params;
+      }, { replace: true });
       setValue(next);
-      const params = new URLSearchParams(searchParams);
-      params.set(paramKey, next);
-      // Drop params owned by the tab being left. Only keys declared in the table
-      // are considered; anything undeclared is left alone. `Object.keys` + index
-      // rather than `Object.values`: on a `Record<T, …>` whose T is still a type
-      // parameter, `Object.values` widens to `unknown[]`.
-      const table = scopedRef.current;
-      if (table) {
-        const keep = new Set(table[next] ?? []);
-        for (const tab of Object.keys(table) as T[]) {
-          for (const key of table[tab] ?? []) if (!keep.has(key)) params.delete(key);
-        }
-      }
-      // Applied after the cleanup, so a param handed in for the tab being entered
-      // cannot be deleted by that tab's own switch.
-      if (extraParams) {
-        for (const [key, value] of Object.entries(extraParams)) {
-          if (value === null) params.delete(key);
-          else params.set(key, value);
-        }
-      }
       syncingRef.current = true;
-      setSearchParams(params, { replace: true });
     },
-    [searchParams, setSearchParams, paramKey],
+    [value, setSearchParams, paramKey],
   );
 
   return { value, set, searchParams, setSearchParams } as const;
