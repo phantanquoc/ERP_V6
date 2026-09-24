@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
@@ -240,21 +240,32 @@ const SYSTEM_OP_FIELDS: FieldConfig[] = [
 // ─── Main component ──────────────────────────────────────────────────────────
 
 const ProductionSystemOperationEntry: React.FC = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [kioskExpired, setKioskExpired] = useState(false);
   const { keyboardOpen } = useVirtualKeyboard();
-  const [selectedShift, setSelectedShift] = useState<number>(() => getSelection()?.shift ?? 0);
+  const machineParam = searchParams.get('machine');
+  const urlMaChien = searchParams.get('maChien');
+  const urlNgay = searchParams.get('ngay');
+  const urlCa = searchParams.get('ca');
+  const urlOpId = searchParams.get('opId');
+  const syncingRef = useRef(false);
+  const [selectedShift, setSelectedShift] = useState<number>(() => {
+    if (urlCa !== null) { const n = Number(urlCa); if (Number.isFinite(n) && n > 0) return n; }
+    return getSelection()?.shift ?? 0;
+  });
   const [nguoiThucHien, setNguoiThucHien] = useState<string>(() => getSelection()?.operator ?? '');
   const [operatorId, setOperatorId] = useState<string>(() => getSelection()?.operatorId ?? '');
   const [productionDate, setProductionDate] = useState<string>(() => {
+    if (urlNgay && /^\d{4}-\d{2}-\d{2}$/.test(urlNgay)) return urlNgay;
     const stored = getSelection()?.date;
     return stored && stored.length > 0 ? stored : todayStr();
   });
 
   const [step, setStep] = useState<WizardStep>('batch');
-  const [selectedMaChien, setSelectedMaChien] = useState<string>('');
-  const [selectedMachineSystemId, setSelectedMachineSystemId] = useState<string>('');
+  const [selectedMaChien, setSelectedMaChien] = useState<string>(() => urlMaChien ?? '');
+  const [selectedMachineSystemId, setSelectedMachineSystemId] = useState<string>(() => machineParam ?? '');
+  void urlOpId; // TODO: wire opId deep-link to fetch/open (P2 from audit)
   const [form, setForm] = useState<FormData>(emptyForm);
   const [deviceKeyInput, setDeviceKeyInput] = useState('');
 
@@ -293,7 +304,20 @@ const ProductionSystemOperationEntry: React.FC = () => {
     return () => window.removeEventListener(KIOSK_EXPIRED_EVENT, handler);
   }, []);
 
-  // Persist selection to sessionStorage
+  // URL → state
+  useEffect(() => {
+    if (syncingRef.current) { syncingRef.current = false; return; }
+    if (machineParam && machineParam !== selectedMachineSystemId) setSelectedMachineSystemId(machineParam);
+    if (urlMaChien && urlMaChien !== selectedMaChien) setSelectedMaChien(urlMaChien);
+    if (urlMaChien) setStep((prev) => prev === 'batch' ? 'machine' : prev);
+    if (machineParam && urlMaChien) setStep('form');
+    if (urlNgay && /^\d{4}-\d{2}-\d{2}$/.test(urlNgay) && urlNgay !== productionDate) setProductionDate(urlNgay);
+    const ca = urlCa !== null ? Number(urlCa) : null;
+    if (ca !== null && Number.isFinite(ca) && ca > 0 && ca !== selectedShift) setSelectedShift(ca);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [machineParam, urlMaChien, urlNgay, urlCa]);
+
+  // Persist selection to sessionStorage + mirror to URL
   useEffect(() => {
     if (!selectedShift) return;
     setSelection({
@@ -303,7 +327,20 @@ const ProductionSystemOperationEntry: React.FC = () => {
       date: productionDate,
       activeTab: '',
     });
-  }, [selectedShift, nguoiThucHien, operatorId, productionDate]);
+    const np = new URLSearchParams(searchParams);
+    let changed = false;
+    const setOrDel = (k: string, v: string | null) => {
+      const cur = searchParams.get(k) ?? '';
+      const nxt = v ?? '';
+      if (cur !== nxt) { if (v) np.set(k, v); else np.delete(k); changed = true; }
+    };
+    setOrDel('ca', String(selectedShift));
+    setOrDel('ngay', productionDate);
+    setOrDel('maChien', selectedMaChien || null);
+    setOrDel('machine', selectedMachineSystemId || null);
+    if (urlOpId) setOrDel('opId', urlOpId);
+    if (changed) { syncingRef.current = true; setSearchParams(np, { replace: true }); }
+  }, [selectedShift, nguoiThucHien, operatorId, productionDate, selectedMaChien, selectedMachineSystemId]);
 
   // Auto-recompute total drying time from stage times
   useEffect(() => {

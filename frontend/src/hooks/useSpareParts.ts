@@ -16,6 +16,13 @@ export const useSpareParts = (filters: SparePartFilters = {}) =>
     queryFn: () => sparePartService.getAll(filters),
   });
 
+export const useSparePart = (id: string | null) =>
+  useQuery({
+    queryKey: sparePartKeys.detail(id ?? ''),
+    queryFn: () => sparePartService.getById(id as string),
+    enabled: !!id,
+  });
+
 export const useSparePartStats = () =>
   useQuery({
     queryKey: sparePartKeys.stats(),

@@ -449,19 +449,37 @@ const FullGridPreview: React.FC<FullGridPreviewProps> = ({
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 const ProductionDataEntry: React.FC = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [kioskExpired, setKioskExpired] = useState(false);
   const { keyboardOpen } = useVirtualKeyboard();
   const isNarrow = useIsNarrowScreen();
-  const [selectedShift, setSelectedShift] = useState<number>(() => getSelection()?.shift ?? 0);
+  // URL params extracted before effects — dep on these consts keeps sync precise
+  const urlPosition = searchParams.get('position');
+  const urlChieu = searchParams.get('chieu');
+  const urlNgay = searchParams.get('ngay');
+  const urlCa = searchParams.get('ca');
+  const urlTab = searchParams.get('tab');
+  const syncingRef = useRef(false);
+  // Hybrid init: URL wins, then sessionStorage, then default
+  const [selectedShift, setSelectedShift] = useState<number>(() => {
+    if (urlCa !== null) { const n = Number(urlCa); if (Number.isFinite(n) && n > 0) return n; }
+    return getSelection()?.shift ?? 0;
+  });
   const [nguoiThucHien, setNguoiThucHien] = useState<string>(() => getSelection()?.operator ?? '');
   const [operatorId, setOperatorId] = useState<string>(() => getSelection()?.operatorId ?? '');
   const [productionDate, setProductionDate] = useState<string>(() => {
+    if (urlNgay && /^\d{4}-\d{2}-\d{2}$/.test(urlNgay)) return urlNgay;
     const stored = getSelection()?.date;
     return stored && stored.length > 0 ? stored : todayStr();
   });
   const [activeTab, setActiveTab] = useState<QualityTab>(() => {
+    if (urlTab && isValidTab(urlTab.toUpperCase())) return urlTab.toUpperCase() as QualityTab;
+    // legacy: tab=material|operation|finished aliases
+    if (urlTab) {
+      const alias: Record<string, QualityTab> = { material: 'A', operation: 'B', finished: 'A' };
+      if (alias[urlTab.toLowerCase()]) return alias[urlTab.toLowerCase()];
+    }
     const stored = getSelection()?.activeTab;
     return stored && isValidTab(stored) ? stored : 'A';
   });
@@ -519,6 +537,20 @@ const ProductionDataEntry: React.FC = () => {
     }
   }, [searchParams]);
 
+  // URL → state: back/forward, share-link. Guard own writes via syncingRef.
+  useEffect(() => {
+    if (syncingRef.current) { syncingRef.current = false; return; }
+    const ca = urlCa !== null ? Number(urlCa) : null;
+    if (ca !== null && Number.isFinite(ca) && ca > 0 && ca !== selectedShift) setSelectedShift(ca);
+    if (urlNgay && /^\d{4}-\d{2}-\d{2}$/.test(urlNgay) && urlNgay !== productionDate) setProductionDate(urlNgay);
+    if (urlTab) {
+      const upper = urlTab.toUpperCase();
+      if (isValidTab(upper) && upper !== activeTab) setActiveTab(upper as QualityTab);
+    }
+    void urlPosition; void urlChieu; // TODO: wire position/chieu filter when backend supports it (P2) // consumed by deeper kiosk context / future position filter
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlPosition, urlChieu, urlNgay, urlCa, urlTab]);
+
   // Listen for kiosk-expired events from apiClient
   useEffect(() => {
     const handler = () => setKioskExpired(true);
@@ -527,6 +559,7 @@ const ProductionDataEntry: React.FC = () => {
   }, []);
 
   // Persist selection state to sessionStorage so reload restores the entry screen
+  // Also push to URL so share/back/forward work.
   useEffect(() => {
     if (!selectedShift) return; // Don't write rác khi chưa chọn shift
     setSelection({
@@ -536,6 +569,15 @@ const ProductionDataEntry: React.FC = () => {
       date: productionDate,
       activeTab,
     });
+    // Mirror to URL (hybrid: URL ưu tiên, sessionStorage fallback)
+    const nextParams = new URLSearchParams(searchParams);
+    let changed = false;
+    if (String(selectedShift) !== (searchParams.get('ca') ?? '')) { nextParams.set('ca', String(selectedShift)); changed = true; }
+    if (productionDate !== (searchParams.get('ngay') ?? '')) { nextParams.set('ngay', productionDate); changed = true; }
+    if (activeTab !== (searchParams.get('tab') ?? '')) { nextParams.set('tab', activeTab); changed = true; }
+    const p = searchParams.get('position') ?? '';
+    if (p && urlPosition !== p) { /* position from share-link preserved */ void p; }
+    if (changed) { syncingRef.current = true; setSearchParams(nextParams, { replace: true }); }
   }, [selectedShift, nguoiThucHien, operatorId, productionDate, activeTab]);
 
   // Data hooks

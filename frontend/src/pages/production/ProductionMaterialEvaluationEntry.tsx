@@ -249,26 +249,37 @@ const MATERIAL_EVAL_FIELDS: MaterialFieldConfig[] = [
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 const ProductionMaterialEvaluationEntry: React.FC = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [kioskExpired, setKioskExpired] = useState(false);
   const { keyboardOpen } = useVirtualKeyboard();
-  const [selectedShift, setSelectedShift] = useState<number>(() => getSelection()?.shift ?? 0);
+  const position = searchParams.get('position');
+  const chieu = searchParams.get('chieu');
+  const urlMaChien = searchParams.get('maChien');
+  const urlNgay = searchParams.get('ngay');
+  const urlCa = searchParams.get('ca');
+  const urlEvalId = searchParams.get('evalId');
+  const syncingRef = useRef(false);
+  const [selectedShift, setSelectedShift] = useState<number>(() => {
+    if (urlCa !== null) { const n = Number(urlCa); if (Number.isFinite(n) && n > 0) return n; }
+    return getSelection()?.shift ?? 0;
+  });
   const [nguoiThucHien, setNguoiThucHien] = useState<string>(() => getSelection()?.operator ?? '');
   const [operatorId, setOperatorId] = useState<string>(() => getSelection()?.operatorId ?? '');
   const [productionDate, setProductionDate] = useState<string>(() => {
+    if (urlNgay && /^\d{4}-\d{2}-\d{2}$/.test(urlNgay)) return urlNgay;
     const stored = getSelection()?.date;
     return stored && stored.length > 0 ? stored : getCurrentProductionDay();
   });
 
   // ─── Batch code selection state ─────────────────────────────────────────────
-  const [selectedMaChien, setSelectedMaChien] = useState<string>('');
+  const [selectedMaChien, setSelectedMaChien] = useState<string>(() => urlMaChien ?? '');
 
   const [currentStep, setCurrentStep] = useState<WizardStep>(2);
   const [wizardData, setWizardData] = useState<WizardData>(initialWizardData);
   const [submitting, setSubmitting] = useState(false);
-  const [viewingEvalId, setViewingEvalId] = useState<string | null>(null);
+  const [viewingEvalId, setViewingEvalId] = useState<string | null>(() => urlEvalId ?? null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const draftLoaded = useRef<boolean>(false);
   const [deviceKeyInput, setDeviceKeyInput] = useState('');
@@ -362,7 +373,19 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
     return () => window.removeEventListener(KIOSK_EXPIRED_EVENT, handler);
   }, []);
 
-  // ─── Persist selection to sessionStorage ──────────────────────────────────
+  // URL → state
+  useEffect(() => {
+    if (syncingRef.current) { syncingRef.current = false; return; }
+    if (urlMaChien && urlMaChien !== selectedMaChien) setSelectedMaChien(urlMaChien);
+    if (urlEvalId && urlEvalId !== viewingEvalId) setViewingEvalId(urlEvalId);
+    if (urlNgay && /^\d{4}-\d{2}-\d{2}$/.test(urlNgay) && urlNgay !== productionDate) setProductionDate(urlNgay);
+    const ca = urlCa !== null ? Number(urlCa) : null;
+    if (ca !== null && Number.isFinite(ca) && ca > 0 && ca !== selectedShift) setSelectedShift(ca);
+    void position; void chieu;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [position, chieu, urlMaChien, urlNgay, urlCa, urlEvalId]);
+
+  // ─── Persist selection to sessionStorage + mirror to URL ───────────────────
   useEffect(() => {
     if (!selectedShift) return;
     setSelection({
@@ -372,7 +395,24 @@ const ProductionMaterialEvaluationEntry: React.FC = () => {
       date: productionDate,
       activeTab: '',
     });
-  }, [selectedShift, nguoiThucHien, operatorId, productionDate]);
+    const np = new URLSearchParams(searchParams);
+    let changed = false;
+    const setOrDel = (k: string, v: string | null) => {
+      const cur = searchParams.get(k) ?? '';
+      const nxt = v ?? '';
+      if (cur !== nxt) {
+        if (v) np.set(k, v); else np.delete(k);
+        changed = true;
+      }
+    };
+    setOrDel('ca', String(selectedShift));
+    setOrDel('ngay', productionDate);
+    setOrDel('maChien', selectedMaChien || null);
+    setOrDel('evalId', viewingEvalId || null);
+    if (position) setOrDel('position', position);
+    if (chieu) setOrDel('chieu', chieu);
+    if (changed) { syncingRef.current = true; setSearchParams(np, { replace: true }); }
+  }, [selectedShift, nguoiThucHien, operatorId, productionDate, selectedMaChien, viewingEvalId]);
 
   // ─── Criteria ─────────────────────────────────────────────────────────────
   // react-query rather than a hand-rolled effect: this gets caching across mounts and

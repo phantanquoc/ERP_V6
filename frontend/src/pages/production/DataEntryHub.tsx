@@ -28,6 +28,10 @@ const ExpiredScreen: React.FC = () => (
 const DataEntryHub: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const position = searchParams.get('position') ?? '';
+  const chieu = searchParams.get('chieu') ?? '';
+  const ngay = searchParams.get('ngay') ?? '';
+  const ca = searchParams.get('ca') ?? '';
   const [kioskExpired, setKioskExpired] = useState(false);
 
   useEffect(() => {
@@ -97,7 +101,14 @@ const DataEntryHub: React.FC = () => {
               key={entry.key}
               onClick={() => {
                 if (entry.route && !entry.disabled) {
-                  navigate(entry.route);
+                  const qs = new URLSearchParams();
+                  if (position) qs.set('position', position);
+                  if (chieu) qs.set('chieu', chieu);
+                  if (ngay) qs.set('ngay', ngay);
+                  if (ca) qs.set('ca', ca);
+                  qs.set('next', '/production/nhap-lieu');
+                  const suffix = qs.toString() ? `?${qs.toString()}` : '';
+                  navigate(`${entry.route}${suffix}`);
                 }
               }}
               disabled={entry.disabled}
