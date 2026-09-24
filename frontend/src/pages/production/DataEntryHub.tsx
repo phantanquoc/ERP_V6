@@ -5,6 +5,13 @@ import { Package, Leaf, Gauge, AlertTriangle } from 'lucide-react';
 import abfLogo from '@assets/abf-logo.png';
 import koolaLogo from '@assets/koola-logo.png';
 
+const VALID_POSITION_RE = /^[a-zA-Z0-9_-]{1,64}$/;
+const VALID_CA_RE = /^[1-4]$/;
+const VALID_NGAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const sanitizePosition = (v: string) => VALID_POSITION_RE.test(v) ? v : '';
+const sanitizeCa = (v: string) => VALID_CA_RE.test(v) ? v : '';
+const sanitizeNgay = (v: string) => VALID_NGAY_RE.test(v) ? v : '';
+
 const NotActivatedScreen: React.FC = () => (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
     <div className="bg-white rounded-lg shadow-sm border p-8 max-w-md w-full text-center">
@@ -28,10 +35,10 @@ const ExpiredScreen: React.FC = () => (
 const DataEntryHub: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const position = searchParams.get('position') ?? '';
-  const chieu = searchParams.get('chieu') ?? '';
-  const ngay = searchParams.get('ngay') ?? '';
-  const ca = searchParams.get('ca') ?? '';
+  const position = sanitizePosition(searchParams.get('position') ?? '');
+  const chieu = sanitizePosition(searchParams.get('chieu') ?? '');
+  const ngay = sanitizeNgay(searchParams.get('ngay') ?? '');
+  const ca = sanitizeCa(searchParams.get('ca') ?? '');
   const [kioskExpired, setKioskExpired] = useState(false);
 
   useEffect(() => {

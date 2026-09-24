@@ -263,11 +263,11 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
       <div className="fixed inset-0 z-[9999]" onClick={handleDrawerClose}>
         <div className="absolute inset-0 bg-black/30" />
         <div
-          className="absolute right-0 top-0 h-full w-full max-w-5xl bg-white shadow-xl"
+          className="absolute right-0 top-0 h-full w-[min(96vw,1440px)] max-w-none bg-white shadow-xl"
           onClick={(event) => event.stopPropagation()}
         >
           <div className="flex h-full flex-col">
-            <div className="border-b border-gray-200 px-5 py-4">
+            <div className="border-b border-gray-200 px-6 py-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-blue-600">Hồ sơ máy</p>

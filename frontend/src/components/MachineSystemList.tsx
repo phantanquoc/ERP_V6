@@ -1,15 +1,12 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Copy, Edit, Eye, Plus, Power, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { ChevronDown, Copy, Edit, Eye, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import Modal from './Modal';
 import {
   useCloneMachineSystem,
   useCreateMachineSystem,
-  useDeactivateMachineSystemDetail,
   useDeleteMachineSystem,
-  useDeleteMachineSystemDetail,
-  useDetailTree,
   useDistinctMachineSystemFields,
   useMachineSystemDetail,
   useMachineSystems,
@@ -20,7 +17,7 @@ import { useEmployeesForAssignment, type EmployeeOption } from '../hooks/useEmpl
 import MachineSummaryDrawer from './MachineSummaryDrawer';
 import MachineStatusUpdateDialog from './MachineStatusUpdateDialog';
 import MachineSystemDetailFormModal from './MachineSystemDetailFormModal';
-import ResponsiveRowActions, { type RowAction } from './ResponsiveRowActions';
+import ResponsiveRowActions from './ResponsiveRowActions';
 import type {
   CreateMachineSystemRequest,
   MachineStatus,
@@ -28,19 +25,11 @@ import type {
   MachineSystemCategory,
   MachineSystemDetail,
   MachineSystemDetailFilters,
-  MachineSystemDetailType,
   MachineSystemFilters,
 } from '../services/machineSystemService';
 
 type Mode = 'create' | 'edit' | 'view';
 type SystemForm = CreateMachineSystemRequest;
-
-const DETAIL_TYPES: { value: MachineSystemDetailType; label: string }[] = [
-  { value: 'THIET_BI', label: 'Thiết bị' },
-  { value: 'CUM', label: 'Cụm' },
-  { value: 'LINH_KIEN', label: 'Linh kiện' },
-  { value: 'DIEM_KIEM_TRA', label: 'Điểm kiểm tra' },
-];
 
 const SYSTEM_SORTS: { value: NonNullable<MachineSystemFilters['sortBy']>; label: string }[] = [
   { value: 'maHeThong', label: 'Mã hệ thống' },
@@ -184,9 +173,6 @@ const emptySystemForm = (): SystemForm => ({
   hoatDong: true,
 });
 
-const detailTypeLabel = (value?: string) =>
-  DETAIL_TYPES.find((type) => type.value === value)?.label ?? value ?? '—';
-
 const statusBadge = (active?: boolean) =>
   active ? 'bg-green-100 text-green-700 border-green-200' : 'bg-gray-100 text-gray-600 border-gray-200';
 
@@ -271,15 +257,6 @@ const MachineSystemList = () => {
     }, { replace: true });
   }, [setSearchParams]);
 
-  const pushDetailId = useCallback((id: string) => {
-    syncingRef.current = true;
-    setSearchParams((prev) => {
-      const params = new URLSearchParams(prev);
-      params.set('detailId', id);
-      return params;
-    }, { replace: true });
-  }, [setSearchParams]);
-
   const clearDetailIdParam = useCallback(() => {
     syncingRef.current = true;
     setSearchParams((prev) => {
@@ -295,8 +272,6 @@ const MachineSystemList = () => {
   const createSystem = useCreateMachineSystem();
   const updateSystem = useUpdateMachineSystem();
   const deleteSystem = useDeleteMachineSystem();
-  const deactivateDetail = useDeactivateMachineSystemDetail();
-  const deleteDetail = useDeleteMachineSystemDetail();
   const cloneSystem = useCloneMachineSystem();
 
   const systems = systemsQuery.data?.data ?? [];
@@ -452,68 +427,7 @@ const MachineSystemList = () => {
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [systemIdParam, systems, allSystems]);
 
-  const activeSystemId = useMemo(() => detailFilters.machineSystemId ?? allSystems[0]?.id, [detailFilters.machineSystemId, allSystems]);
-  const detailTreeQuery = useDetailTree(activeSystemId);
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-
-  type TreeNode = MachineSystemDetail & { depth: number; children: string[] };
-
-  const treeData = useMemo((): TreeNode[] | null => {
-    const items = detailTreeQuery.data?.data;
-    if (!items || items.length === 0) return null;
-
-    const map = new Map<string, TreeNode>();
-    items.forEach((item) => map.set(item.id, { ...item, depth: 0, children: [] }));
-    const roots: string[] = [];
-    items.forEach((item) => {
-      if (item.parentDetailId && map.has(item.parentDetailId)) {
-        map.get(item.parentDetailId)!.children.push(item.id);
-      } else {
-        roots.push(item.id);
-      }
-    });
-    const setDepth = (id: string, depth: number) => {
-      const node = map.get(id)!;
-      node.depth = depth;
-      node.children.forEach((childId) => setDepth(childId, depth + 1));
-    };
-    roots.forEach((id) => setDepth(id, 0));
-    const flatten = (ids: string[]): TreeNode[] => {
-      const result: TreeNode[] = [];
-      ids.forEach((id) => {
-        const node = map.get(id)!;
-        result.push(node);
-        if (expandedIds.has(id)) {
-          result.push(...flatten(node.children));
-        }
-      });
-      return result;
-    };
-    return flatten(roots);
-  }, [detailTreeQuery.data?.data, expandedIds]);
-
-  const treeItemsSource = detailTreeQuery.data?.data;
-
-  const toggleExpand = (id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const expandAll = () => {
-    if (!treeItemsSource) return;
-    const ids = treeItemsSource
-      .filter((item) => item.childDetails && item.childDetails.length > 0)
-      .map((item) => item.id);
-    setExpandedIds(new Set(ids));
-  };
-
-  const collapseAll = () => setExpandedIds(new Set());
-
-  // detailId -> modal + ancestor expansion (after treeItemsSource/expandedIds are defined)
+  // detailId -> modal (inline tree removed — drawer owns tree)
   const detailIdWarnedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!detailIdParam) {
@@ -521,25 +435,6 @@ const MachineSystemList = () => {
       return;
     }
     if (detailModal?.record?.id === detailIdParam) return;
-    const inTree = treeItemsSource?.find((d) => d.id === detailIdParam);
-    if (inTree) {
-      if (inTree.machineSystemId) setDetailFilters((prev) => prev.machineSystemId === inTree.machineSystemId ? prev : { ...prev, machineSystemId: inTree.machineSystemId });
-      const parentMap = new Map<string, string | null>();
-      treeItemsSource!.forEach((d) => parentMap.set(d.id, d.parentDetailId ?? null));
-      const ancestors: string[] = [];
-      let cur: string | null = inTree.parentDetailId ?? null;
-      while (cur) { ancestors.push(cur); cur = parentMap.get(cur) ?? null; }
-      if (ancestors.length) setExpandedIds((prev) => { const next = new Set(prev); ancestors.forEach((a) => next.add(a)); return next; });
-      setDetailModal({ mode: 'view', record: inTree });
-      detailIdWarnedRef.current = null;
-      return;
-    }
-  }, [detailIdParam, treeItemsSource]);
-
-  useEffect(() => {
-    if (!detailIdParam) return;
-    if (detailModal?.record?.id === detailIdParam) return;
-    if (treeItemsSource?.some((d) => d.id === detailIdParam)) return;
     if (detailIdQuery.isLoading) return;
     const fetched = detailIdQuery.data?.data;
     if (fetched && fetched.id === detailIdParam) {
@@ -580,11 +475,6 @@ const MachineSystemList = () => {
     setFetchedCode('');
   };
 
-  const openDetailModal = (mode: Mode, record?: MachineSystemDetail) => {
-    setDetailModal({ mode, record });
-    if (mode === 'view' && record?.id) pushDetailId(record.id);
-  };
-
   const saveSystem = async (event: FormEvent) => {
     event.preventDefault();
     if (!systemModal) return;
@@ -607,26 +497,6 @@ const MachineSystemList = () => {
       toast.success('Đã xóa hệ thống');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Không xóa được hệ thống');
-    }
-  };
-
-  const removeDetail = async (record: MachineSystemDetail) => {
-    if (!confirm(`Xóa chi tiết ${record.maChiTiet}? Nếu đã phát sinh dữ liệu, hãy dừng hoạt động thay vì xóa.`)) return;
-    try {
-      await deleteDetail.mutateAsync(record.id);
-      toast.success('Đã xóa chi tiết máy');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Không xóa được chi tiết máy');
-    }
-  };
-
-  const deactivate = async (record: MachineSystemDetail) => {
-    if (!confirm(`Dừng hoạt động chi tiết ${record.maChiTiet}?`)) return;
-    try {
-      await deactivateDetail.mutateAsync(record.id);
-      toast.success('Đã dừng hoạt động chi tiết máy');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Không dừng được chi tiết máy');
     }
   };
 
@@ -662,8 +532,6 @@ const MachineSystemList = () => {
       </div>
     );
   };
-
-  let selectedSystem: MachineSystem | undefined;
 
   return (
     <div className="space-y-4">
@@ -779,89 +647,14 @@ const MachineSystemList = () => {
         {renderPager(systemPagination, systemFilters.page ?? 1, (page) => { const next = { ...systemFilters, page }; pushSystemFilters(next); setSystemFilters(next); })}
       </section>
 
-      {detailFilters.machineSystemId && (selectedSystem = allSystems.find((system) => system.id === detailFilters.machineSystemId)) && (
-        <section className="rounded-lg border border-gray-200 bg-white">
-          <div className="flex flex-col gap-3 border-b border-gray-200 p-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-blue-600">Chi tiết hệ thống máy</p>
-              <h2 className="mt-1 text-base font-semibold text-gray-900">{selectedSystem.maHeThong} — {selectedSystem.tenHeThong}</h2>
-              <p className="text-xs text-gray-500">Cây thiết bị, cụm, linh kiện và điểm kiểm tra của máy đang chọn.</p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setDrawerSystemId(selectedSystem.id)}
-                className="inline-flex w-fit items-center gap-1.5 rounded-md border border-blue-300 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
-              >
-                <Eye className="h-4 w-4" /> Mở hồ sơ máy
-              </button>
-              <button type="button" onClick={handleClearSystemSelection} className="inline-flex w-fit items-center gap-1.5 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"><X className="h-4 w-4" /> Đóng</button>
-            </div>
+      {detailFilters.machineSystemId && (
+        <div className="flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm">
+          <span className="text-gray-600">Đang xem: <span className="font-medium text-gray-900">{allSystems.find((s) => s.id === detailFilters.machineSystemId)?.tenHeThong ?? detailFilters.machineSystemId}</span> — mở Hồ sơ máy để xem cây linh kiện, trạng thái, bảo dưỡng.</span>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => detailFilters.machineSystemId && setDrawerSystemId(detailFilters.machineSystemId)} className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"><Eye className="h-3.5 w-3.5" /> Mở hồ sơ máy</button>
+            <button type="button" onClick={handleClearSystemSelection} className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"><X className="h-3.5 w-3.5" /></button>
           </div>
-          <div className="overflow-x-auto">
-            <div className="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-1.5">
-              <button type="button" onClick={expandAll} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-200" title="Mở tất cả">
-                <ChevronsUpDown className="h-3.5 w-3.5" /> Mở
-              </button>
-              <button type="button" onClick={collapseAll} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-200" title="Thu gọn">
-                <ChevronsDownUp className="h-3.5 w-3.5" /> Gọn
-              </button>
-              <span className="text-xs text-gray-400">({treeItemsSource?.length ?? 0} chi tiết)</span>
-            </div>
-            <table className="w-full min-w-[760px] border-collapse text-sm">
-              <thead className="bg-gray-50 text-xs text-gray-500 font-medium">
-                <tr>
-                  <th className="border-b border-gray-200 px-3 py-2.5 text-left sticky left-0 bg-gray-50 z-10 min-w-[180px]">Tên chi tiết</th>
-                  <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[80px]">Mã</th>
-                  <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[90px]">Loại</th>
-                  <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[90px]">Vị trí</th>
-                  <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[110px]">Phụ trách</th>
-                  <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[110px]">Trạng thái</th>
-                  <th className="border-b border-gray-200 px-3 py-2.5 text-right sticky right-0 bg-gray-50 z-10 min-w-[110px]">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {detailTreeQuery.isLoading ? (
-                  <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr>
-                ) : !treeData || treeData.length === 0 ? (
-                  <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Chưa có chi tiết nào.</td></tr>
-                ) : treeData.map((node) => (
-                  <tr key={node.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-3 py-2.5 sticky left-0 bg-white z-10">
-                      <div className="flex items-center" style={{ paddingLeft: `${node.depth * 24}px` }}>
-                        {node.children.length > 0 ? (
-                          <button type="button" onClick={() => toggleExpand(node.id)} className="mr-1 rounded p-0.5 text-gray-400 hover:text-gray-700">
-                            {expandedIds.has(node.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                          </button>
-                        ) : <span className="mr-1 inline-block w-5" />}
-                        <span className="text-gray-900 font-medium">{node.tenChiTiet}</span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2.5 font-mono text-xs text-blue-700 font-medium">{node.maChiTiet}</td>
-                    <td className="px-3 py-2.5 text-gray-600 text-xs">{detailTypeLabel(node.loaiChiTiet)}</td>
-                    <td className="px-3 py-2.5 text-gray-600 text-xs">{node.viTri || '—'}</td>
-                    <td className="px-3 py-2.5 text-gray-600 text-xs">{node.nguoiPhuTrach || '—'}</td>
-                    <td className="px-3 py-2.5">
-                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadge(node.hoatDong)}`}>
-                        {node.hoatDong ? node.trangThai : 'Dừng'}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
-                      <ResponsiveRowActions
-                        actions={[
-                          { key: 'view', label: 'Xem chi tiết', icon: <Eye className="h-4 w-4" />, onClick: () => openDetailModal('view', node), tone: 'primary' },
-                          { key: 'edit', label: 'Sửa chi tiết', icon: <Edit className="h-4 w-4" />, onClick: () => openDetailModal('edit', node), tone: 'success' },
-                          ...(node.hoatDong ? [{ key: 'deactivate', label: 'Dừng hoạt động', icon: <Power className="h-4 w-4" />, onClick: () => deactivate(node), tone: 'warning' } satisfies RowAction] : []),
-                          { key: 'delete', label: 'Xóa chi tiết', icon: <Trash2 className="h-4 w-4" />, onClick: () => removeDetail(node), tone: 'danger' },
-                        ]}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        </div>
       )}
 
       <Modal isOpen={!!systemModal} onClose={() => setSystemModal(null)} showBackdrop>
