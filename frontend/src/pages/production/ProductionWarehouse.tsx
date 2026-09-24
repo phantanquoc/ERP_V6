@@ -214,23 +214,37 @@ const WarehouseManagementWithSubTabs: React.FC = () => {
   );
 };
 
+// Keys owned by each sub-tab — when switching sub-tab inside the same top tab,
+// TAB_SCOPED_PARAMS does NOT fire, so the sub-tab setter must drop the sibling's
+// keys itself. B behavior: switching plan ↔ list resets the view just left
+// (filters + page + detail), so returning always starts clean.
+const INBOUND_LIST_KEYS: readonly string[] = [
+  'receiptId',
+  'in__search', 'in_maPhieuNhap', 'in_tenNhanVien', 'in_nguoiDeNghi', 'in_boPhan', 'in_warehouseId', 'in_tinhTrang', 'in_daIn', 'in_isVoided', 'in_fromNgay', 'in_toNgay', 'in_page', 'in_sortBy', 'in_sortOrder',
+];
+const INBOUND_PLAN_KEYS: readonly string[] = [
+  'in_plan__search', 'in_plan_trangThai', 'in_plan_warehouseId', 'in_plan_fromNgay', 'in_plan_toNgay', 'in_plan_page', 'in_plan_sortBy', 'in_plan_sortOrder',
+];
+const OUTBOUND_LIST_KEYS: readonly string[] = [
+  'issueId',
+  'out__search', 'out_maPhieuXuat', 'out_tenNhanVien', 'out_nguoiDeNghi', 'out_boPhan', 'out_warehouseId', 'out_tinhTrang', 'out_daIn', 'out_isVoided', 'out_fromNgay', 'out_toNgay', 'out_page', 'out_sortBy', 'out_sortOrder',
+];
+const OUTBOUND_PLAN_KEYS: readonly string[] = [
+  'out_plan__search', 'out_plan_trangThai', 'out_plan_warehouseId', 'out_plan_fromNgay', 'out_plan_toNgay', 'out_plan_page', 'out_plan_sortBy', 'out_plan_sortOrder',
+];
+
 const ProductionWarehouse = () => {
   const { value: activeTab, set: setActiveTab, searchParams, setSearchParams } = useUrlTab<TabType>('tab', (v): v is TabType => VALID_TABS.includes(v as TabType), 'supplyRequest', TAB_SCOPED_PARAMS);
 
   // Sub tabs for inbound/outbound — synced to URL ?inboundSubTab / ?outboundSubTab
-  // in_* / in_plan_* (and out_* / out_plan_*) use distinct prefixes so they do NOT
-  // collide — both sets can stay in the URL and each view reads only its own.
-  // Only the detail id of the sibling is dropped so an orphan ?receiptId does
-  // not re-open its modal when you return to the other sub-tab. Filters are
-  // intentionally preserved per sub-tab; deleting them would make the user lose
-  // their search when toggling plan ↔ list.
   const inboundSubTab = (searchParams.get('inboundSubTab') === 'list' ? 'list' : 'plan') as 'plan' | 'list';
   const outboundSubTab = (searchParams.get('outboundSubTab') === 'list' ? 'list' : 'plan') as 'plan' | 'list';
   const setInboundSubTab = (v: 'plan' | 'list') => {
     setSearchParams((prev) => {
       const p = new URLSearchParams(prev);
       p.set('inboundSubTab', v);
-      if (v === 'plan') p.delete('receiptId');
+      const drop = v === 'plan' ? INBOUND_LIST_KEYS : INBOUND_PLAN_KEYS;
+      for (const k of drop) p.delete(k);
       return p;
     }, { replace: true });
   };
@@ -238,7 +252,8 @@ const ProductionWarehouse = () => {
     setSearchParams((prev) => {
       const p = new URLSearchParams(prev);
       p.set('outboundSubTab', v);
-      if (v === 'plan') p.delete('issueId');
+      const drop = v === 'plan' ? OUTBOUND_LIST_KEYS : OUTBOUND_PLAN_KEYS;
+      for (const k of drop) p.delete(k);
       return p;
     }, { replace: true });
   };
