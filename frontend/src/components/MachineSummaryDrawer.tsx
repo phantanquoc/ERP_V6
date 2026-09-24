@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { AlertTriangle, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ClipboardCheck, Edit, Eye, History, Info, Plus, Power, RefreshCw, Settings2, Trash2, Wrench, X } from 'lucide-react';
 import Portal from './Portal';
@@ -130,8 +131,16 @@ const buildTreeData = (items: MachineSystemDetail[] | undefined, expandedIds: Se
   return flatten(roots);
 };
 
+const isProfileTab = (v: string | null): v is ProfileTab =>
+  (PROFILE_TABS as readonly { key: ProfileTab }[]).some((t) => t.key === v);
+
 const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawerProps) => {
-  const [activeTab, setActiveTab] = useState<ProfileTab>('general');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const syncingRef = useRef(false);
+  const [activeTab, setActiveTab] = useState<ProfileTab>(() => {
+    const p = searchParams.get('drawerTab');
+    return isProfileTab(p) ? p : 'general';
+  });
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [detailModal, setDetailModal] = useState<{ mode: 'create' | 'edit' | 'view'; record?: MachineSystemDetail } | null>(null);
@@ -153,21 +162,61 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
   const statusLogCount = summary?.statusLogs?.length ?? 0;
   const handoverCount = summary?.handoverItems?.length ?? 0;
 
+  const pushDrawerTab = useCallback((tab: ProfileTab) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('drawer', 'open');
+    next.set('drawerTab', tab);
+    syncingRef.current = true;
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  const handleDrawerClose = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('drawer');
+    next.delete('drawerTab');
+    syncingRef.current = true;
+    setSearchParams(next, { replace: true });
+    onClose();
+  }, [searchParams, setSearchParams, onClose]);
+
+  const handleTabChange = useCallback((tab: ProfileTab) => {
+    setActiveTab(tab);
+    pushDrawerTab(tab);
+  }, [pushDrawerTab]);
+
   useEffect(() => {
     if (!isOpen) return;
     const handleEsc = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') handleDrawerClose();
     };
     document.addEventListener('keydown', handleEsc);
     return () => document.removeEventListener('keydown', handleEsc);
-  }, [isOpen, onClose]);
+  }, [isOpen, handleDrawerClose]);
 
+  // When a new system is opened, seed tab from URL if present, else reset.
   useEffect(() => {
-    if (isOpen) {
-      setActiveTab('general');
-      setExpandedIds(new Set());
-    }
+    if (!isOpen) return;
+    const urlTab = searchParams.get('drawerTab');
+    if (isProfileTab(urlTab)) setActiveTab(urlTab);
+    else if (!searchParams.has('drawerTab')) setActiveTab('general');
+    setExpandedIds(new Set());
   }, [machineSystemId, isOpen]);
+
+  // URL → state: back/forward restores drawer tab
+  useEffect(() => {
+    if (syncingRef.current) { syncingRef.current = false; return; }
+    const urlTab = searchParams.get('drawerTab');
+    if (isProfileTab(urlTab)) setActiveTab((prev) => prev === urlTab ? prev : urlTab);
+  }, [searchParams]);
+
+  // state → URL: keep ?drawer & ?drawerTab in sync while drawer is open
+  useEffect(() => {
+    if (!isOpen) return;
+    const curDrawer = searchParams.get('drawer');
+    const curTab = searchParams.get('drawerTab');
+    if (curDrawer === 'open' && curTab === activeTab) return;
+    pushDrawerTab(activeTab);
+  }, [activeTab, isOpen]);
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {
@@ -211,7 +260,7 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
 
   return (
     <Portal>
-      <div className="fixed inset-0 z-[9999]" onClick={onClose}>
+      <div className="fixed inset-0 z-[9999]" onClick={handleDrawerClose}>
         <div className="absolute inset-0 bg-black/30" />
         <div
           className="absolute right-0 top-0 h-full w-full max-w-5xl bg-white shadow-xl"
@@ -234,7 +283,7 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
                     </div>
                   )}
                 </div>
-                <button type="button" onClick={onClose} className="rounded p-1.5 text-gray-500 hover:bg-gray-100" title="Đóng">
+                <button type="button" onClick={handleDrawerClose} className="rounded p-1.5 text-gray-500 hover:bg-gray-100" title="Đóng">
                   <X className="h-5 w-5" />
                 </button>
               </div>
@@ -256,7 +305,7 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
                     <button
                       key={tab.key}
                       type="button"
-                      onClick={() => setActiveTab(tab.key)}
+                      onClick={() => handleTabChange(tab.key)}
                       className={`flex min-h-[58px] items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs font-medium transition-colors ${
                         activeTab === tab.key
                           ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm'
