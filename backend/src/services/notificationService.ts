@@ -26,7 +26,10 @@ export class NotificationService {
     }
 
     let recipientEmployeeIds = await def.resolveRecipients(ctx);
-    if (recipientEmployeeIds.length === 0) return;
+    if (recipientEmployeeIds.length === 0) {
+      logger.warn(`[NotificationService] No recipients for event ${event}, notification dropped`);
+      return;
+    }
 
     // Filter out employees whose user has muted this notification type
     try {
@@ -60,7 +63,10 @@ export class NotificationService {
       );
     }
 
-    if (recipientEmployeeIds.length === 0) return;
+    if (recipientEmployeeIds.length === 0) {
+      logger.warn(`[NotificationService] No recipients after preference filter for event ${event}, notification dropped`);
+      return;
+    }
 
     const { title, message } = def.buildMessage(ctx);
 
@@ -208,10 +214,16 @@ export class NotificationService {
     const where: any = { employeeId };
 
     if (cursorPayload) {
-      where.OR = [
-        { createdAt: { lt: new Date(cursorPayload.createdAt) } },
-        { createdAt: new Date(cursorPayload.createdAt), id: { lt: cursorPayload.id } },
+      where.AND = [
+        { employeeId },
+        {
+          OR: [
+            { createdAt: { lt: new Date(cursorPayload.createdAt) } },
+            { createdAt: new Date(cursorPayload.createdAt), id: { lt: cursorPayload.id } },
+          ],
+        },
       ];
+      delete where.employeeId;
     }
 
     const rows = await prisma.notification.findMany({
@@ -338,10 +350,17 @@ export class NotificationService {
     }
 
     if (filters.search) {
-      where.OR = [
-        { title: { contains: filters.search, mode: 'insensitive' } },
-        { message: { contains: filters.search, mode: 'insensitive' } },
+      // Preserve employeeId explicitly inside AND to avoid relying on implicit AND with OR
+      where.AND = [
+        { employeeId },
+        {
+          OR: [
+            { title: { contains: filters.search, mode: 'insensitive' } },
+            { message: { contains: filters.search, mode: 'insensitive' } },
+          ],
+        },
       ];
+      delete where.employeeId;
     }
 
     return where;

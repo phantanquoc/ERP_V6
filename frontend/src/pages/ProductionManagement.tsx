@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Cog, Package, ClipboardList,
@@ -9,6 +9,7 @@ import {
 import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
+import { useQueryClient } from '@tanstack/react-query';
 import { KpiCard } from '../design-system/KpiCard';
 import { CircularProgress, ProgressBar, NavCard } from '../design-system/Progress';
 import { PageHeader } from '../design-system/PageHeader';
@@ -16,13 +17,7 @@ import { LoadingSkeleton } from '../design-system/States';
 import { ChartCard } from '../design-system/ChartCard';
 import { SectionCard } from '../design-system/SectionCard';
 import { chartPalettes, chartHeights } from '../design-system/tokens';
-import machineSystemService from '../services/machineSystemService';
-import { orderService } from '../services/orderService';
-import finishedProductService from '../services/finishedProductService';
-import warehouseService from '../services/warehouseService';
-import warehouseReceiptService from '../services/warehouseReceiptService';
-import warehouseIssueService from '../services/warehouseIssueService';
-import supplyRequestService from '../services/supplyRequestService';
+import { useProductionOverview, productionOverviewKeys } from '../hooks/useProductionOverview';
 
 // ── Constants ──
 const MACHINE_COLORS = chartPalettes.status.slice(0, 3);
@@ -33,122 +28,97 @@ const MACHINE_COLORS = chartPalettes.status.slice(0, 3);
 // ══════════════════════════════════════════════════════════════
 const ProductionManagement = () => {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
-
-  const [machineStats, setMachineStats] = useState({ total: 0, hoatDong: 0, baoTri: 0, ngungHoatDong: 0 });
-  const [orderStats, setOrderStats] = useState({ total: 0, choLenKeHoach: 0, choSanXuat: 0, dangSanXuat: 0, choGiaoHang: 0, daLenContainer: 0, dangVanChuyen: 0, daGiao: 0 });
-  const [finishedStats, setFinishedStats] = useState({ total: 0, thangNay: 0 });
-  const [warehouseStats, setWarehouseStats] = useState({ totalWarehouses: 0, coHang: 0, trong: 0, totalLots: 0, loTrong: 0 });
-  const [receiptIssueStats, setReceiptIssueStats] = useState({ totalReceipts: 0, totalIssues: 0, receiptThangNay: 0, issueThangNay: 0 });
-  const [supplyStats, setSupplyStats] = useState({ total: 0, daCungCap: 0, chuaCungCap: 0 });
-
-  const loadAllStats = useCallback(async () => {
-    setLoading(true);
-    try {
-      const currentMonth = new Date().getMonth();
-      const currentYear = new Date().getFullYear();
-
-      const [machineRes, orderRes, finishedRes, warehouseRes, receiptRes, issueRes, supplyRes] = await Promise.allSettled([
-        machineSystemService.getMachineSystems({ page: 1, limit: 10000 }),
-        orderService.getAllOrders(1, 10000),
-        finishedProductService.getAllFinishedProducts(1, 10000),
-        warehouseService.getAllWarehouses(),
-        warehouseReceiptService.getAllWarehouseReceipts(),
-        warehouseIssueService.getAllWarehouseIssues(),
-        supplyRequestService.getAllSupplyRequests(1, 10000),
-      ]);
-
-      if (machineRes.status === 'fulfilled') {
-        const machines = machineRes.value.data ?? [];
-        setMachineStats({
-          total: machines.length,
-          hoatDong: machines.filter((m: any) => m.trangThai === 'HOAT_DONG').length,
-          baoTri: machines.filter((m: any) => m.trangThai === 'BAO_TRI').length,
-          ngungHoatDong: machines.filter((m: any) => m.trangThai === 'NGUNG_HOAT_DONG').length,
-        });
-      }
-
-      if (orderRes.status === 'fulfilled') {
-        const orders = (orderRes.value.data ?? []) as any[];
-        setOrderStats({
-          total: orders.length,
-          choLenKeHoach: orders.filter((o: any) => o.trangThaiSanXuat === 'CHO_LEN_KE_HOACH').length,
-          choSanXuat: orders.filter((o: any) => o.trangThaiSanXuat === 'CHO_SAN_XUAT').length,
-          dangSanXuat: orders.filter((o: any) => o.trangThaiSanXuat === 'DANG_SAN_XUAT').length,
-          choGiaoHang: orders.filter((o: any) => o.trangThaiSanXuat === 'CHO_GIAO_HANG').length,
-          daLenContainer: orders.filter((o: any) => o.trangThaiSanXuat === 'DA_LEN_CONTAINER').length,
-          dangVanChuyen: orders.filter((o: any) => o.trangThaiSanXuat === 'DANG_VAN_CHUYEN').length,
-          daGiao: orders.filter((o: any) => o.trangThaiSanXuat === 'DA_GIAO_CHO_KHACH_HANG').length,
-        });
-      }
-
-      if (finishedRes.status === 'fulfilled') {
-        const products = finishedRes.value.data;
-        const thisMonth = products.filter((p: any) => {
-          const d = new Date(p.createdAt);
-          return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-        });
-        setFinishedStats({ total: products.length, thangNay: thisMonth.length });
-      }
-
-      if (warehouseRes.status === 'fulfilled') {
-        const warehouses = (warehouseRes.value as any).data?.data || (warehouseRes.value as any).data || [];
-        const allLots = warehouses.flatMap((w: any) => w.lots || []);
-        const coHang = warehouses.filter((w: any) => (w.lots || []).some((l: any) => (l.lotProducts || []).length > 0)).length;
-        const loTrong = allLots.filter((l: any) => !(l.lotProducts || []).length).length;
-        setWarehouseStats({
-          totalWarehouses: warehouses.length,
-          coHang,
-          trong: warehouses.length - coHang,
-          totalLots: allLots.length,
-          loTrong,
-        });
-      }
-
-      const isThisMonth = (dateStr: string) => {
-        const d = new Date(dateStr);
-        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-      };
-
-      if (receiptRes.status === 'fulfilled') {
-        const receipts = (receiptRes.value as any).data || [];
-        setReceiptIssueStats(prev => ({
-          ...prev,
-          totalReceipts: receipts.length,
-          receiptThangNay: receipts.filter((r: any) => isThisMonth(r.createdAt || r.ngayNhap)).length,
-        }));
-      }
-
-      if (issueRes.status === 'fulfilled') {
-        const issues = (issueRes.value as any).data || [];
-        setReceiptIssueStats(prev => ({
-          ...prev,
-          totalIssues: issues.length,
-          issueThangNay: issues.filter((i: any) => isThisMonth(i.createdAt || i.ngayXuat)).length,
-        }));
-      }
-
-      if (supplyRes.status === 'fulfilled') {
-        const supplies = (supplyRes.value as any).data || [];
-        const daCungCap = supplies.filter((s: any) => s.trangThai === 'Đã cung cấp').length;
-        setSupplyStats({
-          total: supplies.length,
-          daCungCap,
-          chuaCungCap: supplies.length - daCungCap,
-        });
-      }
-    } catch (error) {
-      console.error('Error loading production stats:', error);
-    } finally {
-      setLoading(false);
-      setLastRefreshed(new Date());
-    }
-  }, []);
+  const queryClient = useQueryClient();
+  const {
+    machineQ, orderQ, finishedQ, warehouseQ, receiptQ, issueQ, supplyQ,
+    isLoading, isFetching,
+    hasAuthError, hasForbidden, hasServerError,
+  } = useProductionOverview();
 
   useEffect(() => {
-    loadAllStats();
-  }, [loadAllStats]);
+    if (hasAuthError) navigate('/login');
+  }, [hasAuthError, navigate]);
+
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: productionOverviewKeys.all });
+  };
+
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+
+  const machineStats = useMemo(() => {
+    const machines: any[] = (machineQ.data as any)?.data ?? [];
+    // Prefer pagination.total when available, fallback to page length
+    const total = (machineQ.data as any)?.pagination?.total ?? machines.length;
+    return {
+      total,
+      hoatDong: machines.filter((m: any) => m.trangThai === 'HOAT_DONG').length,
+      baoTri: machines.filter((m: any) => m.trangThai === 'BAO_TRI').length,
+      ngungHoatDong: machines.filter((m: any) => m.trangThai === 'NGUNG_HOAT_DONG').length,
+    };
+  }, [machineQ.data]);
+
+  const orderStats = useMemo(() => {
+    const orders: any[] = (orderQ.data as any)?.data ?? [];
+    return {
+      total: (orderQ.data as any)?.pagination?.total ?? orders.length,
+      choLenKeHoach: orders.filter((o: any) => o.trangThaiSanXuat === 'CHO_LEN_KE_HOACH').length,
+      choSanXuat: orders.filter((o: any) => o.trangThaiSanXuat === 'CHO_SAN_XUAT').length,
+      dangSanXuat: orders.filter((o: any) => o.trangThaiSanXuat === 'DANG_SAN_XUAT').length,
+      choGiaoHang: orders.filter((o: any) => o.trangThaiSanXuat === 'CHO_GIAO_HANG').length,
+      daLenContainer: orders.filter((o: any) => o.trangThaiSanXuat === 'DA_LEN_CONTAINER').length,
+      dangVanChuyen: orders.filter((o: any) => o.trangThaiSanXuat === 'DANG_VAN_CHUYEN').length,
+      daGiao: orders.filter((o: any) => o.trangThaiSanXuat === 'DA_GIAO_CHO_KHACH_HANG').length,
+    };
+  }, [orderQ.data]);
+
+  const finishedStats = useMemo(() => {
+    const payload: any = finishedQ.data;
+    const products: any[] = payload?.data ?? [];
+    const total = payload?.pagination?.total ?? products.length;
+    const thangNay = products.filter((p: any) => {
+      const d = new Date(p.createdAt);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    }).length;
+    return { total, thangNay };
+  }, [finishedQ.data, currentMonth, currentYear]);
+
+  const warehouseStats = useMemo(() => {
+    const raw: any = warehouseQ.data;
+    const warehouses: any[] = raw?.data?.data ?? raw?.data ?? [];
+    const allLots = warehouses.flatMap((w: any) => w.lots || []);
+    const coHang = warehouses.filter((w: any) => (w.lots || []).some((l: any) => (l.lotProducts || []).length > 0)).length;
+    const loTrong = allLots.filter((l: any) => !(l.lotProducts || []).length).length;
+    return {
+      totalWarehouses: warehouses.length,
+      coHang,
+      trong: warehouses.length - coHang,
+      totalLots: allLots.length,
+      loTrong,
+    };
+  }, [warehouseQ.data]);
+
+  const receiptIssueStats = useMemo(() => {
+    const isThisMonth = (dateStr: string) => {
+      const d = new Date(dateStr);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    };
+    const receipts: any[] = (receiptQ.data as any)?.data ?? [];
+    const issues: any[] = (issueQ.data as any)?.data ?? [];
+    return {
+      totalReceipts: (receiptQ.data as any)?.pagination?.total ?? receipts.length,
+      receiptThangNay: receipts.filter((r: any) => isThisMonth(r.createdAt || r.ngayNhap)).length,
+      totalIssues: (issueQ.data as any)?.pagination?.total ?? issues.length,
+      issueThangNay: issues.filter((i: any) => isThisMonth(i.createdAt || i.ngayXuat)).length,
+    };
+  }, [receiptQ.data, issueQ.data, currentMonth, currentYear]);
+
+  const supplyStats = useMemo(() => {
+    const supplies: any[] = (supplyQ.data as any)?.data ?? [];
+    const daCungCap = supplies.filter((s: any) => s.trangThai === 'Đã cung cấp').length;
+    const total = (supplyQ.data as any)?.pagination?.total ?? supplies.length;
+    return { total, daCungCap, chuaCungCap: total - daCungCap };
+  }, [supplyQ.data]);
 
   // ── Computed ──
   const machineRate = machineStats.total > 0 ? Math.round((machineStats.hoatDong / machineStats.total) * 100) : 0;
@@ -172,8 +142,8 @@ const ProductionManagement = () => {
 
   const machineRateDot = machineRate >= 80 ? 'bg-emerald-500' : machineRate >= 60 ? 'bg-amber-400' : 'bg-red-500';
 
-  // ── Skeleton on first load ──
-  if (loading && !lastRefreshed) {
+  // ── Loading ──
+  if (isLoading) {
     return (
       <div className="space-y-5">
         <LoadingSkeleton />
@@ -181,23 +151,42 @@ const ProductionManagement = () => {
     );
   }
 
+  const lastRefreshed = warehouseQ.dataUpdatedAt || machineQ.dataUpdatedAt || 0;
+  const lastRefreshedDate = lastRefreshed ? new Date(lastRefreshed) : null;
+
   return (
     <div className="space-y-5">
       <PageHeader
         title="Tổng quan Sản xuất"
-        description={lastRefreshed ? `Cập nhật lúc: ${lastRefreshed.toLocaleTimeString('vi-VN')}` : 'Theo dõi máy móc, đơn hàng, kho và yêu cầu cung cấp'}
+        description={lastRefreshedDate ? `Cập nhật lúc: ${lastRefreshedDate.toLocaleTimeString('vi-VN')}` : 'Theo dõi máy móc, đơn hàng, kho và yêu cầu cung cấp'}
         icon={<Factory className="w-6 h-6 text-blue-500" />}
         actions={(
           <button
-            onClick={loadAllStats}
-            disabled={loading}
+            onClick={handleRefresh}
+            disabled={isFetching}
             className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 bg-white rounded-lg px-3 py-2 hover:bg-gray-50 hover:border-gray-300 disabled:opacity-50 transition-colors shadow-sm"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            {loading ? 'Đang tải...' : 'Làm mới'}
+            <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+            {isFetching ? 'Đang tải...' : 'Làm mới'}
           </button>
         )}
       />
+
+      {hasAuthError && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-3">
+          Phiên đăng nhập hết hạn — đang chuyển tới trang đăng nhập...
+        </div>
+      )}
+      {hasForbidden && !hasAuthError && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-3">
+          Bạn không có quyền xem một số số liệu tổng quan (403). Liên hệ quản trị viên nếu cần.
+        </div>
+      )}
+      {hasServerError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+          Lỗi máy chủ khi tải số liệu tổng quan (500). Vui lòng thử làm mới.
+        </div>
+      )}
 
       {/* ── HERO KPI STRIP ── */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">

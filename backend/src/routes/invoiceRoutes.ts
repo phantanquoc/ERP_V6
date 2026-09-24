@@ -2,6 +2,8 @@ import { Router } from 'express';
 import invoiceController from '@controllers/invoiceController';
 import { authenticate } from '@middlewares/auth';
 import { requireRule } from '@middlewares/requireRule';
+import { zodValidate } from '@middlewares/zodValidation';
+import { createInvoiceSchema, updateInvoiceSchema } from '@schemas';
 const router = Router();
 
 // All routes require authentication
@@ -123,7 +125,7 @@ router.get('/:id', requireRule('invoices', 'READ'), invoiceController.getInvoice
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/', requireRule('invoices', 'CREATE'), invoiceController.createInvoice);
+router.post('/', requireRule('invoices', 'CREATE'), zodValidate(createInvoiceSchema), invoiceController.createInvoice);
 
 /**
  * @swagger
@@ -156,7 +158,7 @@ router.post('/', requireRule('invoices', 'CREATE'), invoiceController.createInvo
  *       401:
  *         description: Không có quyền truy cập
  */
-router.put('/:id', requireRule('invoices', 'UPDATE'), invoiceController.updateInvoice);
+router.put('/:id', requireRule('invoices', 'UPDATE'), zodValidate(updateInvoiceSchema), invoiceController.updateInvoice);
 
 /**
  * @swagger

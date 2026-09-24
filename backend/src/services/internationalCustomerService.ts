@@ -1,19 +1,23 @@
 import prisma from '@config/database';
-import { NotFoundError, ValidationError } from '@utils/errors';
+import { Prisma } from '@prisma/client';
+import { ConflictError, NotFoundError, ValidationError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
-import { nextStaticCode, staticCodeWhere } from '@utils/codeGenerator';
 import type { PaginatedResponse } from '@types';
 import ExcelJS from 'exceljs';
 
+const ALLOWED_CUSTOMER_FIELDS = ['maKhachHang','tenCongTy','nguoiLienHe','loaiKhachHang','quocGia','thanhPho','tinhThanh','quanHuyen','maSoThue','email','soDienThoai','diaChi','website','trangThai','ngayHopTac','doanhThuNam','soLuongDonHang','sanPhamChinh','ghiChu'] as const;
+function pickCustomer(body: Record<string, unknown>): Record<string, unknown> { const out: Record<string, unknown>={}; for(const k of ALLOWED_CUSTOMER_FIELDS) if(k in body) out[k]=body[k]; return out; }
+
 export class InternationalCustomerService {
   async generateCustomerCode(type: 'international' | 'domestic' = 'international'): Promise<string> {
+    return this.generateCustomerCodeTx(prisma as any, type);
+  }
+  private async generateCustomerCodeTx(tx: any, type: 'international' | 'domestic' = 'international'): Promise<string> {
     const prefix = type === 'domestic' ? 'KHND' : 'KHQT';
-    const last = await prisma.internationalCustomer.findFirst({
-      where: { maKhachHang: staticCodeWhere(prefix) },
-      orderBy: { maKhachHang: 'desc' },
-      select: { maKhachHang: true },
-    });
-    return nextStaticCode(last?.maKhachHang ?? null, prefix);
+    const all = await tx.internationalCustomer.findMany({ where: { maKhachHang: { startsWith: `${prefix}-` } }, select: { maKhachHang: true } });
+    if (all.length === 0) return `${prefix}-001`;
+    const maxNum = Math.max(...all.map((r: any) => parseInt(r.maKhachHang.split('-').pop() ?? '0', 10) || 0));
+    return `${prefix}-${String((isNaN(maxNum) ? 0 : maxNum) + 1).padStart(3, '0')}`;
   }
 
   async getAllCustomers(
@@ -90,36 +94,29 @@ export class InternationalCustomerService {
   }
 
   async createCustomer(data: any): Promise<any> {
-    // Generate customer code if not provided
-    if (!data.maKhachHang) {
-      const type = data.tinhThanh ? 'domestic' : 'international';
-      data.maKhachHang = await this.generateCustomerCode(type);
+    data = pickCustomer(data as Record<string, unknown>) as any;
+    if (data.ngayHopTac) data.ngayHopTac = new Date(data.ngayHopTac);
+    if (data.maKhachHang?.trim()) {
+      const dup = await prisma.internationalCustomer.findUnique({ where: { maKhachHang: data.maKhachHang.trim() }, select: { id: true } });
+      if (dup) throw new ValidationError('Customer code already exists');
+      try { return await prisma.internationalCustomer.create({ data }); } catch (e: unknown) { if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') throw new ConflictError('Mã khách hàng đã tồn tại'); throw e; }
     }
-
-    // Check if customer code already exists
-    const existingCustomer = await prisma.internationalCustomer.findUnique({
-      where: { maKhachHang: data.maKhachHang },
-    });
-
-    if (existingCustomer) {
-      throw new ValidationError('Customer code already exists');
-    }
-
-    // Parse date if provided
-    if (data.ngayHopTac) {
-      data.ngayHopTac = new Date(data.ngayHopTac);
-    }
-
-    const customer = await prisma.internationalCustomer.create({
-      data,
-    });
-
-    return customer;
+    const type = (data.tinhThanh ? 'domestic' : 'international') as 'international' | 'domestic';
+    try {
+      return await prisma.$transaction(async (tx: any) => {
+        const maKhachHang = await this.generateCustomerCodeTx(tx, type);
+        return tx.internationalCustomer.create({ data: { ...data, maKhachHang } });
+      });
+    } catch (e: unknown) { if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') throw new ConflictError('Mã khách hàng đã tồn tại, vui lòng thử lại'); throw e; }
   }
 
   async updateCustomer(id: string, data: any): Promise<any> {
-    // Check if customer exists
     await this.getCustomerById(id);
+    data = pickCustomer(data as Record<string, unknown>) as any;
+    if (data.maKhachHang) {
+      const dup = await prisma.internationalCustomer.findFirst({ where: { maKhachHang: data.maKhachHang as string, id: { not: id } }, select: { id: true } });
+      if (dup) throw new ValidationError('Mã khách hàng đã tồn tại');
+    }
 
     // Parse date if provided
     if (data.ngayHopTac) {

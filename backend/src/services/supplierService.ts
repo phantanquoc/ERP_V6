@@ -1,6 +1,6 @@
 import prisma from '@config/database';
-import { NotFoundError, ValidationError } from '../utils/errors';
-import { nextStaticCode, staticCodeWhere } from '../utils/codeGenerator';
+import { Prisma } from '@prisma/client';
+import { NotFoundError, ValidationError, ConflictError } from '../utils/errors';
 import ExcelJS from 'exceljs';
 
 interface CreateSupplierData {
@@ -105,40 +105,35 @@ export const supplierService = {
     return supplier;
   },
 
-  // Create new supplier
+  // Create new supplier — code generation inside transaction + P2002 handling
   async createSupplier(data: CreateSupplierData) {
-    // Auto-generate the supplier code when the client did not supply one.
-    // Previously `findUnique({ where: { maNhaCungCap: undefined } })` threw a
-    // confusing PrismaClientValidationError (500) instead of a clean result.
-    const maNhaCungCap = data.maNhaCungCap?.trim()
-      ? data.maNhaCungCap.trim()
-      : await this.generateSupplierCode(data.phanLoaiNCC);
-
-    // Check if maNhaCungCap already exists
-    const existing = await prisma.supplier.findUnique({
-      where: { maNhaCungCap },
-    });
-
-    if (existing) {
-      throw new ValidationError('Mã nhà cung cấp đã tồn tại');
+    const suppliedCode = data.maNhaCungCap?.trim() || null;
+    if (suppliedCode) {
+      const dup = await prisma.supplier.findUnique({ where: { maNhaCungCap: suppliedCode }, select: { id: true } });
+      if (dup) throw new ValidationError('Mã nhà cung cấp đã tồn tại');
+      try {
+        return await prisma.supplier.create({
+          data: { ...data, maNhaCungCap: suppliedCode, trangThai: data.trangThai || 'Đang cung cấp' },
+          include: { employee: { include: { user: true } } },
+        });
+      } catch (e: unknown) {
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') throw new ConflictError('Mã nhà cung cấp đã tồn tại');
+        throw e;
+      }
     }
-
-    const supplier = await prisma.supplier.create({
-      data: {
-        ...data,
-        maNhaCungCap,
-        trangThai: data.trangThai || 'Đang cung cấp',
-      },
-      include: {
-        employee: {
-          include: {
-            user: true,
-          },
-        },
-      },
-    });
-
-    return supplier;
+    // Auto-generate code inside transaction to avoid race
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const maNhaCungCap = await this.generateSupplierCodeTx(tx as any, data.phanLoaiNCC);
+        return tx.supplier.create({
+          data: { ...data, maNhaCungCap, trangThai: data.trangThai || 'Đang cung cấp' },
+          include: { employee: { include: { user: true } } },
+        });
+      });
+    } catch (e: unknown) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') throw new ConflictError('Mã nhà cung cấp đã tồn tại, vui lòng thử lại');
+      throw e;
+    }
   },
 
   // Update supplier
@@ -176,20 +171,32 @@ export const supplierService = {
     if (!existing) {
       throw new NotFoundError('Không tìm thấy nhà cung cấp');
     }
+    const [prCount, rrCount, debtCount] = await Promise.all([
+      prisma.purchaseRequest.count({ where: { OR: [{ nhaCungCapId: id }, { items: { some: { nhaCungCapId: id } } }] } }),
+      (prisma as any).replenishmentRequest ? (prisma as any).replenishmentRequest.count({ where: { supplierId: id } }).catch(()=>0) : Promise.resolve(0),
+      prisma.debt.count({ where: { supplierId: id } }),
+    ]);
+    if (prCount > 0 || rrCount > 0 || debtCount > 0) {
+      throw new ConflictError('Không thể xóa nhà cung cấp đang được tham chiếu bởi yêu cầu mua hàng / yêu cầu bổ sung / công nợ');
+    }
 
     await prisma.supplier.delete({ where: { id } });
     return { message: 'Xóa nhà cung cấp thành công' };
   },
 
-  // Generate next supplier code
+  // Generate next supplier code — public preview; createSupplier uses Tx variant internally
   async generateSupplierCode(phanLoaiNCC?: string) {
+    return this.generateSupplierCodeTx(prisma as any, phanLoaiNCC);
+  },
+  async generateSupplierCodeTx(tx: any, phanLoaiNCC?: string) {
     const prefix = phanLoaiNCC === 'Thiết bị' ? 'NCC-TB' : 'NCC';
-    const last = await prisma.supplier.findFirst({
-      where: { maNhaCungCap: staticCodeWhere(prefix) },
-      orderBy: { maNhaCungCap: 'desc' },
+    const all = await tx.supplier.findMany({
+      where: { maNhaCungCap: { startsWith: `${prefix}-` } },
       select: { maNhaCungCap: true },
     });
-    return nextStaticCode(last?.maNhaCungCap ?? null, prefix);
+    if (all.length === 0) return `${prefix}-001`;
+    const maxNum = Math.max(...all.map((s: any) => parseInt(s.maNhaCungCap.split('-').pop() ?? '0', 10) || 0));
+    return `${prefix}-${String((isNaN(maxNum) ? 0 : maxNum) + 1).padStart(3, '0')}`;
   },
 
   // Per-supplier purchase history (stats + recent PRs that reference this supplier)

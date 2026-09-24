@@ -20,14 +20,20 @@ interface CreateDebtInput {
 }
 
 class DebtService {
-  async getAll(month?: number, year?: number) {
+  async getAll(month?: number, year?: number, page = 1, limit = 20) {
+    const take = Math.min(Math.max(limit, 1), 500);
+    const skip = (Math.max(page, 1) - 1) * take;
     const where: any = {};
     if (month && year) {
       const start = new Date(year, month - 1, 1);
       const end = new Date(year, month, 1);
       where.ngayPhatSinh = { gte: start, lt: end };
     }
-    return prisma.debt.findMany({ where, orderBy: { ngayPhatSinh: 'desc' } });
+    const [data, total] = await Promise.all([
+      prisma.debt.findMany({ where, orderBy: { ngayPhatSinh: 'desc' }, skip, take }),
+      prisma.debt.count({ where }),
+    ]);
+    return { data, total, page, limit: take, totalPages: Math.ceil(total / take) };
   }
 
   async getById(id: string) {
@@ -78,15 +84,18 @@ class DebtService {
       const end = new Date(year, month, 1);
       where.ngayPhatSinh = { gte: start, lt: end };
     }
-    const debts = await prisma.debt.findMany({ where });
-    return {
-      tongPhaiTra: debts.reduce((sum, debt) => sum + (debt.soTienPhaiTra ?? 0), 0),
-      daThanhToan: debts.reduce((sum, debt) => sum + (debt.soTienDaThanhToan ?? 0), 0),
-      conNo: debts.reduce((sum, debt) => sum + ((debt.soTienPhaiTra ?? 0) - (debt.soTienDaThanhToan ?? 0)), 0),
-      soLuongCongNo: debts.length,
-      chuaThanhToan: debts.filter(d => (d.soTienDaThanhToan ?? 0) === 0 && (d.soTienPhaiTra ?? 0) > 0).length,
-      daThanhToanHet: debts.filter(d => (d.soTienDaThanhToan ?? 0) >= (d.soTienPhaiTra ?? 0) && (d.soTienPhaiTra ?? 0) > 0).length,
-    };
+    const [aggPhaiTra, aggDaTra, soLuongCongNo, chuaThanhToan] = await Promise.all([
+      prisma.debt.aggregate({ where, _sum: { soTienPhaiTra: true } }),
+      prisma.debt.aggregate({ where, _sum: { soTienDaThanhToan: true } }),
+      prisma.debt.count({ where }),
+      prisma.debt.count({ where: { ...where, soTienDaThanhToan: 0, soTienPhaiTra: { gt: 0 } } }),
+    ]);
+    const tongPhaiTra = Number((aggPhaiTra._sum as any).soTienPhaiTra ?? 0);
+    const daThanhToan = Number((aggDaTra._sum as any).soTienDaThanhToan ?? 0);
+    // daThanhToanHet needs column-to-column comparison; fetch filtered rows for that one metric only
+    const candidates = await prisma.debt.findMany({ where, select: { soTienPhaiTra: true, soTienDaThanhToan: true } });
+    const daThanhToanHet = candidates.filter(d => (d.soTienDaThanhToan ?? 0) >= (d.soTienPhaiTra ?? 0) && (d.soTienPhaiTra ?? 0) > 0).length;
+    return { tongPhaiTra, daThanhToan, conNo: tongPhaiTra - daThanhToan, soLuongCongNo, chuaThanhToan, daThanhToanHet };
   }
 }
 

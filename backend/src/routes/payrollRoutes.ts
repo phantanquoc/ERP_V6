@@ -112,6 +112,7 @@ router.post(
 router.get(
   '/my-payroll',
   authenticate,
+  requireRule('payrolls', 'READ'),
   payrollController.getMyPayroll
 );
 

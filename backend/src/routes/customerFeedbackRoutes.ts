@@ -2,7 +2,12 @@ import express from 'express';
 import customerFeedbackService from '../services/customerFeedbackService';
 import { authenticate } from '../middlewares/auth';
 import { requireRule } from '@middlewares/requireRule';
+import { zodValidate } from '@middlewares/zodValidation';
+import { createCustomerFeedbackSchema, updateCustomerFeedbackSchema } from '@schemas';
 
+const ALLOWED_FB_CREATE = ['customerId','loaiPhanHoi','mucDoNghiemTrong','noiDungPhanHoi','sanPhamLienQuan','donHangLienQuan','nguoiTiepNhan','ghiChu'] as const;
+const ALLOWED_FB_UPDATE = ['loaiPhanHoi','mucDoNghiemTrong','noiDungPhanHoi','sanPhamLienQuan','donHangLienQuan','nguoiTiepNhan','trangThaiXuLy','bienPhapXuLy','ketQuaXuLy','ngayXuLyXong','mucDoHaiLong','ghiChu'] as const;
+function pickFb(body: Record<string, unknown>, allow: readonly string[]): Record<string, unknown> { const o: Record<string, unknown>={}; for(const k of allow) if(k in body) o[k]=body[k]; return o; }
 const router = express.Router();
 
 /**
@@ -179,12 +184,13 @@ router.get('/:id', authenticate, requireRule('customer-feedbacks', 'READ'), asyn
  *       401:
  *         description: Không có quyền truy cập
  */
-router.post('/', authenticate, requireRule('customer-feedbacks', 'CREATE'), async (req, res) => {
+router.post('/', authenticate, requireRule('customer-feedbacks', 'CREATE'), zodValidate(createCustomerFeedbackSchema), async (req, res) => {
   try {
+    const picked = pickFb(req.body as Record<string, unknown>, ALLOWED_FB_CREATE);
     const feedback = await customerFeedbackService.createFeedback({
-      ...req.body,
+      ...picked,
       userId: (req as any).user?.id,
-    });
+    } as any);
     res.status(201).json({
       success: true,
       data: feedback,
@@ -225,9 +231,10 @@ router.post('/', authenticate, requireRule('customer-feedbacks', 'CREATE'), asyn
  *       401:
  *         description: Không có quyền truy cập
  */
-router.put('/:id', authenticate, requireRule('customer-feedbacks', 'UPDATE'), async (req, res) => {
+router.put('/:id', authenticate, requireRule('customer-feedbacks', 'UPDATE'), zodValidate(updateCustomerFeedbackSchema), async (req, res) => {
   try {
-    const feedback = await customerFeedbackService.updateFeedback(req.params.id as string, req.body);
+    const picked = pickFb(req.body as Record<string, unknown>, ALLOWED_FB_UPDATE);
+    const feedback = await customerFeedbackService.updateFeedback(req.params.id as string, picked as any);
     res.json({
       success: true,
       data: feedback,

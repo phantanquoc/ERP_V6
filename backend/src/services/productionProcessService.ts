@@ -154,78 +154,90 @@ class ProductionProcessService {
       throw new ValidationError('Chỉ quy trình loại Sản xuất mới có thể áp dụng thực tế');
     }
 
-    // Generate unique code
-    const maQuyTrinhSanXuat = await this.generateProductionProcessCode();
-
-    // Create production process with flowchart
-    const productionProcess = await prisma.productionProcess.create({
-      data: {
-        maQuyTrinhSanXuat,
-        processId: data.processId,
-        msnv: data.msnv,
-        tenNhanVien: data.tenNhanVien,
-        tenQuyTrinh: templateProcess.tenQuyTrinh,
-        loaiQuyTrinh: templateProcess.loaiQuyTrinh,
-        tenQuyTrinhSanXuat: data.tenQuyTrinhSanXuat,
-        maNVSanXuat: data.maNVSanXuat,
-        tenNVSanXuat: data.tenNVSanXuat,
-        khoiLuong: data.khoiLuong,
-        thoiGian: data.thoiGian,
-        materialStandardId: data.materialStandardId,
-        sanPhamDauRa: data.sanPhamDauRa,
-        tongNguyenLieuCanSanXuat: data.tongNguyenLieuCanSanXuat,
-        soGioLamTrong1Ngay: data.soGioLamTrong1Ngay,
-        flowchart: {
-          create: {
-            sections: {
-              create: data.flowchart.sections.map((section) => ({
-                phanDoan: section.phanDoan,
-                tenPhanDoan: section.tenPhanDoan,
-                noiDungCongViec: section.noiDungCongViec,
-                fileUrl: section.fileUrl,
-                stt: section.stt,
-                costs: {
-                  create: section.costs.map((cost) => ({
-                    loaiChiPhi: cost.loaiChiPhi,
-                    tenChiPhi: cost.tenChiPhi,
-                    donVi: cost.donVi,
-                    dinhMucLaoDong: cost.dinhMucLaoDong,
-                    donViDinhMucLaoDong: cost.donViDinhMucLaoDong,
-                    soLuongNguyenLieu: cost.soLuongNguyenLieu,
-                    soPhutThucHien: cost.soPhutThucHien,
-                    soLuongKeHoach: cost.soLuongKeHoach,
-                    soLuongThucTe: cost.soLuongThucTe,
+    // Generate unique code — retry once on P2002 race (concurrent QTSX increments)
+    let attempt = 0;
+    let productionProcess: any = null;
+    let maQuyTrinhSanXuat = await this.generateProductionProcessCode();
+    while (attempt < 2) {
+      try {
+        productionProcess = await prisma.productionProcess.create({
+          data: {
+            maQuyTrinhSanXuat,
+            processId: data.processId,
+            msnv: data.msnv,
+            tenNhanVien: data.tenNhanVien,
+            tenQuyTrinh: templateProcess.tenQuyTrinh,
+            loaiQuyTrinh: templateProcess.loaiQuyTrinh,
+            tenQuyTrinhSanXuat: data.tenQuyTrinhSanXuat,
+            maNVSanXuat: data.maNVSanXuat,
+            tenNVSanXuat: data.tenNVSanXuat,
+            khoiLuong: data.khoiLuong,
+            thoiGian: data.thoiGian,
+            materialStandardId: data.materialStandardId,
+            sanPhamDauRa: data.sanPhamDauRa,
+            tongNguyenLieuCanSanXuat: data.tongNguyenLieuCanSanXuat,
+            soGioLamTrong1Ngay: data.soGioLamTrong1Ngay,
+            flowchart: {
+              create: {
+                sections: {
+                  create: data.flowchart.sections.map((section) => ({
+                    phanDoan: section.phanDoan,
+                    tenPhanDoan: section.tenPhanDoan,
+                    noiDungCongViec: section.noiDungCongViec,
+                    fileUrl: section.fileUrl,
+                    stt: section.stt,
+                    costs: {
+                      create: section.costs.map((cost) => ({
+                        loaiChiPhi: cost.loaiChiPhi,
+                        tenChiPhi: cost.tenChiPhi,
+                        donVi: cost.donVi,
+                        dinhMucLaoDong: cost.dinhMucLaoDong,
+                        donViDinhMucLaoDong: cost.donViDinhMucLaoDong,
+                        soLuongNguyenLieu: cost.soLuongNguyenLieu,
+                        soPhutThucHien: cost.soPhutThucHien,
+                        soLuongKeHoach: cost.soLuongKeHoach,
+                        soLuongThucTe: cost.soLuongThucTe,
+                      })),
+                    },
+                    files: {
+                      create: section.files?.map((file, fileIndex) => ({
+                        url: file.url,
+                        fileName: file.fileName,
+                        description: file.description,
+                        order: fileIndex,
+                        uploadedById: file.uploadedById || null,
+                        uploadedAt: file.uploadedAt ? new Date(file.uploadedAt) : new Date(),
+                      })) || [],
+                    },
                   })),
                 },
-                files: {
-                  create: section.files?.map((file, fileIndex) => ({
-                    url: file.url,
-                    fileName: file.fileName,
-                    description: file.description,
-                    order: fileIndex,
-                    uploadedById: file.uploadedById || null,
-                    uploadedAt: file.uploadedAt ? new Date(file.uploadedAt) : new Date(),
-                  })) || [],
-                },
-              })),
-            },
-          },
-        },
-      },
-      include: {
-        process: true,
-        flowchart: {
-          include: {
-            sections: {
-              include: {
-                costs: true,
-                files: { orderBy: { order: 'asc' } },
               },
             },
           },
-        },
-      },
-    });
+          include: {
+            process: true,
+            flowchart: {
+              include: {
+                sections: {
+                  include: {
+                    costs: true,
+                    files: { orderBy: { order: 'asc' } },
+                  },
+                },
+              },
+            },
+          },
+        });
+        break;
+      } catch (e: any) {
+        if (e?.code === 'P2002' && attempt === 0) {
+          attempt++;
+          maQuyTrinhSanXuat = await this.generateProductionProcessCode();
+          continue;
+        }
+        throw e;
+      }
+    }
 
     return productionProcess;
   }

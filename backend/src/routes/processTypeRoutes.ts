@@ -14,7 +14,7 @@ router.get('/:id', processTypeController.getById);
 // Mutations — ADMIN or DEPARTMENT_HEAD (controller enforces DEPT_QUALITY via assertDepartment)
 router.post(
   '/',
-  requireRule('process-types', 'READ'),
+  requireRule('process-types', 'CREATE'),
   processTypeController.create
 );
 

@@ -1,6 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import generalCostService from '../services/generalCostService';
 
+const ALLOWED_COST_FIELDS = ['tenChiPhi','loaiChiPhi','noiDung','donViTinh','giaThanhNgay','donViTien','msnv','tenNhanVien'] as const;
+function pickAllowedCost(body: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of ALLOWED_COST_FIELDS) if (k in body) out[k]=body[k];
+  return out;
+}
+
 class GeneralCostController {
   // Get all general costs
   async getAllGeneralCosts(req: Request, res: Response, next: NextFunction) {
@@ -40,7 +47,7 @@ class GeneralCostController {
   // Create general cost
   async createGeneralCost(req: Request, res: Response, next: NextFunction) {
     try {
-      const generalCost = await generalCostService.createGeneralCost(req.body);
+      const generalCost = await generalCostService.createGeneralCost(pickAllowedCost(req.body as Record<string, unknown>) as any);
       res.status(201).json(generalCost);
     } catch (error) {
       next(error);
@@ -51,7 +58,7 @@ class GeneralCostController {
   async updateGeneralCost(req: Request, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
-      const generalCost = await generalCostService.updateGeneralCost(id, req.body);
+      const generalCost = await generalCostService.updateGeneralCost(id, pickAllowedCost(req.body as Record<string, unknown>) as any);
       res.json(generalCost);
     } catch (error) {
       next(error);

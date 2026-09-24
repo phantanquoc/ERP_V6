@@ -5,6 +5,13 @@ import notificationService from '@services/notificationService';
 import { NotificationEvent } from '@types';
 import logger from '@config/logger';
 
+const ALLOWED_INSPECTION_FIELDS = ['inspectionDate','inspectionPlanCode','inspectionPlanId','violationCode','violationContent','violationLevel','violationCategory','violationDescription','inspectedBy','inspectedByCode','verifiedBy1','verifiedBy1Code','verifiedBy2','verifiedBy2Code','status','notes'] as const;
+function pickAllowedInspection(body: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of ALLOWED_INSPECTION_FIELDS) if (k in body) out[k]=body[k];
+  return out;
+}
+
 export class InternalInspectionController {
   async exportToExcel(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -60,7 +67,7 @@ export class InternalInspectionController {
 
   async createInspection(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = req.body;
+      const data = pickAllowedInspection(req.body as Record<string, unknown>);
       const authReq = req as unknown as AuthenticatedRequest;
 
       const inspection = await internalInspectionService.createInspection(data, authReq.user?.id);
@@ -86,7 +93,7 @@ export class InternalInspectionController {
   async updateInspection(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = req.params.id as string;
-      const data = req.body;
+      const data = pickAllowedInspection(req.body as Record<string, unknown>);
 
       const inspection = await internalInspectionService.updateInspection(id, data);
       try {

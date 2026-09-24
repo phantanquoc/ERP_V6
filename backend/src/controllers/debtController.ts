@@ -9,13 +9,27 @@ interface RequestWithFile extends Request {
   file?: Express.Multer.File;
 }
 
+const ALLOWED_DEBT_FIELDS = ['ngayPhatSinh','loaiChiPhi','supplierId','maNhaCungCap','tenNhaCungCap','loaiCungCap','cungCap','noiDungChiCho','loaiHinh','soTienPhaiTra','soTienDaThanhToan','ngayHoachToan','ngayDenHan','soTaiKhoan','ghiChu','files'] as const;
+function pickAllowedDebt(body: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of ALLOWED_DEBT_FIELDS) if (k in body) out[k]=body[k];
+  return out;
+}
+
 export class DebtController {
   async getAllDebts(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const month = req.query.month ? parseInt(req.query.month as string) : undefined;
       const year = req.query.year ? parseInt(req.query.year as string) : undefined;
-      const debts = await debtService.getAll(month, year);
-      res.json({ success: true, data: debts });
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 20, 1), 500);
+      const result = await debtService.getAll(month, year, page, limit);
+      // Back-compat: if frontend expects array, unwrap; otherwise return paginated shape
+      if (req.query.page || req.query.limit) {
+        res.json({ success: true, data: result.data, pagination: { page: result.page, limit: result.limit, total: result.total, totalPages: result.totalPages } });
+      } else {
+        res.json({ success: true, data: result.data, pagination: { page: result.page, limit: result.limit, total: result.total, totalPages: result.totalPages } });
+      }
     } catch (error) {
       next(error);
     }
@@ -71,7 +85,7 @@ export class DebtController {
 
   async updateDebt(req: RequestWithFile, res: Response, next: NextFunction): Promise<void> {
     try {
-      const updateData = { ...req.body };
+      const updateData = pickAllowedDebt(req.body as Record<string, unknown>);
       if (req.file) {
         updateData.files = [getFileUrl('debts', req.file.filename)];
       }
@@ -94,7 +108,8 @@ export class DebtController {
 
   async exportDebtsToExcel(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await debtService.getAll();
+      const result = await debtService.getAll(undefined, undefined, 1, 500);
+      const data = result.data;
 
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Quản lý công nợ');

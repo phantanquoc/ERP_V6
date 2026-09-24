@@ -3,6 +3,13 @@ import exportCostService from '../services/exportCostService';
 import { NotFoundError } from '../utils/errors';
 import { AuthenticatedRequest } from '@types';
 
+const ALLOWED_EXPORT_FIELDS = ['tenChiPhi','loaiChiPhi','noiDung','donViTinh','giaThanhNgay','donViTien','msnv','tenNhanVien'] as const;
+function pickAllowedExport(body: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of ALLOWED_EXPORT_FIELDS) if (k in body) out[k]=body[k];
+  return out;
+}
+
 class ExportCostController {
   // Get all export costs
   async getAllExportCosts(req: Request, res: Response, next: NextFunction) {
@@ -44,7 +51,7 @@ class ExportCostController {
   // Create export cost
   async createExportCost(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const exportCost = await exportCostService.createExportCost(req.body, req.user?.id, req.user?.role);
+      const exportCost = await exportCostService.createExportCost(pickAllowedExport(req.body as Record<string, unknown>) as any, req.user?.id, req.user?.role);
       res.status(201).json({
         success: true,
         message: 'Tạo chi phí thành công',
@@ -59,7 +66,7 @@ class ExportCostController {
   async updateExportCost(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
-      const exportCost = await exportCostService.updateExportCost(id, req.body, req.user?.id, req.user?.role);
+      const exportCost = await exportCostService.updateExportCost(id, pickAllowedExport(req.body as Record<string, unknown>) as any, req.user?.id, req.user?.role);
       res.json({
         success: true,
         message: 'Cập nhật chi phí thành công',

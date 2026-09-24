@@ -4,6 +4,19 @@ import { getFileUrl } from '@middlewares/upload';
 import type { AuthenticatedRequest } from '@types';
 import prisma from '@config/database';
 
+const PR_ALLOWED_FIELDS = ['mucDichYeuCau','mucDoUuTien','ghiChu','fileKemTheo','supplyRequestId','nhaCungCapId','giaDuKien','ghiChuMuaHang','isQuickPurchase','sourceType','ngayDuKienNhap','warehouseId','ghiChuVanChuyen','trangThai','nguoiDuyet','ngayDuyet','items'] as const;
+const PR_ADMIN_ONLY = new Set(['trangThai','nguoiDuyet','ngayDuyet']);
+function pickPR(body: Record<string,unknown>, isAdmin: boolean): Record<string,unknown> {
+  const out: Record<string,unknown> = {};
+  for (const k of PR_ALLOWED_FIELDS) if (k in body) {
+    if (!isAdmin && PR_ADMIN_ONLY.has(k)) continue;
+    out[k]=body[k];
+  }
+  // items is handled separately, keep as-is if present
+  return out;
+}
+
+
 class PurchaseRequestController {
   async getAllPurchaseRequests(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
@@ -74,9 +87,22 @@ class PurchaseRequestController {
     }
   }
 
-  async createPurchaseRequest(req: Request, res: Response, next: NextFunction) {
+  async createPurchaseRequest(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const data = req.body;
+      const isAdmin = req.user?.role === 'ADMIN';
+      const raw = req.body as Record<string, unknown>;
+      const data: any = pickPR(raw, isAdmin);
+      // Derive identity from JWT — never trust client employeeId/tenNhanVien
+      if (req.user?.id) {
+        const emp = await prisma.employee.findUnique({ where: { userId: req.user.id }, select: { id: true, employeeCode: true, user: { select: { firstName: true, lastName: true } } } });
+        if (emp) {
+          data.employeeId = emp.id;
+          data.maNhanVien = emp.employeeCode;
+          data.tenNhanVien = `${emp.user.lastName ?? ''} ${emp.user.firstName ?? ''}`.trim();
+        }
+      }
+      // Preserve items (with per-item whitelist handled in service); still block if not in allowlist via pickPR already includes items
+      if (raw.items !== undefined) data.items = raw.items;
 
       // Handle file upload
       if (req.file) {
@@ -117,10 +143,15 @@ class PurchaseRequestController {
     }
   }
 
-  async updatePurchaseRequest(req: Request, res: Response, next: NextFunction) {
+  async updatePurchaseRequest(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
-      const data = req.body;
+      const isAdmin = req.user?.role === 'ADMIN';
+      const raw = req.body as Record<string, unknown>;
+      const data: any = pickPR(raw, isAdmin);
+      if (raw.items !== undefined) data.items = raw.items;
+      // Block client identity override on update as well
+      delete data.employeeId; delete data.maNhanVien; delete data.tenNhanVien;
 
       // Handle file upload
       if (req.file) {
@@ -212,11 +243,14 @@ class PurchaseRequestController {
     }
   }
 
-  async exportToExcel(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async exportToExcel(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const filters: any = {};
-      if (req.query.search) {
-        filters.search = req.query.search as string;
+      if (req.query.search) filters.search = req.query.search as string;
+      const isAdmin = req.user?.role === 'ADMIN';
+      if (!isAdmin && req.user?.id) {
+        const emp = await prisma.employee.findUnique({ where: { userId: req.user.id }, select: { id: true } });
+        if (emp) filters.employeeId = emp.id;
       }
 
       const buffer = await purchaseRequestService.exportToExcel(filters);

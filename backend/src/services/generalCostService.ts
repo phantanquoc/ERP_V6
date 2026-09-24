@@ -1,6 +1,6 @@
 import prisma from '@config/database';
-import { GeneralCost } from '@prisma/client';
-import { nextStaticCode, staticCodeWhere } from '@utils/codeGenerator';
+import { Prisma, GeneralCost } from '@prisma/client';
+import { ConflictError } from '@utils/errors';
 import ExcelJS from 'exceljs';
 
 export interface CreateGeneralCostInput {
@@ -24,14 +24,11 @@ export interface UpdateGeneralCostInput {
 }
 
 class GeneralCostService {
-  // Generate unique code
-  private async generateCode(): Promise<string> {
-    const last = await prisma.generalCost.findFirst({
-      where: { maChiPhi: staticCodeWhere('CP') },
-      orderBy: { maChiPhi: 'desc' },
-      select: { maChiPhi: true },
-    });
-    return nextStaticCode(last?.maChiPhi ?? null, 'CP');
+  private async generateCodeTx(tx: any): Promise<string> {
+    const all = await tx.generalCost.findMany({ where: { maChiPhi: { startsWith: 'CP-' } }, select: { maChiPhi: true } });
+    if (all.length === 0) return 'CP-001';
+    const maxNum = Math.max(...all.map((r: any) => parseInt(r.maChiPhi.split('-').pop() ?? '0', 10) || 0));
+    return `CP-${String((isNaN(maxNum) ? 0 : maxNum) + 1).padStart(3, '0')}`;
   }
 
   // Get all general costs with pagination
@@ -75,16 +72,17 @@ class GeneralCostService {
     });
   }
 
-  // Create general cost
+  // Create general cost — code generation inside transaction + P2002
   async createGeneralCost(input: CreateGeneralCostInput): Promise<GeneralCost> {
-    const maChiPhi = await this.generateCode();
-
-    return await prisma.generalCost.create({
-      data: {
-        maChiPhi,
-        ...input
-      }
-    });
+    try {
+      return await prisma.$transaction(async (tx: any) => {
+        const maChiPhi = await this.generateCodeTx(tx);
+        return tx.generalCost.create({ data: { maChiPhi, ...input } });
+      });
+    } catch (e: unknown) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') throw new ConflictError('Mã chi phí đã tồn tại, vui lòng thử lại');
+      throw e;
+    }
   }
 
   // Update general cost

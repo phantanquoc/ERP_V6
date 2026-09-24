@@ -1036,6 +1036,8 @@ class PurchaseRequestService {
 
   async exportToExcel(filters?: any): Promise<Buffer> {
     const where: any = {};
+    if (filters?.employeeId) where.employeeId = filters.employeeId;
+    if (filters?.departmentId) where.employee = { user: { departmentId: filters.departmentId } };
 
     if (filters?.search) {
       where.OR = [

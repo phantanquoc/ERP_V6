@@ -13,6 +13,8 @@ const {
 } = debtController;
 import { authenticate } from '../middlewares/auth';
 import { createSingleUploadMiddleware } from '../middlewares/upload';
+import { zodValidate } from '@middlewares/zodValidation';
+import { createDebtSchema, updateDebtSchema } from '@schemas';
 const router = express.Router();
 
 router.use(authenticate);
@@ -42,7 +44,7 @@ const uploadDebt = createSingleUploadMiddleware('debts');
  *       200:
  *         description: Lấy danh sách công nợ thành công
  */
-router.get('/', getAllDebts);
+router.get('/', requireRule('debts', 'READ'), getAllDebts);
 
 /**
  * @swagger
@@ -55,7 +57,7 @@ router.get('/', getAllDebts);
  *       200:
  *         description: Lấy tổng hợp công nợ thành công
  */
-router.get('/summary', getDebtSummary);
+router.get('/summary', requireRule('debts', 'READ'), getDebtSummary);
 
 /**
  * @swagger
@@ -73,7 +75,7 @@ router.get('/summary', getDebtSummary);
  *               type: string
  *               format: binary
  */
-router.get('/export/excel', exportDebtsToExcel);
+router.get('/export/excel', requireRule('debts', 'EXPORT'), exportDebtsToExcel);
 
 /**
  * @swagger
@@ -95,7 +97,7 @@ router.get('/export/excel', exportDebtsToExcel);
  *       404:
  *         description: Không tìm thấy công nợ
  */
-router.get('/:id', getDebtById);
+router.get('/:id', requireRule('debts', 'READ'), getDebtById);
 
 /**
  * @swagger
@@ -115,7 +117,7 @@ router.get('/:id', getDebtById);
  *       400:
  *         description: Dữ liệu không hợp lệ
  */
-router.post('/', requireRule('debts', 'CREATE'), uploadDebt, createDebt);
+router.post('/', requireRule('debts', 'CREATE'), uploadDebt, zodValidate(createDebtSchema), createDebt);
 
 /**
  * @swagger
@@ -142,7 +144,7 @@ router.post('/', requireRule('debts', 'CREATE'), uploadDebt, createDebt);
  *       404:
  *         description: Không tìm thấy công nợ
  */
-router.put('/:id', requireRule('debts', 'UPDATE'), uploadDebt, updateDebt);
+router.put('/:id', requireRule('debts', 'UPDATE'), uploadDebt, zodValidate(updateDebtSchema), updateDebt);
 
 /**
  * @swagger

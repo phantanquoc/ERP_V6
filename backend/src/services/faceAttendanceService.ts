@@ -933,28 +933,30 @@ export class FaceAttendanceService {
       update: { isActive: true, updatedAt: new Date() },
     });
 
-    // Xóa ảnh cũ và tạo ảnh mới
-    await prisma.faceImage.deleteMany({ where: { faceProfileId: profile.id } });
-
+    // Xóa ảnh cũ và tạo ảnh mới — bọc trong transaction để Promise.all fail thì rollback
     const uploadDir = path.join(env.UPLOAD_DIR, 'faces', employeeId);
     const enrollHour = new Date().getHours();
-    const created = await Promise.all(
-      embeddings.map(async (emb, i) => {
+    const created = await prisma.$transaction(async (tx) => {
+      await tx.faceImage.deleteMany({ where: { faceProfileId: profile.id } });
+      const rows: any[] = [];
+      for (let i = 0; i < embeddings.length; i++) {
         const filename = `face_${Date.now()}_${i}.jpg`;
         saveBase64Image(keptImages[i], uploadDir, filename);
-        return prisma.faceImage.create({
+        const row = await tx.faceImage.create({
           data: {
             faceProfileId: profile.id,
             imagePath: `faces/${employeeId}/${filename}`,
-            embedding: encryptText(JSON.stringify(emb)),
+            embedding: encryptText(JSON.stringify(embeddings[i])),
             qualityScore: keptQualities[i],
             poseYaw: keptYaws[i],
             posePitch: keptPitches[i],
             capturedHour: enrollHour,
           },
         });
-      })
-    );
+        rows.push(row);
+      }
+      return rows;
+    });
 
     logger.info(`Enrolled ${created.length} face images for employee ${employeeId}`);
     invalidateEmbeddingCache(profile.id);
@@ -991,23 +993,26 @@ export class FaceAttendanceService {
 
     const uploadDir = path.join(env.UPLOAD_DIR, 'faces', employeeId);
     const varHour = new Date().getHours();
-    const created = await Promise.all(
-      embeddings.map(async (emb, i) => {
+    const created = await prisma.$transaction(async (tx) => {
+      const rows: any[] = [];
+      for (let i = 0; i < embeddings.length; i++) {
         const filename = `face_var_${Date.now()}_${i}.jpg`;
         saveBase64Image(keptImages[i], uploadDir, filename);
-        return prisma.faceImage.create({
+        const row = await tx.faceImage.create({
           data: {
             faceProfileId: profile.id,
             imagePath: `faces/${employeeId}/${filename}`,
-            embedding: encryptText(JSON.stringify(emb)),
+            embedding: encryptText(JSON.stringify(embeddings[i])),
             qualityScore: keptQualities[i],
             poseYaw: keptYaws[i],
             posePitch: keptPitches[i],
             capturedHour: varHour,
           },
         });
-      })
-    );
+        rows.push(row);
+      }
+      return rows;
+    });
 
     const total = await prisma.faceImage.count({ where: { faceProfileId: profile.id } });
     logger.info(`Added ${created.length} variation images for employee ${employeeId}, total=${total}`);

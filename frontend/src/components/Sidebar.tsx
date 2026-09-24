@@ -146,7 +146,11 @@ const Sidebar = ({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProp
     ], module: 'general' },
     { path: '/quality', name: 'Bộ phận chất lượng', icon: <ShieldCheck size={20} />, subItems: [
       { path: '/quality/personnel', name: 'CL nhân sự', subModule: 'personnel' },
+      { path: '/quality/office', name: 'CL văn phòng', subModule: 'office' },
+      { path: '/quality/production', name: 'CL sản xuất', subModule: 'production' },
       { path: '/quality/process', name: 'CL quy trình', subModule: 'process' },
+      { path: '/quality/process-types', name: 'Loại quy trình', subModule: 'process' },
+      { path: '/quality/process-list', name: 'Danh sách quy trình', subModule: 'process' },
     ], module: 'quality' },
     { path: '/business', name: 'Bộ phận kinh doanh', icon: <Briefcase size={20} />, subItems: [
       { path: '/business/international', name: 'KD Quốc Tế', subModule: 'international' },

@@ -50,6 +50,26 @@ export class ProcessService {
     return nextStaticCode(last?.maQuyTrinh ?? null, 'QT');
   }
 
+  // Race-safe create: retry once on P2002 unique violation (concurrent QT increments)
+  private async createProcessWithCode(data: {
+    maQuyTrinh: string;
+    msnv: string;
+    tenNhanVien: string;
+    tenQuyTrinh: string;
+    loaiQuyTrinh: string;
+    files: string[];
+  }) {
+    try {
+      return await prisma.process.create({ data });
+    } catch (e: any) {
+      if (e?.code === 'P2002') {
+        const retryCode = await this.generateProcessCode();
+        return prisma.process.create({ data: { ...data, maQuyTrinh: retryCode } });
+      }
+      throw e;
+    }
+  }
+
   async getAllProcesses(
     page: number = 1,
     limit: number = 10,
@@ -143,15 +163,13 @@ export class ProcessService {
 
     const maQuyTrinh = await this.generateProcessCode();
 
-    const process = await prisma.process.create({
-      data: {
-        maQuyTrinh,
-        msnv: data.msnv,
-        tenNhanVien: data.tenNhanVien,
-        tenQuyTrinh: data.tenQuyTrinh,
-        loaiQuyTrinh: data.loaiQuyTrinh,
-        files: data.files || [],
-      },
+    const process = await this.createProcessWithCode({
+      maQuyTrinh,
+      msnv: data.msnv,
+      tenNhanVien: data.tenNhanVien,
+      tenQuyTrinh: data.tenQuyTrinh,
+      loaiQuyTrinh: data.loaiQuyTrinh,
+      files: data.files || [],
     });
 
     return process;

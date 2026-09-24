@@ -98,13 +98,28 @@ export class QualityEvaluationService {
     return evaluation;
   }
 
+  // Whitelist to prevent mass-assignment via ...data spread
+  private static readonly ALLOWED_CREATE_FIELDS = new Set([
+    'maChien', 'thoiGianChien', 'tenHangHoa', 'mauSac',
+    'machineSystemId', 'finishedProductId', 'materialEvaluationId',
+    'muiHuong', 'huongVi', 'doNgot', 'doGion',
+    'danhGiaTongQuan', 'deXuatDieuChinh', 'fileDinhKem',
+    'nguoiThucHien',
+    // tiLe fields — explicitly allowed so caller can set them; no silent overwrite
+    'aTiLe', 'bTiLe', 'bDauTiLe', 'cTiLe', 'vunLonTiLe', 'vunNhoTiLe', 'phePhamTiLe', 'uotTiLe',
+  ]);
+
+  private pickAllowed(data: any, allowed: Set<string>): Record<string, any> {
+    const out: Record<string, any> = {};
+    for (const k of allowed) if (data[k] !== undefined) out[k] = data[k];
+    return out;
+  }
+
   async createQualityEvaluation(data: any, userId?: string) {
-    // Validate required fields
     if (!data.maChien || !data.thoiGianChien || !data.tenHangHoa) {
       throw new ValidationError('Thiếu thông tin bắt buộc');
     }
 
-    // Get user's full name if userId is provided
     let nguoiThucHien = data.nguoiThucHien || '';
     if (userId && !data.nguoiThucHien) {
       const user = await prisma.user.findUnique({
@@ -116,30 +131,37 @@ export class QualityEvaluationService {
       }
     }
 
+    const picked = this.pickAllowed(data, QualityEvaluationService.ALLOWED_CREATE_FIELDS);
+
     const evaluation = await prisma.qualityEvaluation.create({
       data: {
-        ...data,
+        ...(picked as any),
         nguoiThucHien,
         createdById: userId ?? null,
-      },
+      } as any,
     });
 
     return evaluation;
   }
 
+  private static readonly ALLOWED_UPDATE_FIELDS = new Set([
+    'mauSac', 'muiHuong', 'huongVi', 'doNgot', 'doGion',
+    'danhGiaTongQuan', 'deXuatDieuChinh', 'fileDinhKem',
+    'nguoiThucHien', 'tenHangHoa', 'thoiGianChien',
+    'machineSystemId', 'finishedProductId', 'materialEvaluationId',
+    // tiLe fields — caller must explicitly provide; no silent overwrite from FinishedProduct
+    'aTiLe', 'bTiLe', 'bDauTiLe', 'cTiLe', 'vunLonTiLe', 'vunNhoTiLe', 'phePhamTiLe', 'uotTiLe',
+  ]);
+
   async updateQualityEvaluation(id: string, data: any, userId?: string) {
     const existingEvaluation = await prisma.qualityEvaluation.findUnique({
       where: { id },
-      include: {
-        finishedProduct: true,
-      },
     });
 
     if (!existingEvaluation) {
       throw new NotFoundError('Đánh giá chất lượng không tồn tại');
     }
 
-    // Get user's full name if userId is provided
     let nguoiThucHien = data.nguoiThucHien;
     if (userId && !data.nguoiThucHien) {
       const user = await prisma.user.findUnique({
@@ -151,36 +173,19 @@ export class QualityEvaluationService {
       }
     }
 
-    // Auto-fill percentage data from finished_product if available
-    // Preserve user-provided fields (including danhGiaTongQuan) via the spread.
-    const updateData: any = { ...data };
+    // Whitelist — drop any unexpected keys (prevents mass-assignment)
+    const updateData: any = this.pickAllowed(data, QualityEvaluationService.ALLOWED_UPDATE_FIELDS);
 
-    if (existingEvaluation.finishedProduct) {
-      // Override percentage fields with calculated values from finished product
-      // danhGiaTongQuan and other assessment fields are NOT overwritten here — preserved from data.
-      updateData.aTiLe = existingEvaluation.finishedProduct.aTiLe;
-      updateData.bTiLe = existingEvaluation.finishedProduct.bTiLe;
-      updateData.bDauTiLe = existingEvaluation.finishedProduct.bDauTiLe;
-      updateData.cTiLe = existingEvaluation.finishedProduct.cTiLe;
-      updateData.vunLonTiLe = existingEvaluation.finishedProduct.vunLonTiLe;
-      updateData.vunNhoTiLe = existingEvaluation.finishedProduct.vunNhoTiLe;
-      updateData.phePhamTiLe = existingEvaluation.finishedProduct.phePhamTiLe;
-      updateData.uotTiLe = existingEvaluation.finishedProduct.uotTiLe;
-    }
-
-    // Explicitly restore danhGiaTongQuan from data to guard against any future regression
-    if (data.danhGiaTongQuan !== undefined) {
-      updateData.danhGiaTongQuan = data.danhGiaTongQuan;
-    }
-
-    // Only update nguoiThucHien if it's provided
     if (nguoiThucHien !== undefined) {
       updateData.nguoiThucHien = nguoiThucHien;
     }
 
-    const evaluation = await prisma.qualityEvaluation.update({
-      where: { id },
-      data: updateData,
+    // Wrap read+write in a transaction to avoid TOCTOU on concurrent updates
+    const evaluation = await prisma.$transaction(async (tx) => {
+      return tx.qualityEvaluation.update({
+        where: { id },
+        data: updateData,
+      });
     });
 
     return evaluation;

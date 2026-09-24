@@ -2,6 +2,15 @@ import { Request, Response, NextFunction } from 'express';
 import invoiceService from '@services/invoiceService';
 import type { AuthenticatedRequest, ApiResponse } from '@types';
 
+const ALLOWED_INVOICE_FIELDS = ['customerId','maSoThue','loaiHoaDon','boPhanSuDung','mucDichSuDung','tongTien','thueVAT','thanhTien','trangThai','phuongThucThanhToan','ngayLap','ngayThanhToan','nhanVienLap','ghiChu','soHoaDon','files'] as const;
+const ALLOWED_INVOICE_UPDATE_FIELDS = ['customerId','maSoThue','loaiHoaDon','boPhanSuDung','mucDichSuDung','tongTien','thueVAT','thanhTien','trangThai','phuongThucThanhToan','ngayLap','ngayThanhToan','ghiChu'] as const;
+function pickAllowedInvoice(body: Record<string, unknown>, isCreate: boolean): Record<string, unknown> {
+  const allow = isCreate ? ALLOWED_INVOICE_FIELDS : ALLOWED_INVOICE_UPDATE_FIELDS;
+  const out: Record<string, unknown> = {};
+  for (const k of allow) if (k in body) out[k]=body[k];
+  return out;
+}
+
 export class InvoiceController {
   async getAllInvoices(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -44,7 +53,7 @@ export class InvoiceController {
 
   async createInvoice(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const invoice = await invoiceService.createInvoice(req.body);
+      const invoice = await invoiceService.createInvoice(pickAllowedInvoice(req.body as Record<string, unknown>, true));
 
       res.status(201).json({
         success: true,
@@ -59,7 +68,7 @@ export class InvoiceController {
   async updateInvoice(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = req.params.id as string;
-      const invoice = await invoiceService.updateInvoice(id, req.body);
+      const invoice = await invoiceService.updateInvoice(id, pickAllowedInvoice(req.body as Record<string, unknown>, false));
 
       res.json({
         success: true,

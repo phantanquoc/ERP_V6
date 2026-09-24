@@ -40,7 +40,7 @@ router.use(authenticate);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/', internationalProductController.getAllProducts);
+router.get('/', requireRule('international-products', 'READ'), internationalProductController.getAllProducts);
 
 /**
  * @swagger
@@ -56,7 +56,7 @@ router.get('/', internationalProductController.getAllProducts);
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/generate-code', internationalProductController.generateProductCode);
+router.get('/generate-code', requireRule('international-products', 'READ'), internationalProductController.generateProductCode);
 
 /**
  * @swagger
@@ -77,7 +77,7 @@ router.get('/generate-code', internationalProductController.generateProductCode)
  *       401:
  *         description: Không có quyền truy cập
  */
-router.get('/export/excel', internationalProductController.exportToExcel);
+router.get('/export/excel', requireRule('international-products', 'EXPORT'), internationalProductController.exportToExcel);
 
 /**
  * @swagger
@@ -102,9 +102,9 @@ router.get('/export/excel', internationalProductController.exportToExcel);
  *       404:
  *         description: Không tìm thấy hàng hóa
  */
-router.get('/code/:code', internationalProductController.getProductByCode);
+router.get('/code/:code', requireRule('international-products', 'READ'), internationalProductController.getProductByCode);
 
-router.get('/categories', internationalProductController.getCategories);
+router.get('/categories', requireRule('international-products', 'READ'), internationalProductController.getCategories);
 
 router.post(
   '/categories',
@@ -155,9 +155,9 @@ router.post(
  *       404:
  *         description: Không tìm thấy hàng hóa
  */
-router.get('/:id/stock', internationalProductController.getStockSummary);
+router.get('/:id/stock', requireRule('international-products', 'READ'), internationalProductController.getStockSummary);
 
-router.get('/:id', internationalProductController.getProductById);
+router.get('/:id', requireRule('international-products', 'READ'), internationalProductController.getProductById);
 
 /**
  * @swagger

@@ -683,3 +683,108 @@ export type WarehouseReceiptListQuery = z.infer<typeof warehouseReceiptListQuery
 export type WarehouseIssueListQuery = z.infer<typeof warehouseIssueListQuerySchema>;
 export type InventoryOverviewQuery = z.infer<typeof inventoryOverviewQuerySchema>;
 
+// ==================== DEBT / INVOICE / GENERAL COST / EXPORT COST / INSPECTION / FEEDBACK SCHEMAS ====================
+const debtBase = {
+  ngayPhatSinh: z.string().min(1, 'Ngày phát sinh là bắt buộc'),
+  loaiChiPhi: z.string().optional().nullable(),
+  supplierId: z.string().min(1, 'Nhà cung cấp là bắt buộc'),
+  maNhaCungCap: z.string().min(1, 'Mã nhà cung cấp là bắt buộc'),
+  tenNhaCungCap: z.string().min(1, 'Tên nhà cung cấp là bắt buộc'),
+  loaiCungCap: z.string().optional().nullable(),
+  cungCap: z.string().optional().nullable(),
+  noiDungChiCho: z.string().optional().nullable(),
+  loaiHinh: z.string().optional().nullable(),
+  soTienPhaiTra: z.union([z.number(), z.string().transform(Number)]).pipe(z.number().nonnegative()).optional(),
+  soTienDaThanhToan: z.union([z.number(), z.string().transform(Number)]).pipe(z.number().nonnegative()).optional(),
+  ngayHoachToan: z.string().optional().nullable(),
+  ngayDenHan: z.string().optional().nullable(),
+  soTaiKhoan: z.string().optional().nullable(),
+  ghiChu: z.string().optional().nullable(),
+  files: z.array(z.string()).optional(),
+};
+export const createDebtSchema = z.object(debtBase);
+export const updateDebtSchema = z.object(debtBase).partial();
+
+const invoiceBase = {
+  customerId: z.string().min(1, 'Khách hàng là bắt buộc'),
+  maSoThue: z.string().optional().nullable(),
+  loaiHoaDon: z.string().optional().nullable(),
+  boPhanSuDung: z.string().optional().nullable(),
+  mucDichSuDung: z.string().optional().nullable(),
+  tongTien: z.union([z.number(), z.string().transform(Number)]).pipe(z.number().nonnegative()).optional(),
+  thueVAT: z.union([z.number(), z.string().transform(Number)]).pipe(z.number().min(0).max(100)).optional(),
+  thanhTien: z.union([z.number(), z.string().transform(Number)]).pipe(z.number().nonnegative()).optional(),
+  trangThai: z.string().optional().nullable(),
+  phuongThucThanhToan: z.string().optional().nullable(),
+  ngayLap: z.string().optional().nullable(),
+  ngayThanhToan: z.string().optional().nullable(),
+  nhanVienLap: z.string().min(1, 'Nhân viên lập là bắt buộc'),
+  ghiChu: z.string().optional().nullable(),
+  soHoaDon: z.string().optional(),
+};
+export const createInvoiceSchema = z.object(invoiceBase);
+export const updateInvoiceSchema = z.object(invoiceBase).partial().refine((v) => Object.keys(v).length > 0, 'Không có dữ liệu cập nhật');
+
+const costBase = {
+  tenChiPhi: z.string().min(1, 'Tên chi phí là bắt buộc').max(200),
+  loaiChiPhi: z.string().min(1, 'Loại chi phí là bắt buộc').max(100),
+  noiDung: z.string().optional().nullable(),
+  donViTinh: z.string().optional().nullable(),
+  giaThanhNgay: z.union([z.number(), z.string().transform(Number)]).pipe(z.number().nonnegative()).optional().nullable(),
+  donViTien: z.string().optional().nullable(),
+  msnv: z.string().optional().nullable(),
+  tenNhanVien: z.string().optional().nullable(),
+};
+export const createGeneralCostSchema = z.object(costBase);
+export const updateGeneralCostSchema = z.object(costBase).partial().refine((v) => Object.keys(v).length > 0, 'Không có dữ liệu cập nhật');
+export const createExportCostSchema = z.object(costBase);
+export const updateExportCostSchema = z.object(costBase).partial().refine((v) => Object.keys(v).length > 0, 'Không có dữ liệu cập nhật');
+
+// InternalInspection: file has no zod at all; mirror prisma fields loosely
+const inspectionBase = {
+  inspectionDate: z.string().min(1, 'Ngày kiểm tra là bắt buộc'),
+  inspectionPlanCode: z.string().optional().nullable(),
+  inspectionPlanId: z.string().optional().nullable(),
+  violationCode: z.string().optional().nullable(),
+  violationContent: z.string().optional().nullable(),
+  violationLevel: z.string().optional().nullable(),
+  violationCategory: z.string().optional().nullable(),
+  violationDescription: z.string().optional().nullable(),
+  inspectedBy: z.string().optional().nullable(),
+  inspectedByCode: z.string().optional().nullable(),
+  verifiedBy1: z.string().optional().nullable(),
+  verifiedBy1Code: z.string().optional().nullable(),
+  verifiedBy2: z.string().optional().nullable(),
+  verifiedBy2Code: z.string().optional().nullable(),
+  status: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+};
+export const createInternalInspectionSchema = z.object({ inspectionDate: inspectionBase.inspectionDate, ...Object.fromEntries(Object.entries(inspectionBase).filter(([k])=>k!=='inspectionDate')) });
+export const updateInternalInspectionSchema = z.object(inspectionBase).partial().refine((v) => Object.keys(v).length > 0, 'Không có dữ liệu cập nhật');
+
+const feedbackBase = {
+  customerId: z.string().min(1, 'Khách hàng là bắt buộc'),
+  loaiPhanHoi: z.string().min(1, 'Loại phản hồi là bắt buộc'),
+  mucDoNghiemTrong: z.string().min(1, 'Mức độ nghiêm trọng là bắt buộc'),
+  noiDungPhanHoi: z.string().min(1, 'Nội dung phản hồi là bắt buộc'),
+  sanPhamLienQuan: z.string().optional().nullable(),
+  donHangLienQuan: z.string().optional().nullable(),
+  nguoiTiepNhan: z.string().optional().nullable(),
+  ghiChu: z.string().optional().nullable(),
+};
+export const createCustomerFeedbackSchema = z.object(feedbackBase);
+export const updateCustomerFeedbackSchema = z.object({
+  loaiPhanHoi: z.string().optional().nullable(),
+  mucDoNghiemTrong: z.string().optional().nullable(),
+  noiDungPhanHoi: z.string().optional().nullable(),
+  sanPhamLienQuan: z.string().optional().nullable(),
+  donHangLienQuan: z.string().optional().nullable(),
+  nguoiTiepNhan: z.string().optional().nullable(),
+  trangThaiXuLy: z.string().optional().nullable(),
+  bienPhapXuLy: z.string().optional().nullable(),
+  ketQuaXuLy: z.string().optional().nullable(),
+  ngayXuLyXong: z.string().optional().nullable(),
+  mucDoHaiLong: z.string().optional().nullable(),
+  ghiChu: z.string().optional().nullable(),
+}).partial().refine((v) => Object.keys(v).length > 0, 'Không có dữ liệu cập nhật');
+

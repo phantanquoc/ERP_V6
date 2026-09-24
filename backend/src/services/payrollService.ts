@@ -805,7 +805,7 @@ export class PayrollService {
         metadata: { month, year, period },
       });
     } catch (err) {
-      logger.warn({ err, month, year }, '[Payroll] sendPayrollNotifications failed (non-blocking)');
+      logger.warn(`[Payroll] sendPayrollNotifications failed (non-blocking) ${String(err)}`, { month, year } as any);
     }
 
     return { count: employeeIds.length };

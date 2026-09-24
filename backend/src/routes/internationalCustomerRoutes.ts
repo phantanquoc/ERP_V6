@@ -40,6 +40,7 @@ router.use(authenticate);
  *         description: Không có quyền truy cập
  */
 router.get('/',
+  requireRule('international-customers', 'READ'),
   internationalCustomerController.getAllCustomers
 );
 
@@ -96,6 +97,7 @@ router.post('/generate-code',
  *         description: Không có quyền truy cập
  */
 router.get('/export/excel',
+  requireRule('international-customers', 'EXPORT'),
   internationalCustomerController.exportToExcel
 );
 
@@ -123,6 +125,7 @@ router.get('/export/excel',
  *         description: Không tìm thấy khách hàng
  */
 router.get('/code/:code',
+  requireRule('international-customers', 'READ'),
   internationalCustomerController.getCustomerByCode
 );
 
@@ -150,6 +153,7 @@ router.get('/code/:code',
  *         description: Không tìm thấy khách hàng
  */
 router.get('/:id',
+  requireRule('international-customers', 'READ'),
   internationalCustomerController.getCustomerById
 );
 

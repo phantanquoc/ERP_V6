@@ -2,6 +2,8 @@ import { Router } from 'express';
 import generalCostController from '../controllers/generalCostController';
 import { authenticate } from '../middlewares/auth';
 import { requireRule } from '@middlewares/requireRule';
+import { zodValidate } from '@middlewares/zodValidation';
+import { createGeneralCostSchema, updateGeneralCostSchema } from '@schemas';
 
 const router = Router();
 
@@ -107,7 +109,7 @@ router.get('/:id', requireRule('general-costs', 'READ'), generalCostController.g
  *       401:
  *         description: Chưa xác thực
  */
-router.post('/', requireRule('general-costs', 'CREATE'), generalCostController.createGeneralCost);
+router.post('/', requireRule('general-costs', 'CREATE'), zodValidate(createGeneralCostSchema), generalCostController.createGeneralCost);
 
 /**
  * @swagger
@@ -139,7 +141,7 @@ router.post('/', requireRule('general-costs', 'CREATE'), generalCostController.c
  *       404:
  *         description: Không tìm thấy chi phí chung
  */
-router.put('/:id', requireRule('general-costs', 'UPDATE'), generalCostController.updateGeneralCost);
+router.put('/:id', requireRule('general-costs', 'UPDATE'), zodValidate(updateGeneralCostSchema), generalCostController.updateGeneralCost);
 
 /**
  * @swagger

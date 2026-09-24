@@ -2,6 +2,8 @@ import { Router } from 'express';
 import internalInspectionController from '@controllers/internalInspectionController';
 import { authenticate } from '@middlewares/auth';
 import { requireRule } from '@middlewares/requireRule';
+import { zodValidate } from '@middlewares/zodValidation';
+import { createInternalInspectionSchema, updateInternalInspectionSchema } from '@schemas';
 
 const router = Router();
 
@@ -136,6 +138,7 @@ router.post(
   '/',
   authenticate,
   requireRule('internal-inspections', 'CREATE'),
+  zodValidate(createInternalInspectionSchema),
   (req, res, next) => internalInspectionController.createInspection(req, res, next)
 );
 
@@ -177,6 +180,7 @@ router.patch(
   '/:id',
   authenticate,
   requireRule('internal-inspections', 'UPDATE'),
+  zodValidate(updateInternalInspectionSchema),
   (req, res, next) => internalInspectionController.updateInspection(req, res, next)
 );
 
