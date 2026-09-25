@@ -317,6 +317,24 @@ const entries: NotificationEventDef[] = [
     resolveRecipients: resolveDirectRecipients,
   },
   {
+    event: NotificationEvent.SUPPLY_REQUEST_PURCHASED,
+    notificationType: NotificationType.SUPPLY_REQUEST_PURCHASED,
+    buildMessage: (ctx) => ({
+      title: 'Yêu cầu cung cấp đã mua hàng',
+      message: `Yêu cầu cung cấp ${ctx.metadata?.maYeuCau ?? ''} đã được mua hàng. Hàng đang chờ nhập kho.`,
+    }),
+    resolveRecipients: resolveDirectRecipients,
+  },
+  {
+    event: NotificationEvent.SUPPLY_REQUEST_WAITING_REPLENISHMENT,
+    notificationType: NotificationType.SUPPLY_REQUEST_WAITING_REPLENISHMENT,
+    buildMessage: (ctx) => ({
+      title: 'Yêu cầu cung cấp chờ bổ sung',
+      message: `Yêu cầu cung cấp ${ctx.metadata?.maYeuCau ?? ''} thiếu hàng${ctx.metadata?.tenGoi ? ` — ${ctx.metadata.tenGoi}` : ''}. Đã chuyển sang yêu cầu bổ sung.`,
+    }),
+    resolveRecipients: resolveDirectRecipients,
+  },
+  {
     event: NotificationEvent.SUPPLY_REQUEST_FULFILLED,
     notificationType: NotificationType.SUPPLY_REQUEST_FULFILLED,
     buildMessage: (ctx) => ({
@@ -439,24 +457,30 @@ const entries: NotificationEventDef[] = [
       // QUICK/MANUAL flows keep broadcast — only branch SHORTAGE/REORDER by goods class
       const sourceType = ctx.metadata?.sourceType as string | undefined;
       const isShortageLike = sourceType === 'SHORTAGE' || sourceType === 'REORDER';
+      let purchasingIds: string[];
       if (!isShortageLike) {
-        return getEmployeeIdsByDeptCode('DEPT_PURCHASING');
-      }
-      // Inspect phanLoaiGroup (bucket: MATERIALS/EQUIPMENT/OTHER) or items[].phanLoai heuristic
-      const phanLoaiGroup = ctx.metadata?.phanLoaiGroup as string | undefined;
-      if (phanLoaiGroup === 'MATERIALS' || phanLoaiGroup === 'EQUIPMENT' || phanLoaiGroup === 'OTHER') {
-        return getPurchasingRecipientsForBucket(subDeptCodeForBucket(phanLoaiGroup));
-      }
-      // Fallback: inspect items[].phanLoai with the shared bucket heuristic
-      const items = ctx.metadata?.items as Array<{ phanLoai?: string }> | undefined;
-      if (items && items.length > 0) {
-        const buckets = new Set(items.map((it) => bucketPhanLoai(String(it.phanLoai ?? ''))));
-        if (buckets.size === 1) {
-          return getPurchasingRecipientsForBucket(subDeptCodeForBucket([...buckets][0]));
+        purchasingIds = await getEmployeeIdsByDeptCode('DEPT_PURCHASING');
+      } else {
+        const phanLoaiGroup = ctx.metadata?.phanLoaiGroup as string | undefined;
+        if (phanLoaiGroup === 'MATERIALS' || phanLoaiGroup === 'EQUIPMENT' || phanLoaiGroup === 'OTHER') {
+          purchasingIds = await getPurchasingRecipientsForBucket(subDeptCodeForBucket(phanLoaiGroup));
+        } else {
+          const items = ctx.metadata?.items as Array<{ phanLoai?: string }> | undefined;
+          if (items && items.length > 0) {
+            const buckets = new Set(items.map((it) => bucketPhanLoai(String(it.phanLoai ?? ''))));
+            if (buckets.size === 1) {
+              purchasingIds = await getPurchasingRecipientsForBucket(subDeptCodeForBucket([...buckets][0]));
+            } else {
+              purchasingIds = await getEmployeeIdsByDeptCode('DEPT_PURCHASING');
+            }
+          } else {
+            purchasingIds = await getEmployeeIdsByDeptCode('DEPT_PURCHASING');
+          }
         }
-        // Mixed buckets → broadcast to the whole purchasing department
       }
-      return getEmployeeIdsByDeptCode('DEPT_PURCHASING');
+      // Admin audit: also notify admins (dedup, preference filter will handle mute)
+      const adminIds = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...purchasingIds, ...adminIds])];
     },
   },
   // ── Purchase Request submitted by purchasing → notify admins to approve ──
@@ -519,17 +543,24 @@ const entries: NotificationEventDef[] = [
     }),
     resolveRecipients: async (ctx) => {
       const phanLoaiGroup = ctx.metadata?.phanLoaiGroup as string | undefined;
+      let purchasingIds: string[];
       if (phanLoaiGroup === 'MATERIALS' || phanLoaiGroup === 'EQUIPMENT' || phanLoaiGroup === 'OTHER') {
-        return getPurchasingRecipientsForBucket(subDeptCodeForBucket(phanLoaiGroup as never));
-      }
-      const items = ctx.metadata?.items as Array<{ phanLoai?: string }> | undefined;
-      if (items && items.length > 0) {
-        const buckets = new Set(items.map((it) => bucketPhanLoai(String(it.phanLoai ?? ''))));
-        if (buckets.size === 1) {
-          return getPurchasingRecipientsForBucket(subDeptCodeForBucket([...buckets][0] as never));
+        purchasingIds = await getPurchasingRecipientsForBucket(subDeptCodeForBucket(phanLoaiGroup as never));
+      } else {
+        const items = ctx.metadata?.items as Array<{ phanLoai?: string }> | undefined;
+        if (items && items.length > 0) {
+          const buckets = new Set(items.map((it) => bucketPhanLoai(String(it.phanLoai ?? ''))));
+          if (buckets.size === 1) {
+            purchasingIds = await getPurchasingRecipientsForBucket(subDeptCodeForBucket([...buckets][0] as never));
+          } else {
+            purchasingIds = await getEmployeeIdsByDeptCode('DEPT_PURCHASING');
+          }
+        } else {
+          purchasingIds = await getEmployeeIdsByDeptCode('DEPT_PURCHASING');
         }
       }
-      return getEmployeeIdsByDeptCode('DEPT_PURCHASING');
+      const adminIds = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...purchasingIds, ...adminIds])];
     },
   },
   {

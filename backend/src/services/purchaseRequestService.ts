@@ -426,6 +426,22 @@ class PurchaseRequestService {
       console.error('Error sending purchase request notifications:', notifError);
     }
 
+    // MANUAL YCMH lands directly at "Chờ duyệt" (already quoted) — also notify admin
+    // with the "chờ phê duyệt" event so it appears as "cần duyệt" rather than "cần báo giá".
+    // This mirrors convertToPurchaseRequest (allPriced) and submitForApproval.
+    if ((purchaseRequest as any)?.trangThai === 'Chờ duyệt') {
+      try {
+        const tongTien = data.items.reduce((s: number, it: any) => s + (Number(it.soLuong) || 0) * (Number(it.giaDuKien) || 0), 0);
+        await notificationService.notify(NotificationEvent.PURCHASE_REQUEST_SUBMITTED_FOR_APPROVAL, {
+          metadata: {
+            maYeuCau: (purchaseRequest as any)?.maYeuCau ?? '',
+            purchaseRequestId: (purchaseRequest as any)?.id,
+            tongTien: tongTien.toLocaleString('vi-VN') + ' đ',
+          },
+        });
+      } catch (e) { console.error('Error sending submit-for-approval on create:', e); }
+    }
+
     return purchaseRequest;
   }
 
@@ -685,6 +701,9 @@ class PurchaseRequestService {
       }
     }
 
+    // Capture actor before stripping — service resolves display name via prisma.user like cancel does
+    const __actorUserId = (data as any).__actorUserId as string | undefined;
+    let normalizedGhiChuVanChuyen: string | null | undefined = undefined;
     // Parse soLuong to float if it's a string (from FormData)
     const { items, ...updateData } = data as any;
     // Strip internal actor field before Prisma — unknown field causes P2000/P2011
@@ -695,7 +714,9 @@ class PurchaseRequestService {
     // ghiChuVanChuyen: normalize empty string → null, but only if caller touched it
     if ((data as any).ghiChuVanChuyen !== undefined) {
       const gcv = (data as any).ghiChuVanChuyen;
-      updateData.ghiChuVanChuyen = (gcv === null || gcv === '' || (typeof gcv === 'string' && gcv.trim() === '')) ? null : String(gcv);
+      const normGcv = (gcv === null || gcv === '' || (typeof gcv === 'string' && gcv.trim() === '')) ? null : String(gcv);
+      normalizedGhiChuVanChuyen = normGcv;
+      updateData.ghiChuVanChuyen = normGcv;
     }
     if (updateData.soLuong !== undefined && updateData.soLuong !== null) {
       updateData.soLuong = parseFloat(updateData.soLuong.toString());
@@ -735,10 +756,11 @@ class PurchaseRequestService {
       updateData.giaDuKien = updateData.giaDuKien === '' ? null : parseFloat(updateData.giaDuKien);
     }
 
-    let purchaseRequest;
+    let purchaseRequest: any;
     // Snapshot prior schedule values to detect InboundPlan reschedule after the write
     const priorNgayDuKienNhap: Date | null = (existingRequest as any).ngayDuKienNhap ?? null;
     const priorWarehouseId: string | null = (existingRequest as any).warehouseId ?? null;
+    const priorGhiChuVanChuyen: string | null = (existingRequest as any).ghiChuVanChuyen ?? null;
 
     if (items && Array.isArray(items)) {
       purchaseRequest = await prisma.$transaction(async (tx) => {
@@ -818,30 +840,152 @@ class PurchaseRequestService {
         },
       });
     }
-    // ── Reschedule InboundPlan when ngayDuKienNhap or warehouseId changed after a plan already exists ──
-    if ((normalizedNgayDuKienNhap !== undefined || normalizedWarehouseId !== undefined) && purchaseRequest) {
+    // ── InboundPlan: reschedule if exists, otherwise auto-create draft when schedule is provided ──
+    // Covers the new "Cập nhật" flow: user edits ngayDuKienNhap/warehouseId/ghiChuVanChuyen while Đã duyệt,
+    // before the plan normally appears at Hoàn thành. Without this branch the update
+    // silently wrote only purchaseRequest fields — no plan, no warehouse notification.
+    // Resolve actor display name for audit logs (like cancelPurchaseRequest pattern)
+    let actorDisplayName: string | null = null;
+    if (__actorUserId) {
+      try {
+        const actorUser = await prisma.user.findUnique({ where: { id: __actorUserId }, select: { firstName: true, lastName: true, email: true } });
+        if (actorUser) actorDisplayName = `${actorUser.lastName ?? ''} ${actorUser.firstName ?? ''}`.trim() || actorUser.email || null;
+      } catch {}
+    }
+    const actorLabel = actorDisplayName ?? (updateData as any).nguoiDuyet ?? (purchaseRequest as any)?.nguoiDuyet ?? 'Hệ thống';
+    // Determine if any schedule-related field was touched (date/warehouse/note)
+    const shouldCheckInboundPlan = (normalizedNgayDuKienNhap !== undefined || normalizedWarehouseId !== undefined || normalizedGhiChuVanChuyen !== undefined) && !!purchaseRequest;
+    if (shouldCheckInboundPlan) {
       const existingPlan = (purchaseRequest as any).inboundPlan ?? await prisma.inboundPlan.findUnique({ where: { purchaseRequestId: id } });
       if (existingPlan) {
+        // Guard terminal plans — no reschedule (task 1.4)
+        if (existingPlan.trangThai === 'Đã nhập' || existingPlan.trangThai === 'Đã hủy') {
+          // No reschedule, but still allow purchaseRequest field update (already done)
+        } else {
         const newNgay = normalizedNgayDuKienNhap !== undefined ? normalizedNgayDuKienNhap : null;
         const newWhId = normalizedWarehouseId !== undefined ? normalizedWarehouseId : null;
-        const dateChanged = newNgay !== undefined && newNgay !== null && priorNgayDuKienNhap?.getTime() !== (newNgay as Date)?.getTime();
-        const whChanged = newWhId !== undefined && newWhId !== null && priorWarehouseId !== newWhId;
-        // Date reschedule: update InboundPlan.ngayDuKien + log
-        if (dateChanged && newNgay) {
+        const newGhiChu = normalizedGhiChuVanChuyen !== undefined ? normalizedGhiChuVanChuyen : null;
+        // Compare against prior values (or existingPlan for warehouse fallback)
+        const priorWhForCompare = existingPlan.warehouseId ?? priorWarehouseId ?? null;
+        const newWhIdStr = newWhId ? String(newWhId).trim() : null;
+        const priorWhStr = priorWhForCompare ? String(priorWhForCompare).trim() : null;
+        const dateChanged = newNgay !== null && priorNgayDuKienNhap?.getTime() !== (newNgay as Date)?.getTime();
+        // Also detect date change vs existingPlan.ngayDuKien when priorNgayDuKienNhap is null
+        const dateChangedVsPlan = newNgay !== null && existingPlan.ngayDuKien?.getTime() !== (newNgay as Date)?.getTime();
+        const effectiveDateChanged = dateChanged || dateChangedVsPlan;
+        const whChanged = normalizedWarehouseId !== undefined && newWhIdStr !== priorWhStr && newWhId !== undefined;
+        const ghiChuChanged = normalizedGhiChuVanChuyen !== undefined && (newGhiChu ?? null) !== (priorGhiChuVanChuyen ?? null);
+        const anyChange = (effectiveDateChanged && newNgay) || whChanged || ghiChuChanged;
+        // Build new plan data and logs
+        if (anyChange) {
           const oldDate: Date | null = existingPlan.ngayDuKien ?? priorNgayDuKienNhap;
-          const actorLabel = (updateData as any).nguoiDuyet ?? (purchaseRequest as any).nguoiDuyet ?? 'Hệ thống';
           await prisma.$transaction(async (tx) => {
-            await tx.inboundPlan.update({ where: { id: existingPlan.id }, data: { ngayDuKien: newNgay as Date, ...(newWhId !== undefined && newWhId !== null ? { warehouseId: newWhId } : {}) } });
-            await tx.inboundPlanLog.create({ data: { inboundPlanId: existingPlan.id, hanhDong: 'Đổi ngày dự kiến', ngayCu: oldDate, ngayMoi: newNgay as Date, nguoiThucHien: actorLabel } });
+            const planUpdate: Record<string, unknown> = {};
+            if (effectiveDateChanged && newNgay) planUpdate.ngayDuKien = newNgay as Date;
+            if (whChanged && newWhIdStr !== null) planUpdate.warehouseId = newWhIdStr;
+            else if (whChanged && newWhIdStr === null) planUpdate.warehouseId = null;
+            if (Object.keys(planUpdate).length > 0) {
+              await tx.inboundPlan.update({ where: { id: existingPlan.id }, data: planUpdate as any });
+            }
+            if (effectiveDateChanged && newNgay) {
+              await tx.inboundPlanLog.create({ data: { inboundPlanId: existingPlan.id, hanhDong: 'Đổi ngày dự kiến', ngayCu: oldDate, ngayMoi: newNgay as Date, nguoiThucHien: actorLabel } });
+            }
+            if (whChanged) {
+              await tx.inboundPlanLog.create({ data: { inboundPlanId: existingPlan.id, hanhDong: 'Đổi kho đích', lyDo: newWhIdStr ? `Kho: ${newWhIdStr}` : 'Đã xóa kho đích', nguoiThucHien: actorLabel } });
+            }
+            if (ghiChuChanged) {
+              await tx.inboundPlanLog.create({ data: { inboundPlanId: existingPlan.id, hanhDong: 'Đổi ghi chú vận chuyển', lyDo: newGhiChu ?? '', nguoiThucHien: actorLabel } });
+            }
           });
-          // also sync warehouse if it changed at same time but date log already covers warehouse update
-          if (whChanged && newWhId) {
-            // warehouse already updated in the same tx above; nothing extra
+        }
+        // GAP-16: notify warehouse about rescheduled inbound plan
+        let _rescheduleWIds: string[] = [];
+        if (anyChange) {
+          try {
+            const warehouseEmployees = await prisma.employee.findMany({
+              where: { subDepartment: { code: 'SUBDEPT_PRODUCTION_WAREHOUSE' }, status: 'ACTIVE' },
+              select: { id: true },
+            });
+            const wIds = warehouseEmployees.map((e) => e.id);
+            _rescheduleWIds = wIds;
+            if (wIds.length > 0) {
+              await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_PURCHASED, {
+                targetEmployeeIds: wIds,
+                entityId: id,
+                metadata: { maYeuCau: existingRequest.maYeuCau, purchaseRequestId: id, ngayDuKien: (newNgay as Date)?.toISOString?.() ?? '', warehouseId: newWhIdStr ?? undefined },
+              });
+            }
+          } catch (e) { console.error('Error sending reschedule notify:', e); }
+          try {
+            const adminUsers = await prisma.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { employees: { select: { id: true } } } });
+            const adminIds = adminUsers.filter((u: any) => u.employees).map((u: any) => u.employees.id).filter((id: string) => !_rescheduleWIds.includes(id));
+            if (adminIds.length > 0) {
+              await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_PURCHASED, { targetEmployeeIds: adminIds, entityId: id, metadata: { maYeuCau: existingRequest.maYeuCau, purchaseRequestId: id, ngayDuKien: (newNgay as Date)?.toISOString?.() ?? '', warehouseId: newWhIdStr ?? undefined } });
+            }
+          } catch (e) { console.error('admin notify failed', e); }
+        }
+        } // end non-terminal plan branch
+      } else {
+        // No plan yet — create a draft InboundPlan so Kho sees it immediately.
+        // Only create when at least one schedule signal is present and PR is not terminal.
+        const isTerminalPR = (existingRequest as any).trangThai === 'Hoàn thành' || (existingRequest as any).trangThai === 'Đã hủy';
+        const hasScheduleSignal = (normalizedNgayDuKienNhap !== undefined && normalizedNgayDuKienNhap !== null) || (normalizedWarehouseId !== undefined && normalizedWarehouseId !== null && String(normalizedWarehouseId).trim() !== '');
+        if (!isTerminalPR && hasScheduleSignal) {
+          // Resolve ngayDuKien for the new plan
+          let ngayDuKienForNewPlan: Date | null = null;
+          if (normalizedNgayDuKienNhap !== undefined && normalizedNgayDuKienNhap !== null) {
+            ngayDuKienForNewPlan = normalizedNgayDuKienNhap as Date;
+          } else if ((purchaseRequest as any)?.ngayDuKienNhap) {
+            ngayDuKienForNewPlan = new Date((purchaseRequest as any).ngayDuKienNhap);
+          } else if ((purchaseRequest as any)?.ngayDuyet) {
+            ngayDuKienForNewPlan = new Date((purchaseRequest as any).ngayDuyet);
+          } else {
+            const d = new Date(); d.setDate(d.getDate() + 7); ngayDuKienForNewPlan = d;
           }
-        } else if (whChanged && newWhId) {
-          await prisma.inboundPlan.update({ where: { id: existingPlan.id }, data: { warehouseId: newWhId } });
-        } else if (newNgay === null && existingPlan) {
-          // clearing date is not propagated to plan — keep plan date as-is
+          const whIdForNewPlan: string | null = (normalizedWarehouseId !== undefined ? (normalizedWarehouseId as string | null) : null) ?? (purchaseRequest as any)?.warehouseId ?? (existingRequest as any)?.warehouseId ?? null;
+          let createdPlanId: string | null = null;
+          await prisma.$transaction(async (tx) => {
+            const already = await tx.inboundPlan.findUnique({ where: { purchaseRequestId: id } });
+            if (already) { createdPlanId = already.id; return; }
+            const year = new Date().getFullYear();
+            const lastPlan = await tx.inboundPlan.findFirst({ where: { maKeHoach: yearlyCodeWhere('KH-NH', year) }, orderBy: { maKeHoach: 'desc' }, select: { maKeHoach: true } });
+            const maKeHoach = nextYearlyCode(lastPlan?.maKeHoach ?? null, 'KH-NH', year);
+            const created = await tx.inboundPlan.create({ data: { maKeHoach, purchaseRequestId: id, ngayDuKien: ngayDuKienForNewPlan as Date, warehouseId: whIdForNewPlan, trangThai: 'Chờ nhập' } });
+            createdPlanId = created.id;
+            await tx.inboundPlanLog.create({ data: { inboundPlanId: created.id, hanhDong: 'Tạo kế hoạch từ cập nhật đơn hàng', ngayMoi: ngayDuKienForNewPlan as Date, nguoiThucHien: actorLabel } });
+          });
+          // Notify warehouse about the newly created inbound plan
+          try {
+            const warehouseEmployees = await prisma.employee.findMany({ where: { subDepartment: { code: 'SUBDEPT_PRODUCTION_WAREHOUSE' }, status: 'ACTIVE' }, select: { id: true } });
+            const wIds = warehouseEmployees.map((e) => e.id);
+            if (wIds.length > 0) {
+              await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_PURCHASED, {
+                targetEmployeeIds: wIds,
+                entityId: id,
+                metadata: { maYeuCau: existingRequest.maYeuCau, purchaseRequestId: id, inboundPlanId: createdPlanId ?? undefined, ngayDuKien: (ngayDuKienForNewPlan as Date)?.toISOString?.() ?? '', warehouseId: whIdForNewPlan ?? undefined },
+              });
+            }
+            const adminUsers = await prisma.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { employees: { select: { id: true } } } });
+            const adminIds = adminUsers.filter((u: any) => u.employees).map((u: any) => u.employees.id).filter((aid: string) => !wIds.includes(aid));
+            if (adminIds.length > 0) {
+              await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_PURCHASED, { targetEmployeeIds: adminIds, entityId: id, metadata: { maYeuCau: existingRequest.maYeuCau, purchaseRequestId: id, inboundPlanId: createdPlanId ?? undefined, ngayDuKien: (ngayDuKienForNewPlan as Date)?.toISOString?.() ?? '', warehouseId: whIdForNewPlan ?? undefined } });
+            }
+          } catch (e) { console.error('Error sending new-plan notify:', e); }
+          // Refresh purchaseRequest so response includes the freshly created plan
+          try {
+            const refreshed = await prisma.purchaseRequest.findUnique({
+              where: { id },
+              include: {
+                employee: { include: { user: true, position: true } },
+                supplyRequest: true,
+                supplier: true,
+                warehouse: { select: { id: true, tenKho: true, maKho: true } },
+                inboundPlan: { include: { warehouse: { select: { id: true, tenKho: true, maKho: true } }, logs: { orderBy: { createdAt: 'desc' }, take: 20 } } },
+                items: { include: { supplier: true } },
+              },
+            });
+            if (refreshed) purchaseRequest = refreshed as any;
+          } catch {}
         }
       }
     }
@@ -914,6 +1058,40 @@ class PurchaseRequestService {
       } catch (notifError) {
         console.error('Error sending purchase request approved notification:', notifError);
       }
+      // GAP-8: also notify warehouse when YCMH approved (hook covers supplyRequest case, but MANUAL YCMH has no supplyRequestId)
+      let _approvedWarehouseIds: string[] = [];
+      if (!existingRequest.supplyRequestId) {
+        try {
+          const warehouseEmployees = await prisma.employee.findMany({
+            where: { subDepartment: { code: 'SUBDEPT_PRODUCTION_WAREHOUSE' }, status: 'ACTIVE' },
+            select: { id: true },
+          });
+          const warehouseIds = warehouseEmployees.map((e) => e.id).filter((wid) => wid !== existingRequest.employeeId);
+          _approvedWarehouseIds = warehouseIds;
+          if (warehouseIds.length > 0) {
+            await notificationService.notify(NotificationEvent.PURCHASE_REQUEST_APPROVED, {
+              targetEmployeeIds: warehouseIds,
+              metadata: { maYeuCau: existingRequest.maYeuCau, purchaseRequestId: id, nguoiDuyet: updateData.nguoiDuyet ?? '' },
+            });
+          }
+        } catch (e) { console.error('Error sending warehouse approved notify:', e); }
+      }
+      try {
+        const alreadyNotifiedIds = [existingRequest.employeeId, ..._approvedWarehouseIds];
+        const adminUsers = await prisma.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { employees: { select: { id: true } } } });
+        const adminIds = adminUsers.filter((u: any) => u.employees).map((u: any) => u.employees.id).filter((id: string) => !alreadyNotifiedIds.includes(id));
+        if (adminIds.length > 0) {
+          await notificationService.notify(NotificationEvent.PURCHASE_REQUEST_APPROVED, { targetEmployeeIds: adminIds, entityId: id, metadata: { maYeuCau: existingRequest.maYeuCau, purchaseRequestId: id, nguoiDuyet: updateData.nguoiDuyet ?? '' } });
+        }
+      } catch (e) { console.error('admin notify failed', e); }
+      // GAP-15: if transition was Chờ báo giá → Chờ duyệt via PUT (bypass submitForApproval), also notify admins
+      if (existingRequest.trangThai === 'Chờ báo giá' && (updateData as any).trangThai === 'Chờ duyệt') {
+        try {
+          await notificationService.notify(NotificationEvent.PURCHASE_REQUEST_SUBMITTED_FOR_APPROVAL, {
+            metadata: { maYeuCau: existingRequest.maYeuCau, purchaseRequestId: id },
+          });
+        } catch (e) { console.error('Error sending submit-for-approval notify via PUT:', e); }
+      }
     }
 
     // Notify requester when rejected
@@ -930,45 +1108,74 @@ class PurchaseRequestService {
       } catch (notifError) {
         console.error('Error sending purchase request rejected notification:', notifError);
       }
+      // GAP-9: also notify warehouse + purchasing when rejected
+      let _rejectedExtraIds: string[] = [];
+      try {
+        const [warehouseEmployees, purchasingEmployees] = await Promise.all([
+          prisma.employee.findMany({ where: { subDepartment: { code: 'SUBDEPT_PRODUCTION_WAREHOUSE' }, status: 'ACTIVE' }, select: { id: true } }),
+          prisma.employee.findMany({ where: { subDepartment: { department: { code: 'DEPT_PURCHASING' } }, status: 'ACTIVE' }, select: { id: true } }),
+        ]);
+        const extraIds = [...new Set([...warehouseEmployees.map((e) => e.id), ...purchasingEmployees.map((e) => e.id)])].filter((wid) => wid !== existingRequest.employeeId);
+        _rejectedExtraIds = extraIds;
+        if (extraIds.length > 0) {
+          await notificationService.notify(NotificationEvent.PURCHASE_REQUEST_REJECTED, {
+            targetEmployeeIds: extraIds,
+            metadata: { maYeuCau: existingRequest.maYeuCau, purchaseRequestId: id, lyDo: updateData.ghiChuMuaHang ?? '' },
+          });
+        }
+      } catch (e) { console.error('Error sending rejected extra notify:', e); }
+      try {
+        const alreadyNotifiedIds = [existingRequest.employeeId, ..._rejectedExtraIds];
+        const adminUsers = await prisma.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { employees: { select: { id: true } } } });
+        const adminIds = adminUsers.filter((u: any) => u.employees).map((u: any) => u.employees.id).filter((id: string) => !alreadyNotifiedIds.includes(id));
+        if (adminIds.length > 0) {
+          await notificationService.notify(NotificationEvent.PURCHASE_REQUEST_REJECTED, { targetEmployeeIds: adminIds, entityId: id, metadata: { maYeuCau: existingRequest.maYeuCau, purchaseRequestId: id, lyDo: updateData.ghiChuMuaHang ?? '' } });
+        }
+      } catch (e) { console.error('admin notify failed', e); }
     }
 
     // Notify warehouse when purchasing marks as "Hoàn thành" (goods purchased, ready for intake)
     if (updateData.trangThai === 'Hoàn thành') {
-      // Advance supply request status to "Đã mua hàng"
+      let _purchasedWarehouseIds: string[] = [];
+      // Advance supply request status to "Đã mua hàng" — hook now uses SUPPLY_REQUEST_PURCHASED
       if (existingRequest.supplyRequestId) {
         try {
           await supplyRequestService.onPurchaseRequestCompleted(existingRequest.supplyRequestId);
         } catch (hookError) {
           console.error('Error in onPurchaseRequestCompleted hook:', hookError);
         }
-      }
-
-      try {
-        const warehouseEmployees = await prisma.employee.findMany({
-          where: {
-            subDepartment: {
-              code: 'SUBDEPT_PRODUCTION_WAREHOUSE',
-            },
-          },
-          select: { id: true },
-        });
-
-        const requestDetail = await prisma.purchaseRequest.findUnique({
-          where: { id },
-          include: { items: true },
-        });
-
-        if (warehouseEmployees.length > 0 && requestDetail) {
-          await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_APPROVED, {
-            targetEmployeeIds: warehouseEmployees.map((emp) => emp.id),
-            metadata: { maYeuCau: requestDetail.maYeuCau, supplyRequestId: existingRequest.supplyRequestId },
+        try {
+          const whEmps = await prisma.employee.findMany({ where: { subDepartment: { code: 'SUBDEPT_PRODUCTION_WAREHOUSE' }, status: 'ACTIVE' }, select: { id: true } });
+          _purchasedWarehouseIds = whEmps.map((e) => e.id);
+        } catch {}
+      } else {
+        // No linked supply request: still notify warehouse directly (GAP-10 for MANUAL YCMH)
+        try {
+          const warehouseEmployees = await prisma.employee.findMany({
+            where: { subDepartment: { code: 'SUBDEPT_PRODUCTION_WAREHOUSE' }, status: 'ACTIVE' },
+            select: { id: true },
           });
-        }
-      } catch (notifError) {
-        console.error('Error sending warehouse notification:', notifError);
+          const warehouseIds = warehouseEmployees.map((e) => e.id).filter((wid) => wid !== existingRequest.employeeId);
+          _purchasedWarehouseIds = warehouseIds;
+          if (warehouseIds.length > 0) {
+            await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_PURCHASED, {
+              targetEmployeeIds: warehouseIds,
+              entityId: id,
+              metadata: { maYeuCau: existingRequest.maYeuCau, purchaseRequestId: id },
+            });
+          }
+        } catch (e) { console.error('Error sending warehouse purchased notify (no SR):', e); }
       }
+      try {
+        const adminUsers = await prisma.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { employees: { select: { id: true } } } });
+        const adminIds = adminUsers.filter((u: any) => u.employees).map((u: any) => u.employees.id).filter((id: string) => !_purchasedWarehouseIds.includes(id));
+        if (adminIds.length > 0) {
+          await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_PURCHASED, { targetEmployeeIds: adminIds, entityId: id, metadata: { maYeuCau: existingRequest.maYeuCau, purchaseRequestId: id } });
+        }
+      } catch (e) { console.error('admin notify failed', e); }
 
       // Notify requester that their purchase request is completed
+      let _completedNotifiedIds: string[] = [];
       if (existingRequest.employeeId) {
         try {
           await notificationService.notify(NotificationEvent.PURCHASE_REQUEST_COMPLETED, {
@@ -978,9 +1185,30 @@ class PurchaseRequestService {
               purchaseRequestId: id,
             },
           });
+          _completedNotifiedIds.push(existingRequest.employeeId);
         } catch (notifError) {
           console.error('Error sending purchase request completed notification:', notifError);
         }
+        // GAP-10: also notify supplyRequest owner if different from YCMH requester
+        if (existingRequest.supplyRequestId) {
+          try {
+            const sr = await prisma.supplyRequest.findUnique({ where: { id: existingRequest.supplyRequestId }, select: { employeeId: true } });
+            if (sr && sr.employeeId !== existingRequest.employeeId) {
+              await notificationService.notify(NotificationEvent.PURCHASE_REQUEST_COMPLETED, {
+                targetEmployeeIds: [sr.employeeId],
+                metadata: { maYeuCau: existingRequest.maYeuCau, purchaseRequestId: id },
+              });
+              _completedNotifiedIds.push(sr.employeeId);
+            }
+          } catch (e) { console.error('Error sending completed notify to SR owner:', e); }
+        }
+        try {
+          const adminUsers = await prisma.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { employees: { select: { id: true } } } });
+          const adminIds = adminUsers.filter((u: any) => u.employees).map((u: any) => u.employees.id).filter((id: string) => !_completedNotifiedIds.includes(id));
+          if (adminIds.length > 0) {
+            await notificationService.notify(NotificationEvent.PURCHASE_REQUEST_COMPLETED, { targetEmployeeIds: adminIds, entityId: id, metadata: { maYeuCau: existingRequest.maYeuCau, purchaseRequestId: id } });
+          }
+        } catch (e) { console.error('admin notify failed', e); }
       }
     }
 
@@ -1132,6 +1360,23 @@ class PurchaseRequestService {
     } catch (notifError) {
       console.error('Error sending cancel notification:', notifError);
     }
+
+    // GAP-11: also notify purchasing dept + admins when YCMH cancelled
+    try {
+      const [purchasingEmployees, adminUsers] = await Promise.all([
+        prisma.employee.findMany({ where: { subDepartment: { department: { code: 'DEPT_PURCHASING' } }, status: 'ACTIVE' }, select: { id: true } }),
+        prisma.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { employees: { select: { id: true } } } }),
+      ]);
+      const adminIds = adminUsers.filter((u: any) => u.employees).map((u: any) => u.employees.id);
+      const extraIds = [...new Set([...purchasingEmployees.map((e) => e.id), ...adminIds])].filter((eid) => eid !== existing.employeeId);
+      if (extraIds.length > 0) {
+        await notificationService.notify(NotificationEvent.PURCHASE_REQUEST_CANCELLED, {
+          targetEmployeeIds: extraIds,
+          entityId: id,
+          metadata: { maYeuCau: existing.maYeuCau, purchaseRequestId: id, lyDo: lyDoHuy },
+        });
+      }
+    } catch (e) { console.error('Error sending cancel extra notify:', e); }
 
     return updated;
   }

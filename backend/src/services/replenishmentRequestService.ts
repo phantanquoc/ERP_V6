@@ -481,6 +481,22 @@ class ReplenishmentRequestService {
             })
             .catch(() => { /* best-effort */ });
         }
+        // GAP-5: also notify warehouse/requester that YCBS was converted
+        notificationService
+          .notify(NotificationEvent.REPLENISHMENT_REQUEST_CONVERTED, {
+            actorUserId: actorEmployeeId,
+            entityId: prRow.id,
+            metadata: {
+              maYeuCauBS: ybs.maYeuCau,
+              maYeuCauMH: prRow.maYeuCau,
+              maYeuCau: ybs.maYeuCau,
+              replenishmentRequestId: id,
+              purchaseRequestId: prRow.id,
+              supplyRequestId: ybs.supplyRequestId ?? undefined,
+            },
+            targetEmployeeIds: [ybs.employeeId],
+          })
+          .catch(() => { /* best-effort */ });
       }
     } catch { /* reload after successful convert; notification failure must not reject the flow */ }
 
@@ -566,6 +582,37 @@ class ReplenishmentRequestService {
     } catch (e) {
       console.error('[replenishment] failed to send cancel notification:', e);
     }
+
+    // GAP-6: also notify purchasing dept that YCBS was cancelled (they were waiting to quote)
+    let _cancelPurchasingIds: string[] = [];
+    try {
+      const purchasingEmployees = await prisma.employee.findMany({
+        where: { subDepartment: { department: { code: 'DEPT_PURCHASING' } }, status: 'ACTIVE' },
+        select: { id: true },
+      });
+      const purchasingIds = purchasingEmployees.map((e) => e.id).filter((id) => id !== ybs.employeeId);
+      _cancelPurchasingIds = purchasingIds;
+      if (purchasingIds.length > 0) {
+        await notificationService.notify(NotificationEvent.REPLENISHMENT_REQUEST_CANCELLED, {
+          targetEmployeeIds: purchasingIds,
+          entityId: id,
+          metadata: {
+            maYeuCau: ybs.maYeuCau,
+            replenishmentRequestId: id,
+            supplyRequestId: ybs.supplyRequestId ?? '',
+            lyDo: lyDoHuy,
+          },
+        });
+      }
+    } catch (e) { console.error('[replenishment] failed to notify purchasing on cancel:', e); }
+    try {
+      const alreadyNotifiedIds = [ybs.employeeId, ..._cancelPurchasingIds];
+      const adminUsers = await prisma.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { employees: { select: { id: true } } } });
+      const adminIds = adminUsers.filter((u: any) => u.employees).map((u: any) => u.employees.id).filter((id: string) => !alreadyNotifiedIds.includes(id));
+      if (adminIds.length > 0) {
+        await notificationService.notify(NotificationEvent.REPLENISHMENT_REQUEST_CANCELLED, { targetEmployeeIds: adminIds, entityId: id, metadata: { maYeuCau: ybs.maYeuCau, replenishmentRequestId: id, supplyRequestId: ybs.supplyRequestId ?? '', lyDo: lyDoHuy } });
+      }
+    } catch (e) { console.error('admin notify failed', e); }
 
     return updated;
   }

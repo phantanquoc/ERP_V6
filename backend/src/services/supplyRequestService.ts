@@ -638,6 +638,25 @@ class SupplyRequestService {
       } catch (e) { console.error('post-partialFulfill notify/PR hook failed', e); }
     }
 
+    // GAP-1: notify requester that SR is now waiting for replenishment
+    if (createdReqs.length > 0) {
+      try {
+        await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_WAITING_REPLENISHMENT, {
+          targetEmployeeIds: [item.supplyRequest.employeeId],
+          entityId: item.supplyRequestId,
+          metadata: { maYeuCau: item.supplyRequest.maYeuCau, supplyRequestId: item.supplyRequestId, tenGoi: item.tenGoi },
+        });
+      } catch (e) { console.error('post-partialFulfill waiting_replenishment notify failed', e); }
+      try {
+        const adminUsers = await prisma.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { employees: { select: { id: true } } } });
+        const adminIds = adminUsers.filter((u: any) => u.employees).map((u: any) => u.employees.id);
+        const deduped = adminIds.filter((id: string) => ![item.supplyRequest.employeeId].includes(id));
+        if (deduped.length > 0) {
+          await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_WAITING_REPLENISHMENT, { targetEmployeeIds: deduped, entityId: item.supplyRequestId, metadata: { maYeuCau: item.supplyRequest.maYeuCau, supplyRequestId: item.supplyRequestId, tenGoi: item.tenGoi } });
+        }
+      } catch (e) { console.error('post-partialFulfill waiting_replenishment admin notify failed', e); }
+    }
+
     // Recompute parent SR aggregate status
     const siblings = await prisma.supplyRequestItem.findMany({
       where: { supplyRequestId: item.supplyRequestId },
@@ -661,6 +680,14 @@ class SupplyRequestService {
             supplyRequestId: item.supplyRequestId,
           },
         });
+        try {
+          const adminUsers = await prisma.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { employees: { select: { id: true } } } });
+          const adminIds = adminUsers.filter((u: any) => u.employees).map((u: any) => u.employees.id);
+          const deduped = adminIds.filter((id: string) => ![item.supplyRequest.employeeId].includes(id));
+          if (deduped.length > 0) {
+            await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_PARTIAL_FULFILLED, { targetEmployeeIds: deduped, entityId: item.supplyRequestId, metadata: { maYeuCau: item.supplyRequest.maYeuCau, tenGoi: item.tenGoi, supplyRequestId: item.supplyRequestId } });
+          }
+        } catch (e) { console.error('post-partialFulfill partial_fulfilled admin notify failed', e); }
       }
     } catch (notifError) {
       console.error('Error in partialFulfill notification:', notifError);
@@ -920,6 +947,24 @@ class SupplyRequestService {
         });
       } catch (e) { console.error('batchFulfill post-notify failed', e); }
     }
+    // GAP-1: notify requester that SR is now waiting for replenishment
+    if (batchCreatedReqMeta.length > 0 && batchSRMeta) {
+      try {
+        await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_WAITING_REPLENISHMENT, {
+          targetEmployeeIds: [batchSRMeta.employeeId],
+          entityId: batchSupplyRequestId ?? undefined,
+          metadata: { maYeuCau: batchSRMeta.maYeuCau, supplyRequestId: batchSupplyRequestId ?? undefined, tenGoi: `${batchCreatedReqMeta.length} mặt hàng` },
+        });
+      } catch (e) { console.error('batchFulfill waiting_replenishment notify failed', e); }
+      try {
+        const adminUsers = await prisma.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { employees: { select: { id: true } } } });
+        const adminIds = adminUsers.filter((u: any) => u.employees).map((u: any) => u.employees.id);
+        const deduped = adminIds.filter((id: string) => ![batchSRMeta.employeeId].includes(id));
+        if (deduped.length > 0) {
+          await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_WAITING_REPLENISHMENT, { targetEmployeeIds: deduped, entityId: batchSupplyRequestId ?? undefined, metadata: { maYeuCau: batchSRMeta.maYeuCau, supplyRequestId: batchSupplyRequestId ?? undefined, tenGoi: `${batchCreatedReqMeta.length} mặt hàng` } });
+        }
+      } catch (e) { console.error('batchFulfill waiting_replenishment admin notify failed', e); }
+    }
 
     // 5. The warehouse-issue stock decrement for the batch now lives INSIDE the
     // transaction above (createWithClient): an insufficient-stock error rolls back
@@ -955,6 +1000,14 @@ class SupplyRequestService {
                 supplyRequestId,
               },
             });
+            try {
+              const adminUsers = await prisma.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { employees: { select: { id: true } } } });
+              const adminIds = adminUsers.filter((u: any) => u.employees).map((u: any) => u.employees.id);
+              const deduped = adminIds.filter((id: string) => ![sr.employeeId].includes(id));
+              if (deduped.length > 0) {
+                await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_PARTIAL_FULFILLED, { targetEmployeeIds: deduped, entityId: supplyRequestId, metadata: { maYeuCau: sr.maYeuCau, tenGoi: `${lines.length} mặt hàng`, supplyRequestId } });
+              }
+            } catch (e) { console.error('batchFulfill partial_fulfilled admin notify failed', e); }
           }
         }
       } catch (notifError) {
@@ -1205,6 +1258,14 @@ class SupplyRequestService {
       // Notifications must not fail the main operation
       console.error('Error sending cancel notification:', e);
     }
+    try {
+      const adminUsers = await prisma.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { employees: { select: { id: true } } } });
+      const adminIds = adminUsers.filter((u: any) => u.employees).map((u: any) => u.employees.id);
+      const deduped = adminIds.filter((id: string) => ![request.employeeId].includes(id));
+      if (deduped.length > 0) {
+        await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_CANCELLED, { targetEmployeeIds: deduped, entityId: id, metadata: { maYeuCau: request.maYeuCau, supplyRequestId: id, lyDo: lyDoHuy } });
+      }
+    } catch (e) { console.error('Error sending cancel admin notification:', e); }
 
     return updated;
   }
@@ -1212,11 +1273,12 @@ class SupplyRequestService {
   /**
    * Mark a "Mua nhanh" supply request as purchased.
    * Advances status directly to "Đã mua hàng", optionally recording soTien.
+   * GAP-13: also notify warehouse + requester.
    */
   async markMuaNhanhAsPurchased(id: string, soTien?: number): Promise<void> {
     const request = await prisma.supplyRequest.findUnique({
       where: { id },
-      select: { trangThai: true, loaiYeuCau: true },
+      select: { trangThai: true, loaiYeuCau: true, employeeId: true, maYeuCau: true },
     });
 
     if (!request) {
@@ -1235,6 +1297,31 @@ class SupplyRequestService {
           ...(soTien !== undefined ? { soTien } : {}),
         },
       });
+      // GAP-13: notify warehouse + requester that Mua nhanh is purchased
+      try {
+        const warehouseEmployees = await prisma.employee.findMany({
+          where: { subDepartment: { code: 'SUBDEPT_PRODUCTION_WAREHOUSE' } },
+          select: { id: true },
+        });
+        const recipientIds = [...new Set([...warehouseEmployees.map((e) => e.id), request.employeeId])];
+        if (recipientIds.length > 0) {
+          await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_PURCHASED, {
+            targetEmployeeIds: recipientIds,
+            entityId: id,
+            metadata: { maYeuCau: request.maYeuCau, supplyRequestId: id },
+          });
+        }
+      } catch (e) { console.error('Error in markMuaNhanhAsPurchased notify:', e); }
+      try {
+        const warehouseEmployees2 = await prisma.employee.findMany({ where: { subDepartment: { code: 'SUBDEPT_PRODUCTION_WAREHOUSE' } }, select: { id: true } });
+        const existingPurchased = [...new Set([...warehouseEmployees2.map((e: any) => e.id), request.employeeId])];
+        const adminUsers = await prisma.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { employees: { select: { id: true } } } });
+        const adminIds = adminUsers.filter((u: any) => u.employees).map((u: any) => u.employees.id);
+        const deduped = adminIds.filter((id: string) => !existingPurchased.includes(id));
+        if (deduped.length > 0) {
+          await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_PURCHASED, { targetEmployeeIds: deduped, entityId: id, metadata: { maYeuCau: request.maYeuCau, supplyRequestId: id } });
+        }
+      } catch (e) { console.error('Error in markMuaNhanhAsPurchased admin notify:', e); }
     }
   }
 
@@ -1308,6 +1395,14 @@ class SupplyRequestService {
           entityId: supplyRequestId,
           metadata: { maYeuCau: request.maYeuCau, supplyRequestId },
         });
+        try {
+          const adminUsers = await prisma.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { employees: { select: { id: true } } } });
+          const adminIds = adminUsers.filter((u: any) => u.employees).map((u: any) => u.employees.id);
+          const deduped = adminIds.filter((id: string) => ![request.employeeId].includes(id));
+          if (deduped.length > 0) {
+            await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_PROCESSING, { targetEmployeeIds: deduped, entityId: supplyRequestId, metadata: { maYeuCau: request.maYeuCau, supplyRequestId } });
+          }
+        } catch (e) { console.error('Error in onPurchaseRequestCreated admin notify:', e); }
       }
     } catch (error) {
       console.error('Error in onPurchaseRequestCreated notification:', error);
@@ -1343,7 +1438,7 @@ class SupplyRequestService {
   async onReplenishmentRequestCancelled(supplyRequestId: string): Promise<void> {
     const sr = await prisma.supplyRequest.findUnique({
       where: { id: supplyRequestId },
-      select: { trangThai: true },
+      select: { employeeId: true, maYeuCau: true, trangThai: true },
     });
     if (!sr || sr.trangThai !== 'Chờ bổ sung') return;
 
@@ -1356,6 +1451,32 @@ class SupplyRequestService {
       where: { id: supplyRequestId },
       data: { trangThai: 'Đang xử lý' },
     });
+
+    // GAP-7: notify requester + warehouse that shortage is open again
+    try {
+      const warehouseEmployees = await prisma.employee.findMany({
+        where: { subDepartment: { code: 'SUBDEPT_PRODUCTION_WAREHOUSE' } },
+        select: { id: true },
+      });
+      const recipientIds = [...new Set([...warehouseEmployees.map((e) => e.id), sr.employeeId])];
+      if (recipientIds.length > 0) {
+        await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_PROCESSING, {
+          targetEmployeeIds: recipientIds,
+          entityId: supplyRequestId,
+          metadata: { maYeuCau: sr.maYeuCau, supplyRequestId },
+        });
+      }
+    } catch (e) { console.error('Error in onReplenishmentRequestCancelled notify:', e); }
+    try {
+      const warehouseEmployees2 = await prisma.employee.findMany({ where: { subDepartment: { code: 'SUBDEPT_PRODUCTION_WAREHOUSE' } }, select: { id: true } });
+      const existingRc = [...new Set([...warehouseEmployees2.map((e: any) => e.id), sr.employeeId])];
+      const adminUsers = await prisma.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { employees: { select: { id: true } } } });
+      const adminIds = adminUsers.filter((u: any) => u.employees).map((u: any) => u.employees.id);
+      const deduped = adminIds.filter((id: string) => !existingRc.includes(id));
+      if (deduped.length > 0) {
+        await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_PROCESSING, { targetEmployeeIds: deduped, entityId: supplyRequestId, metadata: { maYeuCau: sr.maYeuCau, supplyRequestId } });
+      }
+    } catch (e) { console.error('Error in onReplenishmentRequestCancelled admin notify:', e); }
   }
 
   /**
@@ -1399,6 +1520,7 @@ class SupplyRequestService {
         ...new Set([
           ...warehouseEmployees.map((emp) => emp.id),
           ...purchasingEmployees.map((emp) => emp.id),
+          request.employeeId,
         ]),
       ];
 
@@ -1409,6 +1531,14 @@ class SupplyRequestService {
           metadata: { maYeuCau: request.maYeuCau, supplyRequestId },
         });
       }
+      try {
+        const adminUsers = await prisma.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { employees: { select: { id: true } } } });
+        const adminIds = adminUsers.filter((u: any) => u.employees).map((u: any) => u.employees.id);
+        const deduped = adminIds.filter((id: string) => !allRecipientIds.includes(id));
+        if (deduped.length > 0) {
+          await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_APPROVED, { targetEmployeeIds: deduped, entityId: supplyRequestId, metadata: { maYeuCau: request.maYeuCau, supplyRequestId } });
+        }
+      } catch (e) { console.error('Error in onPurchaseRequestApproved admin notify:', e); }
     } catch (error) {
       console.error('Error in onPurchaseRequestApproved notification:', error);
     }
@@ -1416,7 +1546,7 @@ class SupplyRequestService {
 
   /**
    * Called when the linked PurchaseRequest is marked as "Hoàn thành" (goods purchased).
-   * Advances status to "Đã mua hàng" and notifies warehouse employees.
+   * Advances status to "Đã mua hàng" and notifies warehouse + requester.
    */
   async onPurchaseRequestCompleted(supplyRequestId: string): Promise<void> {
     try {
@@ -1437,13 +1567,22 @@ class SupplyRequestService {
           select: { id: true },
         });
 
-        if (warehouseEmployees.length > 0) {
-          await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_APPROVED, {
-            targetEmployeeIds: warehouseEmployees.map((emp) => emp.id),
+        const recipientIds = [...new Set([...warehouseEmployees.map((e) => e.id), request.employeeId])];
+        if (recipientIds.length > 0) {
+          await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_PURCHASED, {
+            targetEmployeeIds: recipientIds,
             entityId: supplyRequestId,
             metadata: { maYeuCau: request.maYeuCau, supplyRequestId },
           });
         }
+        try {
+          const adminUsers = await prisma.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { employees: { select: { id: true } } } });
+          const adminIds = adminUsers.filter((u: any) => u.employees).map((u: any) => u.employees.id);
+          const deduped = adminIds.filter((id: string) => !recipientIds.includes(id));
+          if (deduped.length > 0) {
+            await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_PURCHASED, { targetEmployeeIds: deduped, entityId: supplyRequestId, metadata: { maYeuCau: request.maYeuCau, supplyRequestId } });
+          }
+        } catch (e) { console.error('Error in onPurchaseRequestCompleted admin notify:', e); }
       }
     } catch (error) {
       console.error('Error in onPurchaseRequestCompleted notification:', error);
@@ -1473,13 +1612,36 @@ class SupplyRequestService {
         where: { subDepartment: { code: 'SUBDEPT_PRODUCTION_WAREHOUSE' } },
         select: { id: true },
       });
-      if (warehouseEmployees.length > 0) {
-        await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_RECEIVED, {
-          targetEmployeeIds: warehouseEmployees.map((emp) => emp.id),
-          entityId: supplyRequestId,
-          metadata: { maYeuCau: request.maYeuCau, supplyRequestId },
-        });
-      }
+      const warehouseIds = warehouseEmployees.map((e) => e.id);
+      // Notify warehouse (existing) + requester (GAP-4)
+      try {
+        if (warehouseIds.length > 0) {
+          await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_RECEIVED, {
+            targetEmployeeIds: warehouseIds,
+            entityId: supplyRequestId,
+            metadata: { maYeuCau: request.maYeuCau, supplyRequestId },
+          });
+        }
+      } catch (e) { console.error('Error in onWarehouseReceiptCreated warehouse notify:', e); }
+      // GAP-4: also notify requester that goods arrived
+      try {
+        if (!warehouseIds.includes(request.employeeId)) {
+          await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_RECEIVED, {
+            targetEmployeeIds: [request.employeeId],
+            entityId: supplyRequestId,
+            metadata: { maYeuCau: request.maYeuCau, supplyRequestId },
+          });
+        }
+      } catch (e) { console.error('Error in onWarehouseReceiptCreated requester notify:', e); }
+      try {
+        const existingRc2 = [...new Set([...warehouseIds, request.employeeId])];
+        const adminUsers = await prisma.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { employees: { select: { id: true } } } });
+        const adminIds = adminUsers.filter((u: any) => u.employees).map((u: any) => u.employees.id);
+        const deduped = adminIds.filter((id: string) => !existingRc2.includes(id));
+        if (deduped.length > 0) {
+          await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_RECEIVED, { targetEmployeeIds: deduped, entityId: supplyRequestId, metadata: { maYeuCau: request.maYeuCau, supplyRequestId } });
+        }
+      } catch (e) { console.error('Error in onWarehouseReceiptCreated admin notify:', e); }
     } catch (error) {
       console.error('Error in onWarehouseReceiptCreated:', error);
     }
@@ -1507,6 +1669,14 @@ class SupplyRequestService {
           entityId: supplyRequestId,
           metadata: { maYeuCau: request.maYeuCau, supplyRequestId },
         });
+        try {
+          const adminUsers = await prisma.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { employees: { select: { id: true } } } });
+          const adminIds = adminUsers.filter((u: any) => u.employees).map((u: any) => u.employees.id);
+          const deduped = adminIds.filter((id: string) => ![request.employeeId].includes(id));
+          if (deduped.length > 0) {
+            await notificationService.notify(NotificationEvent.SUPPLY_REQUEST_FULFILLED, { targetEmployeeIds: deduped, entityId: supplyRequestId, metadata: { maYeuCau: request.maYeuCau, supplyRequestId } });
+          }
+        } catch (e) { console.error('Error in onWarehouseIssueCreated admin notify:', e); }
       }
     } catch (error) {
       console.error('Error in onWarehouseIssueCreated notification:', error);
