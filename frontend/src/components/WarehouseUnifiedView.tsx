@@ -2,8 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Warehouse as WarehouseIcon, MapPinOff } from 'lucide-react';
 import type { Warehouse as WarehouseType } from '../services/warehouseService';
 import { useWarehouses } from '../hooks';
-import { useUrlDetailId } from '../hooks/useUrlState';
-import { resolveWarehouseParam } from '../utils/warehouseParam';
 import { hasWarehouseLayout } from '../constants/warehouseLayouts';
 import WarehouseManagement from './WarehouseManagement';
 import WarehouseMap from './WarehouseMap';
@@ -35,6 +33,9 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { err
 
 interface WarehouseUnifiedViewProps {
   initialWarehouseId?: string;
+  /** Controlled mode: parent (ProductionWarehouse) owns `warehouseId` URL — this view is prop-driven. */
+  selectedWarehouseId?: string | null;
+  onSelectedWarehouseChange?: (id: string | null) => void;
 }
 
 /**
@@ -43,53 +44,37 @@ interface WarehouseUnifiedViewProps {
  * Desktop xl+: map bên trái (flex-1), management sticky bên phải (w-[420px])
  * Mobile/tablet: map trên, management dưới
  * Kho không có CAD layout: management full-width như cũ
+ *
+ * Single-owner: `warehouseId` URL is owned by ProductionWarehouse.WarehouseManagementWithSubTabs.
+ * This component is prop-driven — it does NOT create its own useUrlDetailId. When rendered
+ * standalone (no controlled props) it falls back to local-only state (no URL).
  */
-const WarehouseUnifiedView: React.FC<WarehouseUnifiedViewProps> = ({ initialWarehouseId }) => {
-  const { id: urlWarehouseId, open: openUrlWarehouse, close: closeUrlWarehouse, syncingRef } =
-    useUrlDetailId('warehouseId');
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(
-    urlWarehouseId ?? initialWarehouseId ?? null
-  );
+const WarehouseUnifiedView: React.FC<WarehouseUnifiedViewProps> = ({
+  initialWarehouseId,
+  selectedWarehouseId: controlledId,
+  onSelectedWarehouseChange,
+}) => {
+  const [internalId, setInternalId] = useState<string | null>(initialWarehouseId ?? null);
+  const isControlled = controlledId !== undefined || onSelectedWarehouseChange !== undefined;
+  const selectedWarehouseId = isControlled ? (controlledId ?? null) : internalId;
   const { data: warehousesData } = useWarehouses();
 
-  // Memoized: the deep-link effect below depends on this array, and a bare `?? []`
-  // would hand it a fresh reference on every render while the query is loading.
+  // Memoized: downstream consumers depend on this array, and a bare `?? []`
+  // would hand them a fresh reference on every render while the query is loading.
   const warehouses = useMemo(
     () => (warehousesData as WarehouseType[] | undefined) ?? [],
     [warehousesData],
   );
 
-  // Restore from URL on mount (e.g. shared link or reload after overview deep-link).
-  // The param may carry a cuid (what the UI writes) or a maKho (what people paste,
-  // e.g. ?warehouseId=KHOHH). Resolve either, rewrite the URL to the cuid so every
-  // consumer downstream sees one canonical form, and drop the param when it matches
-  // no warehouse — a dead param otherwise survives forever and re-selects a stale
-  // warehouse the next time this tab is opened.
+  // Keep internal fallback in sync if initialWarehouseId arrives late (e.g. after URL resolve).
   useEffect(() => {
-    if (syncingRef.current) {
-      syncingRef.current = false;
-      return;
-    }
-    // Empty list = not loaded yet, not "no match"; leave the param alone so a slow
-    // first fetch cannot erase a valid deep-link.
-    if (!urlWarehouseId || warehouses.length === 0) return;
-    const resolved = resolveWarehouseParam(warehouses, urlWarehouseId);
-    if (!resolved.warehouse || !resolved.canonicalId) {
-      closeUrlWarehouse();
-      return;
-    }
-    if (resolved.needsNormalize) openUrlWarehouse(resolved.canonicalId, { replace: true });
-    setSelectedWarehouseId(resolved.canonicalId);
-    // openUrlWarehouse/closeUrlWarehouse depend on searchParams, so listing them
-    // here would re-run this effect on the very URL write it performs. syncingRef
-    // is a stable ref.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlWarehouseId, warehouses]);
+    if (isControlled) return;
+    if (initialWarehouseId && !internalId) setInternalId(initialWarehouseId);
+  }, [initialWarehouseId, internalId, isControlled]);
 
-  // Sync selection to URL so reload/share keeps the same warehouse
   const setWarehouseWithUrl = (id: string | null) => {
-    setSelectedWarehouseId(id);
-    if (id) openUrlWarehouse(id);
+    if (isControlled) onSelectedWarehouseChange?.(id);
+    else setInternalId(id);
   };
 
   const sortWarehouses = (list: WarehouseType[]) =>
@@ -162,7 +147,7 @@ const WarehouseUnifiedView: React.FC<WarehouseUnifiedViewProps> = ({ initialWare
               <WarehouseManagement
                 initialWarehouseId={initialWarehouseId}
                 selectedWarehouseId={selectedWarehouseId}
-                onSelectedWarehouseChange={setSelectedWarehouseId}
+                onSelectedWarehouseChange={setWarehouseWithUrl}
                 hideTabs
               />
             </div>
@@ -178,7 +163,7 @@ const WarehouseUnifiedView: React.FC<WarehouseUnifiedViewProps> = ({ initialWare
             <WarehouseManagement
               initialWarehouseId={initialWarehouseId}
               selectedWarehouseId={selectedWarehouseId}
-              onSelectedWarehouseChange={setSelectedWarehouseId}
+              onSelectedWarehouseChange={setWarehouseWithUrl}
               hideTabs
             />
           </div>

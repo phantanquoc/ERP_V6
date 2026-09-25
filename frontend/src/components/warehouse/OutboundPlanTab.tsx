@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useUrlFilters } from '../../hooks/useUrlState';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useUrlDetailId, useUrlFilters } from '../../hooks/useUrlState';
 import toast from 'react-hot-toast';
 import { Plus, CalendarClock, XCircle, Pencil, AlertTriangle, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import outboundPlanService, { OutboundPlan } from '../../services/outboundPlanService';
@@ -8,6 +8,7 @@ import TableFilter from '../TableFilter';
 import CancelWithReasonModal from '../common/CancelWithReasonModal';
 import CreateWarehouseIssueModal from '../CreateWarehouseIssueModal';
 import PlanLogHistory from './PlanLogHistory';
+import OutboundPlanDetailModal from './OutboundPlanDetailModal';
 import { formatDateInAppTz } from '../../utils/dateUtils';
 import { useWarehouses } from '../../hooks/useWarehouses';
 import { resolvePlanBadge } from '../../utils/warehousePlanBadges';
@@ -56,6 +57,9 @@ const OutboundPlanTab: React.FC = () => {
   const [createForPlan, setCreateForPlan] = useState<OutboundPlan | null>(null);
   const [cancelPlan, setCancelPlan] = useState<OutboundPlan | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [selectedDetailPlan, setSelectedDetailPlan] = useState<OutboundPlan | null>(null);
+  const { id: urlPlanId, open: openUrlPlan, close: closeUrlPlan, syncingRef: planSyncRef } = useUrlDetailId('outboundPlanId');
+  const detailSeqRef = useRef(0);
 
   // Backend outboundPlanService không có nơi nào GHI trạng thái 'Quá hạn' (khác inbound
   // qua onReceiptCreated) — chỉ đọc khi lọc overdueOnly theo ngày. Map option "Quá hạn"
@@ -103,6 +107,38 @@ const OutboundPlanTab: React.FC = () => {
   useEffect(() => {
     setCurrentPage((page) => Math.min(Math.max(1, page), Math.max(1, totalPages)));
   }, [totalPages]);
+
+  const openPlanDetail = useCallback((p: OutboundPlan) => {
+    openUrlPlan(p.id);
+    setSelectedDetailPlan(p);
+  }, [openUrlPlan]);
+
+  const closePlanDetail = useCallback(() => {
+    closeUrlPlan();
+    setSelectedDetailPlan(null);
+  }, [closeUrlPlan]);
+
+  // Deep-link / F5 / Back: ?outboundPlanId=xxx → open/close detail
+  useEffect(() => {
+    if (planSyncRef.current) { planSyncRef.current = false; return; }
+    if (!urlPlanId) {
+      if (selectedDetailPlan !== null) setSelectedDetailPlan(null);
+      return;
+    }
+    if (selectedDetailPlan?.id === urlPlanId) return;
+    const local = plans.find((x) => x.id === urlPlanId);
+    if (local) { setSelectedDetailPlan(local); return; }
+    const seq = ++detailSeqRef.current;
+    (async () => {
+      try {
+        const res = await outboundPlanService.getById(urlPlanId) as any;
+        const fresh = res?.data?.data ?? res?.data ?? res;
+        if (seq !== detailSeqRef.current) return;
+        if (fresh?.id) setSelectedDetailPlan(fresh as OutboundPlan);
+      } catch { /* invalid id — leave closed, don't loop or toast */ }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlPlanId, plans]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
@@ -212,7 +248,11 @@ const OutboundPlanTab: React.FC = () => {
                     .map((it) => `${it.tenGoi} (${it.soLuong} ${it.donViTinh})`)
                     .join(', ');
                   return (
-                    <tr key={p.id} className="border-b hover:bg-gray-50">
+                    <tr
+                      key={p.id}
+                      className="border-b hover:bg-gray-50 cursor-pointer"
+                      onClick={() => openPlanDetail(p)}
+                    >
                       <td className="px-3 py-2 font-mono text-xs font-medium">{p.maKeHoach}</td>
                       <td className="px-3 py-2 font-mono text-xs">{p.supplyRequest?.maYeuCau || '—'}</td>
                       <td className="px-3 py-2 text-xs truncate max-w-[220px]" title={itemsSummary}>{itemsSummary}</td>
@@ -222,7 +262,7 @@ const OutboundPlanTab: React.FC = () => {
                       <td className="px-3 py-2">
                         <div className="flex items-center justify-end gap-1">
                           {canEdit && (
-                            <button onClick={() => setCreateForPlan(p)} title="Tạo phiếu xuất kho từ kế hoạch"
+                            <button onClick={(e) => { e.stopPropagation(); setCreateForPlan(p); }} title="Tạo phiếu xuất kho từ kế hoạch"
                               className="inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-600 text-white text-xs hover:bg-blue-700">
                               <Plus className="w-3 h-3" /> Xuất kho
                             </button>
@@ -250,7 +290,14 @@ const OutboundPlanTab: React.FC = () => {
               const items = p.supplyRequest?.items ?? [];
               const itemsSummary = items.length === 0 ? '—' : items.map((it) => `${it.tenGoi} (${it.soLuong} ${it.donViTinh})`).join(', ');
               return (
-                <div key={p.id} className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+                <div
+                  key={p.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openPlanDetail(p)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPlanDetail(p); } }}
+                  className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm cursor-pointer hover:border-gray-300"
+                >
                   <div className="flex items-start justify-between gap-2">
                     <span className="font-mono text-sm font-semibold text-gray-900">{p.maKeHoach}</span>
                     {statusBadge(p)}
@@ -260,13 +307,13 @@ const OutboundPlanTab: React.FC = () => {
                   <div className="mt-2 rounded border border-gray-100 bg-gray-50 px-2.5 py-2 text-xs text-gray-700 truncate" title={itemsSummary}>{itemsSummary}</div>
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     {canEdit && (
-                      <button onClick={() => setCreateForPlan(p)} className="inline-flex items-center gap-1 rounded bg-blue-600 px-2.5 py-1 text-xs text-white hover:bg-blue-700"><Plus className="w-3 h-3" /> Xuất kho</button>
+                      <button onClick={(e) => { e.stopPropagation(); setCreateForPlan(p); }} className="inline-flex items-center gap-1 rounded bg-blue-600 px-2.5 py-1 text-xs text-white hover:bg-blue-700"><Plus className="w-3 h-3" /> Xuất kho</button>
                     )}
                     {canEdit && (
-                      <button onClick={() => openEdit(p)} aria-label={`Sửa ngày hẹn kế hoạch ${p.maKeHoach}`} className="rounded border border-amber-200 px-2.5 py-1 text-xs text-amber-700">Sửa ngày hẹn</button>
+                      <button onClick={(e) => { e.stopPropagation(); openEdit(p); }} aria-label={`Sửa ngày hẹn kế hoạch ${p.maKeHoach}`} className="rounded border border-amber-200 px-2.5 py-1 text-xs text-amber-700">Sửa ngày hẹn</button>
                     )}
                     {canEdit && (
-                      <button onClick={() => setCancelPlan(p)} aria-label={`Hủy kế hoạch ${p.maKeHoach}`} className="rounded border border-red-200 px-2.5 py-1 text-xs text-red-700">Hủy</button>
+                      <button onClick={(e) => { e.stopPropagation(); setCancelPlan(p); }} aria-label={`Hủy kế hoạch ${p.maKeHoach}`} className="rounded border border-red-200 px-2.5 py-1 text-xs text-red-700">Hủy</button>
                     )}
                   </div>
                 </div>
@@ -336,6 +383,15 @@ const OutboundPlanTab: React.FC = () => {
           onSuccess={() => { setCreateForPlan(null); fetchPlans(); }}
         />
       )}
+
+      <OutboundPlanDetailModal
+        isOpen={!!selectedDetailPlan}
+        onClose={closePlanDetail}
+        plan={selectedDetailPlan}
+        onCreateIssue={(p) => { closePlanDetail(); setCreateForPlan(p); }}
+        onEdit={(p) => { closePlanDetail(); openEdit(p); }}
+        onCancel={(p) => { closePlanDetail(); setCancelPlan(p); }}
+      />
     </div>
   );
 };

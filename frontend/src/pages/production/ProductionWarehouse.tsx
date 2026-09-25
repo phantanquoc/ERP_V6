@@ -44,6 +44,12 @@ const VALID_TABS: TabType[] = ['supplyRequest', 'inventory', 'inbound', 'outboun
  * Params NOT listed are page-level and must survive a tab switch:
  * `warehouseMonth`/`warehouseYear` (period filter) and `warehouseDetailId`
  * (overview modal opened from the cards above the tabs).
+ *
+ * Spec note: `warehouseDetailId` is intentionally page-level (survives tab
+ * switches) so Back closes the modal via history and a shared link reopens it.
+ * For the `inventory` tab, only `inventoryScrollTo` and `loaiSanPham` are
+ * URL-persisted; all other inventory filters are ephemeral by design and must
+ * NOT be added to TAB_SCOPED_PARAMS without a spec change.
  */
 /**
  * Real URL keys are `prefix + defaultKey`, e.g. useUrlFilters({ _search, maPhieuNhap, ... }, {prefix:'in_'})
@@ -54,14 +60,14 @@ const TAB_SCOPED_PARAMS: Record<TabType, readonly string[]> = {
   supplyRequest: ['supplyRequestId', 'supplyStatus', 'supplyPriority', 'supplyOverdue'],
   inventory: ['inventoryScrollTo', 'loaiSanPham'],
   inbound: [
-    'receiptId', 'inboundSubTab',
+    'receiptId', 'inboundSubTab', 'inboundPlanId',
     // WarehouseReceiptTab — prefix 'in_'
     'in__search', 'in_maPhieuNhap', 'in_tenNhanVien', 'in_nguoiDeNghi', 'in_boPhan', 'in_warehouseId', 'in_tinhTrang', 'in_daIn', 'in_isVoided', 'in_fromNgay', 'in_toNgay', 'in_page', 'in_sortBy', 'in_sortOrder',
     // InboundPlanTab — prefix 'in_plan_'
     'in_plan__search', 'in_plan_trangThai', 'in_plan_warehouseId', 'in_plan_fromNgay', 'in_plan_toNgay', 'in_plan_page', 'in_plan_sortBy', 'in_plan_sortOrder',
   ],
   outbound: [
-    'issueId', 'outboundSubTab',
+    'issueId', 'outboundSubTab', 'outboundPlanId',
     // WarehouseIssueTab — prefix 'out_'
     'out__search', 'out_maPhieuXuat', 'out_tenNhanVien', 'out_nguoiDeNghi', 'out_boPhan', 'out_warehouseId', 'out_tinhTrang', 'out_daIn', 'out_isVoided', 'out_fromNgay', 'out_toNgay', 'out_page', 'out_sortBy', 'out_sortOrder',
     // OutboundPlanTab — prefix 'out_plan_'
@@ -209,7 +215,16 @@ const WarehouseManagementWithSubTabs: React.FC = () => {
           onSelectWarehouse={handleSelectWarehouse}
         />
       )}
-      {subTab === 'management' && <WarehouseUnifiedView initialWarehouseId={pickedWarehouseId} />}
+      {subTab === 'management' && (
+        <WarehouseUnifiedView
+          initialWarehouseId={pickedWarehouseId}
+          selectedWarehouseId={pickedWarehouseId ?? null}
+          onSelectedWarehouseChange={(id) => {
+            setPickedWarehouseId(id ?? undefined);
+            if (id) openWarehouse(id);
+          }}
+        />
+      )}
     </div>
   );
 };
@@ -223,6 +238,7 @@ const INBOUND_LIST_KEYS: readonly string[] = [
   'in__search', 'in_maPhieuNhap', 'in_tenNhanVien', 'in_nguoiDeNghi', 'in_boPhan', 'in_warehouseId', 'in_tinhTrang', 'in_daIn', 'in_isVoided', 'in_fromNgay', 'in_toNgay', 'in_page', 'in_sortBy', 'in_sortOrder',
 ];
 const INBOUND_PLAN_KEYS: readonly string[] = [
+  'inboundPlanId',
   'in_plan__search', 'in_plan_trangThai', 'in_plan_warehouseId', 'in_plan_fromNgay', 'in_plan_toNgay', 'in_plan_page', 'in_plan_sortBy', 'in_plan_sortOrder',
 ];
 const OUTBOUND_LIST_KEYS: readonly string[] = [
@@ -230,11 +246,16 @@ const OUTBOUND_LIST_KEYS: readonly string[] = [
   'out__search', 'out_maPhieuXuat', 'out_tenNhanVien', 'out_nguoiDeNghi', 'out_boPhan', 'out_warehouseId', 'out_tinhTrang', 'out_daIn', 'out_isVoided', 'out_fromNgay', 'out_toNgay', 'out_page', 'out_sortBy', 'out_sortOrder',
 ];
 const OUTBOUND_PLAN_KEYS: readonly string[] = [
+  'outboundPlanId',
   'out_plan__search', 'out_plan_trangThai', 'out_plan_warehouseId', 'out_plan_fromNgay', 'out_plan_toNgay', 'out_plan_page', 'out_plan_sortBy', 'out_plan_sortOrder',
 ];
 
 const LS_INBOUND_SUBTAB = 'warehouse:lastInboundSubTab';
 const LS_OUTBOUND_SUBTAB = 'warehouse:lastOutboundSubTab';
+// Remember via localStorage is intentional: khi rời inbound/outbound sang tab
+// khác rồi quay lại, sub-tab khôi phục theo lần cuối (plan/list). Mặc định
+// list chỉ khi chưa từng visit (LS null). Đây là spec đã khóa — không đổi
+// thành luôn về list.
 const readLastSubTab = (key: string): 'plan' | 'list' | null => {
   try {
     const v = localStorage.getItem(key);
@@ -259,8 +280,10 @@ const ProductionWarehouse = () => {
     if (raw === 'plan' || raw === 'list') return raw;
     return readLastSubTab(LS_OUTBOUND_SUBTAB) ?? 'list';
   })() as 'plan' | 'list';
+  const seedSyncRef = useRef(false);
   const setInboundSubTab = (v: 'plan' | 'list') => {
     try { localStorage.setItem(LS_INBOUND_SUBTAB, v); } catch {}
+    seedSyncRef.current = true;
     setSearchParams((prev) => {
       const p = new URLSearchParams(prev);
       p.set('inboundSubTab', v);
@@ -271,6 +294,7 @@ const ProductionWarehouse = () => {
   };
   const setOutboundSubTab = (v: 'plan' | 'list') => {
     try { localStorage.setItem(LS_OUTBOUND_SUBTAB, v); } catch {}
+    seedSyncRef.current = true;
     setSearchParams((prev) => {
       const p = new URLSearchParams(prev);
       p.set('outboundSubTab', v);
@@ -288,6 +312,7 @@ const ProductionWarehouse = () => {
   const inboundSubTabRaw = searchParams.get('inboundSubTab');
   const outboundSubTabRaw = searchParams.get('outboundSubTab');
   React.useEffect(() => {
+    if (seedSyncRef.current) { seedSyncRef.current = false; return; }
     if (activeTab !== 'inbound') return;
     if (inboundSubTabRaw === 'plan' || inboundSubTabRaw === 'list') return;
     setSearchParams((prev) => {
@@ -300,6 +325,7 @@ const ProductionWarehouse = () => {
     }, { replace: true });
   }, [activeTab, inboundSubTabRaw, inboundSubTab]);
   React.useEffect(() => {
+    if (seedSyncRef.current) { seedSyncRef.current = false; return; }
     if (activeTab !== 'outbound') return;
     if (outboundSubTabRaw === 'plan' || outboundSubTabRaw === 'list') return;
     setSearchParams((prev) => {
@@ -689,19 +715,23 @@ const ProductionWarehouse = () => {
   // State for modals — URL-backed so reload / back button / shared link
   // reopens the same record instead of losing it.
   const { id: urlDetailId, open: pushDetailId, close: popDetailId, syncingRef } = useUrlDetailId('warehouseDetailId');
-  void pushDetailId;
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
+
+  const openDetailModal = (item: any) => {
+    if (item?.id) pushDetailId(item.id);
+    setSelectedItem(item);
+    setIsDetailModalOpen(true);
+  };
 
   // Deep-link reader: resolve ?warehouseDetailId= against the overview data this page
   // already fetches on mount (no extra round-trip), then open the modal.
   useEffect(() => {
-    // Skip the echo from our own URL write when the modal closes.
-    if (syncingRef.current) {
-      syncingRef.current = false;
+    if (syncingRef.current) { syncingRef.current = false; return; }
+    if (!urlDetailId) {
+      if (isDetailModalOpen) { setIsDetailModalOpen(false); setSelectedItem(null); }
       return;
     }
-    if (!urlDetailId) return;
     const match =
       warehouses.find((w) => w?.id === urlDetailId) ??
       (overviewReceipts as any[]).find((r) => r?.id === urlDetailId) ??
@@ -711,8 +741,7 @@ const ProductionWarehouse = () => {
       setSelectedItem(match);
       setIsDetailModalOpen(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlDetailId, warehouses, overviewReceipts, overviewIssues, supplyRequests]);
+  }, [urlDetailId, warehouses, overviewReceipts, overviewIssues, supplyRequests, isDetailModalOpen]);
 
   const closeDetailModal = () => {
     popDetailId();

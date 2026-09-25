@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useUrlFilters } from '../../hooks/useUrlState';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useUrlDetailId, useUrlFilters } from '../../hooks/useUrlState';
 import toast from 'react-hot-toast';
 import { CalendarClock, XCircle, Pencil, AlertTriangle, RefreshCw, ClipboardCheck, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import inboundPlanService, { InboundPlan } from '../../services/inboundPlanService';
@@ -84,6 +84,8 @@ const InboundPlanTab: React.FC = () => {
   const [cancelPlan, setCancelPlan] = useState<InboundPlan | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [selectedDetailPlan, setSelectedDetailPlan] = useState<InboundPlan | null>(null);
+  const { id: urlPlanId, open: openUrlPlan, close: closeUrlPlan, syncingRef: planSyncRef } = useUrlDetailId('inboundPlanId');
+  const detailSeqRef = useRef(0);
 
   // "Quá hạn" không phải trạng thái duy nhất bị lọc quá hạn — backend chỉ ĐÁNH DẤU
   // 'Quá hạn' khi có phiếu nhập chạy qua onReceiptCreated, còn kế hoạch quá hạn nhưng
@@ -133,6 +135,39 @@ const InboundPlanTab: React.FC = () => {
   useEffect(() => {
     setCurrentPage((page) => Math.min(Math.max(1, page), Math.max(1, totalPages)));
   }, [totalPages]);
+
+  const openPlanDetail = useCallback((p: InboundPlan) => {
+    openUrlPlan(p.id);
+    setSelectedDetailPlan(p);
+  }, [openUrlPlan]);
+
+  const closePlanDetail = useCallback(() => {
+    closeUrlPlan();
+    setSelectedDetailPlan(null);
+  }, [closeUrlPlan]);
+
+  // Deep-link / F5 / Back: ?inboundPlanId=xxx → open/close detail
+  useEffect(() => {
+    if (planSyncRef.current) { planSyncRef.current = false; return; }
+    if (!urlPlanId) {
+      if (selectedDetailPlan !== null) setSelectedDetailPlan(null);
+      return;
+    }
+    if (selectedDetailPlan?.id === urlPlanId) return;
+    const local = plans.find((x) => x.id === urlPlanId);
+    if (local) { setSelectedDetailPlan(local); return; }
+    // Not on current page (pagination/filter): fetch directly
+    (async () => {
+      const seq = ++detailSeqRef.current;
+      try {
+        const res = await inboundPlanService.getById(urlPlanId) as any;
+        const fresh = res?.data?.data ?? res?.data ?? res;
+        if (seq !== detailSeqRef.current) return;
+        if (fresh?.id) setSelectedDetailPlan(fresh as InboundPlan);
+      } catch { /* invalid id — leave closed, don't loop */ }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlPlanId, plans]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
@@ -248,7 +283,7 @@ const InboundPlanTab: React.FC = () => {
                     <tr
                       key={p.id}
                       className="border-b hover:bg-gray-50 cursor-pointer"
-                      onClick={() => setSelectedDetailPlan(p)}
+                      onClick={() => openPlanDetail(p)}
                     >
                       <td className="px-3 py-2 font-mono text-xs font-medium">{p.maKeHoach}</td>
                       <td className="px-3 py-2 font-mono text-xs">{pr?.maYeuCau || '—'}</td>
@@ -294,8 +329,8 @@ const InboundPlanTab: React.FC = () => {
                   key={p.id}
                   role="button"
                   tabIndex={0}
-                  onClick={() => setSelectedDetailPlan(p)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedDetailPlan(p); } }}
+                  onClick={() => openPlanDetail(p)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPlanDetail(p); } }}
                   className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm cursor-pointer hover:border-gray-300"
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -387,11 +422,11 @@ const InboundPlanTab: React.FC = () => {
 
       <InboundPlanDetailModal
         isOpen={!!selectedDetailPlan}
-        onClose={() => setSelectedDetailPlan(null)}
+        onClose={closePlanDetail}
         plan={selectedDetailPlan}
-        onCreateReceipt={(p) => { setSelectedDetailPlan(null); setCreateFromPlan(p); }}
-        onEdit={(p) => { setSelectedDetailPlan(null); openEdit(p); }}
-        onCancel={(p) => { setSelectedDetailPlan(null); setCancelPlan(p); }}
+        onCreateReceipt={(p) => { closePlanDetail(); setCreateFromPlan(p); }}
+        onEdit={(p) => { closePlanDetail(); openEdit(p); }}
+        onCancel={(p) => { closePlanDetail(); setCancelPlan(p); }}
       />
     </div>
   );
