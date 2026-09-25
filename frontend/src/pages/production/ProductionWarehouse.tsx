@@ -233,13 +233,34 @@ const OUTBOUND_PLAN_KEYS: readonly string[] = [
   'out_plan__search', 'out_plan_trangThai', 'out_plan_warehouseId', 'out_plan_fromNgay', 'out_plan_toNgay', 'out_plan_page', 'out_plan_sortBy', 'out_plan_sortOrder',
 ];
 
+const LS_INBOUND_SUBTAB = 'warehouse:lastInboundSubTab';
+const LS_OUTBOUND_SUBTAB = 'warehouse:lastOutboundSubTab';
+const readLastSubTab = (key: string): 'plan' | 'list' | null => {
+  try {
+    const v = localStorage.getItem(key);
+    return v === 'plan' || v === 'list' ? v : null;
+  } catch { return null; }
+};
+
 const ProductionWarehouse = () => {
   const { value: activeTab, set: setActiveTab, searchParams, setSearchParams } = useUrlTab<TabType>('tab', (v): v is TabType => VALID_TABS.includes(v as TabType), 'supplyRequest', TAB_SCOPED_PARAMS);
 
   // Sub tabs for inbound/outbound — synced to URL ?inboundSubTab / ?outboundSubTab
-  const inboundSubTab = (searchParams.get('inboundSubTab') === 'list' ? 'list' : 'plan') as 'plan' | 'list';
-  const outboundSubTab = (searchParams.get('outboundSubTab') === 'list' ? 'list' : 'plan') as 'plan' | 'list';
+  // Default to last visited sub-tab (remembered in localStorage) so re-entering
+  // Danh sách nhập kho lands on Danh sách phiếu if that's where the user was,
+  // matching the reported expected flow. Fallback to 'list' (most used).
+  const inboundSubTab = (() => {
+    const raw = searchParams.get('inboundSubTab');
+    if (raw === 'plan' || raw === 'list') return raw;
+    return readLastSubTab(LS_INBOUND_SUBTAB) ?? 'list';
+  })() as 'plan' | 'list';
+  const outboundSubTab = (() => {
+    const raw = searchParams.get('outboundSubTab');
+    if (raw === 'plan' || raw === 'list') return raw;
+    return readLastSubTab(LS_OUTBOUND_SUBTAB) ?? 'list';
+  })() as 'plan' | 'list';
   const setInboundSubTab = (v: 'plan' | 'list') => {
+    try { localStorage.setItem(LS_INBOUND_SUBTAB, v); } catch {}
     setSearchParams((prev) => {
       const p = new URLSearchParams(prev);
       p.set('inboundSubTab', v);
@@ -249,6 +270,7 @@ const ProductionWarehouse = () => {
     }, { replace: true });
   };
   const setOutboundSubTab = (v: 'plan' | 'list') => {
+    try { localStorage.setItem(LS_OUTBOUND_SUBTAB, v); } catch {}
     setSearchParams((prev) => {
       const p = new URLSearchParams(prev);
       p.set('outboundSubTab', v);
@@ -257,6 +279,34 @@ const ProductionWarehouse = () => {
       return p;
     }, { replace: true });
   };
+
+  // Seed URL with the resolved sub-tab when (re-)entering inbound/outbound without that key,
+  // so a following click on the sibling sub-tab mutates a URL that already reflects the
+  // current view instead of racing on a stale tab value. Also guarantees deep-link
+  // shareability (URL always carries inboundSubTab/outboundSubTab while inside that tab).
+  const inboundSubTabRaw = searchParams.get('inboundSubTab');
+  const outboundSubTabRaw = searchParams.get('outboundSubTab');
+  React.useEffect(() => {
+    if (activeTab === 'inbound' && inboundSubTabRaw !== 'plan' && inboundSubTabRaw !== 'list') {
+      setSearchParams((prev) => {
+        const p = new URLSearchParams(prev);
+        // Don't overwrite if another effect already seeded
+        if (p.get('inboundSubTab') === 'plan' || p.get('inboundSubTab') === 'list') return prev;
+        p.set('inboundSubTab', inboundSubTab);
+        return p;
+      }, { replace: true });
+    }
+  }, [activeTab, inboundSubTabRaw, inboundSubTab]);
+  React.useEffect(() => {
+    if (activeTab === 'outbound' && outboundSubTabRaw !== 'plan' && outboundSubTabRaw !== 'list') {
+      setSearchParams((prev) => {
+        const p = new URLSearchParams(prev);
+        if (p.get('outboundSubTab') === 'plan' || p.get('outboundSubTab') === 'list') return prev;
+        p.set('outboundSubTab', outboundSubTab);
+        return p;
+      }, { replace: true });
+    }
+  }, [activeTab, outboundSubTabRaw, outboundSubTab]);
 
   // Overview data states — receipts/issues keep overview-specific pagination totals
   const [warehouses, setWarehouses] = useState<WarehouseType[]>([]);
