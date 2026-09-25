@@ -42,6 +42,7 @@ import CancelWithReasonModal from '../../components/common/CancelWithReasonModal
 import PurchaseRequestDetailModal from '../../components/purchasing/PurchaseRequestDetailModal';
 import SupplyRequestDetailModal from '../../components/purchasing/SupplyRequestDetailModal';
 import PurchaseRequestEditModal from '../../components/purchasing/PurchaseRequestEditModal';
+import PurchaseRequestQuickUpdateModal from '../../components/purchasing/PurchaseRequestQuickUpdateModal';
 import { useSupplierOptions } from '../../hooks/useSuppliers';
 import type { ReplenishmentRequest } from '../../services/replenishmentRequestService';
 import replenishmentRequestService from '../../services/replenishmentRequestService';
@@ -364,6 +365,7 @@ const PurchasingEquipment = () => {
   const [showCancelPrModal, setShowCancelPrModal] = useState(false);
   const [cancellingPr, setCancellingPr] = useState(false);
   const [editingPurchaseRequest, setEditingPurchaseRequest] = useState<PurchaseRequest | null>(null);
+  const [quickUpdateTarget, setQuickUpdateTarget] = useState<PurchaseRequest | null>(null);
   // Giá thực tế: mở từ chi tiết YCMH ở trạng thái Đã duyệt, hoặc từ nút
   // "Đã mua xong" khi còn dòng chưa chốt (setCompleteAfterPriceConfirm=true).
   const [showConfirmActualPrice, setShowConfirmActualPrice] = useState(false);
@@ -457,6 +459,10 @@ const PurchasingEquipment = () => {
 
   const closeEditPurchaseRequest = useCallback(() => {
     setEditingPurchaseRequest(null);
+  }, []);
+
+  const openQuickUpdate = useCallback((item: PurchaseRequest) => {
+    setQuickUpdateTarget(item);
   }, []);
 
 
@@ -862,6 +868,7 @@ const PurchasingEquipment = () => {
               onDelete={handleDeletePurchaseRequest as any}
               onSubmitForApproval={handleSubmitForApproval as any}
               onComplete={handleCompletePurchaseRequest as any}
+              onQuickUpdate={openQuickUpdate as any}
               refreshKey={purchaseRefreshKey}
               onCountsChange={setPurchaseSubTotal}
             />
@@ -983,6 +990,7 @@ const PurchasingEquipment = () => {
           onEdit={(pr) => { closePurchaseRequestDetail(); openEditPurchaseRequest(pr); }}
           onCancel={(pr) => { closePurchaseRequestDetail(); handleCancelPurchaseRequest(pr); }}
           onConfirmPrice={(pr) => { setConfirmActualPriceTarget(pr); setCompleteAfterPriceConfirm(true); setShowConfirmActualPrice(true); }}
+          onQuickUpdate={(pr) => { closePurchaseRequestDetail(); openQuickUpdate(pr); }}
           onViewInboundPlan={(pr) => {
             const kh = pr.inboundPlan?.maKeHoach;
             toast(kh ? `Kế hoạch nhập kho: ${kh}` : 'Chưa có kế hoạch nhập kho', { icon: '📦' });
@@ -1012,6 +1020,22 @@ const PurchasingEquipment = () => {
           loading={cancellingPr}
           ticketLabel={cancelPrTarget?.maYeuCau ?? ''}
           description="Hủy yêu cầu mua hàng này sẽ chuyển trạng thái sang Đã hủy và thông báo tới người tạo. Nếu phiếu sinh từ YCBS, YCBS cha sẽ quay lại Chờ báo giá."
+        />
+
+        <PurchaseRequestQuickUpdateModal
+          isOpen={!!quickUpdateTarget}
+          onClose={() => setQuickUpdateTarget(null)}
+          purchaseRequest={quickUpdateTarget}
+          onSubmit={async (id, { formData, file }) => {
+            await purchaseRequestService.updatePurchaseRequest(id, { ...formData as any, file: file || undefined } as any);
+            fetchPurchaseRequests();
+            if (selectedPurchaseRequest?.id === id) {
+              try {
+                const res: any = await purchaseRequestService.getPurchaseRequestById(id);
+                if (res?.data) setSelectedPurchaseRequest(res.data as PurchaseRequest);
+              } catch {}
+            }
+          }}
         />
 
         <PurchaseRequestEditModal

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, Download, Edit, Eye, Trash2, CheckCircle } from 'lucide-react';
+import { Search, Download, Edit, Eye, Trash2, CheckCircle, FilePenLine } from 'lucide-react';
 import purchaseRequestService from '../../services/purchaseRequestService';
 import { normalizeBoPhan, CANONICAL_BO_PHAN } from '../../utils/normalizeBoPhan';
 import { labelForPurchaseRequest } from '../../utils/purchaseRequestLabel';
@@ -62,6 +62,7 @@ export default function PurchaseRequestSubTabs({
   onDelete,
   onSubmitForApproval,
   onComplete,
+  onQuickUpdate,
   refreshKey,
   onCountsChange,
 }: {
@@ -74,6 +75,7 @@ export default function PurchaseRequestSubTabs({
   onDelete: (id: string) => void;
   onSubmitForApproval: (pr: PurchaseRequest) => void;
   onComplete: (pr: PurchaseRequest) => void;
+  onQuickUpdate?: (pr: PurchaseRequest) => void;
   refreshKey?: number;
   onCountsChange?: (total: number) => void;
 }) {
@@ -310,6 +312,11 @@ export default function PurchaseRequestSubTabs({
                     {canEditPR && (
                       <button onClick={() => onEdit(item)} className="text-green-600 hover:text-green-800" title="Chỉnh sửa">
                         <Edit className="w-4 h-4" />
+                      </button>
+                    )}
+                    {canUpdatePR && onQuickUpdate && item.trangThai === 'Đã duyệt' && (
+                      <button onClick={() => onQuickUpdate(item)} className="text-blue-600 hover:text-blue-800" title="Cập nhật thông tin đơn hàng">
+                        <FilePenLine className="w-4 h-4" />
                       </button>
                     )}
                     {canDeletePR && (

@@ -8,6 +8,7 @@ import TableFilter from '../TableFilter';
 import CancelWithReasonModal from '../common/CancelWithReasonModal';
 import CreateWarehouseReceiptModal from '../CreateWarehouseReceiptModal';
 import PlanLogHistory from './PlanLogHistory';
+import InboundPlanDetailModal from './InboundPlanDetailModal';
 import { formatDateInAppTz } from '../../utils/dateUtils';
 import { useWarehouses } from '../../hooks/useWarehouses';
 import { resolvePlanBadge } from '../../utils/warehousePlanBadges';
@@ -33,6 +34,33 @@ function statusBadge(plan: InboundPlan) {
   return <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${className}`}>{label}</span>;
 }
 
+function auditTooltip(plan: InboundPlan): string | undefined {
+  const log = plan.logs?.[0];
+  if (!log) return undefined;
+  const parts: string[] = [log.hanhDong];
+  if (log.ngayMoi) {
+    const d = new Date(log.ngayMoi);
+    if (!isNaN(d.getTime())) parts.push(`ngày mới: ${d.toLocaleDateString('vi-VN')}`);
+  }
+  if (log.nguoiThucHien) parts.push(`bởi ${log.nguoiThucHien}`);
+  return parts.join(' · ');
+}
+
+function auditBadge(plan: InboundPlan) {
+  const count = plan.logs?.length ?? 0;
+  if (count === 0) return null;
+  const label = `${count} thay đổi`;
+  const tip = auditTooltip(plan);
+  return (
+    <span
+      title={tip}
+      className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 border border-amber-200 cursor-help"
+    >
+      {label}
+    </span>
+  );
+}
+
 const InboundPlanTab: React.FC = () => {
   const [plans, setPlans] = useState<InboundPlan[]>([]);
   const [total, setTotal] = useState(0);
@@ -55,6 +83,7 @@ const InboundPlanTab: React.FC = () => {
   const [createFromPlan, setCreateFromPlan] = useState<InboundPlan | null>(null);
   const [cancelPlan, setCancelPlan] = useState<InboundPlan | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [selectedDetailPlan, setSelectedDetailPlan] = useState<InboundPlan | null>(null);
 
   // "Quá hạn" không phải trạng thái duy nhất bị lọc quá hạn — backend chỉ ĐÁNH DẤU
   // 'Quá hạn' khi có phiếu nhập chạy qua onReceiptCreated, còn kế hoạch quá hạn nhưng
@@ -216,28 +245,32 @@ const InboundPlanTab: React.FC = () => {
                     .map((it) => `${it.tenHangHoa} (${it.soLuong} ${it.donViTinh})`)
                     .join(', ');
                   return (
-                    <tr key={p.id} className="border-b hover:bg-gray-50">
+                    <tr
+                      key={p.id}
+                      className="border-b hover:bg-gray-50 cursor-pointer"
+                      onClick={() => setSelectedDetailPlan(p)}
+                    >
                       <td className="px-3 py-2 font-mono text-xs font-medium">{p.maKeHoach}</td>
                       <td className="px-3 py-2 font-mono text-xs">{pr?.maYeuCau || '—'}</td>
                       <td className="px-3 py-2 text-xs truncate max-w-[160px]" title={ncc}>{ncc}</td>
                       <td className="px-3 py-2 text-xs truncate max-w-[220px]" title={itemsSummary}>{itemsSummary}</td>
                       <td className="px-3 py-2 text-xs whitespace-nowrap">{p.ngayDuKien ? new Date(p.ngayDuKien).toLocaleDateString('vi-VN') : '—'}</td>
                       <td className="px-3 py-2 text-xs">{kho}</td>
-                      <td className="px-3 py-2">{statusBadge(p)}</td>
+                      <td className="px-3 py-2"><span className="inline-flex items-center gap-1.5 flex-wrap">{statusBadge(p)}{auditBadge(p)}</span></td>
                       <td className="px-3 py-2">
                         <div className="flex items-center justify-end gap-1">
                           {canEdit && (
-                            <button onClick={() => setCreateFromPlan(p)} title="Tạo phiếu nhập kho từ kế hoạch"
+                            <button onClick={(e) => { e.stopPropagation(); setCreateFromPlan(p); }} title="Tạo phiếu nhập kho từ kế hoạch"
                               className="inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-600 text-white text-xs hover:bg-blue-700">
                               <ClipboardCheck className="w-3 h-3" /> Nhập kho
                             </button>
                           )}
                           {canEdit && (
-                            <button type="button" onClick={() => openEdit(p)} title="Sửa ngày hẹn" aria-label={`Sửa ngày hẹn kế hoạch ${p.maKeHoach}`}
+                            <button type="button" onClick={(e) => { e.stopPropagation(); openEdit(p); }} title="Sửa ngày hẹn" aria-label={`Sửa ngày hẹn kế hoạch ${p.maKeHoach}`}
                               className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 rounded hover:bg-amber-50 text-amber-600"><Pencil className="w-4 h-4" /></button>
                           )}
                           {canEdit && (
-                            <button type="button" onClick={() => setCancelPlan(p)} title="Hủy kế hoạch" aria-label={`Hủy kế hoạch ${p.maKeHoach}`}
+                            <button type="button" onClick={(e) => { e.stopPropagation(); setCancelPlan(p); }} title="Hủy kế hoạch" aria-label={`Hủy kế hoạch ${p.maKeHoach}`}
                               className="inline-flex items-center justify-center min-h-[32px] min-w-[32px] p-1.5 rounded hover:bg-red-50 text-red-600"><XCircle className="w-4 h-4" /></button>
                           )}
                         </div>
@@ -257,23 +290,30 @@ const InboundPlanTab: React.FC = () => {
               const items = pr?.items ?? [];
               const itemsSummary = items.length === 0 ? '—' : items.map((it) => `${it.tenHangHoa} (${it.soLuong} ${it.donViTinh})`).join(', ');
               return (
-                <div key={p.id} className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+                <div
+                  key={p.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelectedDetailPlan(p)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedDetailPlan(p); } }}
+                  className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm cursor-pointer hover:border-gray-300"
+                >
                   <div className="flex items-start justify-between gap-2">
                     <span className="font-mono text-sm font-semibold text-gray-900">{p.maKeHoach}</span>
-                    {statusBadge(p)}
+                    <span className="inline-flex items-center gap-1.5 flex-wrap justify-end">{statusBadge(p)}{auditBadge(p)}</span>
                   </div>
                   <div className="mt-1 text-xs text-gray-500">YCMH {pr?.maYeuCau || '—'} · NCC {ncc}</div>
                   <div className="mt-1 text-xs text-gray-500">Kho đích {kho} · Ngày hẹn {p.ngayDuKien ? new Date(p.ngayDuKien).toLocaleDateString('vi-VN') : '—'}</div>
                   <div className="mt-2 rounded border border-gray-100 bg-gray-50 px-2.5 py-2 text-xs text-gray-700 truncate" title={itemsSummary}>{itemsSummary}</div>
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     {canEdit && (
-                      <button onClick={() => setCreateFromPlan(p)} className="inline-flex items-center gap-1 rounded bg-blue-600 px-2.5 py-1 text-xs text-white hover:bg-blue-700"><ClipboardCheck className="w-3 h-3" /> Nhập kho</button>
+                      <button onClick={(e) => { e.stopPropagation(); setCreateFromPlan(p); }} className="inline-flex items-center gap-1 rounded bg-blue-600 px-2.5 py-1 text-xs text-white hover:bg-blue-700"><ClipboardCheck className="w-3 h-3" /> Nhập kho</button>
                     )}
                     {canEdit && (
-                      <button onClick={() => openEdit(p)} aria-label={`Sửa ngày hẹn kế hoạch ${p.maKeHoach}`} className="rounded border border-amber-200 px-2.5 py-1 text-xs text-amber-700">Sửa ngày hẹn</button>
+                      <button onClick={(e) => { e.stopPropagation(); openEdit(p); }} aria-label={`Sửa ngày hẹn kế hoạch ${p.maKeHoach}`} className="rounded border border-amber-200 px-2.5 py-1 text-xs text-amber-700">Sửa ngày hẹn</button>
                     )}
                     {canEdit && (
-                      <button onClick={() => setCancelPlan(p)} aria-label={`Hủy kế hoạch ${p.maKeHoach}`} className="rounded border border-red-200 px-2.5 py-1 text-xs text-red-700">Hủy</button>
+                      <button onClick={(e) => { e.stopPropagation(); setCancelPlan(p); }} aria-label={`Hủy kế hoạch ${p.maKeHoach}`} className="rounded border border-red-200 px-2.5 py-1 text-xs text-red-700">Hủy</button>
                     )}
                   </div>
                 </div>
@@ -344,6 +384,15 @@ const InboundPlanTab: React.FC = () => {
           onSuccess={() => { setCreateFromPlan(null); fetchPlans(); }}
         />
       )}
+
+      <InboundPlanDetailModal
+        isOpen={!!selectedDetailPlan}
+        onClose={() => setSelectedDetailPlan(null)}
+        plan={selectedDetailPlan}
+        onCreateReceipt={(p) => { setSelectedDetailPlan(null); setCreateFromPlan(p); }}
+        onEdit={(p) => { setSelectedDetailPlan(null); openEdit(p); }}
+        onCancel={(p) => { setSelectedDetailPlan(null); setCancelPlan(p); }}
+      />
     </div>
   );
 };

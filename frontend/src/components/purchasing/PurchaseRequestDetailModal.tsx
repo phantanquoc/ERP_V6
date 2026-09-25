@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Edit, BadgeCheck, Ban, X, PackageOpen } from 'lucide-react';
+import { Edit, BadgeCheck, Ban, X, PackageOpen, FilePenLine } from 'lucide-react';
 import Modal from '../Modal';
 import type { PurchaseRequest } from '../../types/purchaseRequest';
 import { labelForPurchaseRequest } from '../../utils/purchaseRequestLabel';
@@ -16,6 +16,7 @@ interface Props {
   onEdit: (pr: PurchaseRequest) => void;
   onCancel: (pr: PurchaseRequest) => void;
   onConfirmPrice: (pr: PurchaseRequest) => void;
+  onQuickUpdate?: (pr: PurchaseRequest) => void;
   onViewInboundPlan?: (pr: PurchaseRequest) => void;
 }
 
@@ -42,7 +43,7 @@ function arrivalBadge(ngayDuKienNhap?: string | null): { label: string; cls: str
 }
 
 export default function PurchaseRequestDetailModal({
-  isOpen, onClose, purchaseRequest, canEdit, canUpdate, isActualPriceConfirmed, onEdit, onCancel, onConfirmPrice, onViewInboundPlan,
+  isOpen, onClose, purchaseRequest, canEdit, canUpdate, isActualPriceConfirmed, onEdit, onCancel, onConfirmPrice, onQuickUpdate, onViewInboundPlan,
 }: Props) {
   const pr = purchaseRequest;
   const totals = useMemo(() => {
@@ -352,6 +353,11 @@ export default function PurchaseRequestDetailModal({
             {canEdit && (
               <button type="button" onClick={() => onEdit(pr)} className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2">
                 <Edit className="w-4 h-4" /> Chỉnh sửa
+              </button>
+            )}
+            {canUpdate && onQuickUpdate && pr.trangThai === 'Đã duyệt' && (
+              <button type="button" onClick={() => onQuickUpdate(pr)} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2">
+                <FilePenLine className="w-4 h-4" /> Cập nhật
               </button>
             )}
             <button onClick={onClose} className="px-4 py-2 border border-gray-200 rounded-md text-gray-700 hover:bg-gray-50">Đóng</button>

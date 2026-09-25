@@ -41,9 +41,16 @@ export const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   SUPPLY_REQUEST: 'Yêu cầu vật tư',
   SUPPLY_REQUEST_PROCESSING: 'Xử lý yêu cầu vật tư',
   SUPPLY_REQUEST_APPROVED: 'Duyệt yêu cầu vật tư',
+  SUPPLY_REQUEST_PURCHASED: 'Đã mua hàng',
+  SUPPLY_REQUEST_WAITING_REPLENISHMENT: 'Chờ bổ sung',
   SUPPLY_REQUEST_FULFILLED: 'Hoàn thành yêu cầu vật tư',
+  SUPPLY_REQUEST_PARTIAL_FULFILLED: 'Cấp một phần',
+  SUPPLY_REQUEST_RECEIVED: 'Đã nhập kho',
+  SUPPLY_REQUEST_CANCELLED: 'Hủy yêu cầu vật tư',
   REPLENISHMENT_REQUEST: 'Yêu cầu bổ sung',
   PURCHASE_REQUEST: 'Yêu cầu mua hàng',
+  PURCHASE_REQUEST_CANCELLED: 'Hủy yêu cầu mua hàng',
+  LOW_STOCK_ALERT: 'Cảnh báo tồn kho',
   PAYROLL: 'Bảng lương',
   ACCEPTANCE_HANDOVER: 'Nghiệm thu bàn giao',
   PASSWORD_RESET: 'Đặt lại mật khẩu',
@@ -103,9 +110,16 @@ export const NOTIFICATION_TYPE_GROUPS: NotificationGroup[] = [
       'SUPPLY_REQUEST',
       'SUPPLY_REQUEST_PROCESSING',
       'SUPPLY_REQUEST_APPROVED',
+      'SUPPLY_REQUEST_PURCHASED',
+      'SUPPLY_REQUEST_WAITING_REPLENISHMENT',
       'SUPPLY_REQUEST_FULFILLED',
+      'SUPPLY_REQUEST_PARTIAL_FULFILLED',
+      'SUPPLY_REQUEST_RECEIVED',
+      'SUPPLY_REQUEST_CANCELLED',
       'REPLENISHMENT_REQUEST',
       'PURCHASE_REQUEST',
+      'PURCHASE_REQUEST_CANCELLED',
+      'LOW_STOCK_ALERT',
     ],
   },
   {
@@ -168,12 +182,28 @@ export function getNotificationIcon(type: string): React.ReactNode {
       return React.createElement(Clock, { className: 'w-4 h-4 text-yellow-600' });
     case 'SUPPLY_REQUEST_APPROVED':
       return React.createElement(Truck, { className: 'w-4 h-4 text-blue-600' });
+    case 'SUPPLY_REQUEST_PURCHASED':
+      return React.createElement(PackageCheck, { className: 'w-4 h-4 text-blue-600' });
+    case 'SUPPLY_REQUEST_WAITING_REPLENISHMENT':
+      return React.createElement(Clock, { className: 'w-4 h-4 text-amber-600' });
+    case 'SUPPLY_REQUEST_PARTIAL_FULFILLED':
+      return React.createElement(PackageOpen, { className: 'w-4 h-4 text-amber-600' });
+    case 'SUPPLY_REQUEST_RECEIVED':
+      return React.createElement(Warehouse, { className: 'w-4 h-4 text-blue-600' });
+    case 'SUPPLY_REQUEST_CANCELLED':
+      return React.createElement(AlertCircle, { className: 'w-4 h-4 text-red-600' });
     case 'SUPPLY_REQUEST_FULFILLED':
       return React.createElement(PackageOpen, { className: 'w-4 h-4 text-green-600' });
     case 'REPLENISHMENT_REQUEST':
       return React.createElement(PackageOpen, { className: 'w-4 h-4 text-amber-600' });
     case 'PURCHASE_REQUEST':
       return React.createElement(ShoppingCart, { className: 'w-4 h-4 text-cyan-600' });
+    case 'PURCHASE_REQUEST_CANCELLED':
+      return React.createElement(AlertCircle, { className: 'w-4 h-4 text-red-600' });
+    case 'REPLENISHMENT_REQUEST_CANCELLED':
+      return React.createElement(AlertCircle, { className: 'w-4 h-4 text-red-600' });
+    case 'LOW_STOCK_ALERT':
+      return React.createElement(AlertCircle, { className: 'w-4 h-4 text-red-600' });
     case 'PASSWORD_RESET':
       return React.createElement(KeyRound, { className: 'w-4 h-4 text-red-600' });
     case 'PRIVATE_FEEDBACK':
@@ -269,6 +299,11 @@ export function resolveDeepLink(notification: NotificationForLink): string | nul
     case 'SUPPLY_REQUEST':
     case 'SUPPLY_REQUEST_PROCESSING':
     case 'SUPPLY_REQUEST_APPROVED':
+    case 'SUPPLY_REQUEST_PURCHASED':
+    case 'SUPPLY_REQUEST_WAITING_REPLENISHMENT':
+    case 'SUPPLY_REQUEST_PARTIAL_FULFILLED':
+    case 'SUPPLY_REQUEST_RECEIVED':
+    case 'SUPPLY_REQUEST_CANCELLED':
     case 'SUPPLY_REQUEST_FULFILLED': {
       const srId = (meta.supplyRequestId as string | undefined) ?? notification.supplyRequestId;
       return srId

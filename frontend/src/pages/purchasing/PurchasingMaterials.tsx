@@ -45,6 +45,7 @@ import CancelWithReasonModal from '../../components/common/CancelWithReasonModal
 import PurchaseRequestDetailModal from '../../components/purchasing/PurchaseRequestDetailModal';
 import SupplyRequestDetailModal from '../../components/purchasing/SupplyRequestDetailModal';
 import PurchaseRequestEditModal from '../../components/purchasing/PurchaseRequestEditModal';
+import PurchaseRequestQuickUpdateModal from '../../components/purchasing/PurchaseRequestQuickUpdateModal';
 import {
   BarChart,
   Bar,
@@ -394,6 +395,7 @@ const PurchasingMaterials = () => {
   const [confirmActualPriceTarget, setConfirmActualPriceTarget] = useState<import('../../components/ConfirmActualPriceModal').ConfirmPriceTarget | null>(null);
   const [selectedPurchaseRequest, setSelectedPurchaseRequest] = useState<PurchaseRequest | null>(null);
   const [editingPurchaseRequest, setEditingPurchaseRequest] = useState<PurchaseRequest | null>(null);
+  const [quickUpdateTarget, setQuickUpdateTarget] = useState<PurchaseRequest | null>(null);
   const [confirmAction, setConfirmAction] = useState<{
     title: string;
     message: string;
@@ -457,6 +459,10 @@ const PurchasingMaterials = () => {
 
   const closeEditPurchaseRequest = useCallback(() => {
     setEditingPurchaseRequest(null);
+  }, []);
+
+  const openQuickUpdate = useCallback((item: PurchaseRequest) => {
+    setQuickUpdateTarget(item);
   }, []);
 
 
@@ -964,6 +970,7 @@ const PurchasingMaterials = () => {
               onDelete={handleDeletePurchaseRequest as any}
               onSubmitForApproval={handleSubmitForApproval as any}
               onComplete={handleCompletePurchaseRequest as any}
+              onQuickUpdate={openQuickUpdate as any}
               refreshKey={purchaseRefreshKey}
               onCountsChange={setPurchaseSubTotal}
             />
@@ -1092,6 +1099,7 @@ const PurchasingMaterials = () => {
           onEdit={(pr) => { closePurchaseRequestDetail(); openEditPurchaseRequest(pr); }}
           onCancel={(pr) => { closePurchaseRequestDetail(); handleCancelPurchaseRequest(pr); }}
           onConfirmPrice={(pr) => { setConfirmActualPriceTarget(pr); setCompleteAfterPriceConfirm(true); setShowConfirmActualPrice(true); }}
+          onQuickUpdate={(pr) => { closePurchaseRequestDetail(); openQuickUpdate(pr); }}
           onViewInboundPlan={(pr) => {
             const kh = pr.inboundPlan?.maKeHoach;
             toast(kh ? `Kế hoạch nhập kho: ${kh}` : 'Chưa có kế hoạch nhập kho', { icon: '📦' });
@@ -1111,6 +1119,22 @@ const PurchasingMaterials = () => {
             setShowConfirmActualPrice(false);
             fetchPurchaseRequests();
             closePurchaseRequestDetail();
+          }}
+        />
+
+        <PurchaseRequestQuickUpdateModal
+          isOpen={!!quickUpdateTarget}
+          onClose={() => setQuickUpdateTarget(null)}
+          purchaseRequest={quickUpdateTarget}
+          onSubmit={async (id, { formData, file }) => {
+            await purchaseRequestService.updatePurchaseRequest(id, { ...formData as any, file: file || undefined } as any);
+            fetchPurchaseRequests();
+            if (selectedPurchaseRequest?.id === id) {
+              try {
+                const res: any = await purchaseRequestService.getPurchaseRequestById(id);
+                if (res?.data) setSelectedPurchaseRequest(res.data as PurchaseRequest);
+              } catch {}
+            }
           }}
         />
 
