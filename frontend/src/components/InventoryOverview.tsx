@@ -20,10 +20,12 @@ const InventoryOverview: React.FC = () => {
   const [sortField, setSortField] = useState<SortField>('maSanPham');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [searchParamsInv, setSearchParamsInv] = useSearchParams();
+  const syncingRef = useRef(false);
   const inventoryScrollTo = (searchParamsInv.get('inventoryScrollTo') || '').trim();
   const initialLoai = (searchParamsInv.get('loaiSanPham') || '').trim();
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const hasScrolledRef = useRef<string | null>(null);
+  // Inventory filters other than loaiSanPham/inventoryScrollTo are intentionally local (ephemeral) — see ProductionWarehouse TAB_SCOPED comment.
   const [filterValues, setFilterValues] = useState<Record<string, string>>({
     _search: '',
     loaiSanPham: initialLoai,
@@ -31,6 +33,17 @@ const InventoryOverview: React.FC = () => {
     donViTinh: '',
     stockStatus: '',
   });
+
+  const clearInventoryUrlKeys = (keys: string[]) => {
+    const hasAny = keys.some((k) => searchParamsInv.has(k));
+    if (!hasAny) return;
+    syncingRef.current = true;
+    setSearchParamsInv((prev) => {
+      const next = new URLSearchParams(prev);
+      for (const k of keys) next.delete(k);
+      return next;
+    }, { replace: true });
+  };
 
   const { data: warehousesData } = useWarehouses();
   const warehouses = useMemo(() => {
@@ -74,13 +87,12 @@ const InventoryOverview: React.FC = () => {
   // After user clears the filter (Xóa lọc / Xóa chip), drop the URL param so it does not re-seed on next render.
   const clearInventoryScrollTo = () => {
     if (!searchParamsInv.get('inventoryScrollTo')) return;
-    const next = new URLSearchParams(searchParamsInv);
-    next.delete('inventoryScrollTo');
-    setSearchParamsInv(next, { replace: true });
+    clearInventoryUrlKeys(['inventoryScrollTo']);
     hasScrolledRef.current = null;
   };
 
   useEffect(() => {
+    if (syncingRef.current) { syncingRef.current = false; return; }
     if (!inventoryScrollTo) return;
     // Don't overwrite if user already searched for that key
     if (filterValues._search === inventoryScrollTo) return;
@@ -161,22 +173,24 @@ const InventoryOverview: React.FC = () => {
   ];
 
   const handleFilterChange = (vals: Record<string, string>) => {
-    // User explicitly cleared/changed filters — if _search was driven by deep-link, drop that param
-    if ((filterValues._search || '') !== '' && (vals._search || '') === '' && inventoryScrollTo) {
-      clearInventoryScrollTo();
+    const toDelete: string[] = [];
+    if ((filterValues._search || '') !== '' && (vals._search || '') === '' && searchParamsInv.get('inventoryScrollTo')) {
+      toDelete.push('inventoryScrollTo');
+      hasScrolledRef.current = null;
     }
-    // loaiSanPham driven by Card 4 drill-down: if user clears that filter, also drop URL param
     if ((filterValues.loaiSanPham || '') !== '' && (vals.loaiSanPham || '') === '' && searchParamsInv.get('loaiSanPham')) {
-      const next = new URLSearchParams(searchParamsInv);
-      next.delete('loaiSanPham');
-      setSearchParamsInv(next, { replace: true });
+      toDelete.push('loaiSanPham');
     }
+    if (toDelete.length) clearInventoryUrlKeys(toDelete);
+    // If only one of the above triggered and we used the consolidated helper, clearInventoryScrollTo's hasScrolledRef path is already handled.
+    // When _search was cleared but the helper already reset hasScrolledRef, avoid double-clear side-effect is harmless.
     setFilterValues(vals);
     setCurrentPage(1);
   };
 
   // Sync ?loaiSanPham deep-link from Card 4 while already on inventory tab
   useEffect(() => {
+    if (syncingRef.current) { syncingRef.current = false; return; }
     const live = (searchParamsInv.get('loaiSanPham') || '').trim();
     // Only react to an actual navigation that carries the param (or explicitly cleared it from overview)
     // If InventoryOverview itself mounts fresh, initial state already equals initialLoai; skip.
@@ -317,11 +331,11 @@ const InventoryOverview: React.FC = () => {
               <span>Không khớp bộ lọc</span>
               <button
                 onClick={() => {
-                  clearInventoryScrollTo();
-                  const next = new URLSearchParams(searchParamsInv);
-                  next.delete('loaiSanPham');
-                  // Only write URL if that key existed (Card 4 drill-down)
-                  if (searchParamsInv.get('loaiSanPham')) setSearchParamsInv(next, { replace: true });
+                  const keys: string[] = [];
+                  if (searchParamsInv.get('inventoryScrollTo')) keys.push('inventoryScrollTo');
+                  if (searchParamsInv.get('loaiSanPham')) keys.push('loaiSanPham');
+                  if (keys.length) clearInventoryUrlKeys(keys);
+                  hasScrolledRef.current = null;
                   setFilterValues({ _search: '', loaiSanPham: '', warehouseId: '', donViTinh: '', stockStatus: '' });
                   setCurrentPage(1);
                 }}
