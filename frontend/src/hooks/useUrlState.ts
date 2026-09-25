@@ -65,12 +65,11 @@ export function useUrlTab<T extends string>(
   // for its tab + period pair. Pass `null` to delete a key.
   const set = useCallback(
     (next: T, extraParams?: Record<string, string | null>) => {
-      // Functional updater: always read freshest searchParams so a concurrent
-      // sub-tab write (inboundSubTab/outboundSubTab) that landed one tick earlier
-      // is not clobbered by a stale closure.
       setSearchParams((prev) => {
         const params = new URLSearchParams(prev);
-        const isTopTabSwitch = next !== value;
+        const cur = prev.get(paramKey);
+        const curTab: T | null = cur && isValid(cur) ? cur : null;
+        const isTopTabSwitch = curTab !== next;
         params.set(paramKey, next);
         if (isTopTabSwitch) {
           const table = scopedRef.current;
@@ -92,7 +91,7 @@ export function useUrlTab<T extends string>(
       setValue(next);
       syncingRef.current = true;
     },
-    [value, setSearchParams, paramKey],
+    [setSearchParams, paramKey],
   );
 
   return { value, set, searchParams, setSearchParams } as const;

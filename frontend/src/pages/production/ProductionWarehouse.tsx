@@ -280,32 +280,35 @@ const ProductionWarehouse = () => {
     }, { replace: true });
   };
 
-  // Seed URL with the resolved sub-tab when (re-)entering inbound/outbound without that key,
-  // so a following click on the sibling sub-tab mutates a URL that already reflects the
-  // current view instead of racing on a stale tab value. Also guarantees deep-link
-  // shareability (URL always carries inboundSubTab/outboundSubTab while inside that tab).
+  // Keep URL in sync with the resolved sub-tab, but only seed inboundSubTab
+  // when actually inside inbound (and likewise outbound). Previously these two
+  // effects fired on *any* activeTab, so clicking from inbound to another top-tab
+  // seeded inboundSubTab/outboundSubTab into that other tab's URL — which on the
+  // next render re-derived as inboundSubTab=plan and clobbered the top-tab switch.
   const inboundSubTabRaw = searchParams.get('inboundSubTab');
   const outboundSubTabRaw = searchParams.get('outboundSubTab');
   React.useEffect(() => {
-    if (activeTab === 'inbound' && inboundSubTabRaw !== 'plan' && inboundSubTabRaw !== 'list') {
-      setSearchParams((prev) => {
-        const p = new URLSearchParams(prev);
-        // Don't overwrite if another effect already seeded
-        if (p.get('inboundSubTab') === 'plan' || p.get('inboundSubTab') === 'list') return prev;
-        p.set('inboundSubTab', inboundSubTab);
-        return p;
-      }, { replace: true });
-    }
+    if (activeTab !== 'inbound') return;
+    if (inboundSubTabRaw === 'plan' || inboundSubTabRaw === 'list') return;
+    setSearchParams((prev) => {
+      const p = new URLSearchParams(prev);
+      if (p.get('inboundSubTab') === 'plan' || p.get('inboundSubTab') === 'list') return prev;
+      // Guard: if top-tab already left inbound by the time this runs, don't re-seed.
+      if (p.get('tab') !== 'inbound') return prev;
+      p.set('inboundSubTab', inboundSubTab);
+      return p;
+    }, { replace: true });
   }, [activeTab, inboundSubTabRaw, inboundSubTab]);
   React.useEffect(() => {
-    if (activeTab === 'outbound' && outboundSubTabRaw !== 'plan' && outboundSubTabRaw !== 'list') {
-      setSearchParams((prev) => {
-        const p = new URLSearchParams(prev);
-        if (p.get('outboundSubTab') === 'plan' || p.get('outboundSubTab') === 'list') return prev;
-        p.set('outboundSubTab', outboundSubTab);
-        return p;
-      }, { replace: true });
-    }
+    if (activeTab !== 'outbound') return;
+    if (outboundSubTabRaw === 'plan' || outboundSubTabRaw === 'list') return;
+    setSearchParams((prev) => {
+      const p = new URLSearchParams(prev);
+      if (p.get('outboundSubTab') === 'plan' || p.get('outboundSubTab') === 'list') return prev;
+      if (p.get('tab') !== 'outbound') return prev;
+      p.set('outboundSubTab', outboundSubTab);
+      return p;
+    }, { replace: true });
   }, [activeTab, outboundSubTabRaw, outboundSubTab]);
 
   // Overview data states — receipts/issues keep overview-specific pagination totals
