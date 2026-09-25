@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { Eye, Check, XCircle } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
-import { hasSubModuleAccess, can } from '../../../utils/permissions';
+import { isPricingApproverSync, can } from '../../../utils/permissions';
 import purchaseRequestService from '../../../services/purchaseRequestService';
 import apiClient from '../../../services/apiClient';
 import { labelForPurchaseRequest } from '../../../utils/purchaseRequestLabel';
@@ -25,9 +25,19 @@ const PurchaseRequestReviewTab: React.FC = () => {
   const [rejectReason, setRejectReason] = useState('');
   const [approveId, setApproveId] = useState<string | null>(null);
 
-  const canApprove = !!user && hasSubModuleAccess('general', 'pricing', (user as any).department, (user as any).subDepartment, (user as any).role, (user as any).secondaryDepartments);
-  const canApprovePurchaseRequests = can('purchase-requests', 'APPROVE', (user as any)?.role);
-  const canUpdatePurchaseRequests = can('purchase-requests', 'UPDATE', (user as any)?.role);
+  const canPricingApprove = !!user && isPricingApproverSync({
+    role: (user as any).role,
+    departmentCode: (user as any).departmentCode ?? (user as any).department ?? null,
+    subDepartmentCode: (user as any).subDepartmentCode ?? (user as any).subDepartment ?? null,
+    secondaryDepartments: ((user as any).secondaryDepartments ?? []).map((s: any) => ({
+      departmentCode: s.departmentCode ?? s.department ?? null,
+      subDepartmentCode: s.subDepartmentCode ?? s.subDepartment ?? null,
+      role: s.role,
+    })),
+  });
+  const canUpdateGate = can('purchase-requests', 'UPDATE', (user as any)?.role);
+  const canPricingUpdate = canPricingApprove && canUpdateGate;
+  const pricingGateTooltip = 'Bạn không có quyền duyệt — cần thuộc Phòng giá thành hoặc Phòng chi phí';
 
   const { data, isLoading } = useQuery({
     queryKey: ['purchase-requests', 'pricing-review', page, limit, filterValues._search, filterValues.maYeuCau, filterValues.tenNhanVien, filterValues.mucDichYeuCau, filterValues.mucDoUuTien],
@@ -180,16 +190,28 @@ const PurchaseRequestReviewTab: React.FC = () => {
 
   const doApprove = async (id: string) => {
     try {
-      await apiClient.put(`/purchase-requests/${id}`, { trangThai: 'Đã duyệt' });
-      toast.success('Đã duyệt yêu cầu mua hàng');
+      const res: any = await apiClient.put(`/purchase-requests/${id}`, { trangThai: 'Đã duyệt' });
+      const payload: any = res?.data ?? res;
+      const st: string = String(payload?.trangThai ?? payload?.status ?? '').trim();
+      if (st === 'Đã duyệt') {
+        toast.success('Đã duyệt yêu cầu mua hàng');
+      } else {
+        toast.error('Duyệt không thành công — trạng thái vẫn ' + (st || 'không đổi'));
+      }
       queryClient.invalidateQueries({ queryKey: ['purchase-requests'] });
       queryClient.invalidateQueries({ queryKey: ['pricingOverview'] });
     } catch (err: any) { toast.error(err?.response?.data?.message ?? err.message ?? 'Duyệt thất bại'); }
   };
   const doReject = async (id: string, lyDo?: string) => {
     try {
-      await apiClient.put(`/purchase-requests/${id}`, { trangThai: 'Từ chối', ...(lyDo ? { ghiChuMuaHang: lyDo } : {}) });
-      toast.success('Đã từ chối yêu cầu');
+      const res: any = await apiClient.put(`/purchase-requests/${id}`, { trangThai: 'Từ chối', ...(lyDo ? { ghiChuMuaHang: lyDo } : {}) });
+      const payload: any = res?.data ?? res;
+      const st: string = String(payload?.trangThai ?? payload?.status ?? '').trim();
+      if (st === 'Từ chối') {
+        toast.success('Đã từ chối yêu cầu');
+      } else {
+        toast.error('Từ chối không thành công — trạng thái vẫn ' + (st || 'không đổi'));
+      }
       queryClient.invalidateQueries({ queryKey: ['purchase-requests'] });
       queryClient.invalidateQueries({ queryKey: ['pricingOverview'] });
     } catch (err: any) { toast.error(err?.response?.data?.message ?? err.message ?? 'Từ chối thất bại'); }
@@ -291,12 +313,11 @@ const PurchaseRequestReviewTab: React.FC = () => {
                         <Eye size={16} />
                       </button>
                       {isPending ? (
-                        canApprove ? (
+                        canPricingApprove && canUpdateGate ? (
                           <>
                             <button
                               onClick={() => setApproveId(r.id)}
-                              disabled={!canApprovePurchaseRequests}
-                              title={!canApprovePurchaseRequests ? 'Bạn không có quyền duyệt' : 'Duyệt'}
+                              title="Duyệt"
                               aria-label="Duyệt"
                               className="p-1.5 rounded-md text-green-600 hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
@@ -304,8 +325,7 @@ const PurchaseRequestReviewTab: React.FC = () => {
                             </button>
                             <button
                               onClick={() => setRejectId(r.id)}
-                              disabled={!canUpdatePurchaseRequests}
-                              title={!canUpdatePurchaseRequests ? 'Bạn không có quyền duyệt' : 'Từ chối'}
+                              title="Từ chối"
                               aria-label="Từ chối"
                               className="p-1.5 rounded-md text-red-600 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
@@ -316,7 +336,7 @@ const PurchaseRequestReviewTab: React.FC = () => {
                           <>
                             <button
                               disabled
-                              title="Bạn không có quyền duyệt"
+                              title={pricingGateTooltip}
                               aria-label="Duyệt"
                               className="p-1.5 rounded-md text-gray-400 opacity-50 cursor-not-allowed"
                             >
@@ -324,7 +344,7 @@ const PurchaseRequestReviewTab: React.FC = () => {
                             </button>
                             <button
                               disabled
-                              title="Bạn không có quyền duyệt"
+                              title={pricingGateTooltip}
                               aria-label="Từ chối"
                               className="p-1.5 rounded-md text-gray-400 opacity-50 cursor-not-allowed"
                             >
@@ -437,11 +457,12 @@ const PurchaseRequestReviewTab: React.FC = () => {
             <div className="flex gap-2">
               {(() => {
                 const row = allRows.find((x: any) => x.id === detailId);
-                if (!row || !canApprove || getTrangThai(row) !== 'Chờ duyệt') return null;
+                if (!row || getTrangThai(row) !== 'Chờ duyệt') return null;
+                if (!canPricingUpdate) return <span className="text-xs text-gray-400 self-center" title={pricingGateTooltip}>Bạn không có quyền duyệt — cần thuộc Phòng giá thành hoặc Phòng chi phí</span>;
                 return (
                   <>
-                    <button onClick={() => { setDetailId(null); setRejectId(row.id); }} disabled={!canUpdatePurchaseRequests} title={!canUpdatePurchaseRequests ? 'Bạn không có quyền từ chối' : undefined} className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 text-sm disabled:opacity-50 disabled:cursor-not-allowed">Từ chối</button>
-                    <button onClick={() => { setDetailId(null); setApproveId(row.id); }} disabled={!canApprovePurchaseRequests} title={!canApprovePurchaseRequests ? 'Bạn không có quyền duyệt' : undefined} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed">Duyệt ngay</button>
+                    <button onClick={() => { setDetailId(null); setRejectId(row.id); }} className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 text-sm">Từ chối</button>
+                    <button onClick={() => { setDetailId(null); setApproveId(row.id); }} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">Duyệt ngay</button>
                   </>
                 );
               })()}

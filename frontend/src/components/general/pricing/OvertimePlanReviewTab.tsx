@@ -3,7 +3,7 @@ import { Clock, FileText, FileImage, FileSpreadsheet, FileCode, Eye, Check, XCir
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../../contexts/AuthContext';
-import { hasSubModuleAccess } from '../../../utils/permissions';
+import { isPricingApproverSync, can } from '../../../utils/permissions';
 import { useOvertimePlans, overtimePlanKeys } from '../../../hooks/useOvertimePlans';
 import { overtimePlanService, OvertimePlanStatus } from '../../../services/overtimePlanService';
 import TableFilter, { FilterField } from '../../TableFilter';
@@ -65,7 +65,20 @@ const OvertimePlanReviewTab: React.FC = () => {
   const [rejectReason, setRejectReason] = useState('');
   const [approveId, setApproveId] = useState<string | null>(null);
 
-  const canApprove = !!user && hasSubModuleAccess('general', 'pricing', (user as any).department, (user as any).subDepartment, (user as any).role, (user as any).secondaryDepartments);
+  const canPricingApprove = !!user && isPricingApproverSync({
+    role: (user as any).role,
+    departmentCode: (user as any).departmentCode ?? (user as any).department ?? null,
+    subDepartmentCode: (user as any).subDepartmentCode ?? (user as any).subDepartment ?? null,
+    secondaryDepartments: ((user as any).secondaryDepartments ?? []).map((s: any) => ({
+      departmentCode: s.departmentCode ?? s.department ?? null,
+      subDepartmentCode: s.subDepartmentCode ?? s.subDepartment ?? null,
+      role: s.role,
+    })),
+  });
+  const canUpdateGate = can('overtime-plans', 'APPROVE', (user as any)?.role);
+  const canPricingUpdate = canPricingApprove && canUpdateGate;
+  const canApprove = canPricingUpdate;
+  const pricingGateTooltip = 'Bạn không có quyền duyệt — cần thuộc Phòng giá thành hoặc Phòng chi phí';
 
   const { data, isLoading } = useOvertimePlans({ page, limit } as any);
   const raw: any = data;
@@ -160,9 +173,17 @@ const OvertimePlanReviewTab: React.FC = () => {
   ];
 
   const approveMut = useMutation({
-    mutationFn: (id: string) => overtimePlanService.approvePlan(id, 'DA_DUYET'),
-    onSuccess: () => {
-      toast.success('Đã duyệt kế hoạch tăng ca');
+    mutationFn: async (id: string) => {
+      const res: any = await overtimePlanService.approvePlan(id, 'DA_DUYET');
+      return res;
+    },
+    onSuccess: (data: any) => {
+      const st: string = String(data?.trangThai ?? data?.status ?? '').trim();
+      if (st === 'DA_DUYET' || st === 'Đã duyệt') {
+        toast.success('Đã duyệt kế hoạch tăng ca');
+      } else {
+        toast.error('Duyệt không thành công — trạng thái vẫn ' + (st || 'không đổi'));
+      }
       queryClient.invalidateQueries({ queryKey: overtimePlanKeys.lists() });
       queryClient.invalidateQueries({ queryKey: overtimePlanKeys.detail(detailId ?? '__none__') });
       queryClient.invalidateQueries({ queryKey: ['pricingOverview'] });
@@ -170,9 +191,17 @@ const OvertimePlanReviewTab: React.FC = () => {
     onError: (err: any) => toast.error(err?.response?.data?.message ?? err.message ?? 'Duyệt thất bại'),
   });
   const rejectMut = useMutation({
-    mutationFn: ({ id, lyDoTuChoi }: { id: string; lyDoTuChoi?: string }) => overtimePlanService.approvePlan(id, 'TU_CHOI', lyDoTuChoi),
-    onSuccess: () => {
-      toast.success('Đã từ chối kế hoạch');
+    mutationFn: async ({ id, lyDoTuChoi }: { id: string; lyDoTuChoi?: string }) => {
+      const res: any = await overtimePlanService.approvePlan(id, 'TU_CHOI', lyDoTuChoi);
+      return res;
+    },
+    onSuccess: (data: any) => {
+      const st: string = String(data?.trangThai ?? data?.status ?? '').trim();
+      if (st === 'TU_CHOI' || st === 'Từ chối') {
+        toast.success('Đã từ chối kế hoạch');
+      } else {
+        toast.error('Từ chối không thành công — trạng thái vẫn ' + (st || 'không đổi'));
+      }
       queryClient.invalidateQueries({ queryKey: overtimePlanKeys.lists() });
       queryClient.invalidateQueries({ queryKey: overtimePlanKeys.detail(detailId ?? '__none__') });
       queryClient.invalidateQueries({ queryKey: ['pricingOverview'] });
@@ -291,10 +320,10 @@ const OvertimePlanReviewTab: React.FC = () => {
                           </>
                         ) : (
                           <>
-                            <button disabled title="Bạn không có quyền duyệt" aria-label="Duyệt" className="p-1.5 rounded-md text-gray-400 opacity-50 cursor-not-allowed">
+                            <button disabled title={pricingGateTooltip} aria-label="Duyệt" className="p-1.5 rounded-md text-gray-400 opacity-50 cursor-not-allowed">
                               <Check size={16} />
                             </button>
-                            <button disabled title="Bạn không có quyền duyệt" aria-label="Từ chối" className="p-1.5 rounded-md text-gray-400 opacity-50 cursor-not-allowed">
+                            <button disabled title={pricingGateTooltip} aria-label="Từ chối" className="p-1.5 rounded-md text-gray-400 opacity-50 cursor-not-allowed">
                               <XCircle size={16} />
                             </button>
                           </>
@@ -465,7 +494,8 @@ const OvertimePlanReviewTab: React.FC = () => {
             <div className="flex gap-2">
               {(() => {
                 const row = (detailQuery.data as any) ?? allRows.find((x: any) => x.id === detailId);
-                if (!row || !canApprove || getTrangThai(row) !== 'CHO_DUYET') return null;
+                if (!row || getTrangThai(row) !== 'CHO_DUYET') return null;
+                if (!canApprove) return <span className="text-xs text-gray-400 self-center" title={pricingGateTooltip}>Bạn không có quyền duyệt — cần thuộc Phòng giá thành hoặc Phòng chi phí</span>;
                 return (
                   <>
                     <button onClick={() => { setDetailId(null); setRejectId(row.id); }} className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 text-sm">Từ chối</button>

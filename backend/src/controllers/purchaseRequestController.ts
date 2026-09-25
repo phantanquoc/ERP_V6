@@ -3,13 +3,18 @@ import purchaseRequestService from '@services/purchaseRequestService';
 import { getFileUrl } from '@middlewares/upload';
 import type { AuthenticatedRequest } from '@types';
 import prisma from '@config/database';
+import { isPricingApprover } from '@utils/isPricingApprover';
 
 const PR_ALLOWED_FIELDS = ['mucDichYeuCau','mucDoUuTien','ghiChu','fileKemTheo','supplyRequestId','nhaCungCapId','giaDuKien','ghiChuMuaHang','isQuickPurchase','sourceType','ngayDuKienNhap','warehouseId','ghiChuVanChuyen','trangThai','nguoiDuyet','ngayDuyet','items'] as const;
-const PR_ADMIN_ONLY = new Set(['trangThai','nguoiDuyet','ngayDuyet']);
-function pickPR(body: Record<string,unknown>, isAdmin: boolean): Record<string,unknown> {
+const PR_ADMIN_ONLY = new Set<string>(['trangThai','nguoiDuyet','ngayDuyet']);
+async function pickPR(body: Record<string,unknown>, isAdmin: boolean, user?: unknown): Promise<Record<string,unknown>> {
   const out: Record<string,unknown> = {};
+  const isPricing = !isAdmin ? await isPricingApprover(user as any) : false;
   for (const k of PR_ALLOWED_FIELDS) if (k in body) {
-    if (!isAdmin && PR_ADMIN_ONLY.has(k)) continue;
+    if (!isAdmin && PR_ADMIN_ONLY.has(k)) {
+      if (k === 'trangThai' && isPricing) { /* allow pricing approver to set trangThai */ }
+      else continue;
+    }
     out[k]=body[k];
   }
   // items is handled separately, keep as-is if present
@@ -91,7 +96,7 @@ class PurchaseRequestController {
     try {
       const isAdmin = req.user?.role === 'ADMIN';
       const raw = req.body as Record<string, unknown>;
-      const data: any = pickPR(raw, isAdmin);
+      const data: any = await pickPR(raw, isAdmin, (req as any).user);
       // Derive identity from JWT — never trust client employeeId/tenNhanVien
       if (req.user?.id) {
         const emp = await prisma.employee.findUnique({ where: { userId: req.user.id }, select: { id: true, employeeCode: true, user: { select: { firstName: true, lastName: true } } } });
@@ -148,7 +153,12 @@ class PurchaseRequestController {
       const id = req.params.id as string;
       const isAdmin = req.user?.role === 'ADMIN';
       const raw = req.body as Record<string, unknown>;
-      const data: any = pickPR(raw, isAdmin);
+      const data: any = await pickPR(raw, isAdmin, (req as any).user);
+      // Explicit 403 when non-pricing tries to send trangThai (stripped by pickPR)
+      if (raw.trangThai !== undefined && !isAdmin && (data as any).trangThai === undefined) {
+        const ok = await isPricingApprover((req as any).user);
+        if (!ok) return res.status(403).json({ success: false, message: 'Không có quyền duyệt yêu cầu mua hàng' });
+      }
       if (raw.items !== undefined) data.items = raw.items;
       // Block client identity override on update as well
       delete data.employeeId; delete data.maNhanVien; delete data.tenNhanVien;

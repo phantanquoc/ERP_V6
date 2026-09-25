@@ -484,6 +484,48 @@ function canDeleteFallback(role?: string): boolean {
   return role === UserRole.ADMIN || role === UserRole.DEPARTMENT_HEAD;
 }
 
+// ── Pricing approver (mirror of backend isPricingApproverSync) ───────────────
+// Allowed if: ADMIN, or GENERAL (HEAD/LEAD or pricing EMPLOYEE), or ACCOUNTING (HEAD/LEAD or admin/tax EMPLOYEE)
+// Handles both perm-codes ('general','pricing') and backend codes ('DEPT_GENERAL','SUBDEPT_GENERAL_PRICING')
+const PRICING_DEPT_SET = new Set(['general', 'DEPT_GENERAL']);
+const ACCOUNTING_DEPT_SET = new Set(['accounting', 'DEPT_ACCOUNTING']);
+const PRICING_SUB_SET = new Set(['pricing', 'SUBDEPT_GENERAL_PRICING']);
+const COST_SUB_SET = new Set(['admin', 'tax', 'SUBDEPT_ACCOUNTING_ADMIN', 'SUBDEPT_ACCOUNTING_TAX']);
+
+function checkPricingEntry(deptCode: string | null | undefined, subCode: string | null | undefined, role: string): boolean {
+  const r = String(role ?? '').toUpperCase();
+  const isHeadOrLead = r === 'DEPARTMENT_HEAD' || r === 'TEAM_LEAD';
+  const isEmployee = r === 'EMPLOYEE';
+  if (deptCode && PRICING_DEPT_SET.has(deptCode)) {
+    if (isHeadOrLead) return true;
+    if (isEmployee && subCode && PRICING_SUB_SET.has(subCode)) return true;
+  }
+  if (deptCode && ACCOUNTING_DEPT_SET.has(deptCode)) {
+    if (isHeadOrLead) return true;
+    if (isEmployee && subCode && COST_SUB_SET.has(subCode)) return true;
+  }
+  return false;
+}
+
+export function isPricingApproverSync(params: {
+  role: string;
+  departmentCode?: string | null;
+  subDepartmentCode?: string | null;
+  secondaryDepartments?: Array<{ departmentCode?: string | null; subDepartmentCode?: string | null; role: string }>;
+}): boolean {
+  const r = String(params.role ?? '').toUpperCase();
+  if (r === 'ADMIN' || params.role === UserRole.ADMIN) return true;
+  // Also check department === 'admin' legacy
+  if (params.departmentCode === 'admin' || (params.departmentCode as string) === DEPARTMENTS.ADMIN) return true;
+  if (checkPricingEntry(params.departmentCode, params.subDepartmentCode, params.role)) return true;
+  if (params.secondaryDepartments) {
+    for (const s of params.secondaryDepartments) {
+      if (checkPricingEntry(s.departmentCode, s.subDepartmentCode, s.role)) return true;
+    }
+  }
+  return false;
+}
+
 // --- Quotation role helpers ---
 
 /**

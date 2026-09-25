@@ -48,11 +48,19 @@ export async function isPricingApprover(user?: JwtPayload | null): Promise<boole
 
   for (const e of entries) {
     const deptCode = e.departmentId ? deptCodeById.get(e.departmentId) : undefined;
-    if (deptCode !== 'DEPT_GENERAL') continue;
-    if (e.role === 'DEPARTMENT_HEAD' || e.role === 'TEAM_LEAD') return true;
-    if (e.role === 'EMPLOYEE') {
-      const subCode = e.subDepartmentId ? subDeptCodeById.get(e.subDepartmentId) : undefined;
-      if (subCode === 'SUBDEPT_GENERAL_PRICING') return true;
+    if (deptCode !== 'DEPT_GENERAL' && deptCode !== 'DEPT_ACCOUNTING') continue;
+    if (deptCode === 'DEPT_GENERAL') {
+      if (e.role === 'DEPARTMENT_HEAD' || e.role === 'TEAM_LEAD') return true;
+      if (e.role === 'EMPLOYEE') {
+        const subCode = e.subDepartmentId ? subDeptCodeById.get(e.subDepartmentId) : undefined;
+        if (subCode === 'SUBDEPT_GENERAL_PRICING') return true;
+      }
+    } else if (deptCode === 'DEPT_ACCOUNTING') {
+      if (e.role === 'DEPARTMENT_HEAD' || e.role === 'TEAM_LEAD') return true;
+      if (e.role === 'EMPLOYEE') {
+        const subCode = e.subDepartmentId ? subDeptCodeById.get(e.subDepartmentId) : undefined;
+        if (subCode === 'SUBDEPT_ACCOUNTING_ADMIN' || subCode === 'SUBDEPT_ACCOUNTING_TAX') return true;
+      }
     }
   }
   return false;
@@ -72,9 +80,16 @@ export function isPricingApproverSync(
 ): boolean {
   if (params.role === 'ADMIN') return true;
   const checkEntry = (deptCode: string | null | undefined, subCode: string | null | undefined, role: string): boolean => {
-    if (deptCode !== 'DEPT_GENERAL') return false;
-    if (role === 'DEPARTMENT_HEAD' || role === 'TEAM_LEAD') return true;
-    if (role === 'EMPLOYEE' && subCode === 'SUBDEPT_GENERAL_PRICING') return true;
+    if (deptCode === 'DEPT_GENERAL') {
+      if (role === 'DEPARTMENT_HEAD' || role === 'TEAM_LEAD') return true;
+      if (role === 'EMPLOYEE' && subCode === 'SUBDEPT_GENERAL_PRICING') return true;
+      return false;
+    }
+    if (deptCode === 'DEPT_ACCOUNTING') {
+      if (role === 'DEPARTMENT_HEAD' || role === 'TEAM_LEAD') return true;
+      if (role === 'EMPLOYEE' && (subCode === 'SUBDEPT_ACCOUNTING_ADMIN' || subCode === 'SUBDEPT_ACCOUNTING_TAX')) return true;
+      return false;
+    }
     return false;
   };
   if (checkEntry(params.departmentCode, params.subDepartmentCode, params.role)) return true;
