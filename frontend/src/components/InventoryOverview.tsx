@@ -85,12 +85,6 @@ const InventoryOverview: React.FC = () => {
 
   // Deep-link from Card 3: ?inventoryScrollTo=<maSanPham|productId> → filter to that product so it lands on page 1, then scroll.
   // After user clears the filter (Xóa lọc / Xóa chip), drop the URL param so it does not re-seed on next render.
-  const clearInventoryScrollTo = () => {
-    if (!searchParamsInv.get('inventoryScrollTo')) return;
-    clearInventoryUrlKeys(['inventoryScrollTo']);
-    hasScrolledRef.current = null;
-  };
-
   useEffect(() => {
     if (syncingRef.current) { syncingRef.current = false; return; }
     if (!inventoryScrollTo) return;

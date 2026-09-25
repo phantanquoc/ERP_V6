@@ -270,36 +270,83 @@ const ProductionWarehouse = () => {
   // Default to last visited sub-tab (remembered in localStorage) so re-entering
   // Danh sách nhập kho lands on Danh sách phiếu if that's where the user was,
   // matching the reported expected flow. Fallback to 'list' (most used).
+  // Deep-link awareness: when the URL already carries a detail id (or its
+  // filter prefix) but no explicit inboundSubTab/outboundSubTab, infer the
+  // sub-tab from that id so pasted links like
+  // ?tab=inbound&inboundPlanId=xxx render the correct pane and the detail
+  // modal can mount. Explicit raw wins over inference; inference wins over LS.
   const inboundSubTab = (() => {
     const raw = searchParams.get('inboundSubTab');
     if (raw === 'plan' || raw === 'list') return raw;
-    return readLastSubTab(LS_INBOUND_SUBTAB) ?? 'list';
+    if (searchParams.has('inboundPlanId')) return 'plan' as const;
+    if (searchParams.has('receiptId')) return 'list' as const;
+    // Filter-prefix hint when no detail id is present (e.g. shared filtered view)
+    for (const k of searchParams.keys()) {
+      if (k.startsWith('in_plan_')) return 'plan' as const;
+      if (k.startsWith('in_') && k !== 'inboundSubTab') return 'list' as const;
+    }
+    return (readLastSubTab(LS_INBOUND_SUBTAB) ?? 'list') as 'plan' | 'list';
   })() as 'plan' | 'list';
   const outboundSubTab = (() => {
     const raw = searchParams.get('outboundSubTab');
     if (raw === 'plan' || raw === 'list') return raw;
-    return readLastSubTab(LS_OUTBOUND_SUBTAB) ?? 'list';
+    if (searchParams.has('outboundPlanId')) return 'plan' as const;
+    if (searchParams.has('issueId')) return 'list' as const;
+    for (const k of searchParams.keys()) {
+      if (k.startsWith('out_plan_')) return 'plan' as const;
+      if (k.startsWith('out_') && k !== 'outboundSubTab') return 'list' as const;
+    }
+    return (readLastSubTab(LS_OUTBOUND_SUBTAB) ?? 'list') as 'plan' | 'list';
   })() as 'plan' | 'list';
-  const seedSyncRef = useRef(false);
+  const inboundSeedRef = useRef(false);
+  const outboundSeedRef = useRef(false);
   const setInboundSubTab = (v: 'plan' | 'list') => {
     try { localStorage.setItem(LS_INBOUND_SUBTAB, v); } catch {}
-    seedSyncRef.current = true;
+    inboundSeedRef.current = true;
     setSearchParams((prev) => {
       const p = new URLSearchParams(prev);
+      const prevTab = p.get('tab');
+      if (prevTab !== 'inbound') {
+        const keepInbound = new Set(TAB_SCOPED_PARAMS.inbound);
+        for (const k of [...p.keys()]) {
+          if (keepInbound.has(k) || k === 'tab' || k === 'inboundSubTab') continue;
+          let isScoped = false;
+          for (const t of VALID_TABS) if ((TAB_SCOPED_PARAMS[t] as readonly string[]).includes(k)) { isScoped = true; break; }
+          if (isScoped) p.delete(k);
+        }
+        p.set('tab', 'inbound');
+      }
       p.set('inboundSubTab', v);
       const drop = v === 'plan' ? INBOUND_LIST_KEYS : INBOUND_PLAN_KEYS;
       for (const k of drop) p.delete(k);
+      p.delete('outboundSubTab');
+      for (const k of OUTBOUND_LIST_KEYS) p.delete(k);
+      for (const k of OUTBOUND_PLAN_KEYS) p.delete(k);
       return p;
     }, { replace: true });
   };
   const setOutboundSubTab = (v: 'plan' | 'list') => {
     try { localStorage.setItem(LS_OUTBOUND_SUBTAB, v); } catch {}
-    seedSyncRef.current = true;
+    outboundSeedRef.current = true;
     setSearchParams((prev) => {
       const p = new URLSearchParams(prev);
+      const prevTab = p.get('tab');
+      if (prevTab !== 'outbound') {
+        const keepOutbound = new Set(TAB_SCOPED_PARAMS.outbound);
+        for (const k of [...p.keys()]) {
+          if (keepOutbound.has(k) || k === 'tab' || k === 'outboundSubTab') continue;
+          let isScoped = false;
+          for (const t of VALID_TABS) if ((TAB_SCOPED_PARAMS[t] as readonly string[]).includes(k)) { isScoped = true; break; }
+          if (isScoped) p.delete(k);
+        }
+        p.set('tab', 'outbound');
+      }
       p.set('outboundSubTab', v);
       const drop = v === 'plan' ? OUTBOUND_LIST_KEYS : OUTBOUND_PLAN_KEYS;
       for (const k of drop) p.delete(k);
+      p.delete('inboundSubTab');
+      for (const k of INBOUND_LIST_KEYS) p.delete(k);
+      for (const k of INBOUND_PLAN_KEYS) p.delete(k);
       return p;
     }, { replace: true });
   };
@@ -309,24 +356,35 @@ const ProductionWarehouse = () => {
   // effects fired on *any* activeTab, so clicking from inbound to another top-tab
   // seeded inboundSubTab/outboundSubTab into that other tab's URL — which on the
   // next render re-derived as inboundSubTab=plan and clobbered the top-tab switch.
+  // FIX: use separate refs per direction — a shared ref let a sub-tab write in
+  // inbound consume the outbound guard (and vice versa) because the *other*
+  // effect runs first and eats the flag before the owning effect is checked.
   const inboundSubTabRaw = searchParams.get('inboundSubTab');
   const outboundSubTabRaw = searchParams.get('outboundSubTab');
+  // Seed URL with resolved sub-tab when entering inbound/outbound without that key.
+  // Must run after the top-tab URL has actually landed on inbound/outbound: activeTab
+  // (state) flips synchronously on setActiveTab, but searchParams (URL) lags one
+  // render. Depending only on activeTab caused the first render after DSYCC/DSTK/DSHH
+  // → DSNK to see activeTab='inbound' while URL still has ?tab=supplyRequest, so the
+  // guard p.get('tab')!=='inbound' bailed and — because raw/deps hadn't changed —
+  // the effect never re-ran on the next render when URL finally became inbound.
+  // Re-derive the URL tab and include it in deps so the seed re-fires once URL catches up.
+  const urlTab = searchParams.get('tab');
   React.useEffect(() => {
-    if (seedSyncRef.current) { seedSyncRef.current = false; return; }
-    if (activeTab !== 'inbound') return;
+    if (inboundSeedRef.current) { inboundSeedRef.current = false; return; }
+    if (activeTab !== 'inbound' || urlTab !== 'inbound') return;
     if (inboundSubTabRaw === 'plan' || inboundSubTabRaw === 'list') return;
     setSearchParams((prev) => {
       const p = new URLSearchParams(prev);
       if (p.get('inboundSubTab') === 'plan' || p.get('inboundSubTab') === 'list') return prev;
-      // Guard: if top-tab already left inbound by the time this runs, don't re-seed.
       if (p.get('tab') !== 'inbound') return prev;
       p.set('inboundSubTab', inboundSubTab);
       return p;
     }, { replace: true });
-  }, [activeTab, inboundSubTabRaw, inboundSubTab]);
+  }, [activeTab, urlTab, inboundSubTabRaw, inboundSubTab, setSearchParams]);
   React.useEffect(() => {
-    if (seedSyncRef.current) { seedSyncRef.current = false; return; }
-    if (activeTab !== 'outbound') return;
+    if (outboundSeedRef.current) { outboundSeedRef.current = false; return; }
+    if (activeTab !== 'outbound' || urlTab !== 'outbound') return;
     if (outboundSubTabRaw === 'plan' || outboundSubTabRaw === 'list') return;
     setSearchParams((prev) => {
       const p = new URLSearchParams(prev);
@@ -335,7 +393,45 @@ const ProductionWarehouse = () => {
       p.set('outboundSubTab', outboundSubTab);
       return p;
     }, { replace: true });
-  }, [activeTab, outboundSubTabRaw, outboundSubTab]);
+  }, [activeTab, urlTab, outboundSubTabRaw, outboundSubTab, setSearchParams]);
+
+  // Orphan cleanup: if a pasted/shared link or a pre-fix navigation left
+  // scoped keys on the wrong top-tab (e.g. ?tab=products&outboundSubTab=list
+  // or ?tab=products&in_plan_page=1), drop them. useUrlTab only cleans on
+  // an explicit set(activeTab) switch, so a direct landing with an orphan
+  // would otherwise live forever and pollute sub-tab inference (in_plan_*
+  // → inboundSubTab=plan even while on products). Reuse TAB_SCOPED_PARAMS
+  // as single source of truth; page-level keys (warehouseMonth etc.) are
+  // not listed and are never touched.
+  React.useEffect(() => {
+    const cur = searchParams.get('tab');
+    const curTab: TabType | null = cur && (VALID_TABS as readonly string[]).includes(cur) ? (cur as TabType) : null;
+    if (!curTab) return;
+    const keep = new Set(TAB_SCOPED_PARAMS[curTab] ?? []);
+    let hasOrphan = false;
+    for (const k of searchParams.keys()) {
+      if (keep.has(k)) continue;
+      for (const t of VALID_TABS) {
+        if ((TAB_SCOPED_PARAMS[t] as readonly string[]).includes(k)) { hasOrphan = true; break; }
+      }
+      if (hasOrphan) break;
+    }
+    if (!hasOrphan) return;
+    setSearchParams((prev) => {
+      const p = new URLSearchParams(prev);
+      const c = p.get('tab');
+      const ct: TabType | null = c && (VALID_TABS as readonly string[]).includes(c) ? (c as TabType) : null;
+      if (!ct) return prev;
+      const k2 = new Set(TAB_SCOPED_PARAMS[ct] ?? []);
+      let changed = false;
+      for (const tab of VALID_TABS) {
+        for (const key of TAB_SCOPED_PARAMS[tab] as readonly string[]) {
+          if (!k2.has(key) && p.has(key)) { p.delete(key); changed = true; }
+        }
+      }
+      return changed ? p : prev;
+    }, { replace: true });
+  }, [searchParams, setSearchParams, activeTab, urlTab, inboundSubTabRaw, outboundSubTabRaw]);
 
   // Overview data states — receipts/issues keep overview-specific pagination totals
   const [warehouses, setWarehouses] = useState<WarehouseType[]>([]);
@@ -714,15 +810,9 @@ const ProductionWarehouse = () => {
 
   // State for modals — URL-backed so reload / back button / shared link
   // reopens the same record instead of losing it.
-  const { id: urlDetailId, open: pushDetailId, close: popDetailId, syncingRef } = useUrlDetailId('warehouseDetailId');
+  const { id: urlDetailId, close: popDetailId, syncingRef } = useUrlDetailId('warehouseDetailId');
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
-
-  const openDetailModal = (item: any) => {
-    if (item?.id) pushDetailId(item.id);
-    setSelectedItem(item);
-    setIsDetailModalOpen(true);
-  };
 
   // Deep-link reader: resolve ?warehouseDetailId= against the overview data this page
   // already fetches on mount (no extra round-trip), then open the modal.

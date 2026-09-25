@@ -110,23 +110,42 @@ export function useUrlDetailId(paramKey: string) {
   const syncingRef = useRef(false);
   const id = searchParams.get(paramKey);
 
+  // Detail params are scoped to a top-tab (see TAB_SCOPED_PARAMS in
+  // ProductionWarehouse). When the user switches top-tab (DSTK→DSNK etc.)
+  // `activeTab` flips immediately but URL lags one render. If the user
+  // clicks a row before URL catches up, `searchParams` still holds the old
+  // tab and a plain `p.set(paramKey)` creates an orphan
+  // (e.g. tab=inbound&issueId= on an inbound URL) that the orphan-cleanup
+  // deletes right away — the exact
+  // tab=inbound&issueId= → orphan → tab=inbound loop in your log.
+  // Fix: force the owning tab atomically in the same write.
+  const owningTab: string | null =
+    paramKey === 'receiptId' || paramKey === 'inboundPlanId' ? 'inbound'
+    : paramKey === 'issueId' || paramKey === 'outboundPlanId' ? 'outbound'
+    : null;
+
   const open = useCallback(
     (value: string, opts?: { replace?: boolean }) => {
-      const params = new URLSearchParams(searchParams);
-      params.set(paramKey, value);
       syncingRef.current = true;
-      setSearchParams(params, { replace: opts?.replace ?? false });
+      setSearchParams((prev) => {
+        const p = new URLSearchParams(prev);
+        if (owningTab && p.get('tab') !== owningTab) p.set('tab', owningTab);
+        p.set(paramKey, value);
+        return p;
+      }, { replace: opts?.replace ?? false });
     },
-    [searchParams, setSearchParams, paramKey],
+    [setSearchParams, paramKey, owningTab],
   );
 
   const close = useCallback(() => {
-    if (!searchParams.has(paramKey)) return;
-    const params = new URLSearchParams(searchParams);
-    params.delete(paramKey);
     syncingRef.current = true;
-    setSearchParams(params, { replace: true });
-  }, [searchParams, setSearchParams, paramKey]);
+    setSearchParams((prev) => {
+      if (!prev.has(paramKey)) return prev;
+      const p = new URLSearchParams(prev);
+      p.delete(paramKey);
+      return p;
+    }, { replace: true });
+  }, [setSearchParams, paramKey]);
 
   return { id, open, close, syncingRef } as const;
 }
@@ -176,6 +195,10 @@ export function useUrlStringParam(
 /**
  * Generic filter bag synced to URL with optional prefix to scope per tab/sub-tab.
  * Each key maps to ?<prefix><key>=value. Empty values delete the param.
+ * Values equal to their default are also omitted so ?in_plan_page=1 /
+ * ?in_plan_sortBy=createdAt / ?in_plan_sortOrder=desc do not bloat the URL
+ * and do not false-trigger the inboundSubTab prefix inference when the user
+ * is on an unrelated tab (e.g. ?tab=products).
  */
 export function useUrlFilters<T extends Record<string, string>>(
   defaults: T,
@@ -219,7 +242,8 @@ export function useUrlFilters<T extends Record<string, string>>(
     for (const k of Object.keys(defaults)) {
       const v = next[k];
       const key = prefix + k;
-      if (!v) params.delete(key);
+      const d = (defaults as Record<string, string>)[k];
+      if (!v || v === d) params.delete(key);
       else params.set(key, v);
     }
     syncingRef.current = true;
