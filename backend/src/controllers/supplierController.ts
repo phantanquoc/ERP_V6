@@ -11,7 +11,7 @@ export class SupplierController {
       const phanLoaiNCC = req.query.phanLoaiNCC as string;
 
       const result = await supplierService.getAllSuppliers(page, limit, search, phanLoaiNCC);
-      res.json(result);
+      res.json({ success: true, data: result.data, pagination: { page: result.page, limit, total: result.total, totalPages: result.totalPages } });
     } catch (error) {
       next(error);
     }
