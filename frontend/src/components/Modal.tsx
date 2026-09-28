@@ -262,11 +262,10 @@ const Modal: React.FC<ModalProps> = ({
       <div
         className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4"
         style={{ width: '100vw', height: '100vh' }}
-        onClick={closeOnBackdrop ? onClose : undefined}
       >
-        {/* Backdrop overlay — visual only */}
+        {/* Backdrop overlay — click để đóng khi closeOnBackdrop */}
         {showBackdrop && (
-          <div className="absolute inset-0 bg-black/50" aria-hidden="true" />
+          <div className="absolute inset-0 bg-black/50" aria-hidden="true" onClick={closeOnBackdrop ? onClose : undefined} />
         )}
 
         {/* Wrapper z-index + w-full để modal box dùng được max-w-* */}
