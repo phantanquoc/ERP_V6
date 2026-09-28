@@ -1212,6 +1212,17 @@ class PurchaseRequestService {
       }
     }
 
+    // Sync derived doanhChi for involved suppliers when PR enters countable state or items change while countable
+    try {
+      const countable = new Set(['Đã duyệt', 'Hoàn thành']);
+      const enteredCountable = updateData.trangThai && countable.has(updateData.trangThai as string);
+      const editedItemsWhileCountable = !!(purchaseRequest as any)?.trangThai && countable.has((purchaseRequest as any).trangThai) && (updateData as any).items;
+      if (enteredCountable || editedItemsWhileCountable) {
+        const { supplierService } = await import('./supplierService');
+        await (supplierService as any).recomputeDoanhChiForPurchaseRequest(id);
+      }
+    } catch (e) { console.error('[doanhChi] recompute after updatePurchaseRequest failed', e); }
+
     return purchaseRequest;
   }
 
@@ -1627,7 +1638,7 @@ class PurchaseRequestService {
     }
     const headerLyDo = hasDiff ? trimmedReason : null;
 
-    return prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx) => {
       // Sequential per line: two lines can name the same commodity, and the average
       // for the second must see the stock/price the first already wrote. Doing them
       // in one batched read would price both against the stale opening balance.
@@ -1678,6 +1689,12 @@ class PurchaseRequestService {
         include: { items: { include: { supplier: true } } },
       });
     });
+    // Sync derived doanhChi for involved suppliers (best-effort, never fails the price confirmation)
+    try {
+      const { supplierService } = await import('./supplierService');
+      await (supplierService as any).recomputeDoanhChiForPurchaseRequest(id);
+    } catch (e) { console.error('[doanhChi] recompute after confirmActualPrice failed', e); }
+    return updated;
   }
 }
 

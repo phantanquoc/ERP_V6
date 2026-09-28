@@ -106,14 +106,17 @@ export const supplierService = {
   },
 
   // Create new supplier — code generation inside transaction + P2002 handling
+  // doanhChi is derived (do NOT persist caller-supplied value; starts at 0 and is synced on PR Hoàn thành/confirmActualPrice)
   async createSupplier(data: CreateSupplierData) {
-    const suppliedCode = data.maNhaCungCap?.trim() || null;
+    const { doanhChi: _dropSpend, ...rest } = data as any;
+    const clean: any = { ...rest, doanhChi: 0 };
+    const suppliedCode = clean.maNhaCungCap?.trim() || null;
     if (suppliedCode) {
       const dup = await prisma.supplier.findUnique({ where: { maNhaCungCap: suppliedCode }, select: { id: true } });
       if (dup) throw new ValidationError('Mã nhà cung cấp đã tồn tại');
       try {
         return await prisma.supplier.create({
-          data: { ...data, maNhaCungCap: suppliedCode, trangThai: data.trangThai || 'Đang cung cấp' },
+          data: { ...clean, maNhaCungCap: suppliedCode, trangThai: clean.trangThai || 'Đang cung cấp' },
           include: { employee: { include: { user: true } } },
         });
       } catch (e: unknown) {
@@ -124,9 +127,9 @@ export const supplierService = {
     // Auto-generate code inside transaction to avoid race
     try {
       return await prisma.$transaction(async (tx) => {
-        const maNhaCungCap = await this.generateSupplierCodeTx(tx as any, data.phanLoaiNCC);
+        const maNhaCungCap = await this.generateSupplierCodeTx(tx as any, clean.phanLoaiNCC);
         return tx.supplier.create({
-          data: { ...data, maNhaCungCap, trangThai: data.trangThai || 'Đang cung cấp' },
+          data: { ...clean, maNhaCungCap, trangThai: clean.trangThai || 'Đang cung cấp' },
           include: { employee: { include: { user: true } } },
         });
       });
@@ -144,11 +147,9 @@ export const supplierService = {
     }
 
     // Drop immutable/system fields that must never be overwritten by an update payload
-    const { maNhaCungCap: _dropCode, phanLoaiNCC: _dropClass, employeeId: _dropOwner, ...rawUpdate } = data as any;
+    // doanhChi is derived (sum of giaThucTe*soLuongThucTe for Đã duyệt/Hoàn thành), never user-editable
+    const { maNhaCungCap: _dropCode, phanLoaiNCC: _dropClass, employeeId: _dropOwner, doanhChi: _dropSpend, ...rawUpdate } = data as any;
     const updateData: any = { ...rawUpdate };
-    if (updateData.doanhChi !== undefined) {
-      updateData.doanhChi = parseFloat(updateData.doanhChi.toString());
-    }
 
     const supplier = await prisma.supplier.update({
       where: { id },
@@ -199,24 +200,88 @@ export const supplierService = {
     return `${prefix}-${String((isNaN(maxNum) ? 0 : maxNum) + 1).padStart(3, '0')}`;
   },
 
-  // Per-supplier purchase history (stats + recent PRs that reference this supplier)
+  /**
+   * Chuẩn tính tổng chi (spend) cho nhà cung cấp:
+   * - Chỉ tính các PurchaseRequest đã qua mua thực tế: trangThai IN ('Đã duyệt','Hoàn thành')
+   *   và loại trừ 'Đã hủy'/'Từ chối'/'Đã từ chối'. PR ở 'Chờ duyệt'/'Chờ báo giá' chưa phát sinh chi.
+   * - Theo dòng hàng (item-level): sum( effectivePrice * effectiveQty ) với
+   *   effectivePrice = giaThucTe ?? giaDuKien, effectiveQty = soLuongThucTe ?? soLuong.
+   *   Đây là chuẩn kế toán mua hàng: ưu tiên giá/số lượng thực tế khi đã xác nhận.
+   * - Dùng cấp item.nhaCungCapId (và fallback legacy PR.nhaCungCapId) để đúng khi 1 PR có nhiều NCC khác nhau.
+   * - Không giới hạn take 50 khi tính tổng — chỉ giới hạn khi trả về recentOrders.
+   */
   async getPurchaseStats(id: string) {
     const supplier = await prisma.supplier.findUnique({ where: { id }, select: { id: true } });
     if (!supplier) throw new NotFoundError('Không tìm thấy nhà cung cấp');
-    const prs = await prisma.purchaseRequest.findMany({
-      where: { OR: [{ nhaCungCapId: id }, { items: { some: { nhaCungCapId: id } } }] },
-      select: {
-        id: true, maYeuCau: true, trangThai: true, ngayYeuCau: true, mucDoUuTien: true, supplyRequestId: true, sourceType: true,
-        items: { select: { nhaCungCapId: true, giaDuKien: true, soLuong: true } },
-      },
-      orderBy: { ngayYeuCau: 'desc' },
-      take: 50,
+    const where: any = { OR: [{ nhaCungCapId: id }, { items: { some: { nhaCungCapId: id } } }] };
+    const [statsPrs, recentPrs] = await Promise.all([
+      prisma.purchaseRequest.findMany({
+        where,
+        select: {
+          id: true, trangThai: true, ngayYeuCau: true,
+          items: { select: { nhaCungCapId: true, giaDuKien: true, giaThucTe: true, soLuong: true, soLuongThucTe: true } },
+        },
+        orderBy: { ngayYeuCau: 'desc' },
+      }),
+      prisma.purchaseRequest.findMany({
+        where,
+        select: { id: true, maYeuCau: true, trangThai: true, ngayYeuCau: true, mucDoUuTien: true, supplyRequestId: true, sourceType: true },
+        orderBy: { ngayYeuCau: 'desc' },
+        take: 10,
+      }),
+    ]);
+    const EXCLUDED = new Set(['Đã hủy', 'Từ chối', 'Đã từ chối']);
+    const COUNTABLE = new Set(['Đã duyệt', 'Hoàn thành']);
+    const totalOrders = statsPrs.length;
+    const totalSpend = statsPrs.reduce((sum, pr) => {
+      if (EXCLUDED.has(pr.trangThai)) return sum;
+      if (!COUNTABLE.has(pr.trangThai)) return sum;
+      const prSum = pr.items.reduce((s, it) => {
+        if (it.nhaCungCapId && it.nhaCungCapId !== id) return s;
+        if (!it.nhaCungCapId && (pr as any).nhaCungCapId && (pr as any).nhaCungCapId !== id) return s;
+        const price = (it as any).giaThucTe ?? it.giaDuKien ?? 0;
+        const qty = (it as any).soLuongThucTe ?? it.soLuong ?? 0;
+        return s + Number(price) * Number(qty);
+      }, 0);
+      return sum + prSum;
+    }, 0);
+    const pendingOrders = statsPrs.filter((pr) => !EXCLUDED.has(pr.trangThai) && pr.trangThai !== 'Hoàn thành').length;
+    const lastOrderAt = statsPrs[0]?.ngayYeuCau ?? null;
+    return { totalOrders, totalSpend, pendingOrders, lastOrderAt, recentOrders: recentPrs };
+  },
+
+  /** Tính lại doanhChi cho 1 NCC từ lịch sử mua thực tế (đồng bộ với getPurchaseStats). */
+  async recomputeDoanhChi(supplierId: string, tx: any = prisma) {
+    const prs: any[] = await tx.purchaseRequest.findMany({
+      where: { OR: [{ nhaCungCapId: supplierId }, { items: { some: { nhaCungCapId: supplierId } } }] },
+      select: { trangThai: true, nhaCungCapId: true, items: { select: { nhaCungCapId: true, giaDuKien: true, giaThucTe: true, soLuong: true, soLuongThucTe: true } } },
     });
-    const totalOrders = prs.length;
-    const totalSpend = prs.reduce((sum, pr) => sum + pr.items.reduce((s, it) => s + (it.giaDuKien ?? 0) * it.soLuong, 0), 0);
-    const pendingOrders = prs.filter((pr) => pr.trangThai !== 'Hoàn thành' && pr.trangThai !== 'Từ chối').length;
-    const lastOrderAt = prs[0]?.ngayYeuCau ?? null;
-    return { totalOrders, totalSpend, pendingOrders, lastOrderAt, recentOrders: prs.slice(0, 10) };
+    const EXCLUDED = new Set(['Đã hủy', 'Từ chối', 'Đã từ chối']);
+    const COUNTABLE = new Set(['Đã duyệt', 'Hoàn thành']);
+    let total = 0;
+    for (const pr of prs) {
+      if (EXCLUDED.has(pr.trangThai) || !COUNTABLE.has(pr.trangThai)) continue;
+      for (const it of pr.items) {
+        if (it.nhaCungCapId && it.nhaCungCapId !== supplierId) continue;
+        const price = (it as any).giaThucTe ?? it.giaDuKien ?? 0;
+        const qty = (it as any).soLuongThucTe ?? it.soLuong ?? 0;
+        total += Number(price) * Number(qty);
+      }
+    }
+    await tx.supplier.update({ where: { id: supplierId }, data: { doanhChi: total } });
+    return total;
+  },
+
+  async recomputeDoanhChiForPurchaseRequest(purchaseRequestId: string, tx: any = prisma) {
+    const pr: any = await tx.purchaseRequest.findUnique({
+      where: { id: purchaseRequestId },
+      select: { nhaCungCapId: true, items: { select: { nhaCungCapId: true } } },
+    });
+    if (!pr) return;
+    const ids = new Set<string>();
+    if (pr.nhaCungCapId) ids.add(pr.nhaCungCapId);
+    for (const it of pr.items ?? []) if (it.nhaCungCapId) ids.add(it.nhaCungCapId);
+    for (const sid of ids) await (this as any).recomputeDoanhChi(sid, tx);
   },
 
   async getPurchaseRequestsBySupplier(id: string, page = 1, limit = 10) {

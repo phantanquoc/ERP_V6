@@ -592,7 +592,8 @@ const supplierBase = {
   loaiHinh: z.enum(['Sản xuất', 'Thương mại'], { message: 'Loại hình phải là Sản xuất hoặc Thương mại' }),
   trangThai: z.enum(['Đang cung cấp', 'Ngừng cung cấp']).optional(),
   phanLoaiNCC: z.string().optional().nullable(),
-  doanhChi: z.union([z.number(), z.string().transform(Number)]).pipe(z.number().nonnegative('Doanh chi không thể âm')).optional().nullable(),
+  // doanhChi is derived (sum of effective spend for Đã duyệt/Hoàn thành) — never accepted from client
+  doanhChi: z.any().optional().transform(() => undefined) as unknown as z.ZodOptional<z.ZodNumber>,
   employeeId: z.string().min(1, 'Thiếu thông tin người tạo').optional(),
 };
 
