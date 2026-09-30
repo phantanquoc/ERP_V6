@@ -12,6 +12,7 @@ import CreateTaskModal from '../components/CreateTaskModal';
 import CreateWorkPlanModal from '../components/CreateWorkPlanModal';
 import OvertimePlanListModal from '../components/OvertimePlanListModal';
 import PrivateFeedbackModal from '../components/PrivateFeedbackModal';
+
 import {
   FileText, Settings, Users, Briefcase, MessageSquare, AlertTriangle, Plus, ClipboardList,
 } from 'lucide-react';
@@ -73,7 +74,7 @@ const CommonManagement = () => {
     {
       title: 'Tạo yêu cầu',
       items: [
-        { id: 'yeu_cau_sua_chua',   title: 'Tạo phiếu yêu cầu sửa chữa kiểm tra',    icon: <Settings   className="h-6 w-6" />, color: 'bg-blue-500',   description: 'Yêu cầu sửa chữa thiết bị, máy móc hoặc cơ sở vật chất', create: true },
+        { id: 'yeu_cau_sua_chua',   title: 'Tạo yêu cầu kiểm tra',                    icon: <Settings   className="h-6 w-6" />, color: 'bg-blue-500',   description: 'Báo lỗi thiết bị để tổ bảo trì kiểm tra', create: true },
         { id: 'yeu_cau_bo_sung',    title: 'Tạo yêu cầu cung cấp',                    icon: <Plus       className="h-6 w-6" />, color: 'bg-green-500',  description: 'Yêu cầu kho cung cấp vật tư, thiết bị hoặc nhân lực', create: true },
         { id: 'de_nghi_dieu_chinh', title: 'Tạo đề nghị điều chỉnh, bổ sung quy trình', icon: <FileText className="h-6 w-6" />, color: 'bg-purple-500', description: 'Đề xuất thay đổi hoặc cải tiến quy trình làm việc', create: true },
         { id: 'ke_hoach_tang_ca',   title: 'Danh sách kế hoạch tăng ca',               icon: <Briefcase className="h-6 w-6" />, color: 'bg-orange-500', description: 'Xem và quản lý kế hoạch tăng ca' },
@@ -166,12 +167,13 @@ const CommonManagement = () => {
         ))}
       </div>
 
-      {/* ── Phiếu yêu cầu sửa chữa ── */}
+      {/* ── Phiếu yêu cầu kiểm tra — Chung chỉ tạo KIEM_TRA, khoa requestType ── */}
       <RepairRequestFormModal
         isOpen={isModalOpen && selectedCategory === 'yeu_cau_sua_chua'}
         onClose={handleCloseModal}
         mode="create"
         hideCodeField
+        lockedRequestType="KIEM_TRA"
         onSaved={handleCloseModal}
       />
 

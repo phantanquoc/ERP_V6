@@ -68,11 +68,37 @@ class SupplyRequestController {
     try {
       const id = req.params.id as string;
       const supplyRequest = await supplyRequestService.getSupplyRequestById(id);
-
+      // Enrich with repairLinks meta
+      const links = await prisma.repairSupplyLink.findMany({ where: { supplyRequestId: id }, select: { repairRequestId: true } });
+      let repairLinks: unknown[] = [];
+      if (links.length > 0) {
+        const repairIds = [...new Set(links.map((l) => l.repairRequestId))];
+        const repairs = await prisma.repairRequest.findMany({ where: { id: { in: repairIds } }, select: { id: true, maYeuCau: true, trangThai: true } });
+        const m = new Map(repairs.map((r) => [r.id, r]));
+        repairLinks = links.map((l) => {
+          const r = m.get(l.repairRequestId);
+          return { supplyRequestId: id, repairRequestId: l.repairRequestId, maYeuCau: r?.maYeuCau ?? '', trangThai: r?.trangThai };
+        });
+      }
       return res.json({
         success: true,
-        data: supplyRequest,
+        data: { ...supplyRequest as unknown as Record<string, unknown>, repairLinks },
       });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async getRepairLinks(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = req.params.id as string;
+      const links = await prisma.repairSupplyLink.findMany({ where: { supplyRequestId: id }, select: { repairRequestId: true } });
+      if (links.length === 0) return res.json({ success: true, data: [] });
+      const repairIds = [...new Set(links.map((l) => l.repairRequestId))];
+      const repairs = await prisma.repairRequest.findMany({ where: { id: { in: repairIds } }, select: { id: true, maYeuCau: true, trangThai: true } });
+      const m = new Map(repairs.map((r) => [r.id, r]));
+      const data = links.map((l) => ({ supplyRequestId: id, repairRequestId: l.repairRequestId, maYeuCau: m.get(l.repairRequestId)?.maYeuCau ?? '', trangThai: m.get(l.repairRequestId)?.trangThai }));
+      return res.json({ success: true, data });
     } catch (error) {
       return next(error);
     }

@@ -56,7 +56,44 @@ class ReplenishmentRequestController {
   async getReplenishmentRequestById(req: Request, res: Response, next: NextFunction) {
     try {
       const row = await replenishmentRequestService.getReplenishmentRequestById(req.params.id as string);
-      return res.json({ success: true, data: row });
+      // enrich with repairLinks meta
+      const id = req.params.id as string;
+      const decisions = await prisma.supplyRequestDecision.findMany({ where: { triggeredReplenishmentRequestId: id }, select: { supplyRequestItemId: true } });
+      let repairLinks: unknown[] = [];
+      if (decisions.length > 0) {
+        const items = await prisma.supplyRequestItem.findMany({ where: { id: { in: decisions.map((d) => d.supplyRequestItemId) } }, select: { supplyRequestId: true } });
+        const srIds = [...new Set(items.map((i) => i.supplyRequestId))];
+        if (srIds.length > 0) {
+          const links = await prisma.repairSupplyLink.findMany({ where: { supplyRequestId: { in: srIds } }, select: { repairRequestId: true, supplyRequestId: true } });
+          if (links.length > 0) {
+            const repairIds = [...new Set(links.map((l) => l.repairRequestId))];
+            const repairs = await prisma.repairRequest.findMany({ where: { id: { in: repairIds } }, select: { id: true, maYeuCau: true, trangThai: true } });
+            const m = new Map(repairs.map((r) => [r.id, r]));
+            repairLinks = links.map((l) => ({ supplyRequestId: l.supplyRequestId, repairRequestId: l.repairRequestId, maYeuCau: m.get(l.repairRequestId)?.maYeuCau ?? '', trangThai: m.get(l.repairRequestId)?.trangThai }));
+          }
+        }
+      }
+      return res.json({ success: true, data: { ...row as unknown as Record<string, unknown>, repairLinks } });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  async getRepairLinks(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = req.params.id as string;
+      const decisions = await prisma.supplyRequestDecision.findMany({ where: { triggeredReplenishmentRequestId: id }, select: { supplyRequestItemId: true } });
+      if (decisions.length === 0) return res.json({ success: true, data: [] });
+      const items = await prisma.supplyRequestItem.findMany({ where: { id: { in: decisions.map((d) => d.supplyRequestItemId) } }, select: { supplyRequestId: true } });
+      const srIds = [...new Set(items.map((i) => i.supplyRequestId))];
+      if (srIds.length === 0) return res.json({ success: true, data: [] });
+      const links = await prisma.repairSupplyLink.findMany({ where: { supplyRequestId: { in: srIds } }, select: { repairRequestId: true, supplyRequestId: true } });
+      if (links.length === 0) return res.json({ success: true, data: [] });
+      const repairIds = [...new Set(links.map((l) => l.repairRequestId))];
+      const repairs = await prisma.repairRequest.findMany({ where: { id: { in: repairIds } }, select: { id: true, maYeuCau: true, trangThai: true } });
+      const m = new Map(repairs.map((r) => [r.id, r]));
+      const data = links.map((l) => ({ supplyRequestId: l.supplyRequestId, repairRequestId: l.repairRequestId, maYeuCau: m.get(l.repairRequestId)?.maYeuCau ?? '', trangThai: m.get(l.repairRequestId)?.trangThai }));
+      return res.json({ success: true, data });
     } catch (error) {
       return next(error);
     }

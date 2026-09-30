@@ -1,17 +1,40 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Link2, Plus, Trash2, Wrench, X } from 'lucide-react';
+import { FormEvent, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowRight, Ban, CheckCheck, CheckCircle, History, Link2, Play, Plus, Save, Send, Trash2, Wrench, X, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getFileUrl } from '../config/api';
+import acceptanceHandoverService from '../services/acceptanceHandoverService';
+import type { AcceptanceHandoverItemInput } from '../services/acceptanceHandoverService';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAuth as useAuthCtx } from '../contexts/AuthContext';
 import FileUpload from './FileUpload';
+import Modal from './Modal';
 import { ModalForm, ModalFooter, FormField, inputCls, selectCls, textareaCls } from './ModalForm';
 import StatusBadge, { type BadgeTone } from './shared/StatusBadge';
 import MachineSystemCombobox from './common/MachineSystemCombobox';
+import EmployeeCombobox from './common/EmployeeCombobox';
+import ProductCombobox from './common/ProductCombobox';
+import UnitSelect from './common/UnitSelect';
+import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
+import { internationalProductService, type InternationalProduct } from '../services/internationalProductService';
+import { parseNumberInput } from '../utils/numberInput';
 import {
   useCreateRepairRequest,
   useGeneratedRepairRequestCode,
+  useRepairCostSummary,
+  useRepairIncidentalCosts,
+  useCreateIncidentalCost,
+  useUpdateIncidentalCost,
+  useDeleteIncidentalCost,
+  useRepairStatusHistory,
   useUpdateRepairRequest,
 } from '../hooks/useRepairRequests';
+import {
+  useCreateInspectionRequest,
+  useGeneratedInspectionCode,
+  useUpdateInspectionRequest,
+} from '../hooks/useInspectionRequests';
+import { useInspectionStatusHistory } from '../hooks/useInspectionRequests';
 import { useMachineSystemDetails, useMachineSystems } from '../hooks/useMachineSystemDetails';
 import { useFaultRecordTypeahead } from '../hooks/useFaultRecords';
 import type { FaultTypeaheadItem } from '../services/faultRecordService';
@@ -19,10 +42,29 @@ import {
   CreateRepairRequestRequest,
   RepairRequest,
   RepairRequestItemInput,
-  STATUS_LABELS,
+  STATUS_LABELS as REPAIR_STATUS_LABELS,
 } from '../services/repairRequestService';
+import inspectionRequestService, {
+  STATUS_LABELS as INSPECTION_STATUS_LABELS,
+} from '../services/inspectionRequestService';
+import repairRequestService from '../services/repairRequestService';
+import supplyRequestService from '../services/supplyRequestService';
+import { useRepairSupplyChain } from '../hooks/useRepairSupplyLinks';
 import type { MachineSystem, MachineSystemDetail } from '../services/machineSystemService';
 
+import {
+  PRIORITIES,
+  FAULT_TYPES,
+  PRIORITY_TONE,
+  KET_LUAN_TONE,
+  MUC_DO_TONE,
+  MANUAL_ENTRY,
+  formatKetLuan,
+  formatMucDo,
+  formatTimelineReason,
+} from '../constants/repairRequest';
+
+export type RepairRequestSavedInfo = { id?: number | string; maYeuCau?: string };
 export type RepairRequestFormMode = 'create' | 'edit' | 'view';
 export type ItemDraft = RepairRequestItemInput & {
   id?: string;
@@ -31,21 +73,13 @@ export type ItemDraft = RepairRequestItemInput & {
   machineSystemDetail?: MachineSystemDetail | null;
 };
 
-export const PRIORITIES = ['Thấp', 'Trung bình', 'Cao', 'Khẩn cấp'];
-export const FAULT_TYPES = ['Lỗi mới', 'Lỗi lặp lại'];
-export const MANUAL_ENTRY = '__manual__';
-
-const PRIORITY_TONE: Record<string, BadgeTone> = {
-  'Khẩn cấp': 'red',
-  'Cao': 'yellow',
-  'Trung bình': 'blue',
-  'Thấp': 'gray',
-};
+// Re-export removed — import from '../constants/repairRequest' instead (keeps this file HMR-clean).
+// PRIORITIES, FAULT_TYPES, MANUAL_ENTRY, KET_LUAN_LABELS, MUC_DO_LABELS, formatKetLuan, formatMucDo are now in constants/repairRequest.ts
 
 const isManualEntry = (item: ItemDraft) => item.machineSystemId === MANUAL_ENTRY;
 const hasSystemPicked = (item: ItemDraft) => !!item.machineSystemId && item.machineSystemId !== MANUAL_ENTRY;
 
-export const emptyItem = (machineSystemId = ''): ItemDraft => ({
+const emptyItem = (machineSystemId = ''): ItemDraft => ({
   machineSystemId,
   machineSystemDetailId: '',
   faultRecordId: null,
@@ -56,7 +90,7 @@ export const emptyItem = (machineSystemId = ''): ItemDraft => ({
   noiDungLoi: '',
 });
 
-export const emptyForm = (code = ''): CreateRepairRequestRequest => ({
+const emptyForm = (code = ''): CreateRepairRequestRequest => ({
   ngayThang: new Date().toISOString().split('T')[0],
   maYeuCau: code,
   mucDoUuTien: 'Thấp',
@@ -128,7 +162,7 @@ const FaultRecordTypeaheadCell = ({ value, faultRecordId, disabled, onSelect }: 
         type="text"
         value={search}
         placeholder="Tìm mã/tên lỗi..."
-        className="w-full rounded-lg border border-gray-300 px-2 py-2.5 text-xs min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+        className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-xs min-h-[38px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
         onChange={(e) => {
           setSearch(e.target.value);
           if (!e.target.value) onSelect(null);
@@ -196,44 +230,220 @@ interface RepairRequestFormModalProps {
   onClose: () => void;
   mode: RepairRequestFormMode;
   record?: RepairRequest | null;
+  // _source ưu tiên cao nhất để phân biệt YCKT/YCSCC sau tách bảng — record._source từ bàn kiểm tra
+  _source?: 'inspection' | 'repair';
   lockedMachineSystemId?: string | number;
+  lockedRequestType?: 'KIEM_TRA' | 'SUA_CHUA' | string | null;
   hideCodeField?: boolean;
-  onSaved?: () => void;
+  onSaved?: (info?: RepairRequestSavedInfo) => void;
   onEdit?: () => void;
+  initialData?: { sourceInspectionRequestId?: string; items?: { tenHeThong: string; tinhTrangThietBi: string; loaiLoi: string; noiDungLoi: string; machineSystemId?: string; machineSystemDetailId?: string }[]; ghiChu?: string } | null;
 }
+
+type AssigneeDraft = { userId: string; userName: string; isLead: boolean };
+// YCCC-style: mỗi dòng là 1 hàng hóa (ProductCombobox + soLuong + donViTinh), giống SupplyRequestModal.
+// phanLoai lấy từ InternationalProduct.loaiSanPham; nếu hàng mới (isNewProduct) phanLoai có thể trống hoặc 'Vật tư'.
+type MaterialDraft = { itemIndex: number; internationalProductId: string | null; tenVatTu: string; phanLoai: string; donVi: string; soLuongDuKien: number | string };
 
 const RepairRequestFormModal = ({
   isOpen,
   onClose,
   mode,
   record,
+  _source,
   lockedMachineSystemId,
+  lockedRequestType = null,
   hideCodeField,
   onSaved,
   onEdit,
+  initialData,
 }: RepairRequestFormModalProps) => {
   const lockedSystemIdStr = lockedMachineSystemId != null ? String(lockedMachineSystemId) : undefined;
 
   const generatedCode = useGeneratedRepairRequestCode();
+  const generatedInspectionCode = useGeneratedInspectionCode();
   const systemsQuery = useMachineSystems({ page: 1, limit: 200, hoatDong: true, sortBy: 'maHeThong', sortOrder: 'asc' });
   const detailsQuery = useMachineSystemDetails({ page: 1, limit: 400, hoatDong: true, sortBy: 'thuTu', sortOrder: 'asc' });
   const systems = systemsQuery.data?.data ?? [];
   const details = detailsQuery.data?.data ?? [];
   const detailOptions = useMemo(() => details, [details]);
+  const employeesQuery = useEmployeesForAssignment();
+  const employees = employeesQuery.data ?? [];
+  // Catalog hàng hóa cho YCCC picker — giống SupplyRequestModal (dùng chung InternationalProduct)
+  const [products, setProducts] = useState<InternationalProduct[]>([]);
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    internationalProductService.getAllProducts(1, 10000).then((res) => {
+      if (!cancelled) setProducts(res.data ?? []);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [isOpen]);
 
   const createRequest = useCreateRepairRequest();
   const updateRequest = useUpdateRepairRequest();
+  const createInspection = useCreateInspectionRequest();
+  const updateInspection = useUpdateInspectionRequest();
 
   const [form, setForm] = useState<CreateRepairRequestRequest>(emptyForm());
   const [items, setItems] = useState<ItemDraft[]>([emptyItem()]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  // SUA_CHUA extra sections state
+  const [plan, setPlan] = useState<{ keHoachChiTiet: string; phuongAn: string; bienPhapAnToan: string; ngayBatDauKeHoach: string; ngayHoanThienDuKien: string; canNgungMay: boolean }>({ keHoachChiTiet: '', phuongAn: '', bienPhapAnToan: '', ngayBatDauKeHoach: '', ngayHoanThienDuKien: '', canNgungMay: false });
+  const [assignees, setAssignees] = useState<AssigneeDraft[]>([]);
+  const [materials, setMaterials] = useState<MaterialDraft[]>([]);
+  const [planOpen, setPlanOpen] = useState(true);
+  const [assigneeOpen, setAssigneeOpen] = useState(true);
+  const [materialOpen, setMaterialOpen] = useState(true);
 
   const isView = mode === 'view';
-  const isSaving = createRequest.isPending || updateRequest.isPending;
-  const formRefSubmit = () => (document.getElementById('repair-request-form') as HTMLFormElement)?.requestSubmit();
+  const isSaving = createRequest.isPending || updateRequest.isPending || createInspection.isPending || updateInspection.isPending;
+  const modalFormId = useId();
+  const formDomId = `repair-request-form-${modalFormId.replace(/:/g, '-')}`;
+  const formRef = useRef<HTMLFormElement>(null);
+  const formRefSubmit = () => formRef.current?.requestSubmit();
+  const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { user: viewUser } = useAuthCtx();
+  const roleUpperView = String((viewUser as unknown as { role?: string })?.role ?? '').toUpperCase();
+  const isAdminView = roleUpperView === 'ADMIN';
+  const isToBTView = roleUpperView === 'ADMIN' || roleUpperView === 'DEPARTMENT_HEAD' || roleUpperView === 'TEAM_LEAD' || String((viewUser as unknown as { department?: string })?.department ?? '').toLowerCase() === 'technical' || String((viewUser as unknown as { departmentCode?: string })?.departmentCode ?? '').toLowerCase() === 'technical';
+  const isOwnerView = String((record as unknown as { createdById?: string })?.createdById ?? '') !== '' && String((record as unknown as { createdById?: string })?.createdById) === String((viewUser as unknown as { id?: string; _id?: string })?.id ?? (viewUser as unknown as { _id?: string })?._id ?? '');
+  // Thứ tự ưu tiên xác định YCKT để không gọi nhầm /repair-requests/:id/status-history:
+  // 1) (record as any)._source === 'inspection' — do bàn kiểm tra (UnifiedRequest) truyền
+  // 2) props._source === 'inspection' — caller truyền trực tiếp
+  // 3) requestType === 'KIEM_TRA' (shape cũ / fallback)
+  // 4) maYeuCau.startsWith('YC-KT') — prefix code inspection
+  const recordSource = (record as unknown as { _source?: string })?._source;
+  const effectiveIsKiemTra = isView
+    ? (recordSource === 'inspection'
+      || _source === 'inspection'
+      || (record as unknown as { requestType?: string })?.requestType === 'KIEM_TRA'
+      || String((record as unknown as { maYeuCau?: string })?.maYeuCau ?? '').startsWith('YC-KT'))
+    : false;
+  // viewStatus/viewKetLuan đọc generic để đúng cả shape InspectionRequest lẫn RepairRequest
+  const viewStatus = String((record as unknown as { trangThai?: string })?.trangThai ?? '');
+  const viewKetLuanStr = String((record as unknown as { ketLuan?: string })?.ketLuan ?? '');
+  const [viewHistoryOpen, setViewHistoryOpen] = useState(false);
+  const [viewCancelOpen, setViewCancelOpen] = useState(false);
+  const [viewCancelMode, setViewCancelMode] = useState<'cancel'|'reject'>('cancel');
+  const [viewCancelReason, setViewCancelReason] = useState('');
+  const [viewDeleteOpen, setViewDeleteOpen] = useState(false);
+  const [viewInspectForm, setViewInspectForm] = useState({ ketQuaKiemTra: '', mucDoHuHong: '', deXuatXuLy: '', ketLuan: '' });
+  const viewCanSubmit = !!(viewInspectForm.ketQuaKiemTra.trim() && viewInspectForm.ketLuan.trim());
+  const [viewCreateRepairOpen, setViewCreateRepairOpen] = useState(false);
+  const [viewCreateRepairInitial, setViewCreateRepairInitial] = useState<{ sourceInspectionRequestId?: string; items?: { tenHeThong: string; tinhTrangThietBi: string; loaiLoi: string; noiDungLoi: string; machineSystemId?: string; machineSystemDetailId?: string }[]; ghiChu?: string } | null>(null);
+  // YCSC footer modals (copy pattern from RepairDetailPanel)
+  const [ycscPlanOpen, setYcscPlanOpen] = useState(false);
+  const [ycscPlanForm, setYcscPlanForm] = useState({ keHoachChiTiet: '', phuongAn: '', bienPhapAnToan: '', ngayBatDauKeHoach: '', ngayHoanThienDuKien: '', chiPhiDuKien: '', canNgungMay: false, phongBanId: '' });
+  const [ycscSubmitOpen, setYcscSubmitOpen] = useState(false);
+  // A2+B2: handover draft per item
+  type YcscHandoverDraft = AcceptanceHandoverItemInput & { rowId: string };
+  const emptyYcscHandoverItem = (item?: { id: string; tinhTrangThietBi: string; noiDungLoi: string }): YcscHandoverDraft => ({
+    rowId: `${Date.now()}-${Math.random()}`,
+    repairRequestItemId: item?.id ?? '',
+    tinhTrangTruocSuaChua: item ? `${item.tinhTrangThietBi} - ${item.noiDungLoi}` : '',
+    tinhTrangSauSuaChua: '',
+    ghiChu: '',
+  });
+  const [ycscHandoverItems, setYcscHandoverItems] = useState<YcscHandoverDraft[]>([]);
+  const [ycscHandoverGhiChu, setYcscHandoverGhiChu] = useState('');
+  const [ycscHandoverNguoiNhan, setYcscHandoverNguoiNhan] = useState('');
+  const [ycscHandoverNguoiNhanId, setYcscHandoverNguoiNhanId] = useState('');
+  const [ycscHandoverFile, setYcscHandoverFile] = useState<File | null>(null);
+  const [ycscHandoverError, setYcscHandoverError] = useState('');
+  const [ycscHandoverSubmitting, setYcscHandoverSubmitting] = useState(false);
+  const [ycscConfirmOpen, setYcscConfirmOpen] = useState(false);
+  const [ycscConfirmForm, setYcscConfirmForm] = useState({ ketQua: '' as '' | 'DAT' | 'KHONG_DAT', lyDo: '', chiPhiThucTe: '' });
+  const ycscPlanOpen2 = ycscPlanOpen; void ycscPlanOpen2;
+  // viewRecordId/hasValidRecordId phải khai trước mọi hook dùng nó (TDZ)
+  const hasValidRecordId = (record as unknown as { id?: number | string } | null)?.id != null
+    && String((record as unknown as { id?: unknown })?.id ?? '') !== '';
+  const viewRecordId = hasValidRecordId ? (record as unknown as { id: number | string }).id : null;
+  const ycscIdForChain = isView && !effectiveIsKiemTra && hasValidRecordId ? String(viewRecordId) : null;
+  const ycscSupplyChainQ = useRepairSupplyChain(ycscIdForChain as unknown as string | null);
+  const ycscCostQ = useRepairCostSummary(ycscIdForChain as unknown as string | null);
+  const ycscIncidentalQ = useRepairIncidentalCosts(ycscIdForChain as unknown as string | null);
+  const createIncidental = useCreateIncidentalCost();
+  const updateIncidental = useUpdateIncidentalCost();
+  const deleteIncidental = useDeleteIncidentalCost();
+  const [incForm, setIncForm] = useState({ tenKhoan: '', soTien: '', lyDo: '', fileMinhChung: '' });
+  const [incEditId, setIncEditId] = useState<string | null>(null);
+  const [incEdit, setIncEdit] = useState({ tenKhoan: '', soTien: '', lyDo: '', fileMinhChung: '' });
+  const incidentalCosts: { id: string; tenKhoan: string; soTien: number | string; lyDo: string; fileMinhChung?: string | null }[] = ((ycscIncidentalQ.data as unknown as { data?: unknown[] })?.data ?? (record as unknown as { incidentalCosts?: unknown[] })?.incidentalCosts ?? []) as never;
+  const formatVND = (n: number | null | undefined) => n == null ? '—' : Number(n).toLocaleString('vi-VN') + ' ₫';
 
-  const statusEntry = isView && record?.trangThai ? STATUS_LABELS[record.trangThai] : null;
+  useEffect(() => {
+    if (!isView || !effectiveIsKiemTra) return;
+    const a = record as unknown as Record<string, unknown> | null;
+    if (!a) return;
+    if (viewStatus === 'DANG_KIEM_TRA' || viewStatus === 'DA_KIEM_TRA') {
+      setViewInspectForm({
+        ketQuaKiemTra: String(a.ketQuaKiemTra ?? ''),
+        mucDoHuHong: String(a.mucDoHuHong ?? ''),
+        deXuatXuLy: String(a.deXuatXuLy ?? ''),
+        ketLuan: String(a.ketLuan ?? ''),
+      });
+    }
+  }, [isView, effectiveIsKiemTra, viewStatus, record]);
+  const VIEW_STATUS_LABELS = effectiveIsKiemTra ? INSPECTION_STATUS_LABELS : REPAIR_STATUS_LABELS;
+  const statusEntry = isView && record?.trangThai ? (VIEW_STATUS_LABELS as Record<string, { label: string; tone: BadgeTone }>)[String(record.trangThai)] ?? null : null;
+
+  // viewRecordId/hasValidRecordId đã khai ở trên (tránh TDZ cho ycscSupplyChainQ)
+  // enabled guard: chỉ fetch khi isView && !!viewRecordId && nhánh tương ứng
+  const inspectionHistoryQ = useInspectionStatusHistory(isView && effectiveIsKiemTra && hasValidRecordId ? viewRecordId : null);
+  const repairHistoryQ = useRepairStatusHistory(isView && !effectiveIsKiemTra && hasValidRecordId ? viewRecordId : null);
+  const activeHistoryQ = effectiveIsKiemTra ? inspectionHistoryQ : repairHistoryQ;
+
+  const formatVNDateTime = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    } catch { return iso; }
+  };
+  const labelOf = (code: string | null | undefined) => {
+    if (!code) return '—';
+    const entry = (VIEW_STATUS_LABELS as Record<string, { label: string }>)[String(code)];
+    return entry?.label ?? String(code);
+  };
+
+  type HistoryEntry = { id: string; oldStatus: string | null; newStatus: string; actorName: string | null; actorRole: string | null; reason: string | null; createdAt: string };
+  const StatusTimeline = ({ entries, isLoading, compact }: { entries: HistoryEntry[]; isLoading: boolean; compact?: boolean }) => {
+    if (isLoading) return <p className="px-1 py-3 text-sm text-gray-400">Đang tải...</p>;
+    if (!entries || entries.length === 0) return <p className="px-1 py-3 text-sm text-gray-400">Chưa có thay đổi</p>;
+    return (
+      <div className="relative pl-4">
+        <div className="absolute left-1.5 top-2 bottom-2 w-px bg-gray-200" aria-hidden />
+        <ul className="space-y-2">
+          {entries.map((e) => (
+            <li key={e.id} className="relative pl-2">
+              <span className="absolute -left-[9px] top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-blue-500 shadow-sm" aria-hidden />
+              <div className="flex flex-wrap items-center gap-1.5 text-sm">
+                <span className="text-gray-500">{labelOf(e.oldStatus)}</span>
+                <span className="text-gray-400">→</span>
+                <span className="font-medium text-gray-800">{labelOf(e.newStatus)}</span>
+              </div>
+              <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                {(e.actorName || e.actorRole) && <span>{[e.actorName, e.actorRole].filter(Boolean).join(' · ')}</span>}
+                <span>{formatVNDateTime(e.createdAt)}</span>
+              </div>
+              {e.reason && !compact && <p className="mt-1 text-xs text-gray-600">Lý do: {formatTimelineReason(e.reason)}</p>}
+              {e.reason && compact && <p className="mt-0.5 truncate text-xs text-gray-500">Lý do: {formatTimelineReason(e.reason)}</p>}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  };
+  const rawHistoryEntries: HistoryEntry[] = ((activeHistoryQ.data as unknown as { data?: HistoryEntry[] })?.data ?? (activeHistoryQ.data as unknown as HistoryEntry[]) ?? []) as HistoryEntry[];
+  // Fallback to statusLogs embedded in record if history endpoint empty
+  const fallbackEntries: HistoryEntry[] = !rawHistoryEntries.length && (record as unknown as { statusLogs?: HistoryEntry[] })?.statusLogs?.length
+    ? ((record as unknown as { statusLogs: HistoryEntry[] }).statusLogs as HistoryEntry[])
+    : [];
+  const historyEntries: HistoryEntry[] = rawHistoryEntries.length ? rawHistoryEntries : fallbackEntries;
+  const inlineEntries = historyEntries.slice(0, 4);
+  const hasMoreHistory = historyEntries.length > 4;
 
   const modalTitle = isView
     ? 'Chi tiết yêu cầu'
@@ -241,65 +451,239 @@ const RepairRequestFormModal = ({
       ? 'Sửa yêu cầu sửa chữa'
       : 'Thêm yêu cầu sửa chữa';
 
-  const viewFooter = (
-    <div className="flex justify-end gap-3">
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label="Đóng"
-        title="Đóng"
-        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors min-h-[44px]"
-      >
-        Đóng
-      </button>
-      {onEdit && (
-        <button
-          type="button"
-          onClick={onEdit}
-          aria-label="Chỉnh sửa"
-          title="Chỉnh sửa"
-          className="px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors min-h-[44px]"
-        >
-          Chỉnh sửa
-        </button>
-      )}
-    </div>
-  );
+  const viewFooter = (() => {
+    if (!isView || !record) return (
+      <div className="flex justify-end gap-3">
+        <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px]">Đóng</button>
+        {onEdit && <button type="button" onClick={onEdit} className="px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 min-h-[44px]">Chỉnh sửa</button>}
+      </div>
+    );
+    const s = viewStatus;
+    const isTerminal = s === 'HOAN_THANH' || s === 'DA_HUY' || s === 'TU_CHOI';
+    const isKiemTraFooter = effectiveIsKiemTra;
+    if (!isKiemTraFooter) {
+      const repairId = (record as unknown as { id: number | string }).id;
+      const existingRepairCheck = (record as unknown as { repairRequests?: { id: number | string; maYeuCau: string; trangThai: string }[] })?.repairRequests;
+      void existingRepairCheck;
+      const canShowCancelYCSC = s === 'CHO_XU_LY' || s === 'DA_TIEP_NHAN';
+      const canShowDeleteYCSC = isAdminView && (s === 'CHO_XU_LY' || s === 'DA_TIEP_NHAN');
+      const allowOwnerCancelYCSC = !isToBTView && isOwnerView && s === 'CHO_XU_LY';
+      const showHistoryYCSC = () => setViewHistoryOpen(true);
+      const openCancelYCSC = (mode: 'cancel'|'reject') => { setViewCancelMode(mode); setViewCancelReason(''); setViewCancelOpen(true); };
+      const doAcceptYCSC = async () => {
+        try { await repairRequestService.accept(repairId as never); toast.success('Đã tiếp nhận'); queryClient.invalidateQueries({ queryKey: ['repairRequests'] as unknown as never }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không tiếp nhận được'); }
+      };
+      const doPlanYCSC = () => {
+        const rAny = record as unknown as Record<string, unknown>;
+        setYcscPlanForm({
+          keHoachChiTiet: String(rAny.keHoachChiTiet ?? ''),
+          phuongAn: String(rAny.phuongAn ?? ''),
+          bienPhapAnToan: String(rAny.bienPhapAnToan ?? ''),
+          ngayBatDauKeHoach: rAny.ngayBatDauKeHoach ? String(rAny.ngayBatDauKeHoach).slice(0,10) : '',
+          ngayHoanThienDuKien: rAny.ngayHoanThienDuKien ? String(rAny.ngayHoanThienDuKien).slice(0,10) : '',
+          chiPhiDuKien: rAny.chiPhiDuKien != null ? String(rAny.chiPhiDuKien) : '',
+          canNgungMay: !!rAny.canNgungMay,
+          phongBanId: String(rAny.phongBanId ?? ''),
+        });
+        setYcscPlanOpen(true);
+      };
+      const doStartYCSC = async () => {
+        try { await repairRequestService.start(repairId as never); toast.success('Đã bắt đầu sửa chữa'); queryClient.invalidateQueries({ queryKey: ['repairRequests'] as unknown as never }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không bắt đầu được'); }
+      };
+      const doSubmitYCSC = () => {
+        const rItems = ((record as unknown as { items?: { id: string; tenHeThong: string; tinhTrangThietBi: string; noiDungLoi: string }[] })?.items ?? []) as { id: string; tinhTrangThietBi: string; noiDungLoi: string }[];
+        setYcscHandoverItems(rItems.length ? rItems.map((it) => emptyYcscHandoverItem(it)) : []);
+        setYcscHandoverGhiChu('');
+        setYcscHandoverNguoiNhan('');
+        setYcscHandoverNguoiNhanId('');
+        setYcscHandoverFile(null);
+        setYcscHandoverError('');
+        setYcscSubmitOpen(true);
+      };
+      const doCompleteYCSC = async () => {
+        try { await repairRequestService.complete(repairId as never); toast.success('Đã hoàn thành'); queryClient.invalidateQueries({ queryKey: ['repairRequests'] as unknown as never }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không hoàn thành được'); }
+      };
+      const leftYCSC = (
+        <div className="flex items-center gap-2 flex-wrap">
+          <button type="button" onClick={showHistoryYCSC} title="Lịch sử" className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px]"><History className="h-4 w-4" /> Lịch sử</button>
+          {(canShowCancelYCSC || allowOwnerCancelYCSC) && <button type="button" onClick={() => openCancelYCSC('cancel')} title="Hủy phiếu" className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 min-h-[44px]"><Ban className="h-4 w-4" /> Hủy phiếu</button>}
+          {canShowDeleteYCSC && <button type="button" onClick={() => setViewDeleteOpen(true)} title="Xóa" className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 min-h-[44px]"><Trash2 className="h-4 w-4" /> Xóa</button>}
+        </div>
+      );
+      let rightYCSC: React.ReactNode = null;
+      if (!isToBTView && !allowOwnerCancelYCSC) {
+        // no CTA
+      } else if (s === 'CHO_XU_LY') {
+        rightYCSC = <button type="button" onClick={doAcceptYCSC} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 min-h-[44px]"><CheckCircle className="h-4 w-4" /> Tiếp nhận</button>;
+      } else if (s === 'DA_TIEP_NHAN') {
+        rightYCSC = <button type="button" onClick={doPlanYCSC} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 min-h-[44px]"><Wrench className="h-4 w-4" /> Lên kế hoạch</button>;
+      } else if (s === 'LEN_KE_HOACH') {
+        rightYCSC = <button type="button" onClick={doStartYCSC} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 min-h-[44px]"><Play className="h-4 w-4" /> Bắt đầu</button>;
+      } else if (s === 'DANG_SUA_CHUA') {
+        rightYCSC = <button type="button" onClick={doSubmitYCSC} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 min-h-[44px]"><Send className="h-4 w-4" /> Đề nghị nghiệm thu</button>;
+      } else if (s === 'CHO_NGHIEM_THU') {
+        rightYCSC = (<div className="flex items-center gap-2">
+          <button type="button" onClick={() => { setYcscConfirmForm({ ketQua: 'KHONG_DAT', lyDo: '', chiPhiThucTe: '' }); setYcscConfirmOpen(true); }} className="rounded border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 min-h-[44px]">KHÔNG ĐẠT</button>
+          <button type="button" onClick={() => { setYcscConfirmForm({ ketQua: 'DAT', lyDo: '', chiPhiThucTe: '' }); setYcscConfirmOpen(true); }} className="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 min-h-[44px]">ĐẠT</button>
+        </div>);
+      } else if (s === 'DA_NGHIEM_THU') {
+        const cs2 = (ycscCostQ.data as unknown as { data?: { itemsWithNullPrice: { tenGoi: string }[] } })?.data;
+        const hasNull2 = (cs2?.itemsWithNullPrice?.length ?? 0) > 0;
+        const tip = hasNull2 ? 'Có món chưa có giá thành — cập nhật giá trước khi hoàn thành' : undefined;
+        rightYCSC = <span title={tip}><button type="button" onClick={doCompleteYCSC} disabled={hasNull2} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed"><CheckCheck className="h-4 w-4" /> Hoàn thành</button></span>;
+
+      }
+      const showEditYCSC = onEdit && !isTerminal && s !== 'CHO_NGHIEM_THU' && s !== 'DA_NGHIEM_THU';
+      return (
+        <div className="flex w-full items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            {leftYCSC}
+            {showEditYCSC && <button type="button" onClick={onEdit} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px]">Chỉnh sửa</button>}
+          </div>
+          <div className="flex items-center gap-2 ml-auto">
+            {rightYCSC}
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px]">Đóng</button>
+          </div>
+        </div>
+      );
+    }
+    const canShowCancel = s === 'CHO_XU_LY' || s === 'DA_TIEP_NHAN';
+    const canShowDelete = isAdminView && (s === 'CHO_XU_LY' || s === 'DA_TIEP_NHAN');
+    const allowOwnerCancel = !isToBTView && isOwnerView && s === 'CHO_XU_LY';
+    const doAccept = async () => {
+      const id = (record as unknown as { id: number }).id;
+      try { try { await inspectionRequestService.accept(id); } catch { await repairRequestService.accept(id as never); } toast.success('Đã tiếp nhận'); queryClient.invalidateQueries({ queryKey: ['inspectionRequests'] as unknown as never }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không tiếp nhận được'); }
+    };
+    const doStart = async () => {
+      const id = (record as unknown as { id: number }).id;
+      try { await inspectionRequestService.startInspection(id); toast.success('Đã bắt đầu kiểm tra'); queryClient.invalidateQueries({ queryKey: ['inspectionRequests'] as unknown as never }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không bắt đầu được'); }
+    };
+    const doSaveDraft = async () => {
+      const id = (record as unknown as { id: number }).id;
+      try { await inspectionRequestService.updateDetails(id, { ketQuaKiemTra: viewInspectForm.ketQuaKiemTra || null, mucDoHuHong: viewInspectForm.mucDoHuHong || null, deXuatXuLy: viewInspectForm.deXuatXuLy || null, ketLuan: viewInspectForm.ketLuan || null } as never); toast.success('Đã lưu nháp'); queryClient.invalidateQueries({ queryKey: ['inspectionRequests'] as unknown as never }); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không lưu được'); }
+    };
+    const doSubmit = async () => {
+      const id = (record as unknown as { id: number }).id;
+      try { await inspectionRequestService.updateDetails(id, { ketQuaKiemTra: viewInspectForm.ketQuaKiemTra || null, mucDoHuHong: viewInspectForm.mucDoHuHong || null, deXuatXuLy: viewInspectForm.deXuatXuLy || null, ketLuan: viewInspectForm.ketLuan || null } as never); await inspectionRequestService.submitInspection(id); toast.success('Đã gửi kết quả'); queryClient.invalidateQueries({ queryKey: ['inspectionRequests'] as unknown as never }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không gửi được — kiểm tra Kết quả/Kết luận'); }
+    };
+    const doComplete = async () => {
+      const id = (record as unknown as { id: number }).id;
+      try { await inspectionRequestService.complete(id); toast.success('Đã hoàn thành kiểm tra'); queryClient.invalidateQueries({ queryKey: ['inspectionRequests'] as unknown as never }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không hoàn thành được'); }
+    };
+    const doCreateRepair = () => {
+      const rItems = (record as unknown as { items?: { tenHeThong: string; tinhTrangThietBi: string; loaiLoi: string; noiDungLoi: string; machineSystemId?: string; machineSystemDetailId?: string }[] })?.items ?? [];
+      setViewCreateRepairInitial({
+        sourceInspectionRequestId: String((record as unknown as { id: number }).id),
+        items: rItems.map(it => ({ tenHeThong: it.tenHeThong, tinhTrangThietBi: it.tinhTrangThietBi, loaiLoi: it.loaiLoi, noiDungLoi: it.noiDungLoi, machineSystemId: it.machineSystemId, machineSystemDetailId: it.machineSystemDetailId } as unknown as typeof rItems[number])),
+        ghiChu: `Tạo từ phiếu kiểm tra ${(record as unknown as { maYeuCau?: string })?.maYeuCau ?? ''}`,
+      });
+      setViewCreateRepairOpen(true);
+    };
+    const openCancel = (mode: 'cancel'|'reject') => { setViewCancelMode(mode); setViewCancelReason(''); setViewCancelOpen(true); };
+    const showHistory = () => setViewHistoryOpen(true);
+    const leftGroup = (
+      <div className="flex items-center gap-2 flex-wrap">
+        <button type="button" onClick={showHistory} title="Lịch sử" className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px]"><History className="h-4 w-4" /> Lịch sử</button>
+        {(canShowCancel || allowOwnerCancel) && <button type="button" onClick={() => openCancel('cancel')} title="Hủy phiếu" className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 min-h-[44px]"><Ban className="h-4 w-4" /> Hủy phiếu</button>}
+        {canShowDelete && <button type="button" onClick={() => setViewDeleteOpen(true)} title="Xóa" className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 min-h-[44px]"><Trash2 className="h-4 w-4" /> Xóa</button>}
+      </div>
+    );
+    const existingRepair = (record as unknown as { repairRequests?: { id: number|string; maYeuCau: string; trangThai: string }[] })?.repairRequests?.[0] ?? null;
+    let rightCta: React.ReactNode = null;
+    if (!isToBTView && !allowOwnerCancel) { /* nhân viên thường */ } else if (s === 'CHO_XU_LY') {
+      rightCta = (<div className="flex items-center gap-2"><button type="button" onClick={() => openCancel('reject')} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px]"><XCircle className="h-4 w-4" /> Từ chối</button><button type="button" onClick={doAccept} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 min-h-[44px]"><CheckCircle className="h-4 w-4" /> Tiếp nhận</button></div>);
+    } else if (s === 'DA_TIEP_NHAN') {
+      rightCta = (<div className="flex items-center gap-2"><button type="button" onClick={() => openCancel('reject')} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px]"><XCircle className="h-4 w-4" /> Từ chối</button><button type="button" onClick={doStart} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 min-h-[44px]"><Play className="h-4 w-4" /> Bắt đầu kiểm tra</button></div>);
+    } else if (s === 'DANG_KIEM_TRA') {
+      rightCta = (<div className="flex items-center gap-2"><button type="button" onClick={doSaveDraft} title="Lưu nháp kết quả kiểm tra" className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px]"><Save className="h-4 w-4" /> Lưu nháp</button><span title={!viewCanSubmit ? 'Cần nhập Kết quả kiểm tra và Kết luận trước khi gửi' : 'Gửi kết quả kiểm tra'}><button type="button" onClick={doSubmit} disabled={!viewCanSubmit} aria-disabled={!viewCanSubmit} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"><Send className="h-4 w-4" /> Gửi kết quả</button></span></div>);
+    } else if (s === 'DA_KIEM_TRA') {
+      if (existingRepair) {
+        rightCta = (<button type="button" onClick={() => { try { const next = new URLSearchParams(searchParams); next.set('type','sua_chua'); next.set('repairId', String(existingRepair.id)); setSearchParams(next); toast.success(`Mở YCSC ${existingRepair.maYeuCau}`); } catch {} }} className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 min-h-[44px]">Đã tạo {existingRepair.maYeuCau} [Xem] <ArrowRight className="h-4 w-4" /></button>);
+      } else {
+        const kl = viewKetLuanStr || viewInspectForm.ketLuan || '';
+        if (kl === 'CAN_SUA_CHUA') rightCta = (<button type="button" onClick={doCreateRepair} className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 min-h-[44px]">Tạo yêu cầu sửa chữa <ArrowRight className="h-4 w-4" /></button>);
+        else if (kl === 'KHONG_CAN' || kl === 'THEO_DOI') rightCta = (<button type="button" onClick={doComplete} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 min-h-[44px]"><CheckCheck className="h-4 w-4" /> Hoàn thành kiểm tra</button>);
+      }
+    }
+    return (
+      <div className="flex w-full items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          {leftGroup}
+          {onEdit && !isTerminal && s !== 'DANG_KIEM_TRA' && s !== 'DA_KIEM_TRA' && <button type="button" onClick={onEdit} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px]">Chỉnh sửa</button>}
+        </div>
+        <div className="flex items-center gap-2 ml-auto">
+          {rightCta}
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px]">Đóng</button>
+        </div>
+      </div>
+    );
+  })();
 
   // Reset form/items whenever the modal is (re)opened for a given record/mode.
   useEffect(() => {
     if (!isOpen) return;
     setError('');
     setSelectedFile(null);
+    // Prefill plan/assignees/materials reset
+    setPlan({ keHoachChiTiet: '', phuongAn: '', bienPhapAnToan: '', ngayBatDauKeHoach: '', ngayHoanThienDuKien: '', canNgungMay: false });
+    setAssignees([]);
+    setMaterials([]);
+    // initialData overrides items/ghiChu when creating SUA_CHUA from YCKT
+    const initialItems = initialData?.items?.length ? initialData.items : null;
+    const initialGhiChu = initialData?.ghiChu ?? null;
+    const hasInitialData = !!initialItems || !!initialData?.sourceInspectionRequestId;
+    const expanded = hasInitialData;
+    setPlanOpen(expanded || lockedRequestType !== 'KIEM_TRA');
+    setAssigneeOpen(expanded || lockedRequestType !== 'KIEM_TRA');
+    setMaterialOpen(expanded || lockedRequestType !== 'KIEM_TRA');
     setForm(record ? {
       ngayThang: record.ngayThang?.split('T')[0] ?? '',
       maYeuCau: record.maYeuCau,
       mucDoUuTien: record.mucDoUuTien,
       ghiChu: record.ghiChu ?? '',
-    } : emptyForm(mode === 'create' ? (generatedCode.data ?? '') : ''));
-    setItems(record?.items?.length ? record.items.map((item) => ({
-      id: item.id,
-      machineSystemId: item.machineSystemId ?? (item.tenHeThong ? MANUAL_ENTRY : ''),
-      machineSystemDetailId: item.machineSystemDetailId ?? '',
-      faultRecordId: item.faultRecordId ?? null,
-      faultRecordSearch: item.faultRecord ? `${item.faultRecord.maLoi} - ${item.faultRecord.tenLoi}` : '',
-      tenHeThong: item.tenHeThong,
-      tinhTrangThietBi: item.tinhTrangThietBi,
-      loaiLoi: item.loaiLoi,
-      noiDungLoi: item.noiDungLoi,
-      machineSystem: item.machineSystem ?? null,
-      machineSystemDetail: item.machineSystemDetail ?? null,
-    })) : [emptyItem(lockedSystemIdStr)]);
+    } : emptyForm(mode === 'create' ? ((lockedRequestType === 'KIEM_TRA' ? generatedInspectionCode.data : generatedCode.data) ?? '') : ''));
+    // if initialData present, override ghiChu/items after
+    if (!record && initialGhiChu) {
+      setForm((cur) => ({ ...cur, ghiChu: initialGhiChu }));
+    }
+    if (!record && initialItems) {
+      setItems(initialItems.map((it) => ({
+        machineSystemId: (it as unknown as { machineSystemId?: string }).machineSystemId ?? (it.tenHeThong ? MANUAL_ENTRY : ''),
+        machineSystemDetailId: (it as unknown as { machineSystemDetailId?: string }).machineSystemDetailId ?? '',
+        faultRecordId: null,
+        faultRecordSearch: '',
+        tenHeThong: it.tenHeThong,
+        tinhTrangThietBi: it.tinhTrangThietBi,
+        loaiLoi: it.loaiLoi,
+        noiDungLoi: it.noiDungLoi,
+      })));
+    } else {
+      setItems(record?.items?.length ? record.items.map((item) => ({
+        id: item.id,
+        machineSystemId: item.machineSystemId ?? (item.tenHeThong ? MANUAL_ENTRY : ''),
+        machineSystemDetailId: item.machineSystemDetailId ?? '',
+        faultRecordId: item.faultRecordId ?? null,
+        faultRecordSearch: item.faultRecord ? `${item.faultRecord.maLoi} - ${item.faultRecord.tenLoi}` : '',
+        tenHeThong: item.tenHeThong,
+        tinhTrangThietBi: item.tinhTrangThietBi,
+        loaiLoi: item.loaiLoi,
+        noiDungLoi: item.noiDungLoi,
+        machineSystem: item.machineSystem ?? null,
+        machineSystemDetail: item.machineSystemDetail ?? null,
+      })) : [emptyItem(lockedSystemIdStr)]);
+    }
     // generatedCode.data intentionally excluded: only used as the initial value at open time,
     // handled separately below so it doesn't clobber in-progress edits once it resolves late.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, mode, record, lockedSystemIdStr]);
+  }, [isOpen, mode, record, lockedSystemIdStr, initialData]);
 
   // If opened in create mode before the generated code query resolves, backfill it once ready.
   useEffect(() => {
-    if (!isOpen || mode !== 'create' || record || !generatedCode.data) return;
-    setForm((current) => (current.maYeuCau ? current : { ...current, maYeuCau: generatedCode.data ?? '' }));
-  }, [isOpen, mode, record, generatedCode.data]);
+    if (!isOpen || mode !== 'create' || record) return;
+    const code = lockedRequestType === 'KIEM_TRA' ? generatedInspectionCode.data : generatedCode.data;
+    if (!code) return;
+    setForm((current) => (current.maYeuCau ? current : { ...current, maYeuCau: code ?? '' }));
+  }, [isOpen, mode, record, generatedCode.data, generatedInspectionCode.data, lockedRequestType]);
 
   const patchItem = (index: number, patch: Partial<ItemDraft>) => {
     setItems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
@@ -335,6 +719,284 @@ const RepairRequestFormModal = ({
     });
   };
 
+  // Whether to show SUA_CHUA extra sections (create mode, not KIEM_TRA)
+  // A3: plan block must NOT show on create — only via PATCH /:id/plan after DA_TIEP_NHAN
+  const showSuaChuaExtra = !isView && mode === 'create' && lockedRequestType !== 'KIEM_TRA';
+  const showAssigneeAndMaterial = showSuaChuaExtra;
+  const showPlanOnCreate = false;
+
+  // For confirm modal — cleaned preview helpers
+  const previewItems = items.map((item) => ({
+    tenHeThong: item.tenHeThong.trim() || (item.machineSystem ? `${item.machineSystem.maHeThong} - ${item.machineSystem.tenHeThong}` : ''),
+    tinhTrangThietBi: item.tinhTrangThietBi.trim(),
+    loaiLoi: item.loaiLoi,
+    noiDungLoi: item.noiDungLoi.trim(),
+  })).filter((it) => it.tenHeThong && it.tinhTrangThietBi && it.loaiLoi && it.noiDungLoi);
+  const previewPlanEntries = [
+    plan.keHoachChiTiet.trim() ? `Kế hoạch: ${plan.keHoachChiTiet.trim()}` : null,
+    plan.phuongAn.trim() ? `Phương án: ${plan.phuongAn.trim()}` : null,
+    plan.bienPhapAnToan.trim() ? `AT: ${plan.bienPhapAnToan.trim()}` : null,
+    plan.ngayBatDauKeHoach ? `BĐ: ${plan.ngayBatDauKeHoach}` : null,
+    plan.ngayHoanThienDuKien ? `KT: ${plan.ngayHoanThienDuKien}` : null,
+    plan.canNgungMay ? 'Cần ngừng máy' : null,
+  ].filter(Boolean) as string[];
+  const previewAssignees = assignees.filter((a) => a.userName.trim() || a.userId.trim());
+  const previewMaterials = materials.filter((m) => m.tenVatTu.trim());
+
+  const doCreate = async (cleanedItems: { machineSystemId?: string; machineSystemDetailId?: string; faultRecordId: string | null; tenHeThong: string; tinhTrangThietBi: string; loaiLoi: string; noiDungLoi: string }[]) => {
+    if (showAssigneeAndMaterial) {
+      const seenIds = new Set<string>();
+      for (const a of assignees) {
+        const id = a.userId.trim().toLowerCase();
+        if (!id) continue;
+        if (seenIds.has(id)) { toast.error('Nhân viên đã được chọn — vui lòng chọn người khác'); throw new Error('Duplicate assignee'); }
+        seenIds.add(id);
+      }
+    }
+    const isCreateKiemTra = !record && lockedRequestType === 'KIEM_TRA';
+    if (isCreateKiemTra) {
+      await createInspection.mutateAsync({
+        data: {
+          ngayThang: form.ngayThang,
+          maYeuCau: form.maYeuCau,
+          mucDoUuTien: form.mucDoUuTien,
+          ghiChu: form.ghiChu || undefined,
+          items: cleanedItems,
+        } as never,
+        file: selectedFile ?? undefined,
+      });
+      const _maYCKT = (form.maYeuCau ?? '').trim() || '—';
+      onSaved?.({ maYeuCau: _maYCKT });
+      toast.success(`Đã tạo yêu cầu kiểm tra ${_maYCKT}`);
+      return;
+    }
+
+    const sourceInspectionRequestId =
+      String((initialData as unknown as { sourceInspectionRequestId?: string } | null)?.sourceInspectionRequestId ?? '').trim() || null;
+    const payload: CreateRepairRequestRequest = {
+      ...form,
+      tenHeThong: cleanedItems[0]?.tenHeThong,
+      tinhTrangThietBi: cleanedItems[0]?.tinhTrangThietBi,
+      loaiLoi: cleanedItems[0]?.loaiLoi,
+      noiDungLoi: cleanedItems[0]?.noiDungLoi,
+      items: cleanedItems,
+      requestType: 'SUA_CHUA' as const,
+      sourceInspectionRequestId: sourceInspectionRequestId ?? null,
+    };
+
+    let savedId: string | number | undefined;
+    let savedMaYeuCau = '';
+    try {
+      if (record) {
+        const isKIEM_TRAUpdate = effectiveIsKiemTra || String((record as unknown as { maYeuCau?: string })?.maYeuCau ?? '').startsWith('YC-KT');
+        if (isKIEM_TRAUpdate) {
+          await updateInspection.mutateAsync({ id: (record as unknown as { id: number }).id, data: { ngayThang: form.ngayThang, mucDoUuTien: form.mucDoUuTien, ghiChu: form.ghiChu || undefined, items: cleanedItems } as never, file: selectedFile ?? undefined });
+          toast.success('Đã cập nhật yêu cầu kiểm tra');
+        } else {
+          await updateRequest.mutateAsync({ id: record.id, data: payload, file: selectedFile ?? undefined });
+          toast.success('Đã cập nhật yêu cầu sửa chữa');
+        }
+      } else {
+        const res = await createRequest.mutateAsync({ data: payload, file: selectedFile ?? undefined });
+        savedId = (res as unknown as { data?: { id?: number | string } })?.data?.id ?? (res as unknown as { id?: number | string })?.id;
+        savedMaYeuCau = (res as unknown as { data?: { maYeuCau?: string } })?.data?.maYeuCau
+          ?? (res as unknown as { maYeuCau?: string })?.maYeuCau
+          ?? payload.maYeuCau
+          ?? '';
+        const newId = savedId;
+        // Toast YCSC ngay sau khi tạo thành công — tách khỏi YCCC flow
+        const isYcscFromYckt = !!sourceInspectionRequestId;
+        toast.success(isYcscFromYckt ? `Đã tạo YCSC ${savedMaYeuCau} từ YCKT` : `Đã tạo yêu cầu sửa chữa ${savedMaYeuCau}`);
+        if (newId && showAssigneeAndMaterial) {
+          const cleanedAssignees = assignees.filter((a) => a.userId.trim() || a.userName.trim());
+          const cleanedMaterials = materials.filter((m) => m.tenVatTu.trim() && m.itemIndex >= 0 && m.itemIndex < cleanedItems.length);
+          for (const a of cleanedAssignees) {
+            try {
+              await repairRequestService.assignUser(newId, {
+                userId: a.userId.trim() || undefined,
+                userName: a.userName.trim() || undefined,
+                vaiTro: a.isLead ? 'CHINH' : 'PHU',
+                isLead: a.isLead,
+              });
+            } catch (e) {
+              console.warn('assignUser failed', e);
+            }
+          }
+          const createdItems: Array<{ id: string }> = ((res as unknown as { data?: { items?: Array<{ id: string }> } })?.data?.items ?? (res as unknown as { items?: Array<{ id: string }> })?.items ?? []) as Array<{ id: string }>;
+          for (const m of cleanedMaterials) {
+            const itemId = createdItems[m.itemIndex]?.id;
+            if (!itemId) continue;
+            try {
+              await repairRequestService.createMaterialNeed(newId, {
+                repairRequestItemId: itemId,
+                tenVatTu: m.tenVatTu.trim(),
+                donVi: m.donVi.trim() || null,
+                soLuongDuKien: Number(m.soLuongDuKien) || 0,
+                ghiChu: null,
+              });
+            } catch (e) {
+              console.warn('createMaterialNeed failed', e);
+            }
+          }
+        }
+        // --- Auto-create YCCC flow: chỉ khi SUA_CHUA, có materials, và đã có savedMaYeuCau/newId ---
+        // Tách hoàn toàn khỏi toast YCSC ở trên; YCSC đã toast.success rồi, YCCC có toast riêng.
+        const shouldTryAutoSupply = showAssigneeAndMaterial && materials.length > 0 && !!savedMaYeuCau && !!newId;
+        if (shouldTryAutoSupply) {
+          const u = viewUser as unknown as Record<string, unknown> | null;
+          const userId = String((u?.id as string) ?? (u?._id as string) ?? '').trim();
+          const userFullName = String((u?.fullName as string) ?? (u?.name as string) ?? ([u?.firstName, u?.lastName].filter(Boolean).join(' ').trim()) ?? '').trim();
+          // Resolver MỚI: ưu tiên 1 = lead assignee (người Chính), ưu tiên 2 = current user
+          type EmpOpt = { id: string; userId?: string; name: string; employeeCode: string; department?: string };
+          const catalog = employees as EmpOpt[];
+          const leadAssignee = assignees.find((a) => a.isLead) ?? assignees.find((a) => a.userId.trim() || a.userName.trim()) ?? null;
+          let leadEmp: EmpOpt | null = null;
+          if (leadAssignee) {
+            const aid = leadAssignee.userId.trim();
+            const aname = leadAssignee.userName.trim();
+            leadEmp = catalog.find((e) => {
+              if (aid && (e.id === aid || e.userId === aid)) return true;
+              if (aname && e.name && e.name.trim() === aname) return true;
+              if (aname && e.name && e.name.trim().toLowerCase() === aname.toLowerCase()) return true;
+              return false;
+            }) ?? null;
+          }
+          let viewerEmp: EmpOpt | null = null;
+          if (!leadEmp && (userId || userFullName)) {
+            viewerEmp = catalog.find((e) => {
+              if (userId && e.userId === userId) return true;
+              if (userFullName && e.name && e.name.trim() === userFullName) return true;
+              if (userFullName && e.name && e.name.trim().toLowerCase() === userFullName.toLowerCase()) return true;
+              return false;
+            }) ?? null;
+          }
+          const resolvedEmployee: EmpOpt | null = leadEmp ?? viewerEmp;
+          let resolvedEmployeeId: string;
+          let resolvedMaNhanVien: string;
+          let resolvedTenNhanVien: string;
+          let resolvedBoPhan: string;
+          if (resolvedEmployee) {
+            resolvedEmployeeId = resolvedEmployee.id;
+            resolvedMaNhanVien = resolvedEmployee.employeeCode || resolvedEmployee.id;
+            resolvedTenNhanVien = resolvedEmployee.name || userFullName || (leadAssignee?.userName ?? '') || '';
+            resolvedBoPhan = (resolvedEmployee.department ?? '').trim();
+          } else {
+            // Không tìm thấy hồ sơ Employee khớp — báo lỗi rõ, không fallback User.id làm employeeId
+            resolvedEmployeeId = '';
+            resolvedMaNhanVien = '';
+            resolvedTenNhanVien = '';
+            resolvedBoPhan = '';
+          }
+
+          // Build supplyItems — filter "" và <=0
+          const rawSupplyCandidates = materials.filter((m) => m.tenVatTu.trim());
+          const supplyItems = rawSupplyCandidates
+            .map((m) => ({
+              phanLoai: (m.phanLoai || 'Vật tư').trim() || 'Vật tư',
+              tenGoi: m.tenVatTu.trim(),
+              soLuong: m.soLuongDuKien === '' ? 0 : Number(m.soLuongDuKien) || 0,
+              donViTinh: (m.donVi || 'cái').trim() || 'cái',
+              _rawQty: m.soLuongDuKien,
+            }))
+            .filter((it) => {
+              if (it._rawQty === '' || it.soLuong <= 0) return false;
+              return true;
+            })
+            .map(({ _rawQty: _omit, ...rest }) => rest);
+
+          // boPhan rỗng do employee.subDepartment null rất phổ biến — không chặn YCCC, fallback
+          if (!resolvedBoPhan) {
+            const fallbackBoPhan = String((viewUser as unknown as Record<string, unknown>)?.subDepartmentName as string ?? (viewUser as unknown as Record<string, unknown>)?.departmentName as string ?? (viewUser as unknown as Record<string, unknown>)?.department as string ?? '').trim() || 'Kỹ thuật';
+            console.warn('auto supply: boPhan empty, fallback to', fallbackBoPhan, { resolvedEmployeeId, resolvedTenNhanVien });
+            resolvedBoPhan = fallbackBoPhan;
+          }
+          // 2.a) supplyItems rỗng sau filter → báo rõ, không silent
+          if (supplyItems.length === 0) {
+            toast('YCSC đã tạo nhưng không có hàng hóa hợp lệ để tạo YCCC — vui lòng kiểm tra số lượng', { icon: '⚠️' });
+          } else if (!resolvedEmployeeId || !resolvedTenNhanVien) {
+            toast.error('Không tạo được YCCC: không tìm thấy hồ sơ nhân viên của người phụ trách Chính — vui lòng chọn lại nhân viên từ danh sách');
+            console.warn('auto supply skipped: missing employee info', { leadAssignee, employeesCount: catalog.length });
+          } else {
+            // 2.c) đủ điều kiện → tạo YCCC
+            try {
+              const supplyRes = await supplyRequestService.createSupplyRequest({
+                employeeId: resolvedEmployeeId,
+                maNhanVien: resolvedMaNhanVien || resolvedEmployeeId,
+                tenNhanVien: resolvedTenNhanVien,
+                boPhan: resolvedBoPhan,
+                items: supplyItems,
+                mucDichYeuCau: `Cung cấp cho ${savedMaYeuCau}`,
+                ghiChu: (viewCreateRepairInitial?.ghiChu as string) || `Tự động tạo từ yêu cầu sửa chữa ${savedMaYeuCau}`,
+                mucDoUuTien: form.mucDoUuTien,
+              });
+              const supplyId = String(
+                (supplyRes as unknown as { data?: { id?: string; data?: { id?: string } } })?.data?.id ??
+                (supplyRes as unknown as { data?: { data?: { id?: string } } })?.data?.data?.id ??
+                (supplyRes as unknown as { id?: string })?.id ??
+                (supplyRes as unknown as { data?: string })?.data ??
+                ''
+              ).trim();
+              if (supplyId && newId) {
+                try {
+                  await repairRequestService.linkSupplyRequest(newId, { supplyRequestId: supplyId });
+                } catch (linkErr) {
+                  console.warn('linkSupplyRequest failed', linkErr);
+                  toast('Đã tạo YCCC nhưng liên kết chuỗi YCSC→YCCC thất bại', { icon: '⚠️' });
+                }
+              }
+              if (newId) {
+                queryClient.invalidateQueries({ queryKey: ['repairRequests', 'detail', String(newId)] });
+                queryClient.invalidateQueries({ queryKey: ['repairRequests', 'supplyChain', String(newId)] });
+                await queryClient.invalidateQueries({ queryKey: ['repairRequests'] });
+                await queryClient.refetchQueries({ queryKey: ['repairRequests'] });
+              }
+              await queryClient.invalidateQueries({ queryKey: ['supplyRequests'] });
+              await queryClient.refetchQueries({ queryKey: ['supplyRequests'] });
+              toast.success(`Đã tự động tạo YCCC cho ${savedMaYeuCau}`);
+            } catch (e: unknown) {
+              const axiosMsg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+              const msg = axiosMsg?.trim() || (e instanceof Error ? e.message : '') || 'Tự động tạo YCCC thất bại';
+              console.warn('auto createSupplyRequest failed', e);
+              toast.error(msg);
+            }
+          }
+        }
+      }
+      onSaved?.(savedId || savedMaYeuCau ? { id: savedId, maYeuCau: savedMaYeuCau } : undefined);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Không lưu được yêu cầu';
+      setError(msg);
+      toast.error(msg);
+      throw err;
+    }
+  };
+
+  const handleConfirmCreate = async () => {
+    const cleanedItems = items.map((item) => {
+      const isManual = item.machineSystemId === MANUAL_ENTRY;
+      return {
+        machineSystemId: isManual ? undefined : (item.machineSystemId || undefined),
+        machineSystemDetailId: isManual ? undefined : (item.machineSystemDetailId || undefined),
+        faultRecordId: item.faultRecordId || null,
+        tenHeThong: item.tenHeThong.trim(),
+        tinhTrangThietBi: item.tinhTrangThietBi.trim(),
+        loaiLoi: item.loaiLoi,
+        noiDungLoi: item.noiDungLoi.trim(),
+      };
+    }).filter((item) => item.tenHeThong && item.tinhTrangThietBi && item.loaiLoi && item.noiDungLoi);
+    if (cleanedItems.length === 0) {
+      const msg = 'Vui lòng nhập ít nhất một thiết bị lỗi hợp lệ';
+      setError(msg);
+      toast.error(msg);
+      setConfirmOpen(false);
+      return;
+    }
+    setConfirmOpen(false);
+    try {
+      await doCreate(cleanedItems);
+    } catch { /* error already handled in doCreate */ }
+  };
+
   const save = async (event: FormEvent) => {
     event.preventDefault();
     const cleanedItems = items.map((item) => {
@@ -357,39 +1019,105 @@ const RepairRequestFormModal = ({
       return;
     }
 
-    const payload: CreateRepairRequestRequest = {
-      ...form,
-      tenHeThong: cleanedItems[0]?.tenHeThong,
-      tinhTrangThietBi: cleanedItems[0]?.tinhTrangThietBi,
-      loaiLoi: cleanedItems[0]?.loaiLoi,
-      noiDungLoi: cleanedItems[0]?.noiDungLoi,
-      items: cleanedItems,
-    };
+    if (showAssigneeAndMaterial) {
+      if (plan.ngayBatDauKeHoach && plan.ngayHoanThienDuKien && plan.ngayHoanThienDuKien <= plan.ngayBatDauKeHoach) {
+        const msg = 'Ngày hoàn thiện dự kiến phải sau ngày bắt đầu kế hoạch';
+        setError(msg);
+        toast.error(msg);
+        return;
+      }
+      const seen = new Set<string>();
+      for (const m of materials) {
+        const key = `${m.itemIndex}::${m.tenVatTu.trim().toLowerCase()}`;
+        if (!m.tenVatTu.trim()) continue;
+        if (seen.has(key)) {
+          const msg = `Vật tư trùng: "${m.tenVatTu}" cho thiết bị #${m.itemIndex + 1}`;
+          setError(msg);
+          toast.error(msg);
+          return;
+        }
+        seen.add(key);
+      }
+      if (assignees.filter((a) => a.isLead).length > 1) {
+        const msg = 'Chỉ được chọn 1 người phụ trách chính';
+        setError(msg);
+        toast.error(msg);
+        return;
+      }
+      {
+        const seenIds = new Set<string>();
+        for (const a of assignees) {
+          const id = a.userId.trim().toLowerCase();
+          if (!id) continue;
+          if (seenIds.has(id)) {
+            const msg = 'Nhân viên đã được chọn — vui lòng chọn người khác';
+            setError(msg);
+            toast.error(msg);
+            return;
+          }
+          seenIds.add(id);
+        }
+      }
+    }
+
+    // 1. VALIDATION TRƯỚC KHI TẠO YCSC (trong save(), trước setConfirmOpen)
+    // Chỉ áp dụng khi SUA_CHUA (lockedRequestType !== 'KIEM_TRA'); KIEM_TRA không yêu cầu vật tư
+    const isSuaChua = lockedRequestType !== 'KIEM_TRA';
+    if (isSuaChua && mode === 'create' && !record) {
+      // materials.length>0 requires at least one assignee with valid userId to create YCCC
+      if (materials.length > 0) {
+        const hasValidAssignee = assignees.some((a) => a.userId.trim());
+        if (!hasValidAssignee) {
+          const msg = 'Vui lòng chọn ít nhất một người phụ trách để tạo YCCC';
+          setError(msg); toast.error(msg); return;
+        }
+      }
+      for (let i = 0; i < assignees.length; i++) {
+        const a = assignees[i]!;
+        if (!a.userName.trim() && !a.userId.trim()) {
+          const msg = `Vui lòng chọn nhân viên cho dòng #${i + 1}`;
+          setError(msg); toast.error(msg); return;
+        }
+      }
+      // Nếu user đã thêm dòng vật tư thì phải validate từng dòng; materials.length===0 thì không bắt buộc
+      for (let i = 0; i < materials.length; i++) {
+        const m = materials[i]!;
+        if (!m.tenVatTu.trim()) {
+          const msg = `Vui lòng chọn hàng hóa cho dòng #${i + 1}`;
+          setError(msg); toast.error(msg); return;
+        }
+        if (m.soLuongDuKien === '' || !Number.isFinite(Number(m.soLuongDuKien)) || Number(m.soLuongDuKien) <= 0) {
+          const msg = `Vui lòng nhập số lượng > 0 cho "${m.tenVatTu.trim()}"`;
+          setError(msg); toast.error(msg); return;
+        }
+        if (!m.donVi.trim()) {
+          const msg = `Vui lòng chọn đơn vị tính cho "${m.tenVatTu.trim()}"`;
+          setError(msg); toast.error(msg); return;
+        }
+      }
+    }
+
+    // Create mode (KIEM_TRA or SUA_CHUA): show confirm modal instead of saving immediately
+    if (mode === 'create' && !record) {
+      setConfirmOpen(true);
+      return;
+    }
 
     try {
-      if (record) {
-        await updateRequest.mutateAsync({ id: record.id, data: payload, file: selectedFile ?? undefined });
-      } else {
-        await createRequest.mutateAsync({ data: payload, file: selectedFile ?? undefined });
-      }
-      onSaved?.();
-      toast.success(mode === 'create' ? 'Đã tạo yêu cầu sửa chữa' : 'Đã cập nhật yêu cầu sửa chữa');
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Không lưu được yêu cầu sửa chữa';
-      setError(msg);
-      toast.error(msg);
-    }
+      await doCreate(cleanedItems);
+    } catch { /* handled */ }
   };
 
   return (
-    <ModalForm
-      isOpen={isOpen}
-      onClose={onClose}
-      title={modalTitle}
-      maxWidth="5xl"
-      footer={isView ? viewFooter : <ModalFooter onClose={onClose} onSubmit={() => formRefSubmit()} submitLabel={record ? 'Lưu' : 'Tạo yêu cầu'} isLoading={isSaving} />}
-    >
-      <form id="repair-request-form" onSubmit={save} className="space-y-4 text-sm">
+    <>
+      <ModalForm
+        isOpen={isOpen}
+        onClose={onClose}
+        title={modalTitle}
+        maxWidth="5xl"
+        footer={isView ? viewFooter : <ModalFooter onClose={onClose} onSubmit={() => formRefSubmit()} submitLabel={record ? 'Lưu' : 'Tạo yêu cầu'} isLoading={isSaving} />}
+      >
+      <form ref={formRef} id={formDomId} onSubmit={save} className="space-y-3 text-sm">
         {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-700">{error}</div>}
 
         {/* P1: status + priority badges in read-only view */}
@@ -401,7 +1129,72 @@ const RepairRequestFormModal = ({
           </div>
         )}
 
-        <div className={`grid gap-3 ${hideCodeField ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
+        {isView && (() => {
+          const INSPECTION_STEPS: { key: string; label: string }[] = [
+            { key: 'CHO_XU_LY', label: 'Chờ xử lý' },
+            { key: 'DA_TIEP_NHAN', label: 'Đã tiếp nhận' },
+            { key: 'DANG_KIEM_TRA', label: 'Đang kiểm tra' },
+            { key: 'DA_KIEM_TRA', label: 'Đã kiểm tra' },
+            { key: 'HOAN_THANH', label: 'Hoàn thành' },
+          ];
+          const REPAIR_STEPS: { key: string; label: string }[] = [
+            { key: 'CHO_XU_LY', label: 'Chờ xử lý' },
+            { key: 'DA_TIEP_NHAN', label: 'Đã tiếp nhận' },
+            { key: 'LEN_KE_HOACH', label: 'Lên kế hoạch' },
+            { key: 'DANG_SUA_CHUA', label: 'Đang sửa chữa' },
+            { key: 'CHO_NGHIEM_THU', label: 'Chờ nghiệm thu' },
+            { key: 'DA_NGHIEM_THU', label: 'Đã nghiệm thu' },
+            { key: 'HOAN_THANH', label: 'Hoàn thành' },
+          ];
+          const BRANCH_STATUSES = new Set(['TU_CHOI', 'DA_HUY']);
+          const isBranch = BRANCH_STATUSES.has(viewStatus);
+          const steps = effectiveIsKiemTra ? INSPECTION_STEPS : REPAIR_STEPS;
+          const currentIndex = steps.findIndex((s) => s.key === viewStatus);
+          const branchLabelMap: Record<string, string> = { TU_CHOI: 'Từ chối', DA_HUY: 'Đã hủy' };
+          return (
+            <div className="rounded-lg border border-gray-200 bg-white px-3 py-3">
+              {isBranch && (
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700 border border-red-200">
+                    {branchLabelMap[viewStatus] ?? viewStatus}
+                  </span>
+                  <span className="text-xs text-gray-500">nhánh rẽ — không nằm trong luồng chính</span>
+                </div>
+              )}
+              <div className="flex items-start gap-0 overflow-x-auto pb-1">
+                {steps.map((step, idx) => {
+                  const isPast = currentIndex !== -1 && idx < currentIndex;
+                  const isCurrent = idx === currentIndex && !isBranch;
+                  const circleCls = isCurrent
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                    : isPast
+                      ? 'bg-green-100 text-green-700 border-green-300'
+                      : 'bg-gray-100 text-gray-500 border-gray-200';
+                  const lineCls = idx < steps.length - 1
+                    ? (isPast || isCurrent ? 'bg-green-300' : 'bg-gray-200')
+                    : '';
+                  return (
+                    <div key={step.key} className="flex flex-1 items-start">
+                      <div className="flex flex-col items-center min-w-0 flex-1">
+                        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold transition-colors ${circleCls}`}>
+                          {isPast ? '✓' : idx + 1}
+                        </span>
+                        <span className={`mt-1.5 text-center text-[11px] leading-tight font-medium break-words ${isCurrent ? 'text-blue-700' : isPast ? 'text-green-700' : 'text-gray-500'}`}>
+                          {step.label}
+                        </span>
+                      </div>
+                      {idx < steps.length - 1 && (
+                        <div className={`mt-3.5 h-0.5 flex-1 min-w-[12px] mx-1 rounded ${lineCls}`} aria-hidden />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
+        <div className={`grid gap-2 ${hideCodeField ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
           <FormField label="Ngày" required>
             <input required type="date" disabled={isView} value={form.ngayThang} onChange={(event) => setForm((value) => ({ ...value, ngayThang: event.target.value }))} className={`${inputCls()} min-h-[44px] disabled:bg-gray-50`} />
           </FormField>
@@ -416,31 +1209,31 @@ const RepairRequestFormModal = ({
         </div>
 
         {isView && record?.createdByName && (
-          <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-            <span className="text-xs font-medium text-gray-600">Người yêu cầu: </span>
-            <span className="text-sm text-gray-900">{record.createdByName}</span>
+          <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2">
+            <span className="text-xs font-medium text-blue-700">Người yêu cầu: </span>
+            <span className="text-sm font-medium text-blue-900">{record.createdByName}</span>
           </div>
         )}
 
         <div className="rounded-lg border border-gray-200">
-          <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-3 py-2">
+          <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-3 py-1.5">
             <div className="flex items-center gap-2 font-medium text-gray-800"><Wrench className="h-4 w-4" /> Thiết bị lỗi</div>
             {!isView && <button type="button" onClick={() => setItems((value) => [...value, emptyItem(lockedSystemIdStr)])} title="Thêm thiết bị" aria-label="Thêm thiết bị" className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors min-h-[44px]"><Plus className="h-4 w-4" /> Thêm thiết bị</button>}
           </div>
-          <div className="space-y-3 p-3">
+          <div className="space-y-2 p-2.5">
             {items.map((item, index) => {
               const itemDetails = detailOptions.filter((detail) => !hasSystemPicked(item) || detail.machineSystemId === item.machineSystemId);
               const manual = isManualEntry(item);
               const picked = hasSystemPicked(item);
               const systemDropdownValue = !isView && !picked && !manual ? '' : (item.machineSystemId ?? '');
               return (
-                <div key={item.id ?? index} className="rounded-lg border border-gray-200 bg-gray-50/50 p-4">
-                  <div className="flex items-start gap-3">
+                <div key={item.id ?? index} className={`rounded-lg border border-gray-200 bg-gray-50/50 p-3 border-l-4 ${item.loaiLoi === 'Lỗi lặp lại' ? 'border-l-amber-400' : item.loaiLoi === 'Lỗi mới' ? 'border-l-red-400' : 'border-l-gray-300'}`}>
+                  <div className="flex items-start gap-2">
                     <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-semibold text-sm shrink-0 mt-1">
                       {index + 1}
                     </div>
                     <div className="flex-1">
-                      <div className="grid gap-3 md:grid-cols-2">
+                      <div className="grid gap-2 md:grid-cols-2">
                         {isView ? (
                           <>
                             <div className="space-y-1 md:col-span-2">
@@ -492,7 +1285,7 @@ const RepairRequestFormModal = ({
                             )}
                           </>
                         )}
-                        <FormField label="Vị trí / khu vực" required>
+                        <FormField label="Vị trí / khu vực" required hint={!isView ? 'VD: Khu B, tầng 2, dây chuyền 3' : undefined}>
                           <input required disabled={isView} placeholder="VD: Khu B, tầng 2" value={item.tinhTrangThietBi} onChange={(event) => patchItem(index, { tinhTrangThietBi: event.target.value })} className={`${inputCls()} min-h-[44px] text-sm disabled:bg-gray-50`} />
                         </FormField>
                         <FormField label="Loại lỗi" required>
@@ -502,7 +1295,7 @@ const RepairRequestFormModal = ({
                           </select>
                         </FormField>
                         <div className="md:col-span-2">
-                          <FormField label="Nội dung lỗi" required>
+                          <FormField label="Nội dung lỗi" required hint={!isView ? 'Mô tả ngắn triệu chứng, ví dụ: kẹt băng tải, rò dầu thủy lực' : undefined}>
                             <input required disabled={isView} placeholder="Mô tả ngắn gọn triệu chứng lỗi" value={item.noiDungLoi} onChange={(event) => patchItem(index, { noiDungLoi: event.target.value })} className={`${inputCls()} min-h-[44px] text-sm disabled:bg-gray-50`} />
                           </FormField>
                         </div>
@@ -539,15 +1332,411 @@ const RepairRequestFormModal = ({
           </div>
         </div>
 
-        <FormField label="Ghi chú">
-          <textarea disabled={isView} rows={2} value={form.ghiChu ?? ''} onChange={(event) => setForm((value) => ({ ...value, ghiChu: event.target.value }))} className={`${textareaCls()} min-h-[44px] disabled:bg-gray-50`} />
-        </FormField>
-        {!isView && <FileUpload label="File đính kèm" files={selectedFile ? [selectedFile] : []} onChange={(files) => setSelectedFile(files[0] ?? null)} compact existingFileUrl={record?.fileDinhKem ? getFileUrl(record.fileDinhKem) : undefined} existingFileName={record?.fileDinhKem ? 'File hiện tại' : undefined} />}
-        {isView && record?.fileDinhKem && <a href={getFileUrl(record.fileDinhKem)} target="_blank" rel="noreferrer" className="inline-flex text-sm text-blue-600 hover:underline">Xem file đính kèm</a>}
+        {showAssigneeAndMaterial && (
+          <>
+            {showPlanOnCreate && (
+            <div className="rounded-lg border border-gray-200">
+              <button type="button" onClick={() => setPlanOpen((v) => !v)} className="flex w-full items-center justify-between border-b border-gray-200 bg-gray-50 px-3 py-1.5 text-left">
+                <span className="font-medium text-gray-800">Kế hoạch</span>
+                <span className="text-xs text-gray-500">{planOpen ? 'Thu gọn' : 'Mở rộng'}</span>
+              </button>
+              {planOpen && (
+                <div className="p-2.5 space-y-2">
+                  <FormField label="Kế hoạch chi tiết"><textarea rows={2} value={plan.keHoachChiTiet} onChange={(e) => setPlan((v) => ({ ...v, keHoachChiTiet: e.target.value }))} className={`${textareaCls()} min-h-[48px]`} placeholder="Mô tả kế hoạch..." /></FormField>
+                  <FormField label="Phương án"><textarea rows={2} value={plan.phuongAn} onChange={(e) => setPlan((v) => ({ ...v, phuongAn: e.target.value }))} className={`${textareaCls()} min-h-[48px]`} placeholder="Phương án thực hiện..." /></FormField>
+                  <FormField label="Biện pháp an toàn"><textarea rows={2} value={plan.bienPhapAnToan} onChange={(e) => setPlan((v) => ({ ...v, bienPhapAnToan: e.target.value }))} className={`${textareaCls()} min-h-[48px]`} placeholder="Biện pháp an toàn..." /></FormField>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <FormField label="Ngày bắt đầu kế hoạch"><input type="date" value={plan.ngayBatDauKeHoach} onChange={(e) => setPlan((v) => ({ ...v, ngayBatDauKeHoach: e.target.value }))} className={`${inputCls()} min-h-[38px]`} /></FormField>
+                    <FormField label="Ngày hoàn thiện dự kiến"><input type="date" value={plan.ngayHoanThienDuKien} onChange={(e) => setPlan((v) => ({ ...v, ngayHoanThienDuKien: e.target.value }))} className={`${inputCls()} min-h-[38px]`} /></FormField>
+                  </div>
+                  <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+                    <span className="text-xs font-medium text-gray-500">Chi phí dự kiến: </span>
+                    <span className="text-sm text-gray-600">Chưa cập nhật</span>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={plan.canNgungMay} onChange={(e) => setPlan((v) => ({ ...v, canNgungMay: e.target.checked }))} className="h-4 w-4 rounded border-gray-300" /> Cần ngừng máy</label>
+                  {plan.ngayBatDauKeHoach && plan.ngayHoanThienDuKien && plan.ngayHoanThienDuKien <= plan.ngayBatDauKeHoach && (
+                    <p className="text-xs text-red-600">Ngày hoàn thiện dự kiến phải sau ngày bắt đầu.</p>
+                  )}
+                </div>
+              )}
+            </div>
+            )}
+            {void showPlanOnCreate}
 
+            {/* 2) Nguoi phu trach */}
+            <div className="rounded-lg border border-gray-200">
+              <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-3 py-1.5">
+                <button type="button" onClick={() => setAssigneeOpen((v) => !v)} className="font-medium text-gray-800 text-left">Người phụ trách</button>
+                <button type="button" onClick={() => setAssignees((prev) => [...prev, { userId: '', userName: '', isLead: prev.length === 0 }])} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 min-h-[32px]"><Plus className="h-4 w-4" /> Thêm người</button>
+              </div>
+              {assigneeOpen && (
+                <div className="p-2.5 space-y-1.5">
+                  {assignees.length === 0 && <p className="text-xs text-gray-400">Chưa có người phụ trách. Bấm Thêm người.</p>}
+                  {assignees.map((a, idx) => (
+                    <div key={idx} className="flex flex-wrap items-center gap-2 rounded border border-gray-200 bg-gray-50/50 p-2">
+                      <div className="flex-1 min-w-[180px]"><FormField label="Nhân viên">
+                        <EmployeeCombobox
+                          employees={employees}
+                          value={a.userName}
+                          excludedIds={assignees.filter((_, j) => j !== idx).map((x) => x.userId).filter(Boolean)}
+                          currentId={a.userId || undefined}
+                          onChange={(name) => {
+                            const emp = employees.find((e) => e.name === name);
+                            if (emp) {
+                              const dup = assignees.some((x, j) => j !== idx && x.userId && x.userId.toLowerCase() === emp.id.toLowerCase());
+                              if (dup) { toast.error('Nhân viên đã được chọn'); return; }
+                              setAssignees((prev) => prev.map((x, i) => i === idx ? { ...x, userName: emp.name, userId: emp.id } : x));
+                            } else if (name === '') {
+                              setAssignees((prev) => prev.map((x, i) => i === idx ? { ...x, userName: '', userId: '' } : x));
+                            } else {
+                              setAssignees((prev) => prev.map((x, i) => i === idx ? { ...x, userName: name } : x));
+                            }
+                          }}
+                          placeholder={employees.length === 0 ? 'Đang tải...' : 'Chọn nhân viên...'}
+                        />
+                      </FormField>
+                      {a.userId && <span className="text-[11px] text-gray-400">{a.userId}</span>}
+                      </div>
+                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${a.isLead ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600'}`}>{a.isLead ? 'CHÍNH' : 'PHỤ'}</span>
+                      <label className="flex items-center gap-1.5 text-xs whitespace-nowrap cursor-pointer"><input type="checkbox" checked={a.isLead} onChange={(e) => {
+                        const checked = e.target.checked;
+                        setAssignees((prev) => prev.map((x, i) => {
+                          if (i === idx) return { ...x, isLead: checked };
+                          if (checked) return { ...x, isLead: false };
+                          return x;
+                        }));
+                      }} className="h-3.5 w-3.5 rounded border-gray-300" /> Phụ trách chính</label>
+                      <button type="button" onClick={() => setAssignees((prev) => prev.filter((_, i) => i !== idx))} title="Xóa" aria-label="Xóa người phụ trách" className="p-1.5 text-red-500 hover:bg-red-50 rounded"><Trash2 className="h-4 w-4" /></button>
+                    </div>
+                  ))}
+                  {assignees.filter((a) => a.isLead).length > 1 && <p className="text-xs text-red-600">Chỉ 1 lead.</p>}
+                </div>
+              )}
+            </div>
+
+            {/* 3) Phieu yeu cau cung cap (YCCC) — dang bang gon nhu YCCC that */}
+            <div className="rounded-lg border border-gray-200">
+              <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-3 py-1.5">
+                <div className="min-w-0">
+                  <button type="button" onClick={() => setMaterialOpen((v) => !v)} className="font-medium text-gray-800 text-left">Phiếu yêu cầu cung cấp (YCCC)</button>
+                  <p className="text-[11px] text-gray-500">Mỗi dòng = 1 hàng hóa (chọn từ danh mục như YCCC). Khi tạo YCSC, các dòng này được lưu vào bảng liên kết và tự động tạo YCCC.</p>
+                </div>
+                <button type="button" onClick={() => setMaterials((prev) => [...prev, { itemIndex: 0, internationalProductId: null, tenVatTu: '', phanLoai: 'Vật tư', donVi: 'cái', soLuongDuKien: 1 }])} className="ml-3 shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 min-h-[32px]"><Plus className="h-4 w-4" /> Thêm hàng hóa</button>
+              </div>
+              {materialOpen && (
+                <div className="p-2 space-y-1">
+                  {materials.length === 0 && <p className="text-xs text-gray-400">Chưa có hàng hóa. Bấm Thêm hàng hóa — picker sẽ gợi ý theo danh mục (phanLoai Vật tư/Thiết bị...), cho phép nhập tên mới như YCCC.</p>}
+                  {materials.length > 0 && (
+                    <div className="overflow-x-auto rounded border border-gray-200">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-gray-50 text-left text-xs text-gray-500">
+                            <th className="px-2 py-1.5 font-medium w-24">Thiết bị</th>
+                            <th className="px-2 py-1.5 font-medium">Hàng hóa <span className="text-red-500">*</span></th>
+                            <th className="px-2 py-1.5 font-medium w-20">SL <span className="text-red-500">*</span></th>
+                            <th className="px-2 py-1.5 font-medium w-24">ĐVT <span className="text-red-500">*</span></th>
+                            <th className="px-1 py-1.5 w-8 text-center"> </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {materials.map((m, idx) => (
+                            <tr key={idx} className="align-top">
+                              <td className="px-1.5 py-1.5">
+                                <select value={m.itemIndex} onChange={(e) => setMaterials((prev) => prev.map((x, i) => i === idx ? { ...x, itemIndex: Number(e.target.value) } : x))} className={`${selectCls()} min-h-[32px] text-sm w-24`}>{items.map((_, i) => <option key={i} value={i}>#{i + 1}</option>)}</select>
+                              </td>
+                              <td className="px-1.5 py-1.5">
+                                <div className="min-w-[180px] flex-1">
+                                  <ProductCombobox
+                                    products={products}
+                                    value={m.internationalProductId}
+                                    onChange={(_pid, product) => {
+                                      if (!product) {
+                                        setMaterials((prev) => prev.map((x, i) => i === idx ? { ...x, internationalProductId: null, tenVatTu: '', phanLoai: 'Vật tư', donVi: x.donVi || 'cái' } : x));
+                                        return;
+                                      }
+                                      setMaterials((prev) => prev.map((x, i) => i === idx ? { ...x, internationalProductId: product.id, tenVatTu: product.tenSanPham, phanLoai: (product.loaiSanPham || 'Vật tư').trim() || 'Vật tư', donVi: product.donViTinh || x.donVi || 'cái' } : x));
+                                    }}
+                                    onCreateNew={(name) => setMaterials((prev) => prev.map((x, i) => i === idx ? { ...x, internationalProductId: null, tenVatTu: name, phanLoai: x.phanLoai || 'Vật tư' } : x))}
+                                    initialText={m.tenVatTu}
+                                    allowCreate
+                                    placeholder="Tìm mã/tên/loại..."
+                                  />
+                                  {(!m.internationalProductId && m.tenVatTu) || m.phanLoai ? (
+                                    <p className="mt-0.5 text-[11px] leading-tight truncate">
+                                      {!m.internationalProductId && m.tenVatTu && <span className="text-amber-700">Chưa có trong danh mục</span>}
+                                      {!m.internationalProductId && m.tenVatTu && m.phanLoai ? <span className="text-gray-400"> · </span> : null}
+                                      {m.phanLoai && <span className="text-gray-500">Phân loại: <span className="font-medium text-gray-700">{m.phanLoai}</span></span>}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              </td>
+                              <td className="px-1.5 py-1.5">
+                                <input type="number" min={0} step="0.01" value={String(m.soLuongDuKien)} onChange={(e) => setMaterials((prev) => prev.map((x, i) => i === idx ? { ...x, soLuongDuKien: parseNumberInput(e.target.value) } : x))} className={`${inputCls()} min-h-[32px] text-sm w-20`} placeholder="0" />
+                              </td>
+                              <td className="px-1.5 py-1.5">
+                                <UnitSelect value={m.donVi} onChange={(val) => setMaterials((prev) => prev.map((x, i) => i === idx ? { ...x, donVi: val } : x))} className="w-24 px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                              </td>
+                              <td className="px-1 py-1.5 text-center">
+                                <button type="button" onClick={() => setMaterials((prev) => prev.filter((_, i) => i !== idx))} className="p-1 text-red-500 hover:bg-red-50 rounded" title="Xóa" aria-label="Xóa hàng hóa"><Trash2 className="h-4 w-4" /></button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  {materials.length > 0 && <p className="text-[11px] text-gray-500">Ghi chú “Cung cấp cho {'{maYeuCau YCSC}'}” sẽ ghi vào <span className="font-mono">YCCC.ghiChu</span>.</p>}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ===== READ-ONLY blocks for view YCSC (4B) — only when viewing a repair record ===== */}
+        {isView && !effectiveIsKiemTra && (() => {
+          const r = record as RepairRequest | null | undefined;
+          const keHoachChiTiet = String((r as unknown as Record<string, unknown> | null)?.keHoachChiTiet ?? '').trim();
+          const phuongAn = String((r as unknown as Record<string, unknown> | null)?.phuongAn ?? '').trim();
+          const bienPhapAnToan = String((r as unknown as Record<string, unknown> | null)?.bienPhapAnToan ?? '').trim();
+          const ngayBatDauKeHoach = (r as unknown as Record<string, unknown> | null)?.ngayBatDauKeHoach as string | null | undefined;
+          const ngayHoanThienDuKien = (r as unknown as Record<string, unknown> | null)?.ngayHoanThienDuKien as string | null | undefined;
+          const canNgungMay = Boolean((r as unknown as Record<string, unknown> | null)?.canNgungMay);
+          const assigneesRO = (r?.assignees ?? []) as NonNullable<RepairRequest['assignees']>;
+          const materialNeedsRO = (r?.materialNeeds ?? []) as NonNullable<RepairRequest['materialNeeds']>;
+          const supplyLinksRO = (r?.supplyLinks ?? []) as NonNullable<RepairRequest['supplyLinks']>;
+          const fmtDate = (v: string | null | undefined) => {
+            if (!v) return '—';
+            try { return new Date(v).toLocaleDateString('vi-VN'); } catch { return String(v); }
+          };
+          return (
+            <>
+              {/* Block: Kế hoạch */}
+              <div className="rounded-lg border border-gray-200 bg-white p-3 space-y-2">
+                <h4 className="text-sm font-semibold text-gray-800">Kế hoạch</h4>
+                <div className="space-y-2 text-sm">
+                  <div><span className="text-xs font-medium text-gray-500">Kế hoạch chi tiết: </span><span className="text-gray-800 whitespace-pre-wrap">{keHoachChiTiet || '—'}</span></div>
+                  <div><span className="text-xs font-medium text-gray-500">Phương án: </span><span className="text-gray-800 whitespace-pre-wrap">{phuongAn || '—'}</span></div>
+                  <div><span className="text-xs font-medium text-gray-500">Biện pháp an toàn: </span><span className="text-gray-800 whitespace-pre-wrap">{bienPhapAnToan || '—'}</span></div>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <div><span className="text-xs font-medium text-gray-500">Ngày bắt đầu kế hoạch: </span><span className="text-gray-800">{fmtDate(ngayBatDauKeHoach ?? null)}</span></div>
+                    <div><span className="text-xs font-medium text-gray-500">Ngày hoàn thiện dự kiến: </span><span className="text-gray-800">{fmtDate(ngayHoanThienDuKien ?? null)}</span></div>
+                  </div>
+                  <div><span className="text-xs font-medium text-gray-500">Cần ngừng máy: </span><span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${canNgungMay ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>{canNgungMay ? 'Có' : 'Không'}</span></div>
+                </div>
+              </div>
+
+              {/* A3: Chi phí dự kiến (từ YCCC đầu) */}
+              <div className="rounded-lg border border-gray-200 bg-white p-3">
+                <h4 className="text-sm font-semibold text-gray-800">Chi phí dự kiến (từ YCCC đầu)</h4>
+                <p className="mt-1 text-sm">{(r as unknown as { chiPhiDuKien?: number | null })?.chiPhiDuKien != null ? <span className="font-semibold text-gray-900">{formatVND(Number((r as unknown as { chiPhiDuKien: number }).chiPhiDuKien))}</span> : <span className="text-gray-400">Chưa có YCCC</span>}</p>
+              </div>
+
+              {/* Block: Người phụ trách */}
+              <div className="rounded-lg border border-gray-200 bg-white p-3 space-y-2">
+                <h4 className="text-sm font-semibold text-gray-800">Người phụ trách</h4>
+                {assigneesRO.length === 0 ? (
+                  <p className="text-xs text-gray-400">Chưa phân công.</p>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {assigneesRO.map((a) => (
+                      <li key={a.id} className="flex items-center gap-2 rounded border border-gray-100 bg-gray-50 px-2.5 py-2">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">
+                          {(a.userName ?? '?').trim().charAt(0).toUpperCase() || '?'}
+                        </span>
+                        <span className="flex-1 text-sm font-medium text-gray-800 truncate">{a.userName ?? a.userId ?? '—'}</span>
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium shrink-0 ${a.isLead || a.vaiTro === 'CHINH' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600'}`}>{a.isLead || a.vaiTro === 'CHINH' ? 'CHÍNH' : 'PHỤ'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {/* Block: YCCC chain — hydrate supplyChain via useRepairSupplyChain */}
+              <div className="rounded-lg border border-gray-200 bg-white p-3 space-y-2">
+                <div className="border-b -mx-3 -mt-3 mb-2 bg-gray-50 px-3 py-1.5">
+                  <h4 className="text-sm font-semibold text-gray-800">Yêu cầu cung cấp (YCCC)</h4>
+                </div>
+                {materialNeedsRO.length === 0 && supplyLinksRO.length === 0 ? (
+                  <p className="text-xs text-gray-400">Chưa có nhu cầu vật tư / liên kết YCCC.</p>
+                ) : (
+                  <>
+                    {materialNeedsRO.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-gray-600">Nhu cầu vật tư ({materialNeedsRO.length})</p>
+                        <ul className="divide-y divide-gray-100 rounded border border-gray-100">
+                          {materialNeedsRO.map((m) => (
+                            <li key={m.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-2.5 py-1.5 text-sm">
+                              <span className="font-medium text-gray-800">{m.tenVatTu}</span>
+                              <span className="text-xs text-gray-500">{m.soLuongDuKien} {m.donVi ?? ''}</span>
+                              {m.maVatTu && <span className="text-xs text-gray-400 font-mono">{m.maVatTu}</span>}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {supplyLinksRO.length > 0 ? (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-gray-600">Chuỗi YCCC → YCBS → YCMH</p>
+                        <ul className="divide-y divide-gray-100 rounded border border-gray-100">
+                          {supplyLinksRO.map((link) => (
+                            <li key={link.id} className="flex flex-wrap items-center gap-2 px-2.5 py-1.5 text-xs">
+                              <span className="inline-flex items-center rounded bg-blue-50 border border-blue-200 px-2 py-0.5 font-mono text-blue-700">YCCC #{link.supplyRequestId.slice(0, 8)}</span>
+                              <span className="text-gray-400">→</span>
+                              <span className="text-gray-500">YCBS / YCMH theo dõi qua YCCC</span>
+                              {link.soLuong != null && <span className="text-gray-500">SL: {link.soLuong}</span>}
+                            </li>
+                          ))}
+                        </ul>
+                        {ycscSupplyChainQ.data?.data && (ycscSupplyChainQ.data.data as unknown as { supplyRequest?: { maYeuCau: string; trangThai: string } | null; replenishmentRequest?: { maYeuCau: string; trangThai: string } | null; purchaseRequest?: { maYeuCau: string; trangThai: string } | null; decisionsMeta?: { reason?: string | null } | null }[]).length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {(ycscSupplyChainQ.data.data as unknown as { supplyRequest?: { maYeuCau: string; trangThai: string } | null; replenishmentRequest?: { maYeuCau: string; trangThai: string } | null; purchaseRequest?: { maYeuCau: string; trangThai: string } | null; decisionsMeta?: { reason?: string | null } | null }[]).map((ch, i) => (
+                              <div key={i} className="rounded border bg-white px-2 py-1.5 text-xs flex flex-wrap items-center gap-1">
+                                {ch.supplyRequest ? <span className="rounded-full border bg-blue-50 px-1.5 py-0.5">YCCC {ch.supplyRequest.maYeuCau} [{ch.supplyRequest.trangThai}]</span> : <span className="text-gray-400">YCCC —</span>}
+                                <span className="text-gray-400">→</span>
+                                {ch.replenishmentRequest ? <span className="rounded-full border bg-amber-50 px-1.5 py-0.5">YCBS {ch.replenishmentRequest.maYeuCau} [{ch.replenishmentRequest.trangThai}]</span> : <span className="text-gray-400">Chưa bổ sung</span>}
+                                <span className="text-gray-400">→</span>
+                                {ch.purchaseRequest ? <span className="rounded-full border bg-green-50 px-1.5 py-0.5">YCMH {ch.purchaseRequest.maYeuCau} [{ch.purchaseRequest.trangThai}]</span> : <span className="text-gray-400">—</span>}
+                                {ch.decisionsMeta?.reason && <span className="text-gray-500">({ch.decisionsMeta.reason})</span>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <p className="text-[11px] text-gray-400">Chi tiết YCBS/YCMH xem trong phiếu YCCC liên kết.</p>
+                      </div>
+                    ) : materialNeedsRO.length > 0 ? (
+                      <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs font-medium text-amber-800">Chưa tạo YCCC</div>
+                    ) : null}
+                  </>
+                )}
+              </div>
+
+              {/* B3: Cost summary — Dự kiến | Thực tế | Chênh lệch + null-price banner */}
+              {(() => {
+                const cs = (ycscCostQ.data as unknown as { data?: { duKien: number | null; thucTe: number; chenhLech: number | null; incidentalTotal: number; itemsWithNullPrice: { tenGoi: string }[] } })?.data ?? null;
+                const duKien = cs?.duKien ?? (r as unknown as { chiPhiDuKien?: number | null })?.chiPhiDuKien ?? null;
+                const thucTe = cs?.thucTe ?? 0;
+                const chenh = cs?.chenhLech ?? (duKien != null ? thucTe - Number(duKien) : null);
+                const nullItems: { tenGoi: string }[] = cs?.itemsWithNullPrice ?? [];
+                const hasNull = nullItems.length > 0;
+                return (
+                  <div className="rounded-lg border border-gray-200 bg-white p-3 space-y-2">
+                    <h4 className="text-sm font-semibold text-gray-800">Tổng hợp chi phí</h4>
+                    {hasNull && (
+                      <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                        <p className="font-medium">Cảnh báo: có món chưa có giá thành</p>
+                        <p className="mt-1">{nullItems.map(x=>x.tenGoi).join(', ')}</p>
+                        <a href="/master-data?tab=products" className="mt-1 inline-block font-medium text-amber-700 underline">Cập nhật giá tại Danh mục sản phẩm (InternationalProduct)</a>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-3 gap-2 text-center text-sm">
+                      <div className="rounded border bg-gray-50 px-2 py-2"><p className="text-xs text-gray-500">Dự kiến</p><p className="font-semibold">{duKien != null ? formatVND(Number(duKien)) : '—'}</p></div>
+                      <div className="rounded border bg-blue-50 px-2 py-2"><p className="text-xs text-gray-500">Thực tế (YCCC + phát sinh)</p><p className="font-semibold">{formatVND(thucTe)}</p></div>
+                      <div className={`rounded border px-2 py-2 ${chenh != null && chenh > 0 ? 'bg-red-50 border-red-200' : chenh != null && chenh < 0 ? 'bg-green-50 border-green-200' : 'bg-gray-50'}`}><p className="text-xs text-gray-500">Chênh lệch</p><p className="font-semibold">{chenh != null ? (chenh > 0 ? '+' : '') + formatVND(chenh) : '—'}</p></div>
+                    </div>
+                    <p className="text-[11px] text-gray-400">Thực tế = tổng YCCC (price*qty) + chi phí phát sinh.</p>
+                  </div>
+                );
+              })()}
+
+              {/* C2: Chi phí phát sinh */}
+              <div className="rounded-lg border border-gray-200 bg-white p-3 space-y-2">
+                <h4 className="text-sm font-semibold text-gray-800">Chi phí phát sinh</h4>
+                <div className="overflow-x-auto rounded border border-gray-200">
+                  <table className="w-full text-sm">
+                    <thead><tr className="bg-gray-50 text-left text-xs text-gray-500"><th className="px-2 py-1.5">Tên khoản</th><th className="px-2 py-1.5 w-28">Số tiền</th><th className="px-2 py-1.5">Lý do *</th><th className="px-2 py-1.5 w-24">File</th><th className="px-1 py-1.5 w-12"></th></tr></thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {incidentalCosts.map((row) => (
+                        <tr key={row.id}>
+                          {incEditId === row.id ? (
+                            <>
+                              <td className="px-1.5 py-1"><input value={incEdit.tenKhoan} onChange={e=>setIncEdit(s=>({...s, tenKhoan:e.target.value}))} className="w-full rounded border px-2 py-1 text-sm" /></td>
+                              <td className="px-1.5 py-1"><input type="number" min={0} value={incEdit.soTien} onChange={e=>setIncEdit(s=>({...s, soTien:e.target.value}))} className="w-full rounded border px-2 py-1 text-sm" /></td>
+                              <td className="px-1.5 py-1"><input value={incEdit.lyDo} onChange={e=>setIncEdit(s=>({...s, lyDo:e.target.value}))} className="w-full rounded border px-2 py-1 text-sm" /></td>
+                              <td className="px-1.5 py-1"><input value={incEdit.fileMinhChung ?? ''} onChange={e=>setIncEdit(s=>({...s, fileMinhChung:e.target.value}))} className="w-full rounded border px-2 py-1 text-sm" placeholder="URL" /></td>
+                              <td className="px-1 py-1 flex gap-1"><button onClick={async()=>{ if(!ycscIdForChain) return; const soTien=Number(incEdit.soTien); if(!Number.isFinite(soTien)||soTien<0){ toast.error('Số tiền phải >=0'); return; } if(!incEdit.lyDo.trim()){ toast.error('Lý do bắt buộc'); return; } try{ await updateIncidental.mutateAsync({ id: ycscIdForChain, costId: row.id, payload: { tenKhoan: incEdit.tenKhoan.trim()||row.tenKhoan, soTien, lyDo: incEdit.lyDo.trim(), fileMinhChung: incEdit.fileMinhChung||null } as never }); toast.success('Đã cập nhật'); setIncEditId(null);}catch(e){ toast.error(e instanceof Error?e.message:'Lỗi cập nhật'); } }} className="text-blue-600 text-xs">Lưu</button><button onClick={()=>setIncEditId(null)} className="text-gray-500 text-xs">Hủy</button></td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="px-2 py-1.5">{row.tenKhoan}</td>
+                              <td className="px-2 py-1.5 text-right">{formatVND(Number(row.soTien))}</td>
+                              <td className="px-2 py-1.5 text-xs">{row.lyDo}</td>
+                              <td className="px-2 py-1.5 text-xs truncate max-w-[120px]">{row.fileMinhChung ? <a href={row.fileMinhChung} target="_blank" rel="noreferrer" className="text-blue-600 underline">Xem</a> : '—'}</td>
+                              <td className="px-1 py-1 text-right flex gap-1 justify-end"><button onClick={()=>{ setIncEditId(row.id); setIncEdit({ tenKhoan: row.tenKhoan, soTien: String(row.soTien), lyDo: row.lyDo, fileMinhChung: row.fileMinhChung ?? '' }); }} className="text-blue-600 text-xs">Sửa</button><button onClick={async()=>{ if(!confirm('Xóa khoản này?')) return; try{ await deleteIncidental.mutateAsync({ id: ycscIdForChain as string, costId: row.id }); toast.success('Đã xóa'); }catch(e){ toast.error(e instanceof Error?e.message:'Lỗi xóa'); } }} className="text-red-500 text-xs">Xóa</button></td>
+                            </>
+                          )}
+                        </tr>
+                      ))}
+                      <tr className="bg-gray-50/50">
+                        <td className="px-1.5 py-1"><input placeholder="Tên khoản" value={incForm.tenKhoan} onChange={e=>setIncForm(s=>({...s, tenKhoan:e.target.value}))} className="w-full rounded border px-2 py-1.5 text-sm" /></td>
+                        <td className="px-1.5 py-1"><input type="number" min={0} placeholder="0" value={incForm.soTien} onChange={e=>setIncForm(s=>({...s, soTien:e.target.value}))} className="w-full rounded border px-2 py-1.5 text-sm" /></td>
+                        <td className="px-1.5 py-1"><input placeholder="Lý do *" value={incForm.lyDo} onChange={e=>setIncForm(s=>({...s, lyDo:e.target.value}))} className="w-full rounded border px-2 py-1.5 text-sm" /></td>
+                        <td className="px-1.5 py-1"><input placeholder="File URL" value={incForm.fileMinhChung} onChange={e=>setIncForm(s=>({...s, fileMinhChung:e.target.value}))} className="w-full rounded border px-2 py-1.5 text-sm" /></td>
+                        <td className="px-1 py-1"><button onClick={async()=>{ if(!ycscIdForChain) return; const soTien=Number(incForm.soTien); if(!incForm.tenKhoan.trim()){ toast.error('Tên khoản bắt buộc'); return; } if(!Number.isFinite(soTien)||soTien<0){ toast.error('Số tiền phải >=0'); return; } if(!incForm.lyDo.trim()){ toast.error('Lý do bắt buộc'); return; } try{ await createIncidental.mutateAsync({ id: ycscIdForChain, payload: { tenKhoan: incForm.tenKhoan.trim(), soTien, lyDo: incForm.lyDo.trim(), fileMinhChung: incForm.fileMinhChung||null } as never }); toast.success('Đã thêm'); setIncForm({ tenKhoan:'', soTien:'', lyDo:'', fileMinhChung:'' }); }catch(e){ toast.error(e instanceof Error?e.message:'Lỗi thêm'); } }} className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white">Thêm</button></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-[11px] text-gray-400">soTien ≥0, lyDo bắt buộc. Tổng được cộng vào Thực tế.</p>
+              </div>
+            </>
+          );
+        })()}
+
+        <div className={`rounded-lg border p-2.5 ${isView && form.ghiChu?.trim() ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-white'}`}>
+          <FormField label="Ghi chú">
+            <textarea disabled={isView} rows={2} maxLength={500} placeholder="Ghi chú thêm về yêu cầu (tùy chọn, tối đa 500 ký tự)..." value={form.ghiChu ?? ''} onChange={(event) => setForm((value) => ({ ...value, ghiChu: event.target.value }))} className={`${textareaCls()} min-h-[44px] disabled:bg-gray-50`} />
+            {!isView && <p className="mt-1 text-right text-[11px] text-gray-400">{(form.ghiChu ?? '').length}/500 ký tự</p>}
+          </FormField>
+        </div>
+        {isView && effectiveIsKiemTra && (viewStatus === 'DANG_KIEM_TRA' || viewStatus === 'DA_KIEM_TRA') && (
+          <div className={`rounded-lg border p-3 space-y-3 ${viewStatus === 'DA_KIEM_TRA' ? 'border-green-200 bg-green-50' : 'border-yellow-200 bg-yellow-50'}`}>
+            <h4 className="text-sm font-semibold text-gray-800">Kết quả kiểm tra thực tế</h4>
+            {viewStatus === 'DANG_KIEM_TRA' && isToBTView ? (
+              <div className="space-y-3">
+                <FormField label="Kết quả kiểm tra" required><textarea rows={3} value={viewInspectForm.ketQuaKiemTra} onChange={e=>setViewInspectForm(v=>({...v, ketQuaKiemTra: e.target.value}))} className={`${textareaCls()} min-h-[60px]`} placeholder="Mô tả kết quả thực tế" /></FormField>
+                <FormField label="Mức độ hư hỏng"><select value={viewInspectForm.mucDoHuHong} onChange={e=>setViewInspectForm(v=>({...v, mucDoHuHong: e.target.value}))} className={`${selectCls()} min-h-[44px]`}><option value="">— Chọn —</option><option value="nhe">Nhẹ</option><option value="trung_binh">Trung bình</option><option value="nang">Nặng</option><option value="nguy_hiem">Nguy hiểm</option></select></FormField>
+                <FormField label="Đề xuất xử lý"><textarea rows={2} value={viewInspectForm.deXuatXuLy} onChange={e=>setViewInspectForm(v=>({...v, deXuatXuLy: e.target.value}))} className={`${textareaCls()} min-h-[60px]`} /></FormField>
+                <FormField label="Kết luận" required><select value={viewInspectForm.ketLuan} onChange={e=>setViewInspectForm(v=>({...v, ketLuan: e.target.value}))} className={`${selectCls()} min-h-[44px]`}><option value="">— Chọn —</option><option value="CAN_SUA_CHUA">Cần sửa chữa</option><option value="KHONG_CAN">Không cần</option><option value="THEO_DOI">Theo dõi</option></select></FormField>
+                {!viewCanSubmit && <p className="text-xs text-amber-600">Nhập đủ Kết quả kiểm tra và Kết luận để Gửi kết quả ở footer.</p>}
+              </div>
+            ) : (
+              <div className="space-y-2 text-sm text-gray-700">
+                <p><span className="text-xs font-medium text-gray-500">Kết quả:</span> {viewInspectForm.ketQuaKiemTra || String((record as unknown as Record<string,unknown>)?.ketQuaKiemTra ?? '—')}</p>
+                <p className="flex items-center gap-2"><span className="text-xs font-medium text-gray-500">Mức độ:</span> {(() => { const code = viewInspectForm.mucDoHuHong || String((record as unknown as Record<string,unknown>)?.mucDoHuHong ?? ''); if (!code || code === '—') return <span>—</span>; return <><StatusBadge label={formatMucDo(code)} tone={MUC_DO_TONE[code] ?? 'gray'} /></>; })()}</p>
+                <p><span className="text-xs font-medium text-gray-500">Đề xuất:</span> {viewInspectForm.deXuatXuLy || String((record as unknown as Record<string,unknown>)?.deXuatXuLy ?? '—')}</p>
+                <p className="flex items-center gap-2"><span className="text-xs font-medium text-gray-500">Kết luận:</span> {(() => { const code = viewInspectForm.ketLuan || String((record as unknown as Record<string,unknown>)?.ketLuan ?? ''); if (!code || code === '—') return <span>—</span>; return <StatusBadge label={formatKetLuan(code)} tone={KET_LUAN_TONE[code] ?? 'gray'} />; })()}</p>
+              </div>
+            )}
+          </div>
+        )}
+        {!isView && <FileUpload label="File đính kèm" files={selectedFile ? [selectedFile] : []} onChange={(files) => setSelectedFile(files[0] ?? null)} compact existingFileUrl={record?.fileDinhKem ? getFileUrl(record.fileDinhKem) : undefined} existingFileName={record?.fileDinhKem ? 'File hiện tại' : undefined} />}
+        {isView && record?.fileDinhKem && (
+          <a href={getFileUrl(record.fileDinhKem)} target="_blank" rel="noreferrer" title="Mở file đính kèm trong tab mới" className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100 transition-colors">
+            Xem file đính kèm
+          </a>
+        )}
+
+        {isView && effectiveIsKiemTra && (
+          <div className="rounded-lg border border-gray-200">
+            <div className="border-b bg-gray-50 px-3 py-1.5">
+              <span className="text-sm font-semibold text-gray-800">Liên kết YCSC đã tạo</span>
+            </div>
+            {(() => {
+              const repairs = (record as unknown as { repairRequests?: { id: number | string; maYeuCau: string; trangThai: string }[] })?.repairRequests ?? [];
+              if (repairs.length === 0) return <p className="px-3 py-3 text-xs text-gray-400">Chưa tạo YCSC từ phiếu này.</p>;
+              return (
+                <div className="p-2.5 flex flex-wrap gap-1.5">
+                  {repairs.map((rr) => (
+                    <button key={String(rr.id)} type="button" onClick={() => { try { const next = new URLSearchParams(searchParams); next.set('type','sua_chua'); next.set('repairId', String(rr.id)); setSearchParams(next); } catch {} }} className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"><Link2 className="h-3 w-3" /> {rr.maYeuCau} <span className="text-gray-500">[{rr.trangThai}]</span></button>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+        )}
         {isView && (
           <div className="rounded-lg border border-gray-200">
-            <div className="border-b border-gray-200 bg-gray-50 px-3 py-2">
+            <div className="border-b bg-gray-50 px-3 py-2">
               <span className="font-medium text-gray-800">Lịch sử nghiệm thu</span>
             </div>
             {(record?.acceptanceHandovers?.length ?? 0) === 0 ? (
@@ -585,8 +1774,433 @@ const RepairRequestFormModal = ({
             )}
           </div>
         )}
+
+        {/* Lịch sử trạng thái — cuối phiếu, trước footer */}
+        {isView && (
+          <div className="rounded-lg border border-gray-200">
+            <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-3 py-1.5">
+              <span className="flex items-center gap-2 font-medium text-gray-800"><History className="h-4 w-4" /> Lịch sử trạng thái</span>
+              {hasMoreHistory && (
+                <button type="button" onClick={() => setViewHistoryOpen(true)} className="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline">Xem tất cả ({historyEntries.length})</button>
+              )}
+            </div>
+            <div className="p-2.5">
+              <StatusTimeline entries={inlineEntries} isLoading={!!activeHistoryQ.isLoading} />
+              {hasMoreHistory && (
+                <button type="button" onClick={() => setViewHistoryOpen(true)} className="mt-2 text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline">Xem tất cả ({historyEntries.length})</button>
+              )}
+            </div>
+          </div>
+        )}
       </form>
+      {/* Overlays for view footer actions */}
+      {viewHistoryOpen && (
+        <Modal isOpen onClose={() => setViewHistoryOpen(false)} showBackdrop>
+          <div className="bg-white rounded-lg w-full max-w-lg p-4 space-y-3 max-h-[80vh] overflow-y-auto" onClick={e=>e.stopPropagation()}>
+            <div className="flex items-center justify-between"><h4 className="font-semibold text-sm">Lịch sử trạng thái</h4><button onClick={()=>setViewHistoryOpen(false)}><X className="h-4 w-4" /></button></div>
+            <StatusTimeline entries={historyEntries} isLoading={!!activeHistoryQ.isLoading} />
+            <div className="flex justify-end"><button onClick={()=>setViewHistoryOpen(false)} className="rounded border px-4 py-2 text-sm hover:bg-gray-50">Đóng</button></div>
+          </div>
+        </Modal>
+      )}
+      {viewCancelOpen && (
+        <Modal isOpen onClose={()=>setViewCancelOpen(false)} showBackdrop>
+          <div className="bg-white rounded-lg w-full max-w-md p-4 space-y-3" onClick={e=>e.stopPropagation()}>
+            <h4 className="font-semibold text-sm">{viewCancelMode === 'reject' ? 'Từ chối phiếu' : 'Hủy phiếu'}</h4>
+            <label className="block space-y-1 text-sm"><span className="text-xs text-gray-600">Lý do {viewCancelMode === 'reject' ? '*' : '(tuỳ chọn)'}</span><textarea rows={3} value={viewCancelReason} onChange={e=>setViewCancelReason(e.target.value)} placeholder={viewCancelMode==='reject'?'Nhập lý do từ chối...':'Nhập lý do hủy...'} className="w-full rounded border px-2 py-1.5" /></label>
+            <div className="flex justify-end gap-2"><button onClick={()=>setViewCancelOpen(false)} className="rounded border px-4 py-2 text-sm hover:bg-gray-50">Đóng</button><button onClick={async()=>{ const id=(record as unknown as {id:number}).id; const reason=viewCancelReason.trim()||undefined; if(viewCancelMode==='reject' && !reason){ toast.error('Vui lòng nhập lý do từ chối'); return; } try{ if(viewCancelMode==='reject'){ try{ await inspectionRequestService.reject(id, reason); }catch{ await repairRequestService.reject(id as never, reason); } } else { try{ await inspectionRequestService.cancel(id, reason); }catch{ await repairRequestService.cancel(id as never, reason); } } toast.success(viewCancelMode==='reject'?'Đã từ chối':'Đã hủy phiếu'); setViewCancelOpen(false); queryClient.invalidateQueries({ queryKey: ['inspectionRequests'] as unknown as never }); onSaved?.(); onClose(); }catch(e){ toast.error(e instanceof Error?e.message:'Không thực hiện được'); } }} className={`rounded px-4 py-2 text-sm font-medium text-white ${viewCancelMode==='reject'?'bg-red-600 hover:bg-red-700':'bg-amber-600 hover:bg-amber-700'}`}>{viewCancelMode==='reject'?'Từ chối':'Hủy phiếu'}</button></div>
+          </div>
+        </Modal>
+      )}
+      {viewDeleteOpen && (
+        <Modal isOpen onClose={()=>setViewDeleteOpen(false)} showBackdrop>
+          <div className="bg-white rounded-lg w-full max-w-md p-4 space-y-3" onClick={e=>e.stopPropagation()}>
+            <h4 className="font-semibold text-sm text-red-600">Xóa phiếu?</h4>
+            <p className="text-sm text-gray-600">Hành động này không thể hoàn tác. Chỉ ADMIN mới được xóa.</p>
+            <div className="flex justify-end gap-2"><button onClick={()=>setViewDeleteOpen(false)} className="rounded border px-4 py-2 text-sm hover:bg-gray-50">Hủy</button><button onClick={async()=>{ const id=(record as unknown as {id:number|string}).id; const isInspection = effectiveIsKiemTra; try{ if(isInspection) await inspectionRequestService.delete(id); else await repairRequestService.delete(id as never); toast.success('Đã xóa'); setViewDeleteOpen(false); queryClient.invalidateQueries({ queryKey: ['inspectionRequests'] as unknown as never }); queryClient.invalidateQueries({ queryKey: ['repairRequests'] as unknown as never }); onClose(); }catch(e){ toast.error(e instanceof Error?e.message:'Không xóa được'); } }} className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">Xóa</button></div>
+          </div>
+        </Modal>
+      )}
+      {/* YCSC Plan modal */}
+      {ycscPlanOpen && (
+        <Modal isOpen onClose={()=>setYcscPlanOpen(false)} showBackdrop>
+          <div className="bg-white rounded-lg w-full max-w-lg p-4 space-y-3" onClick={e=>e.stopPropagation()}>
+            <div className="flex items-center justify-between"><h4 className="font-semibold text-sm">Lên kế hoạch — {(record as unknown as { maYeuCau?: string })?.maYeuCau}</h4><button onClick={()=>setYcscPlanOpen(false)}><X className="h-4 w-4" /></button></div>
+            <div className="space-y-3 text-sm">
+              <label className="block space-y-1"><span className="font-medium text-gray-700">Kế hoạch chi tiết</span><textarea rows={2} value={ycscPlanForm.keHoachChiTiet} onChange={e=>setYcscPlanForm(f=>({...f, keHoachChiTiet:e.target.value}))} className="w-full rounded border px-2 py-1.5" /></label>
+              <label className="block space-y-1"><span className="font-medium text-gray-700">Phương án</span><input value={ycscPlanForm.phuongAn} onChange={e=>setYcscPlanForm(f=>({...f, phuongAn:e.target.value}))} className="w-full rounded border px-2 py-1.5" /></label>
+              <label className="block space-y-1"><span className="font-medium text-gray-700">Biện pháp an toàn</span><input value={ycscPlanForm.bienPhapAnToan} onChange={e=>setYcscPlanForm(f=>({...f, bienPhapAnToan:e.target.value}))} className="w-full rounded border px-2 py-1.5" /></label>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="space-y-1"><span className="font-medium text-gray-700">Ngày BĐKH</span><input type="date" value={ycscPlanForm.ngayBatDauKeHoach} onChange={e=>setYcscPlanForm(f=>({...f, ngayBatDauKeHoach:e.target.value}))} className="w-full rounded border px-2 py-1.5" /></label>
+                <label className="space-y-1"><span className="font-medium text-gray-700">Ngày HTDK</span><input type="date" value={ycscPlanForm.ngayHoanThienDuKien} onChange={e=>setYcscPlanForm(f=>({...f, ngayHoanThienDuKien:e.target.value}))} className="w-full rounded border px-2 py-1.5" /></label>
+              </div>
+              <label className="block space-y-1"><span className="font-medium text-gray-700">Chi phí dự kiến</span><input type="number" min={0} value={ycscPlanForm.chiPhiDuKien} onChange={e=>setYcscPlanForm(f=>({...f, chiPhiDuKien:e.target.value}))} className="w-full rounded border px-2 py-1.5" /></label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={ycscPlanForm.canNgungMay} onChange={e=>setYcscPlanForm(f=>({...f, canNgungMay:e.target.checked}))} /><span>Cần ngừng máy</span></label>
+              {(() => {
+                const recordAssignees = ((record as unknown as { assignees?: { userId?: string; userName?: string | null; isLead?: boolean; vaiTro?: string }[] })?.assignees ?? []) as { userId?: string; userName?: string | null; isLead?: boolean; vaiTro?: string }[];
+                const srcAssignees = recordAssignees.length ? recordAssignees.map(a => ({ userId: String(a.userId ?? ''), userName: String(a.userName ?? ''), isLead: !!(a.isLead || a.vaiTro === 'CHINH') })) : assignees;
+                const leadTmp = srcAssignees.find(a => a.isLead) || srcAssignees[0] || null;
+                const leadEmpTmp = leadTmp ? employees.find(e => (leadTmp.userId && e.id === leadTmp.userId) || (leadTmp.userName && e.name === leadTmp.userName)) ?? null : null;
+                const deptLabel = (leadEmpTmp?.department || (leadEmpTmp as unknown as { subDepartmentName?: string })?.subDepartmentName || 'Chưa xác định') as string;
+                return <div className="rounded border bg-gray-50 px-2 py-1.5 text-xs"><span className="font-medium text-gray-700">Phòng ban: </span><span className="text-gray-800">{deptLabel}</span>{leadTmp ? <span className="ml-2 text-gray-500">({leadTmp.userName || leadTmp.userId})</span> : <span className="ml-2 text-amber-600">Chưa chọn người phụ trách chính</span>}</div>;
+              })()}
+            </div>
+            <div className="flex justify-end gap-2"><button onClick={()=>setYcscPlanOpen(false)} className="rounded border px-4 py-2 text-sm hover:bg-gray-50">Hủy</button><button onClick={async()=>{ const rid=(record as unknown as {id:number|string}).id; if(ycscPlanForm.ngayBatDauKeHoach && ycscPlanForm.ngayHoanThienDuKien && new Date(ycscPlanForm.ngayHoanThienDuKien).getTime() <= new Date(ycscPlanForm.ngayBatDauKeHoach).getTime()){ toast.error('Ngày hoàn thiện dự kiến phải sau ngày bắt đầu kế hoạch'); return; } const payload: Record<string,unknown>={}; if(ycscPlanForm.keHoachChiTiet.trim()) payload.keHoachChiTiet=ycscPlanForm.keHoachChiTiet.trim(); if(ycscPlanForm.phuongAn.trim()) payload.phuongAn=ycscPlanForm.phuongAn.trim(); if(ycscPlanForm.bienPhapAnToan.trim()) payload.bienPhapAnToan=ycscPlanForm.bienPhapAnToan.trim(); if(ycscPlanForm.ngayBatDauKeHoach) payload.ngayBatDauKeHoach=ycscPlanForm.ngayBatDauKeHoach; if(ycscPlanForm.ngayHoanThienDuKien) payload.ngayHoanThienDuKien=ycscPlanForm.ngayHoanThienDuKien; if(ycscPlanForm.chiPhiDuKien!==''){ const n=Number(ycscPlanForm.chiPhiDuKien); if(!Number.isFinite(n)||n<0){ toast.error('Chi phí dự kiến phải >= 0'); return; } payload.chiPhiDuKien=n; } payload.canNgungMay=ycscPlanForm.canNgungMay; const __recAssignees = ((record as unknown as { assignees?: { userId?: string; userName?: string | null; isLead?: boolean; vaiTro?: string }[] })?.assignees ?? []) as { userId?: string; userName?: string | null; isLead?: boolean; vaiTro?: string }[]; const __srcAssignees = __recAssignees.length ? __recAssignees.map(a=>({ userId: String(a.userId??''), userName: String(a.userName??''), isLead: !!(a.isLead||a.vaiTro==='CHINH')})) : assignees; const __lead = __srcAssignees.find(a=>a.isLead) || __srcAssignees[0] || null; const __leadEmp = __lead ? employees.find(e=> (__lead.userId && e.id===__lead.userId) || (__lead.userName && e.name===__lead.userName)) as unknown as Record<string,unknown>|null ?? null : null; const __deptId = String(((__leadEmp as unknown as Record<string,unknown>|null)?.departmentId as string) ?? ((__leadEmp as unknown as Record<string,unknown>|null)?.subDepartmentId as string) ?? ((__leadEmp as unknown as Record<string,unknown>|null)?.department as string) ?? '').trim(); if(!__deptId){ toast.error('Vui lòng chọn người phụ trách Chính trước khi lên kế hoạch'); return; } payload.phongBanId=__deptId; try{ await repairRequestService.plan(rid as never, payload as never); toast.success('Đã lên kế hoạch'); setYcscPlanOpen(false); queryClient.invalidateQueries({ queryKey: ['repairRequests'] as unknown as never }); onSaved?.(); onClose(); }catch(e){ toast.error(e instanceof Error?e.message:'Không lên kế hoạch được'); } }} className="rounded bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700">Xác nhận kế hoạch</button></div>
+          </div>
+        </Modal>
+      )}
+      {ycscSubmitOpen && (() => {
+        const rItems = ((record as unknown as { items?: { id: string; tenHeThong: string; tinhTrangThietBi: string; noiDungLoi: string; machineSystemId?: string; machineSystemDetailId?: string }[] })?.items ?? []) as { id: string; tenHeThong: string; tinhTrangThietBi: string; noiDungLoi: string }[];
+        const keHoachVal = String((record as unknown as Record<string, unknown> | null)?.keHoachChiTiet ?? '').trim();
+        const phuongAnVal = String((record as unknown as Record<string, unknown> | null)?.phuongAn ?? '').trim();
+        const bienPhapVal = String((record as unknown as Record<string, unknown> | null)?.bienPhapAnToan ?? '').trim();
+        const ngayBD = (record as unknown as Record<string, unknown> | null)?.ngayBatDauKeHoach as string | null | undefined;
+        const ngayKT = (record as unknown as Record<string, unknown> | null)?.ngayHoanThienDuKien as string | null | undefined;
+        const canNgung = Boolean((record as unknown as Record<string, unknown> | null)?.canNgungMay);
+        const fmtD = (v: string | null | undefined) => v ? (() => { try { return new Date(v).toLocaleDateString('vi-VN'); } catch { return String(v).slice(0,10); } })() : '—';
+        const giverName = (() => {
+          const u = viewUser as unknown as Record<string, unknown> | null;
+          const full = String((u?.fullName as string) ?? ([u?.firstName, u?.lastName].filter(Boolean).join(' ').trim()) ?? (u?.name as string) ?? '').trim();
+          return full || String((u?.username as string) ?? (u?.email as string) ?? '—');
+        })();
+        const chainEntries = (ycscSupplyChainQ.data?.data ?? []) as unknown as { warehouseIssue?: { id: string; maPhieu: string } | null }[];
+        const chainWarehouseIssues = chainEntries.map((e) => e.warehouseIssue).filter(Boolean) as { id: string; maPhieu: string }[];
+        const primaryWi = chainWarehouseIssues[0] ?? null;
+        const nguoiNhanValid = ycscHandoverNguoiNhan.trim() && ycscHandoverNguoiNhanId.trim();
+        const handoverItemRows = ycscHandoverItems.filter((it) => it.repairRequestItemId);
+        const allSauFilled = handoverItemRows.length > 0 && handoverItemRows.every((it) => it.tinhTrangSauSuaChua.trim().length > 0);
+        const canSubmitHandover = allSauFilled && !!nguoiNhanValid && !ycscHandoverSubmitting;
+        const patchYcscItem = (rowId: string, patch: Partial<YcscHandoverDraft>) => {
+          setYcscHandoverItems((prev) => prev.map((it) => it.rowId === rowId ? { ...it, ...patch } : it));
+        };
+        const selectYcscItem = (rowId: string, repairRequestItemId: string) => {
+          const ri = rItems.find((x) => x.id === repairRequestItemId);
+          patchYcscItem(rowId, {
+            repairRequestItemId,
+            tinhTrangTruocSuaChua: ri ? `${ri.tinhTrangThietBi} - ${ri.noiDungLoi}` : '',
+          });
+        };
+        const addYcscItem = () => {
+          const unused = rItems.find((x) => !ycscHandoverItems.some((d) => d.repairRequestItemId === x.id));
+          if (unused) setYcscHandoverItems((prev) => [...prev, emptyYcscHandoverItem(unused)]);
+          else if (rItems[0]) setYcscHandoverItems((prev) => [...prev, emptyYcscHandoverItem(rItems[0])]);
+        };
+        const handleYcscSubmit = async () => {
+          setYcscHandoverError('');
+          if (!ycscHandoverNguoiNhan.trim() || !ycscHandoverNguoiNhanId.trim()) {
+            setYcscHandoverError('Vui lòng chọn người nhận');
+            return;
+          }
+          const itemRows = ycscHandoverItems
+            .map((it) => ({
+              repairRequestItemId: it.repairRequestItemId,
+              tinhTrangTruocSuaChua: it.tinhTrangTruocSuaChua.trim(),
+              tinhTrangSauSuaChua: it.tinhTrangSauSuaChua.trim(),
+              ghiChu: it.ghiChu?.trim() || undefined,
+            }))
+            .filter((it) => it.repairRequestItemId && it.tinhTrangTruocSuaChua && it.tinhTrangSauSuaChua);
+          if (rItems.length > 0 && itemRows.length === 0) {
+            setYcscHandoverError('Vui lòng nhập tình trạng sau sửa chữa cho ít nhất một hạng mục');
+            return;
+          }
+          for (const it of ycscHandoverItems) {
+            if (it.repairRequestItemId && !it.tinhTrangSauSuaChua.trim()) {
+              setYcscHandoverError('Mỗi hạng mục phải có tình trạng sau sửa chữa');
+              return;
+            }
+          }
+          const rid = (record as unknown as { id: number | string }).id;
+          const deviceNames = rItems.length ? rItems.map((x) => x.tenHeThong).join('; ') : String((record as unknown as { tenHeThong?: string })?.tenHeThong ?? '');
+          const beforeSummary = rItems.length ? rItems.map((x) => `${x.tenHeThong}: ${x.tinhTrangThietBi} - ${x.noiDungLoi}`).join('; ') : (keHoachVal || '');
+          const tinhTrangSauAll = itemRows.length
+            ? itemRows.map((it) => {
+                const ri = rItems.find((x) => x.id === it.repairRequestItemId);
+                return `${ri ? ri.tenHeThong : 'Thiết bị'}: ${it.tinhTrangSauSuaChua}`;
+              }).join('; ')
+            : itemRows[0]?.tinhTrangSauSuaChua ?? '';
+          const warehouseIssueIdForPayload = primaryWi?.id ?? undefined;
+          setYcscHandoverSubmitting(true);
+          try {
+            await acceptanceHandoverService.createAcceptanceHandover({
+              repairRequestId: Number(rid),
+              maYeuCauSuaChua: String((record as unknown as { maYeuCau?: string })?.maYeuCau ?? ''),
+              tenHeThongThietBi: deviceNames,
+              tinhTrangTruocSuaChua: beforeSummary || deviceNames,
+              tinhTrangSauSuaChua: tinhTrangSauAll || 'Đã sửa chữa',
+              nguoiBanGiao: giverName,
+              nguoiNhan: ycscHandoverNguoiNhan.trim(),
+              nguoiNhanId: ycscHandoverNguoiNhanId.trim() || undefined,
+              ghiChu: ycscHandoverGhiChu.trim() || undefined,
+              items: itemRows,
+              ...(warehouseIssueIdForPayload ? { warehouseIssueId: warehouseIssueIdForPayload } : {}),
+            } as unknown as Parameters<typeof acceptanceHandoverService.createAcceptanceHandover>[0], ycscHandoverFile ?? undefined);
+            await repairRequestService.submitAcceptance(rid as never);
+            toast.success('Đã đề nghị nghiệm thu');
+            setYcscSubmitOpen(false);
+            queryClient.invalidateQueries({ queryKey: ['repairRequests'] as unknown as never });
+            queryClient.invalidateQueries({ queryKey: ['acceptanceHandovers'] as unknown as never });
+            onSaved?.();
+            onClose();
+          } catch (e) {
+            setYcscHandoverError(e instanceof Error ? e.message : 'Không đề nghị được');
+          } finally {
+            setYcscHandoverSubmitting(false);
+          }
+        };
+        return (
+        <Modal isOpen onClose={()=>setYcscSubmitOpen(false)} showBackdrop>
+          <div className="bg-white rounded-lg w-full max-w-3xl max-h-[90vh] flex flex-col" onClick={e=>e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b px-4 py-3 shrink-0">
+              <h4 className="font-semibold text-sm">Đề nghị nghiệm thu — {(record as unknown as { maYeuCau?: string })?.maYeuCau}</h4>
+              <button onClick={()=>setYcscSubmitOpen(false)}><X className="h-4 w-4" /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 text-sm">
+              {ycscHandoverError && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-700">{ycscHandoverError}</div>}
+              {/* Read-only block: Nội dung lỗi + Kế hoạch */}
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 space-y-3">
+                <h5 className="text-xs font-semibold uppercase tracking-wide text-gray-600">Đối chiếu — Nội dung lỗi &amp; Kế hoạch</h5>
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-gray-500">Thiết bị lỗi ({rItems.length})</p>
+                  {rItems.length === 0 ? <p className="text-xs text-gray-400">—</p> : (
+                    <ul className="divide-y divide-gray-200 rounded border border-gray-200 bg-white">
+                      {rItems.map((it) => (
+                        <li key={it.id} className="px-2.5 py-2">
+                          <p className="font-medium text-gray-800 text-sm">{it.tenHeThong}</p>
+                          <p className="text-xs text-gray-600"><span className="text-gray-400">Tình trạng:</span> {it.tinhTrangThietBi} <span className="text-gray-300">·</span> {it.noiDungLoi}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="grid gap-2 text-xs leading-relaxed">
+                  <div><span className="font-medium text-gray-500">Kế hoạch chi tiết:</span> <span className="text-gray-800 whitespace-pre-wrap">{keHoachVal || '—'}</span></div>
+                  <div><span className="font-medium text-gray-500">Phương án:</span> <span className="text-gray-800 whitespace-pre-wrap">{phuongAnVal || '—'}</span></div>
+                  <div><span className="font-medium text-gray-500">Biện pháp an toàn:</span> <span className="text-gray-800 whitespace-pre-wrap">{bienPhapVal || '—'}</span></div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    <span><span className="font-medium text-gray-500">Ngày BĐKH:</span> {fmtD(ngayBD)}</span>
+                    <span><span className="font-medium text-gray-500">Ngày HTDK:</span> {fmtD(ngayKT)}</span>
+                    <span><span className="font-medium text-gray-500">Cần ngừng máy:</span> {canNgung ? 'Có' : 'Không'}</span>
+                  </div>
+                </div>
+                {primaryWi ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-medium text-gray-500">Phiếu xuất:</span>
+                    {chainWarehouseIssues.map((wi) => (
+                      <span key={wi.id} className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                        Đã có phiếu xuất {wi.maPhieu} [Xem]
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400">Chưa có phiếu xuất kho liên kết.</p>
+                )}
+              </div>
+
+              {/* Handover items table */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-gray-800">Hạng mục nghiệm thu ({handoverItemRows.length}/{rItems.length})</span>
+                  <button type="button" onClick={addYcscItem} disabled={rItems.length === 0} className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+                    <Plus className="h-3.5 w-3.5" /> Thêm hạng mục
+                  </button>
+                </div>
+                {ycscHandoverItems.length === 0 ? (
+                  <p className="rounded border border-dashed border-gray-300 bg-gray-50 px-3 py-4 text-center text-xs text-gray-500">Chưa có hạng mục. Bấm Thêm hạng mục.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {ycscHandoverItems.map((draft, idx) => {
+                      const ri = rItems.find((x) => x.id === draft.repairRequestItemId);
+                      return (
+                      <div key={draft.rowId} className="rounded-lg border border-gray-200 bg-white shadow-sm">
+                        <div className="flex items-center justify-between gap-2 border-b border-gray-100 bg-gray-50 px-3 py-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">{idx + 1}</span>
+                            <select value={draft.repairRequestItemId} onChange={(e) => selectYcscItem(draft.rowId, e.target.value)} className="min-w-0 flex-1 truncate rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm">
+                              <option value="">Chọn thiết bị lỗi</option>
+                              {rItems.map((opt) => <option key={opt.id} value={opt.id}>{opt.tenHeThong}</option>)}
+                            </select>
+                          </div>
+                          {ycscHandoverItems.length > 1 && (
+                            <button type="button" onClick={() => setYcscHandoverItems((prev) => prev.filter((x) => x.rowId !== draft.rowId))} className="shrink-0 rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+                          )}
+                        </div>
+                        <div className="grid gap-3 p-3 md:grid-cols-2">
+                          <label className="space-y-1">
+                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">Trước sửa chữa</span>
+                            <textarea rows={3} value={draft.tinhTrangTruocSuaChua} readOnly className="w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-sm text-gray-600" placeholder={ri ? `${ri.tinhTrangThietBi} - ${ri.noiDungLoi}` : '—'} />
+                          </label>
+                          <label className="space-y-1">
+                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">Sau sửa chữa <span className="text-red-500">*</span></span>
+                            <textarea rows={3} value={draft.tinhTrangSauSuaChua} onChange={(e) => patchYcscItem(draft.rowId, { tinhTrangSauSuaChua: e.target.value })} placeholder="Mô tả kết quả sau sửa chữa" className="w-full rounded-md border border-gray-300 px-2.5 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+                          </label>
+                          <label className="space-y-1 md:col-span-2">
+                            <span className="text-xs font-medium text-gray-600">Ghi chú hạng mục</span>
+                            <input value={draft.ghiChu ?? ''} onChange={(e) => patchYcscItem(draft.rowId, { ghiChu: e.target.value })} placeholder="Tùy chọn" className="w-full rounded-md border border-gray-300 px-2.5 py-1.5 text-sm" />
+                          </label>
+                        </div>
+                      </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Người bàn giao / Người nhận / File / Ghi chú chung */}
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="font-medium text-gray-700">Người bàn giao</span>
+                  <input value={giverName} disabled className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2" />
+                </label>
+                <div className="space-y-1">
+                  <span className="font-medium text-gray-700">Người nhận <span className="text-red-500">*</span></span>
+                  <EmployeeCombobox
+                    employees={employees}
+                    value={ycscHandoverNguoiNhan}
+                    onChange={(name) => {
+                      const emp = employees.find((e) => e.name === name);
+                      if (emp) { setYcscHandoverNguoiNhan(emp.name); setYcscHandoverNguoiNhanId(emp.id); }
+                      else if (name === '') { setYcscHandoverNguoiNhan(''); setYcscHandoverNguoiNhanId(''); }
+                      else { setYcscHandoverNguoiNhan(name); }
+                    }}
+                    placeholder="Chọn người nhận..."
+                  />
+                </div>
+              </div>
+              <label className="block space-y-1">
+                <span className="font-medium text-gray-700">Ghi chú chung</span>
+                <textarea rows={2} value={ycscHandoverGhiChu} onChange={(e) => setYcscHandoverGhiChu(e.target.value)} className="w-full rounded-md border border-gray-300 px-3 py-2" placeholder="Ghi chú chung (tùy chọn)" />
+              </label>
+              <FileUpload label="File đính kèm" files={ycscHandoverFile ? [ycscHandoverFile] : []} onChange={(files) => setYcscHandoverFile(files[0] ?? null)} accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.rar" compact />
+            </div>
+            <div className="flex justify-end gap-2 border-t px-4 py-3 shrink-0">
+              <button onClick={()=>setYcscSubmitOpen(false)} className="rounded border px-4 py-2 text-sm hover:bg-gray-50">Hủy</button>
+              <button onClick={handleYcscSubmit} disabled={!canSubmitHandover} className="rounded bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed">{ycscHandoverSubmitting ? 'Đang gửi...' : 'Gửi'}</button>
+            </div>
+          </div>
+        </Modal>
+        );
+      })()}
+      {ycscConfirmOpen && (
+        <Modal isOpen onClose={()=>setYcscConfirmOpen(false)} showBackdrop>
+          <div className="bg-white rounded-lg w-full max-w-md p-4 space-y-3" onClick={e=>e.stopPropagation()}>
+            <div className="flex items-center justify-between"><h4 className="font-semibold text-sm">Xác nhận nghiệm thu — {(record as unknown as { maYeuCau?: string })?.maYeuCau}</h4><button onClick={()=>setYcscConfirmOpen(false)}><X className="h-4 w-4" /></button></div>
+            <div className="space-y-3 text-sm">
+              <label className="block space-y-1"><span className="font-medium text-gray-700">Kết quả <span className="text-red-500">*</span></span><select value={ycscConfirmForm.ketQua} onChange={e=>setYcscConfirmForm(f=>({...f, ketQua:e.target.value as never}))} className="w-full rounded border px-2 py-1.5"><option value="">-- Chọn --</option><option value="DAT">ĐẠT</option><option value="KHONG_DAT">KHÔNG ĐẠT</option></select></label>
+              <label className="block space-y-1"><span className="font-medium text-gray-700">Lý do <span className="text-red-500">*</span></span><textarea rows={3} value={ycscConfirmForm.lyDo} onChange={e=>setYcscConfirmForm(f=>({...f, lyDo:e.target.value}))} className="w-full rounded border px-2 py-1.5" /></label>
+              <label className="block space-y-1"><span className="font-medium text-gray-700">Chi phí thực tế</span><input type="number" min={0} value={ycscConfirmForm.chiPhiThucTe} onChange={e=>setYcscConfirmForm(f=>({...f, chiPhiThucTe:e.target.value}))} className="w-full rounded border px-2 py-1.5" /></label>
+            </div>
+            <div className="flex justify-end gap-2"><button onClick={()=>setYcscConfirmOpen(false)} className="rounded border px-4 py-2 text-sm hover:bg-gray-50">Hủy</button><button onClick={async()=>{ const rid=(record as unknown as {id:number|string}).id; if(!ycscConfirmForm.ketQua){ toast.error('Vui lòng chọn kết quả'); return; } if(!ycscConfirmForm.lyDo.trim()){ toast.error('Vui lòng nhập lý do'); return; } let chiPhi:number|undefined; if(ycscConfirmForm.chiPhiThucTe!==''){ const n=Number(ycscConfirmForm.chiPhiThucTe); if(!Number.isFinite(n)||n<0){ toast.error('Chi phí thực tế phải >= 0'); return; } chiPhi=n; } try{ await repairRequestService.confirmAcceptance(rid as never, { ketQua: ycscConfirmForm.ketQua, ...(chiPhi!==undefined?{ chiPhiThucTe: chiPhi}:{}), lyDo: ycscConfirmForm.lyDo.trim() } as unknown as never); toast.success(ycscConfirmForm.ketQua==='DAT'?'Nghiệm thu đạt':'Đã ghi KHÔNG ĐẠT'); setYcscConfirmOpen(false); queryClient.invalidateQueries({ queryKey: ['repairRequests'] as unknown as never }); onSaved?.(); onClose(); }catch(e){ toast.error(e instanceof Error?e.message:'Lỗi nghiệm thu'); } }} className={`rounded px-4 py-2 text-sm font-medium text-white ${ycscConfirmForm.ketQua==='KHONG_DAT'?'bg-red-600 hover:bg-red-700':'bg-green-600 hover:bg-green-700'}`}>Xác nhận</button></div>
+          </div>
+        </Modal>
+      )}
     </ModalForm>
+      {viewCreateRepairOpen && viewCreateRepairInitial && (
+        <RepairRequestFormModal
+          isOpen={viewCreateRepairOpen}
+          onClose={()=>{ setViewCreateRepairOpen(false); }}
+          mode="create"
+          lockedRequestType="SUA_CHUA"
+          initialData={viewCreateRepairInitial as unknown as never}
+          onSaved={async (info?: { maYeuCau?: string })=>{
+            const ma = info?.maYeuCau?.trim();
+            setViewCreateRepairOpen(false);
+            queryClient.invalidateQueries({ queryKey: ['repairRequests'] as unknown as never });
+            queryClient.invalidateQueries({ queryKey: ['inspectionRequests'] as unknown as never });
+            try {
+              const next = new URLSearchParams(searchParams);
+              const curType = (next.get('type') ?? '').toLowerCase();
+              if (curType === 'kiem_tra' || curType === 'kiemtra') {
+                next.set('type', 'sua_chua');
+              } else if (!next.get('type')) {
+                next.set('type', 'sua_chua');
+              }
+              setSearchParams(next, { replace: false } as never);
+            } catch { /* ignore */ }
+            if (ma) {
+              toast.success(`Đã tạo YCSC ${ma} — chuyển sang tab Sửa chữa để xem`, { duration: 6000 });
+            }
+            onClose();
+          }}
+        />
+      )}
+      {confirmOpen && (
+        <Modal isOpen onClose={() => setConfirmOpen(false)} showBackdrop>
+          <div className="bg-white rounded-lg w-full max-w-2xl p-5 space-y-4 max-h-[85vh] overflow-y-auto text-sm" onClick={(e) => e.stopPropagation()}>
+            <h4 className="font-semibold text-base text-gray-900">Xác nhận tạo phiếu {lockedRequestType === 'KIEM_TRA' ? 'kiểm tra' : 'sửa chữa'}</h4>
+            <p className="text-xs text-gray-500">Vui lòng kiểm tra lại thông tin trước khi tạo. Bấm Quay lại để sửa, hoặc Xác nhận tạo để gửi.</p>
+            <div className="grid gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5">
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                <span><span className="text-xs font-medium text-gray-500">Mã:</span> <span className="font-mono font-medium text-gray-800">{form.maYeuCau || '—'}</span></span>
+                <span><span className="text-xs font-medium text-gray-500">Ngày:</span> <span className="font-medium text-gray-800">{form.ngayThang || '—'}</span></span>
+                <span><span className="text-xs font-medium text-gray-500">Ưu tiên:</span> <StatusBadge label={form.mucDoUuTien || '—'} tone={PRIORITY_TONE[form.mucDoUuTien] ?? 'gray'} /></span>
+              </div>
+              {form.ghiChu?.trim() && <p className="text-sm text-gray-700"><span className="text-xs font-medium text-gray-500">Ghi chú:</span> {form.ghiChu.trim()}</p>}
+            </div>
+
+            <div className="rounded-md border border-gray-200">
+              <div className="border-b border-gray-200 bg-gray-50 px-3 py-1.5 font-medium text-gray-800">Thiết bị lỗi ({previewItems.length})</div>
+              {previewItems.length === 0 ? <p className="px-3 py-3 text-xs text-gray-400">Chưa có thiết bị hợp lệ.</p> : (
+                <ul className="divide-y divide-gray-100">
+                  {previewItems.map((it, i) => (
+                    <li key={i} className="px-3 py-2 text-sm">
+                      <span className="font-medium text-gray-800">#{i + 1} {it.tenHeThong}</span>
+                      <span className="text-gray-500"> — {it.tinhTrangThietBi} · {it.loaiLoi}</span>
+                      <p className="mt-0.5 text-xs text-gray-600">{it.noiDungLoi}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {lockedRequestType === 'KIEM_TRA' ? null : (
+              <>
+                {(previewPlanEntries.length > 0 || plan.canNgungMay) && (
+                  <div className="rounded-md border border-gray-200">
+                    <div className="border-b border-gray-200 bg-gray-50 px-3 py-1.5 font-medium text-gray-800">Kế hoạch</div>
+                    <ul className="px-3 py-2 space-y-1 text-sm text-gray-700">
+                      {previewPlanEntries.map((line, i) => <li key={i} className="text-xs leading-relaxed">{line}</li>)}
+                      {previewPlanEntries.length === 0 && <li className="text-xs text-gray-400">Chỉ có: Cần ngừng máy</li>}
+                    </ul>
+                  </div>
+                )}
+                <div className="rounded-md border border-gray-200">
+                  <div className="border-b border-gray-200 bg-gray-50 px-3 py-1.5 font-medium text-gray-800">Người phụ trách ({previewAssignees.length})</div>
+                  {previewAssignees.length === 0 ? <p className="px-3 py-3 text-xs text-gray-400">Chưa chọn người phụ trách.</p> : (
+                    <ul className="divide-y divide-gray-100">
+                      {previewAssignees.map((a, i) => (
+                        <li key={i} className="flex items-center justify-between px-3 py-1.5 text-sm">
+                          <span className="font-medium text-gray-800">{a.userName || a.userId || '—'}</span>
+                          <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${a.isLead ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600'}`}>{a.isLead ? 'CHÍNH' : 'PHỤ'}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="rounded-md border border-gray-200">
+                  <div className="border-b border-gray-200 bg-gray-50 px-3 py-1.5 font-medium text-gray-800">Hàng hóa / YCCC ({previewMaterials.length})</div>
+                  {previewMaterials.length === 0 ? <p className="px-3 py-3 text-xs text-gray-400">Chưa có hàng hóa.</p> : (
+                    <ul className="divide-y divide-gray-100">
+                      {previewMaterials.map((m, i) => (
+                        <li key={i} className="px-3 py-1.5 text-sm flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                          <span className="font-medium text-gray-800">{m.tenVatTu}</span>
+                          <span className="text-xs text-gray-500">{m.soLuongDuKien} {m.donVi}</span>
+                          {m.phanLoai && <span className="text-xs text-gray-400">({m.phanLoai})</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </>
+            )}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button type="button" onClick={(e) => { e.stopPropagation(); setConfirmOpen(false); }} className="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 min-h-[40px]">Quay lại sửa</button>
+              <button type="button" onClick={(e) => { e.stopPropagation(); handleConfirmCreate(); }} disabled={isSaving} className="rounded bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 min-h-[40px]">{isSaving ? 'Đang tạo...' : 'Xác nhận tạo'}</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
   );
 };
 

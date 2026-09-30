@@ -12,6 +12,7 @@ router.use(authenticate);
 router.get('/', requireRule('replenishment-requests', 'READ'), replenishmentRequestController.getAllReplenishmentRequests);
 router.get('/generate-code', requireRule('replenishment-requests', 'READ'), replenishmentRequestController.generateReplenishmentRequestCode);
 router.get('/export/excel', requireRule('replenishment-requests', 'EXPORT'), replenishmentRequestController.exportToExcel);
+router.get('/:id/repair-links', requireRule('replenishment-requests', 'READ'), replenishmentRequestController.getRepairLinks);
 router.get('/:id', requireRule('replenishment-requests', 'READ'), replenishmentRequestController.getReplenishmentRequestById);
 // POST / is the warehouse's manual "Tạo yêu cầu bổ sung" from the supply-request detail.
 // Declared after /generate-code and /export/excel so it cannot shadow them, and before

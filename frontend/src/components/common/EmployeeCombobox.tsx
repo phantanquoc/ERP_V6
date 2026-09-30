@@ -7,6 +7,8 @@ interface EmployeeComboboxProps {
   onChange: (name: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  excludedIds?: string[];
+  currentId?: string;
 }
 
 /**
@@ -20,6 +22,8 @@ const EmployeeCombobox: React.FC<EmployeeComboboxProps> = ({
   onChange,
   placeholder = 'Tìm nhân viên...',
   disabled = false,
+  excludedIds,
+  currentId,
 }) => {
   const [inputText, setInputText] = useState(value || '');
   const [isOpen, setIsOpen] = useState(false);
@@ -48,14 +52,26 @@ const EmployeeCombobox: React.FC<EmployeeComboboxProps> = ({
   }, [value]);
 
   const filtered = useMemo(() => {
+    const excludedSet = new Set(excludedIds ?? []);
+    const base = excludedSet.size === 0
+      ? employees
+      : employees.filter((emp) => !excludedSet.has(emp.id) || emp.id === currentId);
     const query = inputText.toLowerCase().trim();
-    if (!query || query === value.toLowerCase()) return employees;
-    return employees.filter((emp) =>
+    if (!query || query === value.toLowerCase()) return base;
+    return base.filter((emp) =>
       emp.name.toLowerCase().includes(query) ||
       emp.employeeCode.toLowerCase().includes(query) ||
       (emp.department ?? '').toLowerCase().includes(query)
     );
-  }, [inputText, employees, value]);
+  }, [inputText, employees, value, excludedIds, currentId]);
+
+  const isAllExcluded = useMemo(() => {
+    if (!excludedIds?.length) return false;
+    const excludedSet = new Set(excludedIds);
+    // Empty base means every employee is excluded (except maybe currentId which would keep one)
+    const baseCount = employees.filter((emp) => !excludedSet.has(emp.id) || emp.id === currentId).length;
+    return baseCount === 0 && employees.length > 0;
+  }, [employees, excludedIds, currentId]);
 
   const selectEmployee = useCallback(
     (emp: EmployeeOption) => {
@@ -186,7 +202,7 @@ const EmployeeCombobox: React.FC<EmployeeComboboxProps> = ({
 
       {isOpen && filtered.length === 0 && (
         <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 text-sm text-gray-400">
-          Không tìm thấy nhân viên
+          {isAllExcluded ? 'Đã chọn hết' : 'Không tìm thấy nhân viên'}
         </div>
       )}
     </div>

@@ -250,5 +250,11 @@ router.get(
   supplyRequestController.getDecisionHistory
 );
 
+router.get(
+  '/:id/repair-links',
+  requireRule('supply-requests', 'READ'),
+  supplyRequestController.getRepairLinks
+);
+
 export default router;
 

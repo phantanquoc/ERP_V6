@@ -3,9 +3,12 @@ import employeeService, { Employee } from '../services/employeeService';
 
 export interface EmployeeOption {
   id: string;
+  userId?: string;
   name: string;
   employeeCode: string;
   department?: string;
+  departmentId?: string;
+  subDepartmentId?: string;
 }
 
 export interface EmployeeAssignmentFull {
@@ -44,9 +47,12 @@ export const useEmployeesForAssignment = (search?: string) => {
         .filter((employee) => employee.user)
         .map((employee) => ({
           id: employee.id,
+          userId: (employee as unknown as { userId?: string }).userId ?? (employee as unknown as { user?: { id?: string } }).user?.id ?? undefined,
           name: toFullName(employee),
           employeeCode: employee.employeeCode,
-          department: employee.subDepartment?.name || '',
+          department: employee.subDepartment?.name || (employee as unknown as { departmentName?: string }).departmentName || '',
+          departmentId: employee.subDepartment?.departmentId || employee.user?.departmentId || undefined,
+          subDepartmentId: employee.subDepartmentId || employee.subDepartment?.id || undefined,
         }))
         .filter((employee) => employee.name || employee.employeeCode);
     },

@@ -102,6 +102,7 @@ router.get('/export/excel', requireRule('purchase-requests', 'EXPORT'), purchase
  *       404:
  *         description: Không tìm thấy yêu cầu mua hàng
  */
+router.get('/:id/repair-links', requireRule('purchase-requests', 'READ'), purchaseRequestController.getPurchaseRepairLinks);
 router.get('/:id', requireRule('purchase-requests', 'READ'), purchaseRequestController.getPurchaseRequestById);
 
 /**

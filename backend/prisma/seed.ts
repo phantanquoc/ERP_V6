@@ -854,6 +854,98 @@ async function main(): Promise<void> {
   }
   console.log(`✅ Seeded ${attendanceCodes.length} attendance codes`);
 
+  // ── RepairRequest split-inspection-repair mix seed (idempotent) ──
+  console.log('\n🔧 Seeding repair requests (KIEM_TRA + SUA_CHUA)…');
+  try {
+    const existingKT = await prisma.repairRequest.findFirst({ where: { maYeuCau: 'YC-SC-SEED-KT-001' } });
+    const existingSC = await prisma.repairRequest.findFirst({ where: { maYeuCau: 'YC-SC-SEED-SC-001' } });
+    let ktId: number | null = existingKT?.id ?? null;
+    let scId: number | null = existingSC?.id ?? null;
+    let ktItemId: string | null = null;
+
+    if (!existingKT) {
+      const kt = await prisma.repairRequest.create({
+        data: {
+          ngayThang: new Date(),
+          maYeuCau: 'YC-SC-SEED-KT-001',
+          mucDoUuTien: 'CAO',
+          requestType: 'KIEM_TRA' as any,
+          trangThai: 'CHO_XU_LY' as any,
+          tenHeThong: 'He thong kiem tra mau',
+          tinhTrangThietBi: 'Can kiem tra',
+          loaiLoi: 'Khac',
+          noiDungLoi: 'Seed KIEM_TRA',
+        },
+      });
+      ktId = kt.id;
+      const ktItem = await prisma.repairRequestItem.create({
+        data: { repairRequestId: kt.id, tenHeThong: 'He thong kiem tra mau', tinhTrangThietBi: 'Can kiem tra', loaiLoi: 'Khac', noiDungLoi: 'Seed KIEM_TRA item' },
+      });
+      ktItemId = ktItem.id;
+      console.log('✅ Seed KIEM_TRA YC-SC-SEED-KT-001');
+    } else {
+      const item = await prisma.repairRequestItem.findFirst({ where: { repairRequestId: existingKT.id } });
+      ktItemId = item?.id ?? null;
+      console.log('↩ Seed KIEM_TRA exists YC-SC-SEED-KT-001');
+    }
+
+    if (!existingSC) {
+      const sc = await prisma.repairRequest.create({
+        data: {
+          ngayThang: new Date(),
+          maYeuCau: 'YC-SC-SEED-SC-001',
+          mucDoUuTien: 'CAO',
+          requestType: 'SUA_CHUA' as any,
+          trangThai: 'CHO_XU_LY' as any,
+          tenHeThong: 'He thong sua chua mau',
+          tinhTrangThietBi: 'Hong',
+          loaiLoi: 'Co khi',
+          noiDungLoi: 'Seed SUA_CHUA tu KIEM_TRA',
+          sourceInspectionRequestId: ktId ? String(ktId) : null,
+        },
+      });
+      scId = sc.id;
+      const scItem = await prisma.repairRequestItem.create({
+        data: {
+          repairRequestId: sc.id,
+          tenHeThong: 'He thong sua chua mau',
+          tinhTrangThietBi: 'Hong',
+          loaiLoi: 'Co khi',
+          noiDungLoi: 'Seed SUA_CHUA item',
+          sourceInspectionItemId: ktItemId,
+        },
+      });
+      console.log('✅ Seed SUA_CHUA YC-SC-SEED-SC-001');
+      // assignee + materialNeed + supplyLink (best-effort, idempotent)
+      try {
+        const assignee = await prisma.repairRequestAssignee.findFirst({ where: { repairRequestId: sc.id } });
+        if (!assignee && admin) {
+          await prisma.repairRequestAssignee.create({ data: { repairRequestId: sc.id, userId: admin.id, userName: 'Admin User', vaiTro: 'CHINH' as any, isLead: true, assignedById: admin.id } });
+          console.log('✅ Seed assignee lead for YC-SC-SEED-SC-001');
+        }
+        const mat = await prisma.repairMaterialNeed.findFirst({ where: { repairRequestItemId: scItem.id, tenVatTu: 'Vong bi 6205' } });
+        if (!mat) {
+          await prisma.repairMaterialNeed.create({ data: { repairRequestId: sc.id, repairRequestItemId: scItem.id, tenVatTu: 'Vong bi 6205', donVi: 'cai', soLuongDuKien: 2 } });
+          console.log('✅ Seed materialNeed Vong bi 6205');
+        }
+        const sr = await prisma.supplyRequest.findFirst({ select: { id: true } });
+        if (sr) {
+          const link = await prisma.repairSupplyLink.findFirst({ where: { repairRequestId: sc.id, supplyRequestId: sr.id, repairRequestItemId: scItem.id } });
+          if (!link) {
+            await prisma.repairSupplyLink.create({ data: { repairRequestId: sc.id, repairRequestItemId: scItem.id, supplyRequestId: sr.id, ghiChu: 'Seed link' } });
+            console.log('✅ Seed supplyLink ->', sr.id);
+          }
+        }
+      } catch (e) {
+        console.warn('⚠ Seed assignee/material/supplyLink skipped:', (e as Error).message);
+      }
+    } else {
+      console.log('↩ Seed SUA_CHUA exists YC-SC-SEED-SC-001');
+    }
+  } catch (e) {
+    console.warn('⚠ Repair seed skipped:', (e as Error).message);
+  }
+
   console.log('✨ Database seeding completed!');
 }
 

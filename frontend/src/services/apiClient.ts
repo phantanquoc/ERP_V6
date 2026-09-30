@@ -177,6 +177,12 @@ class ApiClient {
         error?.code === 'ERR_CANCELED' ||
         (typeof error?.message === 'string' && error.message.toLowerCase().includes('aborted'));
       if (isAbort) throw error;
+      // Expected probe 404s when deep-link resolves YCSC vs YCKT across tables — don't spam console
+      const isExpected404 =
+        error instanceof ApiError &&
+        error.statusCode === 404 &&
+        endpoint.startsWith('/inspection-requests/');
+      if (isExpected404) throw error;
       console.error(`API Error [${endpoint}]:`, error);
       throw error;
     }
