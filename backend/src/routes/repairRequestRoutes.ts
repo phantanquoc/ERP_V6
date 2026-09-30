@@ -5,210 +5,55 @@ import { requireRule } from '@middlewares/requireRule';
 import { createSingleUploadMiddleware } from '@middlewares/upload';
 const router = Router();
 
-// Upload middleware for repair requests (single file)
 const uploadRepairRequest = createSingleUploadMiddleware('repair-requests');
 
-/**
- * @swagger
- * /api/repair-requests:
- *   get:
- *     tags: [Repair Requests]
- *     summary: Lấy danh sách yêu cầu sửa chữa
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *         description: Số trang
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *         description: Số lượng mỗi trang
- *       - in: query
- *         name: search
- *         schema:
- *           type: string
- *         description: Từ khóa tìm kiếm
- *     responses:
- *       200:
- *         description: Lấy danh sách yêu cầu sửa chữa thành công
- *       401:
- *         description: Không có quyền truy cập
- */
+// Public authenticated routes (read)
 router.get('/', authenticate, repairRequestController.getAllRepairRequests);
-
-/**
- * @swagger
- * /api/repair-requests/export/excel:
- *   get:
- *     tags: [Repair Requests]
- *     summary: Xuất danh sách yêu cầu sửa chữa ra Excel
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Xuất Excel thành công
- *         content:
- *           application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
- *             schema:
- *               type: string
- *               format: binary
- *       401:
- *         description: Không có quyền truy cập
- */
 router.get('/export/excel', authenticate, repairRequestController.exportToExcel);
-
-/**
- * @swagger
- * /api/repair-requests/generate-code:
- *   get:
- *     tags: [Repair Requests]
- *     summary: Tạo mã yêu cầu sửa chữa tự động
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Tạo mã yêu cầu sửa chữa thành công
- *       401:
- *         description: Không có quyền truy cập
- */
 router.get('/generate-code', authenticate, repairRequestController.generateCode);
-
-/**
- * GET /stats — dashboard aggregates, any authenticated user
- */
 router.get('/stats', authenticate, repairRequestController.getStats.bind(repairRequestController));
-
-/**
- * @swagger
- * /api/repair-requests/{id}:
- *   get:
- *     tags: [Repair Requests]
- *     summary: Lấy chi tiết yêu cầu sửa chữa theo ID
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: ID của yêu cầu sửa chữa
- *     responses:
- *       200:
- *         description: Lấy chi tiết yêu cầu sửa chữa thành công
- *       401:
- *         description: Không có quyền truy cập
- *       404:
- *         description: Không tìm thấy yêu cầu sửa chữa
- */
+router.get('/:id/status-history', authenticate, repairRequestController.getStatusHistory);
+router.get('/:id/supply-chain', authenticate, repairRequestController.getSupplyChain);
+router.get('/:id/cost-summary', authenticate, repairRequestController.getCostSummary);
+router.get('/:id/assignees', authenticate, repairRequestController.listAssignees);
+router.get('/:id/material-needs', authenticate, repairRequestController.listMaterialNeeds);
+router.get('/:id/supply-links', authenticate, repairRequestController.listSupplyLinks);
 router.get('/:id', authenticate, repairRequestController.getRepairRequestById);
 
-/**
- * @swagger
- * /api/repair-requests:
- *   post:
- *     tags: [Repair Requests]
- *     summary: Tạo yêu cầu sửa chữa mới
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             properties:
- *               file:
- *                 type: string
- *                 format: binary
- *                 description: File đính kèm
- *     responses:
- *       201:
- *         description: Tạo yêu cầu sửa chữa thành công
- *       401:
- *         description: Không có quyền truy cập
- */
+// Mutations — require rule
 router.post('/', authenticate, requireRule('repair-requests', 'CREATE'), uploadRepairRequest, repairRequestController.createRepairRequest);
-
-/**
- * @swagger
- * /api/repair-requests/{id}:
- *   put:
- *     tags: [Repair Requests]
- *     summary: Cập nhật yêu cầu sửa chữa
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: ID của yêu cầu sửa chữa
- *     requestBody:
- *       required: true
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             properties:
- *               file:
- *                 type: string
- *                 format: binary
- *                 description: File đính kèm
- *     responses:
- *       200:
- *         description: Cập nhật yêu cầu sửa chữa thành công
- *       401:
- *         description: Không có quyền truy cập
- *       404:
- *         description: Không tìm thấy yêu cầu sửa chữa
- */
 router.put('/:id', authenticate, requireRule('repair-requests', 'UPDATE'), uploadRepairRequest, repairRequestController.updateRepairRequest);
-
-/**
- * @swagger
- * /api/repair-requests/{id}:
- *   delete:
- *     tags: [Repair Requests]
- *     summary: Xóa yêu cầu sửa chữa
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: ID của yêu cầu sửa chữa
- *     responses:
- *       200:
- *         description: Xóa yêu cầu sửa chữa thành công
- *       401:
- *         description: Không có quyền truy cập
- *       404:
- *         description: Không tìm thấy yêu cầu sửa chữa
- */
 router.delete('/:id', authenticate, requireRule('repair-requests', 'DELETE'), repairRequestController.deleteRepairRequest);
 
-/**
- * POST /:id/start-repair — CHO_XU_LY → DANG_SUA_CHUA
- */
+// Status transitions (design 4.1)
+router.patch('/:id/accept', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.accept);
+router.patch('/:id/plan', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.plan);
+router.patch('/:id/start', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.startRepair);
 router.post('/:id/start-repair', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.startRepair);
-
-/**
- * POST /:id/cancel — any non-terminal → DA_HUY
- */
+router.patch('/:id/submit-acceptance', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.submitAcceptance);
+router.patch('/:id/confirm-acceptance', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.confirmAcceptance);
+router.patch('/:id/reject', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.reject);
+router.patch('/:id/cancel', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.cancel);
 router.post('/:id/cancel', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.cancel);
+router.patch('/:id/complete', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.complete);
 
-/**
- * GET /:id/status-history — audit log
- */
-router.get('/:id/status-history', authenticate, repairRequestController.getStatusHistory);
+// Assignees
+router.post('/:id/assignees', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.addAssignee);
+router.delete('/:id/assignees/:assigneeId', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.removeAssignee);
+
+// Material needs
+router.post('/:id/material-needs', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.addMaterialNeed);
+router.put('/:id/material-needs/:needId', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.updateMaterialNeed);
+router.delete('/:id/material-needs/:needId', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.removeMaterialNeed);
+
+// Supply links
+router.post('/:id/supply-links', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.addSupplyLink);
+router.delete('/:id/supply-links/:linkId', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.removeSupplyLink);
+
+// Incidental costs
+router.get('/:id/incidental-costs', authenticate, repairRequestController.listIncidentalCosts);
+router.post('/:id/incidental-costs', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.createIncidentalCost);
+router.put('/:id/incidental-costs/:costId', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.updateIncidentalCost);
+router.delete('/:id/incidental-costs/:costId', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.deleteIncidentalCost);
 
 export default router;
-

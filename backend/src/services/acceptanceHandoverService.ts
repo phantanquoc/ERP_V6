@@ -1,4 +1,4 @@
-import { Prisma, RepairRequestStatus, FaultRecordStatus } from '@prisma/client';
+import { Prisma, RepairRequestStatus, FaultRecordStatus, RequestType, NghiemThuKetQua } from '@prisma/client';
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
 import { NotFoundError, ValidationError } from '@utils/errors';
@@ -28,8 +28,10 @@ interface CreateAcceptanceHandoverRequest {
   ghiChu?: string;
   items?: AcceptanceHandoverItemRequest[];
   userId?: string;
-  /** Role of the user performing the action — used for ADMIN bypass on status guard */
   actorRole?: string;
+  warehouseIssueId?: string | null;
+  ketQua?: NghiemThuKetQua | string | null;
+  chiPhiThucTe?: number | null;
 }
 
 interface UpdateAcceptanceHandoverRequest {
@@ -44,9 +46,11 @@ interface UpdateAcceptanceHandoverRequest {
   fileDinhKem?: string;
   ghiChu?: string;
   items?: AcceptanceHandoverItemRequest[];
-  /** Role of the user performing the action — used for ADMIN bypass on status guard */
   actorRole?: string;
   actorId?: string;
+  warehouseIssueId?: string | null;
+  ketQua?: NghiemThuKetQua | string | null;
+  chiPhiThucTe?: number | null;
 }
 
 const handoverInclude = {
@@ -195,14 +199,22 @@ class AcceptanceHandoverService {
 
     const { handover, autoCompleted, repairRequestId: completedRepairId, maYeuCau: completedMaYeuCau } =
       await prisma.$transaction(async (tx) => {
-        // 6.1 Load parent and guard status
         const repairRequest = await tx.repairRequest.findUnique({
           where: { id: data.repairRequestId },
-          select: { id: true, maYeuCau: true, trangThai: true },
+          select: { id: true, maYeuCau: true, trangThai: true, requestType: true },
         });
         if (!repairRequest) throw new ValidationError('Yêu cầu sửa chữa không hợp lệ');
 
-        if (repairRequest.trangThai !== RepairRequestStatus.DANG_SUA_CHUA && !isAdmin) {
+        if ((repairRequest as unknown as { requestType?: string }).requestType === RequestType.KIEM_TRA) {
+          throw new ValidationError('Phiếu kiểm tra không thể tạo nghiệm thu');
+        }
+
+        if (data.warehouseIssueId) {
+          const wi = await tx.warehouseIssue.findUnique({ where: { id: data.warehouseIssueId } });
+          if (!wi) throw new ValidationError(`Phiếu xuất kho không tồn tại: ${data.warehouseIssueId}`);
+        }
+
+        if (repairRequest.trangThai !== RepairRequestStatus.DANG_SUA_CHUA && repairRequest.trangThai !== RepairRequestStatus.CHO_NGHIEM_THU && repairRequest.trangThai !== RepairRequestStatus.DA_NGHIEM_THU && !isAdmin) {
           throw new ValidationError(
             `Chỉ có thể tạo nghiệm thu bàn giao khi yêu cầu sửa chữa đang ở trạng thái Đang sửa chữa`
           );
@@ -223,6 +235,9 @@ class AcceptanceHandoverService {
             fileDinhKem: data.fileDinhKem,
             ghiChu: data.ghiChu,
             createdById: data.userId ?? null,
+            warehouseIssueId: data.warehouseIssueId ?? null,
+            ketQua: (data.ketQua as NghiemThuKetQua) ?? null,
+            chiPhiThucTe: data.chiPhiThucTe as never ?? null,
           },
         });
 
@@ -258,7 +273,7 @@ class AcceptanceHandoverService {
             const nextStatus = advanceRepairRequestStatus(
               repairRequest.trangThai,
               RepairRequestStatus.HOAN_THANH,
-              { bypass: isAdmin }
+              { bypass: isAdmin, requestType: (repairRequest as unknown as { requestType?: string }).requestType }
             );
             await tx.repairRequest.update({
               where: { id: data.repairRequestId },
@@ -364,13 +379,25 @@ class AcceptanceHandoverService {
       throw new ValidationError('Không thể chỉnh sửa nghiệm thu bàn giao khi yêu cầu sửa chữa đã hoàn thành');
     }
 
-    const { items, actorRole: _actorRole, actorId, ...scalarData } = data;
+    const { items, actorRole: _actorRole, actorId, ...scalarData } = data as unknown as { items?: AcceptanceHandoverItemRequest[]; actorRole?: string; actorId?: string; [k: string]: unknown } & UpdateAcceptanceHandoverRequest;
+
+    // Validate warehouseIssueId if provided
+    if ((scalarData as Record<string, unknown>).warehouseIssueId) {
+      const wi = await prisma.warehouseIssue.findUnique({ where: { id: (scalarData as Record<string, unknown>).warehouseIssueId as string } });
+      if (!wi) throw new ValidationError(`Phiếu xuất kho không tồn tại: ${(scalarData as Record<string, unknown>).warehouseIssueId}`);
+    }
+
+    // Normalize ketQua / chiPhiThucTe keys
+    const normalizedScalar: Record<string, unknown> = { ...(scalarData as Record<string, unknown>) };
+    if ('ketQua' in normalizedScalar && normalizedScalar.ketQua != null) {
+      normalizedScalar.ketQua = normalizedScalar.ketQua as string;
+    }
 
     const handover = await prisma.$transaction(async (tx) => {
-      const repairRequestId = scalarData.repairRequestId ?? existingHandover.repairRequestId;
-      if (scalarData.repairRequestId) {
+      const repairRequestId = (normalizedScalar.repairRequestId as number) ?? existingHandover.repairRequestId;
+      if (normalizedScalar.repairRequestId) {
         const repairRequest = await tx.repairRequest.findUnique({
-          where: { id: scalarData.repairRequestId },
+          where: { id: normalizedScalar.repairRequestId as number },
           select: { id: true },
         });
         if (!repairRequest) throw new ValidationError('Yêu cầu sửa chữa không hợp lệ');
@@ -405,7 +432,7 @@ class AcceptanceHandoverService {
 
       return tx.acceptanceHandover.update({
         where: { id },
-        data: scalarData,
+        data: normalizedScalar as Prisma.AcceptanceHandoverUpdateInput,
         include: handoverInclude,
       });
     });

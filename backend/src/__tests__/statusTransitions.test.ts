@@ -347,8 +347,8 @@ describe('REPAIR_REQUEST_STATUS_ORDER', () => {
     expect(REPAIR_REQUEST_STATUS_ORDER[REPAIR_REQUEST_STATUS_ORDER.length - 1]).toBe(RepairRequestStatus.HOAN_THANH);
   });
 
-  it('has exactly 3 forward steps', () => {
-    expect(REPAIR_REQUEST_STATUS_ORDER).toHaveLength(3);
+  it('has exactly 7 forward steps', () => {
+    expect(REPAIR_REQUEST_STATUS_ORDER).toHaveLength(7);
   });
 });
 
@@ -410,11 +410,13 @@ describe('advanceRepairRequestStatus', () => {
     )).toBe(RepairRequestStatus.DA_HUY);
   });
 
-  it('cancel from DANG_SUA_CHUA → DA_HUY is allowed', () => {
-    expect(advanceRepairRequestStatus(
-      RepairRequestStatus.DANG_SUA_CHUA,
-      RepairRequestStatus.DA_HUY
-    )).toBe(RepairRequestStatus.DA_HUY);
+  it('cancel from DANG_SUA_CHUA → DA_HUY rejected for normal, allowed for ADMIN', () => {
+    expect(() =>
+      advanceRepairRequestStatus(RepairRequestStatus.DANG_SUA_CHUA, RepairRequestStatus.DA_HUY)
+    ).toThrow(ValidationError);
+    expect(
+      advanceRepairRequestStatus(RepairRequestStatus.DANG_SUA_CHUA, RepairRequestStatus.DA_HUY, { bypass: true })
+    ).toBe(RepairRequestStatus.DA_HUY);
   });
 
   // Rejection: skip-step forward

@@ -789,3 +789,208 @@ export const updateCustomerFeedbackSchema = z.object({
   ghiChu: z.string().optional().nullable(),
 }).partial().refine((v) => Object.keys(v).length > 0, 'Không có dữ liệu cập nhật');
 
+// ==================== REPAIR REQUEST SCHEMAS ====================
+
+export const requestTypeEnum = z.enum(['KIEM_TRA', 'SUA_CHUA']);
+export const assigneeRoleEnum = z.enum(['CHINH', 'PHU']);
+export const nghiemThuKetQuaEnum = z.enum(['DAT', 'KHONG_DAT']);
+
+const repairItemSchema = z.object({
+  machineSystemId: z.string().optional().nullable(),
+  machineSystemDetailId: z.string().optional().nullable(),
+  faultRecordId: z.string().optional().nullable(),
+  tenHeThong: z.string().min(1, 'Tên hệ thống là bắt buộc'),
+  tinhTrangThietBi: z.string().min(1, 'Tình trạng thiết bị là bắt buộc'),
+  loaiLoi: z.string().min(1, 'Loại lỗi là bắt buộc'),
+  noiDungLoi: z.string().min(1, 'Nội dung lỗi là bắt buộc'),
+  sourceInspectionItemId: z.string().optional().nullable(),
+  phuongAnSua: z.string().optional().nullable(),
+});
+
+export const createRepairRequestSchema = z.object({
+  requestType: requestTypeEnum.optional().default('SUA_CHUA'),
+  sourceInspectionRequestId: z.string().optional().nullable(),
+  ngayThang: z.coerce.date().optional(),
+  maYeuCau: z.string().min(1, 'Mã yêu cầu là bắt buộc').optional(),
+  mucDoUuTien: z.string().min(1, 'Mức độ ưu tiên là bắt buộc'),
+  ghiChu: z.string().optional().nullable(),
+  fileDinhKem: z.string().optional().nullable(),
+  ngayHoanThienDuKien: z.coerce.date().optional().nullable(),
+  ngayBatDauKeHoach: z.coerce.date().optional().nullable(),
+  keHoachChiTiet: z.string().optional().nullable(),
+  phuongAn: z.string().optional().nullable(),
+  bienPhapAnToan: z.string().optional().nullable(),
+  chiPhiDuKien: z.coerce.number().min(0, 'Chi phí dự kiến phải >= 0').optional().nullable(),
+  canNgungMay: z.coerce.boolean().optional(),
+  phongBanId: z.string().optional().nullable(),
+  tenHeThong: z.string().optional().nullable(),
+  tinhTrangThietBi: z.string().optional().nullable(),
+  loaiLoi: z.string().optional().nullable(),
+  noiDungLoi: z.string().optional().nullable(),
+  items: z.array(repairItemSchema).optional(),
+}).superRefine((data, ctx) => {
+  if (data.requestType === 'KIEM_TRA' && data.sourceInspectionRequestId) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['sourceInspectionRequestId'], message: 'Phiếu kiểm tra không được liên kết với phiếu kiểm tra nguồn' });
+  }
+  if (data.ngayHoanThienDuKien && data.ngayBatDauKeHoach) {
+    if (new Date(data.ngayHoanThienDuKien).getTime() <= new Date(data.ngayBatDauKeHoach).getTime()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['ngayHoanThienDuKien'], message: 'Ngày hoàn thiện dự kiến phải sau ngày bắt đầu kế hoạch' });
+    }
+  }
+});
+
+export const updateRepairRequestSchema = z.object({
+  mucDoUuTien: z.string().optional(),
+  ghiChu: z.string().optional().nullable(),
+  ngayThang: z.coerce.date().optional(),
+  fileDinhKem: z.string().optional().nullable(),
+  ngayHoanThienDuKien: z.coerce.date().optional().nullable(),
+  ngayBatDauKeHoach: z.coerce.date().optional().nullable(),
+  keHoachChiTiet: z.string().optional().nullable(),
+  phuongAn: z.string().optional().nullable(),
+  bienPhapAnToan: z.string().optional().nullable(),
+  chiPhiDuKien: z.coerce.number().min(0, 'Chi phí dự kiến phải >= 0').optional().nullable(),
+  chiPhiThucTe: z.coerce.number().min(0).optional().nullable(),
+  noiDungThucHien: z.string().optional().nullable(),
+  gioCongThucTe: z.coerce.number().min(0).optional().nullable(),
+  canNgungMay: z.coerce.boolean().optional(),
+  phongBanId: z.string().optional().nullable(),
+  ketQuaNghiemThu: nghiemThuKetQuaEnum.optional().nullable(),
+  ngayHoanThanhThucTe: z.coerce.date().optional().nullable(),
+  tenHeThong: z.string().optional().nullable(),
+  tinhTrangThietBi: z.string().optional().nullable(),
+  loaiLoi: z.string().optional().nullable(),
+  noiDungLoi: z.string().optional().nullable(),
+  items: z.array(repairItemSchema).optional(),
+}).superRefine((data, ctx) => {
+  if (data.ngayHoanThienDuKien && data.ngayBatDauKeHoach) {
+    if (new Date(data.ngayHoanThienDuKien).getTime() <= new Date(data.ngayBatDauKeHoach).getTime()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['ngayHoanThienDuKien'], message: 'Ngày hoàn thiện dự kiến phải sau ngày bắt đầu kế hoạch' });
+    }
+  }
+});
+
+export const repairAssigneeSchema = z.object({
+  userId: z.string().optional().nullable(),
+  userName: z.string().optional().nullable(),
+  vaiTro: assigneeRoleEnum.optional().default('PHU'),
+  isLead: z.boolean().optional().default(false),
+});
+
+export const repairMaterialNeedCreateSchema = z.object({
+  repairRequestItemId: z.string().min(1, 'Thiếu repairRequestItemId'),
+  tenVatTu: z.string().min(1, 'Tên vật tư là bắt buộc'),
+  maVatTu: z.string().optional().nullable(),
+  donVi: z.string().optional().nullable(),
+  soLuongDuKien: z.coerce.number().min(0, 'Số lượng dự kiến phải >= 0'),
+  soLuongThucTe: z.coerce.number().min(0).optional().nullable(),
+  ghiChu: z.string().optional().nullable(),
+});
+
+export const repairMaterialNeedUpdateSchema = z.object({
+  tenVatTu: z.string().min(1).optional(),
+  maVatTu: z.string().optional().nullable(),
+  donVi: z.string().optional().nullable(),
+  soLuongDuKien: z.coerce.number().min(0).optional(),
+  soLuongThucTe: z.coerce.number().min(0).optional().nullable(),
+  ghiChu: z.string().optional().nullable(),
+});
+
+export const repairSupplyLinkCreateSchema = z.object({
+  supplyRequestId: z.string().min(1, 'Thiếu supplyRequestId'),
+  repairRequestItemId: z.string().optional().nullable(),
+  supplyRequestItemId: z.string().optional().nullable(),
+  soLuong: z.coerce.number().min(0).optional().nullable(),
+  ghiChu: z.string().optional().nullable(),
+});
+
+export const repairPlanSchema = z.object({
+  keHoachChiTiet: z.string().optional().nullable(),
+  phuongAn: z.string().optional().nullable(),
+  bienPhapAnToan: z.string().optional().nullable(),
+  ngayHoanThienDuKien: z.coerce.date().optional().nullable(),
+  ngayBatDauKeHoach: z.coerce.date().optional().nullable(),
+  chiPhiDuKien: z.coerce.number().min(0, 'Chi phí dự kiến phải >= 0').optional().nullable(),
+  canNgungMay: z.coerce.boolean().optional(),
+  phongBanId: z.string().optional().nullable(),
+}).superRefine((data, ctx) => {
+  if (data.ngayHoanThienDuKien && data.ngayBatDauKeHoach) {
+    if (new Date(data.ngayHoanThienDuKien).getTime() <= new Date(data.ngayBatDauKeHoach).getTime()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['ngayHoanThienDuKien'], message: 'Ngày hoàn thiện dự kiến phải sau ngày bắt đầu kế hoạch' });
+    }
+  }
+});
+
+export const confirmAcceptanceSchema = z.object({
+  ketQua: nghiemThuKetQuaEnum,
+  chiPhiThucTe: z.coerce.number().min(0).optional().nullable(),
+});
+
+export const rejectRepairSchema = z.object({
+  reason: z.string().min(1, 'Lý do là bắt buộc').optional(),
+  lyDo: z.string().optional(),
+}).passthrough();
+
+export const cancelRepairSchema = z.object({
+  reason: z.string().optional(),
+  lyDo: z.string().optional(),
+}).passthrough();
+
+export type CreateRepairRequestInput = z.infer<typeof createRepairRequestSchema>;
+export type UpdateRepairRequestInput = z.infer<typeof updateRepairRequestSchema>;
+export type RepairAssigneeInput = z.infer<typeof repairAssigneeSchema>;
+export type RepairMaterialNeedCreateInput = z.infer<typeof repairMaterialNeedCreateSchema>;
+export type RepairSupplyLinkCreateInput = z.infer<typeof repairSupplyLinkCreateSchema>;
+
+// Actual execution fields — only when DA_NGHIEM_THU / HOAN_THANH (service enforces status)
+export const repairActualFieldsSchema = z.object({
+  gioCongThucTe: z.coerce.number().min(0, 'Giờ công thực tế phải >= 0').optional().nullable(),
+  noiDungThucHien: z.string().optional().nullable(),
+  chiPhiThucTe: z.coerce.number().min(0, 'Chi phí thực tế phải >= 0').optional().nullable(),
+  ketQuaNghiemThu: nghiemThuKetQuaEnum.optional().nullable(),
+  ngayHoanThanhThucTe: z.coerce.date().optional().nullable(),
+}).refine((v) => Object.keys(v).some((k) => (v as Record<string, unknown>)[k] !== undefined), {
+  message: 'Không có dữ liệu thực tế để cập nhật',
+});
+export type RepairActualFieldsInput = z.infer<typeof repairActualFieldsSchema>;
+
+// ==================== INSPECTION REQUEST SCHEMAS (KIEM_TRA) ====================
+// Thin wrappers over repair schemas with InspectionRequest naming alias; reuse same validation.
+export const inspectionRequestCreateSchema = z.object({
+  requestType: z.literal('KIEM_TRA').optional().default('KIEM_TRA'),
+  mucDoUuTien: z.string().min(1, 'Mức độ ưu tiên là bắt buộc'),
+  ghiChu: z.string().optional().nullable(),
+  phongBanId: z.string().optional().nullable(),
+  ngayThang: z.coerce.date().optional(),
+  fileDinhKem: z.string().optional().nullable(),
+  items: z.array(repairItemSchema).optional(),
+}).passthrough();
+
+export const inspectionRequestUpdateSchema = z.object({
+  mucDoUuTien: z.string().optional(),
+  ghiChu: z.string().optional().nullable(),
+  phongBanId: z.string().optional().nullable(),
+  ngayThang: z.coerce.date().optional(),
+  fileDinhKem: z.string().optional().nullable(),
+  items: z.array(repairItemSchema).optional(),
+}).passthrough();
+
+// Back-compat aliases
+export const inspectionRequestCreateSchemaAlias = inspectionRequestCreateSchema;
+export const updateInspectionRequestSchema = inspectionRequestUpdateSchema;
+
+export const inspectionDetailsSchema = z.object({
+  ketQuaKiemTra: z.string().optional().nullable(),
+  mucDoHuHong: z.enum(['nhe', 'trung_binh', 'trung binh', 'nang', 'nguy_hiem', 'nguy hiem']).optional().nullable(),
+  deXuatXuLy: z.string().optional().nullable(),
+  thoiGianKiemTra: z.coerce.date().optional().nullable(),
+  nguoiKiemTra: z.string().optional().nullable(),
+  ketLuan: z.enum(['CAN_SUA_CHUA', 'KHONG_CAN', 'THEO_DOI']).optional().nullable(),
+  anhKiemTra: z.string().optional().nullable(),
+});
+
+export type InspectionDetailsInput = z.infer<typeof inspectionDetailsSchema>;
+
+export type InspectionRequestCreateInput = z.infer<typeof inspectionRequestCreateSchema>;
+export type InspectionRequestUpdateInput = z.infer<typeof inspectionRequestUpdateSchema>;
+

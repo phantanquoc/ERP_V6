@@ -41,6 +41,7 @@ const ROUTE_MAP: Record<string, string> = {
   debt: '/api/debts',
   machineStatusLog: '/api/machine-status-logs',
   repairRequest: '/api/repair-requests',
+  inspectionRequest: '/api/inspection-requests',
   machineSystem: '/api/machine-systems',
   machineSystemDetail: '/api/machine-system-details',
   materialEvaluation: '/api/material-evaluations',

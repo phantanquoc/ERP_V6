@@ -80,19 +80,20 @@ model MachineSystem {
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
 
-  parentSystem       MachineSystem?           @relation("MachineSystemClones", fields: [parentSystemId], references: [id], onDelete: SetNull)
-  clonedSystems      MachineSystem[]          @relation("MachineSystemClones")
-  details            MachineSystemDetail[]
-  faultTemplates     FaultTemplate[]
-  faultRecords       FaultRecord[]
-  repairRequestItems RepairRequestItem[]
-  handoverItems      AcceptanceHandoverItem[]
-  maintenancePlans   MaintenancePlan[]
-  maintenanceRecords MaintenanceRecord[]
-  statusLogs         MachineStatusLog[]
-  systemOperations   SystemOperation[]
-  finishedProducts   FinishedProduct[]
-  qualityEvaluations QualityEvaluation[]
+  parentSystem           MachineSystem?           @relation("MachineSystemClones", fields: [parentSystemId], references: [id], onDelete: SetNull)
+  clonedSystems          MachineSystem[]          @relation("MachineSystemClones")
+  details                MachineSystemDetail[]
+  faultTemplates         FaultTemplate[]
+  faultRecords           FaultRecord[]
+  repairRequestItems     RepairRequestItem[]
+  inspectionRequestItems InspectionRequestItem[]
+  handoverItems          AcceptanceHandoverItem[]
+  maintenancePlans       MaintenancePlan[]
+  maintenanceRecords     MaintenanceRecord[]
+  statusLogs             MachineStatusLog[]
+  systemOperations       SystemOperation[]
+  finishedProducts       FinishedProduct[]
+  qualityEvaluations     QualityEvaluation[]
 
   @@index([maHeThong])
   @@index([parentSystemId])
@@ -138,16 +139,17 @@ model MachineSystemDetail {
   createdAt       DateTime                @default(now())
   updatedAt       DateTime                @updatedAt
 
-  machineSystem        MachineSystem            @relation(fields: [machineSystemId], references: [id], onDelete: Cascade)
-  parentDetail         MachineSystemDetail?     @relation("MachineSystemDetailHierarchy", fields: [parentDetailId], references: [id], onDelete: SetNull)
-  childDetails         MachineSystemDetail[]    @relation("MachineSystemDetailHierarchy")
-  faultTemplates       FaultTemplate[]
-  faultRecords         FaultRecord[]
-  repairRequestItems   RepairRequestItem[]
-  handoverItems        AcceptanceHandoverItem[]
-  maintenanceTemplates MaintenanceTemplate[]
-  maintenancePlanItems MaintenancePlanItem[]
-  maintenanceRecords   MaintenanceRecord[]
+  machineSystem          MachineSystem            @relation(fields: [machineSystemId], references: [id], onDelete: Cascade)
+  parentDetail           MachineSystemDetail?     @relation("MachineSystemDetailHierarchy", fields: [parentDetailId], references: [id], onDelete: SetNull)
+  childDetails           MachineSystemDetail[]    @relation("MachineSystemDetailHierarchy")
+  faultTemplates         FaultTemplate[]
+  faultRecords           FaultRecord[]
+  repairRequestItems     RepairRequestItem[]
+  inspectionRequestItems InspectionRequestItem[]
+  handoverItems          AcceptanceHandoverItem[]
+  maintenanceTemplates   MaintenanceTemplate[]
+  maintenancePlanItems   MaintenancePlanItem[]
+  maintenanceRecords     MaintenanceRecord[]
 
   @@index([machineSystemId])
   @@index([parentDetailId])
@@ -227,11 +229,12 @@ model FaultRecord {
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
 
-  machineSystem       MachineSystem?         @relation(fields: [machineSystemId], references: [id], onDelete: SetNull)
-  machineSystemDetail MachineSystemDetail?   @relation(fields: [machineSystemDetailId], references: [id], onDelete: SetNull)
-  faultTemplate       FaultTemplate?         @relation(fields: [faultTemplateId], references: [id], onDelete: SetNull)
-  repairRequestItems  RepairRequestItem[]
-  statusLogs          FaultRecordStatusLog[]
+  machineSystem          MachineSystem?          @relation(fields: [machineSystemId], references: [id], onDelete: SetNull)
+  machineSystemDetail    MachineSystemDetail?    @relation(fields: [machineSystemDetailId], references: [id], onDelete: SetNull)
+  faultTemplate          FaultTemplate?          @relation(fields: [faultTemplateId], references: [id], onDelete: SetNull)
+  repairRequestItems     RepairRequestItem[]
+  inspectionRequestItems InspectionRequestItem[]
+  statusLogs             FaultRecordStatusLog[]
 
   @@index([maLoi])
   @@index([machineSystemId])
