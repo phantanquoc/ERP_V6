@@ -74,3 +74,6 @@ reports/
 
 # Production deploy playbook — chứa IP/đường dẫn nội bộ, không push lên GitHub
 DEPLOY_PROD_PLAYBOOK.md
+.codex/config.toml
+opencode.json
+.mcp.json
