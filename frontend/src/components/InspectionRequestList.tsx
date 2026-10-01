@@ -7,7 +7,9 @@ import RepairRequestFormModal from './RepairRequestFormModal';
 import { useAuth } from '../contexts/AuthContext';
 import { can, isCachedPermissionsLoaded } from '../utils/permissions';
 import { UserRole } from '../types/auth';
-import { useInspectionRequests, useInspectionStatusHistory, useDeleteInspectionRequest, useAcceptInspection, useCompleteInspection, useCancelInspection, useRejectInspection } from '../hooks/useInspectionRequests';
+import { useQueryClient } from '@tanstack/react-query';
+import { useInspectionRequests, useInspectionStatusHistory, useDeleteInspectionRequest, useAcceptInspection, useCompleteInspection, useCancelInspection, useRejectInspection, inspectionKeys } from '../hooks/useInspectionRequests';
+import { useDepartments } from '../hooks/useDepartments';
 import inspectionRequestService, { InspectionRequest, INSPECTION_STATUS_LABELS } from '../services/inspectionRequestService';
 import type { InspectionRequestStatus } from '../services/inspectionRequestService';
 
@@ -24,6 +26,13 @@ export default function InspectionRequestList(_props: { lockedMachineSystemId?: 
   const { user } = useAuth();
   const isAdmin = isCachedPermissionsLoaded() ? can('repair-requests','DELETE', user?.role as string) : user?.role === UserRole.ADMIN;
   const canUpdate = isCachedPermissionsLoaded() ? can('repair-requests','UPDATE', user?.role as string) : [UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.TEAM_LEAD].includes(user?.role as UserRole);
+  const queryClient = useQueryClient();
+  const { data: departments = [] } = useDepartments();
+  const deptName = (id: string | null | undefined) => {
+    if (!id) return '—';
+    const d = (departments as { id: string; name: string }[]).find(x => x.id === id);
+    return d?.name ?? id;
+  };
   const [searchParams, setSearchParams] = useSearchParams();
   const detailSyncRef = useRef(false);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout>|null>(null);
@@ -70,7 +79,7 @@ export default function InspectionRequestList(_props: { lockedMachineSystemId?: 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[980px] text-sm">
           <thead className="bg-gray-50 text-xs text-gray-500"><tr>
-            <th className="border-b px-3 py-2.5 text-left">Mã</th><th className="border-b px-3 py-2.5 text-left">Ngày</th><th className="border-b px-3 py-2.5 text-left">Người phát hiện</th><th className="border-b px-3 py-2.5 text-left">Bộ phận</th><th className="border-b px-3 py-2.5 text-left">Thiết bị</th><th className="border-b px-3 py-2.5 text-left">Khu vực</th><th className="border-b px-3 py-2.5 text-left">Trạng thái</th><th className="border-b px-3 py-2.5 text-left">Kết luận</th><th className="border-b px-3 py-2.5 text-right">Thao tác</th>
+            <th className="border-b px-3 py-2.5 text-left sticky left-0 bg-gray-50 z-10 min-w-[100px]">Mã</th><th className="border-b px-3 py-2.5 text-left min-w-[95px]">Ngày</th><th className="border-b px-3 py-2.5 text-left min-w-[120px]">Người phát hiện</th><th className="border-b px-3 py-2.5 text-left min-w-[140px]">Bộ phận</th><th className="border-b px-3 py-2.5 text-left min-w-[160px]">Thiết bị</th><th className="border-b px-3 py-2.5 text-left min-w-[110px]">Khu vực</th><th className="border-b px-3 py-2.5 text-left min-w-[110px]">Trạng thái</th><th className="border-b px-3 py-2.5 text-left min-w-[130px]">Kết luận</th><th className="border-b px-3 py-2.5 text-right sticky right-0 bg-gray-50 z-10 min-w-[160px]">Thao tác</th>
           </tr></thead>
           <tbody className="divide-y divide-gray-100">
             {listQ.isLoading ? <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr> : requests.length===0 ? <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-400">Chưa có phiếu kiểm tra.</td></tr> : requests.map(r=>{
@@ -78,20 +87,20 @@ export default function InspectionRequestList(_props: { lockedMachineSystemId?: 
               const s=r.trangThai as InspectionRequestStatus; const isTerminal=s==='HOAN_THANH'||s==='DA_HUY';
               const ketLuan = (r as unknown as { ketLuan?: string|null }).ketLuan ?? null;
               const ketLuanTone = ketLuan==='CAN_SUA_CHUA'?'yellow':ketLuan==='KHONG_CAN'?'green':ketLuan==='THEO_DOI'?'blue':'gray';
-              const ketLuanLabel = ketLuan==='CAN_SUA_CHUA'?'Cần SC':ketLuan==='KHONG_CAN'?'Không cần':ketLuan==='THEO_DOI'?'Theo dõi':'—';
-              const boPhanLabel = (r as unknown as { phongBanId?: string|null }).phongBanId ?? '—';
+              const ketLuanLabel = ketLuan==='CAN_SUA_CHUA'?'Cần sửa chữa':ketLuan==='KHONG_CAN'?'Không cần':ketLuan==='THEO_DOI'?'Theo dõi':'—';
+              const boPhanLabel = deptName((r as unknown as { phongBanId?: string|null }).phongBanId ?? null);
               const khuVuc = (r as unknown as { khuVuc?: string }).khuVuc ?? '—';
               return (
               <tr key={r.id} onClick={()=>openModal('view',r)} className="hover:bg-cyan-50 cursor-pointer">
-                <td className="px-3 py-2.5 font-mono text-xs text-cyan-700">{r.maYeuCau}</td>
+                <td className="px-3 py-2.5 font-mono text-xs text-cyan-700 sticky left-0 bg-white z-10">{r.maYeuCau}</td>
                 <td className="px-3 py-2.5 text-xs text-gray-600">{formatDate(r.ngayThang)}</td>
                 <td className="px-3 py-2.5 text-xs">{r.createdByName||'—'}</td>
                 <td className="px-3 py-2.5 text-xs text-gray-600">{boPhanLabel}</td>
                 <td className="px-3 py-2.5 text-xs">{items.map((it:any)=><div key={it.id}>{it.tenHeThong||'—'}</div>)}</td>
                 <td className="px-3 py-2.5 text-xs text-gray-600">{khuVuc}</td>
-                <td className="px-3 py-2.5"><span className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${statusBadgeClass(INSPECTION_STATUS_LABELS[s]?.tone??'gray')}`}>{INSPECTION_STATUS_LABELS[s]?.label??s}</span></td>
-                <td className="px-3 py-2.5"><span className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${statusBadgeClass(ketLuanTone)}`}>{ketLuanLabel}</span></td>
-                <td className="px-3 py-2.5 text-right">
+                <td className="px-3 py-2.5"><span className={`inline-flex rounded-full border px-2 py-0.5 text-xs whitespace-nowrap ${statusBadgeClass(INSPECTION_STATUS_LABELS[s]?.tone??'gray')}`}>{INSPECTION_STATUS_LABELS[s]?.label??s}</span></td>
+                <td className="px-3 py-2.5"><span className={`inline-flex rounded-full border px-2 py-0.5 text-xs whitespace-nowrap ${statusBadgeClass(ketLuanTone)}`}>{ketLuanLabel}</span></td>
+                <td className="px-3 py-2.5 text-right sticky right-0 bg-white z-10">
                   <div className="flex items-center justify-end gap-1 flex-wrap" onClick={e=>e.stopPropagation()}>
                     {(() => {
                       const iconBtn = (cls: string) => `inline-flex items-center justify-center h-7 w-7 rounded-md border transition-colors ${cls}`;
@@ -115,7 +124,7 @@ export default function InspectionRequestList(_props: { lockedMachineSystemId?: 
         </table>
       </div>
       {pagination&&pagination.totalPages>1&&<div className="flex items-center justify-between border-t px-3 py-2 text-sm"><span className="text-gray-600">Trang {pagination.page}/{pagination.totalPages} - {pagination.total} dòng</span><div className="flex gap-1"><button disabled={filters.page<=1} onClick={()=>setFilters(v=>({...v,page:v.page-1}))} className="rounded border px-3 py-1 disabled:opacity-40">Trước</button><button disabled={filters.page>=pagination.totalPages} onClick={()=>setFilters(v=>({...v,page:v.page+1}))} className="rounded border px-3 py-1 disabled:opacity-40">Sau</button></div></div>}
-      <RepairRequestFormModal isOpen={!!modal} onClose={closeModal} mode={modal?.mode??'create'} record={modal?.record as unknown as import('../services/repairRequestService').RepairRequest} lockedRequestType="KIEM_TRA" hideCodeField={false} onSaved={closeModal} onEdit={()=>{ if(modal?.record) setModal({mode:'edit',record: modal.record}); }} />
+      <RepairRequestFormModal isOpen={!!modal} onClose={closeModal} mode={modal?.mode??'create'} record={modal?.record as unknown as import('../services/repairRequestService').RepairRequest} lockedRequestType="KIEM_TRA" hideCodeField={false} onSaved={() => { setFilters(v => ({ ...v, trangThai: '', page: 1 })); setSearchInput(''); queryClient.invalidateQueries({ queryKey: inspectionKeys.all }); closeModal(); }} onEdit={()=>{ if(modal?.record) setModal({mode:'edit',record: modal.record}); }} />
       {historyId&&<Modal isOpen={!!historyId} onClose={()=>setHistoryId(null)} showBackdrop><div className="w-full max-w-lg rounded-lg bg-white shadow-xl" onClick={e=>e.stopPropagation()}><div className="flex items-center justify-between border-b px-4 py-3"><h3 className="font-semibold">Lịch sử</h3><button onClick={()=>setHistoryId(null)}><X className="h-4 w-4"/></button></div><div className="max-h-[60vh] overflow-y-auto p-4 text-sm">{historyQ.isLoading?<p className="text-gray-400">Đang tải...</p>: (historyQ.data?.data?.length??0)===0?<p className="text-gray-400">Chưa có.</p> : <ol className="space-y-2">{historyQ.data!.data!.map((l:any)=><li key={l.id} className="flex gap-2 text-xs"><span className="mt-1 h-2 w-2 rounded-full bg-gray-400 shrink-0"/><div><p>{l.oldStatus} → {l.newStatus}</p><p className="text-gray-400">{new Date(l.createdAt).toLocaleString('vi-VN')}</p></div></li>)}</ol>}</div></div></Modal>}
       {cancelTarget&&<Modal isOpen onClose={()=>setCancelTarget(null)} showBackdrop><div className="w-full max-w-md rounded-lg bg-white p-4" onClick={e=>e.stopPropagation()}><h3 className="font-semibold mb-2">Hủy {cancelTarget.maYeuCau}</h3><textarea rows={3} value={cancelReason} onChange={e=>setCancelReason(e.target.value)} placeholder="Lý do..." className="w-full rounded border px-3 py-2 text-sm"/><div className="mt-3 flex justify-end gap-2"><button onClick={()=>setCancelTarget(null)} className="rounded border px-3 py-1 text-sm">Không</button><button onClick={handleCancel} className="rounded bg-red-600 px-3 py-1 text-sm text-white">Xác nhận hủy</button></div></div></Modal>}
     </div>

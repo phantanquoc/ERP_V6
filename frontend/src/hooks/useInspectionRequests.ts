@@ -38,6 +38,7 @@ export const useInspectionRequests = (filters: InspectionRequestFilters = {}, op
     queryKey: inspectionKeys._listByFilters(filters),
     queryFn: () => inspectionRequestService.getAll(filters),
     enabled: opts?.enabled ?? true,
+    refetchOnMount: 'always',
   });
 
 export const useInspectionRequest = (id: number | string | null | undefined) =>
