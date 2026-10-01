@@ -1,8 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import repairRequestService, {
   type ConfirmAcceptancePayload,
   type CreateRepairRequestRequest,
   type PlanRepairRequestPayload,
+  type RepairActualFieldsPayload,
   type RepairRequestFilters,
   type RepairRequestStatsFilters,
   type RequestType,
@@ -54,6 +55,8 @@ export const useRepairRequests = (filters: RepairRequestFilters = {}, opts?: { e
     queryKey: repairRequestKeys._listByFilters(filters),
     queryFn: () => repairRequestService.getAll(filters),
     enabled: opts?.enabled ?? true,
+    // Keep the current page visible while the next one loads (no layout jump)
+    placeholderData: keepPreviousData,
   });
 
 export const useRepairRequest = (id: number | string | null | undefined) =>
@@ -150,14 +153,36 @@ export const useSubmitAcceptance = () => {
   });
 };
 
+// Literal root keys: importing the factories would create an import cycle
+// (useAcceptanceHandovers already imports repairRequestKeys from this module).
+const ACCEPTANCE_HANDOVERS_ROOT = ['acceptanceHandovers'] as const;
+const FAULT_RECORDS_ROOT = ['faultRecords'] as const;
+const INSPECTION_REQUESTS_ROOT = ['inspectionRequests'] as const;
+
 export const useConfirmAcceptance = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, payload }: { id: number | string; payload: ConfirmAcceptancePayload }) =>
-      repairRequestService.confirmAcceptance(id, payload),
+      repairRequestService.confirmAcceptance(id, { ketQua: payload.ketQua, lyDo: payload.lyDo }),
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: repairRequestKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: repairRequestKeys.all });
+      // The slip's ketQua changed
+      queryClient.invalidateQueries({ queryKey: ACCEPTANCE_HANDOVERS_ROOT });
+    },
+  });
+};
+
+// Technician-entered actual execution data (DA_NGHIEM_THU / HOAN_THANH).
+export const useUpdateRepairActualFields = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: number | string; payload: RepairActualFieldsPayload }) =>
+      repairRequestService.updateActualFields(id, payload),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: repairRequestKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: repairRequestKeys.costSummary(id) });
+      queryClient.invalidateQueries({ queryKey: repairRequestKeys.listsRoot() });
     },
   });
 };
@@ -193,6 +218,9 @@ export const useCompleteRepair = () => {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: repairRequestKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: repairRequestKeys.all });
+      // complete() closes linked FaultRecords and may unblock the source YCKT
+      queryClient.invalidateQueries({ queryKey: FAULT_RECORDS_ROOT });
+      queryClient.invalidateQueries({ queryKey: INSPECTION_REQUESTS_ROOT });
     },
   });
 };

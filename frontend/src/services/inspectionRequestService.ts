@@ -83,6 +83,8 @@ export interface InspectionRequest {
 }
 
 export interface InspectionRequestItemInput {
+  /** Existing item id — server updates it in place instead of delete+recreate (keeps YCSC links). */
+  id?: string;
   machineSystemId?: string;
   machineSystemDetailId?: string;
   faultRecordId?: string | null;
@@ -210,10 +212,12 @@ class InspectionRequestService {
     return response.data?.code ?? '';
   }
 
-  async exportExcel(filters: Pick<InspectionRequestFilters, 'search'> = {}): Promise<void> {
+  /** GET /inspection-requests/export/excel — same filters as the list. */
+  async exportExcel(filters: Pick<InspectionRequestFilters, 'search' | 'trangThai'> = {}): Promise<void> {
     const token = localStorage.getItem('accessToken');
     const params = new URLSearchParams();
     if (filters.search) params.append('search', filters.search);
+    if (filters.trangThai) params.append('trangThai', filters.trangThai);
     const url = `${API_BASE_URL}/inspection-requests/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
     const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (!response.ok) throw new Error('Lỗi khi xuất Excel phiếu kiểm tra');

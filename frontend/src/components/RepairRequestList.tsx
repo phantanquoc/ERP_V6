@@ -1,13 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useSearchParams } from 'react-router-dom';
-import { Ban, CheckCircle, Edit, Eye, History, Plus, Search, Trash2, Wrench, X } from 'lucide-react';
+import { Ban, CheckCheck, CheckCircle, ClipboardList, Edit, History, Play, Plus, Search, Trash2, X, XCircle } from 'lucide-react';
 import AcceptanceHandoverForm from './AcceptanceHandoverForm';
 import Modal from './Modal';
-import RepairRequestFormModal from './RepairRequestFormModal';
+import RepairRequestFormModal, { StatusTimeline, type StatusHistoryEntry } from './RepairRequestFormModal';
+import ResponsiveRowActions, { type RowAction } from './ResponsiveRowActions';
+import { ErrorState } from '../design-system/States';
 import apiClient from '../services/apiClient';
+import {
+  PRIORITY_TONE,
+  canCancelRepair,
+  canConfirmAcceptance,
+  canDeleteRequest,
+  canEditRepair,
+  buildTechnicalDetailParams,
+  dedupeById,
+  formatDateVN,
+} from '../constants/repairRequest';
 import { useAuth } from '../contexts/AuthContext';
-import { can, isCachedPermissionsLoaded } from '../utils/permissions';
+import { isTechnicalUser, canDeleteTechnical } from '../utils/permissions';
 import { UserRole } from '../types/auth';
 import { StatCard, CollapsibleSection, StatusBadge } from './shared';
 import {
@@ -31,19 +43,35 @@ import type { RepairRequestStatus } from '../services/repairRequestService';
 
 type ModalMode = 'create' | 'edit' | 'view';
 
-const PRIORITY_TONE: Record<string, 'red'|'yellow'|'blue'|'gray'> = { 'Khẩn cấp': 'red', 'Cao': 'yellow', 'Trung bình': 'blue', 'Thấp': 'gray' };
-
-const statusBadgeClass = (tone: string) => {
-  if (tone === 'green') return 'bg-green-100 text-green-700 border-green-200';
-  if (tone === 'blue') return 'bg-blue-100 text-blue-700 border-blue-200';
-  if (tone === 'red') return 'bg-red-100 text-red-700 border-red-200';
-  if (tone === 'yellow') return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-  return 'bg-gray-100 text-gray-700 border-gray-200';
-};
-
-const formatDate = (value?: string | null) => value ? new Date(value).toLocaleDateString('vi-VN') : '—';
+// Shared table cell styles (keep in sync with the other Technical tabs)
+const TH = 'px-3 py-2.5 text-left text-xs font-semibold text-gray-500 whitespace-nowrap';
+const TD = 'px-3 py-2.5 text-gray-700 align-top';
+const STICKY_LEFT = 'sticky left-0 z-10 shadow-[1px_0_0_0_rgb(229_231_235)]';
+const STICKY_RIGHT = 'sticky right-0 z-10 shadow-[-1px_0_0_0_rgb(229_231_235)]';
 
 const SUA_CHUA_STATUSES: RepairRequestStatus[] = Object.keys(STATUS_LABELS) as RepairRequestStatus[];
+// Status chips follow the workflow (incl. Chờ nghiệm thu); rare branches stay in the select
+const FLOW_CHIPS: RepairRequestStatus[] = ['CHO_XU_LY', 'DA_TIEP_NHAN', 'LEN_KE_HOACH', 'DANG_SUA_CHUA', 'CHO_NGHIEM_THU', 'DA_NGHIEM_THU', 'HOAN_THANH'];
+
+type NeedRow = { id: string; tenVatTu: string; donVi: string | null; soLuongDuKien: number | string; soLuongThucTe: number | string | null };
+
+/** Material needs come both top-level and under items (same rows) — merge by id, never sum twice. */
+const materialNeedsOf = (r: RepairRequest): NeedRow[] => {
+  const top = (r.materialNeeds ?? []) as NeedRow[];
+  const fromItems = (r.items ?? []).flatMap((it) => (it.materialNeeds ?? []) as NeedRow[]);
+  return dedupeById([...top, ...fromItems]);
+};
+const isNeedSupplied = (m: NeedRow) => Number(m.soLuongThucTe ?? 0) >= Number(m.soLuongDuKien ?? 0) && Number(m.soLuongDuKien ?? 0) > 0;
+
+const deviceNamesOf = (r: RepairRequest): string[] => {
+  const names = (r.items ?? []).map((it) => it.tenHeThong).filter(Boolean);
+  if (names.length) return names;
+  return r.tenHeThong ? [r.tenHeThong] : [];
+};
+const leadOf = (r: RepairRequest): string => {
+  const lead = (r.assignees ?? []).find((a) => a.isLead || a.vaiTro === 'CHINH');
+  return lead?.userName ?? '';
+};
 
 interface RepairRequestListProps {
   lockedMachineSystemId?: string;
@@ -51,8 +79,11 @@ interface RepairRequestListProps {
 
 const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {}) => {
   const { user } = useAuth();
-  const isAdmin = isCachedPermissionsLoaded() ? can('repair-requests', 'DELETE', user?.role as string) : user?.role === UserRole.ADMIN;
-  const canUpdateRepair = isCachedPermissionsLoaded() ? can('repair-requests', 'UPDATE', user?.role as string) : (user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD || user?.role === UserRole.TEAM_LEAD);
+  // Delete: ADMIN / Trưởng bộ phận Kỹ thuật only. Process: any Kỹ thuật member (primary or secondary), any role.
+  const canDelete = canDeleteTechnical(user);
+  const canUpdateRepair = isTechnicalUser(user);
+  const isAdminRole = user?.role === UserRole.ADMIN;
+  const userId = String(user?.id ?? user?._id ?? '');
   const [searchParams, setSearchParams] = useSearchParams();
   const filterSyncRef = useRef(false);
   const detailSyncRef = useRef(false);
@@ -278,11 +309,14 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
 
   const exportExcel = async () => {
     try {
-      await repairRequestService.exportExcel({ search: filters.search || undefined });
+      await repairRequestService.exportExcel({ search: filters.search || undefined, trangThai: (filters.trangThai as RepairRequestStatus) || undefined });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Không xuất được Excel');
     }
   };
+
+  const clearFilters = () => { setSearchInput(''); setFilters((f) => ({ ...f, search: '', trangThai: '', page: 1 })); };
+  const hasActiveFilter = !!filters.search || !!filters.trangThai;
 
   const handleStartRepair = async (record: RepairRequest) => {
     if (!confirm(`Bắt đầu sửa chữa cho yêu cầu ${record.maYeuCau}?`)) return;
@@ -316,7 +350,8 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
   const [acceptanceTarget, setAcceptanceTarget] = useState<RepairRequest | null>(null);
   const [acceptanceForm, setAcceptanceForm] = useState({ warehouseIssueId: '', chiPhiThucTe: '' });
   const [confirmTarget, setConfirmTarget] = useState<RepairRequest | null>(null);
-  const [confirmForm, setConfirmForm] = useState({ ketQua: '' as '' | 'DAT' | 'KHONG_DAT', lyDo: '', chiPhiThucTe: '' });
+  // Confirmer sends { ketQua, lyDo } only
+  const [confirmForm, setConfirmForm] = useState({ ketQua: '' as '' | 'DAT' | 'KHONG_DAT', lyDo: '' });
 
   const openPlanModal = (record: RepairRequest) => {
     const r = record;
@@ -385,17 +420,8 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
     catch (err) { toast.error(err instanceof Error ? err.message : 'Không thể đề nghị nghiệm thu'); }
   };
   const openConfirmModal = (record: RepairRequest, ketQua: 'DAT' | 'KHONG_DAT') => {
-    setConfirmForm({ ketQua, lyDo: '', chiPhiThucTe: '' });
+    setConfirmForm({ ketQua, lyDo: '' });
     setConfirmTarget(record);
-  };
-  // Confirmer = creator of the source YCKT if the repair came from one, else creator of the YCSC
-  const isRowConfirmer = (record: RepairRequest) => {
-    const uid = String((user as unknown as { id?: string; _id?: string })?.id ?? user?._id ?? '');
-    if (!uid) return false;
-    const pending = (record.acceptanceHandovers ?? []).find((h) => !h.ketQua);
-    if (pending?.nguoiXacNhanId) return pending.nguoiXacNhanId === uid;
-    const src = (record as unknown as { inspectionRequest?: { createdById?: string | null } | null }).inspectionRequest;
-    return (src?.createdById ?? record.createdById ?? '') === uid;
   };
   const handleConfirmAcceptanceSubmit = async () => {
     if (!confirmTarget) return;
@@ -436,8 +462,13 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
   const countFor = (key: string) => (stats?.byStatus?.[key] as number | undefined) ?? 0;
   const suaChuaTotal = SUA_CHUA_STATUSES.reduce((s, k) => s + countFor(k), 0);
 
-  const statusOptions = SUA_CHUA_STATUSES;
-  const activeStatusLabels = STATUS_LABELS;
+  // Optional columns: hide when empty for the whole page
+  const showRequester = requests.some((r) => !!r.createdByName);
+  const showLead = requests.some((r) => !!leadOf(r));
+  const showSource = requests.some((r) => !!r.inspectionRequest?.maYeuCau);
+  const showNeeds = requests.some((r) => materialNeedsOf(r).length > 0);
+  const tableColCount = 6 + [showRequester, showLead, showSource, showNeeds].filter(Boolean).length;
+  const historyEntries = (statusHistoryQuery.data?.data ?? []) as unknown as StatusHistoryEntry[];
 
   return (
     <div className="space-y-4">
@@ -454,24 +485,32 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
         </div>
       </div>
 
-      {/* Date range control */}
+      {/* Statistics only — the list endpoint has no date filter, so this range never filters the table */}
+      <CollapsibleSection
+        title="Thống kê"
+        rightAdornment={<span className="text-xs font-normal text-gray-500 tabular-nums">{formatDateVN(statsDateFrom)} – {formatDateVN(statsDateTo)}</span>}
+      >
+      <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="font-medium text-gray-700">Từ:</span>
+        <span className="font-medium text-gray-700">Khoảng thống kê từ:</span>
         <input
           type="date"
+          aria-label="Thống kê từ ngày"
           value={statsDateFrom}
           max={statsDateTo}
           onChange={(e) => setStatsDateFrom(e.target.value)}
           className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
         />
-        <span className="font-medium text-gray-700">Đến:</span>
+        <span className="font-medium text-gray-700">đến:</span>
         <input
           type="date"
+          aria-label="Thống kê đến ngày"
           value={statsDateTo}
           min={statsDateFrom}
           onChange={(e) => setStatsDateTo(e.target.value)}
           className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
         />
+        <span className="text-xs text-gray-400">Chỉ áp dụng cho số liệu thống kê, không lọc danh sách.</span>
       </div>
 
       {repairStatsQuery.isError && (
@@ -480,7 +519,7 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
         </div>
       )}
 
-      {/* Stats */}
+      {/* Stat cards are read-only — filtering lives in the table toolbar */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {repairStatsQuery.isLoading ? (
           Array.from({ length: 4 }).map((_, i) => (
@@ -492,34 +531,26 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
         ) : (
           <>
             <StatCard
-              label="Tổng"
+              label="Tổng (kỳ thống kê)"
               value={suaChuaTotal}
               delta={stats?.delta?.byStatus ? undefined : stats?.delta?.total}
               deltaLabel="vs kỳ trước"
-              onClick={() => setFilters((f) => ({ ...f, trangThai: '', page: 1 }))}
-              className={!filters.trangThai ? 'ring-2 ring-blue-400' : ''}
             />
             <StatCard
               label={STATUS_LABELS.CHO_XU_LY.label}
               value={countFor('CHO_XU_LY')}
               delta={stats?.delta?.byStatus?.['CHO_XU_LY']}
-              onClick={() => setFilters((f) => ({ ...f, trangThai: 'CHO_XU_LY', page: 1 }))}
-              className={filters.trangThai === 'CHO_XU_LY' ? 'ring-2 ring-blue-400' : ''}
             />
             <StatCard
               label={STATUS_LABELS.DANG_SUA_CHUA.label}
               value={countFor('DANG_SUA_CHUA')}
               delta={stats?.delta?.byStatus?.['DANG_SUA_CHUA']}
-              onClick={() => setFilters((f) => ({ ...f, trangThai: 'DANG_SUA_CHUA', page: 1 }))}
-              className={filters.trangThai === 'DANG_SUA_CHUA' ? 'ring-2 ring-blue-400' : ''}
             />
             <StatCard
               label={STATUS_LABELS.HOAN_THANH.label}
               value={countFor('HOAN_THANH')}
               delta={stats?.delta?.byStatus?.['HOAN_THANH']}
               deltaLabel={stats?.avgCompletionHours != null ? `Tb. ${Math.round(stats.avgCompletionHours)}h` : undefined}
-              onClick={() => setFilters((f) => ({ ...f, trangThai: 'HOAN_THANH', page: 1 }))}
-              className={filters.trangThai === 'HOAN_THANH' ? 'ring-2 ring-blue-400' : ''}
             />
           </>
         )}
@@ -617,121 +648,127 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
                       <span className="ml-2 text-xs text-gray-400">{r.tenHeThongThietBi}</span>
                     )}
                   </div>
-                  <StatusBadge label={(STATUS_LABELS as Record<string, { label: string; tone: string }>)[r.trangThai]?.label ?? r.trangThai} tone={((STATUS_LABELS as Record<string, { label: string; tone: string }>)[r.trangThai]?.tone ?? 'gray') as never} size="sm" />
+                  <StatusBadge label={STATUS_LABELS[r.trangThai as RepairRequestStatus]?.label ?? r.trangThai} tone={STATUS_LABELS[r.trangThai as RepairRequestStatus]?.tone ?? 'gray'} size="sm" />
                 </button>
               </li>
             ))}
           </ul>
         )}
       </CollapsibleSection>
+      </div>
+      </CollapsibleSection>
 
-      <section className="rounded-lg border border-gray-200 bg-white">
+      <section className="rounded-xl border border-gray-200 bg-white overflow-hidden">
         <div className="flex flex-col gap-2 border-b border-gray-200 p-3">
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-              <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Tìm mã, thiết bị, người yêu cầu..." title="Tìm theo mã yêu cầu, tên thiết bị hoặc người tạo" className="w-48 rounded-md border border-gray-300 py-2 pl-8 pr-3 text-sm placeholder:text-gray-400" />
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" aria-hidden="true" />
+              <input type="search" aria-label="Tìm yêu cầu sửa chữa" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Tìm mã, thiết bị..." title="Tìm theo mã yêu cầu hoặc tên thiết bị" className="w-56 rounded-md border border-gray-300 py-2 pl-8 pr-3 text-sm placeholder:text-gray-400" />
             </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <select value={filters.trangThai} onChange={(event) => setFilters((value) => ({ ...value, trangThai: event.target.value, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
-              <option value="">Tất cả trạng thái ({SUA_CHUA_STATUSES.length})</option>
-              {SUA_CHUA_STATUSES.map((key) => {
-                const c = countFor(key);
-                const lbl = (activeStatusLabels as Record<string, { label: string }>)[key]?.label ?? key;
-                return <option key={key} value={key}>{lbl} {c ? `(${c})` : ''}</option>;
-              })}
+            <select aria-label="Lọc theo trạng thái" value={filters.trangThai} onChange={(event) => setFilters((value) => ({ ...value, trangThai: event.target.value, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
+              <option value="">Tất cả trạng thái</option>
+              {SUA_CHUA_STATUSES.map((key) => <option key={key} value={key}>{STATUS_LABELS[key]?.label ?? key}</option>)}
             </select>
-            <div className="flex flex-wrap items-center gap-1">
-              {statusOptions.slice(0, 4).map((key) => {
-                const active = filters.trangThai === key;
-                const c = countFor(key);
-                const lbl = (activeStatusLabels as Record<string, { label: string }>)[key]?.label ?? key;
-                return (
-                  <button key={key} type="button" onClick={() => setFilters((f) => ({ ...f, trangThai: active ? '' : key, page: 1 }))}
-                    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${active ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>
-                    {lbl} {c ? <span className={`rounded-full px-1 text-[10px] ${active ? 'bg-white text-blue-700' : 'bg-gray-100 text-gray-600'}`}>{c}</span> : null}
-                  </button>
-                );
-              })}
-            </div>
+            {hasActiveFilter && <button type="button" onClick={clearFilters} className="text-xs font-medium text-blue-600 hover:underline">Xóa bộ lọc</button>}
+          </div>
+          <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Lọc nhanh theo trạng thái">
+            {FLOW_CHIPS.map((key) => {
+              const active = filters.trangThai === key;
+              return (
+                <button key={key} type="button" aria-pressed={active} onClick={() => setFilters((f) => ({ ...f, trangThai: active ? '' : key, page: 1 }))}
+                  className={`inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium ${active ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>
+                  {STATUS_LABELS[key].label}
+                </button>
+              );
+            })}
           </div>
         </div>
+        {repairRequestsQuery.isError ? (
+          <ErrorState message="Không tải được danh sách yêu cầu sửa chữa." onRetry={() => repairRequestsQuery.refetch()} />
+        ) : (
         <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-sm">
-              <thead className="bg-gray-50 text-xs text-gray-500 font-medium">
+            <table className="w-full border-collapse text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-20">
                 <tr>
-                  <th className="border-b px-3 py-2.5 text-left sticky left-0 bg-gray-50 z-10 min-w-[90px]">Mã</th>
-                  <th className="border-b px-3 py-2.5 text-left min-w-[95px]">Ngày</th>
-                  <th className="border-b px-3 py-2.5 text-left min-w-[110px]">Nguồn KT</th>
-                  <th className="border-b px-3 py-2.5 text-left min-w-[85px]">Ưu tiên</th>
-                  <th className="border-b px-3 py-2.5 text-left min-w-[120px]">Thiết bị</th>
-                  <th className="border-b px-3 py-2.5 text-left min-w-[100px]">Trạng thái</th>
-                  <th className="border-b px-3 py-2.5 text-left min-w-[140px]">Yêu cầu/Đã cấp/Còn thiếu</th>
-                  <th className="border-b px-3 py-2.5 text-right sticky right-0 bg-gray-50 z-10 min-w-[160px]">Thao tác</th>
+                  <th scope="col" className={`${TH} ${STICKY_LEFT} bg-gray-50`}>Mã</th>
+                  <th scope="col" className={TH}>Trạng thái</th>
+                  <th scope="col" className={TH}>Ưu tiên</th>
+                  <th scope="col" className={TH}>Ngày</th>
+                  <th scope="col" className={TH}>Thiết bị</th>
+                  {showRequester && <th scope="col" className={TH}>Người yêu cầu</th>}
+                  {showLead && <th scope="col" className={TH}>Phụ trách chính</th>}
+                  {showSource && <th scope="col" className={TH}>Nguồn KT</th>}
+                  {showNeeds && <th scope="col" className={TH}>Vật tư</th>}
+                  <th scope="col" className={`${TH} ${STICKY_RIGHT} bg-gray-50 text-right`}>Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {repairRequestsQuery.isLoading ? (
-                  <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr>
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <tr key={`sk-${i}`} aria-hidden="true">
+                      {Array.from({ length: tableColCount }).map((__, j) => (
+                        <td key={j} className="px-3 py-3"><div className={`h-3.5 rounded bg-gray-200 animate-pulse ${j === 4 ? 'w-4/5' : 'w-2/3'}`} /></td>
+                      ))}
+                    </tr>
+                  ))
                 ) : requests.length === 0 ? (
-                  <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">Chưa có yêu cầu sửa chữa.</td></tr>
+                  <tr>
+                    <td colSpan={tableColCount} className="px-3 py-10 text-center">
+                      <p className="text-sm font-medium text-gray-600">{hasActiveFilter ? 'Không có yêu cầu phù hợp bộ lọc' : 'Chưa có yêu cầu sửa chữa'}</p>
+                      {hasActiveFilter && <button type="button" onClick={clearFilters} className="mt-2 text-xs font-medium text-blue-600 hover:underline">Xóa bộ lọc</button>}
+                    </td>
+                  </tr>
                 ) : requests.map((request) => {
-                  const srcMa = (request as unknown as { inspectionRequest?: { maYeuCau?: string } })?.inspectionRequest?.maYeuCau ?? null;
-                  const srcId = (request as unknown as { sourceInspectionRequestId?: string | number | null })?.sourceInspectionRequestId ?? null;
-                  const itemNames = ((request as unknown as { items?: { tenHeThong: string }[] })?.items ?? []).map(j=>j.tenHeThong).filter(Boolean).join(', ') || '—';
-                  const needs = ((request as unknown as { materialNeeds?: { soLuongDuKien: unknown; soLuongThucTe: unknown }[] })?.materialNeeds ?? []) as { soLuongDuKien: unknown; soLuongThucTe: unknown }[];
-                  const fromItemsNeeds = ((request as unknown as { items?: { materialNeeds?: { soLuongDuKien: unknown; soLuongThucTe: unknown }[] }[] })?.items ?? []).flatMap(it => it.materialNeeds ?? []) as { soLuongDuKien: unknown; soLuongThucTe: unknown }[];
-                  const allNeeds = [...needs, ...fromItemsNeeds];
-                  const yeuCau = allNeeds.reduce((s,m)=> s + (Number(m.soLuongDuKien) || 0), 0);
-                  const daCap = allNeeds.reduce((s,m)=> s + (Number(m.soLuongThucTe) || 0), 0);
-                  const conThieu = Math.max(0, yeuCau - daCap);
+                  const srcMa = request.inspectionRequest?.maYeuCau ?? null;
+                  const devices = deviceNamesOf(request);
+                  const deviceLabel = devices.length > 1 ? `${devices[0]} +${devices.length - 1}` : (devices[0] ?? '');
+                  const needs = materialNeedsOf(request);
+                  const supplied = needs.filter(isNeedSupplied).length;
+                  const needsTitle = needs.map((m) => `${m.tenVatTu}: ${Number(m.soLuongThucTe ?? 0)}/${Number(m.soLuongDuKien ?? 0)} ${m.donVi ?? ''}`.trim()).join('\n');
+                  const lead = leadOf(request);
+                  const statusEntry = STATUS_LABELS[request.trangThai];
+                  const stickyBg = 'bg-white group-hover:bg-blue-50';
                   return (
-                    <tr key={request.id} onClick={() => openModal('view', request)} className="border-b border-gray-200 hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all">
-                      <td className="px-3 py-2.5 sticky left-0 bg-white z-10 font-mono text-xs text-blue-700 font-medium">{request.maYeuCau}</td>
-                      <td className="px-3 py-2.5 text-xs text-gray-600">{formatDate((request as unknown as { ngayThang?: string })?.ngayThang ?? (request as unknown as { createdAt?: string })?.createdAt)}</td>
-                      <td className="px-3 py-2.5 text-xs">{srcMa ? <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-amber-700 font-mono">{srcMa}</span> : srcId ? <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-amber-700">YC-KT#{String(srcId).slice(0,6)}</span> : <span className="text-gray-400">—</span>}</td>
-                      <td className="px-3 py-2.5"><StatusBadge label={(request as unknown as { mucDoUuTien?: string })?.mucDoUuTien ?? '—'} tone={PRIORITY_TONE[String((request as unknown as { mucDoUuTien?: string })?.mucDoUuTien ?? '')] ?? 'gray'} size="sm" /></td>
-                      <td className="px-3 py-2.5 text-xs text-gray-800 truncate max-w-[160px]" title={itemNames}>{itemNames}</td>
-                      <td className="px-3 py-2.5"><span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadgeClass(STATUS_LABELS[request.trangThai]?.tone ?? 'gray')}`}>{STATUS_LABELS[request.trangThai]?.label ?? request.trangThai}</span></td>
-                      <td className="px-3 py-2.5 text-xs">
-                        {allNeeds.length === 0 ? <span className="text-gray-400">—</span> : (
-                          <span className="inline-flex items-center gap-1 flex-wrap">
-                            <span className="inline-flex rounded-full bg-blue-50 border border-blue-200 px-1.5 py-0.5 text-blue-700">YC {yeuCau}</span>
-                            <span className="inline-flex rounded-full bg-green-50 border border-green-200 px-1.5 py-0.5 text-green-700">Đã cấp {daCap}</span>
-                            <span className={`inline-flex rounded-full border px-1.5 py-0.5 ${conThieu>0?'bg-amber-50 border-amber-200 text-amber-700':'bg-gray-50 border-gray-200 text-gray-600'}`}>Thiếu {conThieu}</span>
-                          </span>
-                        )}
+                    <tr key={request.id} onClick={() => openModal('view', request)} className="group cursor-pointer transition-colors hover:bg-blue-50">
+                      <td className={`${TD} ${STICKY_LEFT} ${stickyBg} whitespace-nowrap`}>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); openModal('view', request); }} className="font-mono text-xs font-medium text-blue-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded">{request.maYeuCau}</button>
                       </td>
-                      <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
+                      <td className={`${TD} whitespace-nowrap`}><StatusBadge label={statusEntry?.label ?? request.trangThai} tone={statusEntry?.tone ?? 'gray'} size="sm" /></td>
+                      <td className={`${TD} whitespace-nowrap`}><StatusBadge label={request.mucDoUuTien || '—'} tone={PRIORITY_TONE[request.mucDoUuTien] ?? 'gray'} size="sm" /></td>
+                      <td className={`${TD} whitespace-nowrap text-xs text-gray-600 tabular-nums`}>{formatDateVN(request.ngayThang ?? request.createdAt)}</td>
+                      <td className={`${TD} text-xs text-gray-800`}>{deviceLabel ? <p className="max-w-[220px] truncate" title={devices.join('\n')}>{deviceLabel}</p> : <span className="text-gray-400">—</span>}</td>
+                      {showRequester && <td className={`${TD} text-xs`}>{request.createdByName ? <p className="max-w-[150px] truncate" title={request.createdByName}>{request.createdByName}</p> : <span className="text-gray-400">—</span>}</td>}
+                      {showLead && <td className={`${TD} text-xs`}>{lead ? <p className="max-w-[150px] truncate" title={lead}>{lead}</p> : <span className="text-gray-400">—</span>}</td>}
+                      {showSource && <td className={`${TD} text-xs whitespace-nowrap`}>{srcMa ? (
+                        request.sourceInspectionRequestId && !lockedMachineSystemId
+                          // Switch to the YCKT tab and drop repairId (ids overlap between the two tables)
+                          ? <button type="button" title={`Mở phiếu kiểm tra ${srcMa}`} onClick={(e) => { e.stopPropagation(); setSearchParams(buildTechnicalDetailParams(searchParams, 'inspection', String(request.sourceInspectionRequestId))); }} className="font-mono text-amber-700 hover:underline">{srcMa}</button>
+                          : <span className="font-mono text-amber-700">{srcMa}</span>
+                      ) : <span className="text-gray-400">—</span>}</td>}
+                      {showNeeds && <td className={`${TD} text-xs whitespace-nowrap`}>{needs.length === 0 ? <span className="text-gray-400">—</span> : <span title={needsTitle} className={supplied < needs.length ? 'text-amber-700' : 'text-green-700'}>{supplied}/{needs.length} món đã cấp</span>}</td>}
+                      <td className={`px-3 py-1.5 align-middle ${STICKY_RIGHT} ${stickyBg}`} onClick={(e) => e.stopPropagation()}>
                         {(() => {
                           const s = request.trangThai as RepairRequestStatus;
-                          const isTerminal = s === 'HOAN_THANH' || s === 'DA_HUY';
-                          const iconBtn = (cls: string) => `inline-flex items-center justify-center h-7 w-7 rounded-md border transition-colors ${cls}`;
-                          const acts: { title: string; icon: JSX.Element; onClick: (e: React.MouseEvent) => void; cls: string }[] = [];
-                          acts.push({ title: 'Xem chi tiết', icon: <Eye className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); openModal('view', request); }, cls: 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50' });
-                          if (canUpdateRepair && !isTerminal) acts.push({ title: 'Sửa', icon: <Edit className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); openModal('edit', request); }, cls: 'bg-white border-blue-200 text-blue-600 hover:bg-blue-50' });
-                          acts.push({ title: 'Lịch sử', icon: <History className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); setHistoryRequestId(request.id); }, cls: 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50' });
-                          if (canUpdateRepair && !isTerminal) acts.push({ title: 'Hủy', icon: <Ban className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); setCancelTarget(request); setCancelReason(''); }, cls: 'bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100' });
-                          if (isAdmin) acts.push({ title: 'Xóa', icon: <Trash2 className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); remove(request); }, cls: 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100' });
-                          // ĐẠT/KHÔNG ĐẠT belongs to the requester (creator of source YCKT, else of this YCSC), not the technician
-                          const canConfirmRow = s === 'CHO_NGHIEM_THU' && (user?.role === UserRole.ADMIN || isRowConfirmer(request));
-                          if (canConfirmRow) acts.push({ title: 'Xác nhận KHÔNG ĐẠT', icon: <X className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); openConfirmModal(request, 'KHONG_DAT'); }, cls: 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100' });
-                          if (canConfirmRow) acts.unshift({ title: 'Xác nhận ĐẠT', icon: <CheckCircle className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); openConfirmModal(request, 'DAT'); }, cls: 'bg-green-600 border-green-600 text-white hover:bg-green-700' });
-                          if (!canUpdateRepair) { /* no primary */ }
-                          else if (s === 'CHO_XU_LY') acts.unshift({ title: 'Tiếp nhận', icon: <CheckCircle className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); handleAccept(request); }, cls: 'bg-blue-600 border-blue-600 text-white hover:bg-blue-700' });
-                          else if (s === 'DA_TIEP_NHAN') acts.unshift({ title: 'Lên kế hoạch', icon: <Wrench className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); openPlanModal(request); }, cls: 'bg-amber-600 border-amber-600 text-white hover:bg-amber-700' });
-                          else if (s === 'LEN_KE_HOACH') acts.unshift({ title: 'Bắt đầu', icon: <Wrench className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); handleStartRepair(request); }, cls: 'bg-blue-600 border-blue-600 text-white hover:bg-blue-700' });
-                          // Full acceptance slip (per-item tình trạng sau + tệp) lives in the detail view
-                          else if (s === 'DANG_SUA_CHUA') acts.unshift({ title: 'Đề nghị nghiệm thu', icon: <CheckCircle className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); openModal('view', request); }, cls: 'bg-green-600 border-green-600 text-white hover:bg-green-700' });
-                          else if (s === 'DA_NGHIEM_THU') acts.unshift({ title: 'Hoàn thành', icon: <CheckCircle className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); handleComplete(request); }, cls: 'bg-green-700 border-green-700 text-white hover:bg-green-800' });
-                          return (
-                            <div className="flex items-center justify-end gap-1 flex-wrap">
-                              {acts.map((a, i) => (
-                                <button key={i} type="button" title={a.title} aria-label={a.title} onClick={a.onClick} className={iconBtn(a.cls)}><span className="sr-only">{a.title}</span>{a.icon}</button>
-                              ))}
-                            </div>
-                          );
+                          const gate = { isTechnical: canUpdateRepair, isAdmin: isAdminRole, isOwner: !!userId && request.createdById === userId };
+                          // Row click opens the detail, so no separate "Xem" button. One primary action per state, each with its own icon.
+                          const acts: RowAction[] = [];
+                          // ĐẠT/KHÔNG ĐẠT belongs to the pending slip's confirmer (or ADMIN), not the technician
+                          if (s === 'CHO_NGHIEM_THU' && canConfirmAcceptance(request.acceptanceHandovers, userId, isAdminRole)) {
+                            acts.push({ key: 'dat', label: 'Xác nhận ĐẠT', icon: <CheckCircle size={14} />, tone: 'success', onClick: () => openConfirmModal(request, 'DAT') });
+                            acts.push({ key: 'khongdat', label: 'Xác nhận KHÔNG ĐẠT', icon: <XCircle size={14} />, tone: 'danger', onClick: () => openConfirmModal(request, 'KHONG_DAT') });
+                          }
+                          if (canUpdateRepair) {
+                            if (s === 'CHO_XU_LY') acts.push({ key: 'accept', label: 'Tiếp nhận', icon: <CheckCircle size={14} />, tone: 'primary', onClick: () => handleAccept(request) });
+                            else if (s === 'DA_TIEP_NHAN') acts.push({ key: 'plan', label: 'Lên kế hoạch', icon: <ClipboardList size={14} />, tone: 'warning', onClick: () => openPlanModal(request) });
+                            else if (s === 'LEN_KE_HOACH') acts.push({ key: 'start', label: 'Bắt đầu sửa chữa', icon: <Play size={14} />, tone: 'primary', onClick: () => handleStartRepair(request) });
+                            else if (s === 'DA_NGHIEM_THU') acts.push({ key: 'complete', label: 'Hoàn thành', icon: <CheckCheck size={14} />, tone: 'success', onClick: () => handleComplete(request) });
+                            // DANG_SUA_CHUA: the acceptance slip (per-item result + file) is filled in the detail view
+                          }
+                          if (canEditRepair(s, gate)) acts.push({ key: 'edit', label: 'Sửa', icon: <Edit size={14} />, tone: 'primary', onClick: () => openModal('edit', request) });
+                          acts.push({ key: 'history', label: 'Lịch sử', icon: <History size={14} />, onClick: () => setHistoryRequestId(request.id) });
+                          if (canCancelRepair(s, gate)) acts.push({ key: 'cancel', label: 'Hủy phiếu', icon: <Ban size={14} />, tone: 'warning', onClick: () => { setCancelTarget(request); setCancelReason(''); } });
+                          if (canDeleteRequest(s, canDelete)) acts.push({ key: 'delete', label: 'Xóa', icon: <Trash2 size={14} />, tone: 'danger', onClick: () => remove(request) });
+                          return <ResponsiveRowActions actions={acts} />;
                         })()}
                       </td>
                     </tr>
@@ -740,7 +777,8 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
               </tbody>
             </table>
         </div>
-        {pagination && pagination.totalPages > 1 && (
+        )}
+        {pagination && pagination.totalPages > 1 && !repairRequestsQuery.isError && (
           <div className="flex items-center justify-between border-t border-gray-200 px-3 py-2 text-sm">
             <span className="text-gray-600">Trang {pagination.page}/{pagination.totalPages} - {pagination.total} dòng</span>
             <div className="flex gap-1">
@@ -756,6 +794,7 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
         onClose={closeModal}
         mode={modal?.mode ?? 'create'}
         record={modal?.record}
+        _source="repair"
         lockedMachineSystemId={lockedMachineSystemId}
         lockedRequestType={modal?.mode === 'create' ? 'SUA_CHUA' : undefined}
         onSaved={closeModal}
@@ -812,40 +851,14 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
               <button title="Đóng" onClick={() => setHistoryRequestId(null)} className="rounded p-1.5 text-gray-500 hover:bg-gray-100"><X className="h-4 w-4" /></button>
             </div>
             <div className="max-h-[70vh] overflow-y-auto p-4 text-sm">
-              {statusHistoryQuery.isLoading && <p className="text-gray-400 text-center py-4">Đang tải...</p>}
-              {statusHistoryQuery.isError && <p className="text-red-600 text-center py-4">Không tải được lịch sử.</p>}
-              {statusHistoryQuery.data?.data?.length === 0 && <p className="text-gray-400 text-center py-4">Chưa có thay đổi trạng thái.</p>}
-              <ol className="space-y-3">
-                {(statusHistoryQuery.data?.data as unknown as { id: string; oldStatus: string; newStatus: string; reason: string | null; actorName: string | null; actorRole: string | null; createdAt: string }[] | undefined)?.map((log) => {
-                  const oldLabel = (STATUS_LABELS as Record<string, { label: string }>)[log.oldStatus]?.label ?? log.oldStatus ?? '—';
-                  const newLabel = (STATUS_LABELS as Record<string, { label: string }>)[log.newStatus]?.label ?? log.newStatus;
-                  const newTone = (STATUS_LABELS as Record<string, { tone: string }>)[log.newStatus]?.tone ?? 'gray';
-                  return (
-                    <li key={log.id} className="flex gap-3">
-                      <div className="flex flex-col items-center">
-                        <span className={`mt-1 inline-flex h-2 w-2 rounded-full ${newTone === 'green' ? 'bg-green-500' : newTone === 'blue' ? 'bg-blue-500' : newTone === 'red' ? 'bg-red-500' : 'bg-gray-400'}`} />
-                        <div className="mt-1 flex-1 w-px bg-gray-200" />
-                      </div>
-                      <div className="pb-3">
-                        <p className="font-medium text-gray-800">{oldLabel} → <span className={`${statusBadgeClass(newTone)} inline-flex items-center rounded-full border px-2 py-0.5 text-xs`}>{newLabel}</span></p>
-                        {log.reason && <p className="text-xs text-gray-500 mt-0.5">Lý do: {log.reason}</p>}
-                        {log.actorName && <p className="text-xs text-gray-500">Bởi: {log.actorName} ({log.actorRole})</p>}
-                        <p className="text-xs text-gray-400 mt-0.5">{new Date(log.createdAt).toLocaleString('vi-VN')}</p>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
+              {statusHistoryQuery.isError
+                ? <p className="text-red-600 text-center py-4">Không tải được lịch sử.</p>
+                : <StatusTimeline entries={historyEntries} isLoading={statusHistoryQuery.isLoading} statusLabels={STATUS_LABELS} />}
             </div>
           </div>
         </Modal>
       )}
 
-      {repairRequestsQuery.isError && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          Không tải được danh sách yêu cầu sửa chữa.
-        </div>
-      )}
       {/* ── Plan modal (YSCC) ── */}
       {planTarget && (
         <Modal isOpen={!!planTarget} onClose={() => setPlanTarget(null)} showBackdrop>
@@ -916,11 +929,6 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
         </Modal>
       )}
 
-      {requests.length === 0 && !repairRequestsQuery.isLoading && (
-        <div className="hidden items-center gap-2 text-sm text-gray-500">
-          <Wrench className="h-4 w-4" /> Chưa có dữ liệu.
-        </div>
-      )}
     </div>
   );
 };

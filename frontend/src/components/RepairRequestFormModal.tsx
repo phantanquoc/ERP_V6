@@ -6,6 +6,7 @@ import { getFileUrl } from '../config/api';
 import acceptanceHandoverService from '../services/acceptanceHandoverService';
 import type { AcceptanceHandoverItemInput } from '../services/acceptanceHandoverService';
 import { useQueryClient } from '@tanstack/react-query';
+import { isTechnicalUser, canDeleteTechnical } from '../utils/permissions';
 import { useAuth as useAuthCtx } from '../contexts/AuthContext';
 import FileUpload from './FileUpload';
 import Modal from './Modal';
@@ -28,13 +29,19 @@ import {
   useDeleteIncidentalCost,
   useRepairStatusHistory,
   useUpdateRepairRequest,
+  useConfirmAcceptance,
+  useCompleteRepair,
+  useUpdateRepairActualFields,
+  repairRequestKeys,
 } from '../hooks/useRepairRequests';
 import {
   useCreateInspectionRequest,
   useGeneratedInspectionCode,
   useUpdateInspectionRequest,
+  useConfirmInspectionAcceptance,
+  useInspectionStatusHistory,
+  inspectionKeys,
 } from '../hooks/useInspectionRequests';
-import { useInspectionStatusHistory } from '../hooks/useInspectionRequests';
 import { useMachineSystemDetails, useMachineSystems } from '../hooks/useMachineSystemDetails';
 import { useFaultRecordTypeahead } from '../hooks/useFaultRecords';
 import type { FaultTypeaheadItem } from '../services/faultRecordService';
@@ -66,6 +73,19 @@ import {
   formatKetLuan,
   formatMucDo,
   formatTimelineReason,
+  formatDateVN,
+  formatDateTimeVN,
+  ROLE_LABELS,
+  activeRepairs,
+  buildTechnicalDetailParams,
+  canCancelInspection,
+  canCancelRepair,
+  canConfirmAcceptance,
+  canDeleteRequest,
+  canEditInspection,
+  canEditRepair,
+  inspectionStepsFor,
+  pickPendingSlip,
 } from '../constants/repairRequest';
 
 export type RepairRequestSavedInfo = { id?: number | string; maYeuCau?: string };
@@ -229,6 +249,43 @@ const FaultRecordTypeaheadCell = ({ value, faultRecordId, disabled, onSelect }: 
   );
 };
 
+export type StatusHistoryEntry = { id: string; oldStatus: string | null; newStatus: string; actorName: string | null; actorRole: string | null; reason: string | null; createdAt: string };
+
+/** Status history with Vietnamese status/reason labels and the actor — shared by the detail modal and both lists. */
+export const StatusTimeline = ({ entries, isLoading, compact, statusLabels }: { entries: StatusHistoryEntry[]; isLoading: boolean; compact?: boolean; statusLabels: Record<string, { label: string }> }) => {
+  const labelOf = (code: string | null | undefined) => (code ? statusLabels[String(code)]?.label ?? String(code) : 'Tạo mới');
+  if (isLoading) return <p className="px-1 py-3 text-sm text-gray-400">Đang tải...</p>;
+  if (!entries || entries.length === 0) return <p className="px-1 py-3 text-sm text-gray-400">Chưa có thay đổi</p>;
+  return (
+    <div className="relative pl-4">
+      <div className="absolute left-1.5 top-2 bottom-2 w-px bg-gray-200" aria-hidden />
+      <ul className="space-y-2">
+        {entries.map((e) => {
+          const reason = formatTimelineReason(e.reason);
+          const actor = [e.actorName, e.actorRole ? (ROLE_LABELS[e.actorRole] ?? e.actorRole) : null].filter(Boolean).join(' · ');
+          return (
+            <li key={e.id} className="relative pl-2">
+              <span className="absolute -left-[9px] top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-blue-500 shadow-sm" aria-hidden />
+              <div className="flex flex-wrap items-center gap-1.5 text-sm">
+                {e.oldStatus && e.oldStatus !== e.newStatus && (<><span className="text-gray-500">{labelOf(e.oldStatus)}</span><span className="text-gray-400">→</span></>)}
+                <span className="font-medium text-gray-800">{labelOf(e.newStatus)}</span>
+              </div>
+              <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                {actor && <span>{actor}</span>}
+                <span className="tabular-nums">{formatDateTimeVN(e.createdAt)}</span>
+              </div>
+              {reason && <p className={compact ? 'mt-0.5 truncate text-xs text-gray-500' : 'mt-1 text-xs text-gray-600'} title={compact ? reason : undefined}>{reason}</p>}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+};
+
+type InitialRepairItem = { tenHeThong: string; tinhTrangThietBi: string; loaiLoi: string; noiDungLoi: string; machineSystemId?: string; machineSystemDetailId?: string; faultRecordId?: string | null; faultRecord?: { maLoi: string; tenLoi: string } | null; sourceInspectionItemId?: string | null };
+type InitialRepairData = { sourceInspectionRequestId?: string; items?: InitialRepairItem[]; ghiChu?: string };
+
 interface RepairRequestFormModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -241,9 +298,10 @@ interface RepairRequestFormModalProps {
   hideCodeField?: boolean;
   onSaved?: (info?: RepairRequestSavedInfo) => void;
   onEdit?: () => void;
-  initialData?: { sourceInspectionRequestId?: string; items?: { tenHeThong: string; tinhTrangThietBi: string; loaiLoi: string; noiDungLoi: string; machineSystemId?: string; machineSystemDetailId?: string }[]; ghiChu?: string } | null;
+  initialData?: InitialRepairData | null;
 }
 
+type CleanedItem = { id?: string; machineSystemId?: string; machineSystemDetailId?: string; faultRecordId: string | null; sourceInspectionItemId?: string; tenHeThong: string; tinhTrangThietBi: string; loaiLoi: string; noiDungLoi: string };
 type AssigneeDraft = { userId: string; userName: string; isLead: boolean };
 // YCCC-style: mỗi dòng là 1 hàng hóa (ProductCombobox + soLuong + donViTinh), giống SupplyRequestModal.
 // phanLoai lấy từ InternationalProduct.loaiSanPham; nếu hàng mới (isNewProduct) phanLoai có thể trống hoặc 'Vật tư'.
@@ -288,6 +346,9 @@ const RepairRequestFormModal = ({
   const updateRequest = useUpdateRepairRequest();
   const createInspection = useCreateInspectionRequest();
   const updateInspection = useUpdateInspectionRequest();
+  const confirmRepairMut = useConfirmAcceptance();
+  const confirmInspectionMut = useConfirmInspectionAcceptance();
+  const completeRepairMut = useCompleteRepair();
 
   const [form, setForm] = useState<CreateRepairRequestRequest>(emptyForm());
   const [items, setItems] = useState<ItemDraft[]>([emptyItem()]);
@@ -313,26 +374,29 @@ const RepairRequestFormModal = ({
   const { user: viewUser } = useAuthCtx();
   const roleUpperView = String((viewUser as unknown as { role?: string })?.role ?? '').toUpperCase();
   const isAdminView = roleUpperView === 'ADMIN';
-  const isToBTView = roleUpperView === 'ADMIN' || roleUpperView === 'DEPARTMENT_HEAD' || roleUpperView === 'TEAM_LEAD' || String((viewUser as unknown as { department?: string })?.department ?? '').toLowerCase() === 'technical' || String((viewUser as unknown as { departmentCode?: string })?.departmentCode ?? '').toLowerCase() === 'technical';
+  // Technician = ADMIN or Kỹ thuật member (primary OR secondary department), any role — mirrors backend requireTechnical
+  const isToBTView = isTechnicalUser(viewUser as unknown as Parameters<typeof isTechnicalUser>[0]);
+  const canDeleteView = canDeleteTechnical(viewUser as unknown as Parameters<typeof canDeleteTechnical>[0]);
   const viewUserId = String((viewUser as unknown as { id?: string; _id?: string })?.id ?? (viewUser as unknown as { _id?: string })?._id ?? '');
   const isOwnerView = String((record as unknown as { createdById?: string })?.createdById ?? '') !== '' && String((record as unknown as { createdById?: string })?.createdById) === viewUserId;
   // Pending acceptance slip (shared shape for YCSC + YCKT) → only its designated confirmer (or ADMIN) sees ĐẠT/KHÔNG ĐẠT
   type PendingSlip = { id: string; maNghiemThu: string; ketQua?: string | null; nguoiXacNhanId?: string | null; nguoiXacNhanTen?: string | null; tinhTrangSauSuaChua?: string; fileDinhKem?: string | null; ghiChu?: string | null; nguoiBanGiao?: string; lyDoXacNhan?: string | null; xacNhanLuc?: string | null; createdAt?: string };
   const viewSlips = ((record as unknown as { acceptanceHandovers?: PendingSlip[] })?.acceptanceHandovers ?? []);
-  const viewPendingSlip = [...viewSlips].sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? ''))).find((h) => !h.ketQua) ?? null;
-  const canConfirmView = !!viewPendingSlip && (isAdminView || (!!viewPendingSlip.nguoiXacNhanId && viewPendingSlip.nguoiXacNhanId === viewUserId));
-  // Thứ tự ưu tiên xác định YCKT để không gọi nhầm /repair-requests/:id/status-history:
-  // 1) (record as any)._source === 'inspection' — do bàn kiểm tra (UnifiedRequest) truyền
-  // 2) props._source === 'inspection' — caller truyền trực tiếp
-  // 3) requestType === 'KIEM_TRA' (shape cũ / fallback)
-  // 4) maYeuCau.startsWith('YC-KT') — prefix code inspection
+  const viewPendingSlip = pickPendingSlip(viewSlips);
+  const canConfirmView = canConfirmAcceptance(viewSlips, viewUserId, isAdminView);
+  const gateActor = { isTechnical: isToBTView, isAdmin: isAdminView, isOwner: isOwnerView };
+  // Which table this record belongs to (YCKT and YCSC ids overlap — never guess from the code prefix,
+  // migrated YCKT rows may still carry a YC-SC code). Priority:
+  // 1) record._source / props._source  2) lockedRequestType when a record exists  3) legacy requestType
   const recordSource = (record as unknown as { _source?: string })?._source;
-  const effectiveIsKiemTra = isView
-    ? (recordSource === 'inspection'
-      || _source === 'inspection'
+  const effectiveIsKiemTra = !!record && (
+    recordSource === 'inspection'
+    || _source === 'inspection'
+    || (recordSource !== 'repair' && _source !== 'repair' && (
+      lockedRequestType === 'KIEM_TRA'
       || (record as unknown as { requestType?: string })?.requestType === 'KIEM_TRA'
-      || String((record as unknown as { maYeuCau?: string })?.maYeuCau ?? '').startsWith('YC-KT'))
-    : false;
+    ))
+  );
   // viewStatus/viewKetLuan đọc generic để đúng cả shape InspectionRequest lẫn RepairRequest
   const viewStatus = String((record as unknown as { trangThai?: string })?.trangThai ?? '');
   const viewKetLuanStr = String((record as unknown as { ketLuan?: string })?.ketLuan ?? '');
@@ -352,7 +416,7 @@ const RepairRequestFormModal = ({
   const [viewConfirmForm, setViewConfirmForm] = useState<{ ketQua: 'DAT' | 'KHONG_DAT'; lyDo: string }>({ ketQua: 'DAT', lyDo: '' });
   const [viewConfirmSubmitting, setViewConfirmSubmitting] = useState(false);
   const [viewCreateRepairOpen, setViewCreateRepairOpen] = useState(false);
-  const [viewCreateRepairInitial, setViewCreateRepairInitial] = useState<{ sourceInspectionRequestId?: string; items?: { tenHeThong: string; tinhTrangThietBi: string; loaiLoi: string; noiDungLoi: string; machineSystemId?: string; machineSystemDetailId?: string }[]; ghiChu?: string } | null>(null);
+  const [viewCreateRepairInitial, setViewCreateRepairInitial] = useState<InitialRepairData | null>(null);
   // YCSC footer modals (copy pattern from RepairDetailPanel)
   const [ycscPlanOpen, setYcscPlanOpen] = useState(false);
   const [ycscPlanForm, setYcscPlanForm] = useState({ keHoachChiTiet: '', phuongAn: '', bienPhapAnToan: '', ngayBatDauKeHoach: '', ngayHoanThienDuKien: '', chiPhiDuKien: '', canNgungMay: false, phongBanId: '' });
@@ -374,7 +438,8 @@ const RepairRequestFormModal = ({
   const [ycscHandoverError, setYcscHandoverError] = useState('');
   const [ycscHandoverSubmitting, setYcscHandoverSubmitting] = useState(false);
   const [ycscConfirmOpen, setYcscConfirmOpen] = useState(false);
-  const [ycscConfirmForm, setYcscConfirmForm] = useState({ ketQua: '' as '' | 'DAT' | 'KHONG_DAT', lyDo: '', chiPhiThucTe: '' });
+  // Confirmer sends { ketQua, lyDo } only — actual cost is entered by technicians
+  const [ycscConfirmForm, setYcscConfirmForm] = useState({ ketQua: '' as '' | 'DAT' | 'KHONG_DAT', lyDo: '' });
   const ycscPlanOpen2 = ycscPlanOpen; void ycscPlanOpen2;
   // viewRecordId/hasValidRecordId phải khai trước mọi hook dùng nó (TDZ)
   const hasValidRecordId = (record as unknown as { id?: number | string } | null)?.id != null
@@ -392,6 +457,57 @@ const RepairRequestFormModal = ({
   const [incEdit, setIncEdit] = useState({ tenKhoan: '', soTien: '', lyDo: '', fileMinhChung: '' });
   const incidentalCosts: { id: string; tenKhoan: string; soTien: number | string; lyDo: string; fileMinhChung?: string | null }[] = ((ycscIncidentalQ.data as unknown as { data?: unknown[] })?.data ?? (record as unknown as { incidentalCosts?: unknown[] })?.incidentalCosts ?? []) as never;
   const formatVND = (n: number | null | undefined) => n == null ? '—' : Number(n).toLocaleString('vi-VN') + ' ₫';
+  // Technician-entered actual execution data (YCSC, DA_NGHIEM_THU) — PATCH /:id/actual-fields
+  type ActualFieldsSource = { chiPhiThucTe?: number | string | null; gioCongThucTe?: number | string | null; noiDungThucHien?: string | null; ngayHoanThanhThucTe?: string | null };
+  const toDateInputValue = (v: string | null | undefined) => {
+    if (!v) return '';
+    const d = new Date(v);
+    if (Number.isNaN(d.getTime())) return '';
+    // Local calendar date (VN) — not the UTC slice of the ISO string
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const actualFormFrom = (src: ActualFieldsSource | null | undefined) => ({
+    chiPhiThucTe: src?.chiPhiThucTe != null ? String(src.chiPhiThucTe) : '',
+    gioCongThucTe: src?.gioCongThucTe != null ? String(src.gioCongThucTe) : '',
+    noiDungThucHien: src?.noiDungThucHien ?? '',
+    ngayHoanThanhThucTe: toDateInputValue(src?.ngayHoanThanhThucTe),
+  });
+  const [actualForm, setActualForm] = useState(() => actualFormFrom(record as unknown as ActualFieldsSource | null));
+  const updateActualFields = useUpdateRepairActualFields();
+  const actualSrc = record as unknown as ActualFieldsSource | null | undefined;
+  useEffect(() => {
+    setActualForm(actualFormFrom(actualSrc));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewRecordId, actualSrc?.chiPhiThucTe, actualSrc?.gioCongThucTe, actualSrc?.noiDungThucHien, actualSrc?.ngayHoanThanhThucTe]);
+  const saveActualFields = async () => {
+    if (!ycscIdForChain) return;
+    const parseOptionalNonNegative = (raw: string, label: string): number | null | false => {
+      if (!raw.trim()) return null;
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n < 0) { toast.error(`${label} phải là số ≥ 0`); return false; }
+      return n;
+    };
+    const chiPhi = parseOptionalNonNegative(actualForm.chiPhiThucTe, 'Chi phí thực tế');
+    if (chiPhi === false) return;
+    const gioCong = parseOptionalNonNegative(actualForm.gioCongThucTe, 'Giờ công thực tế');
+    if (gioCong === false) return;
+    try {
+      const res = await updateActualFields.mutateAsync({
+        id: ycscIdForChain,
+        payload: {
+          chiPhiThucTe: chiPhi,
+          gioCongThucTe: gioCong,
+          noiDungThucHien: actualForm.noiDungThucHien.trim() || null,
+          ngayHoanThanhThucTe: actualForm.ngayHoanThanhThucTe || null,
+        },
+      });
+      if (res?.data) setActualForm(actualFormFrom(res.data as unknown as ActualFieldsSource));
+      // Keep the modal open (onSaved closes it in list callers) — the technician completes from the footer next.
+      toast.success('Đã lưu thông tin thực tế');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Không lưu được thông tin thực tế');
+    }
+  };
 
   useEffect(() => {
     if (!isView || !effectiveIsKiemTra) return;
@@ -417,45 +533,7 @@ const RepairRequestFormModal = ({
   const repairHistoryQ = useRepairStatusHistory(isView && !effectiveIsKiemTra && hasValidRecordId ? viewRecordId : null);
   const activeHistoryQ = effectiveIsKiemTra ? inspectionHistoryQ : repairHistoryQ;
 
-  const formatVNDateTime = (iso: string) => {
-    try {
-      return new Date(iso).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    } catch { return iso; }
-  };
-  const labelOf = (code: string | null | undefined) => {
-    if (!code) return '—';
-    const entry = (VIEW_STATUS_LABELS as Record<string, { label: string }>)[String(code)];
-    return entry?.label ?? String(code);
-  };
-
-  type HistoryEntry = { id: string; oldStatus: string | null; newStatus: string; actorName: string | null; actorRole: string | null; reason: string | null; createdAt: string };
-  const StatusTimeline = ({ entries, isLoading, compact }: { entries: HistoryEntry[]; isLoading: boolean; compact?: boolean }) => {
-    if (isLoading) return <p className="px-1 py-3 text-sm text-gray-400">Đang tải...</p>;
-    if (!entries || entries.length === 0) return <p className="px-1 py-3 text-sm text-gray-400">Chưa có thay đổi</p>;
-    return (
-      <div className="relative pl-4">
-        <div className="absolute left-1.5 top-2 bottom-2 w-px bg-gray-200" aria-hidden />
-        <ul className="space-y-2">
-          {entries.map((e) => (
-            <li key={e.id} className="relative pl-2">
-              <span className="absolute -left-[9px] top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-blue-500 shadow-sm" aria-hidden />
-              <div className="flex flex-wrap items-center gap-1.5 text-sm">
-                <span className="text-gray-500">{labelOf(e.oldStatus)}</span>
-                <span className="text-gray-400">→</span>
-                <span className="font-medium text-gray-800">{labelOf(e.newStatus)}</span>
-              </div>
-              <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                {(e.actorName || e.actorRole) && <span>{[e.actorName, e.actorRole].filter(Boolean).join(' · ')}</span>}
-                <span>{formatVNDateTime(e.createdAt)}</span>
-              </div>
-              {e.reason && !compact && <p className="mt-1 text-xs text-gray-600">Lý do: {formatTimelineReason(e.reason)}</p>}
-              {e.reason && compact && <p className="mt-0.5 truncate text-xs text-gray-500">Lý do: {formatTimelineReason(e.reason)}</p>}
-            </li>
-          ))}
-        </ul>
-      </div>
-    );
-  };
+  type HistoryEntry = StatusHistoryEntry;
   const rawHistoryEntries: HistoryEntry[] = ((activeHistoryQ.data as unknown as { data?: HistoryEntry[] })?.data ?? (activeHistoryQ.data as unknown as HistoryEntry[]) ?? []) as HistoryEntry[];
   // Fallback to statusLogs embedded in record if history endpoint empty
   const fallbackEntries: HistoryEntry[] = !rawHistoryEntries.length && (record as unknown as { statusLogs?: HistoryEntry[] })?.statusLogs?.length
@@ -466,10 +544,10 @@ const RepairRequestFormModal = ({
   const hasMoreHistory = historyEntries.length > 4;
 
   const modalTitle = isView
-    ? 'Chi tiết yêu cầu'
+    ? (effectiveIsKiemTra ? 'Chi tiết yêu cầu kiểm tra' : 'Chi tiết yêu cầu sửa chữa')
     : record
-      ? 'Sửa yêu cầu sửa chữa'
-      : 'Thêm yêu cầu sửa chữa';
+      ? (effectiveIsKiemTra ? 'Sửa yêu cầu kiểm tra' : 'Sửa yêu cầu sửa chữa')
+      : (lockedRequestType === 'KIEM_TRA' ? 'Thêm yêu cầu kiểm tra' : 'Thêm yêu cầu sửa chữa');
 
   const viewFooter = (() => {
     if (!isView || !record) return (
@@ -485,13 +563,12 @@ const RepairRequestFormModal = ({
       const repairId = (record as unknown as { id: number | string }).id;
       const existingRepairCheck = (record as unknown as { repairRequests?: { id: number | string; maYeuCau: string; trangThai: string }[] })?.repairRequests;
       void existingRepairCheck;
-      const canShowCancelYCSC = s === 'CHO_XU_LY' || s === 'DA_TIEP_NHAN';
-      const canShowDeleteYCSC = isAdminView && (s === 'CHO_XU_LY' || s === 'DA_TIEP_NHAN');
-      const allowOwnerCancelYCSC = !isToBTView && isOwnerView && s === 'CHO_XU_LY';
+      const canShowCancelYCSC = canCancelRepair(s, gateActor);
+      const canShowDeleteYCSC = canDeleteRequest(s, canDeleteView);
       const showHistoryYCSC = () => setViewHistoryOpen(true);
       const openCancelYCSC = (mode: 'cancel'|'reject') => { setViewCancelMode(mode); setViewCancelReason(''); setViewCancelOpen(true); };
       const doAcceptYCSC = async () => {
-        try { await repairRequestService.accept(repairId as never); toast.success('Đã tiếp nhận'); queryClient.invalidateQueries({ queryKey: ['repairRequests'] as unknown as never }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không tiếp nhận được'); }
+        try { await repairRequestService.accept(repairId as never); toast.success('Đã tiếp nhận'); queryClient.invalidateQueries({ queryKey: repairRequestKeys.all }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không tiếp nhận được'); }
       };
       const doPlanYCSC = () => {
         const rAny = record as unknown as Record<string, unknown>;
@@ -508,7 +585,7 @@ const RepairRequestFormModal = ({
         setYcscPlanOpen(true);
       };
       const doStartYCSC = async () => {
-        try { await repairRequestService.start(repairId as never); toast.success('Đã bắt đầu sửa chữa'); queryClient.invalidateQueries({ queryKey: ['repairRequests'] as unknown as never }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không bắt đầu được'); }
+        try { await repairRequestService.start(repairId as never); toast.success('Đã bắt đầu sửa chữa'); queryClient.invalidateQueries({ queryKey: repairRequestKeys.all }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không bắt đầu được'); }
       };
       const doSubmitYCSC = () => {
         const rItems = ((record as unknown as { items?: { id: string; tenHeThong: string; tinhTrangThietBi: string; noiDungLoi: string }[] })?.items ?? []) as { id: string; tinhTrangThietBi: string; noiDungLoi: string }[];
@@ -521,12 +598,13 @@ const RepairRequestFormModal = ({
         setYcscSubmitOpen(true);
       };
       const doCompleteYCSC = async () => {
-        try { await repairRequestService.complete(repairId as never); toast.success('Đã hoàn thành'); queryClient.invalidateQueries({ queryKey: ['repairRequests'] as unknown as never }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không hoàn thành được'); }
+        // useCompleteRepair also refreshes fault records (closed by complete) and the source YCKT
+        try { await completeRepairMut.mutateAsync(repairId); toast.success('Đã hoàn thành'); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không hoàn thành được'); }
       };
       const leftYCSC = (
         <div className="flex items-center gap-2 flex-wrap">
           <button type="button" onClick={showHistoryYCSC} title="Lịch sử" className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px]"><History className="h-4 w-4" /> Lịch sử</button>
-          {(canShowCancelYCSC || allowOwnerCancelYCSC) && <button type="button" onClick={() => openCancelYCSC('cancel')} title="Hủy phiếu" className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 min-h-[44px]"><Ban className="h-4 w-4" /> Hủy phiếu</button>}
+          {canShowCancelYCSC && <button type="button" onClick={() => openCancelYCSC('cancel')} title="Hủy phiếu" className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 min-h-[44px]"><Ban className="h-4 w-4" /> Hủy phiếu</button>}
           {canShowDeleteYCSC && <button type="button" onClick={() => setViewDeleteOpen(true)} title="Xóa" className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 min-h-[44px]"><Trash2 className="h-4 w-4" /> Xóa</button>}
         </div>
       );
@@ -534,8 +612,8 @@ const RepairRequestFormModal = ({
       if (s === 'CHO_NGHIEM_THU') {
         // Requester confirms (creator of source YCKT, else creator of this YCSC) — not the technician
         rightYCSC = canConfirmView ? (<div className="flex items-center gap-2">
-          <button type="button" onClick={() => { setYcscConfirmForm({ ketQua: 'KHONG_DAT', lyDo: '', chiPhiThucTe: '' }); setYcscConfirmOpen(true); }} className="rounded border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 min-h-[44px]">KHÔNG ĐẠT</button>
-          <button type="button" onClick={() => { setYcscConfirmForm({ ketQua: 'DAT', lyDo: '', chiPhiThucTe: '' }); setYcscConfirmOpen(true); }} className="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 min-h-[44px]">ĐẠT</button>
+          <button type="button" onClick={() => { setYcscConfirmForm({ ketQua: 'KHONG_DAT', lyDo: '' }); setYcscConfirmOpen(true); }} className="rounded border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 min-h-[44px]">KHÔNG ĐẠT</button>
+          <button type="button" onClick={() => { setYcscConfirmForm({ ketQua: 'DAT', lyDo: '' }); setYcscConfirmOpen(true); }} className="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 min-h-[44px]">ĐẠT</button>
         </div>) : (<span className="text-xs text-amber-700">Chờ {viewPendingSlip?.nguoiXacNhanTen || 'người yêu cầu'} xác nhận nghiệm thu</span>);
       } else if (!isToBTView) {
         // Requester only gets Hủy (left group) — no technician CTA
@@ -554,7 +632,7 @@ const RepairRequestFormModal = ({
         rightYCSC = <span title={tip}><button type="button" onClick={doCompleteYCSC} disabled={hasNull2} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed"><CheckCheck className="h-4 w-4" /> Hoàn thành</button></span>;
 
       }
-      const showEditYCSC = onEdit && !isTerminal && s !== 'CHO_NGHIEM_THU' && s !== 'DA_NGHIEM_THU';
+      const showEditYCSC = !!onEdit && !isTerminal && canEditRepair(s, gateActor);
       return (
         <div className="flex w-full items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2 flex-wrap">
@@ -568,21 +646,20 @@ const RepairRequestFormModal = ({
         </div>
       );
     }
-    const canShowCancel = s === 'CHO_XU_LY' || s === 'DA_TIEP_NHAN';
-    const canShowDelete = isAdminView && (s === 'CHO_XU_LY' || s === 'DA_TIEP_NHAN');
-    const allowOwnerCancel = !isToBTView && isOwnerView && s === 'CHO_XU_LY';
+    const canShowCancel = canCancelInspection(s, gateActor);
+    const canShowDelete = canDeleteRequest(s, canDeleteView);
     const doAccept = async () => {
       const id = (record as unknown as { id: number }).id;
       // YCKT and YCSC are separate tables with overlapping Int ids — never fall back to the repair endpoint
-      try { await inspectionRequestService.accept(id); toast.success('Đã tiếp nhận'); queryClient.invalidateQueries({ queryKey: ['inspectionRequests'] as unknown as never }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không tiếp nhận được'); }
+      try { await inspectionRequestService.accept(id); toast.success('Đã tiếp nhận'); queryClient.invalidateQueries({ queryKey: inspectionKeys.all }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không tiếp nhận được'); }
     };
     const doStart = async () => {
       const id = (record as unknown as { id: number }).id;
-      try { await inspectionRequestService.startInspection(id); toast.success('Đã bắt đầu kiểm tra'); queryClient.invalidateQueries({ queryKey: ['inspectionRequests'] as unknown as never }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không bắt đầu được'); }
+      try { await inspectionRequestService.startInspection(id); toast.success('Đã bắt đầu kiểm tra'); queryClient.invalidateQueries({ queryKey: inspectionKeys.all }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không bắt đầu được'); }
     };
     const doSaveDraft = async () => {
       const id = (record as unknown as { id: number }).id;
-      try { await inspectionRequestService.updateDetails(id, { ketQuaKiemTra: viewInspectForm.ketQuaKiemTra || null, mucDoHuHong: viewInspectForm.mucDoHuHong || null, deXuatXuLy: viewInspectForm.deXuatXuLy || null, ketLuan: viewInspectForm.ketLuan || null } as never); toast.success('Đã lưu nháp'); queryClient.invalidateQueries({ queryKey: ['inspectionRequests'] as unknown as never }); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không lưu được'); }
+      try { await inspectionRequestService.updateDetails(id, { ketQuaKiemTra: viewInspectForm.ketQuaKiemTra || null, mucDoHuHong: viewInspectForm.mucDoHuHong || null, deXuatXuLy: viewInspectForm.deXuatXuLy || null, ketLuan: viewInspectForm.ketLuan || null }); toast.success('Đã lưu nháp'); queryClient.invalidateQueries({ queryKey: inspectionKeys.all }); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không lưu được'); }
     };
     const doSubmit = async () => {
       const id = (record as unknown as { id: number }).id;
@@ -595,19 +672,33 @@ const RepairRequestFormModal = ({
         await inspectionRequestService.updateDetails(id, { ketQuaKiemTra: viewInspectForm.ketQuaKiemTra || null, mucDoHuHong: viewInspectForm.mucDoHuHong || null, deXuatXuLy: viewInspectForm.deXuatXuLy || null, ketLuan: viewInspectForm.ketLuan || null });
         await inspectionRequestService.submitInspection(id, isFixed && viewFixFile ? { tinhTrangSau: viewFixForm.tinhTrangSau.trim(), ghiChuNghiemThu: viewFixForm.ghiChu.trim() || undefined, file: viewFixFile } : undefined);
         toast.success(isFixed ? 'Đã gửi phiếu nghiệm thu — chờ người tạo yêu cầu xác nhận' : 'Đã gửi kết quả');
-        queryClient.invalidateQueries({ queryKey: ['inspectionRequests'] as unknown as never }); onSaved?.(); onClose();
+        queryClient.invalidateQueries({ queryKey: inspectionKeys.all });
+        queryClient.invalidateQueries({ queryKey: ['acceptanceHandovers'] });
+        onSaved?.(); onClose();
       } catch (e) { toast.error(e instanceof Error ? e.message : 'Không gửi được — kiểm tra Kết quả/Kết luận'); }
     };
     const openInspectionConfirm = (ketQua: 'DAT' | 'KHONG_DAT') => { setViewConfirmForm({ ketQua, lyDo: '' }); setViewConfirmOpen(true); };
     const doComplete = async () => {
       const id = (record as unknown as { id: number }).id;
-      try { await inspectionRequestService.complete(id); toast.success('Đã hoàn thành kiểm tra'); queryClient.invalidateQueries({ queryKey: ['inspectionRequests'] as unknown as never }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không hoàn thành được'); }
+      try { await inspectionRequestService.complete(id); toast.success('Đã hoàn thành kiểm tra'); queryClient.invalidateQueries({ queryKey: inspectionKeys.all }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không hoàn thành được'); }
     };
     const doCreateRepair = () => {
-      const rItems = (record as unknown as { items?: { tenHeThong: string; tinhTrangThietBi: string; loaiLoi: string; noiDungLoi: string; machineSystemId?: string; machineSystemDetailId?: string }[] })?.items ?? [];
+      type SrcItem = { id: string; tenHeThong: string; tinhTrangThietBi: string; loaiLoi: string; noiDungLoi: string; machineSystemId?: string | null; machineSystemDetailId?: string | null; faultRecordId?: string | null; faultRecord?: { maLoi: string; tenLoi: string } | null };
+      const rItems = (record as unknown as { items?: SrcItem[] })?.items ?? [];
       setViewCreateRepairInitial({
         sourceInspectionRequestId: String((record as unknown as { id: number }).id),
-        items: rItems.map(it => ({ tenHeThong: it.tenHeThong, tinhTrangThietBi: it.tinhTrangThietBi, loaiLoi: it.loaiLoi, noiDungLoi: it.noiDungLoi, machineSystemId: it.machineSystemId, machineSystemDetailId: it.machineSystemDetailId } as unknown as typeof rItems[number])),
+        // Carry the YCKT item id + linked fault record so the YCSC item keeps the trace (and complete() closes the fault)
+        items: rItems.map((it) => ({
+          tenHeThong: it.tenHeThong,
+          tinhTrangThietBi: it.tinhTrangThietBi,
+          loaiLoi: it.loaiLoi,
+          noiDungLoi: it.noiDungLoi,
+          machineSystemId: it.machineSystemId ?? undefined,
+          machineSystemDetailId: it.machineSystemDetailId ?? undefined,
+          faultRecordId: it.faultRecordId ?? null,
+          faultRecord: it.faultRecord ?? null,
+          sourceInspectionItemId: it.id,
+        })),
         ghiChu: `Tạo từ phiếu kiểm tra ${(record as unknown as { maYeuCau?: string })?.maYeuCau ?? ''}`,
       });
       setViewCreateRepairOpen(true);
@@ -617,11 +708,13 @@ const RepairRequestFormModal = ({
     const leftGroup = (
       <div className="flex items-center gap-2 flex-wrap">
         <button type="button" onClick={showHistory} title="Lịch sử" className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px]"><History className="h-4 w-4" /> Lịch sử</button>
-        {(canShowCancel || allowOwnerCancel) && <button type="button" onClick={() => openCancel('cancel')} title="Hủy phiếu" className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 min-h-[44px]"><Ban className="h-4 w-4" /> Hủy phiếu</button>}
+        {canShowCancel && <button type="button" onClick={() => openCancel('cancel')} title="Hủy phiếu" className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 min-h-[44px]"><Ban className="h-4 w-4" /> Hủy phiếu</button>}
         {canShowDelete && <button type="button" onClick={() => setViewDeleteOpen(true)} title="Xóa" className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 min-h-[44px]"><Trash2 className="h-4 w-4" /> Xóa</button>}
       </div>
     );
-    const existingRepair = (record as unknown as { repairRequests?: { id: number|string; maYeuCau: string; trangThai: string }[] })?.repairRequests?.[0] ?? null;
+    // Cancelled / rejected YCSC no longer count (mirrors backend complete())
+    const existingRepair = activeRepairs((record as unknown as { repairRequests?: { id: number|string; maYeuCau: string; trangThai: string }[] })?.repairRequests)[0] ?? null;
+    const goToRepair = (id: number | string) => setSearchParams(buildTechnicalDetailParams(searchParams, 'repair', id));
     let rightCta: React.ReactNode = null;
     // Owner without technician rights only gets Hủy (left group); technician CTAs require isToBTView
     if (!isToBTView) { /* nhân viên thường / người tạo */ } else if (s === 'CHO_XU_LY') {
@@ -632,10 +725,10 @@ const RepairRequestFormModal = ({
       rightCta = (<div className="flex items-center gap-2"><button type="button" onClick={doSaveDraft} title="Lưu nháp kết quả kiểm tra" className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px]"><Save className="h-4 w-4" /> Lưu nháp</button><span title={!viewCanSubmit ? 'Cần nhập Kết quả kiểm tra và Kết luận trước khi gửi' : 'Gửi kết quả kiểm tra'}><button type="button" onClick={doSubmit} disabled={!viewCanSubmit} aria-disabled={!viewCanSubmit} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"><Send className="h-4 w-4" /> Gửi kết quả</button></span></div>);
     } else if (s === 'DA_KIEM_TRA') {
       if (existingRepair) {
-        rightCta = (<button type="button" onClick={() => { try { const next = new URLSearchParams(searchParams); next.set('type','sua_chua'); next.set('repairId', String(existingRepair.id)); setSearchParams(next); toast.success(`Mở YCSC ${existingRepair.maYeuCau}`); } catch {} }} className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 min-h-[44px]">Đã tạo {existingRepair.maYeuCau} [Xem] <ArrowRight className="h-4 w-4" /></button>);
+        rightCta = (<button type="button" onClick={() => goToRepair(existingRepair.id)} className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 min-h-[44px]">Đã tạo {existingRepair.maYeuCau} [Xem] <ArrowRight className="h-4 w-4" /></button>);
       } else {
-        const kl = viewKetLuanStr || viewInspectForm.ketLuan || '';
-        if (kl === 'CAN_SUA_CHUA') rightCta = (<button type="button" onClick={doCreateRepair} className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 min-h-[44px]">Tạo yêu cầu sửa chữa <ArrowRight className="h-4 w-4" /></button>);
+        // Only the saved conclusion counts (server requires DA_KIEM_TRA + CAN_SUA_CHUA)
+        if (viewKetLuanStr === 'CAN_SUA_CHUA') rightCta = (<button type="button" onClick={doCreateRepair} className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 min-h-[44px]">Tạo yêu cầu sửa chữa <ArrowRight className="h-4 w-4" /></button>);
       }
     }
     // Requester-confirmation step is independent of technician role
@@ -653,7 +746,7 @@ const RepairRequestFormModal = ({
       <div className="flex w-full items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
           {leftGroup}
-          {onEdit && !isTerminal && s !== 'DANG_KIEM_TRA' && s !== 'DA_KIEM_TRA' && <button type="button" onClick={onEdit} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px]">Chỉnh sửa</button>}
+          {!!onEdit && !isTerminal && canEditInspection(s, gateActor) && <button type="button" onClick={onEdit} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px]">Chỉnh sửa</button>}
         </div>
         <div className="flex items-center gap-2 ml-auto">
           {rightCta}
@@ -692,10 +785,12 @@ const RepairRequestFormModal = ({
     }
     if (!record && initialItems) {
       setItems(initialItems.map((it) => ({
-        machineSystemId: (it as unknown as { machineSystemId?: string }).machineSystemId ?? (it.tenHeThong ? MANUAL_ENTRY : ''),
-        machineSystemDetailId: (it as unknown as { machineSystemDetailId?: string }).machineSystemDetailId ?? '',
-        faultRecordId: null,
-        faultRecordSearch: '',
+        machineSystemId: it.machineSystemId ?? (it.tenHeThong ? MANUAL_ENTRY : ''),
+        machineSystemDetailId: it.machineSystemDetailId ?? '',
+        // Keep the YCKT item trace + its fault record (contract: create YCSC from YCKT)
+        faultRecordId: it.faultRecordId ?? null,
+        faultRecordSearch: it.faultRecord ? `${it.faultRecord.maLoi} - ${it.faultRecord.tenLoi}` : '',
+        sourceInspectionItemId: it.sourceInspectionItemId ?? null,
         tenHeThong: it.tenHeThong,
         tinhTrangThietBi: it.tinhTrangThietBi,
         loaiLoi: it.loaiLoi,
@@ -707,6 +802,7 @@ const RepairRequestFormModal = ({
         machineSystemId: item.machineSystemId ?? (item.tenHeThong ? MANUAL_ENTRY : ''),
         machineSystemDetailId: item.machineSystemDetailId ?? '',
         faultRecordId: item.faultRecordId ?? null,
+        sourceInspectionItemId: item.sourceInspectionItemId ?? null,
         faultRecordSearch: item.faultRecord ? `${item.faultRecord.maLoi} - ${item.faultRecord.tenLoi}` : '',
         tenHeThong: item.tenHeThong,
         tinhTrangThietBi: item.tinhTrangThietBi,
@@ -787,7 +883,7 @@ const RepairRequestFormModal = ({
   const previewAssignees = assignees.filter((a) => a.userName.trim() || a.userId.trim());
   const previewMaterials = materials.filter((m) => m.tenVatTu.trim());
 
-  const doCreate = async (cleanedItems: { machineSystemId?: string; machineSystemDetailId?: string; faultRecordId: string | null; tenHeThong: string; tinhTrangThietBi: string; loaiLoi: string; noiDungLoi: string }[]) => {
+  const doCreate = async (cleanedItems: CleanedItem[]) => {
     if (showAssigneeAndMaterial) {
       const seenIds = new Set<string>();
       for (const a of assignees) {
@@ -811,7 +907,7 @@ const RepairRequestFormModal = ({
           mucDoUuTien: form.mucDoUuTien,
           ghiChu: form.ghiChu || undefined,
           ...(deptLabelForInspection ? { phongBanId: deptLabelForInspection } : {}),
-          items: cleanedItems,
+          items: cleanedItems.map(({ id: _id, sourceInspectionItemId: _s, ...rest }) => rest),
         } as never,
         file: selectedFile ?? undefined,
       });
@@ -838,12 +934,14 @@ const RepairRequestFormModal = ({
     let savedMaYeuCau = '';
     try {
       if (record) {
-        const isKIEM_TRAUpdate = effectiveIsKiemTra || String((record as unknown as { maYeuCau?: string })?.maYeuCau ?? '').startsWith('YC-KT');
-        if (isKIEM_TRAUpdate) {
-          await updateInspection.mutateAsync({ id: (record as unknown as { id: number }).id, data: { ngayThang: form.ngayThang, mucDoUuTien: form.mucDoUuTien, ghiChu: form.ghiChu || undefined, items: cleanedItems } as never, file: selectedFile ?? undefined });
+        // Table is decided by _source / lockedRequestType (see effectiveIsKiemTra), never by code prefix
+        if (effectiveIsKiemTra) {
+          await updateInspection.mutateAsync({ id: (record as unknown as { id: number }).id, data: { ngayThang: form.ngayThang, mucDoUuTien: form.mucDoUuTien, ghiChu: form.ghiChu || undefined, items: cleanedItems }, file: selectedFile ?? undefined });
           toast.success('Đã cập nhật yêu cầu kiểm tra');
         } else {
-          await updateRequest.mutateAsync({ id: record.id, data: payload, file: selectedFile ?? undefined });
+          const { requestType: _rt, sourceInspectionRequestId: _src, maYeuCau: _ma, ...updatePayload } = payload;
+          void _rt; void _src; void _ma;
+          await updateRequest.mutateAsync({ id: record.id, data: updatePayload, file: selectedFile ?? undefined });
           toast.success('Đã cập nhật yêu cầu sửa chữa');
         }
       } else {
@@ -860,6 +958,8 @@ const RepairRequestFormModal = ({
         if (newId && showAssigneeAndMaterial) {
           const cleanedAssignees = assignees.filter((a) => a.userId.trim() || a.userName.trim());
           const cleanedMaterials = materials.filter((m) => m.tenVatTu.trim() && m.itemIndex >= 0 && m.itemIndex < cleanedItems.length);
+          // Not atomic yet (needs a single backend endpoint) — at least tell the user what failed
+          const failedAssignees: string[] = [];
           for (const a of cleanedAssignees) {
             try {
               await repairRequestService.assignUser(newId, {
@@ -868,14 +968,16 @@ const RepairRequestFormModal = ({
                 vaiTro: a.isLead ? 'CHINH' : 'PHU',
                 isLead: a.isLead,
               });
-            } catch (e) {
-              console.warn('assignUser failed', e);
+            } catch {
+              failedAssignees.push(a.userName.trim() || a.userId.trim());
             }
           }
+          if (failedAssignees.length) toast.error(`YCSC ${savedMaYeuCau} đã tạo nhưng chưa phân công được: ${failedAssignees.join(', ')} — vui lòng phân công lại trong phiếu`);
           const createdItems: Array<{ id: string }> = ((res as unknown as { data?: { items?: Array<{ id: string }> } })?.data?.items ?? (res as unknown as { items?: Array<{ id: string }> })?.items ?? []) as Array<{ id: string }>;
+          const failedNeeds: string[] = [];
           for (const m of cleanedMaterials) {
             const itemId = createdItems[m.itemIndex]?.id;
-            if (!itemId) continue;
+            if (!itemId) { failedNeeds.push(m.tenVatTu.trim()); continue; }
             try {
               await repairRequestService.createMaterialNeed(newId, {
                 repairRequestItemId: itemId,
@@ -884,10 +986,11 @@ const RepairRequestFormModal = ({
                 soLuongDuKien: Number(m.soLuongDuKien) || 0,
                 ghiChu: null,
               });
-            } catch (e) {
-              console.warn('createMaterialNeed failed', e);
+            } catch {
+              failedNeeds.push(m.tenVatTu.trim());
             }
           }
+          if (failedNeeds.length) toast.error(`Chưa lưu được nhu cầu vật tư: ${failedNeeds.join(', ')}`);
         }
         // --- Auto-create YCCC flow: chỉ khi SUA_CHUA, có materials, và đã có savedMaYeuCau/newId ---
         // Tách hoàn toàn khỏi toast YCSC ở trên; YCSC đã toast.success rồi, YCCC có toast riêng.
@@ -1006,10 +1109,16 @@ const RepairRequestFormModal = ({
     }
   };
 
-  const handleConfirmCreate = async () => {
-    const cleanedItems = items.map((item) => {
+  /**
+   * Item payload for create/update. On edit, existing items keep their `id` so the server updates them
+   * in place (material needs, supply links, acceptance items and YCKT→YCSC links survive). New YCSC created
+   * from a YCKT carry sourceInspectionItemId (+ faultRecordId) per item.
+   */
+  const buildCleanedItems = (): CleanedItem[] => {
+    const isCreateFromInspection = !record && !!initialData?.sourceInspectionRequestId;
+    return items.map((item) => {
       const isManual = item.machineSystemId === MANUAL_ENTRY;
-      return {
+      const out: CleanedItem = {
         machineSystemId: isManual ? undefined : (item.machineSystemId || undefined),
         machineSystemDetailId: isManual ? undefined : (item.machineSystemDetailId || undefined),
         faultRecordId: item.faultRecordId || null,
@@ -1018,7 +1127,14 @@ const RepairRequestFormModal = ({
         loaiLoi: item.loaiLoi,
         noiDungLoi: item.noiDungLoi.trim(),
       };
+      if (record && item.id) out.id = item.id;
+      if (isCreateFromInspection && item.sourceInspectionItemId) out.sourceInspectionItemId = item.sourceInspectionItemId;
+      return out;
     }).filter((item) => item.tenHeThong && item.tinhTrangThietBi && item.loaiLoi && item.noiDungLoi);
+  };
+
+  const handleConfirmCreate = async () => {
+    const cleanedItems = buildCleanedItems();
     if (cleanedItems.length === 0) {
       const msg = 'Vui lòng nhập ít nhất một thiết bị lỗi hợp lệ';
       setError(msg);
@@ -1034,18 +1150,7 @@ const RepairRequestFormModal = ({
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
-    const cleanedItems = items.map((item) => {
-      const isManual = item.machineSystemId === MANUAL_ENTRY;
-      return {
-        machineSystemId: isManual ? undefined : (item.machineSystemId || undefined),
-        machineSystemDetailId: isManual ? undefined : (item.machineSystemDetailId || undefined),
-        faultRecordId: item.faultRecordId || null,
-        tenHeThong: item.tenHeThong.trim(),
-        tinhTrangThietBi: item.tinhTrangThietBi.trim(),
-        loaiLoi: item.loaiLoi,
-        noiDungLoi: item.noiDungLoi.trim(),
-      };
-    }).filter((item) => item.tenHeThong && item.tinhTrangThietBi && item.loaiLoi && item.noiDungLoi);
+    const cleanedItems = buildCleanedItems();
 
     if (cleanedItems.length === 0) {
       const msg = 'Vui lòng nhập ít nhất một thiết bị lỗi hợp lệ';
@@ -1165,13 +1270,8 @@ const RepairRequestFormModal = ({
         )}
 
         {isView && (() => {
-          const INSPECTION_STEPS: { key: string; label: string }[] = [
-            { key: 'CHO_XU_LY', label: 'Chờ xử lý' },
-            { key: 'DA_TIEP_NHAN', label: 'Đã tiếp nhận' },
-            { key: 'DANG_KIEM_TRA', label: 'Đang kiểm tra' },
-            { key: 'DA_KIEM_TRA', label: 'Đã kiểm tra' },
-            { key: 'HOAN_THANH', label: 'Hoàn thành' },
-          ];
+          // "Đã khắc phục" branch goes through CHO_NGHIEM_THU instead of DA_KIEM_TRA
+          const INSPECTION_STEPS = inspectionStepsFor(viewStatus, viewKetLuanStr);
           const REPAIR_STEPS: { key: string; label: string }[] = [
             { key: 'CHO_XU_LY', label: 'Chờ xử lý' },
             { key: 'DA_TIEP_NHAN', label: 'Đã tiếp nhận' },
@@ -1541,7 +1641,7 @@ const RepairRequestFormModal = ({
           const supplyLinksRO = (r?.supplyLinks ?? []) as NonNullable<RepairRequest['supplyLinks']>;
           const fmtDate = (v: string | null | undefined) => {
             if (!v) return '—';
-            try { return new Date(v).toLocaleDateString('vi-VN'); } catch { return String(v); }
+            return formatDateVN(v);
           };
           return (
             <>
@@ -1673,6 +1773,43 @@ const RepairRequestFormModal = ({
                 );
               })()}
 
+              {/* Actual execution data — technician edits at DA_NGHIEM_THU, read-only once HOAN_THANH */}
+              {viewStatus === 'DA_NGHIEM_THU' && isToBTView && (
+                <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-3 space-y-3">
+                  <h4 className="text-sm font-semibold text-gray-800">Thông tin thực tế</h4>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <FormField label="Chi phí thực tế (₫)">
+                      <input type="number" min={0} step="any" inputMode="decimal" value={actualForm.chiPhiThucTe} onChange={(e) => setActualForm((v) => ({ ...v, chiPhiThucTe: e.target.value }))} className={`${inputCls()} min-h-[38px]`} placeholder="0" />
+                    </FormField>
+                    <FormField label="Giờ công thực tế">
+                      <input type="number" min={0} step="any" inputMode="decimal" value={actualForm.gioCongThucTe} onChange={(e) => setActualForm((v) => ({ ...v, gioCongThucTe: e.target.value }))} className={`${inputCls()} min-h-[38px]`} placeholder="0" />
+                    </FormField>
+                    <FormField label="Ngày hoàn thành thực tế">
+                      <input type="date" value={actualForm.ngayHoanThanhThucTe} onChange={(e) => setActualForm((v) => ({ ...v, ngayHoanThanhThucTe: e.target.value }))} className={`${inputCls()} min-h-[38px]`} />
+                    </FormField>
+                  </div>
+                  <FormField label="Nội dung thực hiện">
+                    <textarea rows={3} value={actualForm.noiDungThucHien} onChange={(e) => setActualForm((v) => ({ ...v, noiDungThucHien: e.target.value }))} className={`${textareaCls()} min-h-[60px]`} placeholder="Mô tả công việc đã thực hiện..." />
+                  </FormField>
+                  <div className="flex justify-end">
+                    <button type="button" onClick={() => { void saveActualFields(); }} disabled={updateActualFields.isPending} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed">
+                      <Save className="h-4 w-4" /> {updateActualFields.isPending ? 'Đang lưu...' : 'Lưu thông tin thực tế'}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {viewStatus === 'HOAN_THANH' && (
+                <div className="rounded-lg border border-gray-200 bg-white p-3 space-y-2">
+                  <h4 className="text-sm font-semibold text-gray-800">Thông tin thực tế</h4>
+                  <div className="grid gap-2 text-sm md:grid-cols-3">
+                    <div><span className="text-xs font-medium text-gray-500">Chi phí thực tế: </span><span className="text-gray-800">{actualForm.chiPhiThucTe ? formatVND(Number(actualForm.chiPhiThucTe)) : '—'}</span></div>
+                    <div><span className="text-xs font-medium text-gray-500">Giờ công thực tế: </span><span className="text-gray-800">{actualForm.gioCongThucTe || '—'}</span></div>
+                    <div><span className="text-xs font-medium text-gray-500">Ngày hoàn thành thực tế: </span><span className="text-gray-800">{fmtDate(actualSrc?.ngayHoanThanhThucTe ?? null)}</span></div>
+                  </div>
+                  <div className="text-sm"><span className="text-xs font-medium text-gray-500">Nội dung thực hiện: </span><span className="text-gray-800 whitespace-pre-wrap">{actualForm.noiDungThucHien || '—'}</span></div>
+                </div>
+              )}
+
               {/* C2: Chi phí phát sinh */}
               <div className="rounded-lg border border-gray-200 bg-white p-3 space-y-2">
                 <h4 className="text-sm font-semibold text-gray-800">Chi phí phát sinh</h4>
@@ -1770,7 +1907,7 @@ const RepairRequestFormModal = ({
               return (
                 <div className="p-2.5 flex flex-wrap gap-1.5">
                   {repairs.map((rr) => (
-                    <button key={String(rr.id)} type="button" onClick={() => { try { const next = new URLSearchParams(searchParams); next.set('type','sua_chua'); next.set('repairId', String(rr.id)); setSearchParams(next); } catch {} }} className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"><Link2 className="h-3 w-3" /> {rr.maYeuCau} <span className="text-gray-500">[{rr.trangThai}]</span></button>
+                    <button key={String(rr.id)} type="button" onClick={() => setSearchParams(buildTechnicalDetailParams(searchParams, 'repair', rr.id))} className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 whitespace-nowrap"><Link2 className="h-3 w-3" /> <span className="font-mono">{rr.maYeuCau}</span> <StatusBadge label={(REPAIR_STATUS_LABELS as Record<string, { label: string }>)[rr.trangThai]?.label ?? rr.trangThai} tone={((REPAIR_STATUS_LABELS as Record<string, { tone: BadgeTone }>)[rr.trangThai]?.tone ?? 'gray')} size="sm" /></button>
                   ))}
                 </div>
               );
@@ -1790,7 +1927,7 @@ const RepairRequestFormModal = ({
                   <div key={nt.id} className="px-3 py-3 text-sm">
                     <div className="flex items-center justify-between gap-2 mb-1">
                       <span className="font-mono text-xs font-medium text-blue-700">{nt.maNghiemThu}</span>
-                      <span className="text-xs text-gray-500">{new Date(nt.ngayNghiemThu).toLocaleDateString('vi-VN')}</span>
+                      <span className="text-xs text-gray-500 tabular-nums">{formatDateVN(nt.ngayNghiemThu)}</span>
                     </div>
                     {nt.tenHeThongThietBi && (
                       <div className="text-gray-700 mb-1">
@@ -1816,7 +1953,7 @@ const RepairRequestFormModal = ({
                       {nt.ketQua
                         ? <StatusBadge label={nt.ketQua === 'DAT' ? 'ĐẠT' : 'KHÔNG ĐẠT'} tone={nt.ketQua === 'DAT' ? 'green' : 'red'} />
                         : <StatusBadge label="Chờ xác nhận" tone="yellow" />}
-                      {nt.xacNhanLuc && <span className="text-gray-500">{new Date(nt.xacNhanLuc).toLocaleString('vi-VN')}</span>}
+                      {nt.xacNhanLuc && <span className="text-gray-500 tabular-nums">{formatDateTimeVN(nt.xacNhanLuc)}</span>}
                       {nt.lyDoXacNhan && <span className="text-gray-600">Lý do: {nt.lyDoXacNhan}</span>}
                     </div>
                   </div>
@@ -1836,7 +1973,7 @@ const RepairRequestFormModal = ({
               )}
             </div>
             <div className="p-2.5">
-              <StatusTimeline entries={inlineEntries} isLoading={!!activeHistoryQ.isLoading} />
+              <StatusTimeline entries={inlineEntries} isLoading={!!activeHistoryQ.isLoading} compact statusLabels={VIEW_STATUS_LABELS} />
               {hasMoreHistory && (
                 <button type="button" onClick={() => setViewHistoryOpen(true)} className="mt-2 text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline">Xem tất cả ({historyEntries.length})</button>
               )}
@@ -1848,8 +1985,8 @@ const RepairRequestFormModal = ({
       {viewHistoryOpen && (
         <Modal isOpen onClose={() => setViewHistoryOpen(false)} showBackdrop>
           <div className="bg-white rounded-lg w-full max-w-lg p-4 space-y-3 max-h-[80vh] overflow-y-auto" onClick={e=>e.stopPropagation()}>
-            <div className="flex items-center justify-between"><h4 className="font-semibold text-sm">Lịch sử trạng thái</h4><button onClick={()=>setViewHistoryOpen(false)}><X className="h-4 w-4" /></button></div>
-            <StatusTimeline entries={historyEntries} isLoading={!!activeHistoryQ.isLoading} />
+            <div className="flex items-center justify-between"><h4 className="font-semibold text-sm">Lịch sử trạng thái</h4><button type="button" onClick={()=>setViewHistoryOpen(false)} aria-label="Đóng" title="Đóng"><X className="h-4 w-4" /></button></div>
+            <StatusTimeline entries={historyEntries} isLoading={!!activeHistoryQ.isLoading} statusLabels={VIEW_STATUS_LABELS} />
             <div className="flex justify-end"><button onClick={()=>setViewHistoryOpen(false)} className="rounded border px-4 py-2 text-sm hover:bg-gray-50">Đóng</button></div>
           </div>
         </Modal>
@@ -1859,7 +1996,7 @@ const RepairRequestFormModal = ({
           <div className="bg-white rounded-lg w-full max-w-md p-4 space-y-3" onClick={e=>e.stopPropagation()}>
             <h4 className="font-semibold text-sm">{viewCancelMode === 'reject' ? 'Từ chối phiếu' : 'Hủy phiếu'}</h4>
             <label className="block space-y-1 text-sm"><span className="text-xs text-gray-600">Lý do {viewCancelMode === 'reject' ? '*' : '(tuỳ chọn)'}</span><textarea rows={3} value={viewCancelReason} onChange={e=>setViewCancelReason(e.target.value)} placeholder={viewCancelMode==='reject'?'Nhập lý do từ chối...':'Nhập lý do hủy...'} className="w-full rounded border px-2 py-1.5" /></label>
-            <div className="flex justify-end gap-2"><button onClick={()=>setViewCancelOpen(false)} className="rounded border px-4 py-2 text-sm hover:bg-gray-50">Đóng</button><button onClick={async()=>{ const id=(record as unknown as {id:number}).id; const reason=viewCancelReason.trim()||undefined; if(viewCancelMode==='reject' && !reason){ toast.error('Vui lòng nhập lý do từ chối'); return; } try{ /* route by record type — YCKT/YCSC ids overlap, a fallback would hit the wrong record */ const svc = effectiveIsKiemTra ? inspectionRequestService : repairRequestService; if(viewCancelMode==='reject'){ await svc.reject(id as never, reason); } else { await svc.cancel(id as never, reason); } toast.success(viewCancelMode==='reject'?'Đã từ chối':'Đã hủy phiếu'); setViewCancelOpen(false); queryClient.invalidateQueries({ queryKey: [effectiveIsKiemTra ? 'inspectionRequests' : 'repairRequests'] as unknown as never }); onSaved?.(); onClose(); }catch(e){ toast.error(e instanceof Error?e.message:'Không thực hiện được'); } }} className={`rounded px-4 py-2 text-sm font-medium text-white ${viewCancelMode==='reject'?'bg-red-600 hover:bg-red-700':'bg-amber-600 hover:bg-amber-700'}`}>{viewCancelMode==='reject'?'Từ chối':'Hủy phiếu'}</button></div>
+            <div className="flex justify-end gap-2"><button onClick={()=>setViewCancelOpen(false)} className="rounded border px-4 py-2 text-sm hover:bg-gray-50">Đóng</button><button onClick={async()=>{ const id=(record as unknown as {id:number}).id; const reason=viewCancelReason.trim()||undefined; if(viewCancelMode==='reject' && !reason){ toast.error('Vui lòng nhập lý do từ chối'); return; } try{ /* route by record type — YCKT/YCSC ids overlap, a fallback would hit the wrong record */ const svc = effectiveIsKiemTra ? inspectionRequestService : repairRequestService; if(viewCancelMode==='reject'){ await svc.reject(id as never, reason); } else { await svc.cancel(id as never, reason); } toast.success(viewCancelMode==='reject'?'Đã từ chối':'Đã hủy phiếu'); setViewCancelOpen(false); queryClient.invalidateQueries({ queryKey: effectiveIsKiemTra ? inspectionKeys.all : repairRequestKeys.all }); onSaved?.(); onClose(); }catch(e){ toast.error(e instanceof Error?e.message:'Không thực hiện được'); } }} className={`rounded px-4 py-2 text-sm font-medium text-white ${viewCancelMode==='reject'?'bg-red-600 hover:bg-red-700':'bg-amber-600 hover:bg-amber-700'}`}>{viewCancelMode==='reject'?'Từ chối':'Hủy phiếu'}</button></div>
           </div>
         </Modal>
       )}
@@ -1886,10 +2023,9 @@ const RepairRequestFormModal = ({
                 if (viewConfirmForm.ketQua==='KHONG_DAT' && !viewConfirmForm.lyDo.trim()) { toast.error('Vui lòng nhập lý do không đạt'); return; }
                 setViewConfirmSubmitting(true);
                 try {
-                  await inspectionRequestService.confirmAcceptance(id, { ketQua: viewConfirmForm.ketQua, lyDo: viewConfirmForm.lyDo.trim() || undefined });
+                  await confirmInspectionMut.mutateAsync({ id, ketQua: viewConfirmForm.ketQua, lyDo: viewConfirmForm.lyDo.trim() || undefined });
                   toast.success(viewConfirmForm.ketQua==='DAT' ? 'Đã xác nhận ĐẠT — phiếu hoàn thành' : 'Đã xác nhận KHÔNG ĐẠT — chuyển lại kỹ thuật');
                   setViewConfirmOpen(false);
-                  queryClient.invalidateQueries({ queryKey: ['inspectionRequests'] as unknown as never });
                   onSaved?.(); onClose();
                 } catch(e) { toast.error(e instanceof Error ? e.message : 'Không xác nhận được'); }
                 finally { setViewConfirmSubmitting(false); }
@@ -1902,8 +2038,8 @@ const RepairRequestFormModal = ({
         <Modal isOpen onClose={()=>setViewDeleteOpen(false)} showBackdrop>
           <div className="bg-white rounded-lg w-full max-w-md p-4 space-y-3" onClick={e=>e.stopPropagation()}>
             <h4 className="font-semibold text-sm text-red-600">Xóa phiếu?</h4>
-            <p className="text-sm text-gray-600">Hành động này không thể hoàn tác. Chỉ ADMIN mới được xóa.</p>
-            <div className="flex justify-end gap-2"><button onClick={()=>setViewDeleteOpen(false)} className="rounded border px-4 py-2 text-sm hover:bg-gray-50">Hủy</button><button onClick={async()=>{ const id=(record as unknown as {id:number|string}).id; const isInspection = effectiveIsKiemTra; try{ if(isInspection) await inspectionRequestService.delete(id); else await repairRequestService.delete(id as never); toast.success('Đã xóa'); setViewDeleteOpen(false); queryClient.invalidateQueries({ queryKey: ['inspectionRequests'] as unknown as never }); queryClient.invalidateQueries({ queryKey: ['repairRequests'] as unknown as never }); onClose(); }catch(e){ toast.error(e instanceof Error?e.message:'Không xóa được'); } }} className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">Xóa</button></div>
+            <p className="text-sm text-gray-600">Hành động này không thể hoàn tác.</p>
+            <div className="flex justify-end gap-2"><button onClick={()=>setViewDeleteOpen(false)} className="rounded border px-4 py-2 text-sm hover:bg-gray-50">Hủy</button><button onClick={async()=>{ const id=(record as unknown as {id:number|string}).id; const isInspection = effectiveIsKiemTra; try{ if(isInspection) await inspectionRequestService.delete(id); else await repairRequestService.delete(id as never); toast.success('Đã xóa'); setViewDeleteOpen(false); queryClient.invalidateQueries({ queryKey: inspectionKeys.all }); queryClient.invalidateQueries({ queryKey: repairRequestKeys.all }); onClose(); }catch(e){ toast.error(e instanceof Error?e.message:'Không xóa được'); } }} className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">Xóa</button></div>
           </div>
         </Modal>
       )}
@@ -1931,7 +2067,7 @@ const RepairRequestFormModal = ({
                 return <div className="rounded border bg-gray-50 px-2 py-1.5 text-xs"><span className="font-medium text-gray-700">Phòng ban: </span><span className="text-gray-800">{deptLabel}</span>{leadTmp ? <span className="ml-2 text-gray-500">({leadTmp.userName || leadTmp.userId})</span> : <span className="ml-2 text-amber-600">Chưa chọn người phụ trách chính</span>}</div>;
               })()}
             </div>
-            <div className="flex justify-end gap-2"><button onClick={()=>setYcscPlanOpen(false)} className="rounded border px-4 py-2 text-sm hover:bg-gray-50">Hủy</button><button onClick={async()=>{ const rid=(record as unknown as {id:number|string}).id; if(ycscPlanForm.ngayBatDauKeHoach && ycscPlanForm.ngayHoanThienDuKien && new Date(ycscPlanForm.ngayHoanThienDuKien).getTime() <= new Date(ycscPlanForm.ngayBatDauKeHoach).getTime()){ toast.error('Ngày hoàn thiện dự kiến phải sau ngày bắt đầu kế hoạch'); return; } const payload: Record<string,unknown>={}; if(ycscPlanForm.keHoachChiTiet.trim()) payload.keHoachChiTiet=ycscPlanForm.keHoachChiTiet.trim(); if(ycscPlanForm.phuongAn.trim()) payload.phuongAn=ycscPlanForm.phuongAn.trim(); if(ycscPlanForm.bienPhapAnToan.trim()) payload.bienPhapAnToan=ycscPlanForm.bienPhapAnToan.trim(); if(ycscPlanForm.ngayBatDauKeHoach) payload.ngayBatDauKeHoach=ycscPlanForm.ngayBatDauKeHoach; if(ycscPlanForm.ngayHoanThienDuKien) payload.ngayHoanThienDuKien=ycscPlanForm.ngayHoanThienDuKien; if(ycscPlanForm.chiPhiDuKien!==''){ const n=Number(ycscPlanForm.chiPhiDuKien); if(!Number.isFinite(n)||n<0){ toast.error('Chi phí dự kiến phải >= 0'); return; } payload.chiPhiDuKien=n; } payload.canNgungMay=ycscPlanForm.canNgungMay; const __recAssignees = ((record as unknown as { assignees?: { userId?: string; userName?: string | null; isLead?: boolean; vaiTro?: string }[] })?.assignees ?? []) as { userId?: string; userName?: string | null; isLead?: boolean; vaiTro?: string }[]; const __srcAssignees = __recAssignees.length ? __recAssignees.map(a=>({ userId: String(a.userId??''), userName: String(a.userName??''), isLead: !!(a.isLead||a.vaiTro==='CHINH')})) : assignees; const __lead = __srcAssignees.find(a=>a.isLead) || __srcAssignees[0] || null; const __leadEmp = __lead ? employees.find(e=> (__lead.userId && e.id===__lead.userId) || (__lead.userName && e.name===__lead.userName)) as unknown as Record<string,unknown>|null ?? null : null; const __deptId = String(((__leadEmp as unknown as Record<string,unknown>|null)?.departmentId as string) ?? ((__leadEmp as unknown as Record<string,unknown>|null)?.subDepartmentId as string) ?? ((__leadEmp as unknown as Record<string,unknown>|null)?.department as string) ?? '').trim(); if(!__deptId){ toast.error('Vui lòng chọn người phụ trách Chính trước khi lên kế hoạch'); return; } payload.phongBanId=__deptId; try{ await repairRequestService.plan(rid as never, payload as never); toast.success('Đã lên kế hoạch'); setYcscPlanOpen(false); queryClient.invalidateQueries({ queryKey: ['repairRequests'] as unknown as never }); onSaved?.(); onClose(); }catch(e){ toast.error(e instanceof Error?e.message:'Không lên kế hoạch được'); } }} className="rounded bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700">Xác nhận kế hoạch</button></div>
+            <div className="flex justify-end gap-2"><button onClick={()=>setYcscPlanOpen(false)} className="rounded border px-4 py-2 text-sm hover:bg-gray-50">Hủy</button><button onClick={async()=>{ const rid=(record as unknown as {id:number|string}).id; if(ycscPlanForm.ngayBatDauKeHoach && ycscPlanForm.ngayHoanThienDuKien && new Date(ycscPlanForm.ngayHoanThienDuKien).getTime() <= new Date(ycscPlanForm.ngayBatDauKeHoach).getTime()){ toast.error('Ngày hoàn thiện dự kiến phải sau ngày bắt đầu kế hoạch'); return; } const payload: Record<string,unknown>={}; if(ycscPlanForm.keHoachChiTiet.trim()) payload.keHoachChiTiet=ycscPlanForm.keHoachChiTiet.trim(); if(ycscPlanForm.phuongAn.trim()) payload.phuongAn=ycscPlanForm.phuongAn.trim(); if(ycscPlanForm.bienPhapAnToan.trim()) payload.bienPhapAnToan=ycscPlanForm.bienPhapAnToan.trim(); if(ycscPlanForm.ngayBatDauKeHoach) payload.ngayBatDauKeHoach=ycscPlanForm.ngayBatDauKeHoach; if(ycscPlanForm.ngayHoanThienDuKien) payload.ngayHoanThienDuKien=ycscPlanForm.ngayHoanThienDuKien; if(ycscPlanForm.chiPhiDuKien!==''){ const n=Number(ycscPlanForm.chiPhiDuKien); if(!Number.isFinite(n)||n<0){ toast.error('Chi phí dự kiến phải >= 0'); return; } payload.chiPhiDuKien=n; } payload.canNgungMay=ycscPlanForm.canNgungMay; const __recAssignees = ((record as unknown as { assignees?: { userId?: string; userName?: string | null; isLead?: boolean; vaiTro?: string }[] })?.assignees ?? []) as { userId?: string; userName?: string | null; isLead?: boolean; vaiTro?: string }[]; const __srcAssignees = __recAssignees.length ? __recAssignees.map(a=>({ userId: String(a.userId??''), userName: String(a.userName??''), isLead: !!(a.isLead||a.vaiTro==='CHINH')})) : assignees; const __lead = __srcAssignees.find(a=>a.isLead) || __srcAssignees[0] || null; const __leadEmp = __lead ? employees.find(e=> (__lead.userId && e.id===__lead.userId) || (__lead.userName && e.name===__lead.userName)) as unknown as Record<string,unknown>|null ?? null : null; const __deptId = String(((__leadEmp as unknown as Record<string,unknown>|null)?.departmentId as string) ?? ((__leadEmp as unknown as Record<string,unknown>|null)?.subDepartmentId as string) ?? ((__leadEmp as unknown as Record<string,unknown>|null)?.department as string) ?? '').trim(); if(!__deptId){ toast.error('Vui lòng chọn người phụ trách Chính trước khi lên kế hoạch'); return; } payload.phongBanId=__deptId; try{ await repairRequestService.plan(rid as never, payload as never); toast.success('Đã lên kế hoạch'); setYcscPlanOpen(false); queryClient.invalidateQueries({ queryKey: repairRequestKeys.all }); onSaved?.(); onClose(); }catch(e){ toast.error(e instanceof Error?e.message:'Không lên kế hoạch được'); } }} className="rounded bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700">Xác nhận kế hoạch</button></div>
           </div>
         </Modal>
       )}
@@ -1943,7 +2079,7 @@ const RepairRequestFormModal = ({
         const ngayBD = (record as unknown as Record<string, unknown> | null)?.ngayBatDauKeHoach as string | null | undefined;
         const ngayKT = (record as unknown as Record<string, unknown> | null)?.ngayHoanThienDuKien as string | null | undefined;
         const canNgung = Boolean((record as unknown as Record<string, unknown> | null)?.canNgungMay);
-        const fmtD = (v: string | null | undefined) => v ? (() => { try { return new Date(v).toLocaleDateString('vi-VN'); } catch { return String(v).slice(0,10); } })() : '—';
+        const fmtD = (v: string | null | undefined) => formatDateVN(v);
         const giverName = (() => {
           const u = viewUser as unknown as Record<string, unknown> | null;
           const full = String((u?.fullName as string) ?? ([u?.firstName, u?.lastName].filter(Boolean).join(' ').trim()) ?? (u?.name as string) ?? '').trim();
@@ -2024,8 +2160,8 @@ const RepairRequestFormModal = ({
             await repairRequestService.submitAcceptance(rid as never);
             toast.success('Đã đề nghị nghiệm thu');
             setYcscSubmitOpen(false);
-            queryClient.invalidateQueries({ queryKey: ['repairRequests'] as unknown as never });
-            queryClient.invalidateQueries({ queryKey: ['acceptanceHandovers'] as unknown as never });
+            queryClient.invalidateQueries({ queryKey: repairRequestKeys.all });
+            queryClient.invalidateQueries({ queryKey: ['acceptanceHandovers'] });
             onSaved?.();
             onClose();
           } catch (e) {
@@ -2173,7 +2309,7 @@ const RepairRequestFormModal = ({
               <label className="block space-y-1"><span className="font-medium text-gray-700">Kết quả <span className="text-red-500">*</span></span><select value={ycscConfirmForm.ketQua} onChange={e=>setYcscConfirmForm(f=>({...f, ketQua:e.target.value as never}))} className="w-full rounded border px-2 py-1.5"><option value="">-- Chọn --</option><option value="DAT">ĐẠT</option><option value="KHONG_DAT">KHÔNG ĐẠT</option></select></label>
               <label className="block space-y-1"><span className="font-medium text-gray-700">Lý do {ycscConfirmForm.ketQua === 'KHONG_DAT' ? <span className="text-red-500">*</span> : <span className="text-gray-400">(tuỳ chọn)</span>}</span><textarea rows={3} value={ycscConfirmForm.lyDo} onChange={e=>setYcscConfirmForm(f=>({...f, lyDo:e.target.value}))} className="w-full rounded border px-2 py-1.5" /></label>
             </div>
-            <div className="flex justify-end gap-2"><button onClick={()=>setYcscConfirmOpen(false)} className="rounded border px-4 py-2 text-sm hover:bg-gray-50">Hủy</button><button onClick={async()=>{ const rid=(record as unknown as {id:number|string}).id; if(!ycscConfirmForm.ketQua){ toast.error('Vui lòng chọn kết quả'); return; } if(ycscConfirmForm.ketQua==='KHONG_DAT' && !ycscConfirmForm.lyDo.trim()){ toast.error('Vui lòng nhập lý do không đạt'); return; } try{ await repairRequestService.confirmAcceptance(rid as never, { ketQua: ycscConfirmForm.ketQua as 'DAT' | 'KHONG_DAT', lyDo: ycscConfirmForm.lyDo.trim() || undefined }); toast.success(ycscConfirmForm.ketQua==='DAT'?'Đã xác nhận nghiệm thu ĐẠT':'Đã xác nhận KHÔNG ĐẠT — chuyển lại kỹ thuật'); setYcscConfirmOpen(false); queryClient.invalidateQueries({ queryKey: ['repairRequests'] as unknown as never }); onSaved?.(); onClose(); }catch(e){ toast.error(e instanceof Error?e.message:'Lỗi nghiệm thu'); } }} className={`rounded px-4 py-2 text-sm font-medium text-white ${ycscConfirmForm.ketQua==='KHONG_DAT'?'bg-red-600 hover:bg-red-700':'bg-green-600 hover:bg-green-700'}`}>Xác nhận</button></div>
+            <div className="flex justify-end gap-2"><button onClick={()=>setYcscConfirmOpen(false)} className="rounded border px-4 py-2 text-sm hover:bg-gray-50">Hủy</button><button onClick={async()=>{ const rid=(record as unknown as {id:number|string}).id; if(!ycscConfirmForm.ketQua){ toast.error('Vui lòng chọn kết quả'); return; } if(ycscConfirmForm.ketQua==='KHONG_DAT' && !ycscConfirmForm.lyDo.trim()){ toast.error('Vui lòng nhập lý do không đạt'); return; } try{ await confirmRepairMut.mutateAsync({ id: rid, payload: { ketQua: ycscConfirmForm.ketQua as 'DAT' | 'KHONG_DAT', lyDo: ycscConfirmForm.lyDo.trim() || undefined } }); toast.success(ycscConfirmForm.ketQua==='DAT'?'Đã xác nhận nghiệm thu ĐẠT':'Đã xác nhận KHÔNG ĐẠT — chuyển lại kỹ thuật'); setYcscConfirmOpen(false); onSaved?.(); onClose(); }catch(e){ toast.error(e instanceof Error?e.message:'Lỗi nghiệm thu'); } }} className={`rounded px-4 py-2 text-sm font-medium text-white ${ycscConfirmForm.ketQua==='KHONG_DAT'?'bg-red-600 hover:bg-red-700':'bg-green-600 hover:bg-green-700'}`}>Xác nhận</button></div>
           </div>
         </Modal>
       )}
@@ -2185,25 +2321,13 @@ const RepairRequestFormModal = ({
           mode="create"
           lockedRequestType="SUA_CHUA"
           initialData={viewCreateRepairInitial as unknown as never}
-          onSaved={async (info?: { maYeuCau?: string })=>{
-            const ma = info?.maYeuCau?.trim();
+          onSaved={(info?: RepairRequestSavedInfo)=>{
             setViewCreateRepairOpen(false);
-            queryClient.invalidateQueries({ queryKey: ['repairRequests'] as unknown as never });
-            queryClient.invalidateQueries({ queryKey: ['inspectionRequests'] as unknown as never });
-            try {
-              const next = new URLSearchParams(searchParams);
-              const curType = (next.get('type') ?? '').toLowerCase();
-              if (curType === 'kiem_tra' || curType === 'kiemtra') {
-                next.set('type', 'sua_chua');
-              } else if (!next.get('type')) {
-                next.set('type', 'sua_chua');
-              }
-              setSearchParams(next, { replace: false } as never);
-            } catch { /* ignore */ }
-            if (ma) {
-              toast.success(`Đã tạo YCSC ${ma} — chuyển sang tab Sửa chữa để xem`, { duration: 6000 });
-            }
+            queryClient.invalidateQueries({ queryKey: repairRequestKeys.all });
+            queryClient.invalidateQueries({ queryKey: inspectionKeys.all });
             onClose();
+            // Open the new YCSC on the Repairs tab (drops inspectionId so the tabs don't bounce)
+            if (info?.id != null) setSearchParams(buildTechnicalDetailParams(searchParams, 'repair', info.id));
           }}
         />
       )}

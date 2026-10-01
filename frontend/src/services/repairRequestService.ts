@@ -70,6 +70,7 @@ export interface RepairRequestItem {
   machineSystemDetail?: MachineSystemDetail | null;
   machine?: { id: string; maMay: string; tenMay: string; trangThai: string } | null;
   faultRecord?: { id: string; maLoi: string; tenLoi: string } | null;
+  materialNeeds?: RepairMaterialNeed[];
 }
 
 export interface AcceptanceHandoverSummary {
@@ -230,9 +231,13 @@ export interface RepairRequest {
   supplyLinks?: RepairSupplyLink[];
   materialNeeds?: RepairMaterialNeed[];
   incidentalCosts?: RepairIncidentalCost[];
+  /** Source YCKT (when created from an inspection) */
+  inspectionRequest?: { maYeuCau: string; createdById?: string | null; createdByName?: string | null } | null;
 }
 
 export interface RepairRequestItemInput {
+  /** Existing item id — server updates it in place so material needs / supply links / acceptance items survive. */
+  id?: string;
   machineSystemId?: string;
   machineSystemDetailId?: string;
   faultRecordId?: string | null;
@@ -281,6 +286,15 @@ export interface RepairRequestFilters {
   trangThai?: RepairRequestStatus;
   requestType?: RequestType;
   sourceInspectionRequestId?: string;
+}
+
+/** Technician-entered actual execution data (PATCH /repair-requests/:id/actual-fields). */
+export interface RepairActualFieldsPayload {
+  chiPhiThucTe?: number | null;
+  gioCongThucTe?: number | null;
+  noiDungThucHien?: string | null;
+  /** YYYY-MM-DD */
+  ngayHoanThanhThucTe?: string | null;
 }
 
 // Stats types
@@ -342,9 +356,9 @@ export interface PlanRepairRequestPayload {
   phongBanId?: string;
 }
 
+// Confirmer only decides ĐẠT / KHÔNG ĐẠT; actual cost is entered by technicians elsewhere (server ignores it here).
 export interface ConfirmAcceptancePayload {
   ketQua: NghiemThuKetQua;
-  chiPhiThucTe?: number;
   /** Required when ketQua = KHONG_DAT */
   lyDo?: string;
 }
@@ -404,10 +418,11 @@ class RepairRequestService {
     return response.data?.code ?? '';
   }
 
-  async exportExcel(filters: Pick<RepairRequestFilters, 'search'> = {}): Promise<void> {
+  async exportExcel(filters: Pick<RepairRequestFilters, 'search' | 'trangThai'> = {}): Promise<void> {
     const token = localStorage.getItem('accessToken');
     const params = new URLSearchParams();
     if (filters.search) params.append('search', filters.search);
+    if (filters.trangThai) params.append('trangThai', filters.trangThai);
     const url = `${API_BASE_URL}/repair-requests/export/excel${params.toString() ? `?${params.toString()}` : ''}`;
     const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (!response.ok) throw new Error('Lỗi khi xuất Excel yêu cầu sửa chữa');
@@ -460,6 +475,10 @@ class RepairRequestService {
   // Alias PATCH /:id/cancel
   async cancelPatch(id: number | string, reason?: string): Promise<ApiResponse<RepairRequest>> {
     return apiClient.patch<RepairRequest>(`/repair-requests/${id}/cancel`, { reason });
+  }
+
+  async updateActualFields(id: number | string, payload: RepairActualFieldsPayload): Promise<ApiResponse<RepairRequest>> {
+    return apiClient.patch<RepairRequest>(`/repair-requests/${id}/actual-fields`, payload as unknown as Record<string, unknown>);
   }
 
   async complete(id: number | string): Promise<ApiResponse<RepairRequest>> {

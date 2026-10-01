@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import inspectionRequestService, {
   type CreateInspectionRequestRequest,
   type InspectionRequestFilters,
@@ -39,6 +39,7 @@ export const useInspectionRequests = (filters: InspectionRequestFilters = {}, op
     queryFn: () => inspectionRequestService.getAll(filters),
     enabled: opts?.enabled ?? true,
     refetchOnMount: 'always',
+    placeholderData: keepPreviousData,
   });
 
 export const useInspectionRequest = (id: number | string | null | undefined) =>
@@ -171,6 +172,22 @@ export const useCancelInspection = () => {
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: inspectionKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: inspectionKeys.all });
+    },
+  });
+};
+
+/** Requester confirms the "Đã khắc phục" slip. Body is { ketQua, lyDo } only. */
+export const useConfirmInspectionAcceptance = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ketQua, lyDo }: { id: number | string; ketQua: 'DAT' | 'KHONG_DAT'; lyDo?: string }) =>
+      inspectionRequestService.confirmAcceptance(id, { ketQua, lyDo }),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: inspectionKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: inspectionKeys.all });
+      // Slip ketQua changed; ĐẠT may close linked fault records
+      queryClient.invalidateQueries({ queryKey: ['acceptanceHandovers'] });
+      queryClient.invalidateQueries({ queryKey: ['faultRecords'] });
     },
   });
 };
