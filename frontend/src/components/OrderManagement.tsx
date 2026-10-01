@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Edit, Trash2, Package, Calculator, Download, AlertCircle, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -15,6 +15,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAuditLogs } from '../hooks/useAuditLogs';
 import { AuditLog } from '../services/auditLogService';
 import StatusBadge, { BadgeTone } from './shared/StatusBadge';
+import { ErrorState } from '../design-system/States';
+import { can } from '../utils/permissions';
 
 const ORDER_ACTION_LABELS: Record<string, { label: string; className: string }> = {
   CREATE: { label: 'Tạo mới', className: 'bg-green-100 text-green-800' },
@@ -71,23 +73,108 @@ const OrderAuditLogRow: React.FC<{ entry: AuditLog }> = ({ entry }) => {
   );
 };
 
+// Shared table styling tokens (presentation only)
+const TH = 'px-3 py-2.5 text-left text-xs font-semibold text-gray-500 whitespace-nowrap';
+const TD = 'px-3 py-2.5 text-gray-700 align-top';
+// Sticky cells follow row hover so they never look mismatched
+const STICKY_BG = 'bg-white group-hover:bg-gray-50 transition-colors';
+const PAGE_BTN = 'h-8 px-3 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500';
+const EMPTY = <span className="text-gray-400">—</span>;
+
+// Mirrors Prisma enums OrderProductionStatus / OrderPaymentStatus (business_orders.prisma)
+const PRODUCTION_STATUS_LABELS: Record<string, string> = {
+  CHO_LEN_KE_HOACH: 'Chờ lên kế hoạch',
+  CHO_SAN_XUAT: 'Chờ sản xuất',
+  DANG_SAN_XUAT: 'Đang sản xuất',
+  CHO_GIAO_HANG: 'Chờ giao hàng',
+  DA_LEN_CONTAINER: 'Đã lên container',
+  DANG_VAN_CHUYEN: 'Đang vận chuyển',
+  DA_GIAO_CHO_KHACH_HANG: 'Đã giao cho khách hàng',
+};
+const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  DA_THANH_TOAN_DOT_1: 'Đã thanh toán đợt 1',
+  CHO_THANH_TOAN_DOT_2: 'Chờ thanh toán đợt 2',
+  DA_THANH_TOAN_DU: 'Đã thanh toán đủ',
+};
+const PRODUCTION_STATUS_OPTIONS = Object.entries(PRODUCTION_STATUS_LABELS).map(([value, label]) => ({ value, label }));
+const isProductionStatus = (v: string): boolean => Object.prototype.hasOwnProperty.call(PRODUCTION_STATUS_LABELS, v);
+
+const PRODUCTION_TONE: Record<string, BadgeTone> = {
+  CHO_LEN_KE_HOACH: 'gray',
+  CHO_SAN_XUAT: 'yellow',
+  DANG_SAN_XUAT: 'blue',
+  CHO_GIAO_HANG: 'yellow',
+  DA_LEN_CONTAINER: 'blue',
+  DANG_VAN_CHUYEN: 'yellow',
+  DA_GIAO_CHO_KHACH_HANG: 'green',
+};
+const PAYMENT_TONE: Record<string, BadgeTone> = {
+  DA_THANH_TOAN_DOT_1: 'yellow',
+  CHO_THANH_TOAN_DOT_2: 'red',
+  DA_THANH_TOAN_DU: 'green',
+};
+
+/** Namespaced URL keys (host pages use plain `q` / `page` for their other tabs). */
+const URL_KEYS = { search: 'orderQ', status: 'orderStatus', page: 'orderPage', limit: 'orderLimit' } as const;
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+const DEFAULT_LIMIT = 20;
+
+/** DD/MM/YYYY with zero padding; '' for empty/invalid input. */
+const formatDateVN = (value?: string | null): string => {
+  if (!value) return '';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+const formatVND = (value?: number | null): string =>
+  value ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(value) : '';
+const formatUSD = (value?: number | null): string =>
+  value ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value) : '';
+
+/** Status badge, or "—" when the order has no status yet (never the form placeholder). */
+const OrderStatusBadge: React.FC<{ status?: string | null; labels: Record<string, string>; tones: Record<string, BadgeTone> }> = ({ status, labels, tones }) =>
+  status ? <StatusBadge label={labels[status] ?? status} tone={tones[status] ?? 'gray'} /> : EMPTY;
+
+/** Detail field: shows "—" for empty values. */
+const DetailValue: React.FC<{ value?: React.ReactNode; className?: string }> = ({ value, className = 'text-gray-900' }) => (
+  <p className={`text-sm ${className}`}>{value === undefined || value === null || value === '' ? EMPTY : value}</p>
+);
+
 interface OrderManagementProps {
   hideHeader?: boolean;
   customerType?: 'Quốc tế' | 'Nội địa' | 'all';
 }
 
-const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
+const OrderManagement: React.FC<OrderManagementProps> = ({ hideHeader = false, customerType }) => {
   const { user } = useAuth();
   const canEdit = String(user?.role) === 'ADMIN' || String(user?.role) === 'DEPARTMENT_HEAD';
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({
-    _search: '',
-    maDonHang: '',
-    maBaoGia: '',
-    tenKhachHang: '',
-    trangThaiSanXuat: '',
-  });
-  const [currentPage, setCurrentPage] = useState(1);
-  const [limit, setLimit] = useState(20);
+  const canDeleteOrder = can('orders', 'DELETE', user?.role);
+
+  // List state lives in the URL (F5 / share link). Params are namespaced because this
+  // component is embedded as a tab in 9 pages whose sibling tabs use `q` / `page`.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchTerm = searchParams.get(URL_KEYS.search) ?? '';
+  const rawStatus = searchParams.get(URL_KEYS.status) ?? '';
+  const statusFilter = isProductionStatus(rawStatus) ? rawStatus : '';
+  const currentPage = Math.max(1, Number(searchParams.get(URL_KEYS.page)) || 1);
+  const rawLimit = Number(searchParams.get(URL_KEYS.limit));
+  const limit = PAGE_SIZE_OPTIONS.includes(rawLimit) ? rawLimit : DEFAULT_LIMIT;
+
+  const updateListParams = useCallback((patch: Record<string, string | null>) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      for (const [k, v] of Object.entries(patch)) {
+        if (v === null || v === '') next.delete(k);
+        else next.set(k, v);
+      }
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const setCurrentPage = (page: number) => updateListParams({ [URL_KEYS.page]: page > 1 ? String(page) : null });
+  const filterValues = useMemo(
+    () => ({ _search: searchTerm, trangThaiSanXuat: statusFilter }),
+    [searchTerm, statusFilter],
+  );
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmMessage, setConfirmMessage] = useState('');
   const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
@@ -112,35 +199,46 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
 
   const queryClient = useQueryClient();
   const filterCustomerType = customerType === 'all' ? undefined : customerType;
-  const { data: ordersData, isLoading: loading } = useOrders({
+  const { data: ordersData, isLoading: loading, isError, refetch } = useOrders({
     page: currentPage,
     limit,
-    search: filterValues._search || undefined,
+    search: searchTerm || undefined,
     customerType: filterCustomerType,
-    status: filterValues.trangThaiSanXuat || undefined,
+    status: statusFilter || undefined,
   });
 
   const orders = (ordersData as any)?.data || [];
   const totalItems = (ordersData as any)?.pagination?.total ?? 0;
   const totalPages = (ordersData as any)?.pagination?.totalPages ?? 1;
 
+  // Stale ?orderPage= (shared link, last row deleted) → clamp to the last page
+  useEffect(() => {
+    if (loading || isError || !ordersData) return;
+    const last = Math.max(1, totalPages || 1);
+    if (currentPage > last) updateListParams({ [URL_KEYS.page]: last > 1 ? String(last) : null });
+  }, [loading, isError, ordersData, totalPages, currentPage, updateListParams]);
+
+  // Only filters the list endpoint actually supports: free-text search (OR over
+  // maDonHang / maBaoGia / tenKhachHang) + production status enum.
   const orderFilterFields: FilterField[] = [
-    { key: 'maDonHang', label: 'Mã ĐH', type: 'text' },
-    { key: 'maBaoGia', label: 'Mã BG', type: 'text' },
-    { key: 'tenKhachHang', label: 'Khách hàng', type: 'text' },
-    { key: 'trangThaiSanXuat', label: 'Trạng thái SX', type: 'text' },
+    { key: 'trangThaiSanXuat', label: 'Trạng thái SX', type: 'select', options: PRODUCTION_STATUS_OPTIONS },
   ];
 
   const handleFilterChange = (newValues: Record<string, string>) => {
-    setFilterValues(newValues);
-    setCurrentPage(1);
+    const nextStatus = newValues.trangThaiSanXuat ?? '';
+    updateListParams({
+      [URL_KEYS.search]: newValues._search || null,
+      [URL_KEYS.status]: isProductionStatus(nextStatus) ? nextStatus : null,
+      [URL_KEYS.page]: null,
+    });
   };
 
   const handleExportExcel = async () => {
     try {
       setExportError('');
       setExportLoading(true);
-      await orderService.exportToExcel({});
+      // Export endpoint only accepts `search`; pass the current search term.
+      await orderService.exportToExcel({ search: searchTerm || undefined });
       setExportSuccess('Đã xuất file Excel thành công');
       setTimeout(() => setExportSuccess(''), 3000);
     } catch (error) {
@@ -151,19 +249,37 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
     }
   };
 
+  // Detail modal is synced to ?orderId= (deep-link from notifications, F5, share link).
+  // The ref records which id this component opened itself so the URL effect doesn't refetch it.
+  const openedOrderIdRef = useRef<string | null>(null);
+
   const handleView = (order: Order) => {
     setSelectedOrder(order);
     setOrderDetailTab('info');
     setOrderAuditPage(1);
     setShowViewModal(true);
+    openedOrderIdRef.current = order.id;
+    updateListParams({ orderId: order.id });
   };
 
-  // Auto-open view modal when ?orderId= is in URL (deep-link from notifications)
-  const [searchParams, setSearchParams] = useSearchParams();
+  const closeViewModal = () => {
+    setShowViewModal(false);
+    openedOrderIdRef.current = null;
+    updateListParams({ orderId: null });
+  };
+
   const orderIdParam = searchParams.get('orderId');
   useEffect(() => {
     const orderId = orderIdParam;
-    if (!orderId) return;
+    if (!orderId) {
+      // URL lost the id (Back button / host tab switch) → close the detail
+      if (openedOrderIdRef.current) {
+        openedOrderIdRef.current = null;
+        setShowViewModal(false);
+      }
+      return;
+    }
+    if (openedOrderIdRef.current === orderId) return;
     let cancelled = false;
     orderService
       .getOrderById(orderId)
@@ -172,13 +288,14 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
         const order = res?.data ?? res;
         if (order && order.id) {
           handleView(order as Order);
+        } else {
+          updateListParams({ orderId: null });
         }
-        const next = new URLSearchParams(searchParams);
-        next.delete('orderId');
-        setSearchParams(next, { replace: true });
       })
-      .catch((err) => {
-        console.error('Error loading order from URL:', err);
+      .catch(() => {
+        if (cancelled) return;
+        toast.error('Không tìm thấy đơn hàng');
+        updateListParams({ orderId: null });
       });
     return () => {
       cancelled = true;
@@ -207,8 +324,8 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    setConfirmMessage('Bạn có chắc chắn muốn xóa đơn hàng này?');
+  const handleDelete = async (id: string, maDonHang?: string) => {
+    setConfirmMessage(`Bạn có chắc chắn muốn xóa đơn hàng ${maDonHang ?? ''}? Thao tác này không thể hoàn tác.`);
     setConfirmAction(() => async () => {
       setConfirmOpen(false);
       try {
@@ -225,10 +342,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
 
   const handleViewCosting = async (order: Order) => {
     try {
-      // Fetch quotation request data
-      console.log('🔍 Fetching quotation request for order:', order.maDonHang, 'YCBG ID:', order.quotationRequestId);
       const response = await quotationRequestService.getQuotationRequestById(order.quotationRequestId);
-      console.log('✅ Loaded quotation request:', response);
       setQuotationRequestForModal(response.data);
       setShowCostingModal(true);
     } catch (error) {
@@ -239,60 +353,19 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
 
 
 
-  const formatDate = (dateString: string) => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('vi-VN');
-  };
-
-  const getProductionStatusLabel = (status?: string) => {
-    const statusMap: Record<string, string> = {
-      CHO_LEN_KE_HOACH: 'Chờ lên kế hoạch',
-      CHO_SAN_XUAT: 'Chờ sản xuất',
-      DANG_SAN_XUAT: 'Đang sản xuất',
-      CHO_GIAO_HANG: 'Chờ giao hàng',
-      DA_LEN_CONTAINER: 'Đã lên container',
-      DANG_VAN_CHUYEN: 'Đang vận chuyển',
-      DA_GIAO_CHO_KHACH_HANG: 'Đã giao cho khách hàng',
-    };
-    return status ? statusMap[status] || status : 'Chọn trạng thái';
-  };
-
-  const getPaymentStatusLabel = (status?: string) => {
-    const statusMap: Record<string, string> = {
-      DA_THANH_TOAN_DOT_1: 'Đã thanh toán đợt 1',
-      CHO_THANH_TOAN_DOT_2: 'Chờ thanh toán đợt 2',
-      DA_THANH_TOAN_DU: 'Đã thanh toán đủ',
-    };
-    return status ? statusMap[status] || status : 'Chọn trạng thái';
-  };
-
-  const PRODUCTION_TONE: Record<string, BadgeTone> = {
-    CHO_LEN_KE_HOACH: 'gray',
-    CHO_SAN_XUAT: 'yellow',
-    DANG_SAN_XUAT: 'blue',
-    CHO_GIAO_HANG: 'yellow',
-    DA_LEN_CONTAINER: 'blue',
-    DANG_VAN_CHUYEN: 'yellow',
-    DA_GIAO_CHO_KHACH_HANG: 'green',
-  };
-
-  const PAYMENT_TONE: Record<string, BadgeTone> = {
-    DA_THANH_TOAN_DOT_1: 'yellow',
-    CHO_THANH_TOAN_DOT_2: 'red',
-    DA_THANH_TOAN_DU: 'green',
-  };
-
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Danh sách đơn hàng</h2>
+      {/* Header — host tabs pass hideHeader (tab label already names the list) */}
+      <div className={`flex items-center ${hideHeader ? 'justify-end' : 'justify-between'}`}>
+        {!hideHeader && <h2 className="text-2xl font-bold">Danh sách đơn hàng</h2>}
         <button
+          type="button"
           onClick={handleExportExcel}
           disabled={exportLoading}
+          title={searchTerm ? 'Xuất theo từ khóa tìm kiếm hiện tại' : 'Xuất toàn bộ đơn hàng'}
           className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
         >
-          <Download size={18} />
+          <Download size={18} aria-hidden="true" />
           {exportLoading ? 'Đang xuất...' : 'Xuất Excel'}
         </button>
       </div>
@@ -319,33 +392,45 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
         </div>
       )}
 
-      {/* Table */}
-        <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-300">
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">STT</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Ngày đặt hàng</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã đơn hàng</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Mã báo giá</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Khách hàng</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Số lượng SP</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái SX</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 border-r border-gray-200">Trạng thái TT</th>
-              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">Hành động</th>
+      {/* Table — bounded scroll container so the sticky header actually sticks */}
+      <div className="overflow-auto max-h-[calc(100vh-16rem)] border border-gray-200 rounded-lg">
+        <table className="w-full border-collapse text-sm">
+          <thead className="bg-gray-50 sticky top-0 z-20 shadow-[inset_0_-1px_0_0_rgb(229_231_235)]">
+            <tr>
+              <th scope="col" className={`${TH} w-12 sticky left-0 z-30 bg-gray-50`}>STT</th>
+              <th scope="col" className={`${TH} sticky left-12 z-30 bg-gray-50 shadow-[1px_0_0_0_rgb(229_231_235)]`}>Mã đơn hàng</th>
+              <th scope="col" className={TH}>Trạng thái SX</th>
+              <th scope="col" className={TH}>Trạng thái TT</th>
+              <th scope="col" className={TH}>Ngày đặt hàng</th>
+              <th scope="col" className={TH}>Khách hàng</th>
+              <th scope="col" className={`${TH} hidden xl:table-cell`}>Mã báo giá</th>
+              <th scope="col" className={`${TH} text-right`}>Số mặt hàng</th>
+              <th scope="col" className={`${TH} text-center sticky right-0 z-30 bg-gray-50 shadow-[-1px_0_0_0_rgb(229_231_235)]`}>Hành động</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-gray-100">
             {loading ? (
+              Array.from({ length: 5 }, (_, i) => (
+                <tr key={`skeleton-${i}`} aria-hidden="true">
+                  {Array.from({ length: 9 }, (__, j) => (
+                    <td key={j} className="px-3 py-3">
+                      <div className="h-3 rounded bg-gray-200 animate-pulse" />
+                    </td>
+                  ))}
+                </tr>
+              ))
+            ) : isError ? (
               <tr>
-                <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
-                  Đang tải...
+                <td colSpan={9} className="px-3">
+                  <ErrorState message="Không tải được danh sách đơn hàng." onRetry={() => { void refetch(); }} />
                 </td>
               </tr>
             ) : orders.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
-                  Không có dữ liệu
+                <td colSpan={9} className="px-3 py-10 text-center text-sm text-gray-400">
+                  {searchTerm || statusFilter
+                    ? 'Không có đơn hàng nào phù hợp với bộ lọc hiện tại.'
+                    : 'Chưa có đơn hàng nào.'}
                 </td>
               </tr>
             ) : (
@@ -353,48 +438,60 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
                 <tr
                   key={order.id}
                   onClick={() => handleView(order)}
-                  className={`border-b border-gray-200 border-l-2 border-l-transparent hover:bg-blue-100 hover:border-l-blue-500 cursor-pointer transition-all ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
+                  className="group bg-white hover:bg-gray-50 cursor-pointer transition-colors"
                 >
-                  <td className="px-6 py-4 text-sm text-gray-900 border-r border-gray-200">
+                  <td className={`${TD} w-12 text-gray-500 tabular-nums sticky left-0 z-10 ${STICKY_BG}`}>
                     {(currentPage - 1) * itemsPerPage + index + 1}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
-                    {formatDate(order.ngayDatHang)}
+                  <td className={`${TD} whitespace-nowrap font-semibold text-blue-600 sticky left-12 z-10 ${STICKY_BG} shadow-[1px_0_0_0_rgb(229_231_235)]`}>
+                    {order.maDonHang || EMPTY}
                   </td>
-                  <td className="px-6 py-4 text-sm font-semibold text-blue-600 border-r border-gray-200">
-                    {order.maDonHang}
+                  <td className={`${TD} whitespace-nowrap`}>
+                    <OrderStatusBadge status={order.trangThaiSanXuat} labels={PRODUCTION_STATUS_LABELS} tones={PRODUCTION_TONE} />
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
-                    {order.maBaoGia}
+                  <td className={`${TD} whitespace-nowrap`}>
+                    <OrderStatusBadge status={order.trangThaiThanhToan} labels={PAYMENT_STATUS_LABELS} tones={PAYMENT_TONE} />
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
-                    {order.tenKhachHang}
+                  <td className={`${TD} whitespace-nowrap tabular-nums`}>
+                    {formatDateVN(order.ngayDatHang) || EMPTY}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-700 border-r border-gray-200">
-                    {order.items?.length || 0}
+                  <td className={TD}>
+                    {order.tenKhachHang ? (
+                      <span className="block max-w-[12rem] xl:max-w-[16rem] truncate" title={order.tenKhachHang}>
+                        {order.tenKhachHang}
+                      </span>
+                    ) : EMPTY}
                   </td>
-                  <td className="px-6 py-4 border-r border-gray-200">
-                    <StatusBadge label={getProductionStatusLabel(order.trangThaiSanXuat)} tone={PRODUCTION_TONE[order.trangThaiSanXuat ?? ''] ?? 'gray'} />
+                  <td className={`${TD} whitespace-nowrap hidden xl:table-cell`}>
+                    {order.maBaoGia || EMPTY}
                   </td>
-                  <td className="px-6 py-4 border-r border-gray-200">
-                    <StatusBadge label={getPaymentStatusLabel(order.trangThaiThanhToan)} tone={PAYMENT_TONE[order.trangThaiThanhToan ?? ''] ?? 'gray'} />
+                  <td className={`${TD} text-right tabular-nums`}>
+                    {order.items?.length ? order.items.length.toLocaleString('vi-VN') : EMPTY}
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center justify-center gap-3">
+                  <td className={`${TD} sticky right-0 z-10 ${STICKY_BG} shadow-[-1px_0_0_0_rgb(229_231_235)]`}>
+                    <div className="flex items-center justify-center gap-1">
                       <button
+                        type="button"
                         onClick={(e) => { e.stopPropagation(); handleViewCosting(order); }}
-                        className="p-1.5 text-purple-600 hover:bg-purple-100 rounded-md transition-colors"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-purple-600 hover:bg-purple-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
                         title="Xem bảng tính"
+                        aria-label={`Xem bảng tính đơn hàng ${order.maDonHang ?? ''}`}
                       >
-                        <Calculator className="w-5 h-5" />
+                        <Calculator className="w-4 h-4" aria-hidden="true" />
+                        <span className="sr-only">Xem bảng tính</span>
                       </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDelete(order.id); }}
-                        className="p-1.5 text-red-600 hover:bg-red-100 rounded-md transition-colors"
-                        title="Xóa"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
+                      {canDeleteOrder && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleDelete(order.id, order.maDonHang); }}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-red-600 hover:bg-red-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                          title="Xóa"
+                          aria-label={`Xóa đơn hàng ${order.maDonHang ?? ''}`}
+                        >
+                          <Trash2 className="w-4 h-4" aria-hidden="true" />
+                          <span className="sr-only">Xóa</span>
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -402,29 +499,34 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
             )}
           </tbody>
         </table>
-        </div>
+      </div>
 
       {/* Server-side pagination + page-size selector */}
       {totalItems > 0 && (
-        <div className="flex items-center justify-between mt-4 px-2">
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-600">
-              Hiển thị {(currentPage - 1) * limit + 1}–{Math.min(currentPage * limit, totalItems)} / {totalItems} mục
+        <div className="flex flex-wrap items-center justify-between gap-3 px-1 text-sm">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-gray-600">
+              Tổng {totalItems.toLocaleString('vi-VN')} dòng — Trang {currentPage}/{Math.max(totalPages, 1)}
             </span>
             <select
               value={limit}
-              onChange={(e) => { setLimit(Number(e.target.value)); setCurrentPage(1); }}
-              className="text-sm border border-gray-300 rounded-md px-2 py-1"
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                updateListParams({ [URL_KEYS.limit]: n === DEFAULT_LIMIT ? null : String(n), [URL_KEYS.page]: null });
+              }}
+              aria-label="Số dòng mỗi trang"
+              className="text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
-              {[10, 20, 50, 100].map(n => <option key={n} value={n}>{n}/trang</option>)}
+              {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}/trang</option>)}
             </select>
           </div>
           {totalPages > 1 && (
-            <div className="flex items-center gap-2">
+            <nav className="flex flex-wrap items-center gap-1" aria-label="Phân trang đơn hàng">
               <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                type="button"
+                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className={PAGE_BTN}
               >
                 Trước
               </button>
@@ -434,27 +536,30 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
                   <React.Fragment key={page}>
                     {idx > 0 && arr[idx - 1] !== page - 1 && <span className="px-1 text-gray-400">...</span>}
                     <button
+                      type="button"
                       onClick={() => setCurrentPage(page)}
-                      className={`px-3 py-1.5 text-sm rounded-md ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
+                      aria-current={page === currentPage ? 'page' : undefined}
+                      className={`h-8 min-w-[2rem] px-2 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${page === currentPage ? 'bg-blue-600 text-white' : 'border border-gray-300 hover:bg-gray-50'}`}
                     >
                       {page}
                     </button>
                   </React.Fragment>
                 ))}
               <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                type="button"
+                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage >= totalPages}
+                className={PAGE_BTN}
               >
                 Sau
               </button>
-            </div>
+            </nav>
           )}
         </div>
       )}
 
       {/* View Modal */}
-      <Modal isOpen={showViewModal && !!selectedOrder} onClose={() => setShowViewModal(false)} showBackdrop closeOnBackdrop={true}>
+      <Modal isOpen={showViewModal && !!selectedOrder} onClose={closeViewModal} showBackdrop closeOnBackdrop={true}>
         <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col modal-viewport-h" onClick={(e) => e.stopPropagation()}>
             {selectedOrder && (<>
             {/* Modal Header */}
@@ -464,7 +569,9 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
                 Chi tiết đơn hàng - {selectedOrder.maDonHang}
               </h3>
               <button
-                onClick={() => setShowViewModal(false)}
+                type="button"
+                onClick={closeViewModal}
+                aria-label="Đóng"
                 className="text-gray-400 hover:text-gray-600 transition-colors"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -474,8 +581,11 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
             </div>
 
             {/* Tab navigation (task 11.3) */}
-            <div className="flex border-b border-gray-200 px-6 shrink-0">
+            <div className="flex border-b border-gray-200 px-6 shrink-0" role="tablist" aria-label="Chi tiết đơn hàng">
               <button
+                type="button"
+                role="tab"
+                aria-selected={orderDetailTab === 'info'}
                 className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${orderDetailTab === 'info' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
                 onClick={() => setOrderDetailTab('info')}
               >
@@ -483,6 +593,9 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
               </button>
               {(String(user?.role) === 'ADMIN' || String(user?.role) === 'DEPARTMENT_HEAD') && (
                 <button
+                  type="button"
+                  role="tab"
+                  aria-selected={orderDetailTab === 'audit'}
                   className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${orderDetailTab === 'audit' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
                   onClick={() => setOrderDetailTab('audit')}
                 >
@@ -532,19 +645,19 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
                   <div className="space-y-3">
                     <div>
                       <label className="text-sm font-medium text-gray-500">Mã đơn hàng:</label>
-                      <p className="text-sm text-gray-900 font-medium text-blue-600">{selectedOrder.maDonHang}</p>
+                      <DetailValue value={selectedOrder.maDonHang} className="font-medium text-blue-600" />
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-500">Ngày đặt hàng:</label>
-                      <p className="text-sm text-gray-900">{new Date(selectedOrder.ngayDatHang).toLocaleDateString('vi-VN')}</p>
+                      <DetailValue value={formatDateVN(selectedOrder.ngayDatHang)} />
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-500">Mã báo giá:</label>
-                      <p className="text-sm text-gray-900">{selectedOrder.maBaoGia}</p>
+                      <DetailValue value={selectedOrder.maBaoGia} />
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-500">Mã YCBG:</label>
-                      <p className="text-sm text-gray-900">{selectedOrder.maYeuCauBaoGia}</p>
+                      <DetailValue value={selectedOrder.maYeuCauBaoGia} />
                     </div>
                   </div>
                 </div>
@@ -555,15 +668,15 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
                   <div className="space-y-3">
                     <div>
                       <label className="text-sm font-medium text-gray-500">Mã khách hàng:</label>
-                      <p className="text-sm text-gray-900">{selectedOrder.maKhachHang}</p>
+                      <DetailValue value={selectedOrder.maKhachHang} />
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-500">Tên khách hàng:</label>
-                      <p className="text-sm text-gray-900">{selectedOrder.tenKhachHang}</p>
+                      <DetailValue value={selectedOrder.tenKhachHang} />
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-500">Nhân viên phụ trách:</label>
-                      <p className="text-sm text-gray-900">{selectedOrder.tenNhanVien || 'N/A'}</p>
+                      <DetailValue value={selectedOrder.tenNhanVien} />
                     </div>
                   </div>
                 </div>
@@ -574,99 +687,63 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
                   <div className="space-y-3">
                     <div>
                       <label className="text-sm font-medium text-gray-500">Giá trị (USD):</label>
-                      <p className="text-sm text-gray-900 font-semibold text-green-600">
-                        {selectedOrder.giaTriDonHangUSD ? `$${selectedOrder.giaTriDonHangUSD.toLocaleString()}` : 'N/A'}
-                      </p>
+                      <DetailValue value={formatUSD(selectedOrder.giaTriDonHangUSD)} className="font-semibold text-green-600 tabular-nums" />
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-500">Giá trị (VNĐ):</label>
-                      <p className="text-sm text-gray-900 font-semibold text-green-600">
-                        {selectedOrder.giaTriDonHangVND ? `${selectedOrder.giaTriDonHangVND.toLocaleString()} VNĐ` : 'N/A'}
-                      </p>
+                      <DetailValue value={formatVND(selectedOrder.giaTriDonHangVND)} className="font-semibold text-green-600 tabular-nums" />
                     </div>
                   </div>
                 </div>
 
-                {/* Thanh toán đợt 1 */}
-                <div className="space-y-4">
-                  <h4 className="text-md font-semibold text-gray-800 border-b pb-2">Thanh toán đợt 1</h4>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">Xuất khẩu (USD):</label>
-                      <p className="text-sm text-gray-900">
-                        {selectedOrder.xuatKhauDot1USD ? `$${selectedOrder.xuatKhauDot1USD.toLocaleString()}` : 'N/A'}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">Nội địa (VNĐ):</label>
-                      <p className="text-sm text-gray-900">
-                        {selectedOrder.noiDiaDot1VND ? `${selectedOrder.noiDiaDot1VND.toLocaleString()} VNĐ` : 'N/A'}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">Ngày thanh toán:</label>
-                      <p className="text-sm text-gray-900">
-                        {selectedOrder.ngayThanhToanDot1 ? new Date(selectedOrder.ngayThanhToanDot1).toLocaleDateString('vi-VN') : 'N/A'}
-                      </p>
+                {/* Thanh toán đợt 1 / 2 — omitted entirely when the installment has no data */}
+                {([
+                  { title: 'Thanh toán đợt 1', usd: selectedOrder.xuatKhauDot1USD, vnd: selectedOrder.noiDiaDot1VND, date: selectedOrder.ngayThanhToanDot1 },
+                  { title: 'Thanh toán đợt 2', usd: selectedOrder.xuatKhauDot2USD, vnd: selectedOrder.noiDiaDot2VND, date: selectedOrder.ngayThanhToanDot2 },
+                ]).filter((p) => p.usd || p.vnd || p.date).map((p) => (
+                  <div key={p.title} className="space-y-4">
+                    <h4 className="text-md font-semibold text-gray-800 border-b pb-2">{p.title}</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Xuất khẩu (USD):</label>
+                        <DetailValue value={formatUSD(p.usd)} className="text-gray-900 tabular-nums" />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Nội địa (VNĐ):</label>
+                        <DetailValue value={formatVND(p.vnd)} className="text-gray-900 tabular-nums" />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Ngày thanh toán:</label>
+                        <DetailValue value={formatDateVN(p.date)} />
+                      </div>
                     </div>
                   </div>
-                </div>
+                ))}
 
-                {/* Thanh toán đợt 2 */}
-                <div className="space-y-4">
-                  <h4 className="text-md font-semibold text-gray-800 border-b pb-2">Thanh toán đợt 2</h4>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">Xuất khẩu (USD):</label>
-                      <p className="text-sm text-gray-900">
-                        {selectedOrder.xuatKhauDot2USD ? `$${selectedOrder.xuatKhauDot2USD.toLocaleString()}` : 'N/A'}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">Nội địa (VNĐ):</label>
-                      <p className="text-sm text-gray-900">
-                        {selectedOrder.noiDiaDot2VND ? `${selectedOrder.noiDiaDot2VND.toLocaleString()} VNĐ` : 'N/A'}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">Ngày thanh toán:</label>
-                      <p className="text-sm text-gray-900">
-                        {selectedOrder.ngayThanhToanDot2 ? new Date(selectedOrder.ngayThanhToanDot2).toLocaleDateString('vi-VN') : 'N/A'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Thông tin sản xuất */}
-                <div className="space-y-4">
-                  <h4 className="text-md font-semibold text-gray-800 border-b pb-2">Thông tin sản xuất</h4>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">Ngày bắt đầu KH:</label>
-                      <p className="text-sm text-gray-900">
-                        {selectedOrder.ngayBatDauSanXuatKeHoach ? new Date(selectedOrder.ngayBatDauSanXuatKeHoach).toLocaleDateString('vi-VN') : 'N/A'}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">Ngày hoàn thành KH:</label>
-                      <p className="text-sm text-gray-900">
-                        {selectedOrder.ngayHoanThanhSanXuatKeHoach ? new Date(selectedOrder.ngayHoanThanhSanXuatKeHoach).toLocaleDateString('vi-VN') : 'N/A'}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">Ngày hoàn thành thực tế:</label>
-                      <p className="text-sm text-gray-900">
-                        {selectedOrder.ngayHoanThanhThucTe ? new Date(selectedOrder.ngayHoanThanhThucTe).toLocaleDateString('vi-VN') : 'N/A'}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">Ngày giao hàng:</label>
-                      <p className="text-sm text-gray-900">
-                        {selectedOrder.ngayGiaoHang ? new Date(selectedOrder.ngayGiaoHang).toLocaleDateString('vi-VN') : 'N/A'}
-                      </p>
+                {/* Thông tin sản xuất — omitted when no production date is set */}
+                {(selectedOrder.ngayBatDauSanXuatKeHoach || selectedOrder.ngayHoanThanhSanXuatKeHoach || selectedOrder.ngayHoanThanhThucTe || selectedOrder.ngayGiaoHang) && (
+                  <div className="space-y-4">
+                    <h4 className="text-md font-semibold text-gray-800 border-b pb-2">Thông tin sản xuất</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Ngày bắt đầu KH:</label>
+                        <DetailValue value={formatDateVN(selectedOrder.ngayBatDauSanXuatKeHoach)} />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Ngày hoàn thành KH:</label>
+                        <DetailValue value={formatDateVN(selectedOrder.ngayHoanThanhSanXuatKeHoach)} />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Ngày hoàn thành thực tế:</label>
+                        <DetailValue value={formatDateVN(selectedOrder.ngayHoanThanhThucTe)} />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Ngày giao hàng:</label>
+                        <DetailValue value={formatDateVN(selectedOrder.ngayGiaoHang)} />
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* Trạng thái */}
                 <div className="space-y-4 md:col-span-2 lg:col-span-3">
@@ -675,50 +752,66 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
                     <div>
                       <label className="text-sm font-medium text-gray-500">Trạng thái sản xuất:</label>
                       <p className="text-sm mt-1">
-                        <StatusBadge label={getProductionStatusLabel(selectedOrder.trangThaiSanXuat)} tone={PRODUCTION_TONE[selectedOrder.trangThaiSanXuat ?? ''] ?? 'gray'} />
+                        <OrderStatusBadge status={selectedOrder.trangThaiSanXuat} labels={PRODUCTION_STATUS_LABELS} tones={PRODUCTION_TONE} />
                       </p>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-500">Trạng thái thanh toán:</label>
                       <p className="text-sm mt-1">
-                        <StatusBadge label={getPaymentStatusLabel(selectedOrder.trangThaiThanhToan)} tone={PAYMENT_TONE[selectedOrder.trangThaiThanhToan ?? ''] ?? 'gray'} />
+                        <OrderStatusBadge status={selectedOrder.trangThaiThanhToan} labels={PAYMENT_STATUS_LABELS} tones={PAYMENT_TONE} />
                       </p>
                     </div>
                   </div>
                 </div>
 
-                {/* Danh sách hàng hóa */}
-                <div className="space-y-4 md:col-span-2 lg:col-span-3">
-                  <h4 className="text-md font-semibold text-gray-800 border-b pb-2">Danh sách hàng hóa</h4>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã SP</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên hàng hóa</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Loại hàng hóa</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Yêu cầu</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Đóng gói</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Số lượng</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Đơn vị</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {selectedOrder.items?.map((item, index) => (
-                          <tr key={index}>
-                            <td className="px-4 py-3 text-sm text-gray-900">{item.maSanPham}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">{item.tenHangHoa}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">{item.loaiHangHoa || 'N/A'}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">{item.yeuCauHangHoa || 'N/A'}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">{item.dongGoi || 'N/A'}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">{item.soLuong.toLocaleString()}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">{item.donVi}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                {/* Danh sách hàng hóa — optional columns hidden when empty on every item */}
+                {(() => {
+                  const items = selectedOrder.items ?? [];
+                  const showLoai = items.some((i) => i.loaiHangHoa);
+                  const showYeuCau = items.some((i) => i.yeuCauHangHoa);
+                  const showDongGoi = items.some((i) => i.dongGoi);
+                  const ITEM_TH = 'px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase';
+                  const ITEM_TD = 'px-4 py-3 text-sm text-gray-900';
+                  return (
+                    <div className="space-y-4 md:col-span-2 lg:col-span-3">
+                      <h4 className="text-md font-semibold text-gray-800 border-b pb-2">Danh sách hàng hóa</h4>
+                      {items.length === 0 ? (
+                        <p className="text-sm text-gray-400">Đơn hàng chưa có mặt hàng.</p>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th scope="col" className={ITEM_TH}>Mã SP</th>
+                                <th scope="col" className={ITEM_TH}>Tên hàng hóa</th>
+                                {showLoai && <th scope="col" className={ITEM_TH}>Loại hàng hóa</th>}
+                                {showYeuCau && <th scope="col" className={ITEM_TH}>Yêu cầu</th>}
+                                {showDongGoi && <th scope="col" className={ITEM_TH}>Đóng gói</th>}
+                                <th scope="col" className={`${ITEM_TH} text-right`}>Số lượng</th>
+                                <th scope="col" className={ITEM_TH}>Đơn vị</th>
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                              {items.map((item, index) => (
+                                <tr key={index}>
+                                  <td className={ITEM_TD}>{item.maSanPham || EMPTY}</td>
+                                  <td className={ITEM_TD}>{item.tenHangHoa || EMPTY}</td>
+                                  {showLoai && <td className={ITEM_TD}>{item.loaiHangHoa || EMPTY}</td>}
+                                  {showYeuCau && <td className={ITEM_TD}>{item.yeuCauHangHoa || EMPTY}</td>}
+                                  {showDongGoi && <td className={ITEM_TD}>{item.dongGoi || EMPTY}</td>}
+                                  <td className={`${ITEM_TD} text-right tabular-nums`}>
+                                    {typeof item.soLuong === 'number' ? item.soLuong.toLocaleString('vi-VN') : EMPTY}
+                                  </td>
+                                  <td className={ITEM_TD}>{item.donVi || EMPTY}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Ghi chú */}
                 {selectedOrder.ghiChu && (
@@ -734,14 +827,16 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
             {/* Modal Footer */}
             <div className="flex justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50 shrink-0">
               <button
-                onClick={() => setShowViewModal(false)}
+                type="button"
+                onClick={closeViewModal}
                 className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100 transition-colors"
               >
                 Đóng
               </button>
               <button
+                type="button"
                 onClick={() => {
-                  setShowViewModal(false);
+                  closeViewModal();
                   handleEdit(selectedOrder);
                 }}
                 disabled={!canEdit}
@@ -766,7 +861,9 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
                 Chỉnh sửa đơn hàng - {selectedOrder.maDonHang}
               </h3>
               <button
+                type="button"
                 onClick={() => setShowEditModal(false)}
+                aria-label="Đóng"
                 className="text-gray-400 hover:text-gray-600 transition-colors"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1043,6 +1140,8 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ customerType }) => {
         isOpen={confirmOpen}
         title="Xác nhận xóa"
         message={confirmMessage}
+        confirmText="Xóa"
+        cancelText="Hủy"
         onConfirm={() => confirmAction && confirmAction()}
         onCancel={() => setConfirmOpen(false)}
       />
