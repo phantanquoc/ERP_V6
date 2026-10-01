@@ -85,7 +85,7 @@ Xem `openspec/changes/` cho format spec đầy đủ (feature lớn cần `propo
 
 ### Database
 - **Multi-schema Prisma**: 3 schemas logic — `auth` (users, tokens), `business` (employees, orders, …), `common` (lookups, warehouse, technical, …). Mọi model **phải** có `@@schema(...)`.
-- **Cảnh báo `common.prisma`**: 71 models / 59K — god schema. Đổi gì trong đó cũng blast radius lớn → luôn chạy `gitnexus_impact` trước. Khi thêm domain mới, cân nhắc tách file `common_*.prisma` thay vì nhồi tiếp.
+- **Cảnh báo `common.prisma`**: 71 models / 59K — god schema. Đổi gì trong đó cũng blast radius lớn → luôn đánh giá impact trước (xem "Impact Analysis" bên dưới). Khi thêm domain mới, cân nhắc tách file `common_*.prisma` thay vì nhồi tiếp.
 - **IDs dùng CUID**: `@id @default(cuid())` — không UUID, không auto-increment.
 - **Child tables, không JSON columns**: Related items luôn là rows quan hệ với cascade delete — không bao giờ JSON array.
 - **`migrate dev` vs `db push`**: `migrate dev` cho mọi thay đổi cần lịch sử. `db push` chỉ prototyping nhanh. Drift đã fix 2026-08-04 — đừng tái tạo drift bằng `db push` trên nhánh chia sẻ.
@@ -152,7 +152,7 @@ Xem `openspec/changes/` cho format spec đầy đủ (feature lớn cần `propo
 
 ## God Files — Cẩn trọng khi sửa
 
-Những file vượt 1k dòng, blast radius cao. Đổi một dòng có thể ảnh hưởng nhiều flows — **bắt buộc** `gitnexus_impact` trước:
+Những file vượt 1k dòng, blast radius cao. Đổi một dòng có thể ảnh hưởng nhiều flows — **bắt buộc** đánh giá impact trước:
 
 | File | Dòng | Rủi ro |
 |------|------|--------|
@@ -165,7 +165,14 @@ Những file vượt 1k dòng, blast radius cao. Đổi một dòng có thể �
 | `frontend/src/components/AttendanceManagement.tsx` | 2160 | Chấm công, shift derivation (UTC vs VN +7h) |
 | `frontend/src/components/ProcessManagement.tsx` | 2058 | Quy trình sản xuất |
 
-> Khi sửa god file: (1) `gitnexus_impact({ target, direction: "upstream" })`, (2) chạy test file liên quan `--runInBand`, (3) không gộp nhiều mục đích trong một commit.
+> Khi sửa god file: (1) đánh giá impact như mục dưới, (2) chạy test file liên quan `--runInBand`, (3) không gộp nhiều mục đích trong một commit.
+
+### Impact Analysis (không dùng GitNexus)
+
+1. `mcp__codebase-retrieval__codebase-retrieval` — hỏi "ai gọi / dùng `<symbol>`", lấy callers + flow liên quan.
+2. Xác nhận bằng grep exact symbol (`rtk proxy grep -rn "<symbol>" backend/src frontend/src`) — semantic search có thể sót caller.
+3. Kiểm tra component có thực sự được import/render không trước khi sửa (repo có code chết, vd `RepairDetailPanel.tsx`).
+4. Báo user: danh sách caller, flow bị ảnh hưởng, mức rủi ro.
 
 ---
 
@@ -239,12 +246,12 @@ Copy `.env.production.example` → `.env` ở root. Dev local chỉ cần `DATAB
 ## Pre-commit Checklist
 
 ```
-[ ] gitnexus_impact cho mọi symbol đã sửa (nếu đụng god file / high-risk area)
+[ ] Impact analysis (codebase-retrieval + grep) cho symbol đã sửa (nếu đụng god file / high-risk area)
 [ ] backend:  npx tsc --noEmit  → 0 lỗi
 [ ] frontend: npx tsc --noEmit -p tsconfig.app.json → 0 lỗi
 [ ] backend:  npm run lint  (không thêm lỗi mới)
 [ ] tests liên quan: npx jest <file> --runInBand  → pass
-[ ] gitnexus_detect_changes() — chỉ affect expected symbols/flows
+[ ] git diff --stat — chỉ chạm file/symbol dự kiến
 [ ] ROUTE_MAP có entry nếu thêm route mới (check server log: Registered X routes)
 [ ] Không thêm any / console.log mới nếu tránh được
 [ ] Commit message: conventional commits, scope rõ ràng
@@ -287,46 +294,27 @@ Với regression: `git bisect` để tìm commit gây lỗi trước khi đoán.
 - **Never** để worktrees/stash rác tồn đọng — dọn ngay sau khi xong việc
 - **Never** commit với 25 files modified lẫn lộn nhiều mục đích — tách commit theo domain
 
-<!-- gitnexus:start -->
-# GitNexus — Code Intelligence
+---
 
-This project is indexed by GitNexus as **ERP_V6** (30730 symbols, 47561 relationships, 228 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+## Domain Map — Kỹ thuật: YCKT vs YCSC (xác minh từ code 2026-10-01)
 
-> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
+**Hai bảng độc lập.** Spec `openspec/changes/split-inspection-repair/` và `fix-chung-kiem-tra-footer/` mô tả phương án cũ (1 bảng `RepairRequest` + `requestType`) — **đã lỗi thời**, đừng suy luận theo đó. Nguồn sự thật: `common.prisma`.
 
-## Always Do
+| | Yêu cầu kiểm tra (YCKT) | Yêu cầu sửa chữa (YCSC) |
+|---|---|---|
+| Model | `InspectionRequest` (+ `InspectionRequestItem`, `InspectionRequestStatusLog`) | `RepairRequest` (+ `RepairRequestItem`, `RepairRequestStatusLog`) |
+| Mã | `YC-KT-YYYY-…` | `YC-SC-YYYY-…` |
+| API | `/inspection-requests` | `/repair-requests` (chặn tạo `KIEM_TRA`: `repairRequestService.ts` createRepairRequest) |
+| Backend | `inspectionRequestService.ts` (`advanceInspection` nội bộ) | `repairRequestService.ts` + `advanceRepairRequestStatus` (`utils/statusTransitions.ts`) |
+| Trạng thái | `CHO_XU_LY → DA_TIEP_NHAN → DANG_KIEM_TRA` rồi rẽ: **Cần sửa chữa** `→ DA_KIEM_TRA →` (tạo YCSC) `→ HOAN_THANH`; **Đã khắc phục** `→ CHO_NGHIEM_THU →` ĐẠT `HOAN_THANH` / KHÔNG ĐẠT về `DANG_KIEM_TRA`; nhánh `TU_CHOI`/`DA_HUY` | `CHO_XU_LY → DA_TIEP_NHAN → LEN_KE_HOACH → DANG_SUA_CHUA → CHO_NGHIEM_THU →` ĐẠT `DA_NGHIEM_THU → HOAN_THANH` / KHÔNG ĐẠT về `DANG_SUA_CHUA`; nhánh `TU_CHOI`/`DA_HUY` |
+| Kết quả | `ketQuaKiemTra`, `mucDoHuHong` (`nhe`/`trung_binh`/`nang`), `ketLuan` **chỉ** `CAN_SUA_CHUA` / `DA_KHAC_PHUC` | Assignees (1 lead), vật tư dự kiến, YCCC, chi phí, nghiệm thu |
+| Tạo ở đâu | `CommonManagement` (tab Chung, mọi role) + `InspectionRequestList` — `lockedRequestType="KIEM_TRA"` | `RepairRequestList` (`lockedRequestType="SUA_CHUA"`) hoặc từ YCKT (`sourceInspectionRequestId`) |
 
-- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
-- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
-- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
-- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
-- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
-
-## Never Do
-
-- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
-- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
-- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
-- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
-
-## Resources
-
-| Resource | Use for |
-|----------|---------|
-| `gitnexus://repo/ERP_V6/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/ERP_V6/clusters` | All functional areas |
-| `gitnexus://repo/ERP_V6/processes` | All execution flows |
-| `gitnexus://repo/ERP_V6/process/{name}` | Step-by-step execution trace |
-
-## CLI
-
-| Task | Read this skill file |
-|------|---------------------|
-| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
-| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
-| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
-| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
-| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
-| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
-
-<!-- gitnexus:end -->
+- **Liên kết:** `RepairRequest.sourceInspectionRequestId` → `InspectionRequest.id`; `RepairRequestItem.sourceInspectionItemId` → item YCKT. YCKT không có vật tư/YCCC.
+- **UI dùng chung:** `RepairRequestFormModal.tsx` (2.2k dòng) xử lý create/edit/view cho **cả hai** loại, rẽ nhánh theo `lockedRequestType` / `_source` / prefix `YC-KT`; tạo YCKT gọi `createInspection` rồi `return`, tạo YCSC gọi `createRequest` rồi (nếu có vật tư) tự tạo YCCC.
+- **YCCC từ YCSC:** người yêu cầu = **người tạo phiếu (user đăng nhập)**, không phải người thực hiện chính. Backend `supplyRequestController.createSupplyRequest` lấy `employeeId` từ JWT; service ghi đè `maNhanVien`/`tenNhanVien` theo employee đó. Liên kết qua `RepairSupplyLink` (`POST /repair-requests/:id/supply-links`).
+- **Phiếu nghiệm thu (`AcceptanceHandover`, mã `NT-…`) dùng chung:** đúng một trong `repairRequestId` / `inspectionRequestId` (CHECK constraint). YCKT "Đã khắc phục" bắt buộc tình trạng sau + **tệp đính kèm** (`PATCH /inspection-requests/:id/submit` multipart). Không còn tự hoàn thành khi lập phiếu.
+- **Người xác nhận nghiệm thu = người tạo yêu cầu, không phải kỹ thuật:** YCKT → `createdById` của YCKT; YCSC → `createdById` của YCKT nguồn nếu có, ngược lại `createdById` của YCSC. Lưu ở `nguoiXacNhanId`; chỉ người đó (hoặc ADMIN) gọi được `confirm-acceptance` (route không qua `requireRule`, guard ở `acceptanceHandoverService.recordConfirmationTx`). KHÔNG ĐẠT bắt buộc lý do. Đóng FaultRecord liên quan chạy ở bước `complete` của YCSC.
+- **YCKT/YCSC trùng ID số:** frontend không bao giờ fallback `inspectionRequestService.x()` → `repairRequestService.x()` (sẽ thao tác nhầm phiếu khác).
+- **Tab Kỹ thuật** (`pages/technical/TechnicalQuality.tsx`): `?tab=inspections|repairs|faults|machineSystems|maintenance|spareParts|orders`.
+- **Code chết:** `components/RepairDetailPanel.tsx` không được import ở đâu — detail thật nằm trong `RepairRequestFormModal` (mode `view`).

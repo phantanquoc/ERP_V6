@@ -1,3 +1,5 @@
+> ⚠️ **LỖI THỜI (2026-10-01):** Phần mô hình dữ liệu "1 bảng RepairRequest + requestType" không còn đúng. Code hiện tại tách 2 bảng độc lập `InspectionRequest` (YCKT, `/inspection-requests`) và `RepairRequest` (YCSC). Xem "Domain Map" trong `AGENTS.md`.
+
 # Proposal — Chung / Kiểm tra / Footer (fix-chung-kiem-tra-footer)
 
 ## Why

@@ -11,7 +11,8 @@
 
 - **Chưa hiểu codebase thì chưa code.** Khi task yêu cầu tìm hiểu logic/cấu trúc/luồng xử lý → gọi `mcp__codebase-retrieval__codebase-retrieval` TRƯỚC, rồi mới `Read` file cụ thể theo line range trả về. Không `Grep` mò mẫm khi chưa có định hướng.
 - **Chưa đọc spec thì chưa implement.** Feature lớn có `openspec/changes/<tên>/proposal.md` + `tasks.md` + `design.md` — đọc đủ 3 file trước khi chạm code. Thứ tự bắt buộc: `Prisma schema → service → controller → route (ROUTE_MAP) → frontend hook → component`.
-- **Chưa check impact thì chưa sửa god file / high-risk area.** Xem bảng God Files và High-Risk Areas trong `AGENTS.md` — nếu đụng vào đó, chạy `gitnexus_impact({ target, direction: "upstream" })` và báo blast radius cho user trước khi edit.
+- **Chưa check impact thì chưa sửa god file / high-risk area.** Xem bảng God Files và High-Risk Areas trong `AGENTS.md` — nếu đụng vào đó, làm "Impact Analysis" (codebase-retrieval + grep xác nhận) và báo blast radius cho user trước khi edit. **Không dùng GitNexus.**
+- **Spec có thể lỗi thời — code là nguồn sự thật.** Trước khi tin `openspec/changes/*`, đối chiếu với Prisma schema + service hiện tại. Ví dụ: YCKT và YCSC là 2 bảng độc lập (xem "Domain Map" trong `AGENTS.md`), trái với spec `split-inspection-repair`.
 
 ## 2. Subagents — khi nào dùng, khi nào không
 
@@ -20,13 +21,13 @@
 **Không spawn** khi: parent cần reasoning tập trung, cần synthesis giữ mọi thứ lại với nhau, hoặc overhead spawn lớn hơn lợi ích.
 
 - Tất cả 8 OSF subagents (`~/.claude/agents/osf-*.md`) đã pin `model: "opus"` — ưu tiên chất lượng + hoàn thành, không lo cost.
-- Nếu gặp compact/rate-limit: (1) chia task nhỏ thay vì 1 spawn lớn, (2) prompt subagent scope hẹp — không paste toàn spec, (3) ưu tiên `gitnexus`/`codebase-retrieval` thay vì `Read` nguyên file.
+- Nếu gặp compact/rate-limit: (1) chia task nhỏ thay vì 1 spawn lớn, (2) prompt subagent scope hẹp — không paste toàn spec, (3) ưu tiên `codebase-retrieval` thay vì `Read` nguyên file.
 - Parent sở hữu output cuối và cross-spawn synthesis — subagent không tự kết luận thay parent.
 
 ## 3. Quy trình làm việc chuẩn
 
 ```
-Hiểu yêu cầu → Khám codebase (codebase-retrieval ưu tiên, gitnexus chỉ khi cần impact)
+Hiểu yêu cầu → Khám codebase (codebase-retrieval → Read theo line range → grep xác nhận)
   → Lập plan (đọc spec nếu có) → Implement theo thứ tự AGENTS.md
   → Tự verify (tsc + lint + test liên quan) → Báo kết quả
 ```
@@ -47,7 +48,7 @@ Hiểu yêu cầu → Khám codebase (codebase-retrieval ưu tiên, gitnexus ch�
 Dùng `pdftotext`, không dùng `Read`. Chỉ dùng `Read` khi user yêu cầu phân tích images/charts.
 
 ### Codebase Exploration (BẮT BUỘC) — Ưu tiên codebase-retrieval
-Khi cần hiểu codebase, tìm code, hoặc trả lời câu hỏi về structure → **LUÔN gọi `mcp__codebase-retrieval__codebase-retrieval` ĐẦU TIÊN**, trước cả `Read`/`Grep`/`Glob` hay `gitnexus`.
+Khi cần hiểu codebase, tìm code, đánh giá impact, hoặc trả lời câu hỏi về structure → **LUÔN gọi `mcp__codebase-retrieval__codebase-retrieval` ĐẦU TIÊN**, trước cả `Read`/`Grep`/`Glob`. GitNexus đã bỏ, không dùng.
 
 Triggers bắt buộc:
 - "tìm function/class/service/hook/component xyz"
@@ -58,13 +59,12 @@ Triggers bắt buộc:
 Thứ tự ưu tiên:
 1. `codebase-retrieval` — semantic search + call-graph, real-time index (ưu tiên số 1)
 2. `Read` — khi đã biết exact file path + line range từ bước 1
-3. `Grep` / `Glob` — CHỈ khi codebase-retrieval không trả về kết quả hoặc cần tìm exact string literal / liệt kê file theo pattern
-4. `gitnexus` — HẠN CHẾ, chỉ dùng cho impact/blast-radius trước khi sửa god file / high-risk area (mục 1), không dùng để tìm code chung chung
+3. Grep exact string — khi codebase-retrieval không đủ, cần liệt kê toàn bộ caller, hoặc xác nhận component có thực sự được import. Trong session này Grep tool có thể không có → dùng `rtk proxy grep -rn` qua Bash (glob `--include=*.ts` lỗi trên zsh, đừng dùng).
 
 Workflow:
 1. `codebase-retrieval` với câu hỏi natural language → lấy snippet + file paths
 2. `Read` các file cụ thể với line range trả về để có context đầy đủ trước khi edit
-3. Chỉ fallback sang `Grep`/`Glob`/`gitnexus` khi bước 1 không đủ
+3. Grep xác nhận callers/imports trước khi kết luận (semantic search có thể sót hoặc trả về spec cũ)
 
 ---
 
@@ -81,6 +81,9 @@ Workflow:
 | Dùng `localhost` trong Docker | Trong Docker network dùng `http://backend:5000` / `http://ai-service:8001` |
 | Thêm `any` / `console.log` mới | Không thêm nếu tránh được — repo đang trả nợ 708+763 `any` và 91+327 `console.log` |
 | Nhồi thêm vào `common.prisma` / `components/` phẳng | Cân nhắc tách file/subrepo theo domain |
+| Tin spec cũ thay vì code (vd coi YCKT là `RepairRequest.requestType=KIEM_TRA`) | Đối chiếu Prisma schema + service; xem Domain Map trong `AGENTS.md` |
+| Sửa component không còn được render (vd `RepairDetailPanel.tsx`) | Grep import trước khi sửa; báo user nếu là code chết |
+| Gán người yêu cầu YCCC = người thực hiện chính | YCCC luôn thuộc người tạo phiếu (user đăng nhập / JWT) |
 
 ## 6. Verify trước khi báo xong
 
@@ -100,46 +103,3 @@ Không báo "xong" khi còn lỗi type hoặc test fail. Không hạ mốc 0 l�
 
 <!-- Project-specific tools — mỗi tool link tới skill hoặc script file. -->
 
-<!-- gitnexus:start -->
-# GitNexus — Code Intelligence
-
-This project is indexed by GitNexus as **ERP_V6** (30730 symbols, 47561 relationships, 228 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
-
-> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
-
-## Always Do
-
-- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
-- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
-- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
-- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
-- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
-
-## Never Do
-
-- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
-- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
-- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
-- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
-
-## Resources
-
-| Resource | Use for |
-|----------|---------|
-| `gitnexus://repo/ERP_V6/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/ERP_V6/clusters` | All functional areas |
-| `gitnexus://repo/ERP_V6/processes` | All execution flows |
-| `gitnexus://repo/ERP_V6/process/{name}` | Step-by-step execution trace |
-
-## CLI
-
-| Task | Read this skill file |
-|------|---------------------|
-| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
-| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
-| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
-| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
-| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
-| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
-
-<!-- gitnexus:end -->
