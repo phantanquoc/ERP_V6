@@ -471,6 +471,28 @@ export function canIfConfigured(resourceCode: string, action: string): boolean |
   return entry.allow;
 }
 
+/**
+ * Technician gating for YCKT/YCSC: ADMIN, or member of Kỹ thuật as primary OR secondary department —
+ * any role (EMPLOYEE included). Mirrors backend `requireTechnical`.
+ */
+export function isTechnicalUser(user?: { role?: string; department?: string; departmentCode?: string; secondaryDepartments?: SecondaryDepartmentEntry[] } | null): boolean {
+  if (!user) return false;
+  if (user.role === UserRole.ADMIN) return true;
+  if (user.department === DEPARTMENTS.TECHNICAL || String(user.departmentCode ?? '').toUpperCase() === 'DEPT_TECHNICAL') return true;
+  return (user.secondaryDepartments ?? []).some((s) =>
+    s.departmentCode === DEPARTMENTS.TECHNICAL || String(s.departmentCode ?? '').toUpperCase() === 'DEPT_TECHNICAL');
+}
+
+/**
+ * Delete gating for YCKT/YCSC/nghiệm thu: ADMIN, or a DEPARTMENT_HEAD who is in Kỹ thuật (primary or secondary).
+ * EMPLOYEE / TEAM_LEAD never delete. Mirrors backend `denyEmployeeDelete`.
+ */
+export function canDeleteTechnical(user?: { role?: string; department?: string; departmentCode?: string; secondaryDepartments?: SecondaryDepartmentEntry[] } | null): boolean {
+  if (!user) return false;
+  if (user.role === UserRole.ADMIN) return true;
+  return isTechnicalUser(user) && user.role === UserRole.DEPARTMENT_HEAD;
+}
+
 export function canDelete(role?: string): boolean {
   if (cachedPermissions) {
     // Generic delete check — any resource DELETE; if none found, fallback
