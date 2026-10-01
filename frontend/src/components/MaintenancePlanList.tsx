@@ -8,6 +8,30 @@ import { useMachineSystems } from '../hooks/useMachineSystemDetails';
 import MaintenancePlanForm from './MaintenancePlanForm';
 import MaintenanceLogModal from './MaintenanceLogModal';
 import { MaintenancePlan, MaintenancePlanItem, MaintenancePlanItemLog } from '../services/maintenancePlanService';
+import { StatusBadge, type BadgeTone } from './shared/StatusBadge';
+import ConfirmDialog from './common/ConfirmDialog';
+import { ErrorState } from '../design-system/States';
+import { useAuth } from '../contexts/AuthContext';
+import { canDeleteTechnical } from '../utils/permissions';
+
+// Shared table styles (keep in sync with the technical tabs table contract)
+const TH_CLASS = 'px-3 py-2.5 text-left text-xs font-semibold text-gray-500 whitespace-nowrap';
+const STICKY_LEFT_SHADOW = 'shadow-[1px_0_0_0_rgb(229_231_235)]';
+const CONTROL_CLASS = 'h-9 px-3 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500';
+const ICON_BTN_CLASS = 'inline-flex items-center justify-center h-7 w-7 rounded text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500';
+const PAGER_BTN_CLASS = 'inline-flex items-center gap-1 h-8 px-2.5 text-sm rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500';
+
+/** Same colors as before: in-progress green, completed blue, anything else yellow */
+const PLAN_STATUS_TONE: Record<string, BadgeTone> = {
+  'Đang thực hiện': 'green',
+  'Hoàn thành': 'blue',
+};
+
+const formatDate = (value: string | null | undefined): string => {
+  if (!value) return '—';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
 
 const MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 const FREQUENCY_LABELS: Record<string, string> = {
@@ -121,7 +145,26 @@ function exportPlanCSV(plan: MaintenancePlan) {
   URL.revokeObjectURL(url);
 }
 
-const CURRENT_MONTH = new Date().getMonth() + 1;
+// Namespaced URL params: plans and records share the same page, so `page` / `q` must not collide.
+const PAGE_PARAM = 'planPage';
+const Q_PARAM = 'planQ';
+const PAGE_SIZE = 5;
+
+/** Current month (1-12), refreshed when the tab regains focus so a long-open tab never shows a stale month. */
+const useCurrentMonth = (): number => {
+  const [month, setMonth] = useState(() => new Date().getMonth() + 1);
+  useEffect(() => {
+    const refresh = () => setMonth(new Date().getMonth() + 1);
+    const onVisibility = () => { if (document.visibilityState === 'visible') refresh(); };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
+  return month;
+};
 
 type ModalMode = 'create' | 'view' | 'edit' | null;
 
@@ -145,9 +188,14 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
 
   const getParam = (k: string) => searchParams.get(k);
 
-  const initPage = Math.max(1, Number(getParam('page') ?? '1') || 1);
+  const { user } = useAuth();
+  const canDelete = canDeleteTechnical(user);
+  const currentMonth = useCurrentMonth();
+  const [pendingDelete, setPendingDelete] = useState<MaintenancePlan | null>(null);
+
+  const initPage = Math.max(1, Number(getParam(PAGE_PARAM) ?? '1') || 1);
   const initNam = Number(getParam('nam') ?? '') || new Date().getFullYear();
-  const initQ = getParam('q') ?? '';
+  const initQ = getParam(Q_PARAM) ?? '';
   const initTrangThai = getParam('trangThai') ?? '';
   const initMachineSystemId = lockedMachineSystemId ?? (getParam('machineSystemId') ?? '');
   const initPlanId = getParam('planId');
@@ -188,7 +236,7 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
     const t = setTimeout(() => {
       setAppliedSearch(search);
       setPage(1);
-      updateParams({ q: search || null, page: null });
+      updateParams({ [Q_PARAM]: search || null, [PAGE_PARAM]: null });
     }, 400);
     return () => clearTimeout(t);
   }, [search, appliedSearch, updateParams]);
@@ -196,9 +244,9 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
   // URL -> state sync (back/reload/share) — do not duplicate ?sub
   useEffect(() => {
     if (syncingRef.current) { syncingRef.current = false; return; }
-    const p = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
+    const p = Math.max(1, Number(searchParams.get(PAGE_PARAM) ?? '1') || 1);
     const nam = Number(searchParams.get('nam') ?? '') || null;
-    const q = searchParams.get('q') ?? '';
+    const q = searchParams.get(Q_PARAM) ?? '';
     const tt = searchParams.get('trangThai') ?? '';
     const msId = searchParams.get('machineSystemId') ?? '';
     const planMonth = Number(searchParams.get('planMonth') ?? '') || null;
@@ -216,14 +264,14 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
 
   const filters = useMemo(() => ({
     page,
-    limit: 5,
+    limit: PAGE_SIZE,
     nam: selectedYear,
     ...(appliedSearch && { search: appliedSearch }),
     ...(selectedSystemId && { machineSystemId: selectedSystemId }),
     ...(selectedTrangThai && { trangThai: selectedTrangThai }),
   }), [page, selectedYear, appliedSearch, selectedSystemId, selectedTrangThai]);
 
-  const { data: plansResponse, isLoading } = useMaintenancePlans(filters);
+  const { data: plansResponse, isLoading, isError, refetch } = useMaintenancePlans(filters);
   const { data: systemsResponse } = useMachineSystems({ page: 1, limit: 200, hoatDong: true });
   const toggleMonth = useToggleMonth();
   const deletePlan = useDeleteMaintenancePlan();
@@ -301,14 +349,23 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
     });
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('Bạn có chắc muốn xóa kế hoạch này?')) {
-      deletePlan.mutate(id, {
-        onSuccess: () => toast.success('Đã xóa kế hoạch'),
-        onError: (err) => toast.error(err instanceof Error ? err.message : 'Xóa kế hoạch thất bại'),
-      });
-    }
+  const confirmDelete = () => {
+    if (!pendingDelete) return;
+    deletePlan.mutate(pendingDelete.id, {
+      onSuccess: () => { toast.success('Đã xóa kế hoạch'); setPendingDelete(null); },
+      onError: (err) => toast.error(err instanceof Error ? err.message : 'Xóa kế hoạch thất bại'),
+    });
   };
+
+  // Page beyond the last page (stale URL or last plan deleted) → clamp to the last page
+  useEffect(() => {
+    if (!pagination || isLoading) return;
+    const last = Math.max(1, pagination.totalPages || 1);
+    if (page > last) {
+      setPage(last);
+      updateParams({ [PAGE_PARAM]: last > 1 ? String(last) : null });
+    }
+  }, [pagination, page, isLoading, updateParams]);
 
   const openPlanView = (plan: MaintenancePlan) => {
     setViewingPlan(plan);
@@ -349,33 +406,46 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
     updateParams({ planId: state.planId, planMonth: String(state.month) });
   };
 
+  const hasFilters = !!(appliedSearch || selectedTrangThai || (!lockedMachineSystemId && selectedSystemId));
+  const totalPages = pagination?.totalPages ?? 1;
+  // Dynamic year range (current-2 … current+1), always including the selected year
+  const yearOptions = useMemo(() => {
+    const now = new Date().getFullYear();
+    const years = new Set<number>([selectedYear]);
+    for (let y = now - 2; y <= now + 1; y++) years.add(y);
+    return Array.from(years).sort((a, b) => a - b);
+  }, [selectedYear]);
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Toolbar */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center flex-wrap gap-2">
           <input
-            type="text"
+            type="search"
             placeholder="Tìm kế hoạch..."
+            aria-label="Tìm kế hoạch bảo dưỡng"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && (setAppliedSearch(search), setPage(1), updateParams({ q: search || null, page: null }))}
-            className="px-3 py-2 text-sm border border-gray-300 rounded-lg w-40"
+            onKeyDown={(e) => e.key === 'Enter' && (setAppliedSearch(search), setPage(1), updateParams({ [Q_PARAM]: search || null, [PAGE_PARAM]: null }))}
+            className={`${CONTROL_CLASS} w-48`}
           />
           <select
+            aria-label="Lọc theo năm"
             value={selectedYear}
-            onChange={(e) => { const v = Number(e.target.value); setSelectedYear(v); setPage(1); updateParams({ nam: String(v), page: null }); }}
-            className="px-3 py-2 text-sm border border-gray-300 rounded-lg"
+            onChange={(e) => { const v = Number(e.target.value); setSelectedYear(v); setPage(1); updateParams({ nam: String(v), [PAGE_PARAM]: null }); }}
+            className={CONTROL_CLASS}
           >
-            {[2024, 2025, 2026, 2027].map((y) => (
+            {yearOptions.map((y) => (
               <option key={y} value={y}>Năm {y}</option>
             ))}
           </select>
           {!lockedMachineSystemId && (
             <select
+              aria-label="Lọc theo hệ thống"
               value={selectedSystemId}
-              onChange={(e) => { const v = e.target.value; setSelectedSystemId(v); setPage(1); updateParams({ machineSystemId: v || null, page: null }); }}
-              className="px-3 py-2 text-sm border border-gray-300 rounded-lg"
+              onChange={(e) => { const v = e.target.value; setSelectedSystemId(v); setPage(1); updateParams({ machineSystemId: v || null, [PAGE_PARAM]: null }); }}
+              className={`${CONTROL_CLASS} max-w-[16rem]`}
             >
               <option value="">Tất cả hệ thống</option>
               {systems.map((s: any) => (
@@ -384,9 +454,10 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
             </select>
           )}
           <select
+            aria-label="Lọc theo trạng thái"
             value={selectedTrangThai}
-            onChange={(e) => { const v = e.target.value; setSelectedTrangThai(v); setPage(1); updateParams({ trangThai: v || null, page: null }); }}
-            className="px-3 py-2 text-sm border border-gray-300 rounded-lg"
+            onChange={(e) => { const v = e.target.value; setSelectedTrangThai(v); setPage(1); updateParams({ trangThai: v || null, [PAGE_PARAM]: null }); }}
+            className={CONTROL_CLASS}
           >
             <option value="">Tất cả trạng thái</option>
             <option value="Đang thực hiện">Đang thực hiện</option>
@@ -395,17 +466,68 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
         </div>
         <button
           onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+          className="flex items-center gap-1.5 h-9 px-3 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
         >
-          <Plus className="w-4 h-4" /> Tạo kế hoạch
+          <Plus className="w-4 h-4" aria-hidden="true" /> Tạo kế hoạch
         </button>
+      </div>
+
+      {/* Legend for the month grid (color is never the only indicator) */}
+      <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-flex w-4 h-4 rounded border bg-green-500 border-green-500 text-white items-center justify-center"><Check className="w-2.5 h-2.5" aria-hidden="true" /></span>
+          Đã hoàn thành
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-4 h-4 rounded border border-blue-400 bg-blue-50 ring-1 ring-blue-300" aria-hidden="true" />
+          Lượt kế tiếp cần làm
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-4 h-4 rounded border border-gray-300" aria-hidden="true" />
+          Chưa làm
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-flex w-4 h-4 rounded border border-dashed border-gray-300 text-[9px] text-gray-400 items-center justify-center" aria-hidden="true">+</span>
+          Tháng ngoài lịch
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-2 h-2 bg-yellow-400 rounded-full" aria-hidden="true" />
+          Có ghi chú
+        </span>
       </div>
 
       {/* Plans */}
       {isLoading ? (
-        <div className="text-center py-8 text-gray-500">Đang tải...</div>
+        <div className="space-y-3" aria-busy="true" aria-label="Đang tải kế hoạch bảo dưỡng">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="border border-gray-200 rounded-lg overflow-hidden" aria-hidden="true">
+              <div className="h-11 bg-gray-50 border-b border-gray-200 px-4 flex items-center gap-3">
+                <div className="h-3 w-28 bg-gray-200 rounded animate-pulse" />
+                <div className="h-3 w-48 bg-gray-200 rounded animate-pulse" />
+              </div>
+              {Array.from({ length: 4 }).map((__, j) => (
+                <div key={j} className="h-9 px-4 flex items-center gap-4 border-b border-gray-100 last:border-b-0">
+                  <div className="h-3 w-56 bg-gray-200 rounded animate-pulse" />
+                  <div className="h-3 w-40 bg-gray-200 rounded animate-pulse" />
+                  <div className="h-3 flex-1 bg-gray-100 rounded animate-pulse" />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      ) : isError ? (
+        <div className="border border-gray-200 rounded-lg">
+          <ErrorState message="Không tải được danh sách kế hoạch bảo dưỡng." onRetry={() => { void refetch(); }} />
+        </div>
+      ) : plans.length === 0 && (pagination?.total ?? 0) > 0 ? (
+        // Out-of-range page: the clamp effect is moving to the last page
+        <div className="border border-gray-200 rounded-lg px-3 py-10 text-center text-sm text-gray-400">Đang chuyển trang…</div>
       ) : plans.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">Chưa có kế hoạch bảo dưỡng nào</div>
+        <div className="border border-gray-200 rounded-lg px-3 py-10 text-center text-sm text-gray-400">
+          {hasFilters
+            ? 'Không có kế hoạch bảo dưỡng nào khớp với bộ lọc hiện tại.'
+            : `Chưa có kế hoạch bảo dưỡng nào cho năm ${selectedYear}.`}
+        </div>
       ) : (
         plans.map((plan: MaintenancePlan) => (
           <PlanCard
@@ -421,7 +543,8 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
             }}
             onView={() => openPlanView(plan)}
             onEdit={() => openPlanEdit(plan)}
-            onDelete={() => handleDelete(plan.id)}
+            onDelete={canDelete ? () => setPendingDelete(plan) : undefined}
+            currentMonth={currentMonth}
             onSync={() => syncDetails.mutate(plan.id, {
               onSuccess: () => toast.success('Đồng bộ linh kiện thành công'),
               onError: (err) => toast.error(err instanceof Error ? err.message : 'Đồng bộ thất bại'),
@@ -432,15 +555,29 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
       )}
 
       {/* Pagination */}
-      {pagination && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 pt-2">
-          <button onClick={() => { const np = Math.max(1, page - 1); setPage(np); updateParams({ page: String(np) }); }} disabled={page === 1} className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-30">
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <span className="text-sm text-gray-600">Trang {page} / {pagination.totalPages}</span>
-          <button onClick={() => { const np = Math.min(pagination.totalPages, page + 1); setPage(np); updateParams({ page: String(np) }); }} disabled={page === pagination.totalPages} className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-30">
-            <ChevronRight className="w-4 h-4" />
-          </button>
+      {pagination && pagination.total > 0 && (
+        <div className="flex items-center justify-between gap-2 px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm">
+          <span className="text-gray-600">
+            Tổng <span className="font-medium text-gray-900">{pagination.total}</span> kế hoạch — Trang {page}/{totalPages}
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => { const np = Math.max(1, page - 1); setPage(np); updateParams({ [PAGE_PARAM]: np > 1 ? String(np) : null }); }}
+              disabled={page === 1}
+              className={PAGER_BTN_CLASS}
+            >
+              <ChevronLeft className="w-4 h-4" aria-hidden="true" /> Trước
+            </button>
+            <button
+              type="button"
+              onClick={() => { const np = Math.min(totalPages, page + 1); setPage(np); updateParams({ [PAGE_PARAM]: String(np) }); }}
+              disabled={page >= totalPages}
+              className={PAGER_BTN_CLASS}
+            >
+              Sau <ChevronRight className="w-4 h-4" aria-hidden="true" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -494,6 +631,15 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
           onUpdateNote={handleUpdateNote}
         />
       )}
+
+      <ConfirmDialog
+        isOpen={!!pendingDelete}
+        title="Xác nhận xóa"
+        message={`Bạn có chắc muốn xóa kế hoạch ${pendingDelete?.maKeHoach ?? ''}? Thao tác này không thể hoàn tác.`}
+        loading={deletePlan.isPending}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 };
@@ -504,15 +650,33 @@ interface PlanCardProps {
   onOpenLogModal: (state: LogModalState) => void;
   onView: () => void;
   onEdit: () => void;
-  onDelete: () => void;
+  /** Omitted when the user may not delete (canDeleteTechnical) — the button is then hidden. */
+  onDelete?: () => void;
   onSync: () => void;
   isSyncing: boolean;
   highlightMonth?: number | null;
   isHighlighted?: boolean;
   registerRef?: (el: HTMLDivElement | null) => void;
+  currentMonth: number;
 }
 
-const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, onSync, isSyncing, highlightMonth, isHighlighted, registerRef }: PlanCardProps) => {
+const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, onSync, isSyncing, highlightMonth, isHighlighted, registerRef, currentMonth }: PlanCardProps) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Bring the current month column into view on mount (narrow screens hide T4..T12 otherwise).
+  // Skipped when a deep-linked month is highlighted — that flow scrolls to its own month.
+  useEffect(() => {
+    if (highlightMonth) return;
+    const container = scrollRef.current;
+    if (!container || container.scrollWidth <= container.clientWidth) return;
+    const th = container.querySelector<HTMLElement>(`th[data-month-header="${currentMonth}"]`);
+    if (!th) return;
+    const stickyWidth = container.querySelector<HTMLElement>('th[data-sticky-col]')?.offsetWidth ?? 0;
+    const target = th.offsetLeft - stickyWidth - (container.clientWidth - stickyWidth - th.offsetWidth) / 2;
+    container.scrollLeft = Math.max(0, target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMonth, plan.id]);
+
   const { completed, total } = calculatePlanProgress(plan.items ?? []);
   const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
 
@@ -561,62 +725,107 @@ const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, on
   return (
     <div ref={registerRef} className={`border rounded-lg overflow-hidden ${isHighlighted ? "border-blue-400 ring-1 ring-blue-200" : "border-gray-200"}`} data-plan-id={plan.id} data-highlight-month={highlightMonth ?? ""}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
-        <div>
-          <span className="text-sm font-semibold text-gray-900">{plan.maKeHoach}</span>
-          <span className="mx-2 text-gray-300">|</span>
-          <span className="text-sm text-gray-600">{plan.machineSystem?.tenHeThong}</span>
-          <span className="mx-2 text-gray-300">|</span>
-          <span className="text-xs text-gray-500">{plan.machineSystem?.khuVuc} - {plan.machineSystem?.viTri}</span>
+      <div className="flex items-start justify-between flex-wrap gap-x-3 gap-y-2 px-4 py-2.5 bg-gray-50 border-b border-gray-200">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center flex-wrap gap-x-2 gap-y-1">
+            <span className="text-sm font-semibold text-gray-900 whitespace-nowrap">{plan.maKeHoach}</span>
+            <StatusBadge label={plan.trangThai} tone={PLAN_STATUS_TONE[plan.trangThai] ?? 'yellow'} />
+            <span className="text-sm text-gray-700 truncate max-w-full" title={plan.machineSystem?.tenHeThong}>
+              {plan.machineSystem?.tenHeThong ?? <span className="text-gray-400">—</span>}
+            </span>
+          </div>
+          {(plan.machineSystem?.khuVuc || plan.machineSystem?.viTri) && (
+            <div className="mt-0.5 text-xs text-gray-500 truncate">
+              {[plan.machineSystem?.khuVuc, plan.machineSystem?.viTri].filter(Boolean).join(' - ')}
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-            plan.trangThai === 'Đang thực hiện' ? 'bg-green-100 text-green-700' :
-            plan.trangThai === 'Hoàn thành' ? 'bg-blue-100 text-blue-700' :
-            'bg-yellow-100 text-yellow-700'
-          }`}>
-            {plan.trangThai}
-          </span>
+        <div className="flex items-center gap-1 shrink-0">
           {plan.trangThai === 'Đang thực hiện' && (
             <button
+              type="button"
               onClick={onSync}
               disabled={isSyncing}
-              className="p-1.5 text-gray-400 hover:text-indigo-600 rounded disabled:opacity-50"
+              className={`${ICON_BTN_CLASS} hover:text-indigo-600 hover:bg-indigo-50 disabled:opacity-50`}
               title="Đồng bộ linh kiện mới"
+              aria-label={`Đồng bộ linh kiện mới cho ${plan.maKeHoach}`}
             >
-              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} aria-hidden="true" />
+              <span className="sr-only">Đồng bộ linh kiện</span>
             </button>
           )}
-          <button onClick={() => exportPlanCSV(plan)} className="p-1.5 text-gray-400 hover:text-green-600 rounded" title="Export CSV">
-            <Download className="w-4 h-4" />
+          <button
+            type="button"
+            onClick={() => exportPlanCSV(plan)}
+            className={`${ICON_BTN_CLASS} hover:text-green-600 hover:bg-green-50`}
+            title="Xuất CSV"
+            aria-label={`Xuất CSV kế hoạch ${plan.maKeHoach}`}
+          >
+            <Download className="w-4 h-4" aria-hidden="true" />
+            <span className="sr-only">Xuất CSV</span>
           </button>
-          <button onClick={onEdit} className="p-1.5 text-gray-400 hover:text-amber-600 rounded" title="Sửa kế hoạch">
-            <Pencil className="w-4 h-4" />
+          <button
+            type="button"
+            onClick={onView}
+            className={`${ICON_BTN_CLASS} hover:text-blue-600 hover:bg-blue-50`}
+            title="Xem chi tiết kế hoạch"
+            aria-label={`Xem chi tiết kế hoạch ${plan.maKeHoach}`}
+          >
+            <Eye className="w-4 h-4" aria-hidden="true" />
+            <span className="sr-only">Xem</span>
           </button>
-          <button onClick={onView} className="p-1.5 text-gray-400 hover:text-blue-600 rounded">
-            <Eye className="w-4 h-4" />
+          <button
+            type="button"
+            onClick={onEdit}
+            className={`${ICON_BTN_CLASS} hover:text-amber-600 hover:bg-amber-50`}
+            title="Sửa kế hoạch"
+            aria-label={`Sửa kế hoạch ${plan.maKeHoach}`}
+          >
+            <Pencil className="w-4 h-4" aria-hidden="true" />
+            <span className="sr-only">Sửa</span>
           </button>
-          <button onClick={onDelete} className="p-1.5 text-gray-400 hover:text-red-600 rounded">
-            <Trash2 className="w-4 h-4" />
-          </button>
+          {onDelete && (
+            <>
+              <span className="mx-0.5 h-4 w-px bg-gray-200" aria-hidden="true" />
+              <button
+                type="button"
+                onClick={onDelete}
+                className={`${ICON_BTN_CLASS} hover:text-red-600 hover:bg-red-50`}
+                title="Xóa kế hoạch"
+                aria-label={`Xóa kế hoạch ${plan.maKeHoach}`}
+              >
+                <Trash2 className="w-4 h-4" aria-hidden="true" />
+                <span className="sr-only">Xóa</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Items table with month columns */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="bg-gray-50 border-b">
-              <th className="px-3 py-2 text-left font-medium text-gray-600 whitespace-nowrap">Thiết bị</th>
-              <th className="px-3 py-2 text-left font-medium text-gray-600 whitespace-nowrap">Nội dung BD</th>
-              <th className="px-2 py-2 text-center font-medium text-gray-600 whitespace-nowrap">Tần suất</th>
-              <th className="px-2 py-2 text-center font-medium text-gray-600 whitespace-nowrap">Tổ TH</th>
+      {/* Items table with month columns — bounded scroll container (both axes) so the month
+          header stays sticky while scrolling long plans; device column stays pinned. */}
+      <div ref={scrollRef} className="overflow-auto max-h-[60vh]">
+        <table className="w-full border-collapse text-xs">
+          <thead className="bg-gray-50 sticky top-0 z-20 shadow-[inset_0_-1px_0_0_rgb(229_231_235)]">
+            <tr>
+              <th scope="col" data-sticky-col className={`${TH_CLASS} sticky left-0 z-30 bg-gray-50 ${STICKY_LEFT_SHADOW}`}>Thiết bị</th>
+              <th scope="col" className={`${TH_CLASS} bg-gray-50`}>Nội dung BD</th>
+              <th scope="col" className={`${TH_CLASS} bg-gray-50`}>Tần suất</th>
+              <th scope="col" className={`${TH_CLASS} bg-gray-50`}>Tổ TH</th>
               {MONTHS.map((m) => (
-                <th key={m} className={`px-1 py-2 text-center font-medium text-gray-600 min-w-[2rem] ${m === CURRENT_MONTH ? 'bg-blue-50 border-b-2 border-blue-400' : ''}`}>T{m}</th>
+                <th
+                  key={m}
+                  scope="col"
+                  data-month-header={m}
+                  className={`px-1 py-2.5 text-center text-xs font-semibold w-8 min-w-[2rem] ${m === currentMonth ? 'bg-blue-50 text-blue-700 shadow-[inset_0_-2px_0_0_rgb(96_165_250)]' : 'bg-gray-50 text-gray-500'}`}
+                  title={m === currentMonth ? `Tháng ${m} (tháng hiện tại)` : `Tháng ${m}`}
+                >
+                  T{m}
+                </th>
               ))}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-gray-100">
             {renderedRows.map((row) => {
               if (row.type === 'parent-header') {
                 // Calculate group progress for current month
@@ -624,29 +833,29 @@ const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, on
                 const groupTotal = groupChildren.length;
                 const groupCompleted = groupChildren.filter((child) => {
                   const logs = child.logs ?? [];
-                  const monthLogs = logs.filter((l) => l.thang === CURRENT_MONTH && l.hoanThanh);
+                  const monthLogs = logs.filter((l) => l.thang === currentMonth && l.hoanThanh);
                   return monthLogs.length > 0;
                 }).length;
                 return (
-                  <tr key={`parent-${row.item.id}`} className="bg-gray-50/70 border-b border-gray-200">
-                    <td className="px-3 py-1.5 font-medium text-gray-700" colSpan={4}>
-                      <div className="flex items-center gap-2">
+                  <tr key={`parent-${row.item.id}`} className="bg-gray-100/70">
+                    <td className={`px-3 py-1.5 font-medium text-gray-800 sticky left-0 z-10 bg-gray-100 ${STICKY_LEFT_SHADOW}`}>
+                      <div className="flex items-center flex-wrap gap-1.5 min-w-[12rem] max-w-[18rem]">
                         <span className="text-[10px] px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded font-semibold uppercase tracking-wide">
                           {row.item.machineSystemDetail?.loaiChiTiet ?? 'Cụm'}
                         </span>
-                        <span>{row.item.machineSystemDetail?.tenChiTiet ?? '—'}</span>
-                        {row.item.machineSystemDetail?.hoatDong === false && (
-                          <span className="px-1.5 py-0.5 text-[10px] font-medium bg-red-100 text-red-600 rounded-full leading-none">
-                            Ngừng HĐ
-                          </span>
-                        )}
-                        <span className="text-gray-400 text-[10px]">
-                          T{CURRENT_MONTH}: {groupCompleted}/{groupTotal}
+                        <span className="truncate max-w-full" title={row.item.machineSystemDetail?.tenChiTiet ?? undefined}>
+                          {row.item.machineSystemDetail?.tenChiTiet ?? '—'}
                         </span>
+                        {row.item.machineSystemDetail?.hoatDong === false && (
+                          <StatusBadge label="Ngừng HĐ" tone="red" size="sm" />
+                        )}
                       </div>
                     </td>
+                    <td className="px-3 py-1.5 text-[11px] text-gray-500 whitespace-nowrap" colSpan={3}>
+                      T{currentMonth}: {groupCompleted}/{groupTotal} hạng mục đã làm
+                    </td>
                     {MONTHS.map((m) => (
-                      <td key={m} className={`px-1 py-1.5 ${m === CURRENT_MONTH ? 'bg-blue-50/30' : ''}`} />
+                      <td key={m} className={`px-1 py-1.5 ${m === currentMonth ? 'bg-blue-50/40' : ''}`} />
                     ))}
                   </tr>
                 );
@@ -663,6 +872,7 @@ const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, on
                   onOpenLogModal={onOpenLogModal}
                   indent={indent}
                   highlightMonth={highlightMonth}
+                  currentMonth={currentMonth}
                 />
               );
             })}
@@ -672,11 +882,19 @@ const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, on
 
       {/* Footer with progress bar */}
       <div className="px-4 py-2 bg-gray-50 border-t border-gray-200">
-        <div className="flex items-center justify-between text-xs text-gray-500">
-          <span>Người lập: {plan.nguoiLap} | Ngày: {new Date(plan.ngayLap).toLocaleDateString('vi-VN')}
-            {plan._count?.records ? ` | ${plan._count.records} biên bản` : ''}
+        <div className="flex items-center justify-between flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+          <span>
+            Người lập: <span className="text-gray-700">{plan.nguoiLap || '—'}</span>
+            <span className="mx-1.5 text-gray-300" aria-hidden="true">|</span>
+            Ngày lập: <span className="text-gray-700 tabular-nums">{formatDate(plan.ngayLap)}</span>
+            {plan._count?.records ? (
+              <>
+                <span className="mx-1.5 text-gray-300" aria-hidden="true">|</span>
+                {plan._count.records} biên bản
+              </>
+            ) : null}
           </span>
-          <span className="text-gray-600 font-medium">{completed}/{total} hoàn thành ({percent}%)</span>
+          <span className="text-gray-700 font-medium tabular-nums">{completed}/{total} hoàn thành ({percent}%)</span>
         </div>
         <div className="mt-1.5 w-full bg-gray-200 rounded-full h-1.5">
           <div
@@ -697,9 +915,10 @@ interface PlanItemRowProps {
   onOpenLogModal: (state: LogModalState) => void;
   indent?: boolean;
   highlightMonth?: number | null;
+  currentMonth: number;
 }
 
-const PlanItemRow = ({ planId, item, nguoiLap, onToggle, onOpenLogModal, indent, highlightMonth }: PlanItemRowProps) => {
+const PlanItemRow = ({ planId, item, nguoiLap, onToggle, onOpenLogModal, indent, highlightMonth, currentMonth }: PlanItemRowProps) => {
   const applicableMonths = getApplicableMonths(item.tanSuat, item.thangBatDau ?? 1);
   const timesPerMonth = getTimesPerMonth(item.tanSuat);
   const logs = item.logs ?? [];
@@ -715,27 +934,34 @@ const PlanItemRow = ({ planId, item, nguoiLap, onToggle, onOpenLogModal, indent,
   const hoatDong = item.machineSystemDetail?.hoatDong !== false;
 
   return (
-    <tr className="border-b border-gray-100 hover:bg-gray-50">
-      <td className="px-3 py-2 whitespace-nowrap text-gray-900">
-        <div className={`flex items-center gap-1.5 ${indent ? 'pl-4' : ''}`}>
-          <span>{item.machineSystemDetail?.tenChiTiet ?? '—'}</span>
+    <tr className="group hover:bg-gray-50">
+      <td className={`px-3 py-2 align-middle text-gray-900 sticky left-0 z-10 bg-white group-hover:bg-gray-50 ${STICKY_LEFT_SHADOW}`}>
+        <div className={`flex items-center gap-1.5 min-w-[12rem] max-w-[18rem] ${indent ? 'pl-4' : ''}`}>
+          {indent && <span className="text-gray-300 shrink-0" aria-hidden="true">└</span>}
+          <span className="line-clamp-2 break-words" title={item.machineSystemDetail?.tenChiTiet ?? undefined}>
+            {item.machineSystemDetail?.tenChiTiet ?? <span className="text-gray-400">—</span>}
+          </span>
           {!hoatDong && (
-            <span className="px-1.5 py-0.5 text-[10px] font-medium bg-red-100 text-red-600 rounded-full leading-none">
-              Ngừng HĐ
-            </span>
+            <span className="shrink-0"><StatusBadge label="Ngừng HĐ" tone="red" size="sm" /></span>
           )}
         </div>
       </td>
-      <td className="px-3 py-2 text-gray-700 max-w-[200px] truncate">{item.noiDung}</td>
-      <td className="px-2 py-2 text-center text-gray-600">{FREQUENCY_LABELS[item.tanSuat] ?? item.tanSuat}</td>
-      <td className="px-2 py-2 text-center text-gray-600">{TEAM_LABELS[item.toThucHien] ?? item.toThucHien}</td>
+      <td className="px-3 py-2 align-middle text-gray-700">
+        {item.noiDung ? (
+          <div className="line-clamp-2 break-words min-w-[10rem] max-w-[16rem]" title={item.noiDung}>{item.noiDung}</div>
+        ) : (
+          <span className="text-gray-400">—</span>
+        )}
+      </td>
+      <td className="px-3 py-2 align-middle text-gray-600 whitespace-nowrap">{FREQUENCY_LABELS[item.tanSuat] ?? item.tanSuat}</td>
+      <td className="px-3 py-2 align-middle text-gray-600 whitespace-nowrap">{TEAM_LABELS[item.toThucHien] ?? item.toThucHien ?? '—'}</td>
       {MONTHS.map((m) => {
         const isApplicable = applicableMonths.includes(m);
-        const isCurrentMonth = m === CURRENT_MONTH;
+        const isCurrentMonth = m === currentMonth;
         const isSuggested = isApplicable && m === suggestedMonth;
         const monthLogs = logs.filter((l) => l.thang === m);
         return (
-          <td key={m} className={`px-1 py-2 ${isCurrentMonth ? 'bg-blue-50/30' : ''} ${highlightMonth === m ? 'ring-2 ring-amber-300 ring-inset' : ''}`}>
+          <td key={m} data-month={m} className={`px-1 py-2 align-middle text-center ${isCurrentMonth ? 'bg-blue-50/40' : ''} ${highlightMonth === m ? 'ring-2 ring-amber-300 ring-inset' : ''}`}>
             <MonthCell
               planId={planId}
               itemId={item.id}
@@ -785,8 +1011,10 @@ const MonthCell = ({ planId, itemId, month, timesPerMonth, logs, noiDung, tenThi
       <div className="flex flex-col items-center gap-0.5">
         <button
           onClick={openModal}
-          className="w-6 h-6 rounded border border-dashed border-gray-200 flex items-center justify-center text-gray-300 hover:border-gray-400 hover:text-gray-400 transition-colors"
+          type="button"
+          className="w-6 h-6 rounded border border-dashed border-gray-200 flex items-center justify-center text-gray-300 hover:border-gray-400 hover:text-gray-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           title="Tháng không áp dụng — nhấn để xem / ghi chú"
+          aria-label={`${tenThietBi} — tháng ${month}: ngoài lịch, nhấn để xem / ghi chú`}
         >
           <span className="text-[9px]">+</span>
         </button>
@@ -801,8 +1029,11 @@ const MonthCell = ({ planId, itemId, month, timesPerMonth, logs, noiDung, tenThi
     return (
       <div className="flex flex-col items-center gap-0.5 relative">
         <button
+          type="button"
           onClick={openModal}
-          className={`w-6 h-6 rounded border flex items-center justify-center transition-colors ${
+          title={checked ? `Tháng ${month}: đã hoàn thành` : `Tháng ${month}: chưa hoàn thành`}
+          aria-label={`${tenThietBi} — tháng ${month}: ${checked ? 'đã hoàn thành' : 'chưa hoàn thành'}${hasNote ? ', có ghi chú' : ''}`}
+          className={`w-6 h-6 rounded border flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
             checked
               ? 'bg-green-500 border-green-500 text-white'
               : isSuggested
@@ -825,8 +1056,10 @@ const MonthCell = ({ planId, itemId, month, timesPerMonth, logs, noiDung, tenThi
   return (
     <div className="flex flex-col items-center">
       <button
+        type="button"
         onClick={openModal}
-        className={`w-6 h-6 rounded border text-[10px] font-medium flex items-center justify-center transition-colors ${
+        aria-label={`${tenThietBi} — tháng ${month}: ${completedCount}/${timesPerMonth} lượt hoàn thành`}
+        className={`w-6 h-6 rounded border text-[10px] font-medium flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
           allDone
             ? 'bg-green-500 border-green-500 text-white'
             : completedCount > 0

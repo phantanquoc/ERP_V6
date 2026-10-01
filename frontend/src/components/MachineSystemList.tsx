@@ -15,7 +15,12 @@ import {
 import { useEmployeesForAssignment, type EmployeeOption } from '../hooks/useEmployeesForAssignment';
 import MachineSummaryDrawer from './MachineSummaryDrawer';
 import MachineStatusUpdateDialog from './MachineStatusUpdateDialog';
-import ResponsiveRowActions from './ResponsiveRowActions';
+import ResponsiveRowActions, { type RowAction } from './ResponsiveRowActions';
+import { StatusBadge, type BadgeTone } from './shared';
+import { useAuth } from '../contexts/AuthContext';
+import { isTechnicalUser, canDeleteTechnical } from '../utils/permissions';
+import { ApiError } from '../services/apiClient';
+import ConfirmDialog from './common/ConfirmDialog';
 import type {
   CreateMachineSystemRequest,
   MachineStatus,
@@ -170,26 +175,44 @@ const emptySystemForm = (): SystemForm => ({
   hoatDong: true,
 });
 
-const statusBadge = (active?: boolean) =>
-  active ? 'bg-green-100 text-green-700 border-green-200' : 'bg-gray-100 text-gray-600 border-gray-200';
-
-const MACHINE_STATUS_MAP: Record<string, { label: string; cls: string }> = {
-  HOAT_DONG: { label: 'Hoạt động', cls: 'bg-green-100 text-green-700 border-green-200' },
-  BAO_TRI: { label: 'Bảo trì', cls: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
-  NGUNG_HOAT_DONG: { label: 'Ngừng HĐ', cls: 'bg-red-100 text-red-700 border-red-200' },
+const MACHINE_STATUS_MAP: Record<string, { label: string; tone: BadgeTone }> = {
+  HOAT_DONG: { label: 'Hoạt động', tone: 'green' },
+  BAO_TRI: { label: 'Bảo trì', tone: 'yellow' },
+  NGUNG_HOAT_DONG: { label: 'Ngừng HĐ', tone: 'red' },
 };
 
-const machineStatusBadge = (status?: MachineStatus | null) => {
+// Single status column: an inactive system (hoatDong=false) reads "Ngưng sử dụng";
+// otherwise show the operational status (Hoạt động / Bảo trì / Ngừng HĐ).
+const systemStatusBadge = (hoatDong: boolean, status?: MachineStatus | null) => {
+  if (!hoatDong) return <StatusBadge label="Ngưng sử dụng" tone="gray" />;
   const cfg = (status && MACHINE_STATUS_MAP[status]) ?? MACHINE_STATUS_MAP.HOAT_DONG;
-  return (
-    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${cfg.cls}`}>
-      {cfg.label}
-    </span>
-  );
+  return <StatusBadge label={cfg.label} tone={cfg.tone} />;
 };
+
+// Shared table cell classes (keep in sync with the technical tabs' table contract)
+const TH = 'px-3 py-2.5 text-left text-xs font-semibold text-gray-500 whitespace-nowrap';
+const TD = 'px-3 py-2.5 text-gray-700 align-top';
+const STICKY_LEFT_SHADOW = 'shadow-[1px_0_0_0_rgb(229_231_235)]';
+const STICKY_RIGHT_SHADOW = 'shadow-[-1px_0_0_0_rgb(229_231_235)]';
+// Base column count: Mã, Tên, Loại, Khu vực · Vị trí, Trạng thái, Thao tác (+ Người TH when non-empty)
+const TABLE_COLUMNS = 6;
+
+const EmptyValue = () => <span className="text-gray-400">—</span>;
+
+/** Text cell that truncates long values and exposes the full text as a tooltip. */
+const TruncatedText = ({ value, className = '' }: { value?: string | null; className?: string }) =>
+  value ? (
+    <span className={`block truncate ${className}`} title={value}>{value}</span>
+  ) : (
+    <EmptyValue />
+  );
 
 const MachineSystemList = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { user } = useAuth();
+  // Backend guards writes with requireTechnicalAccess; hide affordances the user cannot use
+  const canWrite = isTechnicalUser(user);
+  const canDelete = canDeleteTechnical(user);
 
   const q = searchParams.get('q');
   const hoatDongParam = searchParams.get('hoatDong');
@@ -269,9 +292,14 @@ const MachineSystemList = () => {
   const deleteSystem = useDeleteMachineSystem();
   const cloneSystem = useCloneMachineSystem();
 
-  const systems = systemsQuery.data?.data ?? [];
+  const systems = useMemo(() => systemsQuery.data?.data ?? [], [systemsQuery.data?.data]);
   const allSystems = allSystemsQuery.data?.data ?? [];
   const systemPagination = systemsQuery.data?.pagination;
+  const systemsFailed = systemsQuery.isError;
+  const systemsForbidden = systemsFailed && systemsQuery.error instanceof ApiError && systemsQuery.error.statusCode === 403;
+  // ui-dna: do not render a column that is empty for every row on the current page
+  const showNguoiTH = systems.some((s) => !!s.nguoiThucHien?.trim());
+  const columnCount = TABLE_COLUMNS + (showNguoiTH ? 1 : 0);
 
   const [systemModal, setSystemModal] = useState<{ mode: Mode; record?: MachineSystem } | null>(null);
   const [systemForm, setSystemForm] = useState<SystemForm>(emptySystemForm());
@@ -280,6 +308,7 @@ const MachineSystemList = () => {
   const [statusUpdateSystemId, setStatusUpdateSystemId] = useState<string | null>(null);
   const [cloneDialog, setCloneDialog] = useState<{ system: MachineSystem; maHeThong: string; tenHeThong: string } | null>(null);
   const [cloneError, setCloneError] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<MachineSystem | null>(null);
 
   // Employee dropdown for assignment
   const [employeeSearch, setEmployeeSearch] = useState('');
@@ -500,10 +529,11 @@ const MachineSystemList = () => {
   };
 
   const removeSystem = async (record: MachineSystem) => {
-    if (!confirm(`Xóa hệ thống ${record.maHeThong}?`)) return;
     try {
       await deleteSystem.mutateAsync(record.id);
-      toast.success('Đã xóa hệ thống');
+      toast.success(`Đã xóa hệ thống ${record.maHeThong}`);
+      setDeleteTarget(null);
+      if (drawerSystemId === record.id) handleClearSystemSelection();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Không xóa được hệ thống');
     }
@@ -514,26 +544,28 @@ const MachineSystemList = () => {
     page: number,
     setPage: (page: number) => void,
   ) => {
-    if (!pagination || pagination.totalPages <= 1) return null;
+    if (!pagination || pagination.total === 0) return null;
+    const totalPages = Math.max(1, pagination.totalPages);
+    const pagerBtn = 'rounded-md border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white';
     return (
-      <div className="flex items-center justify-between border-t border-gray-200 px-3 py-2 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 px-3 py-2 text-sm">
         <span className="text-gray-600">
-          Trang {pagination.page}/{pagination.totalPages} - {pagination.total} dòng
+          Tổng {pagination.total.toLocaleString('vi-VN')} dòng — Trang {pagination.page}/{totalPages}
         </span>
         <div className="flex gap-1">
           <button
             type="button"
             disabled={page <= 1}
             onClick={() => setPage(page - 1)}
-            className="rounded-md border border-gray-300 px-3 py-1 disabled:cursor-not-allowed disabled:opacity-40"
+            className={pagerBtn}
           >
             Trước
           </button>
           <button
             type="button"
-            disabled={page >= pagination.totalPages}
+            disabled={page >= totalPages}
             onClick={() => setPage(page + 1)}
-            className="rounded-md border border-gray-300 px-3 py-1 disabled:cursor-not-allowed disabled:opacity-40"
+            className={pagerBtn}
           >
             Sau
           </button>
@@ -550,10 +582,12 @@ const MachineSystemList = () => {
             <h2 className="text-base font-semibold text-gray-900">Hệ thống máy</h2>
             <p className="text-xs text-gray-500">Chọn Hồ sơ máy để xem thông tin, cây linh kiện, trạng thái, sửa chữa, bảo dưỡng và vận hành.</p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+              <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" aria-hidden="true" />
               <input
+                type="search"
+                aria-label="Tìm hệ thống"
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
                 placeholder="Tìm hệ thống"
@@ -561,16 +595,17 @@ const MachineSystemList = () => {
               />
             </div>
             <select
+              aria-label="Lọc theo trạng thái hoạt động"
               value={systemFilters.hoatDong === undefined ? '' : String(systemFilters.hoatDong)}
               onChange={(event) => {
                 const hoatDong = event.target.value === '' ? undefined : event.target.value === 'true';
                 setSystemFilters((prev) => { const next = { ...prev, hoatDong, page: 1 }; pushSystemFilters(next); return next; });
               }}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Tất cả trạng thái</option>
-              <option value="true">Đang hoạt động</option>
-              <option value="false">Dừng</option>
+              <option value="true">Đang sử dụng</option>
+              <option value="false">Ngưng sử dụng</option>
             </select>
             <select
               value={systemFilters.sortBy}
@@ -578,72 +613,131 @@ const MachineSystemList = () => {
                 const sortBy = event.target.value as MachineSystemFilters['sortBy'];
                 setSystemFilters((prev) => { const next = { ...prev, sortBy, page: 1 }; pushSystemFilters(next); return next; });
               }}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+              aria-label="Sắp xếp theo"
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {SYSTEM_SORTS.map((sort) => <option key={sort.value} value={sort.value}>{sort.label}</option>)}
             </select>
             <button
               type="button"
               onClick={() => { setSystemFilters((prev) => { const next: typeof prev = { ...prev, sortOrder: (prev.sortOrder === 'asc' ? 'desc' : 'asc'), page: 1 }; pushSystemFilters(next); return next; }); }}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+              title={systemFilters.sortOrder === 'asc' ? 'Đang sắp xếp tăng dần — bấm để đổi' : 'Đang sắp xếp giảm dần — bấm để đổi'}
+              aria-label={systemFilters.sortOrder === 'asc' ? 'Thứ tự tăng dần, bấm để đổi sang giảm dần' : 'Thứ tự giảm dần, bấm để đổi sang tăng dần'}
+              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               {systemFilters.sortOrder === 'asc' ? 'Tăng' : 'Giảm'}
             </button>
-            <button
-              type="button"
-              onClick={() => openSystemModalWithDeepLink('create')}
-              className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              <Plus className="h-4 w-4" /> Thêm hệ thống
-            </button>
+            {canWrite && !systemsForbidden && (
+              <button
+                type="button"
+                onClick={() => openSystemModalWithDeepLink('create')}
+                className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" /> Thêm hệ thống
+              </button>
+            )}
           </div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[800px] border-collapse text-sm">
-            <thead className="bg-gray-50 text-xs text-gray-500 font-medium">
+          <table className="w-full border-collapse text-sm">
+            <thead className="sticky top-0 z-20 border-b border-gray-200 bg-gray-50">
               <tr>
-                <th className="border-b border-gray-200 px-3 py-2.5 text-left sticky left-0 bg-gray-50 z-10 min-w-[80px]">Mã</th>
-                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[140px]">Tên hệ thống</th>
-                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[110px]">Loại</th>
-                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[90px]">Khu vực</th>
-                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[90px]">Vị trí</th>
-                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[100px]">Người TH</th>
-                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[100px]">Hoạt động</th>
-                <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[110px]">Tình trạng</th>
-                <th className="border-b border-gray-200 px-3 py-2.5 text-right sticky right-0 bg-gray-50 z-10 min-w-[130px]">Thao tác</th>
+                <th scope="col" className={`${TH} sticky left-0 z-10 bg-gray-50 ${STICKY_LEFT_SHADOW}`}>Mã</th>
+                <th scope="col" className={TH}>Tên hệ thống</th>
+                <th scope="col" className={TH}>Loại</th>
+                <th scope="col" className={TH}>Khu vực · Vị trí</th>
+                {showNguoiTH && <th scope="col" className={TH}>Người TH</th>}
+                <th scope="col" className={TH}>Trạng thái</th>
+                <th scope="col" className={`${TH} sticky right-0 z-10 bg-gray-50 text-right ${STICKY_RIGHT_SHADOW}`}>Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {systemsQuery.isLoading ? (
-                <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr>
+              {systemsFailed ? (
+                <tr>
+                  <td colSpan={columnCount} className="px-3 py-10 text-center">
+                    <p role="alert" className="text-sm font-medium text-gray-700">
+                      {systemsForbidden ? 'Bạn không có quyền xem danh sách này' : 'Không tải được danh sách hệ thống máy'}
+                    </p>
+                    {!systemsForbidden && (
+                      <button
+                        type="button"
+                        onClick={() => { void systemsQuery.refetch(); }}
+                        disabled={systemsQuery.isFetching}
+                        className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-blue-600 hover:bg-gray-50 disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 ${systemsQuery.isFetching ? 'animate-spin' : ''}`} aria-hidden="true" /> Thử lại
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ) : systemsQuery.isLoading ? (
+                Array.from({ length: 5 }).map((_, rowIdx) => (
+                  <tr key={`skeleton-${rowIdx}`} aria-hidden="true">
+                    {Array.from({ length: columnCount }).map((__, colIdx) => (
+                      <td key={colIdx} className="px-3 py-3">
+                        <div className={`h-3.5 animate-pulse rounded bg-gray-200 ${colIdx === 1 ? 'w-40' : 'w-16'}`} />
+                      </td>
+                    ))}
+                  </tr>
+                ))
               ) : systems.length === 0 ? (
-                <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-400">Chưa có hệ thống phù hợp.</td></tr>
+                <tr>
+                  <td colSpan={columnCount} className="px-3 py-10 text-center text-sm text-gray-400">
+                    {systemFilters.search || systemFilters.hoatDong !== undefined
+                      ? 'Không có hệ thống nào khớp bộ lọc hiện tại.'
+                      : canWrite
+                        ? 'Chưa có hệ thống máy nào. Bấm "Thêm hệ thống" để tạo mới.'
+                        : 'Chưa có hệ thống máy nào.'}
+                  </td>
+                </tr>
               ) : systems.map((system) => {
                 const isSelected = detailFilters.machineSystemId === system.id;
+                // Sticky cells need their own background so hover/selection stays in sync with the row.
+                const rowBg = isSelected ? 'bg-amber-50' : 'bg-white group-hover:bg-gray-50';
+                const categoryLabel = MACHINE_SYSTEM_CATEGORIES.find((c) => c.value === system.loaiHeThong)?.label ?? system.loaiHeThong;
                 return (
-                <tr key={system.id} ref={(el) => { if (el) rowRefs.current.set(system.id, el); else rowRefs.current.delete(system.id); }} onClick={() => handleRowClick(system)} className={`border-l-2 cursor-pointer transition-all ${isSelected ? 'bg-amber-50 border-l-amber-500 ring-1 ring-amber-300' : 'border-l-transparent hover:bg-blue-100 hover:border-l-blue-500'}`}>
-                  <td className="px-3 py-2.5 sticky left-0 bg-white z-10 font-mono text-xs text-blue-700 font-medium">{system.maHeThong}</td>
-                  <td className="px-3 py-2.5 font-medium text-gray-900">{system.tenHeThong}</td>
-                  <td className="px-3 py-2.5 text-gray-600 text-xs">{MACHINE_SYSTEM_CATEGORIES.find(c => c.value === system.loaiHeThong)?.label ?? system.loaiHeThong}</td>
-                  <td className="px-3 py-2.5 text-gray-600 text-xs">{system.khuVuc || '—'}</td>
-                  <td className="px-3 py-2.5 text-gray-600 text-xs">{system.viTri || '—'}</td>
-                  <td className="px-3 py-2.5 text-gray-600 text-xs">{system.nguoiThucHien || '—'}</td>
-                  <td className="px-3 py-2.5">
-                    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadge(system.hoatDong)}`}>
-                      {system.hoatDong ? 'Đang hoạt động' : 'Dừng'}
-                    </span>
+                <tr
+                  key={system.id}
+                  ref={(el) => { if (el) rowRefs.current.set(system.id, el); else rowRefs.current.delete(system.id); }}
+                  onClick={() => handleRowClick(system)}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return;
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRowClick(system); }
+                  }}
+                  tabIndex={0}
+                  title="Bấm để mở hồ sơ máy"
+                  className={`group cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 ${isSelected ? 'bg-amber-50' : 'hover:bg-gray-50'}`}
+                >
+                  <td className={`${TD} sticky left-0 z-10 whitespace-nowrap font-mono text-xs font-medium text-blue-700 ${rowBg} ${isSelected ? 'shadow-[inset_3px_0_0_0_rgb(245_158_11),1px_0_0_0_rgb(229_231_235)]' : STICKY_LEFT_SHADOW}`}>
+                    {system.maHeThong}
+                    {isSelected && <span className="sr-only"> (đang chọn)</span>}
                   </td>
-                  <td className="px-3 py-2.5">
-                    {machineStatusBadge(system.trangThai as MachineStatus | undefined)}
+                  <td className={`${TD} min-w-[180px] max-w-[280px]`}>
+                    <span className="line-clamp-2 font-medium text-gray-900" title={system.tenHeThong}>{system.tenHeThong}</span>
                   </td>
-                  <td className="px-3 py-2.5 sticky right-0 bg-white z-10" onClick={(e) => e.stopPropagation()}>
+                  <td className={`${TD} whitespace-nowrap text-xs`}>{categoryLabel || <EmptyValue />}</td>
+                  <td className={`${TD} text-xs`}>
+                    <TruncatedText value={system.khuVuc} className="max-w-[160px]" />
+                    {system.viTri && (
+                      <span className="mt-0.5 block max-w-[160px] truncate text-[11px] text-gray-500" title={system.viTri}>{system.viTri}</span>
+                    )}
+                  </td>
+                  {showNguoiTH && <td className={`${TD} text-xs`}><TruncatedText value={system.nguoiThucHien} className="max-w-[140px]" /></td>}
+                  <td className={`${TD} whitespace-nowrap`}>
+                    {systemStatusBadge(system.hoatDong, system.trangThai as MachineStatus | undefined)}
+                  </td>
+                  <td className={`px-3 py-1.5 align-middle sticky right-0 z-10 ${rowBg} ${STICKY_RIGHT_SHADOW}`} onClick={(e) => e.stopPropagation()}>
+                    {/* View first; secondary/destructive actions live in the overflow menu (Xóa last) */}
                     <ResponsiveRowActions
                       actions={[
-                        { key: 'edit', label: 'Sửa hệ thống', icon: <Edit className="h-4 w-4" />, onClick: () => openSystemModalWithDeepLink('edit', system), tone: 'success' },
-                        { key: 'clone', label: 'Nhân bản hệ thống', icon: <Copy className="h-4 w-4" />, onClick: () => setCloneDialog({ system, maHeThong: system.maHeThong + '-COPY', tenHeThong: system.tenHeThong + ' (bản sao)' }), tone: 'default' },
-                        { key: 'status', label: 'Cập nhật trạng thái', icon: <RefreshCw className="h-4 w-4" />, onClick: () => setStatusUpdateSystemId(system.id), tone: 'warning' },
-                        { key: 'delete', label: 'Xóa hệ thống', icon: <Trash2 className="h-4 w-4" />, onClick: () => removeSystem(system), tone: 'danger' },
+                        { key: 'view', label: 'Xem hồ sơ máy', icon: <Eye className="h-4 w-4" />, onClick: () => handleRowClick(system), tone: 'primary' },
+                        ...(canWrite ? [
+                          { key: 'edit', label: 'Sửa hệ thống', icon: <Edit className="h-4 w-4" />, onClick: () => openSystemModalWithDeepLink('edit', system), tone: 'success' } satisfies RowAction,
+                          { key: 'clone', label: 'Nhân bản hệ thống', icon: <Copy className="h-4 w-4" />, onClick: () => setCloneDialog({ system, maHeThong: system.maHeThong + '-COPY', tenHeThong: system.tenHeThong + ' (bản sao)' }), tone: 'default' } satisfies RowAction,
+                          { key: 'status', label: 'Cập nhật trạng thái', icon: <RefreshCw className="h-4 w-4" />, onClick: () => setStatusUpdateSystemId(system.id), tone: 'warning' } satisfies RowAction,
+                        ] : []),
+                        ...(canDelete ? [{ key: 'delete', label: 'Xóa hệ thống', icon: <Trash2 className="h-4 w-4" />, onClick: () => setDeleteTarget(system), tone: 'danger' } satisfies RowAction] : []),
                       ]}
                     />
                   </td>
@@ -656,15 +750,16 @@ const MachineSystemList = () => {
         {renderPager(systemPagination, systemFilters.page ?? 1, (page) => { const next = { ...systemFilters, page }; pushSystemFilters(next); setSystemFilters(next); })}
       </section>
 
-      {detailFilters.machineSystemId && (
-        <div className="flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm">
-          <span className="text-gray-600">Đang xem: <span className="font-medium text-gray-900">{allSystems.find((s) => s.id === detailFilters.machineSystemId)?.tenHeThong ?? detailFilters.machineSystemId}</span> — mở Hồ sơ máy để xem cây linh kiện, trạng thái, bảo dưỡng.</span>
-          <div className="flex gap-2">
-            <button type="button" onClick={() => detailFilters.machineSystemId && pushSystemId(detailFilters.machineSystemId)} className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"><Eye className="h-3.5 w-3.5" /> Mở hồ sơ máy</button>
-            <button type="button" onClick={handleClearSystemSelection} className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"><X className="h-3.5 w-3.5" /></button>
-          </div>
-        </div>
-      )}
+      {/* "Đang xem" banner removed: the summary drawer opens on selection and the row stays highlighted. */}
+
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        title="Xóa hệ thống máy"
+        message={deleteTarget ? `Xóa hệ thống ${deleteTarget.maHeThong} — ${deleteTarget.tenHeThong}? Thao tác này không thể hoàn tác.` : ''}
+        onConfirm={() => { if (deleteTarget) void removeSystem(deleteTarget); }}
+        onCancel={() => { if (!deleteSystem.isPending) setDeleteTarget(null); }}
+        loading={deleteSystem.isPending}
+      />
 
       <Modal isOpen={!!systemModal} onClose={closeSystemModalWithClear} showBackdrop>
         <div className="flex modal-viewport-h w-full max-w-3xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
@@ -678,7 +773,7 @@ const MachineSystemList = () => {
             {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-700">{error}</div>}
             <div className="grid gap-3 md:grid-cols-2">
               <label className="space-y-1">
-                <span className="font-medium text-gray-700">Mã hệ thống {systemModal?.mode === 'create' && <span className="text-xs text-gray-400">(tự动生成)</span>}</span>
+                <span className="font-medium text-gray-700">Mã hệ thống {systemModal?.mode === 'create' && <span className="text-xs text-gray-400">(tự động sinh)</span>}</span>
                 <input
                   required
                   disabled={systemModal?.mode === 'view' || systemModal?.mode === 'create'}

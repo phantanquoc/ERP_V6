@@ -1,9 +1,12 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { CheckCircle, Edit, Eye, Plus, Power, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
-import { can, isCachedPermissionsLoaded } from '../utils/permissions';
+import { can, isCachedPermissionsLoaded, isTechnicalUser, canDeleteTechnical } from '../utils/permissions';
 import { UserRole } from '../types/auth';
+import { ApiError } from '../services/apiClient';
+import ConfirmDialog from './common/ConfirmDialog';
 import FileUpload from './FileUpload';
 import FaultTemplateDetail from './FaultTemplateDetail';
 import Modal from './Modal';
@@ -62,18 +65,59 @@ const FAULT_STATUS_TONE: Record<FaultRecordStatus, 'yellow' | 'green' | 'red'> =
 // Enum values used for filter params
 const RECORD_STATUS_VALUES: FaultRecordStatus[] = ['DANG_THEO_DOI', 'DA_XU_LY', 'TAI_PHAT'];
 
-// Template status badge helper (template statuses are still free-form strings)
-const templateStatusBadge = (value: string) => {
-  if (value === 'Đang áp dụng') return 'bg-green-100 text-green-700 border-green-200';
-  return 'bg-gray-100 text-gray-700 border-gray-200';
-};
+// Template status tone (template statuses are still free-form strings)
+const templateStatusTone = (value: string): 'green' | 'gray' => (value === 'Đang áp dụng' ? 'green' : 'gray');
 
-const formatDate = (value?: string | null) => value ? new Date(value).toLocaleDateString('vi-VN') : '—';
+// Shared table style contract (mirrors design-system DataTable look across Technical tabs)
+const TH = 'px-3 py-2.5 text-left text-xs font-semibold text-gray-500 whitespace-nowrap';
+const TD = 'px-3 py-2.5 text-gray-700 align-top';
+const STICKY_LEFT_TH = 'sticky left-0 z-30 bg-gray-50 shadow-[1px_0_0_0_rgb(229_231_235)]';
+const STICKY_RIGHT_TH = 'sticky right-0 z-30 bg-gray-50 shadow-[-1px_0_0_0_rgb(229_231_235)]';
+// Sticky body cells follow the row hover colour via group-hover so they never look detached
+const STICKY_LEFT_TD = 'sticky left-0 z-10 bg-white group-hover:bg-gray-50 shadow-[1px_0_0_0_rgb(229_231_235)]';
+const STICKY_RIGHT_TD = 'sticky right-0 z-10 bg-white group-hover:bg-gray-50 shadow-[-1px_0_0_0_rgb(229_231_235)]';
+const FILTER_CONTROL = 'h-9 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500';
+const PAGER_BUTTON = 'h-8 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500';
+
+interface PagerInfo {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+// Skeleton placeholder rows while a list query is loading
+const SkeletonRows = ({ cols, rows = 5 }: { cols: number; rows?: number }) => (
+  <>
+    {Array.from({ length: rows }).map((_, r) => (
+      <tr key={r} aria-hidden="true">
+        {Array.from({ length: cols }).map((__, c) => (
+          <td key={c} className="px-3 py-3">
+            <div className={`h-3.5 animate-pulse rounded bg-gray-200 ${c === 1 ? 'w-40' : c === cols - 1 ? 'ml-auto w-14' : 'w-20'}`} />
+          </td>
+        ))}
+      </tr>
+    ))}
+  </>
+);
+
+// DD/MM/YYYY (zero-padded) so date columns line up
+const DATE_OPTS: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', year: 'numeric' };
+const formatDate = (value?: string | null) => value ? new Date(value).toLocaleDateString('vi-VN', DATE_OPTS) : '—';
 const formatDateTime = (value?: string | null) => {
   if (!value) return '—';
   const d = new Date(value);
-  return `${d.toLocaleDateString('vi-VN')} ${d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
+  return `${d.toLocaleDateString('vi-VN', DATE_OPTS)} ${d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
 };
+
+// faultRecordService rewraps errors (status code is lost), so also match the backend 403 message
+const isForbiddenError = (err: unknown): boolean => {
+  if (err instanceof ApiError) return err.statusCode === 403;
+  const msg = err instanceof Error ? err.message : '';
+  return /truy cập bị từ chối|không có quyền|forbidden|HTTP 403/i.test(msg);
+};
+
+const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 
 // Task 3.5: label + tone helpers for the log source column
 const STATUS_LOG_SOURCE_LABEL: Record<string, string> = {
@@ -272,12 +316,18 @@ const parseFaultRecordFiltersFromUrl = (sp: URLSearchParams, lockedMachineSystem
 const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) => {
   const { user } = useAuth();
   const reporter = user ? `${user.lastName} ${user.firstName}`.trim() : '';
-  const isTechnical = user?.department === 'technical' ||
-    user?.secondaryDepartments?.some(d => d.departmentCode === 'technical');
-  const canCreate = !!user;
-  // Rule Matrix: fault-records / fault-templates (use fault-records as primary)
-  const _baseMutate = user?.role === UserRole.ADMIN || isTechnical;
-  const canMutate = isCachedPermissionsLoaded() ? (can('fault-records', 'CREATE', user?.role as string) || can('fault-records', 'UPDATE', user?.role as string)) : _baseMutate;
+  // Writes require Kỹ thuật membership (primary or secondary); the Rule Matrix may only narrow it further.
+  const rulesLoaded = isCachedPermissionsLoaded();
+  const isTechnical = isTechnicalUser(user);
+  const canMutate = isTechnical && (!rulesLoaded || can('fault-records', 'CREATE', user?.role as string) || can('fault-records', 'UPDATE', user?.role as string));
+  const canCreate = canMutate;
+  const canDeleteRecord = canDeleteTechnical(user) && (!rulesLoaded || can('fault-records', 'DELETE', user?.role as string));
+  // Lifecycle actions mirror the backend role guards (mark-resolved: TEAM_LEAD+, mark-recurred: DEPARTMENT_HEAD+)
+  const roleAtLeastLead = user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD || user?.role === UserRole.TEAM_LEAD;
+  const roleAtLeastHead = user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD;
+  const canUpdateRule = !rulesLoaded || can('fault-records', 'UPDATE', user?.role as string);
+  const canMarkResolved = isTechnical && roleAtLeastLead && canUpdateRule;
+  const canMarkRecurred = isTechnical && roleAtLeastHead && canUpdateRule;
 
   const [searchParams, setSearchParams] = useSearchParams();
   const filterSyncRef = useRef(false);
@@ -328,13 +378,32 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
   const deactivateTemplate = useDeactivateFaultTemplate();
   const deleteTemplate = useDeleteFaultTemplate();
 
-  const records = recordsQuery.data?.data ?? [];
+  // Error vs empty: a failed list (e.g. 403 for non-Mechanical users) must not look like "no records"
+  const recordsForbidden = recordsQuery.isError && isForbiddenError(recordsQuery.error);
+  const recordsFailed = recordsQuery.isError;
+  const records = useMemo(() => recordsQuery.data?.data ?? [], [recordsQuery.data?.data]);
   const templates = templatesQuery.data?.data ?? [];
   const activeTemplates = activeTemplatesQuery.data?.data ?? [];
-  const systems = systemsQuery.data?.data ?? [];
+  const systems = useMemo(() => systemsQuery.data?.data ?? [], [systemsQuery.data?.data]);
   // Memoize to stabilise reference so downstream useMemos don't re-run on every render
   const details = useMemo(() => detailsQuery.data?.data ?? [], [detailsQuery.data?.data]);
   const stats = statsQuery.data?.data;
+
+  // Consistent location label: always the system name; legacy rows that only carry maHeThong are
+  // resolved against the loaded systems list, falling back to the raw code.
+  const systemByCode = useMemo(() => new Map(systems.map((s) => [s.maHeThong, s])), [systems]);
+  const resolveSystemLabel = (record: FaultRecord): { systemLabel: string; systemCode: string } => {
+    if (record.machineSystem) return { systemLabel: record.machineSystem.tenHeThong, systemCode: record.machineSystem.maHeThong };
+    const code = record.maHeThong ?? '';
+    if (!code) return { systemLabel: '', systemCode: '' };
+    const match = systemByCode.get(code);
+    return { systemLabel: match?.tenHeThong ?? code, systemCode: match ? code : '' };
+  };
+  // ui-dna: hide content that is identical across the displayed rows
+  const showReporterLine = useMemo(
+    () => new Set(records.map((r) => (r.nguoiPhatHien ?? '').trim())).size > 1,
+    [records],
+  );
 
   const [recordModal, setRecordModal] = useState<{ mode: ModalMode; record?: FaultRecord } | null>(null);
   const [templateModal, setTemplateModal] = useState<{ mode: ModalMode; template?: FaultTemplate } | null>(null);
@@ -344,6 +413,15 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
   const [recordRepairSteps, setRecordRepairSteps] = useState<RepairStepInput[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState('');
+  // Destructive / irreversible row actions go through a confirm dialog first
+  const [pendingAction, setPendingAction] = useState<
+    | { kind: 'deleteRecord'; record: FaultRecord }
+    | { kind: 'markRecurred'; record: FaultRecord }
+    | { kind: 'deleteTemplate'; template: FaultTemplate }
+    | { kind: 'deactivateTemplate'; template: FaultTemplate }
+    | null
+  >(null);
+  const [recurReason, setRecurReason] = useState('');
   // A4: id queued from recurrence banner click — opens view modal once data is fetched
   const [pendingViewId, setPendingViewId] = useState('');
   const pendingViewQuery = useFaultRecord(pendingViewId);
@@ -471,12 +549,20 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
   }, [searchInput]);
 
   // Phase 2A: detail deep-link ?faultId (+ legacy ?faultRecordId), ?create=fault, and pending fetch
+  // Standalone list lives under TechnicalQuality ?tab=faults. Embedded (locked) usage keeps the host tab as-is.
+  // Legacy `sub` param is dropped (TechnicalQuality no longer reads it).
+  const applyFaultsTab = (next: URLSearchParams) => {
+    next.delete('sub');
+    if (next.get('tab') !== 'faults') next.set('tab', 'faults');
+  };
+  // Embedded in MachineSummaryDrawer (locked): the host page owns the URL. Writing ?faultId there would
+  // make TechnicalQuality jump to the faults tab, so the modal is driven by local state only.
   const pushFaultId = (id: string) => {
+    if (lockedMachineSystemId) return;
     const next = new URLSearchParams(searchParams);
     next.set('faultId', id);
     next.delete('faultRecordId');
-    if (next.get('sub') !== 'fault') next.set('sub', 'fault');
-    if (next.get('tab') !== 'repairAndFault') next.set('tab', 'repairAndFault');
+    applyFaultsTab(next);
     detailSyncRef.current = true;
     setSearchParams(next);
   };
@@ -489,10 +575,10 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
     setSearchParams(next, { replace: true });
   };
   const pushCreateFault = () => {
+    if (lockedMachineSystemId) return;
     const next = new URLSearchParams(searchParams);
     next.set('create', 'fault');
-    if (next.get('sub') !== 'fault') next.set('sub', 'fault');
-    if (next.get('tab') !== 'repairAndFault') next.set('tab', 'repairAndFault');
+    applyFaultsTab(next);
     detailSyncRef.current = true;
     setSearchParams(next);
   };
@@ -677,14 +763,60 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
     }
   };
 
-  const pager = (pagination: any, page: number, setPage: (page: number) => void): JSX.Element | null => {
-    if (!pagination || pagination.totalPages <= 1) return null;
+  const confirmBusy = deleteRecord.isPending || markRecurred.isPending || deleteTemplate.isPending || deactivateTemplate.isPending;
+  const closePendingAction = () => {
+    if (confirmBusy) return;
+    setPendingAction(null);
+    setRecurReason('');
+  };
+  const runPendingAction = async () => {
+    if (!pendingAction) return;
+    try {
+      switch (pendingAction.kind) {
+        case 'deleteRecord':
+          await deleteRecord.mutateAsync(pendingAction.record.id);
+          toast.success(`Đã xóa bản ghi ${pendingAction.record.maLoi}`);
+          break;
+        case 'markRecurred': {
+          const reason = recurReason.trim();
+          await markRecurred.mutateAsync({ id: pendingAction.record.id, opts: reason ? { reason } : undefined });
+          toast.success(`Đã đánh dấu tái phát ${pendingAction.record.maLoi}`);
+          break;
+        }
+        case 'deleteTemplate':
+          await deleteTemplate.mutateAsync(pendingAction.template.id);
+          toast.success(`Đã xóa mẫu lỗi ${pendingAction.template.maMauLoi}`);
+          break;
+        case 'deactivateTemplate':
+          await deactivateTemplate.mutateAsync(pendingAction.template.id);
+          toast.success(`Đã dừng mẫu lỗi ${pendingAction.template.maMauLoi}`);
+          break;
+      }
+      setPendingAction(null);
+      setRecurReason('');
+    } catch (err) {
+      toast.error(errorText(err, 'Thao tác thất bại'));
+    }
+  };
+  const handleMarkResolved = (record: FaultRecord) => {
+    markResolved.mutate(
+      { id: record.id },
+      {
+        onSuccess: () => toast.success(`Đã đánh dấu đã xử lý ${record.maLoi}`),
+        onError: (err) => toast.error(errorText(err, 'Không cập nhật được trạng thái')),
+      },
+    );
+  };
+
+  const pager = (pagination: PagerInfo | undefined, page: number, setPage: (page: number) => void): JSX.Element | null => {
+    if (!pagination || pagination.total <= 0) return null;
+    const totalPages = Math.max(pagination.totalPages, 1);
     return (
-      <div className="flex items-center justify-between border-t border-gray-200 px-3 py-2 text-sm">
-        <span className="text-gray-600">Trang {pagination.page}/{pagination.totalPages} - {pagination.total} dòng</span>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 px-3 py-2 text-sm">
+        <span className="text-gray-600">Tổng {pagination.total} dòng — Trang {pagination.page}/{totalPages}</span>
         <div className="flex gap-1">
-          <button disabled={page <= 1} onClick={() => setPage(page - 1)} className="rounded-md border border-gray-300 px-3 py-1 disabled:opacity-40">Trước</button>
-          <button disabled={page >= pagination.totalPages} onClick={() => setPage(page + 1)} className="rounded-md border border-gray-300 px-3 py-1 disabled:opacity-40">Sau</button>
+          <button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)} className={PAGER_BUTTON}>Trước</button>
+          <button type="button" disabled={page >= totalPages} onClick={() => setPage(page + 1)} className={PAGER_BUTTON}>Sau</button>
         </div>
       </div>
     );
@@ -728,23 +860,23 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       {/* Header row with title and tab switcher */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="text-base font-semibold text-gray-900">Lỗi cơ điện</h2>
           <p className="text-xs text-gray-500">Mẫu lỗi tham chiếu và bản ghi lỗi thực tế theo chi tiết máy.</p>
         </div>
-        <div className="flex rounded-lg border border-gray-300 bg-white p-1 text-sm">
-          <button onClick={() => setView('records')} className={`rounded-md px-3 py-1.5 ${view === 'records' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-50'}`}>Bản ghi lỗi</button>
+        <div className="flex w-fit rounded-lg border border-gray-300 bg-white p-1 text-sm">
+          <button type="button" aria-pressed={view === 'records'} onClick={() => setView('records')} className={`rounded-md px-3 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${view === 'records' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-50'}`}>Bản ghi lỗi</button>
           {canMutate && (
-            <button onClick={() => setView('templates')} className={`rounded-md px-3 py-1.5 ${view === 'templates' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-50'}`}>Mẫu lỗi</button>
+            <button type="button" aria-pressed={view === 'templates'} onClick={() => setView('templates')} className={`rounded-md px-3 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${view === 'templates' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-50'}`}>Mẫu lỗi</button>
           )}
         </div>
       </div>
 
-      {/* Summary stat cards — only shown in records view */}
-      {view === 'records' && (
+      {/* Summary stat cards — only shown in records view (they double as status filters) */}
+      {view === 'records' && !recordsFailed && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {cardData.map((card) => {
             const isActive = card.status === 'ALL'
@@ -772,31 +904,13 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
         </div>
       )}
 
-      {/* A6: quick-filter chip row */}
-      {view === 'records' && (
-        <div className="flex flex-wrap gap-2">
-          {(['ALL' as const, ...RECORD_STATUS_VALUES]).map((chip) => {
-            const isActive = chip === 'ALL' ? !recordFilters.trangThai : recordFilters.trangThai === chip;
-            const label = chip === 'ALL' ? 'Tất cả' : FAULT_STATUS_LABEL[chip];
-            return (
-              <button
-                key={chip}
-                type="button"
-                onClick={() => setRecordFilters((f) => ({ ...f, trangThai: chip === 'ALL' ? undefined : chip, page: 1 }))}
-                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${isActive ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {/* Status chip row removed: the stat cards above already filter by status. */}
 
-      {/* Collapsible sections — only shown in records view */}
-      {view === 'records' && (
-        <>
-          {/* A3: default-open insight collapsibles */}
-          <CollapsibleSection title="Máy hay lỗi nhất" defaultOpen>
+      {/* Insight sections — collapsed by default and pushed below the table (order-last on the flex
+          column) so the list stays the primary content. */}
+      {view === 'records' && !recordsFailed && (
+        <div className="order-last space-y-4">
+          <CollapsibleSection title="Máy hay lỗi nhất">
             {!stats || stats.topMachines.length === 0 ? (
               <p className="text-sm text-gray-400">Chưa có dữ liệu.</p>
             ) : (
@@ -811,7 +925,7 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
             )}
           </CollapsibleSection>
 
-          <CollapsibleSection title="Lỗi hay tái phát" defaultOpen>
+          <CollapsibleSection title="Lỗi hay tái phát">
             {!stats || stats.topRecurring.length === 0 ? (
               <p className="text-sm text-gray-400">Chưa có dữ liệu.</p>
             ) : (
@@ -835,8 +949,8 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
             )}
           </CollapsibleSection>
 
-          {/* A3: Xu hướng theo tháng default-open; 12.3 wires FaultTrendChart */}
-          <CollapsibleSection title="Xu hướng theo tháng" defaultOpen>
+          {/* 12.3 wires FaultTrendChart */}
+          <CollapsibleSection title="Xu hướng theo tháng">
             <FaultTrendChart data={stats?.monthlyTrend ?? []} />
           </CollapsibleSection>
 
@@ -897,105 +1011,151 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
               enabled={heatmapExpanded}
             />
           </CollapsibleSection>
-        </>
+        </div>
       )}
 
       {view === 'records' ? (
-        <section className="rounded-lg border border-gray-200 bg-white">
-          <div className="flex flex-col gap-3 border-b border-gray-200 p-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm text-gray-600">Tổng: {recordsQuery.data?.pagination?.total ?? 0} bản ghi</div>
-              {canCreate && <button onClick={() => openRecordModal('create')} className="inline-flex w-fit items-center gap-1.5 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white"><Plus className="h-4 w-4" /> Thêm bản ghi</button>}
+        <section className="min-w-0 rounded-lg border border-gray-200 bg-white">
+          {/* Toolbar: search + filters + count + create on one wrapping row */}
+          <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 p-3">
+            <div className="relative min-w-[180px] flex-1 basis-56">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+              <input type="search" aria-label="Tìm bản ghi lỗi" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Tìm mã, tên lỗi..." className={`${FILTER_CONTROL} w-full pl-8`} />
             </div>
-            <div className="flex flex-wrap gap-2">
-              <div className="relative flex-1 min-w-[160px]">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-                <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Tìm mã, tên lỗi..." className="w-full rounded-md border border-gray-300 py-2 pl-8 pr-3 text-sm" />
-              </div>
-              <select value={recordFilters.machineSystemId ?? ''} onChange={(event) => setRecordFilters((filters) => ({ ...filters, machineSystemId: event.target.value || undefined, machineSystemDetailId: undefined, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm" disabled={!!lockedMachineSystemId} hidden={!!lockedMachineSystemId}>
-                <option value="">Tất cả hệ thống</option>
-                {systems.map((system) => <option key={system.id} value={system.id}>{system.maHeThong} - {system.tenHeThong}</option>)}
-              </select>
-              <select value={recordFilters.machineSystemDetailId ?? ''} onChange={(event) => setRecordFilters((filters) => ({ ...filters, machineSystemDetailId: event.target.value || undefined, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
-                <option value="">Tất cả chi tiết</option>
-                {details.map((detail) => <option key={detail.id} value={detail.id}>{detail.maChiTiet} - {detail.tenChiTiet}</option>)}
-              </select>
-              <select value={recordFilters.mucDo ?? ''} onChange={(event) => setRecordFilters((filters) => ({ ...filters, mucDo: event.target.value || undefined, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
-                <option value="">Mức độ</option>
-                {SEVERITIES.map((item) => <option key={item} value={item}>{item}</option>)}
-              </select>
-              <select value={recordFilters.trangThai ?? ''} onChange={(event) => setRecordFilters((filters) => ({ ...filters, trangThai: (event.target.value as FaultRecordStatus) || undefined, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
-                <option value="">Trạng thái</option>
-                {RECORD_STATUS_VALUES.map((item) => <option key={item} value={item}>{FAULT_STATUS_LABEL[item]}</option>)}
-              </select>
+            <select aria-label="Lọc theo hệ thống" value={recordFilters.machineSystemId ?? ''} onChange={(event) => setRecordFilters((filters) => ({ ...filters, machineSystemId: event.target.value || undefined, machineSystemDetailId: undefined, page: 1 }))} className={`${FILTER_CONTROL} max-w-[200px]`} disabled={!!lockedMachineSystemId} hidden={!!lockedMachineSystemId}>
+              <option value="">Tất cả hệ thống</option>
+              {systems.map((system) => <option key={system.id} value={system.id}>{system.maHeThong} - {system.tenHeThong}</option>)}
+            </select>
+            <select aria-label="Lọc theo chi tiết máy" value={recordFilters.machineSystemDetailId ?? ''} onChange={(event) => setRecordFilters((filters) => ({ ...filters, machineSystemDetailId: event.target.value || undefined, page: 1 }))} className={`${FILTER_CONTROL} max-w-[200px] truncate`}>
+              <option value="">Tất cả chi tiết</option>
+              {details.map((detail) => <option key={detail.id} value={detail.id}>{detail.maChiTiet} - {detail.tenChiTiet}</option>)}
+            </select>
+            <select aria-label="Lọc theo mức độ" value={recordFilters.mucDo ?? ''} onChange={(event) => setRecordFilters((filters) => ({ ...filters, mucDo: event.target.value || undefined, page: 1 }))} className={FILTER_CONTROL}>
+              <option value="">Tất cả mức độ</option>
+              {SEVERITIES.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+            <select aria-label="Lọc theo trạng thái" value={recordFilters.trangThai ?? ''} onChange={(event) => setRecordFilters((filters) => ({ ...filters, trangThai: (event.target.value as FaultRecordStatus) || undefined, page: 1 }))} className={FILTER_CONTROL}>
+              <option value="">Tất cả trạng thái</option>
+              {RECORD_STATUS_VALUES.map((item) => <option key={item} value={item}>{FAULT_STATUS_LABEL[item]}</option>)}
+            </select>
+            <div className="ml-auto flex items-center gap-3">
+              {!recordsFailed && <span className="whitespace-nowrap text-sm text-gray-600">Tổng: {recordsQuery.data?.pagination?.total ?? 0} bản ghi</span>}
+              {canCreate && !recordsForbidden && <button type="button" onClick={() => openRecordModal('create')} className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-md bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"><Plus className="h-4 w-4" aria-hidden="true" /> Thêm bản ghi</button>}
             </div>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[800px]">
-              <thead className="bg-gray-50 text-xs text-gray-500 font-medium">
+            <table className="w-full min-w-[700px] border-collapse text-sm">
+              <thead className="sticky top-0 z-20 border-b border-gray-200 bg-gray-50">
                 <tr>
-                  <th className="border-b px-3 py-2.5 text-left sticky left-0 bg-gray-50 z-10 min-w-[90px]">Mã lỗi</th>
-                  <th className="border-b px-3 py-2.5 text-left min-w-[160px]">Tên lỗi</th>
-                  <th className="border-b px-3 py-2.5 text-left min-w-[150px]">Vị trí</th>
-                  <th className="border-b px-3 py-2.5 text-left min-w-[90px]">Mức độ</th>
-                  <th className="border-b px-3 py-2.5 text-left min-w-[100px]">Trạng thái</th>
-                  <th className="border-b px-3 py-2.5 text-left min-w-[110px]">Phát hiện</th>
-                  <th className="border-b px-3 py-2.5 text-right sticky right-0 bg-gray-50 z-10 min-w-[100px]">Thao tác</th>
+                  <th scope="col" className={`${TH} ${STICKY_LEFT_TH} w-[110px]`}>Mã lỗi</th>
+                  <th scope="col" className={TH}>Tên lỗi</th>
+                  <th scope="col" className={TH}>Vị trí</th>
+                  <th scope="col" className={`${TH} w-[110px]`}>Mức độ</th>
+                  <th scope="col" className={`${TH} w-[120px]`}>Trạng thái</th>
+                  <th scope="col" className={`${TH} w-[130px]`}>Phát hiện</th>
+                  <th scope="col" className={`${TH} ${STICKY_RIGHT_TH} w-[1%] text-right`}>Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {recordsQuery.isLoading ? (
-                  <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr>
+                {recordsFailed ? (
+                  <tr>
+                    <td colSpan={7} className="px-3 py-10 text-center">
+                      <p role="alert" className="text-sm font-medium text-gray-700">
+                        {recordsForbidden ? 'Bạn không có quyền xem danh sách này' : 'Không tải được danh sách bản ghi lỗi'}
+                      </p>
+                      {recordsForbidden ? (
+                        <p className="mt-1 text-xs text-gray-400">Danh sách lỗi cơ điện chỉ dành cho bộ phận Kỹ thuật — Cơ điện.</p>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => { void recordsQuery.refetch(); void statsQuery.refetch(); }}
+                          disabled={recordsQuery.isFetching}
+                          className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-blue-600 hover:bg-gray-50 disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                        >
+                          <RefreshCw className={`h-3.5 w-3.5 ${recordsQuery.isFetching ? 'animate-spin' : ''}`} aria-hidden="true" /> Thử lại
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ) : recordsQuery.isLoading ? (
+                  <SkeletonRows cols={7} />
                 ) : records.length === 0 ? (
-                  <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Chưa có bản ghi lỗi phù hợp.</td></tr>
-                ) : records.map((record) => (
-                  <tr key={record.id} onClick={() => openRecordModal('view', record)} className="border-l-2 border-l-transparent hover:bg-blue-100 hover:border-l-blue-500 cursor-pointer transition-all">
-                    <td className="px-3 py-2.5 sticky left-0 bg-white z-10 font-mono text-xs text-blue-700 font-medium">{record.maLoi}</td>
-                    <td className="px-3 py-2.5">
-                      <div className="font-medium text-gray-900 leading-tight">{record.tenLoi}</div>
-                      {record.faultTemplate && <div className="text-xs text-gray-400 mt-0.5">Mẫu: {record.faultTemplate.tenMauLoi}</div>}
+                  <tr>
+                    <td colSpan={7} className="px-3 py-10 text-center text-sm text-gray-400">
+                      {recordFilters.search || recordFilters.trangThai || recordFilters.mucDo || recordFilters.machineSystemDetailId || (recordFilters.machineSystemId && !lockedMachineSystemId)
+                        ? 'Không có bản ghi lỗi nào khớp với bộ lọc hiện tại.'
+                        : lockedMachineSystemId
+                          ? 'Máy này chưa có bản ghi lỗi nào được ghi nhận.'
+                          : 'Chưa có bản ghi lỗi nào được ghi nhận.'}
                     </td>
-                    <td className="px-3 py-2.5">
-                      <div className="text-gray-800 leading-tight text-xs">{record.machineSystem ? record.machineSystem.tenHeThong : record.maHeThong ?? '—'}</div>
-                      {record.machineSystemDetail && <div className="text-[11px] text-gray-400 mt-0.5">{record.machineSystemDetail.tenChiTiet}</div>}
+                  </tr>
+                ) : records.map((record) => {
+                  const { systemLabel, systemCode } = resolveSystemLabel(record);
+                  const detailLabel = record.machineSystemDetail?.tenChiTiet ?? '';
+                  return (
+                  <tr key={record.id} onClick={() => openRecordModal('view', record)} className="group cursor-pointer transition-colors hover:bg-gray-50">
+                    <td className={`${TD} ${STICKY_LEFT_TD} whitespace-nowrap`}>
+                      {/* Keyboard-reachable entry point to the same detail view the row click opens */}
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); openRecordModal('view', record); }}
+                        title={`Xem chi tiết ${record.maLoi}`}
+                        className="rounded font-mono text-xs font-medium text-blue-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                      >
+                        {record.maLoi}
+                      </button>
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className={TD}>
+                      <div className="max-w-[260px] truncate font-medium leading-tight text-gray-900" title={record.tenLoi}>{record.tenLoi}</div>
+                      {record.faultTemplate && (
+                        <div className="mt-0.5 max-w-[260px] truncate text-xs text-gray-400" title={`Mẫu: ${record.faultTemplate.tenMauLoi}`}>Mẫu: {record.faultTemplate.tenMauLoi}</div>
+                      )}
+                    </td>
+                    <td className={TD}>
+                      {systemLabel
+                        ? <div className="max-w-[180px] truncate text-xs leading-tight text-gray-800" title={systemCode ? `${systemLabel} (${systemCode})` : systemLabel}>{systemLabel}</div>
+                        : <div className="text-xs text-gray-400">Không gắn thiết bị</div>}
+                      {detailLabel && <div className="mt-0.5 max-w-[180px] truncate text-[11px] text-gray-400" title={detailLabel}>{detailLabel}</div>}
+                    </td>
+                    <td className={`${TD} whitespace-nowrap`}>
                       {/* 8.3: use shared SeverityBadge */}
-                      <SeverityBadge value={record.mucDo} />
+                      {record.mucDo ? <SeverityBadge value={record.mucDo} /> : <span className="text-gray-400">—</span>}
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className={`${TD} whitespace-nowrap`}>
                       {/* 8.3/8.8: use shared StatusBadge with enum→label+tone mapping */}
                       <StatusBadge
                         label={FAULT_STATUS_LABEL[record.trangThai] ?? record.trangThai}
                         tone={FAULT_STATUS_TONE[record.trangThai] ?? 'gray'}
                       />
                     </td>
-                    <td className="px-3 py-2.5">
-                      <div className="text-gray-700 text-xs">{formatDate(record.ngayPhatHien)}</div>
-                      <div className="text-[11px] text-gray-400 mt-0.5">{record.nguoiPhatHien}</div>
+                    <td className={TD}>
+                      <div className="whitespace-nowrap text-xs text-gray-700" title={record.nguoiPhatHien ? `Người phát hiện: ${record.nguoiPhatHien}` : undefined}>{formatDate(record.ngayPhatHien)}</div>
+                      {/* Reporter line only when it differs across the page (uniform values are noise) */}
+                      {showReporterLine && record.nguoiPhatHien && <div className="mt-0.5 max-w-[150px] truncate text-[11px] text-gray-400" title={record.nguoiPhatHien}>{record.nguoiPhatHien}</div>}
                       {record.trangThai === 'DA_XU_LY' && record.ngayXuLy && (
-                        <div className="text-[11px] text-green-600 mt-1">Xử lý: {formatDateTime(record.ngayXuLy)}</div>
+                        <div className="mt-1 whitespace-nowrap text-[11px] text-green-600">Xử lý: {formatDateTime(record.ngayXuLy)}</div>
                       )}
                     </td>
-                    <td className="px-3 py-2.5 sticky right-0 bg-white z-10" onClick={(e) => e.stopPropagation()}>
+                    <td className={`${TD} ${STICKY_RIGHT_TD} whitespace-nowrap`} onClick={(e) => e.stopPropagation()}>
                       <ResponsiveRowActions
                         actions={[
                           ...(canMutate ? [{ key: 'edit', label: 'Sửa bản ghi', icon: <Edit className="h-4 w-4" />, onClick: () => openRecordModal('edit', record), tone: 'success' } satisfies RowAction] : []),
                           // 8.7: mark-resolved — visible when not DA_XU_LY, role ADMIN/DEPT_HEAD/TEAM_LEAD
-                          ...((isCachedPermissionsLoaded() ? can('fault-records', 'UPDATE', user?.role as string) : (user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD || user?.role === UserRole.TEAM_LEAD)) && record.trangThai !== 'DA_XU_LY'
-                            ? [{ key: 'mark-resolved', label: 'Đánh dấu đã xử lý', icon: <CheckCircle className="h-4 w-4" />, onClick: () => markResolved.mutate({ id: record.id }), tone: 'success', disabled: markResolved.isPending } satisfies RowAction]
+                          ...(canMarkResolved && record.trangThai !== 'DA_XU_LY'
+                            ? [{ key: 'mark-resolved', label: 'Đánh dấu đã xử lý', icon: <CheckCircle className="h-4 w-4" />, onClick: () => handleMarkResolved(record), tone: 'success', disabled: markResolved.isPending } satisfies RowAction]
                             : []),
-                          // 8.7: mark-recurred — visible only when DA_XU_LY, role ADMIN/DEPT_HEAD
-                          ...((isCachedPermissionsLoaded() ? can('fault-records', 'UPDATE', user?.role as string) : (user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD)) && record.trangThai === 'DA_XU_LY'
-                            ? [{ key: 'mark-recurred', label: 'Đánh dấu tái phát', icon: <RefreshCw className="h-4 w-4" />, onClick: () => markRecurred.mutate({ id: record.id }), tone: 'warning', disabled: markRecurred.isPending } satisfies RowAction]
+                          // 8.7: mark-recurred — visible only when DA_XU_LY, role ADMIN/DEPT_HEAD; confirmed with optional reason
+                          ...(canMarkRecurred && record.trangThai === 'DA_XU_LY'
+                            ? [{ key: 'mark-recurred', label: 'Đánh dấu tái phát', icon: <RefreshCw className="h-4 w-4" />, onClick: () => { setRecurReason(''); setPendingAction({ kind: 'markRecurred', record }); }, tone: 'warning', disabled: markRecurred.isPending } satisfies RowAction]
                             : []),
-                          ...(canMutate ? [{ key: 'delete', label: 'Xóa bản ghi', icon: <Trash2 className="h-4 w-4" />, onClick: () => deleteRecord.mutate(record.id), tone: 'danger' } satisfies RowAction] : []),
+                          ...(canDeleteRecord ? [{ key: 'delete', label: 'Xóa bản ghi', icon: <Trash2 className="h-4 w-4" />, onClick: () => setPendingAction({ kind: 'deleteRecord', record }), tone: 'danger' } satisfies RowAction] : []),
                         ]}
                       />
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1003,86 +1163,112 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
           {pager(recordsQuery.data?.pagination, recordFilters.page ?? 1, (page) => setRecordFilters((filters) => ({ ...filters, page })))}
         </section>
       ) : (
-        <section className="rounded-lg border border-gray-200 bg-white">
-          <div className="flex flex-col gap-3 border-b border-gray-200 p-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm text-gray-600">Tổng: {templatesQuery.data?.pagination?.total ?? 0} mẫu</div>
-              {canMutate && <button onClick={() => openTemplateModal('create')} className="inline-flex w-fit items-center gap-1.5 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white"><Plus className="h-4 w-4" /> Thêm mẫu lỗi</button>}
+        <section className="min-w-0 rounded-lg border border-gray-200 bg-white">
+          {/* Toolbar: search + filters + count + create on one wrapping row */}
+          <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 p-3">
+            <div className="relative min-w-[180px] flex-1 basis-56">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+              <input type="search" aria-label="Tìm mẫu lỗi" value={templateFilters.search ?? ''} onChange={(event) => setTemplateFilters((filters) => ({ ...filters, search: event.target.value, page: 1 }))} placeholder="Tìm mã, tên mẫu..." className={`${FILTER_CONTROL} w-full pl-8`} />
             </div>
-            <div className="flex flex-wrap gap-2">
-              <div className="relative flex-1 min-w-[160px]">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-                <input value={templateFilters.search ?? ''} onChange={(event) => setTemplateFilters((filters) => ({ ...filters, search: event.target.value, page: 1 }))} placeholder="Tìm mã, tên mẫu..." className="w-full rounded-md border border-gray-300 py-2 pl-8 pr-3 text-sm" />
-              </div>
-              <select value={templateFilters.machineSystemId ?? ''} onChange={(event) => setTemplateFilters((filters) => ({ ...filters, machineSystemId: event.target.value || undefined, machineSystemDetailId: undefined, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm" disabled={!!lockedMachineSystemId} hidden={!!lockedMachineSystemId}>
-                <option value="">Tất cả hệ thống</option>
-                {systems.map((system) => <option key={system.id} value={system.id}>{system.maHeThong} - {system.tenHeThong}</option>)}
-              </select>
-              <select value={templateFilters.machineSystemDetailId ?? ''} onChange={(event) => setTemplateFilters((filters) => ({ ...filters, machineSystemDetailId: event.target.value || undefined, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
-                <option value="">Tất cả chi tiết</option>
-                {details.map((detail) => <option key={detail.id} value={detail.id}>{detail.maChiTiet} - {detail.tenChiTiet}</option>)}
-              </select>
-              <select value={templateFilters.mucDo ?? ''} onChange={(event) => setTemplateFilters((filters) => ({ ...filters, mucDo: event.target.value || undefined, page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
-                <option value="">Mức độ</option>
-                {SEVERITIES.map((item) => <option key={item} value={item}>{item}</option>)}
-              </select>
-              <select value={templateFilters.hoatDong === undefined ? '' : String(templateFilters.hoatDong)} onChange={(event) => setTemplateFilters((filters) => ({ ...filters, hoatDong: event.target.value === '' ? undefined : event.target.value === 'true', page: 1 }))} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
-                <option value="">Hoạt động</option>
-                <option value="true">Đang hoạt động</option>
-                <option value="false">Dừng</option>
-              </select>
+            <select aria-label="Lọc theo hệ thống" value={templateFilters.machineSystemId ?? ''} onChange={(event) => setTemplateFilters((filters) => ({ ...filters, machineSystemId: event.target.value || undefined, machineSystemDetailId: undefined, page: 1 }))} className={`${FILTER_CONTROL} max-w-[200px]`} disabled={!!lockedMachineSystemId} hidden={!!lockedMachineSystemId}>
+              <option value="">Tất cả hệ thống</option>
+              {systems.map((system) => <option key={system.id} value={system.id}>{system.maHeThong} - {system.tenHeThong}</option>)}
+            </select>
+            <select aria-label="Lọc theo chi tiết máy" value={templateFilters.machineSystemDetailId ?? ''} onChange={(event) => setTemplateFilters((filters) => ({ ...filters, machineSystemDetailId: event.target.value || undefined, page: 1 }))} className={`${FILTER_CONTROL} max-w-[200px]`}>
+              <option value="">Tất cả chi tiết</option>
+              {details.map((detail) => <option key={detail.id} value={detail.id}>{detail.maChiTiet} - {detail.tenChiTiet}</option>)}
+            </select>
+            <select aria-label="Lọc theo mức độ" value={templateFilters.mucDo ?? ''} onChange={(event) => setTemplateFilters((filters) => ({ ...filters, mucDo: event.target.value || undefined, page: 1 }))} className={FILTER_CONTROL}>
+              <option value="">Tất cả mức độ</option>
+              {SEVERITIES.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+            <select aria-label="Lọc theo hoạt động" value={templateFilters.hoatDong === undefined ? '' : String(templateFilters.hoatDong)} onChange={(event) => setTemplateFilters((filters) => ({ ...filters, hoatDong: event.target.value === '' ? undefined : event.target.value === 'true', page: 1 }))} className={FILTER_CONTROL}>
+              <option value="">Tất cả hoạt động</option>
+              <option value="true">Đang hoạt động</option>
+              <option value="false">Dừng</option>
+            </select>
+            <div className="ml-auto flex items-center gap-3">
+              <span className="whitespace-nowrap text-sm text-gray-600">Tổng: {templatesQuery.data?.pagination?.total ?? 0} mẫu</span>
+              {canMutate && <button type="button" onClick={() => openTemplateModal('create')} className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-md bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"><Plus className="h-4 w-4" aria-hidden="true" /> Thêm mẫu lỗi</button>}
             </div>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[750px]">
-              <thead className="bg-gray-50 text-xs text-gray-500 font-medium">
+            <table className="w-full min-w-[780px] border-collapse text-sm">
+              <thead className="sticky top-0 z-20 border-b border-gray-200 bg-gray-50">
                 <tr>
-                  <th className="border-b px-3 py-2.5 text-left sticky left-0 bg-gray-50 z-10 min-w-[90px]">Mã mẫu</th>
-                  <th className="border-b px-3 py-2.5 text-left min-w-[150px]">Tên mẫu</th>
-                  <th className="border-b px-3 py-2.5 text-left min-w-[140px]">Vị trí</th>
-                  <th className="border-b px-3 py-2.5 text-left min-w-[90px]">Mức độ</th>
-                  <th className="border-b px-3 py-2.5 text-left min-w-[100px]">Trạng thái</th>
-                  <th className="border-b px-3 py-2.5 text-center min-w-[70px]">Bản ghi</th>
-                  <th className="border-b px-3 py-2.5 text-right sticky right-0 bg-gray-50 z-10 min-w-[110px]">Thao tác</th>
+                  <th scope="col" className={`${TH} ${STICKY_LEFT_TH} w-[110px]`}>Mã mẫu</th>
+                  <th scope="col" className={TH}>Tên mẫu</th>
+                  <th scope="col" className={TH}>Vị trí</th>
+                  <th scope="col" className={`${TH} w-[110px]`}>Mức độ</th>
+                  <th scope="col" className={`${TH} w-[120px]`}>Trạng thái</th>
+                  <th scope="col" className={`${TH} w-[80px] text-right`}>Bản ghi</th>
+                  <th scope="col" className={`${TH} ${STICKY_RIGHT_TH} w-[1%] text-right`}>Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {templatesQuery.isLoading ? (
-                  <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr>
+                  <SkeletonRows cols={7} />
                 ) : templates.length === 0 ? (
-                  <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Chưa có mẫu lỗi phù hợp.</td></tr>
-                ) : templates.map((template) => (
+                  <tr>
+                    <td colSpan={7} className="px-3 py-10 text-center text-sm text-gray-400">
+                      {templateFilters.search || templateFilters.mucDo || templateFilters.machineSystemDetailId || templateFilters.hoatDong !== undefined || (templateFilters.machineSystemId && !lockedMachineSystemId)
+                        ? 'Không có mẫu lỗi nào khớp với bộ lọc hiện tại.'
+                        : 'Chưa có mẫu lỗi nào được tạo.'}
+                    </td>
+                  </tr>
+                ) : templates.map((template) => {
+                  const statusLabel = template.hoatDong ? template.trangThai : 'Dừng';
+                  const systemLabel = template.machineSystem?.tenHeThong ?? '';
+                  const detailLabel = template.machineSystemDetail?.tenChiTiet ?? '';
+                  return (
                   <tr
                     key={template.id}
-                    className="hover:bg-gray-50/50 transition-colors cursor-pointer"
+                    className="group cursor-pointer transition-colors hover:bg-gray-50"
                     onClick={() => setDetailTemplate(template)}
                   >
-                    <td className="px-3 py-2.5 sticky left-0 bg-white z-10 font-mono text-xs text-blue-700 font-medium">{template.maMauLoi}</td>
-                    <td className="px-3 py-2.5 font-medium text-gray-900">{template.tenMauLoi}</td>
-                    <td className="px-3 py-2.5">
-                      <div className="text-gray-800 leading-tight text-xs">{template.machineSystem ? template.machineSystem.tenHeThong : '—'}</div>
-                      {template.machineSystemDetail && <div className="text-[11px] text-gray-400 mt-0.5">{template.machineSystemDetail.tenChiTiet}</div>}
+                    <td className={`${TD} ${STICKY_LEFT_TD} whitespace-nowrap`}>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setDetailTemplate(template); }}
+                        title={`Xem chi tiết ${template.maMauLoi}`}
+                        className="rounded font-mono text-xs font-medium text-blue-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                      >
+                        {template.maMauLoi}
+                      </button>
                     </td>
-                    <td className="px-3 py-2.5">
-                      <SeverityBadge value={template.mucDo} />
+                    <td className={TD}>
+                      <div className="max-w-[260px] truncate font-medium text-gray-900" title={template.tenMauLoi}>{template.tenMauLoi}</div>
                     </td>
-                    <td className="px-3 py-2.5"><span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${templateStatusBadge(template.hoatDong ? template.trangThai : 'Dừng')}`}>{template.hoatDong ? template.trangThai : 'Dừng'}</span></td>
-                    <td className="px-3 py-2.5 text-center">
-                      <span className="inline-flex items-center justify-center h-5 min-w-[20px] rounded-full bg-gray-100 text-xs font-medium text-gray-600">{template._count?.faultRecords ?? 0}</span>
+                    <td className={TD}>
+                      {systemLabel
+                        ? <div className="max-w-[180px] truncate text-xs leading-tight text-gray-800" title={systemLabel}>{systemLabel}</div>
+                        : <div className="text-xs text-gray-400">—</div>}
+                      {detailLabel && <div className="mt-0.5 max-w-[180px] truncate text-[11px] text-gray-400" title={detailLabel}>{detailLabel}</div>}
                     </td>
-                    <td className="px-3 py-2.5 sticky right-0 bg-white z-10">
+                    <td className={`${TD} whitespace-nowrap`}>
+                      {template.mucDo ? <SeverityBadge value={template.mucDo} /> : <span className="text-gray-400">—</span>}
+                    </td>
+                    <td className={`${TD} whitespace-nowrap`}>
+                      <StatusBadge label={statusLabel} tone={templateStatusTone(statusLabel)} />
+                    </td>
+                    <td className={`${TD} text-right tabular-nums`}>
+                      <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-gray-100 px-1.5 text-xs font-medium text-gray-600" title={`${template._count?.faultRecords ?? 0} bản ghi lỗi dùng mẫu này`}>{template._count?.faultRecords ?? 0}</span>
+                    </td>
+                    {/* Stop propagation so an action click does not also open the detail drawer */}
+                    <td className={`${TD} ${STICKY_RIGHT_TD} whitespace-nowrap`} onClick={(e) => e.stopPropagation()}>
                       <ResponsiveRowActions
                         actions={[
                           { key: 'view', label: 'Xem mẫu lỗi', icon: <Eye className="h-4 w-4" />, onClick: () => setDetailTemplate(template), tone: 'primary' },
                           ...(canMutate ? [{ key: 'edit', label: 'Sửa mẫu lỗi', icon: <Edit className="h-4 w-4" />, onClick: () => openTemplateModal('edit', template), tone: 'success' } satisfies RowAction] : []),
-                          ...(canMutate && template.hoatDong ? [{ key: 'deactivate', label: 'Dừng hoạt động', icon: <Power className="h-4 w-4" />, onClick: () => deactivateTemplate.mutate(template.id), tone: 'warning' } satisfies RowAction] : []),
-                          ...(canMutate ? [{ key: 'delete', label: 'Xóa mẫu lỗi', icon: <Trash2 className="h-4 w-4" />, onClick: () => deleteTemplate.mutate(template.id), tone: 'danger' } satisfies RowAction] : []),
+                          ...(canMutate && template.hoatDong ? [{ key: 'deactivate', label: 'Dừng hoạt động', icon: <Power className="h-4 w-4" />, onClick: () => setPendingAction({ kind: 'deactivateTemplate', template }), tone: 'warning' } satisfies RowAction] : []),
+                          ...(canDeleteRecord ? [{ key: 'delete', label: 'Xóa mẫu lỗi', icon: <Trash2 className="h-4 w-4" />, onClick: () => setPendingAction({ kind: 'deleteTemplate', template }), tone: 'danger' } satisfies RowAction] : []),
                         ]}
                       />
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1108,7 +1294,8 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
                 onMarkRecurrence={() => {/* server handles status — banner is informational only */}}
                 onOpenRecord={(id) => {
                   closeRecordModal();
-                  pushFaultId(id);
+                  // Fetch then open in view mode (works for embedded/locked usage too)
+                  setPendingViewId(id);
                 }}
               />
             )}
@@ -1395,6 +1582,60 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
           </form>
         </div>
       </Modal>
+      {/* Confirm dialogs for destructive / irreversible row actions */}
+      <ConfirmDialog
+        isOpen={pendingAction?.kind === 'deleteRecord'}
+        title="Xóa bản ghi lỗi"
+        message={pendingAction?.kind === 'deleteRecord' ? `Xóa bản ghi ${pendingAction.record.maLoi} — ${pendingAction.record.tenLoi}? Thao tác này không thể hoàn tác.` : ''}
+        onConfirm={() => { void runPendingAction(); }}
+        onCancel={closePendingAction}
+        loading={confirmBusy}
+      />
+      <ConfirmDialog
+        isOpen={pendingAction?.kind === 'deleteTemplate'}
+        title="Xóa mẫu lỗi"
+        message={pendingAction?.kind === 'deleteTemplate' ? `Xóa mẫu lỗi ${pendingAction.template.maMauLoi} — ${pendingAction.template.tenMauLoi}? Thao tác này không thể hoàn tác.` : ''}
+        onConfirm={() => { void runPendingAction(); }}
+        onCancel={closePendingAction}
+        loading={confirmBusy}
+      />
+      <ConfirmDialog
+        isOpen={pendingAction?.kind === 'deactivateTemplate'}
+        title="Dừng mẫu lỗi"
+        message={pendingAction?.kind === 'deactivateTemplate' ? `Dừng áp dụng mẫu lỗi ${pendingAction.template.maMauLoi}? Mẫu sẽ không còn được gợi ý khi tạo bản ghi mới.` : ''}
+        onConfirm={() => { void runPendingAction(); }}
+        onCancel={closePendingAction}
+        loading={confirmBusy}
+        confirmText="Dừng hoạt động"
+        cancelText="Hủy"
+        variant="primary"
+      >
+        <span className="sr-only">Xác nhận dừng mẫu lỗi</span>
+      </ConfirmDialog>
+      <ConfirmDialog
+        isOpen={pendingAction?.kind === 'markRecurred'}
+        title="Đánh dấu tái phát"
+        message={pendingAction?.kind === 'markRecurred' ? `Chuyển bản ghi ${pendingAction.record.maLoi} từ "Đã xử lý" sang "Tái phát"?` : ''}
+        onConfirm={() => { void runPendingAction(); }}
+        onCancel={closePendingAction}
+        loading={confirmBusy}
+        confirmText="Đánh dấu tái phát"
+        cancelText="Hủy"
+        variant="primary"
+      >
+        <label className="block space-y-1 text-sm">
+          <span className="font-medium text-gray-700">Lý do (tùy chọn)</span>
+          <textarea
+            rows={2}
+            value={recurReason}
+            onChange={(e) => setRecurReason(e.target.value)}
+            maxLength={500}
+            className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            placeholder="Ví dụ: lỗi xuất hiện lại sau 2 ngày vận hành"
+          />
+        </label>
+      </ConfirmDialog>
+
       {/* 8.2: Template detail drawer */}
       <FaultTemplateDetail
         template={detailTemplate}

@@ -1,18 +1,21 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { Plus, Edit, Trash2, X, Download, Search, ChevronDown } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Download, Search, RefreshCw } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getFileUrl } from '../config/api';
-import { can, isCachedPermissionsLoaded } from '../utils/permissions';
-import { UserRole } from '../types/auth';
+import { can, isCachedPermissionsLoaded, isTechnicalUser, canDeleteTechnical } from '../utils/permissions';
+import { formatVND } from '../utils/purchaseRequestBadges';
+import { ApiError } from '../services/apiClient';
 import { useSpareParts, useCreateSparePart, useUpdateSparePart, useDeleteSparePart } from '../hooks/useSpareParts';
 import sparePartService from '../services/sparePartService';
 import FileUpload from './FileUpload';
 import Modal from './Modal';
 import ResponsiveRowActions, { type RowAction } from './ResponsiveRowActions';
 import UnitSelect from './common/UnitSelect';
+import { StatusBadge, type BadgeTone } from './shared/StatusBadge';
 
+// Optional columns are `Float?` / `String?` in Prisma, so the API returns null (not undefined)
 interface SparePart {
   id: string;
   maLinhKien: string;
@@ -20,13 +23,27 @@ interface SparePart {
   loai: string;
   donVi: string;
   soLuongTon: number;
-  giaNhap?: number;
-  nhaCungCap?: string;
+  giaNhap?: number | null;
+  nhaCungCap?: string | null;
   trangThai: string;
-  ngayMua?: string;
-  fileDinhKem?: string;
+  ngayMua?: string | null;
+  fileDinhKem?: string | null;
   createdAt: string;
 }
+
+interface SparePartListResult {
+  data?: SparePart[];
+  pagination?: { total?: number; totalPages?: number };
+}
+
+const DATE_OPTS: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', year: 'numeric' };
+
+// The service rewraps errors, so the HTTP status may be gone — fall back to the backend message
+const isForbiddenError = (err: unknown): boolean => {
+  if (err instanceof ApiError) return err.statusCode === 403;
+  const msg = err instanceof Error ? err.message : '';
+  return /truy cập bị từ chối|không có quyền|forbidden|HTTP 403/i.test(msg);
+};
 
 const LOAI_OPTIONS = [
   { value: 'CK', label: 'Cơ khí' },
@@ -37,14 +54,20 @@ const LOAI_OPTIONS = [
 
 const TRANG_THAI_OPTIONS = ['Đang sử dụng', 'Chưa sử dụng', 'Hết hàng'];
 
-const trangThaiBadge = (tt: string) => {
-  if (tt === 'Đang sử dụng') return 'bg-blue-100 text-blue-700';
-  if (tt === 'Hết hàng') return 'bg-red-100 text-red-700';
-  return 'bg-gray-100 text-gray-600';
+const trangThaiTone = (tt: string): BadgeTone => {
+  if (tt === 'Đang sử dụng') return 'blue';
+  if (tt === 'Hết hàng') return 'red';
+  return 'gray';
 };
 
-type SortBy = 'maLinhKien' | 'tenLinhKien' | 'soLuongTon' | 'createdAt';
-type SortOrder = 'asc' | 'desc';
+// Shared table cell styles (keep in sync with the other Technical tabs)
+const TH = 'px-3 py-2.5 text-left text-xs font-semibold text-gray-500 whitespace-nowrap';
+const TD = 'px-3 py-2.5 text-gray-700 align-top';
+const STICKY_LEFT = 'sticky left-0 z-10 shadow-[1px_0_0_0_rgb(229_231_235)]';
+const STICKY_RIGHT = 'sticky right-0 z-10 shadow-[-1px_0_0_0_rgb(229_231_235)]';
+// Nhà cung cấp is hidden below xl, so the visible column count depends on the breakpoint.
+// colSpan larger than the real column count is harmless, so use the max.
+const COL_COUNT = 8;
 
 const SparePartList = () => {
   const { user } = useAuth();
@@ -55,9 +78,6 @@ const SparePartList = () => {
   const initLoai = searchParams.get('loai') ?? '';
   const initTrangThai = searchParams.get('trangThai') ?? '';
   const initPage = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
-  const initSortBy = (searchParams.get('sortBy') as SortBy) ?? '' as SortBy | '';
-  const initSortOrder = (searchParams.get('sortOrder') as SortOrder) ?? 'asc';
-  const initPartId = searchParams.get('partId');
 
   const itemsPerPage = 10;
 
@@ -66,8 +86,7 @@ const SparePartList = () => {
   const [appliedSearch, setAppliedSearch] = useState(initQ);
   const [filterLoai, setFilterLoai] = useState(initLoai);
   const [filterTrangThai, setFilterTrangThai] = useState(initTrangThai);
-  const [sortBy, setSortBy] = useState<SortBy | ''>(initSortBy as SortBy | '');
-  const [sortOrder, setSortOrder] = useState<SortOrder>(initSortOrder as SortOrder);
+  const [exporting, setExporting] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewMode, setIsViewMode] = useState(false);
@@ -85,11 +104,10 @@ const SparePartList = () => {
     ngayMua: '',
   });
 
-  const isTechnical = user?.department === 'technical' ||
-    user?.secondaryDepartments?.some(d => d.departmentCode === 'technical');
-  const _baseWrite = user?.role === UserRole.ADMIN || isTechnical;
-  const canWrite = isCachedPermissionsLoaded() ? can('spare-parts', 'CREATE', user?.role as string) || can('spare-parts', 'UPDATE', user?.role as string) : _baseWrite;
-  const canDelete = isCachedPermissionsLoaded() ? can('spare-parts', 'DELETE', user?.role as string) : (user?.role === UserRole.ADMIN || isTechnical);
+  // Technical membership (primary or secondary) is required for writes; the Rule Matrix can only narrow it further
+  const rulesLoaded = isCachedPermissionsLoaded();
+  const canWrite = isTechnicalUser(user) && (!rulesLoaded || can('spare-parts', 'CREATE', user?.role as string) || can('spare-parts', 'UPDATE', user?.role as string));
+  const canDelete = canDeleteTechnical(user) && (!rulesLoaded || can('spare-parts', 'DELETE', user?.role as string));
 
   // URL sync helpers
   const syncingRef = useRef(false);
@@ -111,14 +129,10 @@ const SparePartList = () => {
     const loai = searchParams.get('loai') ?? '';
     const trangThai = searchParams.get('trangThai') ?? '';
     const page = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
-    const sb = (searchParams.get('sortBy') as SortBy) ?? '';
-    const so = (searchParams.get('sortOrder') as SortOrder) ?? 'asc';
     if (q !== appliedSearch) { setAppliedSearch(q); setSearch(q); }
     if (loai !== filterLoai) setFilterLoai(loai);
     if (trangThai !== filterTrangThai) setFilterTrangThai(trangThai);
     if (page !== currentPage) setCurrentPage(page);
-    if ((sb as string) !== (sortBy as string)) setSortBy(sb as SortBy | '');
-    if (so !== sortOrder) setSortOrder(so);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
@@ -142,29 +156,27 @@ const SparePartList = () => {
     trangThai: filterTrangThai || undefined,
   }), [currentPage, appliedSearch, filterLoai, filterTrangThai]);
 
-  const { data: queryResult, isLoading: loading } = useSpareParts(filters);
-  const rawParts: SparePart[] = useMemo(() => {
-    const result = queryResult as any;
-    return Array.isArray(result?.data) ? result.data : Array.isArray(result) ? result : [];
-  }, [queryResult]);
-
-  // Client sort (backend may ignore sortBy/sortOrder)
+  const {
+    data: queryResult,
+    isLoading: loading,
+    isError,
+    error: listError,
+    refetch,
+    isFetching,
+  } = useSpareParts(filters);
+  const listResult = queryResult as SparePartListResult | SparePart[] | undefined;
+  // The backend orders by createdAt desc and has no sortBy support, so the list is shown
+  // in server order (a client-side sort would only reorder the current page).
   const parts: SparePart[] = useMemo(() => {
-    if (!sortBy) return rawParts;
-    const sorted = [...rawParts].sort((a: any, b: any) => {
-      const av = a[sortBy];
-      const bv = b[sortBy];
-      if (av == null && bv == null) return 0;
-      if (av == null) return 1;
-      if (bv == null) return -1;
-      if (typeof av === 'number' && typeof bv === 'number') return av - bv;
-      return String(av).localeCompare(String(bv), 'vi');
-    });
-    return sortOrder === 'desc' ? sorted.reverse() : sorted;
-  }, [rawParts, sortBy, sortOrder]);
+    if (Array.isArray(listResult)) return listResult;
+    return Array.isArray(listResult?.data) ? listResult.data : [];
+  }, [listResult]);
+  const rawParts = parts;
 
-  const totalPages = (queryResult as any)?.pagination?.totalPages ?? 1;
-  const total = (queryResult as any)?.pagination?.total ?? parts.length;
+  const pagination = Array.isArray(listResult) ? undefined : listResult?.pagination;
+  const totalPages = pagination?.totalPages ?? 1;
+  const total = pagination?.total ?? parts.length;
+  const forbidden = isError && isForbiddenError(listError);
 
   // Deep-link ?partId -> open detail modal (fetch if not on current page)
   useEffect(() => {
@@ -187,9 +199,10 @@ const SparePartList = () => {
     }
     // Not on current page -> fetch by id
     let cancelled = false;
-    sparePartService.getById(partId).then((res: any) => {
+    sparePartService.getById(partId).then((res) => {
       if (cancelled) return;
-      const part = res?.data ?? res;
+      const wrapped = res as { data?: SparePart } | SparePart | undefined;
+      const part = wrapped && 'data' in wrapped ? wrapped.data : (wrapped as SparePart | undefined);
       if (part?.id) {
         setEditingPart(part as SparePart);
         setIsViewMode(true);
@@ -223,7 +236,7 @@ const SparePartList = () => {
       loai: part.loai,
       donVi: part.donVi,
       soLuongTon: String(part.soLuongTon),
-      giaNhap: part.giaNhap !== undefined ? String(part.giaNhap) : '',
+      giaNhap: part.giaNhap != null ? String(part.giaNhap) : '',
       nhaCungCap: part.nhaCungCap ?? '',
       trangThai: part.trangThai,
       ngayMua: part.ngayMua?.split('T')[0] ?? '',
@@ -248,14 +261,6 @@ const SparePartList = () => {
     if (searchParams.get('partId')) updateParams({ partId: null });
   };
 
-  const handleSort = (field: SortBy) => {
-    const nextOrder: SortOrder = sortBy === field && sortOrder === 'asc' ? 'desc' : 'asc';
-    const nextBy: SortBy | '' = field;
-    setSortBy(nextBy);
-    setSortOrder(nextOrder);
-    updateParams({ sortBy: field, sortOrder: nextOrder });
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -277,7 +282,7 @@ const SparePartList = () => {
       }
       toast.success(editingPart ? 'Cập nhật linh kiện thành công' : 'Thêm linh kiện thành công');
       setIsModalOpen(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : 'Có lỗi xảy ra');
     }
   };
@@ -288,19 +293,21 @@ const SparePartList = () => {
       await deleteMutation.mutateAsync(id);
       toast.success('Đã xóa linh kiện');
       if (searchParams.get('partId') === id) updateParams({ partId: null });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : 'Lỗi khi xóa');
     }
   };
 
   const handleExport = async () => {
+    if (exporting) return;
+    setExporting(true);
     try {
       const response = await sparePartService.exportExcel({
         search: appliedSearch || undefined,
         loai: filterLoai || undefined,
         trangThai: filterTrangThai || undefined,
-      }) as any;
-      const url = window.URL.createObjectURL(new Blob([response]));
+      });
+      const url = window.URL.createObjectURL(new Blob([response as unknown as BlobPart]));
       const link = document.createElement('a');
       link.href = url;
       link.download = `danh-sach-linh-kien-${Date.now()}.xlsx`;
@@ -308,17 +315,21 @@ const SparePartList = () => {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Export error:', error);
+    } catch (error: unknown) {
+      toast.error(isForbiddenError(error) ? 'Bạn không có quyền xuất danh sách này' : 'Xuất Excel thất bại');
+    } finally {
+      setExporting(false);
     }
   };
 
   const loaiLabel = (v: string) => LOAI_OPTIONS.find(o => o.value === v)?.label ?? v;
+  const formatDate = (v?: string | null) => (v ? new Date(v).toLocaleDateString('vi-VN', DATE_OPTS) : '—');
 
-  const SortIcon = ({ field }: { field: SortBy }) => {
-    if (sortBy !== field) return <ChevronDown size={12} className="opacity-30" />;
-    return <span className="text-blue-600 text-xs">{sortOrder === 'asc' ? '▲' : '▼'}</span>;
-  };
+  const hasActiveFilter = Boolean(appliedSearch || filterLoai || filterTrangThai);
+  const selectedPartId = searchParams.get('partId');
+  const goToPage = (np: number) => { setCurrentPage(np); updateParams({ page: String(np) }); };
+  const pageCount = Math.max(1, totalPages);
+  const applySearch = () => { setCurrentPage(1); setAppliedSearch(search); updateParams({ q: search || null, page: null }); };
 
   // Init partId from URL on mount already handled via effect above; need to ensure deep-link works even before data loads
   // Also handle browser back closing modal
@@ -328,21 +339,20 @@ const SparePartList = () => {
     }
   }, [searchParams.get('partId')]);
 
-  // Suppress unused var warning for initPartId (used to seed state)
-  void initPartId;
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold text-gray-800">Danh sách linh kiện</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Tổng: {total} linh kiện</p>
+          <p className="text-sm text-gray-500 mt-0.5">{isError ? 'Không tải được dữ liệu' : `Tổng: ${Number(total).toLocaleString('vi-VN')} linh kiện · Mới nhất trước`}</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={handleExport} className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-            <Download size={16} /> Xuất Excel
-          </button>
-          {canWrite && (
+          {!forbidden && (
+            <button type="button" onClick={handleExport} disabled={exporting} className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed">
+              <Download size={16} aria-hidden="true" /> {exporting ? 'Đang xuất…' : 'Xuất Excel'}
+            </button>
+          )}
+          {canWrite && !forbidden && (
             <button onClick={openCreateModal} className="flex items-center gap-1.5 px-3 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700">
               <Plus size={16} /> Thêm linh kiện
             </button>
@@ -350,25 +360,32 @@ const SparePartList = () => {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <div className="flex-1 min-w-[200px] flex gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-1 min-w-[240px] gap-2">
           <input
-            type="text"
+            type="search"
+            aria-label="Tìm linh kiện theo mã hoặc tên"
             placeholder="Tìm mã, tên linh kiện..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && (setCurrentPage(1), setAppliedSearch(search), updateParams({ q: search || null, page: null }))}
-            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onKeyDown={e => { if (e.key === 'Enter') applySearch(); }}
+            className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <button onClick={() => { setCurrentPage(1); setAppliedSearch(search); updateParams({ q: search || null, page: null }); }} className="px-3 py-2 text-sm bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200">
-            <Search size={16} />
+          <button
+            type="button"
+            onClick={applySearch}
+            title="Tìm kiếm"
+            aria-label="Tìm kiếm"
+            className="shrink-0 px-3 py-2 text-sm text-gray-600 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          >
+            <Search size={16} aria-hidden="true" />
           </button>
         </div>
-        <select value={filterLoai} onChange={e => { const v = e.target.value; setFilterLoai(v); setCurrentPage(1); updateParams({ loai: v || null, page: null }); }} className="px-3 py-2 text-sm border border-gray-300 rounded-lg">
+        <select aria-label="Lọc theo loại" value={filterLoai} onChange={e => { const v = e.target.value; setFilterLoai(v); setCurrentPage(1); updateParams({ loai: v || null, page: null }); }} className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Tất cả loại</option>
           {LOAI_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        <select value={filterTrangThai} onChange={e => { const v = e.target.value; setFilterTrangThai(v); setCurrentPage(1); updateParams({ trangThai: v || null, page: null }); }} className="px-3 py-2 text-sm border border-gray-300 rounded-lg">
+        <select aria-label="Lọc theo trạng thái" value={filterTrangThai} onChange={e => { const v = e.target.value; setFilterTrangThai(v); setCurrentPage(1); updateParams({ trangThai: v || null, page: null }); }} className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Tất cả trạng thái</option>
           {TRANG_THAI_OPTIONS.map(v => <option key={v} value={v}>{v}</option>)}
         </select>
@@ -376,38 +393,98 @@ const SparePartList = () => {
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[700px]">
+          <table className="w-full border-collapse text-sm min-w-[640px]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th onClick={() => handleSort('maLinhKien')} className="px-3 py-2.5 text-left font-medium text-gray-500 text-xs sticky left-0 bg-gray-50 z-10 min-w-[100px] cursor-pointer select-none hover:text-gray-700">Mã linh kiện <SortIcon field="maLinhKien" /></th>
-                <th onClick={() => handleSort('tenLinhKien')} className="px-3 py-2.5 text-left font-medium text-gray-500 text-xs min-w-[150px] cursor-pointer select-none hover:text-gray-700">Tên linh kiện <SortIcon field="tenLinhKien" /></th>
-                <th className="px-3 py-2.5 text-left font-medium text-gray-500 text-xs min-w-[80px]">Loại</th>
-                <th className="px-3 py-2.5 text-left font-medium text-gray-500 text-xs min-w-[60px]">Đơn vị</th>
-                <th onClick={() => handleSort('soLuongTon')} className="px-3 py-2.5 text-left font-medium text-gray-500 text-xs min-w-[60px] cursor-pointer select-none hover:text-gray-700">SL tồn <SortIcon field="soLuongTon" /></th>
-                <th className="px-3 py-2.5 text-left font-medium text-gray-500 text-xs min-w-[120px]">Nhà cung cấp</th>
-                <th className="px-3 py-2.5 text-left font-medium text-gray-500 text-xs min-w-[100px]">Trạng thái</th>
-                <th className="px-3 py-2.5 text-right font-medium text-gray-500 text-xs sticky right-0 bg-gray-50 z-10 min-w-[90px]">Thao tác</th>
+                <th scope="col" className={`${TH} ${STICKY_LEFT} bg-gray-50 w-[140px]`}>Mã linh kiện</th>
+                <th scope="col" className={`${TH} min-w-[200px]`}>Tên linh kiện</th>
+                <th scope="col" className={`${TH} w-[90px]`}>Loại</th>
+                <th scope="col" className={`${TH} w-[100px] text-right`}>SL tồn</th>
+                <th scope="col" className={`${TH} hidden xl:table-cell w-[120px] text-right`}>Giá nhập</th>
+                <th scope="col" className={`${TH} hidden xl:table-cell w-[160px]`}>Nhà cung cấp</th>
+                <th scope="col" className={`${TH} w-[120px]`}>Trạng thái</th>
+                <th scope="col" className={`${TH} ${STICKY_RIGHT} bg-gray-50 w-[90px] text-right`}>Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {loading ? (
-                <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr>
-              ) : parts.length === 0 ? (
-                <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">Không có dữ liệu</td></tr>
-              ) : parts.map((part) => (
-                <tr key={part.id} onClick={() => openViewModal(part)} className={`border-l-2 cursor-pointer transition-all ${searchParams.get('partId') === part.id ? 'bg-blue-50 border-l-blue-600' : 'border-l-transparent hover:bg-blue-100 hover:border-l-blue-500'}`}>
-                  <td className="px-3 py-2.5 sticky left-0 bg-white z-10 font-mono text-xs text-blue-700 font-medium">{part.maLinhKien}</td>
-                  <td className="px-3 py-2.5 font-medium text-gray-800">{part.tenLinhKien}</td>
-                  <td className="px-3 py-2.5 text-gray-600 text-xs">{loaiLabel(part.loai)}</td>
-                  <td className="px-3 py-2.5 text-gray-600 text-xs">{part.donVi}</td>
-                  <td className="px-3 py-2.5 font-medium">{part.soLuongTon}</td>
-                  <td className="px-3 py-2.5 text-gray-600 text-xs">{part.nhaCungCap ?? '—'}</td>
-                  <td className="px-3 py-2.5">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${trangThaiBadge(part.trangThai)}`}>
-                      {part.trangThai}
-                    </span>
+              {isError ? (
+                <tr>
+                  <td colSpan={COL_COUNT} className="px-3 py-10 text-center">
+                    <p role="alert" className="text-sm font-medium text-gray-700">
+                      {forbidden ? 'Bạn không có quyền xem danh sách này' : 'Không tải được danh sách linh kiện'}
+                    </p>
+                    {!forbidden && (
+                      <button
+                        type="button"
+                        onClick={() => { void refetch(); }}
+                        disabled={isFetching}
+                        className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-blue-600 hover:bg-gray-50 disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                      >
+                        <RefreshCw size={14} aria-hidden="true" className={isFetching ? 'animate-spin' : ''} /> Thử lại
+                      </button>
+                    )}
                   </td>
-                  <td className="px-3 py-2.5 sticky right-0 bg-white z-10" onClick={(e) => e.stopPropagation()}>
+                </tr>
+              ) : loading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={`sk-${i}`} aria-hidden="true">
+                    {Array.from({ length: COL_COUNT }).map((__, j) => (
+                      <td key={j} className={`px-3 py-3 ${j === 4 || j === 5 ? 'hidden xl:table-cell' : ''}`}>
+                        <div className={`h-3.5 rounded bg-gray-200 animate-pulse ${j === 1 ? 'w-4/5' : 'w-2/3'}`} />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : parts.length === 0 ? (
+                <tr>
+                  <td colSpan={COL_COUNT} className="px-3 py-10 text-center">
+                    <p className="text-sm font-medium text-gray-600">
+                      {hasActiveFilter ? 'Không có linh kiện nào khớp với bộ lọc hiện tại' : 'Chưa có linh kiện nào trong danh sách'}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-400">
+                      {hasActiveFilter ? 'Thử đổi từ khóa tìm kiếm, loại hoặc trạng thái.' : canWrite ? 'Bấm "Thêm linh kiện" để tạo linh kiện đầu tiên.' : 'Linh kiện sẽ hiển thị tại đây khi bộ phận Kỹ thuật thêm vào.'}
+                    </p>
+                  </td>
+                </tr>
+              ) : parts.map((part) => {
+                const isSelected = selectedPartId === part.id;
+                // Sticky cells need an explicit background that follows the row state
+                const stickyBg = isSelected ? 'bg-blue-50' : 'bg-white group-hover:bg-gray-50';
+                const loai = loaiLabel(part.loai);
+                return (
+                <tr
+                  key={part.id}
+                  onClick={() => openViewModal(part)}
+                  className={`group cursor-pointer transition-colors ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                >
+                  <td className={`${TD} ${STICKY_LEFT} ${stickyBg} whitespace-nowrap ${isSelected ? 'border-l-2 border-l-blue-600' : 'border-l-2 border-l-transparent'}`}>
+                    <span className="font-mono text-xs font-medium text-blue-700">{part.maLinhKien}</span>
+                  </td>
+                  <td className={TD}>
+                    <p className="max-w-[320px] line-clamp-2 font-medium text-gray-800" title={part.tenLinhKien}>{part.tenLinhKien}</p>
+                  </td>
+                  <td className={`${TD} whitespace-nowrap text-xs text-gray-600`}>{loai}</td>
+                  <td className={`${TD} whitespace-nowrap text-right tabular-nums`}>
+                    <span className={`font-medium ${Number(part.soLuongTon ?? 0) === 0 ? 'text-red-600' : 'text-gray-800'}`}>
+                      {Number(part.soLuongTon ?? 0).toLocaleString('vi-VN')}
+                    </span>
+                    {part.donVi && <span className="ml-1 text-xs text-gray-500">{part.donVi}</span>}
+                    {Number(part.soLuongTon ?? 0) === 0 && (
+                      <span className="ml-1.5 rounded bg-red-50 px-1 py-0.5 text-[10px] font-medium text-red-700">Hết</span>
+                    )}
+                  </td>
+                  <td className={`${TD} hidden xl:table-cell whitespace-nowrap text-right tabular-nums text-xs text-gray-700`}>
+                    {part.giaNhap != null ? formatVND(part.giaNhap) : <span className="text-gray-400">—</span>}
+                  </td>
+                  <td className={`${TD} hidden xl:table-cell text-xs text-gray-600`}>
+                    {part.nhaCungCap
+                      ? <p className="max-w-[160px] truncate" title={part.nhaCungCap}>{part.nhaCungCap}</p>
+                      : <span className="text-gray-400">—</span>}
+                  </td>
+                  <td className={`${TD} whitespace-nowrap`}>
+                    <StatusBadge label={part.trangThai} tone={trangThaiTone(part.trangThai)} />
+                  </td>
+                  <td className={`px-3 py-1.5 align-middle ${STICKY_RIGHT} ${stickyBg}`} onClick={(e) => e.stopPropagation()}>
                     <ResponsiveRowActions
                       actions={[
                         ...(canWrite ? [{ key: 'edit', label: 'Sửa linh kiện', icon: <Edit size={14} />, onClick: () => openEditModal(part), tone: 'success' } satisfies RowAction] : []),
@@ -416,16 +493,19 @@ const SparePartList = () => {
                     />
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
-            <p className="text-sm text-gray-500">Trang {currentPage} / {totalPages}</p>
+        {!loading && !isError && parts.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-gray-200">
+            <p className="text-sm text-gray-500">
+              Trang {currentPage}/{pageCount}
+            </p>
             <div className="flex gap-1">
-              <button disabled={currentPage === 1} onClick={() => { const np = currentPage - 1; setCurrentPage(np); updateParams({ page: String(np) }); }} className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-40">Trước</button>
-              <button disabled={currentPage === totalPages} onClick={() => { const np = currentPage + 1; setCurrentPage(np); updateParams({ page: String(np) }); }} className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-40">Sau</button>
+              <button type="button" disabled={currentPage <= 1} onClick={() => goToPage(currentPage - 1)} className="px-3 py-1 text-sm text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">Trước</button>
+              <button type="button" disabled={currentPage >= pageCount} onClick={() => goToPage(currentPage + 1)} className="px-3 py-1 text-sm text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">Sau</button>
             </div>
           </div>
         )}
@@ -438,7 +518,7 @@ const SparePartList = () => {
             <h3 className="font-semibold text-gray-800">
               {isViewMode ? 'Chi tiết linh kiện' : editingPart ? 'Chỉnh sửa linh kiện' : 'Thêm linh kiện mới'}
             </h3>
-            <button onClick={closeModal} className="p-1.5 hover:bg-gray-100 rounded"><X size={18} /></button>
+            <button type="button" onClick={closeModal} title="Đóng" aria-label="Đóng" className="p-1.5 hover:bg-gray-100 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"><X size={18} aria-hidden="true" /></button>
           </div>
 
           <div className="overflow-y-auto flex-1">
@@ -448,14 +528,14 @@ const SparePartList = () => {
                   <div><span className="text-gray-500">Mã linh kiện:</span><p className="font-mono font-medium text-blue-700">{editingPart.maLinhKien}</p></div>
                   <div><span className="text-gray-500">Loại:</span><p>{loaiLabel(editingPart.loai)}</p></div>
                   <div className="col-span-2"><span className="text-gray-500">Tên linh kiện:</span><p className="font-medium">{editingPart.tenLinhKien}</p></div>
-                  <div><span className="text-gray-500">Đơn vị:</span><p>{editingPart.donVi}</p></div>
-                  <div><span className="text-gray-500">Số lượng tồn:</span><p className="font-medium">{editingPart.soLuongTon}</p></div>
-                  <div><span className="text-gray-500">Giá nhập:</span><p>{editingPart.giaNhap !== undefined ? editingPart.giaNhap.toLocaleString('vi-VN') + ' đ' : '—'}</p></div>
-                  <div><span className="text-gray-500">Nhà cung cấp:</span><p>{editingPart.nhaCungCap ?? '—'}</p></div>
+                  <div><span className="text-gray-500">Đơn vị:</span><p>{editingPart.donVi || '—'}</p></div>
+                  <div><span className="text-gray-500">Số lượng tồn:</span><p className="font-medium">{Number(editingPart.soLuongTon ?? 0).toLocaleString('vi-VN')}</p></div>
+                  <div><span className="text-gray-500">Giá nhập:</span><p>{editingPart.giaNhap != null ? formatVND(editingPart.giaNhap) : '—'}</p></div>
+                  <div><span className="text-gray-500">Nhà cung cấp:</span><p>{editingPart.nhaCungCap || '—'}</p></div>
                   <div><span className="text-gray-500">Trạng thái:</span>
-                    <p><span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium mt-1 ${trangThaiBadge(editingPart.trangThai)}`}>{editingPart.trangThai}</span></p>
+                    <p className="mt-1"><StatusBadge label={editingPart.trangThai} tone={trangThaiTone(editingPart.trangThai)} /></p>
                   </div>
-                  <div><span className="text-gray-500">Ngày mua:</span><p>{editingPart.ngayMua ? new Date(editingPart.ngayMua).toLocaleDateString('vi-VN') : '—'}</p></div>
+                  <div><span className="text-gray-500">Ngày mua:</span><p>{formatDate(editingPart.ngayMua)}</p></div>
                 </div>
                 {editingPart.fileDinhKem && (
                   <div><span className="text-gray-500">File đính kèm:</span>
