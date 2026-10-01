@@ -1,23 +1,36 @@
 import { Response, NextFunction } from 'express';
 import type { AuthenticatedRequest } from '@types';
-import inspectionRequestService from '@services/inspectionRequestService';
+import inspectionRequestService, { type InspectionRequestFilters } from '@services/inspectionRequestService';
 import { getFileUrl } from '@middlewares/upload';
 import { InspectionRequestStatus } from '@prisma/client';
 import logger from '@config/logger';
+
+function parseListFilters(req: AuthenticatedRequest): InspectionRequestFilters {
+  const filters: InspectionRequestFilters = {};
+  if (req.query.search) filters.search = req.query.search as string;
+  if (req.query.trangThai) {
+    const raw = req.query.trangThai as string;
+    if (Object.values(InspectionRequestStatus).includes(raw as InspectionRequestStatus)) filters.trangThai = raw as InspectionRequestStatus;
+  }
+  return filters;
+}
 
 class InspectionRequestController {
   async getAll(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
-      const filters: { search?: string; trangThai?: InspectionRequestStatus } = {};
-      if (req.query.search) filters.search = req.query.search as string;
-      if (req.query.trangThai) {
-        const raw = req.query.trangThai as string;
-        if (Object.values(InspectionRequestStatus).includes(raw as InspectionRequestStatus)) filters.trangThai = raw as InspectionRequestStatus;
-      }
-      const result = await inspectionRequestService.getAllInspectionRequests(page, limit, filters);
+      const result = await inspectionRequestService.getAllInspectionRequests(page, limit, parseListFilters(req));
       res.json({ success: true, data: result.data, pagination: result.pagination });
+    } catch (error) { next(error); }
+  }
+
+  async exportToExcel(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const buffer = await inspectionRequestService.exportToExcel(parseListFilters(req));
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=danh-sach-phieu-kiem-tra-${Date.now()}.xlsx`);
+      res.send(buffer);
     } catch (error) { next(error); }
   }
 
@@ -65,7 +78,8 @@ class InspectionRequestController {
         ...(items !== undefined && { items }),
       };
       if (req.file) data.fileDinhKem = getFileUrl('inspection-requests', req.file.filename);
-      const row = await inspectionRequestService.updateInspectionRequest(id, data as never);
+      const actor = { actorId: req.user?.id, actorRole: req.user?.role };
+      const row = await inspectionRequestService.updateInspectionRequest(id, data as never, actor);
       res.json({ success: true, data: row, message: 'Cập nhật phiếu kiểm tra thành công' });
     } catch (error) { next(error); }
   }

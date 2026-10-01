@@ -76,6 +76,7 @@ class RepairRequestController {
         fileDinhKem: req.file ? getFileUrl('repair-requests', req.file.filename) : req.body.fileDinhKem ?? undefined,
         ...(items !== undefined && { items }),
         userId: req.user?.id,
+        actorRole: req.user?.role,
         ...(req.body.requestType !== undefined && { requestType: req.body.requestType }),
         ...(req.body.sourceInspectionRequestId !== undefined && { sourceInspectionRequestId: req.body.sourceInspectionRequestId }),
         ...(req.body.ngayHoanThienDuKien !== undefined && { ngayHoanThienDuKien: req.body.ngayHoanThienDuKien ? new Date(req.body.ngayHoanThienDuKien) : null }),
@@ -144,13 +145,14 @@ class RepairRequestController {
       if (req.body.gioCongThucTe !== undefined) data.gioCongThucTe = req.body.gioCongThucTe != null ? Number(req.body.gioCongThucTe) : null;
       if (req.body.canNgungMay !== undefined) data.canNgungMay = Boolean(req.body.canNgungMay);
       if (req.body.phongBanId !== undefined) data.phongBanId = req.body.phongBanId;
-      if (req.body.ketQuaNghiemThu !== undefined) data.ketQuaNghiemThu = req.body.ketQuaNghiemThu;
+      // ketQuaNghiemThu is never accepted here — it is written only by confirm-acceptance.
 
       if (req.file) {
         data.fileDinhKem = getFileUrl('repair-requests', req.file.filename);
       }
 
-      const updated = await repairRequestService.updateRepairRequest(id, data as never);
+      const actor = { actorId: req.user?.id, actorRole: req.user?.role };
+      const updated = await repairRequestService.updateRepairRequest(id, data as never, actor);
 
       res.json({
         success: true,
@@ -178,13 +180,17 @@ class RepairRequestController {
 
   async exportToExcel(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const filters: { search?: string; trangThai?: RepairRequestStatus } = {};
+      const filters: { search?: string; trangThai?: RepairRequestStatus; requestType?: RequestType } = {};
       if (req.query.search) filters.search = req.query.search as string;
       if (req.query.trangThai) {
         const raw = req.query.trangThai as string;
         if (Object.values(RepairRequestStatus).includes(raw as RepairRequestStatus)) {
           filters.trangThai = raw as RepairRequestStatus;
         }
+      }
+      if (req.query.requestType) {
+        const raw = req.query.requestType as string;
+        if (Object.values(RequestType).includes(raw as RequestType)) filters.requestType = raw as RequestType;
       }
       const buffer = await repairRequestService.exportToExcel(filters);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -295,9 +301,9 @@ class RepairRequestController {
       const id = parseInt(req.params.id as string, 10);
       const actor = { actorId: req.user?.id, actorRole: req.user?.role };
       const ketQua = req.body.ketQua as string;
-      const chiPhiThucTe = req.body.chiPhiThucTe != null && req.body.chiPhiThucTe !== '' ? Number(req.body.chiPhiThucTe) : undefined;
+      // chiPhiThucTe from the confirmer is ignored — actual cost is set by technicians.
       const lyDo = (req.body.lyDo ?? req.body.reason) as string | undefined;
-      const result = await repairRequestService.confirmAcceptance(id, actor, ketQua as never, chiPhiThucTe, lyDo);
+      const result = await repairRequestService.confirmAcceptance(id, actor, ketQua as never, lyDo);
       res.json({ success: true, data: result, message: ketQua === 'DAT' ? 'Nghiệm thu đạt' : 'Nghiệm thu không đạt — quay lại sửa chữa' });
     } catch (error) { next(error); }
   }
@@ -328,6 +334,16 @@ class RepairRequestController {
       const actor = { actorId: req.user?.id, actorRole: req.user?.role };
       const result = await repairRequestService.complete(id, actor);
       res.json({ success: true, data: result, message: 'Hoàn thành yêu cầu thành công' });
+    } catch (error) { next(error); }
+  }
+
+  /** Technician-only actual execution fields (cost, hours, content) after acceptance. Body validated by repairActualFieldsSchema. */
+  async updateActualFields(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = parseInt(req.params.id as string, 10);
+      const actor = { actorId: req.user?.id, actorRole: req.user?.role };
+      const result = await repairRequestService.updateActualFields(id, req.body as never, actor);
+      res.json({ success: true, data: result, message: 'Đã cập nhật thông tin thực tế' });
     } catch (error) { next(error); }
   }
 

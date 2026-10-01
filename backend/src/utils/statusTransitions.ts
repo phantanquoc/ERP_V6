@@ -244,6 +244,10 @@ function resolveAdvanceArgs(
   return { bypass, requestType };
 }
 
+// ADMIN may skip forward only up to this step; acceptance (DA_NGHIEM_THU) and completion
+// (HOAN_THANH) are always reached one step at a time through confirmAcceptance / complete.
+const ADMIN_SKIP_LIMIT_INDEX = REPAIR_STATUS_ORDER.indexOf(RepairRequestStatus.CHO_NGHIEM_THU);
+
 /**
  * Validate and return the next RepairRequest status.
  *
@@ -251,15 +255,15 @@ function resolveAdvanceArgs(
  *   advanceRepairRequestStatus(current, next, { bypass, requestType })
  *   advanceRepairRequestStatus(current, next, isAdmin, requestType)  // task spec
  *
- * Rules:
+ * Rules (ADMIN bypass included — nobody leaves a terminal state or goes backward):
  *  1. next === current → no-op
- *  2. current is terminal → reject
- *  3. Loop DA_NGHIEM_THU --KHONG_DAT--> DANG_SUA_CHUA is always allowed
- *  4. TU_CHOI only from CHO_XU_LY | DA_TIEP_NHAN | LEN_KE_HOACH
- *  5. DA_HUY: normal before DANG_SUA_CHUA, ADMIN up to CHO_NGHIEM_THU (never after DA_NGHIEM_THU)
- *  6. KIEM_TRA guards: only CHO_XU_LY -> DA_TIEP_NHAN -> HOAN_THANH (+ TU_CHOI/DA_HUY from first two)
- *  7. Backward compat: CHO_XU_LY -> DANG_SUA_CHUA always allowed (old 4-state path)
- *  8. Forward-only: ADMIN may jump forward arbitrarily; normal requires immediate successor
+ *  2. current is terminal → reject (also for ADMIN)
+ *  3. TU_CHOI only from CHO_XU_LY | DA_TIEP_NHAN | LEN_KE_HOACH
+ *  4. DA_HUY: normal before DANG_SUA_CHUA, ADMIN up to CHO_NGHIEM_THU (never after DA_NGHIEM_THU)
+ *  5. KIEM_TRA (legacy rows) guards: only CHO_XU_LY -> DA_TIEP_NHAN -> HOAN_THANH, one step at a time
+ *  6. Forward-only: normal requires the immediate successor; ADMIN may skip forward but only up to
+ *     CHO_NGHIEM_THU. DA_NGHIEM_THU / HOAN_THANH require the immediate predecessor for everyone.
+ *  The KHÔNG ĐẠT loop (CHO_NGHIEM_THU → DANG_SUA_CHUA) is written only by confirmAcceptance.
  */
 export function advanceRepairRequestStatus(
   current: RepairRequestStatus,
@@ -272,25 +276,10 @@ export function advanceRepairRequestStatus(
 
   if (next === current) return current;
 
-  if (bypass) {
-    if (next === RepairRequestStatus.DA_HUY && current === RepairRequestStatus.DA_NGHIEM_THU) {
-      throw new ValidationError(`Không thể hủy yêu cầu ở trạng thái ${current} (ADMIN chỉ được hủy tới CHO_NGHIEM_THU)`);
-    }
-    return next;
-  }
-
   if (REPAIR_REQUEST_TERMINAL_STATUSES.has(current)) {
     throw new ValidationError(
       `Không thể chuyển trạng thái yêu cầu sửa chữa từ ${current} sang ${next}`
     );
-  }
-
-  // Loop: DA_NGHIEM_THU -> DANG_SUA_CHUA (KHONG_DAT)
-  if (
-    current === RepairRequestStatus.DA_NGHIEM_THU &&
-    next === RepairRequestStatus.DANG_SUA_CHUA
-  ) {
-    return next;
   }
 
   // TU_CHOI branch
@@ -333,43 +322,22 @@ export function advanceRepairRequestStatus(
     // Enforce KIEM_TRA linear order
     const curIdx = KIEM_TRA_ORDER.indexOf(current);
     const nxtIdx = KIEM_TRA_ORDER.indexOf(next);
-    if (curIdx !== -1 && nxtIdx !== -1) {
-      if (bypass) {
-        if (nxtIdx > curIdx) return next;
-      } else {
-        if (nxtIdx === curIdx + 1) return next;
-      }
-    }
+    if (curIdx !== -1 && nxtIdx !== -1 && nxtIdx === curIdx + 1) return next;
     throw new ValidationError(
       `Không thể chuyển trạng thái yêu cầu kiểm tra từ ${current} sang ${next}`
     );
   }
 
-  // Backward compat: old 4-state direct jumps
-  if (
-    current === RepairRequestStatus.CHO_XU_LY &&
-    next === RepairRequestStatus.DANG_SUA_CHUA
-  ) {
-    return next;
-  }
-  if (
-    current === RepairRequestStatus.DANG_SUA_CHUA &&
-    next === RepairRequestStatus.HOAN_THANH
-  ) {
-    return next;
-  }
-
-  // Normal SUA_CHUA (or unknown requestType) linear order
+  // SUA_CHUA (or unknown requestType) linear order. Legacy compat edges
+  // (CHO_XU_LY→DANG_SUA_CHUA, DANG_SUA_CHUA→HOAN_THANH, DA_NGHIEM_THU→DANG_SUA_CHUA) were removed:
+  // they let callers skip planning or bypass the requester's acceptance.
   const order = REPAIR_STATUS_ORDER;
   const currentIndex = order.indexOf(current);
   const nextIndex = order.indexOf(next);
 
   if (currentIndex !== -1 && nextIndex !== -1) {
-    if (bypass) {
-      if (nextIndex > currentIndex) return next;
-    } else {
-      if (nextIndex === currentIndex + 1) return next;
-    }
+    if (nextIndex === currentIndex + 1) return next;
+    if (bypass && nextIndex > currentIndex && nextIndex <= ADMIN_SKIP_LIMIT_INDEX) return next;
   }
 
   throw new ValidationError(

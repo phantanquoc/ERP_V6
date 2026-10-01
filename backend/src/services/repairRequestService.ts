@@ -1,17 +1,56 @@
-import { Prisma, RepairRequestStatus, FaultRecordStatus, RequestType, NghiemThuKetQua } from '@prisma/client';
+import { Prisma, RepairRequestStatus, FaultRecordStatus, RequestType, NghiemThuKetQua, InspectionRequestStatus } from '@prisma/client';
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
-import { NotFoundError, ValidationError } from '@utils/errors';
+import { AuthorizationError, ConflictError, NotFoundError, ValidationError } from '@utils/errors';
 import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import { NotificationEvent } from '@types';
 import notificationService from './notificationService';
 import { advanceRepairRequestStatus } from '@utils/statusTransitions';
 import { closeLinkedFaultRecords } from '@utils/faultRecordCascade';
 import acceptanceHandoverService from '@services/acceptanceHandoverService';
+import { isTechnicalMember } from '@middlewares/technicalAccess';
 import ExcelJS from 'exceljs';
 import logger from '@config/logger';
 
+export const STALE_ROW_MESSAGE = 'Phiếu đã được cập nhật bởi người khác, vui lòng tải lại';
+export const ITEM_IN_USE_MESSAGE = 'Không thể xóa hạng mục đã có nghiệm thu/vật tư/liên kết';
+
+// Technician / ADMIN may edit a YCSC only before acceptance (never in CHO_NGHIEM_THU or later).
+const YCSC_TECH_EDITABLE: ReadonlySet<RepairRequestStatus> = new Set<RepairRequestStatus>([
+  RepairRequestStatus.CHO_XU_LY,
+  RepairRequestStatus.DA_TIEP_NHAN,
+  RepairRequestStatus.LEN_KE_HOACH,
+  RepairRequestStatus.DANG_SUA_CHUA,
+]);
+const YCSC_DELETABLE: ReadonlySet<RepairRequestStatus> = new Set<RepairRequestStatus>([
+  RepairRequestStatus.CHO_XU_LY,
+  RepairRequestStatus.DA_HUY,
+  RepairRequestStatus.TU_CHOI,
+]);
+// Execution fields belong to the technician — never accepted from a non-technical requester.
+const EXECUTION_FIELDS = ['chiPhiThucTe', 'noiDungThucHien', 'gioCongThucTe'] as const;
+const SOURCE_KET_LUAN_CAN_SUA_CHUA = 'CAN_SUA_CHUA';
+// Supply lines closed without further issuing: cancelled, or warehouse decided not to issue
+// (supplyRequestService sets 'Không cấp' with fulfilledQty = 0). They cost only what was issued.
+const CLOSED_SUPPLY_ITEM_STATUSES: ReadonlySet<string> = new Set(['Đã hủy', 'Không cấp']);
+
+const REPAIR_STATUS_LABELS: Record<string, string> = {
+  CHO_XU_LY: 'Chờ xử lý',
+  DA_TIEP_NHAN: 'Đã tiếp nhận',
+  LEN_KE_HOACH: 'Lên kế hoạch',
+  DANG_SUA_CHUA: 'Đang sửa chữa',
+  CHO_NGHIEM_THU: 'Chờ nghiệm thu',
+  DA_NGHIEM_THU: 'Đã nghiệm thu',
+  HOAN_THANH: 'Hoàn thành',
+  DA_HUY: 'Đã hủy',
+  TU_CHOI: 'Từ chối',
+};
+const REQUEST_TYPE_LABELS: Record<string, string> = { SUA_CHUA: 'Sửa chữa', KIEM_TRA: 'Kiểm tra' };
+const KET_QUA_LABELS: Record<string, string> = { DAT: 'Đạt', KHONG_DAT: 'Không đạt' };
+
 interface RepairRequestItemData {
+  /** Existing item id — present when the client edits an item in place. */
+  id?: string;
   machineSystemId?: string;
   machineSystemDetailId?: string;
   tenHeThong: string;
@@ -36,6 +75,7 @@ interface CreateRepairRequestData {
   fileDinhKem?: string;
   items?: RepairRequestItemData[];
   userId?: string;
+  actorRole?: string;
   requestType?: RequestType;
   sourceInspectionRequestId?: string | null;
   ngayHoanThienDuKien?: Date | null;
@@ -88,6 +128,21 @@ interface ActorContext {
   actorRole?: string;
 }
 
+type TransitionRow = {
+  id: number;
+  trangThai: RepairRequestStatus;
+  maYeuCau: string;
+  requestType: RequestType;
+  createdById: string | null;
+};
+
+interface TransitionOptions {
+  extraData?: Prisma.RepairRequestUpdateManyMutationInput;
+  /** Runs inside the transaction on the freshly read row, before the status change. */
+  precheck?: (row: TransitionRow, tx: Prisma.TransactionClient) => Promise<void> | void;
+  afterUpdate?: (tx: Prisma.TransactionClient, maYeuCau: string) => Promise<void>;
+}
+
 const repairRequestInclude = {
   acceptanceHandovers: {
     include: {
@@ -124,6 +179,8 @@ const repairRequestInclude = {
 type PlanCostItem = { supplyRequestItemId: string; tenGoi: string; soLuong: number; price: number | null };
 type ActualCostItem = { supplyRequestItemId: string; tenGoi: string; qty: number; price: number | null };
 
+// faultRecordId / sourceInspectionItemId / phuongAnSua stay `undefined` when the client omitted them,
+// so an in-place item update keeps the stored value instead of clearing it.
 type ResolvedRepairRequestItemData = Omit<RepairRequestItemData, 'machineSystemId' | 'machineSystemDetailId'> & {
   machineSystemId: string | null;
   machineSystemDetailId: string | null;
@@ -210,7 +267,143 @@ class RepairRequestService {
     return request;
   }
 
-  private async resolveRepairItems(items: RepairRequestItemData[] = []): Promise<ResolvedRepairRequestItemData[]> {
+  /** ADMIN or a Kỹ thuật member (primary or secondary department). */
+  private async isPrivileged(actor: ActorContext): Promise<boolean> {
+    if (actor.actorRole === 'ADMIN') return true;
+    if (!actor.actorId) return false;
+    return isTechnicalMember(actor.actorId);
+  }
+
+  /**
+   * Edit permission (shared contract with the frontend):
+   *  - non-technical user: only their own request and only while CHO_XU_LY
+   *  - technician / ADMIN: while the request is before acceptance (≤ DANG_SUA_CHUA)
+   */
+  private assertCanEdit(row: { trangThai: RepairRequestStatus; createdById: string | null }, actor: ActorContext, privileged: boolean): void {
+    if (privileged) {
+      if (!YCSC_TECH_EDITABLE.has(row.trangThai)) {
+        throw new ValidationError('Không thể chỉnh sửa yêu cầu sửa chữa từ bước Chờ nghiệm thu trở đi');
+      }
+      return;
+    }
+    if (!actor.actorId || row.createdById !== actor.actorId) {
+      throw new AuthorizationError('Chỉ người tạo phiếu hoặc bộ phận Kỹ thuật mới được sửa yêu cầu này');
+    }
+    if (row.trangThai !== RepairRequestStatus.CHO_XU_LY) {
+      throw new ValidationError('Chỉ được sửa yêu cầu của mình khi phiếu còn Chờ xử lý');
+    }
+  }
+
+  /** sourceInspectionItemId must belong to the YCSC's source YCKT (and requires a source). */
+  private async assertSourceInspectionItems(sourceInspectionRequestId: number | null, items: Array<{ sourceInspectionItemId?: string | null }>): Promise<void> {
+    const srcItemIds = items.map((it) => it.sourceInspectionItemId).filter((v): v is string => !!v);
+    if (srcItemIds.length === 0) return;
+    if (!sourceInspectionRequestId) {
+      throw new ValidationError('Hạng mục chỉ được liên kết phiếu kiểm tra khi yêu cầu sửa chữa được tạo từ phiếu kiểm tra');
+    }
+    const srcItems = await prisma.inspectionRequestItem.findMany({
+      where: { id: { in: srcItemIds }, inspectionRequestId: sourceInspectionRequestId },
+      select: { id: true },
+    });
+    const foundIds = new Set(srcItems.map((s) => s.id));
+    for (const sid of srcItemIds) {
+      if (!foundIds.has(sid)) {
+        throw new ValidationError(`sourceInspectionItemId không thuộc phiếu kiểm tra nguồn: ${sid}`);
+      }
+    }
+  }
+
+  /**
+   * Sync items of an existing YCSC by id.
+   * Intentional deviation from the "delete-then-recreate" convention: RepairMaterialNeed,
+   * RepairSupplyLink and AcceptanceHandoverItem reference RepairRequestItem.id, so items are diffed —
+   * entries with an id are updated in place, entries without id are created, missing ones are deleted
+   * unless something still references them.
+   */
+  private async syncRepairItems(tx: Prisma.TransactionClient, repairRequestId: number, items: ResolvedRepairRequestItemData[]): Promise<void> {
+    const existing = await tx.repairRequestItem.findMany({ where: { repairRequestId }, select: { id: true } });
+    const existingIds = new Set(existing.map((e) => e.id));
+    const keepIds = new Set<string>();
+    for (const it of items) {
+      if (!it.id) continue;
+      if (!existingIds.has(it.id)) throw new ValidationError('Hạng mục không thuộc yêu cầu sửa chữa này');
+      if (keepIds.has(it.id)) throw new ValidationError('Hạng mục bị trùng trong danh sách');
+      keepIds.add(it.id);
+    }
+
+    const removeIds = existing.map((e) => e.id).filter((eid) => !keepIds.has(eid));
+    if (removeIds.length > 0) {
+      const inRemoved = { repairRequestItemId: { in: removeIds } };
+      const handoverRefs = await tx.acceptanceHandoverItem.count({ where: inRemoved });
+      const needRefs = await tx.repairMaterialNeed.count({ where: inRemoved });
+      const linkRefs = await tx.repairSupplyLink.count({ where: inRemoved });
+      if (handoverRefs + needRefs + linkRefs > 0) throw new ValidationError(ITEM_IN_USE_MESSAGE);
+      await tx.repairRequestItem.deleteMany({ where: { id: { in: removeIds }, repairRequestId } });
+    }
+
+    for (const it of items) {
+      if (!it.id) continue;
+      await tx.repairRequestItem.update({
+        where: { id: it.id },
+        data: {
+          machineSystemId: it.machineSystemId,
+          machineSystemDetailId: it.machineSystemDetailId,
+          tenHeThong: it.tenHeThong,
+          tinhTrangThietBi: it.tinhTrangThietBi,
+          loaiLoi: it.loaiLoi,
+          noiDungLoi: it.noiDungLoi,
+          ...(it.faultRecordId !== undefined && { faultRecordId: it.faultRecordId }),
+          ...(it.sourceInspectionItemId !== undefined && { sourceInspectionItemId: it.sourceInspectionItemId }),
+          ...(it.phuongAnSua !== undefined && { phuongAnSua: it.phuongAnSua }),
+        },
+      });
+    }
+
+    const toCreate = items.filter((it) => !it.id);
+    if (toCreate.length > 0) {
+      await tx.repairRequestItem.createMany({
+        data: toCreate.map((item) => ({
+          repairRequestId,
+          machineSystemId: item.machineSystemId,
+          machineSystemDetailId: item.machineSystemDetailId,
+          tenHeThong: item.tenHeThong,
+          tinhTrangThietBi: item.tinhTrangThietBi,
+          loaiLoi: item.loaiLoi,
+          noiDungLoi: item.noiDungLoi,
+          faultRecordId: item.faultRecordId ?? null,
+          sourceInspectionItemId: item.sourceInspectionItemId ?? null,
+          phuongAnSua: item.phuongAnSua ?? null,
+        })),
+      });
+    }
+  }
+
+  /**
+   * sourceInspectionItemId → faultRecordId for the items of the source YCKT. A YCSC item that comes
+   * from a YCKT item inherits that item's fault link even when the fault record is no longer
+   * DANG_THEO_DOI / TAI_PHAT (the YCKT already decided the link).
+   */
+  private async inheritedFaultBySourceItem(sourceInspectionRequestId: number | null, items: RepairRequestItemData[] = []): Promise<Map<string, string>> {
+    const srcItemIds = items.map((it) => it.sourceInspectionItemId).filter((v): v is string => !!v);
+    if (!sourceInspectionRequestId || srcItemIds.length === 0) return new Map();
+    const rows = await prisma.inspectionRequestItem.findMany({
+      where: { id: { in: srcItemIds }, inspectionRequestId: sourceInspectionRequestId, faultRecordId: { not: null } },
+      select: { id: true, faultRecordId: true },
+    });
+    return new Map(rows.map((r) => [r.id, r.faultRecordId as string]));
+  }
+
+  /**
+   * @param keepFaultIds fault records already linked to the request — their status is not re-validated
+   *                     (a linked record may have moved on since it was attached).
+   * @param inheritedFaults sourceInspectionItemId → faultRecordId of the source YCKT items; an item whose
+   *                     faultRecordId equals its source item's link is accepted without a status check.
+   */
+  private async resolveRepairItems(
+    items: RepairRequestItemData[] = [],
+    keepFaultIds: ReadonlySet<string> = new Set(),
+    inheritedFaults: ReadonlyMap<string, string> = new Map(),
+  ): Promise<ResolvedRepairRequestItemData[]> {
     return Promise.all(items.map(async (item) => {
       let machineSystem = item.machineSystemId
         ? await prisma.machineSystem.findUnique({ where: { id: item.machineSystemId } })
@@ -248,7 +441,8 @@ class RepairRequestService {
           throw new ValidationError(`Bản ghi lỗi không tồn tại: ${item.faultRecordId}`);
         }
         const allowedStatuses: FaultRecordStatus[] = [FaultRecordStatus.DANG_THEO_DOI, FaultRecordStatus.TAI_PHAT];
-        if (!allowedStatuses.includes(fr.trangThai)) {
+        const inherited = !!item.sourceInspectionItemId && inheritedFaults.get(item.sourceInspectionItemId) === fr.id;
+        if (!keepFaultIds.has(fr.id) && !inherited && !allowedStatuses.includes(fr.trangThai)) {
           throw new ValidationError(`Bản ghi lỗi phải ở trạng thái Đang theo dõi hoặc Tái phát để liên kết`);
         }
         resolvedFaultRecordId = fr.id;
@@ -262,9 +456,9 @@ class RepairRequestService {
         tinhTrangThietBi: machineSystemDetail && !item.tinhTrangThietBi
           ? machineSystemDetail.tenChiTiet
           : item.tinhTrangThietBi,
-        faultRecordId: resolvedFaultRecordId,
-        sourceInspectionItemId: item.sourceInspectionItemId ?? null,
-        phuongAnSua: item.phuongAnSua ?? null,
+        faultRecordId: item.faultRecordId === undefined ? undefined : resolvedFaultRecordId,
+        sourceInspectionItemId: item.sourceInspectionItemId === undefined ? undefined : (item.sourceInspectionItemId || null),
+        phuongAnSua: item.phuongAnSua === undefined ? undefined : (item.phuongAnSua ?? null),
       };
     }));
   }
@@ -279,35 +473,30 @@ class RepairRequestService {
     }
     const requestType: RequestType = RequestType.SUA_CHUA;
 
-    let sourceInspectionRequestId: string | null = data.sourceInspectionRequestId ?? null;
+    let sourceInspectionRequestId: string | null = data.sourceInspectionRequestId ? String(data.sourceInspectionRequestId) : null;
     if (sourceInspectionRequestId) {
       const sid = Number(sourceInspectionRequestId);
       if (Number.isNaN(sid)) throw new ValidationError(`Phiếu kiểm tra nguồn không hợp lệ: ${sourceInspectionRequestId}`);
-      const src = await (prisma.inspectionRequest as unknown as { findUnique: (a: unknown) => Promise<{ id: number } | null> }).findUnique({
+      // Creating a YCSC from a YCKT is a technician step (it also decides who confirms acceptance).
+      if (!(await this.isPrivileged({ actorId: data.userId, actorRole: data.actorRole }))) {
+        throw new AuthorizationError('Chỉ nhân viên bộ phận Kỹ thuật mới được tạo yêu cầu sửa chữa từ phiếu kiểm tra');
+      }
+      const src = await prisma.inspectionRequest.findUnique({
         where: { id: sid },
-        select: { id: true },
+        select: { id: true, trangThai: true, ketLuan: true },
       });
       if (!src) throw new ValidationError(`Phiếu kiểm tra nguồn không tồn tại: ${sourceInspectionRequestId}`);
+      if (src.trangThai !== InspectionRequestStatus.DA_KIEM_TRA || src.ketLuan !== SOURCE_KET_LUAN_CAN_SUA_CHUA) {
+        throw new ValidationError('Chỉ tạo yêu cầu sửa chữa từ phiếu kiểm tra đã kiểm tra với kết luận Cần sửa chữa');
+      }
       sourceInspectionRequestId = String(src.id);
     }
 
-    const resolvedItems = await this.resolveRepairItems(data.items);
+    const sourceId = sourceInspectionRequestId ? Number(sourceInspectionRequestId) : null;
+    const inheritedFaults = await this.inheritedFaultBySourceItem(sourceId, data.items);
+    const resolvedItems = await this.resolveRepairItems(data.items, new Set(), inheritedFaults);
 
-    if (sourceInspectionRequestId && resolvedItems.some((it) => it.sourceInspectionItemId)) {
-      const srcItemIds = resolvedItems.filter((it) => it.sourceInspectionItemId).map((it) => it.sourceInspectionItemId!);
-      if (srcItemIds.length > 0) {
-        const srcItems = await (prisma.inspectionRequestItem as unknown as { findMany: (a: unknown) => Promise<Array<{ id: string }>> }).findMany({
-          where: { id: { in: srcItemIds }, inspectionRequestId: Number(sourceInspectionRequestId) },
-          select: { id: true },
-        });
-        const foundIds = new Set(srcItems.map((s) => s.id));
-        for (const sid of srcItemIds) {
-          if (!foundIds.has(sid)) {
-            throw new ValidationError(`sourceInspectionItemId không thuộc phiếu kiểm tra nguồn: ${sid}`);
-          }
-        }
-      }
-    }
+    await this.assertSourceInspectionItems(sourceId, resolvedItems);
 
     const firstItem = resolvedItems.length > 0 ? resolvedItems[0] : null;
 
@@ -376,6 +565,19 @@ class RepairRequestService {
         });
       }
 
+      // Initial status log (null → CHO_XU_LY) like YCKT, so the timeline starts at creation.
+      // oldStatus is non-nullable on RepairRequestStatusLog, so the creation edge is stored as CHO_XU_LY→CHO_XU_LY.
+      await tx.repairRequestStatusLog.create({
+        data: {
+          repairRequestId: created.id,
+          oldStatus: RepairRequestStatus.CHO_XU_LY,
+          newStatus: RepairRequestStatus.CHO_XU_LY,
+          actorId: data.userId ?? null,
+          actorRole: data.actorRole ?? null,
+          reason: 'create',
+        },
+      });
+
       return tx.repairRequest.findUnique({
         where: { id: created.id },
         include: repairRequestInclude,
@@ -393,8 +595,10 @@ class RepairRequestService {
     return request;
   }
 
-  async updateRepairRequest(id: number, data: UpdateRepairRequestData) {
+  async updateRepairRequest(id: number, data: UpdateRepairRequestData, actor: ActorContext = {}) {
     const existing = await this.getRepairRequestById(id);
+    const privileged = await this.isPrivileged(actor);
+    this.assertCanEdit(existing, actor, privileged);
 
     if ('trangThai' in data && data.trangThai !== undefined) {
       logger.warn(`Ignored client-supplied trangThai on repair-request update (id: ${id})`);
@@ -404,48 +608,50 @@ class RepairRequestService {
     }
 
     const { items, trangThai: _dropped, requestType: _rt, ...scalarData } = data as UpdateRepairRequestData & { trangThai?: string; requestType?: string };
+    const scalar = scalarData as Record<string, unknown>;
+    // Acceptance result is written only by confirmAcceptance.
+    delete scalar.ketQuaNghiemThu;
+    if (!privileged) {
+      for (const f of EXECUTION_FIELDS) delete scalar[f];
+    }
     // For KIEM_TRA, strip planning fields
     if (existing.requestType === RequestType.KIEM_TRA) {
       for (const f of PLANNING_FIELDS) {
-        if (f in scalarData) {
-          delete (scalarData as Record<string, unknown>)[f];
+        if (f in scalar) {
+          delete scalar[f];
           logger.warn(`Ignored planning field ${f} on KIEM_TRA update (id: ${id})`);
         }
       }
     }
-    const resolvedItems = items !== undefined ? await this.resolveRepairItems(items) : undefined;
+    const linkedFaultIds = new Set(existing.items.map((it) => it.faultRecordId).filter((v): v is string => !!v));
+    const inheritedFaults = items !== undefined
+      ? await this.inheritedFaultBySourceItem(existing.sourceInspectionRequestId, items)
+      : new Map<string, string>();
+    const resolvedItems = items !== undefined ? await this.resolveRepairItems(items, linkedFaultIds, inheritedFaults) : undefined;
+    if (resolvedItems) await this.assertSourceInspectionItems(existing.sourceInspectionRequestId, resolvedItems);
 
     const updated = await prisma.$transaction(async (tx) => {
+      // Optimistic guard: the row must still be in the status the permission check saw.
+      const guard = await tx.repairRequest.updateMany({
+        where: { id, trangThai: existing.trangThai },
+        data: { updatedAt: new Date() },
+      });
+      if (guard.count === 0) throw new ConflictError(STALE_ROW_MESSAGE);
+
       if (resolvedItems !== undefined) {
-        await tx.repairRequestItem.deleteMany({ where: { repairRequestId: id } });
-
+        await this.syncRepairItems(tx, id, resolvedItems);
         if (resolvedItems.length > 0) {
-          await tx.repairRequestItem.createMany({
-            data: resolvedItems.map((item) => ({
-              repairRequestId: id,
-              machineSystemId: item.machineSystemId,
-              machineSystemDetailId: item.machineSystemDetailId,
-              tenHeThong: item.tenHeThong,
-              tinhTrangThietBi: item.tinhTrangThietBi,
-              loaiLoi: item.loaiLoi,
-              noiDungLoi: item.noiDungLoi,
-              faultRecordId: item.faultRecordId ?? null,
-              sourceInspectionItemId: item.sourceInspectionItemId ?? null,
-              phuongAnSua: item.phuongAnSua ?? null,
-            })),
-          });
-
           const firstItem = resolvedItems[0];
-          (scalarData as Record<string, unknown>).tenHeThong = firstItem.tenHeThong;
-          (scalarData as Record<string, unknown>).tinhTrangThietBi = firstItem.tinhTrangThietBi;
-          (scalarData as Record<string, unknown>).loaiLoi = firstItem.loaiLoi;
-          (scalarData as Record<string, unknown>).noiDungLoi = firstItem.noiDungLoi;
+          scalar.tenHeThong = firstItem.tenHeThong;
+          scalar.tinhTrangThietBi = firstItem.tinhTrangThietBi;
+          scalar.loaiLoi = firstItem.loaiLoi;
+          scalar.noiDungLoi = firstItem.noiDungLoi;
         }
       }
 
       return tx.repairRequest.update({
         where: { id },
-        data: scalarData as Prisma.RepairRequestUpdateInput,
+        data: scalar as Prisma.RepairRequestUpdateInput,
         include: repairRequestInclude,
       });
     });
@@ -459,27 +665,32 @@ class RepairRequestService {
       },
     }).catch(() => {});
 
-    void existing;
-
     return updated;
   }
 
   // ── Transitions ──────────────────────────────────────────────────────────
 
+  /**
+   * Single status-change path. Reads the row inside the transaction, runs `precheck` on that fresh
+   * row, then writes with an optimistic guard (where trangThai = current) so two concurrent
+   * transitions cannot both succeed from the same source status.
+   */
   private async transition(
     id: number,
     nextStatus: RepairRequestStatus,
     actor: ActorContext,
     reason: string,
-    extraData?: Prisma.RepairRequestUpdateInput,
-    afterUpdate?: (tx: Prisma.TransactionClient, maYeuCau: string) => Promise<void>
+    opts: TransitionOptions = {},
   ) {
+    const { extraData, precheck, afterUpdate } = opts;
     const result = await prisma.$transaction(async (tx) => {
       const request = await tx.repairRequest.findUnique({
         where: { id },
-        select: { id: true, trangThai: true, maYeuCau: true, requestType: true },
+        select: { id: true, trangThai: true, maYeuCau: true, requestType: true, createdById: true },
       });
       if (!request) throw new NotFoundError('Không tìm thấy yêu cầu sửa chữa');
+
+      if (precheck) await precheck(request, tx);
 
       const validated = advanceRepairRequestStatus(
         request.trangThai,
@@ -491,10 +702,11 @@ class RepairRequestService {
         return tx.repairRequest.findUnique({ where: { id }, include: repairRequestInclude });
       }
 
-      await tx.repairRequest.update({
-        where: { id },
+      const guard = await tx.repairRequest.updateMany({
+        where: { id, trangThai: request.trangThai },
         data: { trangThai: validated, ...(extraData ?? {}) },
       });
+      if (guard.count === 0) throw new ConflictError(STALE_ROW_MESSAGE);
 
       await tx.repairRequestStatusLog.create({
         data: {
@@ -531,7 +743,7 @@ class RepairRequestService {
     if (req.requestType === RequestType.KIEM_TRA) {
       throw new ValidationError('Phiếu kiểm tra không đi qua trạng thái này');
     }
-    const extra: Prisma.RepairRequestUpdateInput = {};
+    const extra: Prisma.RepairRequestUpdateManyMutationInput = {};
     if (keHoachData) {
       if (keHoachData.keHoachChiTiet !== undefined) extra.keHoachChiTiet = keHoachData.keHoachChiTiet as string;
       if (keHoachData.phuongAn !== undefined) extra.phuongAn = keHoachData.phuongAn as string;
@@ -559,11 +771,11 @@ class RepairRequestService {
       }
     }
     try {
-      return await this.transition(id, RepairRequestStatus.LEN_KE_HOACH, actor, 'plan', extra);
+      return await this.transition(id, RepairRequestStatus.LEN_KE_HOACH, actor, 'plan', { extraData: extra });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       const code = (e as { code?: string })?.code;
-      if (e instanceof ValidationError || e instanceof NotFoundError) throw e;
+      if (e instanceof ValidationError || e instanceof NotFoundError || e instanceof ConflictError) throw e;
       if (code === 'P2003' || /Foreign key constraint|Invalid.*Date/i.test(msg)) {
         logger.error(`plan: Prisma error id=${id}: ${msg}`);
         throw new ValidationError(msg.includes('phongBanId') || msg.includes('phong_ban') ? 'Phòng ban không hợp lệ' : 'Dữ liệu kế hoạch không hợp lệ');
@@ -591,7 +803,14 @@ class RepairRequestService {
         logger.warn(`RepairRequest ${id} has supplyLinks but no WarehouseIssue yet (warn-mode R4)`);
       }
     }
-    return this.transition(id, RepairRequestStatus.DANG_SUA_CHUA, actor, 'start_repair');
+    return this.transition(id, RepairRequestStatus.DANG_SUA_CHUA, actor, 'start_repair', {
+      // Repair starts only after planning — also for ADMIN, and never re-opens an accepted request.
+      precheck: (row) => {
+        if (row.trangThai !== RepairRequestStatus.LEN_KE_HOACH) {
+          throw new ValidationError('Chỉ bắt đầu sửa chữa khi phiếu đang Lên kế hoạch');
+        }
+      },
+    });
   }
 
   async submitForAcceptance(id: number, actor: ActorContext) {
@@ -599,11 +818,25 @@ class RepairRequestService {
     if (req?.requestType === RequestType.KIEM_TRA) {
       throw new ValidationError('Phiếu kiểm tra không đi qua trạng thái này');
     }
-    const pending = await prisma.acceptanceHandover.count({ where: { repairRequestId: id, ketQua: null } });
-    if (pending === 0 && actor.actorRole !== 'ADMIN') {
-      throw new ValidationError('Vui lòng lập phiếu nghiệm thu trước khi đề nghị nghiệm thu');
+    const found: { slip: Awaited<ReturnType<typeof acceptanceHandoverService.findActivePendingRepairSlip>> } = { slip: null };
+    const result = await this.transition(id, RepairRequestStatus.CHO_NGHIEM_THU, actor, 'submit_acceptance', {
+      // A pending slip is mandatory for every role (ADMIN included) — otherwise the requester has
+      // nothing to confirm. After a KHÔNG ĐẠT the slip must be a new one, created after that decision.
+      precheck: async (row, tx) => {
+        if (row.trangThai !== RepairRequestStatus.DANG_SUA_CHUA) {
+          throw new ValidationError('Chỉ đề nghị nghiệm thu khi phiếu đang Đang sửa chữa');
+        }
+        found.slip = await acceptanceHandoverService.findActivePendingRepairSlip(tx, id);
+        if (!found.slip) {
+          throw new ValidationError('Vui lòng lập phiếu nghiệm thu trước khi đề nghị nghiệm thu');
+        }
+      },
+    });
+    // Ask the requester to confirm only now that the YCSC is really waiting (best-effort, never throws).
+    if (found.slip) {
+      await acceptanceHandoverService.notifyConfirmer(found.slip, found.slip.nguoiXacNhanId, found.slip.nguoiBanGiao);
     }
-    return this.transition(id, RepairRequestStatus.CHO_NGHIEM_THU, actor, 'submit_acceptance');
+    return result;
   }
 
   /**
@@ -611,7 +844,7 @@ class RepairRequestService {
    * Confirmer = creator of the source YCKT if any, else creator of this YCSC (ADMIN may act on behalf).
    * ĐẠT → DA_NGHIEM_THU (technician then completes); KHÔNG ĐẠT (lý do bắt buộc) → back to DANG_SUA_CHUA.
    */
-  async confirmAcceptance(id: number, actor: ActorContext, ketQua: NghiemThuKetQua, chiPhiThucTe?: number, lyDo?: string) {
+  async confirmAcceptance(id: number, actor: ActorContext, ketQua: NghiemThuKetQua, lyDo?: string) {
     if (ketQua !== NghiemThuKetQua.DAT && ketQua !== NghiemThuKetQua.KHONG_DAT) {
       throw new ValidationError('Kết quả nghiệm thu không hợp lệ');
     }
@@ -623,15 +856,18 @@ class RepairRequestService {
       if (r.trangThai !== RepairRequestStatus.CHO_NGHIEM_THU) {
         throw new ValidationError('Chỉ xác nhận nghiệm thu khi phiếu đang Chờ nghiệm thu');
       }
-      await acceptanceHandoverService.recordConfirmationTx(tx, { repairRequestId: id }, actor, ketQua, lyDo);
-
       const next = ketQua === NghiemThuKetQua.DAT ? RepairRequestStatus.DA_NGHIEM_THU : RepairRequestStatus.DANG_SUA_CHUA;
       // KHÔNG ĐẠT goes CHO_NGHIEM_THU → DANG_SUA_CHUA directly; validate the forward step it replaces.
       advanceRepairRequestStatus(r.trangThai, RepairRequestStatus.DA_NGHIEM_THU, { bypass: isAdmin, requestType: r.requestType as string });
-      await tx.repairRequest.update({
-        where: { id },
-        data: { trangThai: next, ketQuaNghiemThu: ketQua, ...(chiPhiThucTe !== undefined ? { chiPhiThucTe } : {}) },
+      // Claim the row first so a concurrent double-confirm fails before touching the slip.
+      // Actual cost is never taken from the confirmer (technicians set it). On KHÔNG ĐẠT the stored
+      // result is cleared — the request is back in re-work and the slip keeps the decision + reason.
+      const guard = await tx.repairRequest.updateMany({
+        where: { id, trangThai: r.trangThai },
+        data: { trangThai: next, ketQuaNghiemThu: ketQua === NghiemThuKetQua.DAT ? ketQua : null },
       });
+      if (guard.count === 0) throw new ConflictError(STALE_ROW_MESSAGE);
+      await acceptanceHandoverService.recordConfirmationTx(tx, { repairRequestId: id }, actor, ketQua, lyDo);
       await tx.repairRequestStatusLog.create({
         data: {
           repairRequestId: id,
@@ -644,9 +880,13 @@ class RepairRequestService {
       });
       return tx.repairRequest.findUnique({ where: { id }, include: repairRequestInclude });
     });
+    const reasonText = String(lyDo ?? '').trim();
+    const statusText = ketQua === NghiemThuKetQua.DAT
+      ? 'Đã nghiệm thu (ĐẠT)'
+      : `Không đạt nghiệm thu — quay lại sửa chữa${reasonText ? ` (lý do: ${reasonText})` : ''}`;
     notificationService.notify(NotificationEvent.REPAIR_REQUEST_UPDATED, {
       entityId: String(id),
-      metadata: { maYeuCau: result?.maYeuCau, status: result?.trangThai },
+      metadata: { maYeuCau: result?.maYeuCau, status: statusText },
     }).catch(() => {});
     return result;
   }
@@ -655,9 +895,24 @@ class RepairRequestService {
     return this.transition(id, RepairRequestStatus.TU_CHOI, actor, reason ?? 'reject');
   }
 
+  /**
+   * Cancel permission: a non-technical user may cancel only their own request while CHO_XU_LY;
+   * technicians / ADMIN follow the DA_HUY allowed-from table of advanceRepairRequestStatus.
+   */
   async cancel(id: number, actor: ActorContext, opts?: { reason?: string }) {
     const reason = opts?.reason ?? (actor.actorRole === 'ADMIN' ? 'admin_override' : 'user_cancel');
-    return this.transition(id, RepairRequestStatus.DA_HUY, actor, reason);
+    const privileged = await this.isPrivileged(actor);
+    return this.transition(id, RepairRequestStatus.DA_HUY, actor, reason, {
+      precheck: (row) => {
+        if (privileged) return;
+        if (!actor.actorId || row.createdById !== actor.actorId) {
+          throw new AuthorizationError('Chỉ người tạo phiếu hoặc bộ phận Kỹ thuật mới được hủy yêu cầu này');
+        }
+        if (row.trangThai !== RepairRequestStatus.CHO_XU_LY) {
+          throw new ValidationError('Chỉ được hủy yêu cầu của mình khi phiếu còn Chờ xử lý');
+        }
+      },
+    });
   }
 
   // ── Cost helpers ─────────────────────────────────────────────────────────
@@ -726,23 +981,24 @@ class RepairRequestService {
     const items: ActualCostItem[] = [];
     let actual = 0;
     for (const it of srItems) {
-      const r = it as any;
-      const qty = Number(r.soLuongThucTe ?? r.fulfilledQty ?? r.soLuong ?? 0);
-      // giaThucTe || giaDuKien || giaThanh catalog
-      let price: number | null = null;
-      if (r.giaThucTe != null && Number(r.giaThucTe) > 0) price = Number(r.giaThucTe);
-      else if (r.giaDuKien != null && Number(r.giaDuKien) > 0) price = Number(r.giaDuKien);
-      else price = await this.resolveGiaThanh(r.tenGoi);
-      items.push({ supplyRequestItemId: r.id, tenGoi: r.tenGoi, qty, price });
+      // SupplyRequestItem has only soLuong (requested), fulfilledQty (issued by warehouse, default 0)
+      // and fulfillmentStatus — no price columns. Quantity = issued qty once the warehouse has issued,
+      // else the requested qty; a cancelled / not-issued ('Không cấp') line costs only what was issued.
+      const fulfilled = Number(it.fulfilledQty ?? 0);
+      const closed = CLOSED_SUPPLY_ITEM_STATUSES.has(String(it.fulfillmentStatus ?? ''));
+      const qty = closed ? fulfilled : (fulfilled > 0 ? fulfilled : Number(it.soLuong ?? 0));
+      const price = qty > 0 ? await this.resolveGiaThanh(it.tenGoi) : null;
+      items.push({ supplyRequestItemId: it.id, tenGoi: it.tenGoi, qty, price });
       if (price != null) actual += price * qty;
     }
 
-    const incidentalCosts = await (prisma as any).repairIncidentalCost?.findMany?.({ where: { repairRequestId } }) ?? [];
+    const incidentalCosts = await prisma.repairIncidentalCost.findMany({ where: { repairRequestId } });
     let incidentalTotal = 0;
     for (const ic of incidentalCosts) incidentalTotal += Number(ic.soTien ?? 0);
     actual += incidentalTotal;
 
-    const itemsWithNullPrice = items.filter((i) => i.price == null);
+    // Only lines that actually cost something need a price.
+    const itemsWithNullPrice = items.filter((i) => i.qty > 0 && i.price == null);
     return { actual, planSnapshot, incidentalTotal, itemsWithNullPrice, items };
   }
 
@@ -752,21 +1008,22 @@ class RepairRequestService {
       const names = itemsWithNullPrice.map((i) => i.tenGoi).join(', ');
       throw new ValidationError(`Không thể hoàn thành: món [${names}] chưa có giá thành. Vui lòng cập nhật giá trước.`);
     }
-    const incidentalCosts = await (prisma as any).repairIncidentalCost?.findMany?.({ where: { repairRequestId: id } }) ?? [];
+    const incidentalCosts = await prisma.repairIncidentalCost.findMany({ where: { repairRequestId: id } });
     for (const ic of incidentalCosts) {
       if (Number(ic.soTien) > 0 && !String(ic.lyDo ?? '').trim()) {
         throw new ValidationError('Không thể hoàn thành: chi phí phát sinh có số tiền > 0 nhưng thiếu lý do');
       }
     }
-    const current = await prisma.repairRequest.findUnique({ where: { id }, select: { trangThai: true } });
-    if (current && current.trangThai !== RepairRequestStatus.DA_NGHIEM_THU && actor.actorRole !== 'ADMIN') {
-      throw new ValidationError('Chỉ hoàn thành khi người yêu cầu đã xác nhận nghiệm thu ĐẠT');
-    }
-    const result = await this.transition(
-      id, RepairRequestStatus.HOAN_THANH, actor, 'complete',
-      { ngayHoanThanhThucTe: new Date() },
-      (tx, maYeuCau) => closeLinkedFaultRecords(tx, id, maYeuCau, actor.actorId ?? null),
-    );
+    const result = await this.transition(id, RepairRequestStatus.HOAN_THANH, actor, 'complete', {
+      extraData: { ngayHoanThanhThucTe: new Date() },
+      // Checked on the row read inside the transaction — ADMIN included (no completion without ĐẠT).
+      precheck: (row) => {
+        if (row.requestType !== RequestType.KIEM_TRA && row.trangThai !== RepairRequestStatus.DA_NGHIEM_THU) {
+          throw new ValidationError('Chỉ hoàn thành khi người yêu cầu đã xác nhận nghiệm thu ĐẠT');
+        }
+      },
+      afterUpdate: (tx, maYeuCau) => closeLinkedFaultRecords(tx, id, maYeuCau, actor.actorId ?? null),
+    });
     notificationService.notify(NotificationEvent.REPAIR_REQUEST_COMPLETED, {
       entityId: String(id),
       metadata: { maYeuCau: result?.maYeuCau },
@@ -795,17 +1052,18 @@ class RepairRequestService {
     if (!bypass && !allowedStatuses.includes(existing.trangThai as RepairRequestStatus)) {
       throw new ValidationError('Chỉ được cập nhật thực tế khi phiếu ở trạng thái Đã nghiệm thu hoặc Hoàn thành');
     }
-    // Validate ketQua enum
-    if (data.ketQuaNghiemThu != null && !Object.values(NghiemThuKetQua).includes(data.ketQuaNghiemThu as NghiemThuKetQua)) {
-      throw new ValidationError('ketQuaNghiemThu phải là DAT hoặc KHONG_DAT');
+    // ketQuaNghiemThu is written only by confirmAcceptance — never through this endpoint.
+    if (data.ketQuaNghiemThu !== undefined) {
+      logger.warn(`Ignored ketQuaNghiemThu on actual-fields update (id: ${id})`);
     }
-    // chiPhiThucTe handled; no extra guard needed beyond min>=0 (Zod)
+    if (data.chiPhiThucTe != null && (!Number.isFinite(Number(data.chiPhiThucTe)) || Number(data.chiPhiThucTe) < 0)) {
+      throw new ValidationError('Chi phí thực tế phải >= 0');
+    }
     const updateData: Prisma.RepairRequestUpdateInput = {};
-    if (data.gioCongThucTe !== undefined) updateData.gioCongThucTe = data.gioCongThucTe as unknown as never;
+    if (data.gioCongThucTe !== undefined) updateData.gioCongThucTe = data.gioCongThucTe;
     if (data.noiDungThucHien !== undefined) updateData.noiDungThucHien = data.noiDungThucHien;
-    if (data.chiPhiThucTe !== undefined) updateData.chiPhiThucTe = data.chiPhiThucTe as unknown as never;
-    if (data.ketQuaNghiemThu !== undefined) updateData.ketQuaNghiemThu = data.ketQuaNghiemThu as unknown as never;
-    if (data.ngayHoanThanhThucTe !== undefined) updateData.ngayHoanThanhThucTe = data.ngayHoanThanhThucTe as unknown as never;
+    if (data.chiPhiThucTe !== undefined) updateData.chiPhiThucTe = data.chiPhiThucTe;
+    if (data.ngayHoanThanhThucTe !== undefined) updateData.ngayHoanThanhThucTe = data.ngayHoanThanhThucTe;
 
     return prisma.repairRequest.update({
       where: { id },
@@ -1344,11 +1602,25 @@ class RepairRequestService {
     };
   }
 
+  /**
+   * Hard delete is allowed (ADMIN included) only for CHO_XU_LY / DA_HUY / TU_CHOI requests without
+   * any acceptance slip — slips are acceptance evidence and must not cascade away.
+   */
   async deleteRepairRequest(id: number) {
-    await this.getRepairRequestById(id);
-
-    await prisma.repairRequest.delete({
-      where: { id },
+    await prisma.$transaction(async (tx) => {
+      const row = await tx.repairRequest.findUnique({
+        where: { id },
+        select: { id: true, trangThai: true, _count: { select: { acceptanceHandovers: true } } },
+      });
+      if (!row) throw new NotFoundError('Không tìm thấy yêu cầu sửa chữa');
+      if (row._count.acceptanceHandovers > 0) {
+        throw new ValidationError('Không thể xóa yêu cầu sửa chữa đã có phiếu nghiệm thu');
+      }
+      if (!YCSC_DELETABLE.has(row.trangThai)) {
+        throw new ValidationError('Chỉ xóa được yêu cầu sửa chữa ở trạng thái Chờ xử lý, Đã hủy hoặc Từ chối');
+      }
+      const deleted = await tx.repairRequest.deleteMany({ where: { id, trangThai: row.trangThai } });
+      if (deleted.count === 0) throw new ConflictError(STALE_ROW_MESSAGE);
     });
 
     return { message: 'Xóa yêu cầu sửa chữa thành công' };
@@ -1377,7 +1649,12 @@ class RepairRequestService {
     const data = await prisma.repairRequest.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      include: { items: { include: { materialNeeds: true } }, assignees: true, supplyLinks: true },
+      include: {
+        items: { include: { materialNeeds: true } },
+        assignees: true,
+        supplyLinks: true,
+        inspectionRequest: { select: { maYeuCau: true } },
+      },
     });
 
     const workbook = new ExcelJS.Workbook();
@@ -1387,6 +1664,7 @@ class RepairRequestService {
       { header: 'STT', key: 'stt', width: 8 },
       { header: 'Ngày tháng', key: 'ngayThang', width: 15 },
       { header: 'Mã yêu cầu', key: 'maYeuCau', width: 20 },
+      { header: 'YCKT nguồn', key: 'maYcktNguon', width: 20 },
       { header: 'Loại phiếu', key: 'loaiPhieu', width: 14 },
       { header: 'Tên hệ thống/thiết bị', key: 'tenHeThong', width: 25 },
       { header: 'Tình trạng thiết bị', key: 'tinhTrangThietBi', width: 20 },
@@ -1411,17 +1689,20 @@ class RepairRequestService {
     let rowIndex = 1;
     data.forEach((request: any) => {
       const ngayThangStr = request.ngayThang ? new Date(request.ngayThang).toLocaleDateString('vi-VN') : '';
-      const loaiPhieu = (request as any).requestType ?? 'SUA_CHUA';
+      const loaiCode = String(request.requestType ?? 'SUA_CHUA');
+      const loaiPhieu = REQUEST_TYPE_LABELS[loaiCode] ?? loaiCode;
       const nguoiThucHien = (request.assignees ?? []).map((a: any) => a.userName ?? a.userId ?? a.id).join(', ');
-      const ketQuaNghiemThu = (request as any).ketQuaNghiemThu ?? '';
+      const ketQuaCode = request.ketQuaNghiemThu ? String(request.ketQuaNghiemThu) : '';
+      const ketQuaNghiemThu = ketQuaCode ? (KET_QUA_LABELS[ketQuaCode] ?? ketQuaCode) : '';
       const ycVatTuLienKet = (request.supplyLinks ?? []).map((l: any) => l.supplyRequestId).join(', ');
       const buildVatTu = (item: any) => (item?.materialNeeds ?? []).map((m: any) => `${m.tenVatTu} x${m.soLuongDuKien ?? ''}${m.donVi ? ' ' + m.donVi : ''}`.trim()).join('; ');
       const baseRow = {
         ngayThang: ngayThangStr,
         maYeuCau: request.maYeuCau,
+        maYcktNguon: request.inspectionRequest?.maYeuCau ?? '',
         loaiPhieu,
         mucDoUuTien: request.mucDoUuTien,
-        trangThai: request.trangThai,
+        trangThai: REPAIR_STATUS_LABELS[String(request.trangThai)] ?? request.trangThai,
         nguoiThucHien,
         ycVatTuLienKet,
         ketQuaNghiemThu,

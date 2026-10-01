@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import prisma from '@config/database';
 import { NotFoundError, ValidationError } from '@utils/errors';
 
@@ -153,7 +154,27 @@ async function fetchRepairRequestsCreator(userId: string, dateWhere: any): Promi
     status: r.trangThai,
     createdAt: r.createdAt,
     role: 'creator' as const,
-    routeHint: `/technical/quality?tab=repairAndFault`,
+    routeHint: `/technical/quality?tab=repairs&repairId=${r.id}`,
+  }));
+}
+
+// YCKT lives in its own table (InspectionRequest), independent of RepairRequest.
+async function fetchInspectionRequestsCreator(userId: string, dateWhere: Prisma.DateTimeFilter | undefined): Promise<HistoryItem[]> {
+  const rows = await prisma.inspectionRequest.findMany({
+    where: { createdById: userId, ...(dateWhere ? { createdAt: dateWhere } : {}) },
+    select: { id: true, maYeuCau: true, trangThai: true, createdAt: true },
+    orderBy: { createdAt: 'desc' },
+  });
+  return rows.map((r) => ({
+    entityType: 'inspection-request',
+    entityId: String(r.id),
+    group: 'Yêu cầu' as HistoryGroup,
+    title: `Yêu cầu kiểm tra ${r.maYeuCau}`,
+    code: r.maYeuCau,
+    status: r.trangThai,
+    createdAt: r.createdAt,
+    role: 'creator' as const,
+    routeHint: `/technical/quality?tab=inspections&inspectionId=${r.id}`,
   }));
 }
 
@@ -357,7 +378,7 @@ async function fetchFaultRecords(userId: string, dateWhere: any): Promise<Histor
     createdAt: r.createdAt,
     role: 'creator' as const,
     metadata: { mucDo: r.mucDo },
-    routeHint: `/technical/quality?tab=repairAndFault`,
+    routeHint: `/technical/quality?tab=faults&faultId=${r.id}`,
   }));
 }
 
@@ -728,6 +749,9 @@ export async function getMyHistory(params: MyHistoryQuery): Promise<MyHistoryRes
   }
   if (shouldQuery(types, 'repair-request')) {
     branches.push(safeWrap(fetchRepairRequestsCreator(userId, dateWhere), 'repair-request'));
+  }
+  if (shouldQuery(types, 'inspection-request')) {
+    branches.push(safeWrap(fetchInspectionRequestsCreator(userId, dateWhere), 'inspection-request'));
   }
   if (shouldQuery(types, 'task')) {
     branches.push(safeWrap(fetchTasksCreator(userId, dateWhere), 'task-creator'));

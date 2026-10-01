@@ -74,34 +74,77 @@ const handoverInclude = {
   },
 } satisfies Prisma.AcceptanceHandoverInclude;
 
+const HANDOVER_CODE_PREFIX = 'NT-';
+const HANDOVER_CODE_MAX_ATTEMPTS = 3;
+
+type SlipNotifyInfo = { id: string; maNghiemThu: string; maYeuCauSuaChua: string; tenHeThongThietBi: string };
+
+/** True for a unique violation on maNghiemThu (or an unknown unique target). */
+function isHandoverCodeConflict(error: unknown): boolean {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') return false;
+  const target = error.meta?.target;
+  if (target === undefined) return true;
+  const text = Array.isArray(target) ? target.join(',') : String(target);
+  return /maNghiemThu|ma_nghiem_thu/i.test(text);
+}
+
 class AcceptanceHandoverService {
   /**
-   * Generate acceptance handover code
-   * Format: NT-{SEQUENCE}
-   * Example: NT-001, NT-002
+   * Next acceptance code NT-{SEQUENCE} (NT-001, NT-002, …, NT-1000).
+   * The max is computed numerically — a string sort would put NT-999 after NT-1000.
    */
-  async generateAcceptanceHandoverCode(): Promise<string> {
-    const lastHandover = await prisma.acceptanceHandover.findFirst({
-      where: {
-        maNghiemThu: {
-          startsWith: 'NT-',
-        },
-      },
-      orderBy: {
-        maNghiemThu: 'desc',
-      },
+  async nextHandoverCode(client: Prisma.TransactionClient = prisma): Promise<string> {
+    const rows = await client.acceptanceHandover.findMany({
+      where: { maNghiemThu: { startsWith: HANDOVER_CODE_PREFIX } },
+      select: { maNghiemThu: true },
     });
+    let max = 0;
+    for (const r of rows) {
+      const n = Number.parseInt(r.maNghiemThu.slice(HANDOVER_CODE_PREFIX.length), 10);
+      if (Number.isFinite(n) && n > max) max = n;
+    }
+    return `${HANDOVER_CODE_PREFIX}${String(max + 1).padStart(3, '0')}`;
+  }
 
-    let sequence = 1;
-    if (lastHandover) {
-      const lastCode = lastHandover.maNghiemThu;
-      const sequenceStr = lastCode.replace('NT-', '');
-      if (sequenceStr) {
-        sequence = parseInt(sequenceStr, 10) + 1;
+  /** Preview code for the UI (not reserved — the real code is generated inside the create transaction). */
+  async generateAcceptanceHandoverCode(): Promise<string> {
+    return this.nextHandoverCode();
+  }
+
+  /**
+   * Run a transaction that generates an NT code, retrying when a concurrent create took the same
+   * code (unique violation aborts the PG transaction, so the whole transaction is re-run).
+   */
+  async withHandoverCodeRetry<T>(run: () => Promise<T>): Promise<T> {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await run();
+      } catch (error) {
+        if (attempt >= HANDOVER_CODE_MAX_ATTEMPTS || !isHandoverCodeConflict(error)) throw error;
+        logger.warn(`[AcceptanceHandoverService] maNghiemThu conflict, retry ${attempt}/${HANDOVER_CODE_MAX_ATTEMPTS - 1}`);
       }
     }
+  }
 
-    return `NT-${String(sequence).padStart(3, '0')}`;
+  /**
+   * The pending (unconfirmed) slip of a YCSC that belongs to the current acceptance round:
+   * the newest slip with ketQua = null created after the last KHÔNG ĐẠT decision.
+   */
+  async findActivePendingRepairSlip(tx: Prisma.TransactionClient, repairRequestId: number) {
+    const lastRejection = await tx.repairRequestStatusLog.findFirst({
+      where: { repairRequestId, reason: { startsWith: 'acceptance_khong_dat' } },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    });
+    return tx.acceptanceHandover.findFirst({
+      where: {
+        repairRequestId,
+        ketQua: null,
+        ...(lastRejection ? { createdAt: { gt: lastRejection.createdAt } } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, maNghiemThu: true, maYeuCauSuaChua: true, tenHeThongThietBi: true, nguoiBanGiao: true, nguoiXacNhanId: true },
+    });
   }
 
   async getAllAcceptanceHandovers(page: number = 1, limit: number = 10, search?: string) {
@@ -236,18 +279,16 @@ class AcceptanceHandoverService {
     if (!Number.isFinite(data.repairRequestId)) {
       throw new ValidationError('Phiếu nghiệm thu phải gắn với một yêu cầu sửa chữa');
     }
-    const maNghiemThu = await this.generateAcceptanceHandoverCode();
-    const isAdmin = data.actorRole === 'ADMIN';
 
-    const { handover, confirmerUserId } =
-      await prisma.$transaction(async (tx) => {
+    const { handover, confirmerUserId, notifyNow } = await this.withHandoverCodeRetry(() =>
+      prisma.$transaction(async (tx) => {
         const repairRequest = await tx.repairRequest.findUnique({
           where: { id: data.repairRequestId },
           select: { id: true, maYeuCau: true, trangThai: true, requestType: true },
         });
         if (!repairRequest) throw new ValidationError('Yêu cầu sửa chữa không hợp lệ');
 
-        if ((repairRequest as unknown as { requestType?: string }).requestType === RequestType.KIEM_TRA) {
+        if (repairRequest.requestType === RequestType.KIEM_TRA) {
           throw new ValidationError('Phiếu kiểm tra không thể tạo nghiệm thu');
         }
 
@@ -256,14 +297,20 @@ class AcceptanceHandoverService {
           if (!wi) throw new ValidationError(`Phiếu xuất kho không tồn tại: ${data.warehouseIssueId}`);
         }
 
-        if (repairRequest.trangThai !== RepairRequestStatus.DANG_SUA_CHUA && repairRequest.trangThai !== RepairRequestStatus.CHO_NGHIEM_THU && repairRequest.trangThai !== RepairRequestStatus.DA_NGHIEM_THU && !isAdmin) {
-          throw new ValidationError(
-            `Chỉ có thể tạo nghiệm thu bàn giao khi yêu cầu sửa chữa đang ở trạng thái Đang sửa chữa`
-          );
+        // Every role (ADMIN included): slips are created while repairing, or — recovery path for legacy
+        // rows pushed to CHO_NGHIEM_THU without a slip — in CHO_NGHIEM_THU when no slip is pending.
+        const isRecovery = repairRequest.trangThai === RepairRequestStatus.CHO_NGHIEM_THU;
+        if (repairRequest.trangThai !== RepairRequestStatus.DANG_SUA_CHUA && !isRecovery) {
+          throw new ValidationError('Chỉ có thể tạo nghiệm thu bàn giao khi yêu cầu sửa chữa đang ở trạng thái Đang sửa chữa');
+        }
+        const pending = await this.findActivePendingRepairSlip(tx, repairRequest.id);
+        if (pending) {
+          throw new ValidationError(`Yêu cầu sửa chữa đã có phiếu nghiệm thu ${pending.maNghiemThu} đang chờ xác nhận`);
         }
 
         const resolvedItems = await this.resolveHandoverItems(data.repairRequestId, data.items, tx);
         const confirmer = await this.resolveRepairConfirmer(tx, repairRequest.id);
+        const maNghiemThu = await this.nextHandoverCode(tx);
         const created = await tx.acceptanceHandover.create({
           data: {
             maNghiemThu,
@@ -303,10 +350,13 @@ class AcceptanceHandoverService {
         });
         if (!handoverWithItems) throw new NotFoundError('Không tìm thấy nghiệm thu bàn giao');
 
-        return { handover: handoverWithItems, confirmerUserId: confirmer.userId };
-      });
+        return { handover: handoverWithItems, confirmerUserId: confirmer.userId, notifyNow: isRecovery };
+      }),
+    );
 
-    await this.notifyConfirmer(handover, confirmerUserId, data.nguoiBanGiao);
+    // Normal flow: the requester is notified when the YCSC reaches CHO_NGHIEM_THU
+    // (repairRequestService.submitForAcceptance). Recovery slip: the YCSC is already waiting.
+    if (notifyNow) await this.notifyConfirmer(handover, confirmerUserId, data.nguoiBanGiao);
     return handover;
   }
 
@@ -329,8 +379,8 @@ class AcceptanceHandoverService {
       confirmerName: string | null;
       userId?: string | null;
     },
-  ): Promise<{ id: string; maNghiemThu: string; maYeuCauSuaChua: string; tenHeThongThietBi: string }> {
-    const maNghiemThu = await this.generateAcceptanceHandoverCode();
+  ): Promise<SlipNotifyInfo> {
+    const maNghiemThu = await this.nextHandoverCode(tx);
     return tx.acceptanceHandover.create({
       data: {
         maNghiemThu,
@@ -352,12 +402,16 @@ class AcceptanceHandoverService {
 
   /** Notify the person who must confirm (best-effort — never throws). */
   async notifyConfirmer(
-    handover: { id: string; maNghiemThu: string; maYeuCauSuaChua: string; tenHeThongThietBi: string },
+    handover: SlipNotifyInfo,
     confirmerUserId: string | null,
     nguoiBanGiao: string,
   ): Promise<void> {
     try {
       const targetEmployeeIds = await this.employeeIdsForUser(confirmerUserId);
+      if (targetEmployeeIds.length === 0) {
+        logger.warn(`[AcceptanceHandoverService] slip ${handover.maNghiemThu} has no confirmer employee — notification skipped`);
+        return;
+      }
       await notificationService.notify(NotificationEvent.ACCEPTANCE_HANDOVER_CREATED, {
         entityId: handover.id,
         targetEmployeeIds,
@@ -438,9 +492,21 @@ class AcceptanceHandoverService {
       if (!wi) throw new ValidationError(`Phiếu xuất kho không tồn tại: ${(scalarData as Record<string, unknown>).warehouseIssueId}`);
     }
 
+    // A slip can never be moved to another request: the confirmer was resolved from its parent,
+    // so retargeting would let someone confirm a request they did not create.
+    const rawScalar = scalarData as Record<string, unknown>;
+    const isRetarget = (key: 'repairRequestId' | 'inspectionRequestId', current: number | null) => {
+      const v = rawScalar[key];
+      if (v === undefined || v === null || v === '') return false;
+      return Number(v) !== current;
+    };
+    if (isRetarget('repairRequestId', existingHandover.repairRequestId) || isRetarget('inspectionRequestId', existingHandover.inspectionRequestId)) {
+      throw new ValidationError('Không thể chuyển phiếu nghiệm thu sang yêu cầu khác');
+    }
+
     // Confirmation result/identity is written only via the confirm flow — never through generic update.
-    const normalizedScalar: Record<string, unknown> = { ...(scalarData as Record<string, unknown>) };
-    for (const k of ['ketQua', 'nguoiXacNhanId', 'nguoiXacNhanTen', 'xacNhanLuc', 'xacNhanBoiId', 'lyDoXacNhan', 'inspectionRequestId']) {
+    const normalizedScalar: Record<string, unknown> = { ...rawScalar };
+    for (const k of ['ketQua', 'nguoiXacNhanId', 'nguoiXacNhanTen', 'xacNhanLuc', 'xacNhanBoiId', 'lyDoXacNhan', 'inspectionRequestId', 'repairRequestId', 'maNghiemThu', 'createdById']) {
       delete normalizedScalar[k];
     }
     if (existingHandover.ketQua && !isAdmin) {
@@ -448,16 +514,9 @@ class AcceptanceHandoverService {
     }
 
     const handover = await prisma.$transaction(async (tx) => {
-      const repairRequestId = (normalizedScalar.repairRequestId as number) ?? existingHandover.repairRequestId;
+      const repairRequestId = existingHandover.repairRequestId;
       if (items !== undefined && items.length > 0 && !repairRequestId) {
         throw new ValidationError('Phiếu nghiệm thu của yêu cầu kiểm tra không có hạng mục sửa chữa');
-      }
-      if (normalizedScalar.repairRequestId) {
-        const repairRequest = await tx.repairRequest.findUnique({
-          where: { id: normalizedScalar.repairRequestId as number },
-          select: { id: true },
-        });
-        if (!repairRequest) throw new ValidationError('Yêu cầu sửa chữa không hợp lệ');
       }
 
       if (items !== undefined && repairRequestId) {
