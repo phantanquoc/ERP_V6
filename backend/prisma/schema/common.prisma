@@ -996,6 +996,7 @@ enum InspectionRequestStatus {
   DA_TIEP_NHAN // Đã tiếp nhận
   DANG_KIEM_TRA // Đang kiểm tra
   DA_KIEM_TRA // Đã kiểm tra
+  CHO_NGHIEM_THU // Chờ người yêu cầu xác nhận nghiệm thu (kết luận Đã khắc phục)
   HOAN_THANH // Hoàn thành
   DA_HUY // Đã hủy
   TU_CHOI // Từ chối
@@ -1024,9 +1025,10 @@ model InspectionRequest {
   createdAt      DateTime                @default(now()) @map("created_at")
   updatedAt      DateTime                @updatedAt @map("updated_at")
 
-  items          InspectionRequestItem[]
-  statusLogs     InspectionRequestStatusLog[]
-  repairRequests RepairRequest[] // via RepairRequest.sourceInspectionRequestId
+  items               InspectionRequestItem[]
+  statusLogs          InspectionRequestStatusLog[]
+  repairRequests      RepairRequest[] // via RepairRequest.sourceInspectionRequestId
+  acceptanceHandovers AcceptanceHandover[] // kết luận Đã khắc phục
 
   @@index([trangThai])
   @@index([phongBanId])
@@ -1203,12 +1205,16 @@ model RepairRequestItem {
   @@schema("common")
 }
 
+// Shared acceptance slip for both YCSC (repairRequestId) and YCKT "Đã khắc phục" (inspectionRequestId).
+// Exactly one of repairRequestId / inspectionRequestId is set. Confirmation is done by the requester
+// (nguoiXacNhanId = auth.User.id), not by the technician who created the slip.
 model AcceptanceHandover {
   id                    String           @id @default(cuid())
   maNghiemThu           String           @unique
   ngayNghiemThu         DateTime         @default(now())
-  repairRequestId       Int // ID của yêu cầu sửa chữa
-  maYeuCauSuaChua       String // Mã yêu cầu sửa chữa
+  repairRequestId       Int? // ID của yêu cầu sửa chữa
+  inspectionRequestId   Int?             @map("inspection_request_id") // ID của yêu cầu kiểm tra (kết luận Đã khắc phục)
+  maYeuCauSuaChua       String // Mã phiếu nguồn (YC-SC-… hoặc YC-KT-…)
   tenHeThongThietBi     String // Tên hệ thống/thiết bị
   tinhTrangTruocSuaChua String           @db.Text // Tình trạng trước khi sửa chữa
   tinhTrangSauSuaChua   String           @db.Text // Tình trạng sau khi sửa chữa
@@ -1220,14 +1226,22 @@ model AcceptanceHandover {
   warehouseIssueId      String?          @map("warehouse_issue_id") @db.VarChar(30)
   chiPhiThucTe          Decimal?         @map("chi_phi_thuc_te") @db.Decimal(15, 2)
   ketQua                NghiemThuKetQua? @map("ket_qua")
+  nguoiXacNhanId        String?          @map("nguoi_xac_nhan_id") // auth.User.id người phải xác nhận (người tạo yêu cầu)
+  nguoiXacNhanTen       String?          @map("nguoi_xac_nhan_ten")
+  xacNhanLuc            DateTime?        @map("xac_nhan_luc") @db.Timestamptz
+  xacNhanBoiId          String?          @map("xac_nhan_boi_id") // auth.User.id người đã bấm xác nhận (ADMIN có thể thay)
+  lyDoXacNhan           String?          @map("ly_do_xac_nhan") @db.Text
   createdById           String? // soft ref to auth.User.id — no FK constraint
   createdAt             DateTime         @default(now())
   updatedAt             DateTime         @updatedAt
 
-  repairRequest RepairRequest            @relation(fields: [repairRequestId], references: [id], onDelete: Cascade)
-  items         AcceptanceHandoverItem[]
+  repairRequest     RepairRequest?           @relation(fields: [repairRequestId], references: [id], onDelete: Cascade)
+  inspectionRequest InspectionRequest?       @relation(fields: [inspectionRequestId], references: [id], onDelete: Cascade)
+  items             AcceptanceHandoverItem[]
 
   @@index([createdById])
+  @@index([inspectionRequestId])
+  @@index([nguoiXacNhanId])
   @@index([warehouseIssueId])
   @@map("acceptance_handovers")
   @@schema("common")

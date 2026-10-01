@@ -31,7 +31,8 @@ router.patch('/:id/plan', authenticate, requireRule('repair-requests', 'UPDATE')
 router.patch('/:id/start', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.startRepair);
 router.post('/:id/start-repair', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.startRepair);
 router.patch('/:id/submit-acceptance', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.submitAcceptance);
-router.patch('/:id/confirm-acceptance', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.confirmAcceptance);
+// Requester (often outside Kỹ thuật) confirms — authorization = designated confirmer, enforced in service
+router.patch('/:id/confirm-acceptance', authenticate, repairRequestController.confirmAcceptance);
 router.patch('/:id/reject', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.reject);
 router.patch('/:id/cancel', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.cancel);
 router.post('/:id/cancel', authenticate, requireRule('repair-requests', 'UPDATE'), repairRequestController.cancel);

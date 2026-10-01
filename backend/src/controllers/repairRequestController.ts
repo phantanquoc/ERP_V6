@@ -295,8 +295,9 @@ class RepairRequestController {
       const id = parseInt(req.params.id as string, 10);
       const actor = { actorId: req.user?.id, actorRole: req.user?.role };
       const ketQua = req.body.ketQua as string;
-      const chiPhiThucTe = req.body.chiPhiThucTe != null ? Number(req.body.chiPhiThucTe) : undefined;
-      const result = await repairRequestService.confirmAcceptance(id, actor, ketQua as never, chiPhiThucTe);
+      const chiPhiThucTe = req.body.chiPhiThucTe != null && req.body.chiPhiThucTe !== '' ? Number(req.body.chiPhiThucTe) : undefined;
+      const lyDo = (req.body.lyDo ?? req.body.reason) as string | undefined;
+      const result = await repairRequestService.confirmAcceptance(id, actor, ketQua as never, chiPhiThucTe, lyDo);
       res.json({ success: true, data: result, message: ketQua === 'DAT' ? 'Nghiệm thu đạt' : 'Nghiệm thu không đạt — quay lại sửa chữa' });
     } catch (error) { next(error); }
   }

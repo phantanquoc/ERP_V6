@@ -9,6 +9,7 @@ export type InspectionRequestStatus =
   | 'DA_TIEP_NHAN'
   | 'DANG_KIEM_TRA'
   | 'DA_KIEM_TRA'
+  | 'CHO_NGHIEM_THU'
   | 'HOAN_THANH'
   | 'DA_HUY'
   | 'TU_CHOI';
@@ -18,6 +19,7 @@ export const STATUS_LABELS: Record<InspectionRequestStatus, { label: string; ton
   DA_TIEP_NHAN: { label: 'Đã tiếp nhận', tone: 'blue' },
   DANG_KIEM_TRA: { label: 'Đang kiểm tra', tone: 'yellow' },
   DA_KIEM_TRA: { label: 'Đã kiểm tra', tone: 'blue' },
+  CHO_NGHIEM_THU: { label: 'Chờ xác nhận nghiệm thu', tone: 'yellow' },
   HOAN_THANH: { label: 'Hoàn thành', tone: 'green' },
   DA_HUY: { label: 'Đã hủy', tone: 'red' },
   TU_CHOI: { label: 'Từ chối', tone: 'red' },
@@ -76,6 +78,8 @@ export interface InspectionRequest {
   updatedAt: string;
   items?: InspectionRequestItem[];
   statusLogs?: InspectionRequestStatusLogEntry[];
+  acceptanceHandovers?: InspectionAcceptanceSlip[];
+  repairRequests?: { id: number; maYeuCau: string; trangThai: string }[];
 }
 
 export interface InspectionRequestItemInput {
@@ -99,8 +103,32 @@ export interface CreateInspectionRequestRequest {
 
 export type UpdateInspectionRequestRequest = Partial<Omit<CreateInspectionRequestRequest, 'maYeuCau'>>;
 
-export type MucDoHuHong = 'nhe' | 'trung_binh' | 'nang' | 'nguy_hiem';
-export type KetLuan = 'CAN_SUA_CHUA' | 'KHONG_CAN' | 'THEO_DOI';
+export type MucDoHuHong = 'nhe' | 'trung_binh' | 'nang';
+export type KetLuan = 'CAN_SUA_CHUA' | 'DA_KHAC_PHUC';
+
+/** Acceptance data required when ketLuan = DA_KHAC_PHUC */
+export interface InspectionAcceptanceInput {
+  tinhTrangSau: string;
+  ghiChuNghiemThu?: string;
+  file: File;
+}
+
+/** Acceptance slip (shared AcceptanceHandover) as returned on inspection detail */
+export interface InspectionAcceptanceSlip {
+  id: string;
+  maNghiemThu: string;
+  tinhTrangTruocSuaChua: string;
+  tinhTrangSauSuaChua: string;
+  nguoiBanGiao: string;
+  fileDinhKem?: string | null;
+  ghiChu?: string | null;
+  ketQua?: 'DAT' | 'KHONG_DAT' | null;
+  nguoiXacNhanId?: string | null;
+  nguoiXacNhanTen?: string | null;
+  xacNhanLuc?: string | null;
+  lyDoXacNhan?: string | null;
+  createdAt: string;
+}
 export interface InspectionDetailsInput {
   ketQuaKiemTra?: string | null;
   mucDoHuHong?: MucDoHuHong | string | null;
@@ -224,8 +252,21 @@ class InspectionRequestService {
     return apiClient.put<InspectionRequest>(`/inspection-requests/${id}/details`, data as unknown as Record<string,unknown>);
   }
 
-  async submitInspection(id: number | string): Promise<ApiResponse<InspectionRequest>> {
+  /** Submit result. For DA_KHAC_PHUC pass acceptance data (file is mandatory server-side). */
+  async submitInspection(id: number | string, acceptance?: InspectionAcceptanceInput): Promise<ApiResponse<InspectionRequest>> {
+    if (acceptance) {
+      const fd = new FormData();
+      fd.append('tinhTrangSau', acceptance.tinhTrangSau);
+      if (acceptance.ghiChuNghiemThu) fd.append('ghiChuNghiemThu', acceptance.ghiChuNghiemThu);
+      fd.append('file', acceptance.file);
+      return apiClient.patch<InspectionRequest>(`/inspection-requests/${id}/submit`, fd);
+    }
     return apiClient.patch<InspectionRequest>(`/inspection-requests/${id}/submit`, {});
+  }
+
+  /** YCKT creator confirms the "Đã khắc phục" acceptance slip. */
+  async confirmAcceptance(id: number | string, payload: { ketQua: 'DAT' | 'KHONG_DAT'; lyDo?: string }): Promise<ApiResponse<InspectionRequest>> {
+    return apiClient.patch<InspectionRequest>(`/inspection-requests/${id}/confirm-acceptance`, payload);
   }
 
   async reject(id: number | string, reason?: string): Promise<ApiResponse<InspectionRequest>> {

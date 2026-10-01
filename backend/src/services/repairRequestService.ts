@@ -6,6 +6,8 @@ import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import { NotificationEvent } from '@types';
 import notificationService from './notificationService';
 import { advanceRepairRequestStatus } from '@utils/statusTransitions';
+import { closeLinkedFaultRecords } from '@utils/faultRecordCascade';
+import acceptanceHandoverService from '@services/acceptanceHandoverService';
 import ExcelJS from 'exceljs';
 import logger from '@config/logger';
 
@@ -115,7 +117,7 @@ const repairRequestInclude = {
   materialNeeds: {
     include: { repairRequestItem: { select: { id: true, tenHeThong: true } } },
   },
-  inspectionRequest: { select: { maYeuCau: true } },
+  inspectionRequest: { select: { maYeuCau: true, createdById: true, createdByName: true } },
   incidentalCosts: true,
 } satisfies Prisma.RepairRequestInclude;
 
@@ -469,7 +471,8 @@ class RepairRequestService {
     nextStatus: RepairRequestStatus,
     actor: ActorContext,
     reason: string,
-    extraData?: Prisma.RepairRequestUpdateInput
+    extraData?: Prisma.RepairRequestUpdateInput,
+    afterUpdate?: (tx: Prisma.TransactionClient, maYeuCau: string) => Promise<void>
   ) {
     const result = await prisma.$transaction(async (tx) => {
       const request = await tx.repairRequest.findUnique({
@@ -503,6 +506,8 @@ class RepairRequestService {
           reason,
         },
       });
+
+      if (afterUpdate) await afterUpdate(tx, request.maYeuCau);
 
       return tx.repairRequest.findUnique({ where: { id }, include: repairRequestInclude });
     });
@@ -594,67 +599,56 @@ class RepairRequestService {
     if (req?.requestType === RequestType.KIEM_TRA) {
       throw new ValidationError('Phiếu kiểm tra không đi qua trạng thái này');
     }
+    const pending = await prisma.acceptanceHandover.count({ where: { repairRequestId: id, ketQua: null } });
+    if (pending === 0 && actor.actorRole !== 'ADMIN') {
+      throw new ValidationError('Vui lòng lập phiếu nghiệm thu trước khi đề nghị nghiệm thu');
+    }
     return this.transition(id, RepairRequestStatus.CHO_NGHIEM_THU, actor, 'submit_acceptance');
   }
 
-  async confirmAcceptance(id: number, actor: ActorContext, ketQua: NghiemThuKetQua, chiPhiThucTe?: number) {
-    const req = await prisma.repairRequest.findUnique({ where: { id }, select: { requestType: true, trangThai: true } });
-    if (req?.requestType === RequestType.KIEM_TRA) {
-      throw new ValidationError('Phiếu kiểm tra không đi qua trạng thái này');
+  /**
+   * Requester confirms the acceptance slip (CHO_NGHIEM_THU only).
+   * Confirmer = creator of the source YCKT if any, else creator of this YCSC (ADMIN may act on behalf).
+   * ĐẠT → DA_NGHIEM_THU (technician then completes); KHÔNG ĐẠT (lý do bắt buộc) → back to DANG_SUA_CHUA.
+   */
+  async confirmAcceptance(id: number, actor: ActorContext, ketQua: NghiemThuKetQua, chiPhiThucTe?: number, lyDo?: string) {
+    if (ketQua !== NghiemThuKetQua.DAT && ketQua !== NghiemThuKetQua.KHONG_DAT) {
+      throw new ValidationError('Kết quả nghiệm thu không hợp lệ');
     }
-    if (ketQua === NghiemThuKetQua.DAT) {
-      const extra: Prisma.RepairRequestUpdateInput = { ketQuaNghiemThu: ketQua };
-      if (chiPhiThucTe !== undefined) extra.chiPhiThucTe = chiPhiThucTe;
-      return this.transition(id, RepairRequestStatus.DA_NGHIEM_THU, actor, 'acceptance_dat', extra);
-    } else {
-      // KHONG_DAT: DA_NGHIEM_THU loop back handled via advanceRepairRequestStatus;
-      // But confirm-acceptance from CHO_NGHIEM_THU with KHONG_DAT should go to DANG_SUA_CHUA via intermediate?
-      // Spec: PATCH /:id/confirm-acceptance with KHONG_DAT loops DA_NGHIEM_THU -> DANG_SUA_CHUA.
-      // For CHO_NGHIEM_THU -> KHONG_DAT, we first go to DA_NGHIEM_THU then immediately? Instead spec defines confirm handles both.
-      // We implement: CHO_NGHIEM_THU + KHONG_DAT -> DANG_SUA_CHUA (via two-step in one transition: log shows KHONG_DAT loop)
-      // To keep single transition, we map KHONG_DAT from CHO_NGHIEM_THU to DANG_SUA_CHUA with reason.
-      // First, advance to DA_NGHIEM_THU, then loop — but we can directly allow CHO_NGHIEM_THU -> DANG_SUA_CHUA as KHONG_DAT.
-      // Check current is CHO_NGHIEM_THU: allow direct to DANG_SUA_CHUA for KHONG_DAT.
-      const current = req?.trangThai as RepairRequestStatus;
-      if (current === RepairRequestStatus.CHO_NGHIEM_THU) {
-        // Perform CHO_NGHIEM_THU -> DANG_SUA_CHUA directly, record KHONG_DAT
-        const result = await prisma.$transaction(async (tx) => {
-          const r = await tx.repairRequest.findUnique({ where: { id }, select: { id: true, trangThai: true, maYeuCau: true, requestType: true } });
-          if (!r) throw new NotFoundError('Không tìm thấy yêu cầu sửa chữa');
-          // Validate CHO_NGHIEM_THU -> DA_NGHIEM_THU is valid, then DA_NGHIEM_THU -> DANG_SUA_CHUA loop
-          // We directly transition to DANG_SUA_CHUA and store ketQua
-          // Validate that CHO_NGHIEM_THU -> DANG_SUA_CHUA is only via KHONG_DAT path
-          // Use advance to validate CHO_NGHIEM_THU -> DA_NGHIEM_THU first
-          advanceRepairRequestStatus(r.trangThai, RepairRequestStatus.DA_NGHIEM_THU, { bypass: actor.actorRole === 'ADMIN', requestType: r.requestType as string });
-          await tx.repairRequest.update({
-            where: { id },
-            data: { trangThai: RepairRequestStatus.DANG_SUA_CHUA, ketQuaNghiemThu: ketQua, ...(chiPhiThucTe !== undefined ? { chiPhiThucTe } : {}) },
-          });
-          // Two logs: CHO_NGHIEM_THU -> DA_NGHIEM_THU and DA_NGHIEM_THU -> DANG_SUA_CHUA? Spec says single log with reason acceptance_khong_dat.
-          // We emit one log DANG_SUA_CHUA with reason to preserve history; alternatively emit two. Use single for simplicity.
-          await tx.repairRequestStatusLog.create({
-            data: {
-              repairRequestId: id,
-              oldStatus: r.trangThai,
-              newStatus: RepairRequestStatus.DANG_SUA_CHUA,
-              actorId: actor.actorId ?? null,
-              actorRole: actor.actorRole ?? null,
-              reason: 'acceptance_khong_dat',
-            },
-          });
-          return tx.repairRequest.findUnique({ where: { id }, include: repairRequestInclude });
-        });
-        notificationService.notify(NotificationEvent.REPAIR_REQUEST_UPDATED, {
-          entityId: String(id),
-          metadata: { maYeuCau: result?.maYeuCau, status: result?.trangThai },
-        }).catch(() => {});
-        return result;
+    const isAdmin = actor.actorRole === 'ADMIN';
+    const result = await prisma.$transaction(async (tx) => {
+      const r = await tx.repairRequest.findUnique({ where: { id }, select: { id: true, trangThai: true, maYeuCau: true, requestType: true } });
+      if (!r) throw new NotFoundError('Không tìm thấy yêu cầu sửa chữa');
+      if (r.requestType === RequestType.KIEM_TRA) throw new ValidationError('Phiếu kiểm tra không đi qua trạng thái này');
+      if (r.trangThai !== RepairRequestStatus.CHO_NGHIEM_THU) {
+        throw new ValidationError('Chỉ xác nhận nghiệm thu khi phiếu đang Chờ nghiệm thu');
       }
-      // If already DA_NGHIEM_THU, loop to DANG_SUA_CHUA
-      const extra: Prisma.RepairRequestUpdateInput = { ketQuaNghiemThu: ketQua };
-      if (chiPhiThucTe !== undefined) extra.chiPhiThucTe = chiPhiThucTe;
-      return this.transition(id, RepairRequestStatus.DANG_SUA_CHUA, actor, 'acceptance_khong_dat', extra);
-    }
+      await acceptanceHandoverService.recordConfirmationTx(tx, { repairRequestId: id }, actor, ketQua, lyDo);
+
+      const next = ketQua === NghiemThuKetQua.DAT ? RepairRequestStatus.DA_NGHIEM_THU : RepairRequestStatus.DANG_SUA_CHUA;
+      // KHÔNG ĐẠT goes CHO_NGHIEM_THU → DANG_SUA_CHUA directly; validate the forward step it replaces.
+      advanceRepairRequestStatus(r.trangThai, RepairRequestStatus.DA_NGHIEM_THU, { bypass: isAdmin, requestType: r.requestType as string });
+      await tx.repairRequest.update({
+        where: { id },
+        data: { trangThai: next, ketQuaNghiemThu: ketQua, ...(chiPhiThucTe !== undefined ? { chiPhiThucTe } : {}) },
+      });
+      await tx.repairRequestStatusLog.create({
+        data: {
+          repairRequestId: id,
+          oldStatus: r.trangThai,
+          newStatus: next,
+          actorId: actor.actorId ?? null,
+          actorRole: actor.actorRole ?? null,
+          reason: ketQua === NghiemThuKetQua.DAT ? 'acceptance_dat' : `acceptance_khong_dat: ${String(lyDo ?? '').trim()}`,
+        },
+      });
+      return tx.repairRequest.findUnique({ where: { id }, include: repairRequestInclude });
+    });
+    notificationService.notify(NotificationEvent.REPAIR_REQUEST_UPDATED, {
+      entityId: String(id),
+      metadata: { maYeuCau: result?.maYeuCau, status: result?.trangThai },
+    }).catch(() => {});
+    return result;
   }
 
   async reject(id: number, actor: ActorContext, reason?: string) {
@@ -764,7 +758,20 @@ class RepairRequestService {
         throw new ValidationError('Không thể hoàn thành: chi phí phát sinh có số tiền > 0 nhưng thiếu lý do');
       }
     }
-    return this.transition(id, RepairRequestStatus.HOAN_THANH, actor, 'complete');
+    const current = await prisma.repairRequest.findUnique({ where: { id }, select: { trangThai: true } });
+    if (current && current.trangThai !== RepairRequestStatus.DA_NGHIEM_THU && actor.actorRole !== 'ADMIN') {
+      throw new ValidationError('Chỉ hoàn thành khi người yêu cầu đã xác nhận nghiệm thu ĐẠT');
+    }
+    const result = await this.transition(
+      id, RepairRequestStatus.HOAN_THANH, actor, 'complete',
+      { ngayHoanThanhThucTe: new Date() },
+      (tx, maYeuCau) => closeLinkedFaultRecords(tx, id, maYeuCau, actor.actorId ?? null),
+    );
+    notificationService.notify(NotificationEvent.REPAIR_REQUEST_COMPLETED, {
+      entityId: String(id),
+      metadata: { maYeuCau: result?.maYeuCau },
+    }).catch(() => {});
+    return result;
   }
 
   // ── Actual execution fields (only when DA_NGHIEM_THU or HOAN_THANH) ───────

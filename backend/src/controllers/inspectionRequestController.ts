@@ -128,8 +128,25 @@ class InspectionRequestController {
     try {
       const id = parseInt(req.params.id as string, 10);
       const actor = { actorId: req.user?.id, actorRole: req.user?.role };
-      const row = await inspectionRequestService.submitInspection(id, actor);
+      // Acceptance data — only used when ketLuan = DA_KHAC_PHUC (multipart with mandatory file)
+      const acceptance = {
+        tinhTrangSau: (req.body?.tinhTrangSau as string | undefined) ?? null,
+        ghiChu: (req.body?.ghiChuNghiemThu as string | undefined) ?? null,
+        fileDinhKem: req.file ? getFileUrl('acceptance-handovers', req.file.filename) : null,
+      };
+      const row = await inspectionRequestService.submitInspection(id, actor, acceptance);
       res.json({ success: true, data: row, message: 'Đã gửi kết quả kiểm tra' });
+    } catch (error) { next(error); }
+  }
+
+  async confirmAcceptance(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = parseInt(req.params.id as string, 10);
+      const actor = { actorId: req.user?.id, actorRole: req.user?.role };
+      const ketQua = req.body.ketQua as string;
+      const lyDo = (req.body.lyDo ?? req.body.reason) as string | undefined;
+      const row = await inspectionRequestService.confirmAcceptance(id, actor, ketQua, lyDo);
+      res.json({ success: true, data: row, message: ketQua === 'DAT' ? 'Đã xác nhận nghiệm thu ĐẠT' : 'Đã xác nhận KHÔNG ĐẠT — chuyển lại kỹ thuật xử lý' });
     } catch (error) { next(error); }
   }
 

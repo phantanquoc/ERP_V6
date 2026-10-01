@@ -11,30 +11,29 @@ export const PRIORITY_TONE: Record<string, BadgeTone> = {
   'Thấp': 'gray',
 };
 
+// Inspection conclusion — only two outcomes
+export const KET_LUAN_OPTIONS = ['CAN_SUA_CHUA', 'DA_KHAC_PHUC'] as const;
 export const KET_LUAN_LABELS: Record<string, string> = {
   CAN_SUA_CHUA: 'Cần sửa chữa',
-  KHONG_CAN: 'Không cần',
-  THEO_DOI: 'Theo dõi',
+  DA_KHAC_PHUC: 'Đã khắc phục',
 };
 
+export const MUC_DO_OPTIONS = ['nhe', 'trung_binh', 'nang'] as const;
 export const MUC_DO_LABELS: Record<string, string> = {
   nhe: 'Nhẹ',
   trung_binh: 'Trung bình',
   nang: 'Nặng',
-  nguy_hiem: 'Nguy hiểm',
 };
 
 export const KET_LUAN_TONE: Record<string, BadgeTone> = {
   CAN_SUA_CHUA: 'yellow',
-  KHONG_CAN: 'green',
-  THEO_DOI: 'blue',
+  DA_KHAC_PHUC: 'green',
 };
 
 export const MUC_DO_TONE: Record<string, BadgeTone> = {
   nhe: 'gray',
   trung_binh: 'blue',
-  nang: 'yellow',
-  nguy_hiem: 'red',
+  nang: 'red',
 };
 
 export function formatKetLuan(code: string | null | undefined): string {

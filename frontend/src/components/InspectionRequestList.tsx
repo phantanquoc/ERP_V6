@@ -12,6 +12,7 @@ import { useInspectionRequests, useInspectionStatusHistory, useDeleteInspectionR
 import { useDepartments } from '../hooks/useDepartments';
 import inspectionRequestService, { InspectionRequest, INSPECTION_STATUS_LABELS } from '../services/inspectionRequestService';
 import type { InspectionRequestStatus } from '../services/inspectionRequestService';
+import { KET_LUAN_TONE, formatKetLuan } from '../constants/repairRequest';
 
 const statusBadgeClass = (tone: string) => {
   if (tone === 'green') return 'bg-green-100 text-green-700 border-green-200';
@@ -84,10 +85,12 @@ export default function InspectionRequestList(_props: { lockedMachineSystemId?: 
           <tbody className="divide-y divide-gray-100">
             {listQ.isLoading ? <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr> : requests.length===0 ? <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-400">Chưa có phiếu kiểm tra.</td></tr> : requests.map(r=>{
               const items=r.items?.length?r.items:[{id:`${r.id}-legacy`, inspectionRequestId:r.id, tenHeThong:(r as unknown as {tenHeThong?:string}).tenHeThong??'', tinhTrangThietBi:(r as unknown as {tinhTrangThietBi?:string}).tinhTrangThietBi??'', loaiLoi:(r as unknown as {loaiLoi?:string}).loaiLoi??'', noiDungLoi:(r as unknown as {noiDungLoi?:string}).noiDungLoi??''} as unknown as NonNullable<InspectionRequest['items']>[number]];
-              const s=r.trangThai as InspectionRequestStatus; const isTerminal=s==='HOAN_THANH'||s==='DA_HUY';
+              const s=r.trangThai as InspectionRequestStatus; const isTerminal=s==='HOAN_THANH'||s==='DA_HUY'||s==='TU_CHOI';
+              // Edit/cancel only before the technician starts; afterwards the record is evidence for acceptance
+              const isEditable = s==='CHO_XU_LY'||s==='DA_TIEP_NHAN';
               const ketLuan = (r as unknown as { ketLuan?: string|null }).ketLuan ?? null;
-              const ketLuanTone = ketLuan==='CAN_SUA_CHUA'?'yellow':ketLuan==='KHONG_CAN'?'green':ketLuan==='THEO_DOI'?'blue':'gray';
-              const ketLuanLabel = ketLuan==='CAN_SUA_CHUA'?'Cần sửa chữa':ketLuan==='KHONG_CAN'?'Không cần':ketLuan==='THEO_DOI'?'Theo dõi':'—';
+              const ketLuanTone = ketLuan ? (KET_LUAN_TONE[ketLuan] ?? 'gray') : 'gray';
+              const ketLuanLabel = ketLuan ? formatKetLuan(ketLuan) : '—';
               const boPhanLabel = deptName((r as unknown as { phongBanId?: string|null }).phongBanId ?? null);
               const khuVuc = (r as unknown as { khuVuc?: string }).khuVuc ?? '—';
               return (
@@ -106,11 +109,13 @@ export default function InspectionRequestList(_props: { lockedMachineSystemId?: 
                       const iconBtn = (cls: string) => `inline-flex items-center justify-center h-7 w-7 rounded-md border transition-colors ${cls}`;
                       const acts: { title: string; icon: JSX.Element; onClick: (e: React.MouseEvent)=>void; wrap: (btn: JSX.Element)=>JSX.Element; cls: string; disabled?: boolean }[] = [];
                       if (s==='CHO_XU_LY'&&canUpdate) acts.push({ title:'Tiếp nhận', icon:<CheckCircle className="h-3.5 w-3.5"/>, onClick:e=>{ e.stopPropagation(); acceptMut.mutate(r.id,{onSuccess:()=>toast.success('Đã tiếp nhận'),onError:(e)=>toast.error(e instanceof Error?e.message:'Lỗi')}); }, wrap:b=>b, cls:'bg-blue-600 border-blue-600 text-white hover:bg-blue-700' });
-                      if (s==='DA_TIEP_NHAN'&&canUpdate) acts.push({ title:'Hoàn thành', icon:<CheckCircle className="h-3.5 w-3.5"/>, onClick:e=>{ e.stopPropagation(); completeMut.mutate(r.id,{onSuccess:()=>toast.success('Đã hoàn thành'),onError:(e)=>toast.error(e instanceof Error?e.message:'Lỗi')}); }, wrap:b=>b, cls:'bg-green-600 border-green-600 text-white hover:bg-green-700' });
+                      // Đã khắc phục → requester confirms in the detail view; Cần sửa chữa → complete after YCSC exists
+                      if (s==='CHO_NGHIEM_THU') acts.push({ title:'Xác nhận nghiệm thu', icon:<CheckCircle className="h-3.5 w-3.5"/>, onClick:e=>{ e.stopPropagation(); openModal('view',r); }, wrap:b=>b, cls:'bg-amber-500 border-amber-500 text-white hover:bg-amber-600' });
+                      if (s==='DA_KIEM_TRA'&&canUpdate&&(r.repairRequests?.length ?? 0)>0) acts.push({ title:'Hoàn thành', icon:<CheckCircle className="h-3.5 w-3.5"/>, onClick:e=>{ e.stopPropagation(); completeMut.mutate(r.id,{onSuccess:()=>toast.success('Đã hoàn thành'),onError:(e)=>toast.error(e instanceof Error?e.message:'Lỗi')}); }, wrap:b=>b, cls:'bg-green-600 border-green-600 text-white hover:bg-green-700' });
                       const baseActs: { title: string; icon: JSX.Element; onClick:(e:React.MouseEvent)=>void; cls:string }[] = [];
-                      if (!isTerminal) baseActs.push({ title:'Sửa', icon:<Edit className="h-3.5 w-3.5"/>, onClick:e=>{ e.stopPropagation(); openModal('edit',r); }, cls:'bg-white border-blue-200 text-blue-600 hover:bg-blue-50' });
+                      if (isEditable) baseActs.push({ title:'Sửa', icon:<Edit className="h-3.5 w-3.5"/>, onClick:e=>{ e.stopPropagation(); openModal('edit',r); }, cls:'bg-white border-blue-200 text-blue-600 hover:bg-blue-50' });
                       baseActs.push({ title:'Lịch sử', icon:<History className="h-3.5 w-3.5"/>, onClick:e=>{ e.stopPropagation(); setHistoryId(r.id); }, cls:'bg-white border-gray-200 text-gray-500 hover:bg-gray-50' });
-                      if (!isTerminal) baseActs.push({ title:'Hủy phiếu', icon:<Ban className="h-3.5 w-3.5"/>, onClick:e=>{ e.stopPropagation(); setCancelTarget(r); setCancelReason(''); }, cls:'bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100' });
+                      if (isEditable && !isTerminal) baseActs.push({ title:'Hủy phiếu', icon:<Ban className="h-3.5 w-3.5"/>, onClick:e=>{ e.stopPropagation(); setCancelTarget(r); setCancelReason(''); }, cls:'bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100' });
                       if (isAdmin) baseActs.push({ title:'Xóa', icon:<Trash2 className="h-3.5 w-3.5"/>, onClick:e=>{ e.stopPropagation(); remove(r); }, cls:'bg-red-50 border-red-200 text-red-600 hover:bg-red-100' });
                       const allActs = [...acts.map(a=>({title:a.title,icon:a.icon,onClick:a.onClick,cls:a.cls})), ...baseActs];
                       return allActs.map((a,i)=>(

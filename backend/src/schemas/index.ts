@@ -981,11 +981,11 @@ export const updateInspectionRequestSchema = inspectionRequestUpdateSchema;
 
 export const inspectionDetailsSchema = z.object({
   ketQuaKiemTra: z.string().optional().nullable(),
-  mucDoHuHong: z.enum(['nhe', 'trung_binh', 'trung binh', 'nang', 'nguy_hiem', 'nguy hiem']).optional().nullable(),
+  mucDoHuHong: z.enum(['nhe', 'trung_binh', 'trung binh', 'nang']).optional().nullable(),
   deXuatXuLy: z.string().optional().nullable(),
   thoiGianKiemTra: z.coerce.date().optional().nullable(),
   nguoiKiemTra: z.string().optional().nullable(),
-  ketLuan: z.enum(['CAN_SUA_CHUA', 'KHONG_CAN', 'THEO_DOI']).optional().nullable(),
+  ketLuan: z.enum(['CAN_SUA_CHUA', 'DA_KHAC_PHUC']).optional().nullable(),
   anhKiemTra: z.string().optional().nullable(),
 });
 

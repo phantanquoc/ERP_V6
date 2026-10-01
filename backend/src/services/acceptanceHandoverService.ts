@@ -1,9 +1,8 @@
-import { Prisma, RepairRequestStatus, FaultRecordStatus, RequestType, NghiemThuKetQua } from '@prisma/client';
+import { Prisma, RepairRequestStatus, RequestType, NghiemThuKetQua } from '@prisma/client';
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
-import { NotFoundError, ValidationError } from '@utils/errors';
+import { AuthorizationError, NotFoundError, ValidationError } from '@utils/errors';
 import ExcelJS from 'exceljs';
-import { advanceRepairRequestStatus } from '@utils/statusTransitions';
 import { NotificationEvent } from '@types';
 import notificationService from './notificationService';
 import logger from '@config/logger';
@@ -54,6 +53,7 @@ interface UpdateAcceptanceHandoverRequest {
 }
 
 const handoverInclude = {
+  inspectionRequest: { select: { id: true, maYeuCau: true, trangThai: true, createdByName: true } },
   repairRequest: {
     include: {
       items: {
@@ -193,11 +193,53 @@ class AcceptanceHandoverService {
     });
   }
 
+  /**
+   * Who must confirm a YCSC acceptance slip: the creator of the source YCKT when the repair
+   * came from an inspection request, otherwise the creator of the repair request itself.
+   */
+  async resolveRepairConfirmer(
+    tx: Prisma.TransactionClient,
+    repairRequestId: number,
+  ): Promise<{ userId: string | null; name: string | null }> {
+    const rr = await tx.repairRequest.findUnique({
+      where: { id: repairRequestId },
+      select: {
+        createdById: true,
+        createdByName: true,
+        inspectionRequest: { select: { createdById: true, createdByName: true } },
+      },
+    });
+    if (!rr) return { userId: null, name: null };
+    if (rr.inspectionRequest?.createdById) {
+      return { userId: rr.inspectionRequest.createdById, name: rr.inspectionRequest.createdByName ?? null };
+    }
+    return { userId: rr.createdById ?? null, name: rr.createdByName ?? null };
+  }
+
+  /** Map auth.User.id → Employee.id for notification targeting (best-effort). */
+  private async employeeIdsForUser(userId: string | null): Promise<string[]> {
+    if (!userId) return [];
+    try {
+      const emp = await prisma.employee.findUnique({ where: { userId }, select: { id: true } });
+      return emp ? [emp.id] : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Create the YCSC acceptance slip (repair work done → waiting for requester confirmation).
+   * The repair request is NOT completed here — completion happens only after the requester
+   * confirms ĐẠT via repairRequestService.confirmAcceptance + complete.
+   */
   async createAcceptanceHandover(data: CreateAcceptanceHandoverRequest) {
+    if (!Number.isFinite(data.repairRequestId)) {
+      throw new ValidationError('Phiếu nghiệm thu phải gắn với một yêu cầu sửa chữa');
+    }
     const maNghiemThu = await this.generateAcceptanceHandoverCode();
     const isAdmin = data.actorRole === 'ADMIN';
 
-    const { handover, autoCompleted, repairRequestId: completedRepairId, maYeuCau: completedMaYeuCau } =
+    const { handover, confirmerUserId } =
       await prisma.$transaction(async (tx) => {
         const repairRequest = await tx.repairRequest.findUnique({
           where: { id: data.repairRequestId },
@@ -221,6 +263,7 @@ class AcceptanceHandoverService {
         }
 
         const resolvedItems = await this.resolveHandoverItems(data.repairRequestId, data.items, tx);
+        const confirmer = await this.resolveRepairConfirmer(tx, repairRequest.id);
         const created = await tx.acceptanceHandover.create({
           data: {
             maNghiemThu,
@@ -230,14 +273,17 @@ class AcceptanceHandoverService {
             tinhTrangTruocSuaChua: data.tinhTrangTruocSuaChua,
             tinhTrangSauSuaChua: data.tinhTrangSauSuaChua,
             nguoiBanGiao: data.nguoiBanGiao,
-            nguoiNhan: data.nguoiNhan,
+            // Receiver = the requester who must confirm (fallback to client-picked name for legacy rows)
+            nguoiNhan: confirmer.name || data.nguoiNhan || '',
             nguoiNhanId: data.nguoiNhanId,
             fileDinhKem: data.fileDinhKem,
             ghiChu: data.ghiChu,
             createdById: data.userId ?? null,
             warehouseIssueId: data.warehouseIssueId ?? null,
-            ketQua: (data.ketQua as NghiemThuKetQua) ?? null,
+            ketQua: null,
             chiPhiThucTe: data.chiPhiThucTe as never ?? null,
+            nguoiXacNhanId: confirmer.userId,
+            nguoiXacNhanTen: confirmer.name,
           },
         });
 
@@ -250,112 +296,117 @@ class AcceptanceHandoverService {
           });
         }
 
-        // 6.2 Coverage computation: total items on parent vs covered across all handovers
-        const total = await tx.repairRequestItem.count({
-          where: { repairRequestId: data.repairRequestId },
-        });
-
-        let autoCompleted = false;
-        if (total > 0 && repairRequest.trangThai === RepairRequestStatus.DANG_SUA_CHUA) {
-          // Collect all distinct repairRequestItemIds covered across every handover of this parent
-          // Filter to only items that have a repairRequestItemId (non-null)
-          const allHandoverItems = await tx.acceptanceHandoverItem.findMany({
-            where: {
-              acceptanceHandover: { repairRequestId: data.repairRequestId },
-            },
-            select: { repairRequestItemId: true },
-          });
-          const coveredSet = new Set(allHandoverItems.map((i) => i.repairRequestItemId).filter(Boolean));
-          const covered = coveredSet.size;
-
-          // 6.3 Auto-complete when full coverage
-          if (covered >= total) {
-            const nextStatus = advanceRepairRequestStatus(
-              repairRequest.trangThai,
-              RepairRequestStatus.HOAN_THANH,
-              { bypass: isAdmin, requestType: (repairRequest as unknown as { requestType?: string }).requestType }
-            );
-            await tx.repairRequest.update({
-              where: { id: data.repairRequestId },
-              data: { trangThai: nextStatus },
-            });
-            await tx.repairRequestStatusLog.create({
-              data: {
-                repairRequestId: data.repairRequestId,
-                oldStatus: repairRequest.trangThai,
-                newStatus: nextStatus,
-                actorId: data.userId ?? null,
-                actorRole: data.actorRole ?? null,
-                reason: 'auto_complete_full_coverage',
-              },
-            });
-
-            // 5.1–5.3 Cascade-close linked FaultRecords (D2: inside same transaction, per-item try/catch)
-            const linkedItems = await tx.repairRequestItem.findMany({
-              where: { repairRequestId: data.repairRequestId, faultRecordId: { not: null } },
-              select: { faultRecordId: true },
-            });
-
-            for (const item of linkedItems) {
-              if (!item.faultRecordId) continue;
-              try {
-                const fr = await tx.faultRecord.findUnique({
-                  where: { id: item.faultRecordId },
-                  select: { id: true, trangThai: true },
-                });
-                if (!fr || fr.trangThai === FaultRecordStatus.DA_XU_LY) continue;
-
-                await tx.faultRecord.update({
-                  where: { id: fr.id },
-                  data: { trangThai: FaultRecordStatus.DA_XU_LY, ngayXuLy: new Date() },
-                });
-                await tx.faultRecordStatusLog.create({
-                  data: {
-                    faultRecordId: fr.id,
-                    oldStatus: fr.trangThai,
-                    newStatus: FaultRecordStatus.DA_XU_LY,
-                    actorId: data.userId ?? null,
-                    reason: `Tự động từ yêu cầu sửa chữa: ${repairRequest.maYeuCau}`,
-                    source: 'auto_from_repair',
-                  },
-                });
-              } catch (cascadeErr) {
-                logger.error(`[AcceptanceHandoverService] cascade FaultRecord close failed for id=${item.faultRecordId}`, cascadeErr);
-              }
-            }
-
-            autoCompleted = true;
-          }
-        }
-
+        // No auto-complete: the requester must confirm ĐẠT/KHÔNG ĐẠT (repairRequestService.confirmAcceptance).
         const handoverWithItems = await tx.acceptanceHandover.findUnique({
           where: { id: created.id },
           include: handoverInclude,
         });
         if (!handoverWithItems) throw new NotFoundError('Không tìm thấy nghiệm thu bàn giao');
 
-        return {
-          handover: handoverWithItems,
-          autoCompleted,
-          repairRequestId: repairRequest.id,
-          maYeuCau: repairRequest.maYeuCau,
-        };
+        return { handover: handoverWithItems, confirmerUserId: confirmer.userId };
       });
 
-    // 6.4 Post-commit notifications (both wrapped in try/catch — errors must not bubble)
-    notificationService.notify(NotificationEvent.ACCEPTANCE_HANDOVER_CREATED, {
-      entityId: handover.id,
-      metadata: { maNghiemThu: handover.maNghiemThu, maYeuCauSuaChua: handover.maYeuCauSuaChua },
-    }).catch(() => {});
-
-    if (autoCompleted) {
-      notificationService.notify(NotificationEvent.REPAIR_REQUEST_COMPLETED, {
-        entityId: String(completedRepairId),
-        metadata: { maYeuCau: completedMaYeuCau },
-      }).catch(() => {});
-    }
-
+    await this.notifyConfirmer(handover, confirmerUserId, data.nguoiBanGiao);
     return handover;
+  }
+
+  /**
+   * Create the YCKT acceptance slip when the technician concludes "Đã khắc phục".
+   * Called from inspectionRequestService inside its transaction. File attachment is mandatory.
+   */
+  async createInspectionAcceptanceTx(
+    tx: Prisma.TransactionClient,
+    input: {
+      inspectionRequestId: number;
+      maYeuCau: string;
+      tenHeThongThietBi: string;
+      tinhTrangTruoc: string;
+      tinhTrangSau: string;
+      nguoiBanGiao: string;
+      fileDinhKem: string;
+      ghiChu?: string | null;
+      confirmerUserId: string | null;
+      confirmerName: string | null;
+      userId?: string | null;
+    },
+  ): Promise<{ id: string; maNghiemThu: string; maYeuCauSuaChua: string; tenHeThongThietBi: string }> {
+    const maNghiemThu = await this.generateAcceptanceHandoverCode();
+    return tx.acceptanceHandover.create({
+      data: {
+        maNghiemThu,
+        inspectionRequestId: input.inspectionRequestId,
+        maYeuCauSuaChua: input.maYeuCau,
+        tenHeThongThietBi: input.tenHeThongThietBi,
+        tinhTrangTruocSuaChua: input.tinhTrangTruoc,
+        tinhTrangSauSuaChua: input.tinhTrangSau,
+        nguoiBanGiao: input.nguoiBanGiao,
+        nguoiNhan: input.confirmerName ?? '',
+        fileDinhKem: input.fileDinhKem,
+        ghiChu: input.ghiChu ?? null,
+        createdById: input.userId ?? null,
+        nguoiXacNhanId: input.confirmerUserId,
+        nguoiXacNhanTen: input.confirmerName,
+      },
+    });
+  }
+
+  /** Notify the person who must confirm (best-effort — never throws). */
+  async notifyConfirmer(
+    handover: { id: string; maNghiemThu: string; maYeuCauSuaChua: string; tenHeThongThietBi: string },
+    confirmerUserId: string | null,
+    nguoiBanGiao: string,
+  ): Promise<void> {
+    try {
+      const targetEmployeeIds = await this.employeeIdsForUser(confirmerUserId);
+      await notificationService.notify(NotificationEvent.ACCEPTANCE_HANDOVER_CREATED, {
+        entityId: handover.id,
+        targetEmployeeIds,
+        metadata: {
+          maNghiemThu: handover.maNghiemThu,
+          maYeuCauSuaChua: handover.maYeuCauSuaChua,
+          tenThietBi: handover.tenHeThongThietBi,
+          nguoiBanGiao,
+        },
+      });
+    } catch (e) {
+      logger.warn(`[AcceptanceHandoverService] notifyConfirmer failed: ${(e as Error).message}`);
+    }
+  }
+
+  /**
+   * Requester confirmation guard shared by YCSC and YCKT.
+   * Only the designated confirmer (or ADMIN) may confirm; records the decision on the latest pending slip.
+   */
+  async recordConfirmationTx(
+    tx: Prisma.TransactionClient,
+    where: { repairRequestId: number } | { inspectionRequestId: number },
+    actor: { actorId?: string; actorRole?: string },
+    ketQua: NghiemThuKetQua,
+    lyDo?: string | null,
+  ): Promise<string> {
+    const pending = await tx.acceptanceHandover.findFirst({
+      where: { ...where, ketQua: null },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, nguoiXacNhanId: true, nguoiXacNhanTen: true },
+    });
+    if (!pending) throw new ValidationError('Chưa có phiếu nghiệm thu chờ xác nhận');
+    const isAdmin = actor.actorRole === 'ADMIN';
+    if (!isAdmin && (!pending.nguoiXacNhanId || pending.nguoiXacNhanId !== actor.actorId)) {
+      throw new AuthorizationError(`Chỉ người tạo yêu cầu${pending.nguoiXacNhanTen ? ` (${pending.nguoiXacNhanTen})` : ''} mới được xác nhận nghiệm thu`);
+    }
+    if (ketQua === NghiemThuKetQua.KHONG_DAT && !String(lyDo ?? '').trim()) {
+      throw new ValidationError('Vui lòng nhập lý do không đạt');
+    }
+    await tx.acceptanceHandover.update({
+      where: { id: pending.id },
+      data: {
+        ketQua,
+        xacNhanLuc: new Date(),
+        xacNhanBoiId: actor.actorId ?? null,
+        lyDoXacNhan: String(lyDo ?? '').trim() || null,
+      },
+    });
+    return pending.id;
   }
 
   async getGeneratedCode() {
@@ -387,14 +438,20 @@ class AcceptanceHandoverService {
       if (!wi) throw new ValidationError(`Phiếu xuất kho không tồn tại: ${(scalarData as Record<string, unknown>).warehouseIssueId}`);
     }
 
-    // Normalize ketQua / chiPhiThucTe keys
+    // Confirmation result/identity is written only via the confirm flow — never through generic update.
     const normalizedScalar: Record<string, unknown> = { ...(scalarData as Record<string, unknown>) };
-    if ('ketQua' in normalizedScalar && normalizedScalar.ketQua != null) {
-      normalizedScalar.ketQua = normalizedScalar.ketQua as string;
+    for (const k of ['ketQua', 'nguoiXacNhanId', 'nguoiXacNhanTen', 'xacNhanLuc', 'xacNhanBoiId', 'lyDoXacNhan', 'inspectionRequestId']) {
+      delete normalizedScalar[k];
+    }
+    if (existingHandover.ketQua && !isAdmin) {
+      throw new ValidationError('Phiếu nghiệm thu đã được xác nhận, không thể chỉnh sửa');
     }
 
     const handover = await prisma.$transaction(async (tx) => {
       const repairRequestId = (normalizedScalar.repairRequestId as number) ?? existingHandover.repairRequestId;
+      if (items !== undefined && items.length > 0 && !repairRequestId) {
+        throw new ValidationError('Phiếu nghiệm thu của yêu cầu kiểm tra không có hạng mục sửa chữa');
+      }
       if (normalizedScalar.repairRequestId) {
         const repairRequest = await tx.repairRequest.findUnique({
           where: { id: normalizedScalar.repairRequestId as number },
@@ -403,7 +460,7 @@ class AcceptanceHandoverService {
         if (!repairRequest) throw new ValidationError('Yêu cầu sửa chữa không hợp lệ');
       }
 
-      if (items !== undefined) {
+      if (items !== undefined && repairRequestId) {
         const resolvedItems = await this.resolveHandoverItems(repairRequestId, items, tx);
         await tx.acceptanceHandoverItem.deleteMany({ where: { acceptanceHandoverId: id } });
         if (resolvedItems.length > 0) {
@@ -417,7 +474,7 @@ class AcceptanceHandoverService {
       }
 
       // ADMIN override audit log
-      if (isAdmin && existingHandover.repairRequest?.trangThai === RepairRequestStatus.HOAN_THANH) {
+      if (isAdmin && existingHandover.repairRequestId && existingHandover.repairRequest?.trangThai === RepairRequestStatus.HOAN_THANH) {
         await tx.repairRequestStatusLog.create({
           data: {
             repairRequestId: existingHandover.repairRequestId,
@@ -456,10 +513,14 @@ class AcceptanceHandoverService {
     if (existingHandover.repairRequest?.trangThai === RepairRequestStatus.HOAN_THANH && !isAdmin) {
       throw new ValidationError('Không thể xóa nghiệm thu bàn giao khi yêu cầu sửa chữa đã hoàn thành');
     }
+    // YCKT slips are the evidence for "Đã khắc phục" — only ADMIN may remove them
+    if (existingHandover.inspectionRequestId && !isAdmin) {
+      throw new ValidationError('Không thể xóa phiếu nghiệm thu của yêu cầu kiểm tra');
+    }
 
     await prisma.$transaction(async (tx) => {
       // ADMIN override audit log
-      if (isAdmin && existingHandover.repairRequest?.trangThai === RepairRequestStatus.HOAN_THANH) {
+      if (isAdmin && existingHandover.repairRequestId && existingHandover.repairRequest?.trangThai === RepairRequestStatus.HOAN_THANH) {
         await tx.repairRequestStatusLog.create({
           data: {
             repairRequestId: existingHandover.repairRequestId,

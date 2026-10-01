@@ -388,18 +388,21 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
     setConfirmForm({ ketQua, lyDo: '', chiPhiThucTe: '' });
     setConfirmTarget(record);
   };
+  // Confirmer = creator of the source YCKT if the repair came from one, else creator of the YCSC
+  const isRowConfirmer = (record: RepairRequest) => {
+    const uid = String((user as unknown as { id?: string; _id?: string })?.id ?? user?._id ?? '');
+    if (!uid) return false;
+    const pending = (record.acceptanceHandovers ?? []).find((h) => !h.ketQua);
+    if (pending?.nguoiXacNhanId) return pending.nguoiXacNhanId === uid;
+    const src = (record as unknown as { inspectionRequest?: { createdById?: string | null } | null }).inspectionRequest;
+    return (src?.createdById ?? record.createdById ?? '') === uid;
+  };
   const handleConfirmAcceptanceSubmit = async () => {
     if (!confirmTarget) return;
     if (!confirmForm.ketQua) { toast.error('Vui lòng chọn kết quả'); return; }
-    if (!confirmForm.lyDo.trim()) { toast.error('Vui lòng nhập lý do'); return; }
-    let chiPhi: number | undefined;
-    if (confirmForm.chiPhiThucTe !== '') {
-      const n = Number(confirmForm.chiPhiThucTe);
-      if (!Number.isFinite(n) || n < 0) { toast.error('Chi phí thực tế phải >= 0'); return; }
-      chiPhi = n;
-    }
+    if (confirmForm.ketQua === 'KHONG_DAT' && !confirmForm.lyDo.trim()) { toast.error('Vui lòng nhập lý do không đạt'); return; }
     try {
-      await confirmAcceptance.mutateAsync({ id: confirmTarget.id as unknown as number, payload: { ketQua: confirmForm.ketQua, ...(chiPhi !== undefined ? { chiPhiThucTe: chiPhi } : {}), lyDo: confirmForm.lyDo.trim() } as unknown as never });
+      await confirmAcceptance.mutateAsync({ id: confirmTarget.id as unknown as number, payload: { ketQua: confirmForm.ketQua as 'DAT' | 'KHONG_DAT', lyDo: confirmForm.lyDo.trim() || undefined } });
       toast.success(confirmForm.ketQua === 'DAT' ? 'Đã xác nhận ĐẠT' : 'Đã xác nhận KHÔNG ĐẠT');
       setConfirmTarget(null);
     } catch (err) { toast.error(err instanceof Error ? err.message : 'Không thể xác nhận'); }
@@ -711,13 +714,16 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
                           acts.push({ title: 'Lịch sử', icon: <History className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); setHistoryRequestId(request.id); }, cls: 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50' });
                           if (canUpdateRepair && !isTerminal) acts.push({ title: 'Hủy', icon: <Ban className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); setCancelTarget(request); setCancelReason(''); }, cls: 'bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100' });
                           if (isAdmin) acts.push({ title: 'Xóa', icon: <Trash2 className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); remove(request); }, cls: 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100' });
-                          if (canUpdateRepair && s === 'CHO_NGHIEM_THU') acts.push({ title: 'Xác nhận KHÔNG ĐẠT', icon: <X className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); openConfirmModal(request, 'KHONG_DAT'); }, cls: 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100' });
+                          // ĐẠT/KHÔNG ĐẠT belongs to the requester (creator of source YCKT, else of this YCSC), not the technician
+                          const canConfirmRow = s === 'CHO_NGHIEM_THU' && (user?.role === UserRole.ADMIN || isRowConfirmer(request));
+                          if (canConfirmRow) acts.push({ title: 'Xác nhận KHÔNG ĐẠT', icon: <X className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); openConfirmModal(request, 'KHONG_DAT'); }, cls: 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100' });
+                          if (canConfirmRow) acts.unshift({ title: 'Xác nhận ĐẠT', icon: <CheckCircle className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); openConfirmModal(request, 'DAT'); }, cls: 'bg-green-600 border-green-600 text-white hover:bg-green-700' });
                           if (!canUpdateRepair) { /* no primary */ }
                           else if (s === 'CHO_XU_LY') acts.unshift({ title: 'Tiếp nhận', icon: <CheckCircle className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); handleAccept(request); }, cls: 'bg-blue-600 border-blue-600 text-white hover:bg-blue-700' });
                           else if (s === 'DA_TIEP_NHAN') acts.unshift({ title: 'Lên kế hoạch', icon: <Wrench className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); openPlanModal(request); }, cls: 'bg-amber-600 border-amber-600 text-white hover:bg-amber-700' });
                           else if (s === 'LEN_KE_HOACH') acts.unshift({ title: 'Bắt đầu', icon: <Wrench className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); handleStartRepair(request); }, cls: 'bg-blue-600 border-blue-600 text-white hover:bg-blue-700' });
-                          else if (s === 'DANG_SUA_CHUA') acts.unshift({ title: 'Đề nghị nghiệm thu', icon: <CheckCircle className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); openAcceptanceModal(request); }, cls: 'bg-green-600 border-green-600 text-white hover:bg-green-700' });
-                          else if (s === 'CHO_NGHIEM_THU') acts.unshift({ title: 'Xác nhận ĐẠT', icon: <CheckCircle className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); openConfirmModal(request, 'DAT'); }, cls: 'bg-green-600 border-green-600 text-white hover:bg-green-700' });
+                          // Full acceptance slip (per-item tình trạng sau + tệp) lives in the detail view
+                          else if (s === 'DANG_SUA_CHUA') acts.unshift({ title: 'Đề nghị nghiệm thu', icon: <CheckCircle className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); openModal('view', request); }, cls: 'bg-green-600 border-green-600 text-white hover:bg-green-700' });
                           else if (s === 'DA_NGHIEM_THU') acts.unshift({ title: 'Hoàn thành', icon: <CheckCircle className="h-3.5 w-3.5" />, onClick: (e) => { e.stopPropagation(); handleComplete(request); }, cls: 'bg-green-700 border-green-700 text-white hover:bg-green-800' });
                           return (
                             <div className="flex items-center justify-end gap-1 flex-wrap">
@@ -900,8 +906,7 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
                   <option value="KHONG_DAT">KHÔNG ĐẠT</option>
                 </select>
               </label>
-              <label className="block space-y-1"><span className="font-medium text-gray-700">Lý do <span className="text-red-500">*</span></span><textarea rows={3} value={confirmForm.lyDo} onChange={(e) => setConfirmForm((f) => ({ ...f, lyDo: e.target.value }))} placeholder="Nhập lý do / ghi chú nghiệm thu" className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
-              <label className="block space-y-1"><span className="font-medium text-gray-700">Chi phí thực tế — tùy chọn</span><input type="number" min={0} value={confirmForm.chiPhiThucTe} onChange={(e) => setConfirmForm((f) => ({ ...f, chiPhiThucTe: e.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
+              <label className="block space-y-1"><span className="font-medium text-gray-700">Lý do {confirmForm.ketQua === 'KHONG_DAT' ? <span className="text-red-500">*</span> : <span className="text-gray-400">(tuỳ chọn)</span>}</span><textarea rows={3} value={confirmForm.lyDo} onChange={(e) => setConfirmForm((f) => ({ ...f, lyDo: e.target.value }))} placeholder="Nhập lý do / ghi chú nghiệm thu" className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
               <div className="flex justify-end gap-2 pt-2">
                 <button type="button" onClick={() => setConfirmTarget(null)} className="rounded-md border border-gray-300 px-4 py-2">Hủy</button>
                 <button type="button" onClick={handleConfirmAcceptanceSubmit} className={`rounded-md px-4 py-2 font-medium text-white ${confirmForm.ketQua === 'KHONG_DAT' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}>Xác nhận</button>

@@ -84,6 +84,13 @@ export interface AcceptanceHandoverSummary {
   warehouseIssueId?: string | null;
   ketQua?: NghiemThuKetQua | null;
   chiPhiThucTe?: number | null;
+  fileDinhKem?: string | null;
+  createdAt?: string;
+  // Requester confirmation (creator of source YCKT, else creator of the YCSC)
+  nguoiXacNhanId?: string | null;
+  nguoiXacNhanTen?: string | null;
+  xacNhanLuc?: string | null;
+  lyDoXacNhan?: string | null;
 }
 
 // ── Sub-resource types ──────────────────────────────────────────────────
@@ -338,6 +345,8 @@ export interface PlanRepairRequestPayload {
 export interface ConfirmAcceptancePayload {
   ketQua: NghiemThuKetQua;
   chiPhiThucTe?: number;
+  /** Required when ketQua = KHONG_DAT */
+  lyDo?: string;
 }
 
 const appendFormFields = (formData: FormData, data: Record<string, unknown>) => {

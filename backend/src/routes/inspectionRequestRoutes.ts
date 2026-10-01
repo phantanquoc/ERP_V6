@@ -6,6 +6,7 @@ import { createSingleUploadMiddleware } from '@middlewares/upload';
 
 const router = Router();
 const upload = createSingleUploadMiddleware('inspection-requests');
+const uploadAcceptance = createSingleUploadMiddleware('acceptance-handovers');
 
 router.get('/', authenticate, inspectionRequestController.getAll);
 router.get('/generate-code', authenticate, inspectionRequestController.generateCode);
@@ -20,7 +21,9 @@ router.delete('/:id', authenticate, requireRule('inspection-requests', 'DELETE')
 router.patch('/:id/accept', authenticate, requireRule('inspection-requests', 'UPDATE'), inspectionRequestController.accept);
 router.patch('/:id/start-inspection', authenticate, requireRule('inspection-requests', 'UPDATE'), inspectionRequestController.startInspection);
 router.put('/:id/details', authenticate, requireRule('inspection-requests', 'UPDATE'), upload, inspectionRequestController.updateDetails);
-router.patch('/:id/submit', authenticate, requireRule('inspection-requests', 'UPDATE'), inspectionRequestController.submit);
+router.patch('/:id/submit', authenticate, requireRule('inspection-requests', 'UPDATE'), uploadAcceptance, inspectionRequestController.submit);
+// Requester (YCKT creator, any department) confirms — authorization enforced in service
+router.patch('/:id/confirm-acceptance', authenticate, inspectionRequestController.confirmAcceptance);
 router.patch('/:id/complete', authenticate, requireRule('inspection-requests', 'UPDATE'), inspectionRequestController.complete);
 router.patch('/:id/reject', authenticate, requireRule('inspection-requests', 'UPDATE'), inspectionRequestController.reject);
 router.patch('/:id/cancel', authenticate, requireRule('inspection-requests', 'UPDATE'), inspectionRequestController.cancel);
