@@ -101,6 +101,10 @@ export type ItemDraft = RepairRequestItemInput & {
 // Re-export removed — import from '../constants/repairRequest' instead (keeps this file HMR-clean).
 // PRIORITIES, FAULT_TYPES, MANUAL_ENTRY, KET_LUAN_LABELS, MUC_DO_LABELS, formatKetLuan, formatMucDo are now in constants/repairRequest.ts
 
+/** "Khu vực - Vị trí" from the machine catalog; a detail's own viTri overrides the system's. */
+const locationLabel = (system?: Pick<MachineSystem, 'khuVuc' | 'viTri'> | null, detail?: Pick<MachineSystemDetail, 'viTri'> | null): string =>
+  [system?.khuVuc?.trim(), (detail?.viTri?.trim() || system?.viTri?.trim())].filter(Boolean).join(' - ');
+
 const isManualEntry = (item: ItemDraft) => item.machineSystemId === MANUAL_ENTRY;
 const hasSystemPicked = (item: ItemDraft) => !!item.machineSystemId && item.machineSystemId !== MANUAL_ENTRY;
 
@@ -833,9 +837,31 @@ const RepairRequestFormModal = ({
     setItems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
   };
 
+  const locationOf = (systemId?: string | null, detailId?: string | null): string => {
+    const detail = detailId ? details.find((d) => d.id === detailId) : undefined;
+    const system = systems.find((s) => s.id === (detail?.machineSystemId ?? systemId)) ?? detail?.machineSystem;
+    return locationLabel(system, detail);
+  };
+
+  /**
+   * Apply a system/detail pick and auto-fill "Vị trí / khu vực" from the catalog. A value the user
+   * typed is kept; only an empty field or the previous auto-filled value gets replaced.
+   */
+  const pickMachine = (index: number, patch: Partial<ItemDraft>) => {
+    setItems((current) => current.map((item, itemIndex) => {
+      if (itemIndex !== index) return item;
+      const next = { ...item, ...patch };
+      const prevAuto = locationOf(item.machineSystemId, item.machineSystemDetailId);
+      const typed = item.tinhTrangThietBi.trim();
+      if (typed && typed !== prevAuto) return next;
+      const auto = next.machineSystemId === MANUAL_ENTRY ? '' : locationOf(next.machineSystemId, next.machineSystemDetailId);
+      return { ...next, tinhTrangThietBi: auto };
+    }));
+  };
+
   const selectSystem = (index: number, systemId: string) => {
     if (systemId === MANUAL_ENTRY) {
-      patchItem(index, {
+      pickMachine(index, {
         machineSystemId: MANUAL_ENTRY,
         machineSystemDetailId: '',
         tenHeThong: '',
@@ -844,7 +870,7 @@ const RepairRequestFormModal = ({
     }
     const effectiveSystemId = lockedSystemIdStr ?? systemId;
     const system = systems.find((item) => item.id === effectiveSystemId);
-    patchItem(index, {
+    pickMachine(index, {
       machineSystemId: effectiveSystemId,
       machineSystemDetailId: '',
       tenHeThong: system ? `${system.maHeThong} - ${system.tenHeThong}` : '',
@@ -854,7 +880,7 @@ const RepairRequestFormModal = ({
   const selectDetail = (index: number, detailId: string) => {
     const detail = details.find((item) => item.id === detailId);
     const system = detail?.machineSystem ?? systems.find((item) => item.id === detail?.machineSystemId);
-    patchItem(index, {
+    pickMachine(index, {
       machineSystemId: lockedSystemIdStr ?? detail?.machineSystemId ?? '',
       machineSystemDetailId: detailId,
       tenHeThong: detail
@@ -1424,7 +1450,7 @@ const RepairRequestFormModal = ({
                             )}
                           </>
                         )}
-                        <FormField label="Vị trí / khu vực" required hint={!isView ? 'VD: Khu B, tầng 2, dây chuyền 3' : undefined}>
+                        <FormField label="Vị trí / khu vực" required hint={isView ? undefined : picked && locationOf(item.machineSystemId, item.machineSystemDetailId) ? 'Tự điền từ danh mục hệ thống — có thể sửa' : 'VD: Khu B, tầng 2, dây chuyền 3'}>
                           <input required disabled={isView} placeholder="VD: Khu B, tầng 2" value={item.tinhTrangThietBi} onChange={(event) => patchItem(index, { tinhTrangThietBi: event.target.value })} className={`${inputCls()} min-h-[44px] text-sm disabled:bg-gray-50`} />
                         </FormField>
                         <FormField label="Loại lỗi" required>
