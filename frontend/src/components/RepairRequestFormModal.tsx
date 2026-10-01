@@ -755,12 +755,18 @@ const RepairRequestFormModal = ({
     }
     const isCreateKiemTra = !record && lockedRequestType === 'KIEM_TRA';
     if (isCreateKiemTra) {
+      const deptLabelForInspection =
+        String((viewUser as unknown as { subDepartmentName?: string })?.subDepartmentName ?? '').trim() ||
+        String((viewUser as unknown as { departmentName?: string })?.departmentName ?? '').trim() ||
+        String((viewUser as unknown as { department?: string })?.department ?? '').trim() ||
+        undefined;
       await createInspection.mutateAsync({
         data: {
           ngayThang: form.ngayThang,
           maYeuCau: form.maYeuCau,
           mucDoUuTien: form.mucDoUuTien,
           ghiChu: form.ghiChu || undefined,
+          ...(deptLabelForInspection ? { phongBanId: deptLabelForInspection } : {}),
           items: cleanedItems,
         } as never,
         file: selectedFile ?? undefined,
