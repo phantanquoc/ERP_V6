@@ -852,40 +852,25 @@ const RepairRequestFormModal = ({
           const u = viewUser as unknown as Record<string, unknown> | null;
           const userId = String((u?.id as string) ?? (u?._id as string) ?? '').trim();
           const userFullName = String((u?.fullName as string) ?? (u?.name as string) ?? ([u?.firstName, u?.lastName].filter(Boolean).join(' ').trim()) ?? '').trim();
-          // Resolver MỚI: ưu tiên 1 = lead assignee (người Chính), ưu tiên 2 = current user
+          // YCCC requester = the person creating/handling this repair request (current user),
+          // NOT the lead assignee. Backend also derives requester identity from the JWT.
           type EmpOpt = { id: string; userId?: string; name: string; employeeCode: string; department?: string };
           const catalog = employees as EmpOpt[];
-          const leadAssignee = assignees.find((a) => a.isLead) ?? assignees.find((a) => a.userId.trim() || a.userName.trim()) ?? null;
-          let leadEmp: EmpOpt | null = null;
-          if (leadAssignee) {
-            const aid = leadAssignee.userId.trim();
-            const aname = leadAssignee.userName.trim();
-            leadEmp = catalog.find((e) => {
-              if (aid && (e.id === aid || e.userId === aid)) return true;
-              if (aname && e.name && e.name.trim() === aname) return true;
-              if (aname && e.name && e.name.trim().toLowerCase() === aname.toLowerCase()) return true;
-              return false;
-            }) ?? null;
-          }
-          let viewerEmp: EmpOpt | null = null;
-          if (!leadEmp && (userId || userFullName)) {
-            viewerEmp = catalog.find((e) => {
-              if (userId && e.userId === userId) return true;
-              if (userFullName && e.name && e.name.trim() === userFullName) return true;
-              if (userFullName && e.name && e.name.trim().toLowerCase() === userFullName.toLowerCase()) return true;
-              return false;
-            }) ?? null;
-          }
-          const resolvedEmployee: EmpOpt | null = leadEmp ?? viewerEmp;
+          const viewerEmployeeId = String((u?.employeeId as string) ?? '').trim();
+          const viewerEmp: EmpOpt | null = catalog.find((e) => {
+            if (viewerEmployeeId && e.id === viewerEmployeeId) return true;
+            if (userId && e.userId === userId) return true;
+            return false;
+          }) ?? null;
           let resolvedEmployeeId: string;
           let resolvedMaNhanVien: string;
           let resolvedTenNhanVien: string;
           let resolvedBoPhan: string;
-          if (resolvedEmployee) {
-            resolvedEmployeeId = resolvedEmployee.id;
-            resolvedMaNhanVien = resolvedEmployee.employeeCode || resolvedEmployee.id;
-            resolvedTenNhanVien = resolvedEmployee.name || userFullName || (leadAssignee?.userName ?? '') || '';
-            resolvedBoPhan = (resolvedEmployee.department ?? '').trim();
+          if (viewerEmployeeId || viewerEmp) {
+            resolvedEmployeeId = viewerEmployeeId || viewerEmp?.id || '';
+            resolvedMaNhanVien = String((u?.employeeCode as string) ?? '').trim() || viewerEmp?.employeeCode || resolvedEmployeeId;
+            resolvedTenNhanVien = viewerEmp?.name || userFullName;
+            resolvedBoPhan = (viewerEmp?.department ?? '').trim();
           } else {
             // Không tìm thấy hồ sơ Employee khớp — báo lỗi rõ, không fallback User.id làm employeeId
             resolvedEmployeeId = '';
@@ -920,8 +905,8 @@ const RepairRequestFormModal = ({
           if (supplyItems.length === 0) {
             toast('YCSC đã tạo nhưng không có hàng hóa hợp lệ để tạo YCCC — vui lòng kiểm tra số lượng', { icon: '⚠️' });
           } else if (!resolvedEmployeeId || !resolvedTenNhanVien) {
-            toast.error('Không tạo được YCCC: không tìm thấy hồ sơ nhân viên của người phụ trách Chính — vui lòng chọn lại nhân viên từ danh sách');
-            console.warn('auto supply skipped: missing employee info', { leadAssignee, employeesCount: catalog.length });
+            toast.error('Không tạo được YCCC: tài khoản của bạn chưa liên kết hồ sơ nhân viên');
+            console.warn('auto supply skipped: missing employee info', { userId, employeesCount: catalog.length });
           } else {
             // 2.c) đủ điều kiện → tạo YCCC
             try {

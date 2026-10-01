@@ -347,43 +347,27 @@ export default function RepairDetailPanel({ repairId, open, onClose, onEdit }: P
     if (materialNeeds.length === 0) { toast.error('Chưa có vật tư dự kiến'); return; }
     try {
       const items = materialNeeds.map(m => ({ phanLoai: 'Vật tư', tenGoi: m.tenVatTu, soLuong: Number(m.soLuongDuKien), donViTinh: m.donVi ?? 'cái' }));
-      // Resolve Employee.id (BE expects Employee.id, not User.id) — same logic as RepairRequestFormModal
+      // YCCC requester = the current user handling this repair request, NOT the lead assignee.
+      // Backend also derives requester identity from the JWT.
       type EmpOpt = { id: string; userId?: string; name: string; employeeCode: string; department?: string };
       const catalog = employeesCatalog as EmpOpt[];
-      const assigneesList = (r as unknown as { assignees?: { userId?: string; userName?: string; isLead?: boolean; vaiTro?: string }[] }).assignees ?? [];
-      const leadRaw = assigneesList.find(a => a.isLead) ?? assigneesList.find(a => a.vaiTro === 'CHINH') ?? assigneesList[0] ?? null;
-      let leadEmp: EmpOpt | null = null;
-      if (leadRaw) {
-        const aid = String(leadRaw.userId ?? '').trim();
-        const aname = String(leadRaw.userName ?? '').trim();
-        leadEmp = catalog.find(e => {
-          if (aid && (e.id === aid || e.userId === aid)) return true;
-          if (aname && e.name && e.name.trim() === aname) return true;
-          if (aname && e.name && e.name.trim().toLowerCase() === aname.toLowerCase()) return true;
-          return false;
-        }) ?? null;
-      }
       const u = user as unknown as Record<string, unknown> | null;
       const userId = String((u?.id as string) ?? (u?._id as string) ?? '').trim();
       const userFullName = String((u?.fullName as string) ?? (u?.name as string) ?? ([u?.firstName, u?.lastName].filter(Boolean).join(' ').trim()) ?? '').trim();
-      let viewerEmp: EmpOpt | null = null;
-      if (!leadEmp && (userId || userFullName)) {
-        viewerEmp = catalog.find(e => {
-          if (userId && e.userId === userId) return true;
-          if (userFullName && e.name && e.name.trim() === userFullName) return true;
-          if (userFullName && e.name && e.name.trim().toLowerCase() === userFullName.toLowerCase()) return true;
-          return false;
-        }) ?? null;
-      }
-      const resolvedEmployee: EmpOpt | null = leadEmp ?? viewerEmp;
-      if (!resolvedEmployee) {
-        toast.error('Không tạo được YCCC: không tìm thấy hồ sơ nhân viên của người phụ trách — vui lòng phân công người phụ trách trước');
+      const viewerEmployeeId = String((u?.employeeId as string) ?? '').trim();
+      const viewerEmp: EmpOpt | null = catalog.find(e => {
+        if (viewerEmployeeId && e.id === viewerEmployeeId) return true;
+        if (userId && e.userId === userId) return true;
+        return false;
+      }) ?? null;
+      if (!viewerEmployeeId && !viewerEmp) {
+        toast.error('Không tạo được YCCC: tài khoản của bạn chưa liên kết hồ sơ nhân viên');
         return;
       }
-      const resolvedEmployeeId = resolvedEmployee.id;
-      const resolvedMaNhanVien = resolvedEmployee.employeeCode || resolvedEmployee.id;
-      const resolvedTenNhanVien = resolvedEmployee.name || userFullName || leadRaw?.userName || '';
-      let resolvedBoPhan = (resolvedEmployee.department ?? '').trim();
+      const resolvedEmployeeId = viewerEmployeeId || viewerEmp?.id || '';
+      const resolvedMaNhanVien = String((u?.employeeCode as string) ?? '').trim() || viewerEmp?.employeeCode || resolvedEmployeeId;
+      const resolvedTenNhanVien = viewerEmp?.name || userFullName;
+      let resolvedBoPhan = (viewerEmp?.department ?? '').trim();
       if (!resolvedBoPhan) {
         resolvedBoPhan = String((u?.subDepartmentName as string) ?? (u?.departmentName as string) ?? (u?.department as string) ?? '').trim() || 'Kỹ thuật';
       }

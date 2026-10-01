@@ -296,10 +296,15 @@ class SupplyRequestService {
     // Validate employeeId exists
     const employee = await prisma.employee.findUnique({
       where: { id: data.employeeId },
+      include: { user: { select: { firstName: true, lastName: true } } },
     });
     if (!employee) {
       throw new ValidationError('Không tìm thấy thông tin nhân viên. Vui lòng đăng nhập lại.');
     }
+    // Requester code/name always follow the resolved employee (the creator), never client-supplied values
+    data.maNhanVien = employee.employeeCode;
+    const requesterName = `${employee.user?.lastName ?? ''} ${employee.user?.firstName ?? ''}`.trim();
+    if (requesterName) data.tenNhanVien = requesterName;
 
     if (!data.items || data.items.length === 0) {
       throw new ValidationError('Phải có ít nhất một hàng hóa trong yêu cầu cung cấp.');
