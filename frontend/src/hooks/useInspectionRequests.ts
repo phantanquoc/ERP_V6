@@ -63,8 +63,8 @@ export const useGeneratedInspectionCode = () =>
 export const useCreateInspectionRequest = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ data, file }: { data: CreateInspectionRequestRequest; file?: File }) =>
-      inspectionRequestService.create(data, file),
+    mutationFn: ({ data, files }: { data: CreateInspectionRequestRequest; files?: File[] }) =>
+      inspectionRequestService.create(data, files),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: inspectionKeys.all });
       queryClient.invalidateQueries({ queryKey: inspectionKeys.generatedCode() });
@@ -75,8 +75,8 @@ export const useCreateInspectionRequest = () => {
 export const useUpdateInspectionRequest = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data, file }: { id: number | string; data: UpdateInspectionRequestRequest; file?: File }) =>
-      inspectionRequestService.update(id, data, file),
+    mutationFn: ({ id, data, files }: { id: number | string; data: UpdateInspectionRequestRequest; files?: File[] }) =>
+      inspectionRequestService.update(id, data, files),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: inspectionKeys.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: inspectionKeys.all });

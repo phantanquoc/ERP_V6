@@ -155,6 +155,7 @@ describe('YCKT item diff update', () => {
     expect(tx.inspectionRequestItem.createMany).toHaveBeenCalledWith({ data: [expect.objectContaining({ inspectionRequestId: 5 })] });
     expect(tx.inspectionRequestItem.deleteMany).not.toHaveBeenCalled();
   });
+
 });
 
 // ── 2. Edit / cancel permission matrix ───────────────────────────────────────
@@ -515,5 +516,34 @@ describe('delete guards', () => {
   it('YCKT with a slip cannot be deleted', async () => {
     tx.inspectionRequest.findUnique.mockResolvedValue({ id: 5, trangThai: InspectionRequestStatus.HOAN_THANH, _count: { acceptanceHandovers: 1 } });
     await expect(inspectionRequestService.deleteInspectionRequest(5)).rejects.toThrow('đã có phiếu nghiệm thu');
+  });
+});
+
+// ── 7. Multi-file attachments (tepDinhKem, max 4, append-only) ───────────────
+
+describe('inspection attachments', () => {
+  const techChxuLy = { id: 5, trangThai: InspectionRequestStatus.CHO_XU_LY, createdById: 'tech' };
+
+  it('update appends new files to existing ones', async () => {
+    mockIsTechnicalMember.mockResolvedValue(true);
+    mockPrisma.inspectionRequest.findUnique
+      .mockResolvedValueOnce(techChxuLy)
+      .mockResolvedValueOnce({ tepDinhKem: ['/uploads/inspection-requests/a.pdf'] });
+    await inspectionRequestService.updateInspectionRequest(5, { tepDinhKem: ['/uploads/inspection-requests/b.pdf'] } as never, { actorId: 'tech', actorRole: 'EMPLOYEE' });
+    expect(tx.inspectionRequest.updateMany).toHaveBeenCalledWith({
+      where: { id: 5, trangThai: InspectionRequestStatus.CHO_XU_LY },
+      data: expect.objectContaining({ tepDinhKem: ['/uploads/inspection-requests/a.pdf', '/uploads/inspection-requests/b.pdf'] }),
+    });
+  });
+
+  it('update rejects when total exceeds 4 files', async () => {
+    mockIsTechnicalMember.mockResolvedValue(true);
+    mockPrisma.inspectionRequest.findUnique
+      .mockResolvedValueOnce(techChxuLy)
+      .mockResolvedValueOnce({ tepDinhKem: ['/uploads/inspection-requests/a.pdf', '/uploads/inspection-requests/b.pdf', '/uploads/inspection-requests/c.pdf'] });
+    await expect(
+      inspectionRequestService.updateInspectionRequest(5, { tepDinhKem: ['/uploads/inspection-requests/d.pdf', '/uploads/inspection-requests/e.pdf'] } as never, { actorId: 'tech', actorRole: 'EMPLOYEE' }),
+    ).rejects.toThrow('tối đa 4 tệp');
+    expect(tx.inspectionRequest.updateMany).not.toHaveBeenCalled();
   });
 });

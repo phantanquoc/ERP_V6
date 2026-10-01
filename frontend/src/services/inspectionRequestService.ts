@@ -64,6 +64,7 @@ export interface InspectionRequest {
   ghiChu?: string | null;
   trangThai: InspectionRequestStatus;
   fileDinhKem?: string | null;
+  tepDinhKem?: string[];
   phongBanId?: string | null;
   createdById?: string | null;
   createdByName?: string | null;
@@ -160,6 +161,8 @@ export interface InspectionRequestStatsResponse {
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
+export const INSPECTION_MAX_FILES = 4;
+
 const appendFormFields = (formData: FormData, data: Record<string, unknown>) => {
   Object.entries(data).forEach(([key, value]) => {
     if (value === undefined) return;
@@ -187,19 +190,19 @@ class InspectionRequestService {
     return apiClient.get<InspectionRequest>(`/inspection-requests/${id}`);
   }
 
-  async create(data: CreateInspectionRequestRequest, file?: File): Promise<ApiResponse<InspectionRequest>> {
+  async create(data: CreateInspectionRequestRequest, files?: File[]): Promise<ApiResponse<InspectionRequest>> {
     const formData = new FormData();
     appendFormFields(formData, data as unknown as Record<string, unknown>);
-    if (file) formData.append('file', file);
+    files?.slice(0, INSPECTION_MAX_FILES).forEach((f) => formData.append('files', f));
     return apiClient.post<InspectionRequest>('/inspection-requests', formData);
   }
 
-  async update(id: number | string, data: UpdateInspectionRequestRequest, file?: File): Promise<ApiResponse<InspectionRequest>> {
+  async update(id: number | string, data: UpdateInspectionRequestRequest, files?: File[]): Promise<ApiResponse<InspectionRequest>> {
     const { trangThai: _ignored, ...rest } = data as UpdateInspectionRequestRequest & { trangThai?: unknown };
     void _ignored;
     const formData = new FormData();
     appendFormFields(formData, rest as unknown as Record<string, unknown>);
-    if (file) formData.append('file', file);
+    files?.slice(0, INSPECTION_MAX_FILES).forEach((f) => formData.append('files', f));
     return apiClient.put<InspectionRequest>(`/inspection-requests/${id}`, formData);
   }
 

@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowRight, Ban, CheckCheck, CheckCircle, History, Link2, Play, Plus, Save, Send, Trash2, Wrench, X, XCircle } from 'lucide-react';
+import { ArrowRight, Ban, CheckCheck, CheckCircle, FileText, History, Link2, Play, Plus, Save, Send, Trash2, Wrench, X, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getFileUrl } from '../config/api';
 import acceptanceHandoverService from '../services/acceptanceHandoverService';
@@ -52,6 +52,7 @@ import {
   STATUS_LABELS as REPAIR_STATUS_LABELS,
 } from '../services/repairRequestService';
 import inspectionRequestService, {
+  INSPECTION_MAX_FILES,
   STATUS_LABELS as INSPECTION_STATUS_LABELS,
 } from '../services/inspectionRequestService';
 import repairRequestService from '../services/repairRequestService';
@@ -353,6 +354,8 @@ const RepairRequestFormModal = ({
   const [form, setForm] = useState<CreateRepairRequestRequest>(emptyForm());
   const [items, setItems] = useState<ItemDraft[]>([emptyItem()]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  // YCKT multi-file attachments (max INSPECTION_MAX_FILES); YCSC keeps single selectedFile
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [error, setError] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
   // SUA_CHUA extra sections state
@@ -761,6 +764,7 @@ const RepairRequestFormModal = ({
     if (!isOpen) return;
     setError('');
     setSelectedFile(null);
+    setSelectedFiles([]);
     // Prefill plan/assignees/materials reset
     setPlan({ keHoachChiTiet: '', phuongAn: '', bienPhapAnToan: '', ngayBatDauKeHoach: '', ngayHoanThienDuKien: '', canNgungMay: false });
     setAssignees([]);
@@ -909,7 +913,7 @@ const RepairRequestFormModal = ({
           ...(deptLabelForInspection ? { phongBanId: deptLabelForInspection } : {}),
           items: cleanedItems.map(({ id: _id, sourceInspectionItemId: _s, ...rest }) => rest),
         } as never,
-        file: selectedFile ?? undefined,
+        files: selectedFiles.length > 0 ? selectedFiles : undefined,
       });
       const _maYCKT = (form.maYeuCau ?? '').trim() || '—';
       onSaved?.({ maYeuCau: _maYCKT });
@@ -936,7 +940,7 @@ const RepairRequestFormModal = ({
       if (record) {
         // Table is decided by _source / lockedRequestType (see effectiveIsKiemTra), never by code prefix
         if (effectiveIsKiemTra) {
-          await updateInspection.mutateAsync({ id: (record as unknown as { id: number }).id, data: { ngayThang: form.ngayThang, mucDoUuTien: form.mucDoUuTien, ghiChu: form.ghiChu || undefined, items: cleanedItems }, file: selectedFile ?? undefined });
+          await updateInspection.mutateAsync({ id: (record as unknown as { id: number }).id, data: { ngayThang: form.ngayThang, mucDoUuTien: form.mucDoUuTien, ghiChu: form.ghiChu || undefined, items: cleanedItems }, files: selectedFiles.length > 0 ? selectedFiles : undefined });
           toast.success('Đã cập nhật yêu cầu kiểm tra');
         } else {
           const { requestType: _rt, sourceInspectionRequestId: _src, maYeuCau: _ma, ...updatePayload } = payload;
@@ -1889,12 +1893,68 @@ const RepairRequestFormModal = ({
             )}
           </div>
         )}
-        {!isView && <FileUpload label="File đính kèm" files={selectedFile ? [selectedFile] : []} onChange={(files) => setSelectedFile(files[0] ?? null)} compact existingFileUrl={record?.fileDinhKem ? getFileUrl(record.fileDinhKem) : undefined} existingFileName={record?.fileDinhKem ? 'File hiện tại' : undefined} />}
-        {isView && record?.fileDinhKem && (
-          <a href={getFileUrl(record.fileDinhKem)} target="_blank" rel="noreferrer" title="Mở file đính kèm trong tab mới" className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100 transition-colors">
-            Xem file đính kèm
-          </a>
+        {!isView && !record && (
+          <FileUpload
+            label={`File đính kèm (tối đa ${INSPECTION_MAX_FILES} tệp)`}
+            helpText="PDF, Word, Excel, ảnh, TXT, ZIP/RAR — mỗi tệp tối đa 100MB"
+            files={selectedFiles}
+            onChange={(files) => setSelectedFiles(files.slice(0, INSPECTION_MAX_FILES))}
+            multiple
+            maxFiles={INSPECTION_MAX_FILES}
+            accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
+          />
         )}
+        {!isView && record && (
+          <div className="space-y-2">
+            {(() => {
+              const kept = ((record as unknown as { tepDinhKem?: string[] })?.tepDinhKem ?? [])
+                .concat((record as unknown as { fileDinhKem?: string | null })?.fileDinhKem ? [String((record as unknown as { fileDinhKem?: string })?.fileDinhKem)] : []);
+              const remaining = INSPECTION_MAX_FILES - kept.length;
+              return kept.length > 0 ? (
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-2.5">
+                  <p className="mb-1.5 text-xs font-medium text-gray-500">Tệp đã đính kèm ({kept.length}/{INSPECTION_MAX_FILES})</p>
+                  <ul className="space-y-1">{kept.map((url) => (<li key={url}><a href={getFileUrl(url)} target="_blank" rel="noreferrer" className="text-sm text-blue-600 hover:underline truncate block" title={String(url.split('/').pop())}>{String(url.split('/').pop())}</a></li>))}</ul>
+                  {remaining <= 0 && <p className="mt-1 text-xs text-amber-600">Đã đạt tối đa {INSPECTION_MAX_FILES} tệp.</p>}
+                </div>
+              ) : null;
+            })()}
+            {(() => {
+              const keptCount = ((record as unknown as { tepDinhKem?: string[] })?.tepDinhKem ?? []).length + ((record as unknown as { fileDinhKem?: string | null })?.fileDinhKem ? 1 : 0);
+              if (keptCount >= INSPECTION_MAX_FILES) return null;
+              return (
+                <FileUpload
+                  label="Thêm tệp đính kèm"
+                  helpText={`Còn thêm được ${INSPECTION_MAX_FILES - keptCount} tệp`}
+                  files={selectedFiles}
+                  onChange={(files) => setSelectedFiles(files.slice(0, INSPECTION_MAX_FILES - keptCount))}
+                  multiple
+                  maxFiles={INSPECTION_MAX_FILES - keptCount}
+                  accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
+                />
+              );
+            })()}
+          </div>
+        )}
+        {isView && (() => {
+          const urls = ((record as unknown as { tepDinhKem?: string[] })?.tepDinhKem ?? [])
+            .concat((record as unknown as { fileDinhKem?: string | null })?.fileDinhKem ? [String((record as unknown as { fileDinhKem?: string })?.fileDinhKem)] : []);
+          if (urls.length === 0) return null;
+          return (
+            <div className="rounded-lg border border-gray-200 bg-white p-2.5">
+              <p className="mb-1.5 text-xs font-medium text-gray-500">File đính kèm ({urls.length})</p>
+              <ul className="space-y-1.5">
+                {urls.map((url, i) => (
+                  <li key={url}>
+                    <a href={getFileUrl(url)} target="_blank" rel="noreferrer" title="Mở file trong tab mới" className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100 transition-colors">
+                      <FileText className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{i + 1}. {String(url.split('/').pop())}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })()}
 
         {isView && effectiveIsKiemTra && (
           <div className="rounded-lg border border-gray-200">

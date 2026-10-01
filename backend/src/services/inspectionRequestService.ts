@@ -27,6 +27,7 @@ interface CreateInspectionRequestData {
   ghiChu?: string | null;
   phongBanId?: string | null;
   fileDinhKem?: string | null;
+  tepDinhKem?: string[];
   items?: InspectionRequestItemData[];
   userId?: string;
 }
@@ -37,6 +38,7 @@ interface UpdateInspectionRequestData {
   ghiChu?: string | null;
   phongBanId?: string | null;
   fileDinhKem?: string | null;
+  tepDinhKem?: string[];
   items?: InspectionRequestItemData[];
 }
 
@@ -116,6 +118,7 @@ const INACTIVE_REPAIR_STATUSES: RepairRequestStatus[] = [RepairRequestStatus.DA_
 
 export const STALE_ROW_MESSAGE = 'Phiếu đã được cập nhật bởi người khác, vui lòng tải lại';
 export const ITEM_IN_USE_MESSAGE = 'Không thể xóa hạng mục đã có nghiệm thu/vật tư/liên kết';
+export const MAX_ATTACHMENT_FILES = 4;
 
 const KET_LUAN_LABELS: Record<string, string> = { CAN_SUA_CHUA: 'Cần sửa chữa', DA_KHAC_PHUC: 'Đã khắc phục' };
 const INSPECTION_STATUS_LABELS: Record<string, string> = {
@@ -383,6 +386,7 @@ class InspectionRequestService {
           ghiChu: data.ghiChu ?? null,
           phongBanId: resolvedPhongBanId ?? null,
           fileDinhKem: data.fileDinhKem ?? null,
+          tepDinhKem: (data.tepDinhKem ?? []).slice(0, MAX_ATTACHMENT_FILES),
           createdById: data.userId ?? null,
           createdByName,
           trangThai: InspectionRequestStatus.CHO_XU_LY,
@@ -506,14 +510,23 @@ class InspectionRequestService {
     if ((data as unknown as Record<string, unknown>).trangThai !== undefined) {
       logger.warn(`Ignored client-supplied trangThai on inspection update (id: ${id})`);
     }
-    const { items, ...scalar } = data as UpdateInspectionRequestData & { trangThai?: string };
+    const { items, tepDinhKem, ...scalar } = data as UpdateInspectionRequestData & { trangThai?: string };
     delete (scalar as Record<string, unknown>).trangThai;
     const resolvedItems = items !== undefined ? await this.resolveItems(items) : undefined;
+    // Append-only attachments: merge with existing, cap at MAX_ATTACHMENT_FILES.
+    let mergedFiles: string[] | undefined;
+    if (tepDinhKem !== undefined) {
+      const current = await prisma.inspectionRequest.findUnique({ where: { id }, select: { tepDinhKem: true } });
+      mergedFiles = [...(current?.tepDinhKem ?? []), ...tepDinhKem].slice(0, MAX_ATTACHMENT_FILES);
+      if ((current?.tepDinhKem ?? []).length + tepDinhKem.length > MAX_ATTACHMENT_FILES) {
+        throw new ValidationError(`Mỗi phiếu tối đa ${MAX_ATTACHMENT_FILES} tệp đính kèm`);
+      }
+    }
     await prisma.$transaction(async (tx) => {
       // Optimistic guard: the row must still be in the status the permission check saw.
       const guard = await tx.inspectionRequest.updateMany({
         where: { id, trangThai: existing.trangThai },
-        data: { ...(scalar as Prisma.InspectionRequestUpdateManyMutationInput), updatedAt: new Date() },
+        data: { ...(scalar as Prisma.InspectionRequestUpdateManyMutationInput), ...(mergedFiles !== undefined && { tepDinhKem: mergedFiles }), updatedAt: new Date() },
       });
       if (guard.count === 0) throw new ConflictError(STALE_ROW_MESSAGE);
       if (resolvedItems !== undefined) await this.syncInspectionItems(tx, id, resolvedItems);

@@ -5,6 +5,13 @@ import { getFileUrl } from '@middlewares/upload';
 import { InspectionRequestStatus } from '@prisma/client';
 import logger from '@config/logger';
 
+export const INSPECTION_MAX_FILES = 4;
+
+function mapUploadedFiles(req: AuthenticatedRequest): string[] {
+  const files = req.files as Express.Multer.File[] | undefined;
+  return files?.map((f) => getFileUrl('inspection-requests', f.filename)) ?? [];
+}
+
 function parseListFilters(req: AuthenticatedRequest): InspectionRequestFilters {
   const filters: InspectionRequestFilters = {};
   if (req.query.search) filters.search = req.query.search as string;
@@ -52,7 +59,8 @@ class InspectionRequestController {
         mucDoUuTien: req.body.mucDoUuTien,
         ghiChu: req.body.ghiChu,
         phongBanId: req.body.phongBanId,
-        fileDinhKem: req.file ? getFileUrl('inspection-requests', req.file.filename) : (req.body.fileDinhKem ?? undefined),
+        fileDinhKem: req.body.fileDinhKem ?? undefined,
+        tepDinhKem: mapUploadedFiles(req),
         maYeuCau: req.body.maYeuCau ?? undefined,
         userId: req.user?.id,
         ...(items !== undefined && { items }),
@@ -77,7 +85,8 @@ class InspectionRequestController {
         ...(req.body.ngayThang && { ngayThang: new Date(req.body.ngayThang) }),
         ...(items !== undefined && { items }),
       };
-      if (req.file) data.fileDinhKem = getFileUrl('inspection-requests', req.file.filename);
+      const newFiles = mapUploadedFiles(req);
+      if (newFiles.length > 0) data.tepDinhKem = newFiles;
       const actor = { actorId: req.user?.id, actorRole: req.user?.role };
       const row = await inspectionRequestService.updateInspectionRequest(id, data as never, actor);
       res.json({ success: true, data: row, message: 'Cập nhật phiếu kiểm tra thành công' });

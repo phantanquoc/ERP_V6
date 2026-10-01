@@ -3,10 +3,12 @@ import inspectionRequestController from '@controllers/inspectionRequestControlle
 import { authenticate } from '@middlewares/auth';
 import { requireRule } from '@middlewares/requireRule';
 import { requireTechnical, denyEmployeeDelete } from '@middlewares/technicalAccess';
-import { createSingleUploadMiddleware } from '@middlewares/upload';
+import { createSingleUploadMiddleware, createUploadMiddleware } from '@middlewares/upload';
 
 const router = Router();
 const upload = createSingleUploadMiddleware('inspection-requests');
+// Create/update attachments: up to 4 files per request (field name "files")
+const uploadAttachments = createUploadMiddleware('inspection-requests', 4);
 const uploadAcceptance = createSingleUploadMiddleware('acceptance-handovers');
 
 router.get('/', authenticate, inspectionRequestController.getAll);
@@ -17,8 +19,8 @@ router.get('/stats', authenticate, inspectionRequestController.getStats.bind(ins
 router.get('/:id/status-history', authenticate, inspectionRequestController.getStatusHistory);
 router.get('/:id', authenticate, inspectionRequestController.getById);
 
-router.post('/', authenticate, requireRule('inspection-requests', 'CREATE'), upload, inspectionRequestController.create);
-router.put('/:id', authenticate, requireRule('inspection-requests', 'UPDATE'), upload, inspectionRequestController.update);
+router.post('/', authenticate, requireRule('inspection-requests', 'CREATE'), uploadAttachments, inspectionRequestController.create);
+router.put('/:id', authenticate, requireRule('inspection-requests', 'UPDATE'), uploadAttachments, inspectionRequestController.update);
 router.delete('/:id', authenticate, requireRule('inspection-requests', 'DELETE'), denyEmployeeDelete, inspectionRequestController.remove);
 
 router.patch('/:id/accept', authenticate, requireRule('inspection-requests', 'UPDATE'), requireTechnical, inspectionRequestController.accept);

@@ -1012,7 +1012,8 @@ model InspectionRequest {
   ghiChu         String?                 @map("ghi_chu") @db.Text
   trangThai      InspectionRequestStatus @default(CHO_XU_LY) @map("trang_thai")
   phongBanId     String?                 @map("phong_ban_id") @db.VarChar(30)
-  fileDinhKem    String?                 @map("file_dinh_kem")
+  fileDinhKem    String?                 @map("file_dinh_kem") // legacy single file — kept for old rows
+  tepDinhKem     String[]                @default([]) @map("tep_dinh_kem")
   createdById    String?                 @map("created_by_id") // soft ref to auth.User.id
   createdByName  String?                 @map("created_by_name")
   ketQuaKiemTra  String?                 @map("ket_qua_kiem_tra") @db.Text
