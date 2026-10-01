@@ -120,6 +120,14 @@ export const STALE_ROW_MESSAGE = 'Phiếu đã được cập nhật bởi ngư�
 export const ITEM_IN_USE_MESSAGE = 'Không thể xóa hạng mục đã có nghiệm thu/vật tư/liên kết';
 export const MAX_ATTACHMENT_FILES = 4;
 
+/**
+ * Postgres text columns reject NUL (0x00) with `22021 invalid byte sequence` → 500.
+ * Free-text input (often pasted from Word/Excel) can carry it, so strip it instead of failing.
+ */
+function stripNul<T>(value: T): T {
+  return (typeof value === 'string' ? value.replace(/\0/g, '') : value) as T;
+}
+
 const KET_LUAN_LABELS: Record<string, string> = { CAN_SUA_CHUA: 'Cần sửa chữa', DA_KHAC_PHUC: 'Đã khắc phục' };
 const INSPECTION_STATUS_LABELS: Record<string, string> = {
   CHO_XU_LY: 'Chờ xử lý',
@@ -326,10 +334,10 @@ class InspectionRequestService {
           ...(item.id ? { id: String(item.id) } : {}),
           machineSystemId: machineSystem?.id ?? null,
           machineSystemDetailId: machineSystemDetail?.id ?? null,
-          tenHeThong: machineSystem ? machineSystem.tenHeThong : item.tenHeThong,
-          tinhTrangThietBi: machineSystemDetail && !item.tinhTrangThietBi ? machineSystemDetail.tenChiTiet : item.tinhTrangThietBi,
-          loaiLoi: item.loaiLoi,
-          noiDungLoi: item.noiDungLoi,
+          tenHeThong: stripNul(machineSystem ? machineSystem.tenHeThong : item.tenHeThong),
+          tinhTrangThietBi: stripNul(machineSystemDetail && !item.tinhTrangThietBi ? machineSystemDetail.tenChiTiet : item.tinhTrangThietBi),
+          loaiLoi: stripNul(item.loaiLoi),
+          noiDungLoi: stripNul(item.noiDungLoi),
           faultRecordId,
         };
       }),
@@ -363,6 +371,7 @@ class InspectionRequestService {
       if (label) resolvedPhongBanId = label;
       else resolvedPhongBanId = null;
     }
+    resolvedPhongBanId = stripNul(resolvedPhongBanId);
     const resolvedItems = await this.resolveItems(data.items);
     let createdByName: string | null = null;
     if (data.userId) {
@@ -383,7 +392,7 @@ class InspectionRequestService {
           ngayThang: data.ngayThang ?? new Date(),
           maYeuCau: data.maYeuCau,
           mucDoUuTien: data.mucDoUuTien,
-          ghiChu: data.ghiChu ?? null,
+          ghiChu: stripNul(data.ghiChu ?? null),
           phongBanId: resolvedPhongBanId ?? null,
           fileDinhKem: data.fileDinhKem ?? null,
           tepDinhKem: (data.tepDinhKem ?? []).slice(0, MAX_ATTACHMENT_FILES),
@@ -512,6 +521,8 @@ class InspectionRequestService {
     }
     const { items, tepDinhKem, ...scalar } = data as UpdateInspectionRequestData & { trangThai?: string };
     delete (scalar as Record<string, unknown>).trangThai;
+    if (scalar.ghiChu !== undefined) scalar.ghiChu = stripNul(scalar.ghiChu);
+    if (scalar.mucDoUuTien !== undefined) scalar.mucDoUuTien = stripNul(scalar.mucDoUuTien);
     const resolvedItems = items !== undefined ? await this.resolveItems(items) : undefined;
     // Append-only attachments: merge with existing, cap at MAX_ATTACHMENT_FILES.
     let mergedFiles: string[] | undefined;
@@ -608,7 +619,7 @@ class InspectionRequestService {
     }
     const allowed: Record<string, unknown> = {};
     for (const k of ['ketQuaKiemTra', 'mucDoHuHong', 'deXuatXuLy', 'ketLuan', 'anhKiemTra', 'thoiGianKiemTra', 'nguoiKiemTra'] as const) {
-      if (k in data) (allowed as Record<string, unknown>)[k] = (data as Record<string, unknown>)[k];
+      if (k in data) (allowed as Record<string, unknown>)[k] = stripNul((data as Record<string, unknown>)[k]);
     }
     if (allowed.ketLuan != null && allowed.ketLuan !== '' && !KET_LUAN_VALUES.has(String(allowed.ketLuan))) {
       throw new ValidationError('Kết luận chỉ được là Cần sửa chữa hoặc Đã khắc phục');
@@ -673,7 +684,7 @@ class InspectionRequestService {
     }
 
     // DA_KHAC_PHUC — acceptance data is mandatory
-    const tinhTrangSau = String(acceptance?.tinhTrangSau ?? '').trim();
+    const tinhTrangSau = stripNul(String(acceptance?.tinhTrangSau ?? '').trim());
     if (!tinhTrangSau) throw new ValidationError('Vui lòng nhập tình trạng sau khắc phục (dữ liệu nghiệm thu)');
     if (!acceptance?.fileDinhKem) throw new ValidationError('Vui lòng đính kèm tệp nghiệm thu');
     if (!row.createdById) throw new ValidationError('Phiếu kiểm tra không có người tạo để xác nhận nghiệm thu');

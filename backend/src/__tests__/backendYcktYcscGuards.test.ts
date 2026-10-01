@@ -156,6 +156,13 @@ describe('YCKT item diff update', () => {
     expect(tx.inspectionRequestItem.deleteMany).not.toHaveBeenCalled();
   });
 
+  it('strips NUL bytes from free-text item fields (Postgres 22021 → 500)', async () => {
+    await inspectionRequestService.updateInspectionRequest(5, { ghiChu: 'a\0b', items: [item({ id: 'ki-1', noiDungLoi: 'Kêu\0 to', tinhTrangThietBi: '\0Rung' }), item({ id: 'ki-2' })] }, tech);
+    expect(tx.inspectionRequest.updateMany.mock.calls[0][0].data.ghiChu).toBe('ab');
+    const data = tx.inspectionRequestItem.update.mock.calls[0][0].data;
+    expect(data.noiDungLoi).toBe('Kêu to');
+    expect(data.tinhTrangThietBi).toBe('Rung');
+  });
 });
 
 // ── 2. Edit / cancel permission matrix ───────────────────────────────────────
