@@ -372,17 +372,24 @@ describe('REPAIR_REQUEST_CANCEL_TARGETS', () => {
 });
 
 describe('advanceRepairRequestStatus', () => {
-  // Single-step forward transitions
-  it('CHO_XU_LY → DANG_SUA_CHUA (valid single step)', () => {
-    expect(advanceRepairRequestStatus(
+  // Legacy compat edges were removed: planning and acceptance can no longer be skipped
+  it('rejects legacy jump CHO_XU_LY → DANG_SUA_CHUA (must accept + plan first)', () => {
+    expect(() => advanceRepairRequestStatus(
       RepairRequestStatus.CHO_XU_LY,
       RepairRequestStatus.DANG_SUA_CHUA
-    )).toBe(RepairRequestStatus.DANG_SUA_CHUA);
+    )).toThrow(ValidationError);
   });
 
-  it('DANG_SUA_CHUA → HOAN_THANH (valid single step)', () => {
-    expect(advanceRepairRequestStatus(
+  it('rejects legacy jump DANG_SUA_CHUA → HOAN_THANH (must pass acceptance)', () => {
+    expect(() => advanceRepairRequestStatus(
       RepairRequestStatus.DANG_SUA_CHUA,
+      RepairRequestStatus.HOAN_THANH
+    )).toThrow(ValidationError);
+  });
+
+  it('DA_NGHIEM_THU → HOAN_THANH (valid single step)', () => {
+    expect(advanceRepairRequestStatus(
+      RepairRequestStatus.DA_NGHIEM_THU,
       RepairRequestStatus.HOAN_THANH
     )).toBe(RepairRequestStatus.HOAN_THANH);
   });
@@ -453,29 +460,50 @@ describe('advanceRepairRequestStatus', () => {
     ).toThrow(ValidationError);
   });
 
-  // ADMIN bypass
-  it('bypass allows skip: CHO_XU_LY → HOAN_THANH', () => {
-    expect(advanceRepairRequestStatus(
+  // ADMIN bypass — limited: forward skips only up to CHO_NGHIEM_THU, never out of a terminal state
+  it('bypass cannot skip to HOAN_THANH: CHO_XU_LY → HOAN_THANH', () => {
+    expect(() => advanceRepairRequestStatus(
       RepairRequestStatus.CHO_XU_LY,
       RepairRequestStatus.HOAN_THANH,
       { bypass: true }
-    )).toBe(RepairRequestStatus.HOAN_THANH);
+    )).toThrow(ValidationError);
   });
 
-  it('bypass allows any transition from terminal HOAN_THANH', () => {
+  it('bypass allows skip up to CHO_NGHIEM_THU: CHO_XU_LY → CHO_NGHIEM_THU', () => {
     expect(advanceRepairRequestStatus(
+      RepairRequestStatus.CHO_XU_LY,
+      RepairRequestStatus.CHO_NGHIEM_THU,
+      { bypass: true }
+    )).toBe(RepairRequestStatus.CHO_NGHIEM_THU);
+  });
+
+  it('bypass cannot leave terminal HOAN_THANH', () => {
+    expect(() => advanceRepairRequestStatus(
       RepairRequestStatus.HOAN_THANH,
       RepairRequestStatus.CHO_XU_LY,
       { bypass: true }
-    )).toBe(RepairRequestStatus.CHO_XU_LY);
+    )).toThrow(ValidationError);
   });
 
-  it('bypass allows cancel from terminal DA_HUY', () => {
-    expect(advanceRepairRequestStatus(
+  it('bypass cannot leave terminal DA_HUY', () => {
+    expect(() => advanceRepairRequestStatus(
       RepairRequestStatus.DA_HUY,
       RepairRequestStatus.DANG_SUA_CHUA,
       { bypass: true }
-    )).toBe(RepairRequestStatus.DANG_SUA_CHUA);
+    )).toThrow(ValidationError);
+  });
+
+  it('bypass cannot go backward or skip DA_NGHIEM_THU', () => {
+    expect(() => advanceRepairRequestStatus(RepairRequestStatus.DANG_SUA_CHUA, RepairRequestStatus.DA_TIEP_NHAN, { bypass: true })).toThrow(ValidationError);
+    expect(() => advanceRepairRequestStatus(RepairRequestStatus.DANG_SUA_CHUA, RepairRequestStatus.DA_NGHIEM_THU, { bypass: true })).toThrow(ValidationError);
+    expect(() => advanceRepairRequestStatus(RepairRequestStatus.CHO_NGHIEM_THU, RepairRequestStatus.HOAN_THANH, { bypass: true })).toThrow(ValidationError);
+    expect(() => advanceRepairRequestStatus(RepairRequestStatus.DA_NGHIEM_THU, RepairRequestStatus.DANG_SUA_CHUA, { bypass: true })).toThrow(ValidationError);
+  });
+
+  it('bypass cancel up to CHO_NGHIEM_THU, not from DA_NGHIEM_THU / HOAN_THANH', () => {
+    expect(advanceRepairRequestStatus(RepairRequestStatus.CHO_NGHIEM_THU, RepairRequestStatus.DA_HUY, { bypass: true })).toBe(RepairRequestStatus.DA_HUY);
+    expect(() => advanceRepairRequestStatus(RepairRequestStatus.DA_NGHIEM_THU, RepairRequestStatus.DA_HUY, { bypass: true })).toThrow(ValidationError);
+    expect(() => advanceRepairRequestStatus(RepairRequestStatus.HOAN_THANH, RepairRequestStatus.DA_HUY, { bypass: true })).toThrow(ValidationError);
   });
 });
 

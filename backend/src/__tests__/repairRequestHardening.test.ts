@@ -70,8 +70,8 @@ describe('state machine: advanceRepairRequestStatus', () => {
       expect(advanceRepairRequestStatus(REPAIR_STATUS_ORDER[i], REPAIR_STATUS_ORDER[i + 1])).toBe(REPAIR_STATUS_ORDER[i + 1]);
     }
   });
-  it('backward compat CHO_XU_LY -> DANG_SUA_CHUA allowed', () => {
-    expect(advanceRepairRequestStatus(RepairRequestStatus.CHO_XU_LY, RepairRequestStatus.DANG_SUA_CHUA)).toBe(RepairRequestStatus.DANG_SUA_CHUA);
+  it('legacy jump CHO_XU_LY -> DANG_SUA_CHUA is rejected (compat edge removed)', () => {
+    expect(() => advanceRepairRequestStatus(RepairRequestStatus.CHO_XU_LY, RepairRequestStatus.DANG_SUA_CHUA)).toThrow(ValidationError);
   });
   it('rejects backward: DANG_SUA_CHUA -> DA_TIEP_NHAN', () => {
     expect(() => advanceRepairRequestStatus(RepairRequestStatus.DANG_SUA_CHUA, RepairRequestStatus.DA_TIEP_NHAN)).toThrow(ValidationError);
@@ -104,8 +104,9 @@ describe('state machine: advanceRepairRequestStatus', () => {
     expect(() => advanceRepairRequestStatus(RepairRequestStatus.DANG_SUA_CHUA, RepairRequestStatus.TU_CHOI)).toThrow(ValidationError);
     expect(() => advanceRepairRequestStatus(RepairRequestStatus.CHO_NGHIEM_THU, RepairRequestStatus.TU_CHOI)).toThrow(ValidationError);
   });
-  it('KHONG_DAT loop DA_NGHIEM_THU -> DANG_SUA_CHUA always allowed', () => {
-    expect(advanceRepairRequestStatus(RepairRequestStatus.DA_NGHIEM_THU, RepairRequestStatus.DANG_SUA_CHUA)).toBe(RepairRequestStatus.DANG_SUA_CHUA);
+  it('DA_NGHIEM_THU -> DANG_SUA_CHUA is rejected (KHÔNG ĐẠT loop lives in confirmAcceptance only)', () => {
+    expect(() => advanceRepairRequestStatus(RepairRequestStatus.DA_NGHIEM_THU, RepairRequestStatus.DANG_SUA_CHUA)).toThrow(ValidationError);
+    expect(() => advanceRepairRequestStatus(RepairRequestStatus.DA_NGHIEM_THU, RepairRequestStatus.DANG_SUA_CHUA, { bypass: true })).toThrow(ValidationError);
   });
   it('DA_HUY before DANG_SUA_CHUA for normal, up to CHO_NGHIEM_THU for ADMIN', () => {
     expect(advanceRepairRequestStatus(RepairRequestStatus.LEN_KE_HOACH, RepairRequestStatus.DA_HUY)).toBe(RepairRequestStatus.DA_HUY);
@@ -152,24 +153,28 @@ describe('discriminator', () => {
       items: [{ tenHeThong: 'HT', tinhTrangThietBi: 'Hong', loaiLoi: 'Co khi', noiDungLoi: 'Vo' }],
     } as any)).rejects.toThrow(ValidationError);
   });
+  // Creating from a YCKT requires a technician/ADMIN and a DA_KIEM_TRA + CAN_SUA_CHUA source
+  const SOURCE_OK = { id: 1, trangThai: 'DA_KIEM_TRA', ketLuan: 'CAN_SUA_CHUA' };
   it('SUA_CHUA with non-existent sourceInspectionRequestId throws ValidationError', async () => {
     mockPrisma.inspectionRequest.findUnique = jest.fn().mockResolvedValue(null);
     txMock.inspectionRequest.findUnique = jest.fn().mockResolvedValue(null);
     await expect(repairRequestService.createRepairRequest({
       ngayThang: new Date(), maYeuCau: 'YC-SC-2026-099', mucDoUuTien: 'CAO', requestType: RequestType.SUA_CHUA, sourceInspectionRequestId: '999999',
+      userId: 'admin', actorRole: 'ADMIN',
       items: [{ tenHeThong: 'HT', tinhTrangThietBi: 'Hong', loaiLoi: 'Co khi', noiDungLoi: 'Vo' }],
     } as any)).rejects.toThrow(ValidationError);
   });
   it('SUA_CHUA with invalid sourceInspectionItemId throws ValidationError', async () => {
-    mockPrisma.inspectionRequest.findUnique = jest.fn().mockResolvedValue({ id: 1 } as any);
+    mockPrisma.inspectionRequest.findUnique = jest.fn().mockResolvedValue(SOURCE_OK as any);
     mockPrisma.inspectionRequestItem.findMany = jest.fn().mockResolvedValue([] as any);
     await expect(repairRequestService.createRepairRequest({
       ngayThang: new Date(), maYeuCau: 'YC-SC-2026-100', mucDoUuTien: 'CAO', requestType: RequestType.SUA_CHUA, sourceInspectionRequestId: '1',
+      userId: 'admin', actorRole: 'ADMIN',
       items: [{ tenHeThong: 'HT', tinhTrangThietBi: 'Hong', loaiLoi: 'Co khi', noiDungLoi: 'Vo', sourceInspectionItemId: 'invalid-item' }],
     } as any)).rejects.toThrow(ValidationError);
   });
   it('SUA_CHUA with valid sourceInspectionRequestId and sourceInspectionItemId creates', async () => {
-    mockPrisma.inspectionRequest.findUnique = jest.fn().mockResolvedValue({ id: 1 } as any);
+    mockPrisma.inspectionRequest.findUnique = jest.fn().mockResolvedValue(SOURCE_OK as any);
     mockPrisma.inspectionRequestItem.findMany = jest.fn().mockResolvedValue([{ id: 'item-1' }] as any);
     mockPrisma.$transaction.mockImplementation(async (fn: any) => {
       const fakeTx: any = {
@@ -178,11 +183,13 @@ describe('discriminator', () => {
           findUnique: jest.fn().mockResolvedValue({ id: 20, requestType: RequestType.SUA_CHUA, maYeuCau: 'YC-SC-2026-020', sourceInspectionRequestId: 1 }),
         },
         repairRequestItem: { createMany: jest.fn().mockResolvedValue({}) },
+        repairRequestStatusLog: { create: jest.fn().mockResolvedValue({}) },
       };
       return fn(fakeTx);
     });
     const res = await repairRequestService.createRepairRequest({
       ngayThang: new Date(), maYeuCau: 'YC-SC-2026-020', mucDoUuTien: 'CAO', requestType: RequestType.SUA_CHUA, sourceInspectionRequestId: '1',
+      userId: 'admin', actorRole: 'ADMIN',
       items: [{ tenHeThong: 'HT', tinhTrangThietBi: 'Hong', loaiLoi: 'Co khi', noiDungLoi: 'Vo', sourceInspectionItemId: 'item-1' }],
     } as any);
     expect(res).toBeDefined();

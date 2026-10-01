@@ -15,10 +15,10 @@ jest.mock('@services/notificationService', () => ({
 // ── Prisma mock ───────────────────────────────────────────────────────────────
 
 const txMock: any = {
-  repairRequest: { findUnique: jest.fn(), update: jest.fn() },
+  repairRequest: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
   repairRequestItem: { count: jest.fn(), findMany: jest.fn() },
-  repairRequestStatusLog: { create: jest.fn() },
-  acceptanceHandover: { create: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
+  repairRequestStatusLog: { create: jest.fn(), findFirst: jest.fn() },
+  acceptanceHandover: { create: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
   acceptanceHandoverItem: { createMany: jest.fn(), findMany: jest.fn() },
   faultRecord: { findUnique: jest.fn(), update: jest.fn() },
   faultRecordStatusLog: { create: jest.fn() },
@@ -74,6 +74,9 @@ function mockRepairForCreate(source: { inspection?: { createdById: string; creat
   });
   txMock.acceptanceHandover.create.mockResolvedValue({ id: 'nt-1' });
   txMock.acceptanceHandover.findUnique.mockResolvedValue({ ...baseHandover, repairRequest: { items: [] }, items: [] });
+  txMock.acceptanceHandover.findFirst.mockResolvedValue(null); // no pending slip
+  txMock.acceptanceHandover.findMany.mockResolvedValue([]); // no existing NT codes
+  txMock.repairRequestStatusLog.findFirst.mockResolvedValue(null);
   mockPrisma.acceptanceHandover.findFirst.mockResolvedValue(null);
   mockPrisma.employee.findUnique.mockResolvedValue({ id: 'emp-confirmer' });
 }
@@ -170,8 +173,9 @@ describe('repairRequestService.complete — FaultRecord cascade', () => {
     mockPrisma.repairSupplyLink.findMany.mockResolvedValue([]);
     mockPrisma.repairIncidentalCost.findMany.mockResolvedValue([]);
     mockPrisma.repairRequest.findUnique.mockResolvedValue({ trangThai: RepairRequestStatus.DA_NGHIEM_THU, chiPhiDuKien: null, supplyLinks: [] });
-    txMock.repairRequest.findUnique.mockResolvedValue({ id: 1, trangThai: RepairRequestStatus.DA_NGHIEM_THU, maYeuCau: 'YC-SC-2026-001', requestType: 'SUA_CHUA' });
+    txMock.repairRequest.findUnique.mockResolvedValue({ id: 1, trangThai: RepairRequestStatus.DA_NGHIEM_THU, maYeuCau: 'YC-SC-2026-001', requestType: 'SUA_CHUA', createdById: 'ycsc-creator' });
     txMock.repairRequest.update.mockResolvedValue({});
+    txMock.repairRequest.updateMany.mockResolvedValue({ count: 1 });
     txMock.repairRequestStatusLog.create.mockResolvedValue({});
   });
 
@@ -203,15 +207,33 @@ describe('repairRequestService.complete — FaultRecord cascade', () => {
     txMock.faultRecord.findUnique.mockRejectedValue(new Error('DB connection error'));
 
     await expect(repairRequestService.complete(1, { actorId: 'tech-user', actorRole: 'TEAM_LEAD' })).resolves.not.toThrow();
-    expect(txMock.repairRequest.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ trangThai: RepairRequestStatus.HOAN_THANH }) }),
+    expect(txMock.repairRequest.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 1, trangThai: RepairRequestStatus.DA_NGHIEM_THU },
+        data: expect.objectContaining({ trangThai: RepairRequestStatus.HOAN_THANH }),
+      }),
     );
   });
 
-  it('refuses to complete before the requester confirmed ĐẠT', async () => {
-    mockPrisma.repairRequest.findUnique.mockResolvedValue({ trangThai: RepairRequestStatus.CHO_NGHIEM_THU, chiPhiDuKien: null, supplyLinks: [] });
+  it('refuses to complete before the requester confirmed ĐẠT (status read inside the transaction)', async () => {
+    txMock.repairRequest.findUnique.mockResolvedValue({ id: 1, trangThai: RepairRequestStatus.CHO_NGHIEM_THU, maYeuCau: 'YC-SC-2026-001', requestType: 'SUA_CHUA', createdById: null });
     await expect(repairRequestService.complete(1, { actorId: 'tech-user', actorRole: 'TEAM_LEAD' }))
       .rejects.toThrow('Chỉ hoàn thành khi người yêu cầu đã xác nhận nghiệm thu ĐẠT');
-    expect(txMock.repairRequest.update).not.toHaveBeenCalled();
+    expect(txMock.repairRequest.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('ADMIN cannot complete without ĐẠT either', async () => {
+    txMock.repairRequest.findUnique.mockResolvedValue({ id: 1, trangThai: RepairRequestStatus.CHO_XU_LY, maYeuCau: 'YC-SC-2026-001', requestType: 'SUA_CHUA', createdById: null });
+    await expect(repairRequestService.complete(1, { actorId: 'admin', actorRole: 'ADMIN' }))
+      .rejects.toThrow('Chỉ hoàn thành khi người yêu cầu đã xác nhận nghiệm thu ĐẠT');
+    expect(txMock.repairRequest.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('a concurrent change makes the guarded update conflict', async () => {
+    txMock.repairRequestItem.findMany.mockResolvedValue([]);
+    txMock.repairRequest.updateMany.mockResolvedValue({ count: 0 });
+    await expect(repairRequestService.complete(1, { actorId: 'tech-user', actorRole: 'TEAM_LEAD' }))
+      .rejects.toThrow('Phiếu đã được cập nhật bởi người khác, vui lòng tải lại');
+    expect(txMock.repairRequestStatusLog.create).not.toHaveBeenCalled();
   });
 });
