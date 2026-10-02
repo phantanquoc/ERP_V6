@@ -3,7 +3,7 @@ import apiClient from './apiClient';
 export interface WarehouseReceiptLine {
   id?: string;
   stt?: number;
-  lotProductId: string;
+  lotProductId?: string;
   maKien?: string | null;
   maSanPham?: string | null;
   maKho?: string | null;

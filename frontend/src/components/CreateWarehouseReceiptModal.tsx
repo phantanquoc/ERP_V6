@@ -536,7 +536,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
         }
         const lotProduct = row.lotProducts.find((candidate) => candidate.id === row.lotProductId);
         return [{
-          lotProductId: row.lotProductId,
+          lotProductId: row.lotProductId || undefined,
           tenSanPham: lotProduct?.internationalProduct?.tenSanPham || row.tenSanPham,
           warehouseId: row.warehouseId, tenKho: warehouse?.tenKho || '', lotId: row.lotId,
           tenLo: lot?.tenLo || '',
@@ -562,7 +562,11 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
       queryClient.invalidateQueries({ queryKey: warehouseKeys.lotProducts() });
       onClose();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Lỗi khi tạo phiếu nhập kho');
+      const msg = error.response?.data?.message;
+      const errs = error.response?.data?.errors;
+      const detail = errs ? `\n${Object.entries(errs).map(([k,v])=>`• ${k}: ${v}`).join('\n')}` : '';
+      alert((msg || 'Lỗi khi tạo phiếu nhập kho') + detail);
+      console.error('[CreateReceipt] validation errors', errs, error.response?.data);
     } finally {
       setLoading(false);
     }
