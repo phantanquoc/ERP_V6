@@ -1,7 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '@config/database';
 import supplyRequestService from '@services/supplyRequestService';
+import { getFileUrl } from '@middlewares/upload';
+import { isPricingApprover } from '@utils/isPricingApprover';
 import type { AuthenticatedRequest } from '@types';
+
+function mapUploadedFiles(req: AuthenticatedRequest): string[] {
+  const files = req.files as Express.Multer.File[] | undefined;
+  return files?.map((f) => getFileUrl('supply-requests', f.filename)) ?? [];
+}
 
 class SupplyRequestController {
   async getAllSupplyRequests(req: AuthenticatedRequest, res: Response, next: NextFunction) {
@@ -51,8 +58,15 @@ class SupplyRequestController {
             const v = (req as unknown as { userSubDepartmentId?: string | null }).userSubDepartmentId;
             return v ? [v] : undefined;
           })();
+      // Pricing approvers review supply requests from EVERY department — like the
+      // warehouse fulfiller and admin, they must see the full list. RBAC
+      // (requireRule READ) still gates who reaches here; this only lifts the
+      // data-permission filter, never grants access by itself.
+      const isPricing = !isAdmin && !isWarehouse ? await isPricingApprover(req.user) : false;
+      const effectiveDepartmentIds = isPricing ? undefined : departmentIds;
+      const effectiveSubDepartmentIds = isPricing ? undefined : subDepartmentIds;
 
-      const result = await supplyRequestService.getAllSupplyRequests(page, limit, search, departmentIds, subDepartmentIds, phanLoai, filters);
+      const result = await supplyRequestService.getAllSupplyRequests(page, limit, search, effectiveDepartmentIds, effectiveSubDepartmentIds, phanLoai, filters);
 
       return res.json({
         success: true,
@@ -117,7 +131,16 @@ class SupplyRequestController {
       } else {
         employeeId = (req.body.employeeId as string | undefined) ?? null;
       }
-      const body = { ...req.body, employeeId };
+      const body = {
+        ...req.body,
+        employeeId,
+        fileKemTheo: req.body.fileKemTheo ?? undefined,
+        tepDinhKem: mapUploadedFiles(req),
+      };
+      // Multipart sends items as JSON string
+      if (typeof body.items === 'string') {
+        try { body.items = JSON.parse(body.items); } catch { /* validated by service */ }
+      }
       const supplyRequest = await supplyRequestService.createSupplyRequest(body);
 
       return res.status(201).json({
@@ -130,10 +153,16 @@ class SupplyRequestController {
     }
   }
 
-  async updateSupplyRequest(req: Request, res: Response, next: NextFunction) {
+  async updateSupplyRequest(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
-      const supplyRequest = await supplyRequestService.updateSupplyRequest(id, req.body);
+      const body: Record<string, unknown> = { ...(req.body as Record<string, unknown>) };
+      if (typeof body.items === 'string') {
+        try { body.items = JSON.parse(body.items as string); } catch { /* validated by service */ }
+      }
+      const newFiles = mapUploadedFiles(req);
+      if (newFiles.length > 0) body.tepDinhKem = newFiles;
+      const supplyRequest = await supplyRequestService.updateSupplyRequest(id, body as never);
 
       return res.json({
         success: true,

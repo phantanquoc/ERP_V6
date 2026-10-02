@@ -3,7 +3,7 @@ import { Trash2, Package, PackageOpen, ShoppingCart, Download, X, ClipboardCheck
 import toast from 'react-hot-toast';
 import { useUrlDetailId } from '../hooks/useUrlState';
 import { useSearchParams } from 'react-router-dom';
-import supplyRequestService, { SupplyRequest } from '../services/supplyRequestService';
+import supplyRequestService, { SupplyRequest, SUPPLY_MAX_FILES } from '../services/supplyRequestService';
 import { useAuth } from '../contexts/AuthContext';
 import { can, isCachedPermissionsLoaded } from '../utils/permissions';
 import { UserRole } from '../types/auth';
@@ -22,6 +22,9 @@ import CancelWithReasonModal from './common/CancelWithReasonModal';
 import UnitSelect from './common/UnitSelect';
 import ProductCombobox from './common/ProductCombobox';
 import ProductFormModal from './products/ProductFormModal';
+import FileUpload from './FileUpload';
+import { getFileUrl } from '../config/api';
+import AttachmentList, { collectAttachments, fileNameOf } from './common/AttachmentList';
 import { FormField, inputCls, readonlyCls, textareaCls } from './ModalForm';
 import { useLookups } from '../hooks/useLookups';
 import { LOOKUP_GROUPS } from '../types/lookup';
@@ -490,6 +493,8 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
   const [editMucDich, setEditMucDich] = useState('');
   const [editMucDoUuTien, setEditMucDoUuTien] = useState('Trung bình');
   const [editGhiChu, setEditGhiChu] = useState('');
+  // YCCC multi-file attachments (max SUPPLY_MAX_FILES); append-only like YCKT
+  const [editFiles, setEditFiles] = useState<File[]>([]);
   // Product catalogue + stock for the edit form, so goods are picked like in the
   // create form (ProductCombobox) instead of free-text typing.
   const [editProducts, setEditProducts] = useState<InternationalProduct[]>([]);
@@ -637,6 +642,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
     setEditMucDich(item.mucDichYeuCau);
     setEditMucDoUuTien(item.mucDoUuTien);
     setEditGhiChu(item.ghiChu || '');
+    setEditFiles([]);
     setEditStockCache(new Map());
     setShowModal(true);
   };
@@ -758,7 +764,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
         mucDichYeuCau: editMucDich,
         mucDoUuTien: editMucDoUuTien,
         ghiChu: editGhiChu,
-      });
+      }, editFiles.length > 0 ? editFiles : undefined);
       alert('Cập nhật yêu cầu cung cấp thành công!');
       closeDetailModal();
       fetchRequests();
@@ -863,6 +869,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                 <th scope="col" className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-200">Hàng hóa</th>
                 <th scope="col" className="px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-200 w-20 lg:w-24">Ưu tiên</th>
                 <th scope="col" className="px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-200 w-24 lg:w-32">Trạng thái</th>
+                <th scope="col" className="px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-200 hidden lg:table-cell w-20">Tệp</th>
                 <th scope="col" className="px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-900 w-16 lg:w-20">
                   <span className="hidden sm:inline">Hành động</span>
                   <span className="sm:hidden">•••</span>
@@ -872,13 +879,13 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
                     Đang tải...
                   </td>
                 </tr>
               ) : filteredRequests.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={10} className="px-6 py-8 text-center text-gray-500">
                     Không có dữ liệu
                   </td>
                 </tr>
@@ -924,6 +931,9 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                         <span className="hidden lg:inline">{request.trangThai}</span>
                         <span className="lg:hidden">{getStatusLabel(request.trangThai)}</span>
                       </span>
+                    </td>
+                    <td className="px-2 lg:px-4 py-2 sm:py-3 text-center text-sm border-r border-gray-200 hidden lg:table-cell">
+                      <AttachmentList variant="chip" urls={collectAttachments(request)} />
                     </td>
                     <td className="px-2 lg:px-4 py-2 sm:py-3 text-center text-sm" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center gap-0.5">
@@ -1180,9 +1190,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                     {selectedRequest.soTien !== undefined && selectedRequest.soTien !== null && (
                       <div><span className="font-medium text-gray-600">Số tiền:</span> <span className="text-gray-700">{Number(selectedRequest.soTien).toLocaleString('vi-VN')} VNĐ</span></div>
                     )}
-                    {selectedRequest.fileKemTheo && (
-                      <div className="sm:col-span-2"><span className="font-medium text-gray-600">File đính kèm:</span> <a href={selectedRequest.fileKemTheo} target="_blank" rel="noopener noreferrer" className="ml-1 text-blue-600 hover:underline">Mở file</a></div>
-                    )}
+                    <AttachmentList className="sm:col-span-2" urls={collectAttachments(selectedRequest)} />
                     <div><span className="font-medium text-gray-600">Tạo lúc:</span> <span className="text-gray-700">{new Date(selectedRequest.createdAt).toLocaleString('vi-VN')}</span></div>
                     <div><span className="font-medium text-gray-600">Cập nhật:</span> <span className="text-gray-700">{new Date(selectedRequest.updatedAt).toLocaleString('vi-VN')}</span></div>
                   </div>
@@ -1618,6 +1626,42 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                       />
                     </FormField>
                   </div>
+
+                  {/* Existing files (append-only) + add remaining slots */}
+                  {(() => {
+                    const kept = collectAttachments(selectedRequest);
+                    const remaining = SUPPLY_MAX_FILES - kept.length;
+                    return (
+                      <div className="space-y-2">
+                        {kept.length > 0 && (
+                          <div className="rounded-lg border border-gray-200 bg-gray-50 p-2.5">
+                            <p className="mb-1.5 text-xs font-medium text-gray-500">Tệp đã đính kèm ({kept.length}/{SUPPLY_MAX_FILES})</p>
+                            <ul className="space-y-1">
+                              {kept.map((url) => (
+                                <li key={url}>
+                                  <a href={getFileUrl(url)} target="_blank" rel="noreferrer" className="block truncate text-sm text-blue-600 hover:underline" title={fileNameOf(url)}>
+                                    {fileNameOf(url)}
+                                  </a>
+                                </li>
+                              ))}
+                            </ul>
+                            {remaining <= 0 && <p className="mt-1 text-xs text-amber-600">Đã đạt tối đa {SUPPLY_MAX_FILES} tệp.</p>}
+                          </div>
+                        )}
+                        {remaining > 0 && (
+                          <FileUpload
+                            label="Thêm tệp đính kèm"
+                            helpText={`Còn thêm được ${remaining} tệp — PDF, Word, Excel, ảnh, TXT, ZIP/RAR`}
+                            files={editFiles}
+                            onChange={(files) => setEditFiles(files.slice(0, remaining))}
+                            multiple
+                            maxFiles={remaining}
+                            accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
+                          />
+                        )}
+                      </div>
+                    );
+                  })()}
                 </form>
               )}
             </>)}

@@ -124,6 +124,55 @@ export const getFileUrl = (folderName: string, filename: string): string => {
 };
 
 /**
+ * Rename freshly uploaded attachments so their names follow the request code
+ * (e.g. YC-CC-2026-001-1.pdf) instead of multer's random suffix.
+ *
+ * Must run after the code exists, so callers invoke it once the record is created.
+ * `startIndex` lets an append-only update continue numbering after stored files.
+ * A rename failure keeps the original URL — never drop a file the user uploaded.
+ *
+ * @param folderName - Folder inside uploads/ holding the files
+ * @param code - Request code used as the filename stem
+ * @param urls - Current `/uploads/...` URLs to rename
+ * @param startIndex - First sequence number to try (default 1)
+ */
+export const renameAttachmentsByCode = (
+  folderName: string,
+  code?: string | null,
+  urls: string[] = [],
+  startIndex: number = 1,
+): string[] => {
+  if (!code || urls.length === 0) return urls;
+  const uploadDir = path.join(__dirname, '../../uploads', folderName);
+  const safeCode = code.replace(/[^a-zA-Z0-9_-]/g, '_');
+  let next = startIndex;
+
+  return urls.map((url) => {
+    const oldName = path.basename(url);
+    const oldPath = path.join(uploadDir, oldName);
+    const ext = path.extname(oldName);
+
+    // Skip a file that already follows the convention (idempotent re-runs).
+    if (oldName.startsWith(`${safeCode}-`)) return url;
+
+    // Claim the next free slot so an append never clobbers a stored attachment.
+    let target: string;
+    do {
+      target = `${safeCode}-${next}${ext}`;
+      next += 1;
+    } while (fs.existsSync(path.join(uploadDir, target)));
+
+    try {
+      fs.renameSync(oldPath, path.join(uploadDir, target));
+      return getFileUrl(folderName, target);
+    } catch (error) {
+      logger.error(`Failed to rename attachment ${oldName} -> ${target}:`, error);
+      return url;
+    }
+  });
+};
+
+/**
  * Delete uploaded file
  * @param filePath - Full path or URL of the file
  */
@@ -147,6 +196,7 @@ export default {
   createUploadMiddleware,
   createSingleUploadMiddleware,
   getFileUrl,
+  renameAttachmentsByCode,
   deleteUploadedFile,
 };
 

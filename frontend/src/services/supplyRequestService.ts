@@ -65,6 +65,8 @@ export interface SupplyRequest {
   ngayHuy?: string | null;
   nguoiHuy?: string | null;
   fileKemTheo?: string;
+  /** Multi-file attachments (max SUPPLY_MAX_FILES), legacy fileKemTheo kept for old rows. */
+  tepDinhKem?: string[];
   loaiYeuCau?: string;
   soTien?: number;
   createdAt: string;
@@ -147,6 +149,19 @@ export interface SupplyRequestListFilters {
   mucDoUuTien?: string;
 }
 
+export const SUPPLY_MAX_FILES = 4;
+
+const appendFormFields = (formData: FormData, data: Record<string, unknown>) => {
+  Object.entries(data).forEach(([key, value]) => {
+    if (value === undefined) return;
+    if (key === 'items') {
+      formData.append('items', JSON.stringify(value));
+      return;
+    }
+    formData.append(key, String(value));
+  });
+};
+
 class SupplyRequestService {
   async getAllSupplyRequests(page: number = 1, limit: number = 10, filters?: SupplyRequestListFilters) {
     const params: Record<string, unknown> = { page, limit };
@@ -167,12 +182,26 @@ class SupplyRequestService {
     return response;
   }
 
-  async createSupplyRequest(data: CreateSupplyRequestRequest) {
+  async createSupplyRequest(data: CreateSupplyRequestRequest, files?: File[]) {
+    if (files && files.length > 0) {
+      const formData = new FormData();
+      appendFormFields(formData, data as unknown as Record<string, unknown>);
+      files.slice(0, SUPPLY_MAX_FILES).forEach((f) => formData.append('files', f));
+      const response = await apiClient.post('/supply-requests', formData);
+      return response;
+    }
     const response = await apiClient.post('/supply-requests', data);
     return response;
   }
 
-  async updateSupplyRequest(id: string, data: UpdateSupplyRequestRequest) {
+  async updateSupplyRequest(id: string, data: UpdateSupplyRequestRequest, files?: File[]) {
+    if (files && files.length > 0) {
+      const formData = new FormData();
+      appendFormFields(formData, data as unknown as Record<string, unknown>);
+      files.slice(0, SUPPLY_MAX_FILES).forEach((f) => formData.append('files', f));
+      const response = await apiClient.put(`/supply-requests/${id}`, formData);
+      return response;
+    }
     const response = await apiClient.put(`/supply-requests/${id}`, data);
     return response;
   }

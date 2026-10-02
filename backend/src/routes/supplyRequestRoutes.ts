@@ -2,7 +2,11 @@ import { Router } from 'express';
 import supplyRequestController from '@controllers/supplyRequestController';
 import { authenticate } from '@middlewares/auth';
 import { requireRule } from '@middlewares/requireRule';
+import { createUploadMiddleware } from '@middlewares/upload';
 const router = Router();
+
+// Create/update attachments: up to 4 files per request (field name "files")
+const uploadAttachments = createUploadMiddleware('supply-requests', 4);
 
 // All routes require authentication
 router.use(authenticate);
@@ -109,6 +113,7 @@ router.get('/:id', requireRule('supply-requests', 'READ'), supplyRequestControll
 router.post(
   '/',
   requireRule('supply-requests', 'CREATE'),
+  uploadAttachments,
   supplyRequestController.createSupplyRequest
 );
 
@@ -147,6 +152,7 @@ router.post(
 router.put(
   '/:id',
   requireRule('supply-requests', 'UPDATE'),
+  uploadAttachments,
   supplyRequestController.updateSupplyRequest
 );
 

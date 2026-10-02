@@ -6,6 +6,7 @@ import ExcelJS from 'exceljs';
 import { NotificationEvent } from '@types';
 import notificationService from '@services/notificationService';
 import { bucketPhanLoai } from '@utils/phanLoaiBucket';
+import { renameAttachmentsByCode } from '@middlewares/upload';
 
 async function generateReplenishmentRequestCodeTx(tx: any): Promise<string> {
   const year = new Date().getFullYear();
@@ -46,6 +47,7 @@ interface CreateSupplyRequestRequest {
   mucDoUuTien: string;
   ghiChu?: string;
   fileKemTheo?: string;
+  tepDinhKem?: string[];
   loaiYeuCau?: string;
   soTien?: number;
 }
@@ -56,6 +58,7 @@ interface UpdateSupplyRequestRequest {
   mucDoUuTien?: string;
   ghiChu?: string;
   fileKemTheo?: string;
+  tepDinhKem?: string[];
 }
 
 interface PartialFulfillRequest {
@@ -74,6 +77,9 @@ interface PartialFulfillRequest {
 const STATUS_SEQUENCE = ['Chưa cung cấp', 'Đang xử lý', 'Chờ bổ sung', 'Đã duyệt mua', 'Đã mua hàng', 'Đã nhập kho', 'Đã cung cấp', 'Đã hủy'];
 // Mua nhanh skips to Đã mua hàng directly (unchanged)
 const MUAN_HANH_STATUS_SEQUENCE = ['Chưa cung cấp', 'Đã mua hàng', 'Đã cung cấp'];
+
+// Max files per supply request — mirrors InspectionRequest.MAX_ATTACHMENT_FILES
+export const SUPPLY_MAX_FILES = 4;
 
 class SupplyRequestService {
   async getAllSupplyRequests(
@@ -351,6 +357,7 @@ class SupplyRequestService {
           ghiChu: data.ghiChu,
           trangThai: 'Chưa cung cấp',
           fileKemTheo: data.fileKemTheo,
+          tepDinhKem: (data.tepDinhKem ?? []).slice(0, SUPPLY_MAX_FILES),
           loaiYeuCau: data.loaiYeuCau || 'Thường',
           soTien: data.soTien,
         },
@@ -381,6 +388,19 @@ class SupplyRequestService {
         },
       });
     });
+
+    // Attachments are named after the request code (YC-CC-2026-001-1.pdf), which only
+    // exists once the transaction above generated it — so rename on disk, then persist.
+    if (supplyRequest && (supplyRequest.tepDinhKem?.length ?? 0) > 0 && supplyRequest.maYeuCau) {
+      try {
+        const renamed = renameAttachmentsByCode('supply-requests', supplyRequest.maYeuCau, supplyRequest.tepDinhKem);
+        await prisma.supplyRequest.update({ where: { id: supplyRequest.id }, data: { tepDinhKem: renamed } });
+        supplyRequest.tepDinhKem = renamed;
+      } catch (renameError) {
+        // Keep the request: the files are still reachable under their upload names.
+        console.error('Error renaming supply request attachments:', renameError);
+      }
+    }
 
     // Send notification to warehouse employees
     try {
@@ -1063,6 +1083,20 @@ class SupplyRequestService {
     });
   }
 
+  /**
+   * Append-only attachment merge: keeps stored files, renames the incoming ones after
+   * the request code continuing the existing numbering, and caps the total.
+   */
+  private async mergeAttachments(id: string, maYeuCau: string | undefined, incoming: string[]): Promise<string[]> {
+    const current = await prisma.supplyRequest.findUnique({ where: { id }, select: { tepDinhKem: true } });
+    const kept = current?.tepDinhKem ?? [];
+    if (kept.length + incoming.length > SUPPLY_MAX_FILES) {
+      throw new ValidationError(`Mỗi phiếu tối đa ${SUPPLY_MAX_FILES} tệp đính kèm`);
+    }
+    const renamed = renameAttachmentsByCode('supply-requests', maYeuCau, incoming, kept.length + 1);
+    return [...kept, ...renamed];
+  }
+
   async updateSupplyRequest(id: string, data: UpdateSupplyRequestRequest) {
     // Check record exists
     const existing = await prisma.supplyRequest.findUnique({ where: { id } });
@@ -1071,7 +1105,7 @@ class SupplyRequestService {
     }
 
     // Strip trangThai from incoming data — status is server-managed only
-    const { items, ...headerData } = data as any;
+    const { items, tepDinhKem, ...headerData } = data as any;
     delete headerData.trangThai;
 
     if (items && Array.isArray(items)) {
@@ -1145,6 +1179,11 @@ class SupplyRequestService {
       }
 
       // Replace items within a transaction
+      // Append-only attachments: merge with existing, reject totals > SUPPLY_MAX_FILES.
+      let mergedFiles: string[] | undefined;
+      if (tepDinhKem !== undefined) {
+        mergedFiles = await this.mergeAttachments(id, existing.maYeuCau, tepDinhKem as string[]);
+      }
       await prisma.$transaction(async (tx) => {
         // Delete existing items
         await tx.supplyRequestItem.deleteMany({ where: { supplyRequestId: id } });
@@ -1165,14 +1204,18 @@ class SupplyRequestService {
           }),
         });
         // Update header
-        if (Object.keys(headerData).length > 0) {
+        const mergedHeader = mergedFiles !== undefined ? { ...headerData, tepDinhKem: mergedFiles } : headerData;
+        if (Object.keys(mergedHeader).length > 0) {
           await tx.supplyRequest.update({
             where: { id },
-            data: headerData,
+            data: mergedHeader,
           });
         }
       });
-    } else if (Object.keys(headerData).length > 0) {
+    } else if (Object.keys(headerData).length > 0 || (tepDinhKem as string[] | undefined) !== undefined) {
+      if ((tepDinhKem as string[] | undefined) !== undefined) {
+        headerData.tepDinhKem = await this.mergeAttachments(id, existing.maYeuCau, tepDinhKem as string[]);
+      }
       await prisma.supplyRequest.update({
         where: { id },
         data: headerData,

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, AlertTriangle, Package } from 'lucide-react';
 import toast from 'react-hot-toast';
-import supplyRequestService from '../services/supplyRequestService';
+import supplyRequestService, { SUPPLY_MAX_FILES } from '../services/supplyRequestService';
 import { useAuth } from '../contexts/AuthContext';
 import { getDepartmentDisplayName } from '../utils/permissions';
 import { parseNumberInput } from '../utils/numberInput';
@@ -9,6 +9,7 @@ import { internationalProductService, InternationalProduct } from '../services/i
 import { ModalForm, ModalFooter, FormField, textareaCls, readonlyCls } from './ModalForm';
 import UnitSelect from './common/UnitSelect';
 import ProductCombobox from './common/ProductCombobox';
+import FileUpload from './FileUpload';
 
 interface SupplyRequestModalProps {
   isOpen: boolean;
@@ -43,6 +44,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
   const [mucDichYeuCau, setMucDichYeuCau] = useState('');
   const [mucDoUuTien, setMucDoUuTien] = useState('Trung bình');
   const [ghiChu, setGhiChu] = useState('');
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [stockCache, setStockCache] = useState<Map<string, { totalQuantity: number; unit: string }>>(new Map());
 
   useEffect(() => {
@@ -126,6 +128,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
     setMucDichYeuCau('');
     setMucDoUuTien('Trung bình');
     setGhiChu('');
+    setSelectedFiles([]);
     setStockCache(new Map());
   };
 
@@ -187,7 +190,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
         mucDichYeuCau,
         mucDoUuTien,
         ghiChu,
-      });
+      }, selectedFiles.length > 0 ? selectedFiles : undefined);
       toast.success('Đã tạo yêu cầu cung cấp');
       resetForm();
       onClose();
@@ -383,6 +386,16 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
             />
           </FormField>
         </div>
+
+        <FileUpload
+          label={`File đính kèm (tối đa ${SUPPLY_MAX_FILES} tệp)`}
+          helpText="PDF, Word, Excel, ảnh, TXT, ZIP/RAR — mỗi tệp tối đa 100MB"
+          files={selectedFiles}
+          onChange={(files) => setSelectedFiles(files.slice(0, SUPPLY_MAX_FILES))}
+          multiple
+          maxFiles={SUPPLY_MAX_FILES}
+          accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
+        />
       </form>
     </ModalForm>
   );
