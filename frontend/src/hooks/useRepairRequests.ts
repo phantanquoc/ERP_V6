@@ -55,6 +55,9 @@ export const useRepairRequests = (filters: RepairRequestFilters = {}, opts?: { e
     queryKey: repairRequestKeys._listByFilters(filters),
     queryFn: () => repairRequestService.getAll(filters),
     enabled: opts?.enabled ?? true,
+    // Always refetch when the tab/mount is revisited (symmetric with YCKT) so a
+    // newly created YCSC appears without F5.
+    refetchOnMount: 'always',
     // Keep the current page visible while the next one loads (no layout jump)
     placeholderData: keepPreviousData,
   });

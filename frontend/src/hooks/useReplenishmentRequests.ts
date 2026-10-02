@@ -29,6 +29,8 @@ export const useReplenishmentRequests = (
 ) =>
   useQuery({
     queryKey: replenishmentRequestKeys.list(page, limit, search, filters),
+    // Always refetch when the tab/mount is revisited so a newly created YCBS (e.g. from warehouse) appears without F5.
+    refetchOnMount: 'always',
     // Return the full ApiResponse ({ data, pagination }): apiClient does NOT unwrap
     // the JSON body, so `.data` here is the row array. (An earlier revision returned
     // `.data` early, which made ReplenishmentList read `rows.data` as rows — the

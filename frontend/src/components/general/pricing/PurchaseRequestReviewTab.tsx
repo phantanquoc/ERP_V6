@@ -47,6 +47,8 @@ const PurchaseRequestReviewTab: React.FC = () => {
       const res: any = await (purchaseRequestService as any).getAllPurchaseRequests(page, limit, filterValues._search || filterValues.maYeuCau || undefined);
       return res;
     },
+    // Always refetch when the tab is revisited so a new pending YCMH appears without F5.
+    refetchOnMount: 'always',
   });
   const raw: any = (data as any)?.data ?? data;
   const allRows: any[] = Array.isArray(raw) ? raw : (raw?.data ?? raw?.items ?? []);

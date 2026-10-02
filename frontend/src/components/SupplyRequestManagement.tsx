@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, Package, PackageOpen, ShoppingCart, Download, X, ClipboardCheck, PackagePlus, Plus, PackageCheck, AlertTriangle, XCircle } from 'lucide-react';
+import { Trash2, Package, PackageOpen, ShoppingCart, Download, X, ClipboardCheck, PackagePlus, Plus, PackageCheck, AlertTriangle, XCircle, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useUrlDetailId } from '../hooks/useUrlState';
 import { useSearchParams } from 'react-router-dom';
@@ -562,6 +562,17 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
     fetchRequests();
   }, [currentPage, serverFilters]);
 
+  // Refetch whenever the tab/page becomes visible again (mount remount or tab
+  // switch back) so a YCCC created elsewhere appears without F5.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && !showModal) fetchRequests();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showModal, currentPage, serverFilters]);
+
   // Deep-link reader: keeps ?supplyRequestId= in sync even though close deletes it
   useEffect(() => {
     const srId = urlDetailId;
@@ -832,8 +843,18 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
       <div className="mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Yêu cầu cung cấp</h2>
-          <button
-            onClick={async () => {
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <button
+              onClick={fetchRequests}
+              disabled={loading}
+              title="Tải lại danh sách"
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-200 bg-white rounded-lg hover:bg-gray-50 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              Làm mới
+            </button>
+            <button
+              onClick={async () => {
               try {
                 await supplyRequestService.exportToExcel(serverFilters as any);
               } catch (error) {
@@ -846,6 +867,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
             <Download className="h-4 w-4" />
             Xuất Excel
           </button>
+            </div>
         </div>
         <TableFilter
           filters={supplyFilterFields}

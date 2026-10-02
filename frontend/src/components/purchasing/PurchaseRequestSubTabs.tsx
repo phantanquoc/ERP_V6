@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, Download, Edit, Eye, Trash2, CheckCircle, FilePenLine } from 'lucide-react';
+import { Search, Download, Edit, Eye, Trash2, CheckCircle, FilePenLine, RefreshCw } from 'lucide-react';
 import purchaseRequestService from '../../services/purchaseRequestService';
 import { normalizeBoPhan, CANONICAL_BO_PHAN } from '../../utils/normalizeBoPhan';
 import { labelForPurchaseRequest } from '../../utils/purchaseRequestLabel';
@@ -163,6 +163,24 @@ export default function PurchaseRequestSubTabs({
   useEffect(() => {
     fetchPurchased();
   }, [fetchPurchased, refreshKey]);
+
+  // Refetch the active tab whenever it becomes visible again so a YCMH created
+  // elsewhere (e.g. from YCBS convert) appears without F5, and when the browser tab regains focus.
+  useEffect(() => {
+    if (purchaseSubTab === 'requests') fetchRequests();
+    else fetchPurchased();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [purchaseSubTab]);
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (purchaseSubTab === 'requests') fetchRequests();
+      else fetchPurchased();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [purchaseSubTab]);
 
   // Keep current sub tab fresh when its filters change (fetch* already covers it)
   // counts
@@ -433,6 +451,15 @@ export default function PurchaseRequestSubTabs({
             className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
           >
             <Search className="h-4 w-4" /> Tìm kiếm
+          </button>
+          <button
+            onClick={() => (purchaseSubTab === 'requests' ? fetchRequests() : fetchPurchased())}
+            disabled={purchaseSubTab === 'requests' ? loadingRequests : loadingPurchased}
+            title="Tải lại danh sách"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-200 bg-white rounded-md hover:bg-gray-50 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${(purchaseSubTab === 'requests' ? loadingRequests : loadingPurchased) ? 'animate-spin' : ''}`} />
+            Làm mới
           </button>
         </div>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">

@@ -22,6 +22,8 @@ export function useOvertimePlans(params: OvertimePlanParams = {}, enabled = true
     queryKey: overtimePlanKeys.list(params),
     queryFn: () => overtimePlanService.getAll(params),
     enabled,
+    // Always refetch when the tab/mount is revisited so a newly created plan appears without F5.
+    refetchOnMount: 'always',
   });
 }
 
@@ -31,6 +33,7 @@ export function useMyOvertimePlans(params: OvertimePlanParams = {}, enabled = tr
     queryKey: overtimePlanKeys.myList(params),
     queryFn: () => overtimePlanService.getMyPlans(params),
     enabled,
+    refetchOnMount: 'always',
   });
 }
 
