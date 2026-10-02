@@ -13,6 +13,7 @@ export const useRepairSupplyLinks = (repairId: number | string | null | undefine
     queryKey: repairSupplyLinkKeys.list(repairId as number | string),
     queryFn: () => repairRequestService.listSupplyLinks(repairId!),
     enabled: !!repairId,
+    refetchOnMount: 'always',
   });
 
 export const useRepairSupplyChain = (repairId: number | string | null | undefined) =>

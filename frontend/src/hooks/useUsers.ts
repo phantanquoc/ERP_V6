@@ -26,6 +26,7 @@ export const useUsers = (filters: UserFilters = {}) => {
     queryKey: userKeys.list({ page, limit, search, role }),
     queryFn: () => userService.getAllUsers(page, limit),
     enabled,
+    refetchOnMount: 'always',
   });
 };
 

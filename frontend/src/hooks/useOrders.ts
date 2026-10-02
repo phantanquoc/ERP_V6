@@ -28,6 +28,7 @@ export const useOrders = (filters: OrderFilters = {}) => {
   return useQuery({
     queryKey: orderKeys.list({ page, limit, search, customerType, status, dateFrom, dateTo }),
     queryFn: () => orderService.getAllOrders(page, limit, search, customerType, status, dateFrom, dateTo),
+    refetchOnMount: 'always',
   });
 };
 

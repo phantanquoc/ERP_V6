@@ -17,6 +17,7 @@ export const usePositions = (enabled: boolean = true) => {
     queryKey: positionKeys.lists(),
     queryFn: () => positionService.getAllPositions(),
     enabled,
+    refetchOnMount: 'always',
     // Positions rarely change, cache for longer
     staleTime: 30 * 60 * 1000, // 30 minutes
   });

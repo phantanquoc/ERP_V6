@@ -17,6 +17,7 @@ export const useQuotationRevisions = (quotationId: string, page = 1, limit = 10)
     queryKey: quotationRevisionKeys.list(quotationId, page, limit),
     queryFn: () => quotationRevisionService.listRevisions(quotationId, page, limit),
     enabled: !!quotationId,
+    refetchOnMount: 'always',
   });
 };
 

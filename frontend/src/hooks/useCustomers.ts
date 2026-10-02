@@ -24,6 +24,7 @@ export const useCustomers = (filters: CustomerFilters = {}) => {
   return useQuery({
     queryKey: customerKeys.list({ page, limit, search, customerType }),
     queryFn: () => internationalCustomerService.getAllCustomers(page, limit, search, customerType),
+    refetchOnMount: 'always',
   });
 };
 

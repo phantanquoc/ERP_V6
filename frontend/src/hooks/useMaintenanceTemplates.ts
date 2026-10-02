@@ -17,6 +17,7 @@ export const useMaintenanceTemplates = (filters: MaintenanceTemplateFilters = {}
   useQuery({
     queryKey: maintenanceTemplateKeys.list(filters),
     queryFn: () => maintenanceTemplateService.getAll(filters),
+    refetchOnMount: 'always',
   });
 
 export const useCreateMaintenanceTemplate = () => {

@@ -26,6 +26,7 @@ export const useFaultRecords = (filters: FaultRecordFilters = {}) => {
   return useQuery({
     queryKey: faultRecordKeys.list(filters),
     queryFn: () => faultRecordService.getAll(filters),
+    refetchOnMount: 'always',
   });
 };
 

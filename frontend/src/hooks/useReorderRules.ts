@@ -24,6 +24,7 @@ export const useReorderRules = (
     queryKey: reorderRuleKeys.list(page, limit, search, activeOnly),
     queryFn: async () =>
       reorderRuleService.getAll(page, limit, search, activeOnly),
+    refetchOnMount: 'always',
   });
 };
 

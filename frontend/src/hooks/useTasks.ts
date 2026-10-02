@@ -26,6 +26,7 @@ export const useTasks = (filters: TaskFilters = {}) => {
   return useQuery({
     queryKey: taskKeys.list({ page, limit, ...rest }),
     queryFn: () => taskService.getAllTasks({ page, limit, ...rest }),
+    refetchOnMount: 'always',
   });
 };
 
@@ -48,6 +49,7 @@ export const useMyTasks = (filters: TaskFilters = {}) => {
   return useQuery({
     queryKey: [...taskKeys.lists(), 'my', { page, limit, ...rest }],
     queryFn: () => taskService.getMyTasks({ page, limit, ...rest }),
+    refetchOnMount: 'always',
   });
 };
 

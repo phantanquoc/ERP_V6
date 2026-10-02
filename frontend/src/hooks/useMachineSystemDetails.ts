@@ -32,6 +32,7 @@ export const useMachineSystems = (filters: MachineSystemFilters = {}) =>
   useQuery({
     queryKey: machineSystemKeys.list(filters),
     queryFn: () => machineSystemService.getMachineSystems(filters),
+    refetchOnMount: 'always',
   });
 
 /**
@@ -93,6 +94,7 @@ export const useMachineSystemDetails = (filters: MachineSystemDetailFilters = {}
   useQuery({
     queryKey: machineSystemDetailKeys.list(filters),
     queryFn: () => machineSystemService.getDetails(filters),
+    refetchOnMount: 'always',
   });
 
 export const useMachineSystemDetail = (id: string) =>
@@ -185,6 +187,7 @@ export const useMachineStatusLogs = (filters: MachineStatusLogFilters = {}) =>
   useQuery({
     queryKey: machineStatusLogKeys.list(filters),
     queryFn: () => machineSystemService.getMachineStatusLogs(filters),
+    refetchOnMount: 'always',
   });
 
 export const machineSystemSummaryKeys = {

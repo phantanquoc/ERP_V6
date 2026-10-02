@@ -13,6 +13,7 @@ export const useRepairAssignees = (repairId: number | string | null | undefined)
     queryKey: repairAssigneeKeys.list(repairId as number | string),
     queryFn: () => repairRequestService.listAssignees(repairId!),
     enabled: !!repairId,
+    refetchOnMount: 'always',
   });
 
 export const useAssignUser = () => {

@@ -20,6 +20,7 @@ export const useWarehouseReceipts = () => {
       const response = await warehouseReceiptService.getAllWarehouseReceipts();
       return response.data as WarehouseReceipt[];
     },
+    refetchOnMount: 'always',
   });
 };
 

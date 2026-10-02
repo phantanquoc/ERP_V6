@@ -16,6 +16,7 @@ export const useDepartments = () => {
     queryFn: () => departmentService.getAllDepartments(),
     // Departments rarely change, cache for longer
     staleTime: 30 * 60 * 1000, // 30 minutes
+    refetchOnMount: 'always',
   });
 };
 

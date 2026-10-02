@@ -12,6 +12,7 @@ export const useHolidays = (year?: number) => {
     queryKey: holidayKeys.list(year),
     queryFn: () => holidayService.list(year),
     staleTime: 10 * 60 * 1000,
+    refetchOnMount: 'always',
   });
 };
 

@@ -19,6 +19,7 @@ export const useAcceptanceHandovers = (filters: AcceptanceHandoverFilters = {}) 
   useQuery({
     queryKey: acceptanceHandoverKeys.list(filters),
     queryFn: () => acceptanceHandoverService.getAll(filters),
+    refetchOnMount: 'always',
   });
 
 export const useAcceptanceHandover = (id: string) =>

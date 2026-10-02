@@ -11,6 +11,7 @@ export const useAttendanceCodes = () => {
     queryKey: attendanceCodeKeys.lists(),
     queryFn: () => attendanceCodeService.list(),
     staleTime: 30 * 60 * 1000,
+    refetchOnMount: 'always',
   });
 };
 

@@ -34,6 +34,7 @@ export function useWorkShifts(enabled = true) {
       return all.filter(s => s.isActive);
     },
     staleTime: 5 * 60 * 1000,
+    refetchOnMount: 'always',
     enabled,
   });
 }

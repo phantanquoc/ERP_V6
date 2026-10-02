@@ -18,7 +18,7 @@ export const resourceKeys = {
 };
 
 export function useRules(filters?: Record<string, string>) {
-  return useQuery({ queryKey: ruleKeys.list(filters ?? {}), queryFn: () => ruleService.listRules(filters) });
+  return useQuery({ queryKey: ruleKeys.list(filters ?? {}), queryFn: () => ruleService.listRules(filters), refetchOnMount: 'always' });
 }
 
 export function useRuleMatrix(positionId?: string, departmentId?: string) {
@@ -48,7 +48,7 @@ export function useEffectivePermissions(params: Record<string, string>, options?
 }
 
 export function useResources() {
-  return useQuery({ queryKey: resourceKeys.list(), queryFn: () => ruleService.listResources(), staleTime: 300_000 });
+  return useQuery({ queryKey: resourceKeys.list(), queryFn: () => ruleService.listResources(), staleTime: 300_000, refetchOnMount: 'always' });
 }
 
 export function useRuleAuditLogs(ruleId?: string) {

@@ -15,6 +15,7 @@ export const useRepairMaterialNeeds = (repairId: number | string | null | undefi
     queryKey: repairMaterialNeedKeys.list(repairId as number | string),
     queryFn: () => repairRequestService.listMaterialNeeds(repairId!),
     enabled: !!repairId,
+    refetchOnMount: 'always',
   });
 
 export const useCreateMaterialNeed = () => {

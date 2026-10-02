@@ -46,6 +46,7 @@ export const useProjectPhases = (projectId: string) =>
     queryKey: projectPhaseKeys.list(projectId),
     queryFn: () => projectService.getPhases(projectId),
     enabled: !!projectId,
+    refetchOnMount: 'always',
   });
 
 export const useProjectUnphasedTasks = (projectId: string) =>
@@ -213,6 +214,7 @@ export const useProjectUpdates = (projectId: string) =>
     queryKey: projectUpdateKeys.list(projectId),
     queryFn: () => projectService.getUpdates(projectId),
     enabled: !!projectId,
+    refetchOnMount: 'always',
   });
 
 export const useAddProjectUpdate = () => {
@@ -262,6 +264,7 @@ export const useProjectCosts = (projectId: string, projectPhaseId?: string | nul
     queryKey: projectCostKeys.list(projectId, projectPhaseId, projectTaskId),
     queryFn: () => projectService.getCosts(projectId, projectPhaseId, projectTaskId),
     enabled: !!projectId,
+    refetchOnMount: 'always',
   });
 
 export const useAddProjectCost = () => {
@@ -312,6 +315,7 @@ export const useProjectApprovals = (projectId: string) =>
     queryKey: projectApprovalKeys.list(projectId),
     queryFn: () => projectService.getApprovals(projectId),
     enabled: !!projectId,
+    refetchOnMount: 'always',
   });
 
 export const useSubmitApproval = () => {

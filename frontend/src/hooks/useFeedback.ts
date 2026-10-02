@@ -39,6 +39,7 @@ export const usePrivateFeedbacks = (filters: FeedbackFilters = {}) => {
   return useQuery({
     queryKey: privateFeedbackKeys.list({ page, limit, ...rest }),
     queryFn: () => privateFeedbackService.getAll({ page, limit, ...rest } as any),
+    refetchOnMount: 'always',
   });
 };
 
@@ -103,6 +104,7 @@ export const useCustomerFeedbacks = (filters: CustomerFeedbackFilters = {}) => {
   return useQuery({
     queryKey: customerFeedbackKeys.list(filters),
     queryFn: () => customerFeedbackService.getAllFeedbacks(filters),
+    refetchOnMount: 'always',
   });
 };
 

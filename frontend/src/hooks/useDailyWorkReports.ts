@@ -27,6 +27,7 @@ export function useAllDailyWorkReports(params: DailyWorkReportParams = {}, enabl
     queryFn: () =>
       dailyWorkReportService.getAllReports(page, limit, status === 'ALL' ? undefined : status),
     enabled,
+    refetchOnMount: 'always',
   });
 }
 
@@ -37,6 +38,7 @@ export function useMyDailyWorkReports(params: DailyWorkReportParams = {}, enable
     queryKey: dailyWorkReportKeys.myList({ page, limit }),
     queryFn: () => dailyWorkReportService.getMyReports(page, limit),
     enabled,
+    refetchOnMount: 'always',
   });
 }
 

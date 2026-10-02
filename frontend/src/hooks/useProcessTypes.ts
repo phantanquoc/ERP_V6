@@ -17,6 +17,7 @@ export const useProcessTypes = (params?: ProcessTypeQuery) =>
   useQuery({
     queryKey: processTypeKeys.list(params),
     queryFn: () => processTypeService.getAll(params),
+    refetchOnMount: 'always',
   });
 
 export const useProcessType = (id: string) =>

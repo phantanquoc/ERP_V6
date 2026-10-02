@@ -57,6 +57,7 @@ export const useEmployeesForAssignment = (search?: string) => {
         .filter((employee) => employee.name || employee.employeeCode);
     },
     staleTime: 5 * 60 * 1000,
+    refetchOnMount: 'always',
   });
 };
 

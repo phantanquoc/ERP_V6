@@ -19,6 +19,7 @@ export const useMaintenancePlans = (filters: MaintenancePlanFilters = {}) =>
   useQuery({
     queryKey: maintenancePlanKeys.list(filters),
     queryFn: () => maintenancePlanService.getAll(filters),
+    refetchOnMount: 'always',
   });
 
 export const useMaintenancePlan = (id: string) =>

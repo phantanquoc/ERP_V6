@@ -14,6 +14,7 @@ export const useSpareParts = (filters: SparePartFilters = {}) =>
   useQuery({
     queryKey: sparePartKeys.list(filters),
     queryFn: () => sparePartService.getAll(filters),
+    refetchOnMount: 'always',
   });
 
 export const useSparePart = (id: string | null) =>

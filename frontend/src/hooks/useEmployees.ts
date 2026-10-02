@@ -18,6 +18,7 @@ export const useEmployees = (page: number = 1, limit: number = 100, enabled: boo
     queryKey: employeeKeys.list(page, limit),
     queryFn: () => employeeService.getAllEmployees(page, limit),
     enabled,
+    refetchOnMount: 'always',
   });
 };
 

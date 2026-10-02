@@ -13,6 +13,7 @@ export const useProjects = (filters: ProjectFilters = {}) =>
   useQuery({
     queryKey: projectKeys.list(filters),
     queryFn: () => projectService.getAll(filters),
+    refetchOnMount: 'always',
   });
 
 export const useProject = (id: string) =>

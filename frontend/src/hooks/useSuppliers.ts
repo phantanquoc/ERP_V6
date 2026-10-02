@@ -26,5 +26,6 @@ export const useSupplierOptions = (phanLoaiNCC?: 'NVL' | 'Thiết bị') => {
     // a supplier created on another tab/modal lands in the list automatically.
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: true,
+    refetchOnMount: 'always',
   });
 };

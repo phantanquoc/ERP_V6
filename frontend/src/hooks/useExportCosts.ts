@@ -24,6 +24,7 @@ export const useExportCosts = (filters: ExportCostFilters = {}) => {
   return useQuery({
     queryKey: exportCostKeys.list({ page, limit, search, loaiChiPhi }),
     queryFn: () => exportCostService.getAllExportCosts(page, limit, search, loaiChiPhi),
+    refetchOnMount: 'always',
   });
 };
 

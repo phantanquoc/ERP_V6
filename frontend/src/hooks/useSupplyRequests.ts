@@ -27,6 +27,7 @@ export const useSupplyRequests = (
       );
       return response;
     },
+    refetchOnMount: 'always',
   });
 };
 

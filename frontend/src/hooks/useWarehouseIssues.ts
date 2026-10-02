@@ -20,6 +20,7 @@ export const useWarehouseIssues = () => {
       const response = await warehouseIssueService.getAllWarehouseIssues();
       return response.data as WarehouseIssue[];
     },
+    refetchOnMount: 'always',
   });
 };
 

@@ -12,5 +12,6 @@ export const useQuotationAgingWarnings = (threshold = 7, enabled = true) => {
     queryKey: quotationAgingKeys.list(threshold),
     queryFn: () => quotationAgingService.getAgingWarnings(threshold),
     enabled,
+    refetchOnMount: 'always',
   });
 };

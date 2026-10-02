@@ -46,6 +46,7 @@ export const useProductionEmployees = (enabled: boolean = true) => {
         .filter(employee => employee.name);
     },
     staleTime: 5 * 60 * 1000,
+    refetchOnMount: 'always',
     enabled,
   });
 };

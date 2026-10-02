@@ -41,6 +41,7 @@ export const useQuotations = (filters: QuotationFilters = {}) => {
   return useQuery({
     queryKey: quotationKeys.list({ page, limit, search, customerType, status, dateFrom, dateTo }),
     queryFn: () => quotationService.getAllQuotations(page, limit, search, customerType, status, dateFrom, dateTo),
+    refetchOnMount: 'always',
   });
 };
 
@@ -104,6 +105,7 @@ export const useQuotationRequests = (filters: QuotationFilters = {}) => {
   return useQuery({
     queryKey: quotationRequestKeys.list({ page, limit, search, customerType, status, dateFrom, dateTo }),
     queryFn: () => quotationRequestService.getAllQuotationRequests(page, limit, search, customerType, status, dateFrom, dateTo),
+    refetchOnMount: 'always',
   });
 };
 

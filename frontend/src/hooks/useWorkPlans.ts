@@ -22,6 +22,7 @@ export function useWorkPlans(params: WorkPlanParams = {}, enabled = true) {
     queryKey: workPlanKeys.list(params as Record<string, unknown>),
     queryFn: () => workPlanService.getAllWorkPlans(params.page, params.limit, params.search),
     enabled,
+    refetchOnMount: 'always',
   });
 }
 
@@ -31,6 +32,7 @@ export function useMyWorkPlans(params: WorkPlanParams = {}, enabled = true) {
     queryKey: workPlanKeys.myList(params as Record<string, unknown>),
     queryFn: () => workPlanService.getMyWorkPlans(params.page, params.limit, params.search),
     enabled,
+    refetchOnMount: 'always',
   });
 }
 

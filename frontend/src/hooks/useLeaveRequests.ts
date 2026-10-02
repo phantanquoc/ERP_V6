@@ -25,6 +25,7 @@ export const useLeaveRequests = (filters: LeaveRequestFilters = {}) => {
   return useQuery({
     queryKey: leaveRequestKeys.list({ page, limit, status }),
     queryFn: () => leaveRequestService.getAllLeaveRequests({ page, limit, status }),
+    refetchOnMount: 'always',
   });
 };
 
@@ -35,6 +36,7 @@ export const useMyLeaveRequests = (filters: LeaveRequestFilters = {}) => {
   return useQuery({
     queryKey: leaveRequestKeys.myList({ page, limit, status }),
     queryFn: () => leaveRequestService.getAllLeaveRequests({ page, limit, status }),
+    refetchOnMount: 'always',
   });
 };
 

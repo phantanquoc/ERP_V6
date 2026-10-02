@@ -20,6 +20,7 @@ export const useFaultTemplates = (filters: FaultTemplateFilters = {}) =>
   useQuery({
     queryKey: faultTemplateKeys.list(filters),
     queryFn: () => faultTemplateService.getAll(filters),
+    refetchOnMount: 'always',
   });
 
 export const useFaultTemplate = (id: string) =>
@@ -58,6 +59,7 @@ export const useTemplateSearch = (
         activeOnly: true,
       }),
     enabled: debouncedSearch.length >= 2,
+    refetchOnMount: 'always',
   });
 };
 

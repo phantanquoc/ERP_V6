@@ -61,6 +61,7 @@ export const useLookups = (group: string, options?: UseLookupsOptions) => {
     // The backend appends the hidden value itself when `includeValue` is sent.
     queryFn: () => lookupService.list({ group, includeValue }),
     staleTime: LOOKUP_STALE_TIME,
+    refetchOnMount: 'always',
     enabled: options?.enabled !== false && !!group,
   });
 
@@ -97,6 +98,7 @@ export const useLookupsAll = (group: string, options?: { enabled?: boolean }) =>
     queryKey: lookupKeys.list(group, { all: true }),
     queryFn: () => lookupService.list({ group, all: true }),
     staleTime: LOOKUP_STALE_TIME,
+    refetchOnMount: 'always',
     enabled: options?.enabled !== false && !!group,
   });
 

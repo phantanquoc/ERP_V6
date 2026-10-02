@@ -50,6 +50,7 @@ export function useProducts(filters: ProductFilters = {}) {
     queryFn: () => internationalProductService.getAllProducts(page, limit, search, loaiSanPham, {
       maSanPham, tenSanPham, donViTinh, sortBy, sortOrder,
     }),
+    refetchOnMount: 'always',
   });
 }
 

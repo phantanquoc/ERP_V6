@@ -57,6 +57,7 @@ export const useSystemOperations = (page = 1, limit = 10, machineSystemId?: stri
   useQuery({
     queryKey: systemOperationKeys.list({ page, limit, machineSystemId }),
     queryFn: () => systemOperationService.getAllSystemOperations(page, limit, machineSystemId),
+    refetchOnMount: 'always',
   });
 
 export const useSystemOperation = (id: string) =>
@@ -119,6 +120,7 @@ export const useQualityEvaluations = (page = 1, limit = 10, machineSystemId?: st
   useQuery({
     queryKey: qualityEvaluationKeys.list({ page, limit, machineSystemId }),
     queryFn: () => qualityEvaluationService.getAllQualityEvaluations(page, limit, machineSystemId),
+    refetchOnMount: 'always',
   });
 
 export const useQualityEvaluation = (id: string) =>
@@ -167,6 +169,7 @@ export const useMaterialEvaluations = (page = 1, limit = 10) =>
   useQuery({
     queryKey: materialEvaluationKeys.list({ page, limit }),
     queryFn: () => materialEvaluationService.getAllMaterialEvaluations(page, limit),
+    refetchOnMount: 'always',
   });
 
 export const useMaterialEvaluation = (id: string) =>
@@ -215,6 +218,7 @@ export const useProductionReports = (page = 1, limit = 10) =>
   useQuery({
     queryKey: productionReportKeys.list({ page, limit }),
     queryFn: () => productionReportService.getAll(page, limit),
+    refetchOnMount: 'always',
   });
 
 export const useProductionReport = (id: string) =>

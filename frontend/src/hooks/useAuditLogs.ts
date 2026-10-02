@@ -13,5 +13,6 @@ export const useAuditLogs = (params: ListAuditParams, enabled = true) => {
     queryKey: auditLogKeys.list(params),
     queryFn: () => auditLogService.listAudit(params),
     enabled,
+    refetchOnMount: 'always',
   });
 };

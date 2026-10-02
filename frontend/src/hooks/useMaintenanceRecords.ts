@@ -18,6 +18,7 @@ export const useMaintenanceRecords = (filters: MaintenanceRecordFilters = {}) =>
   useQuery({
     queryKey: maintenanceRecordKeys.list(filters),
     queryFn: () => maintenanceRecordService.getAll(filters),
+    refetchOnMount: 'always',
   });
 
 export const useMaintenanceRecord = (id: string) =>

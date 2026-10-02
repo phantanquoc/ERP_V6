@@ -17,6 +17,7 @@ export const usePayrollByMonthYear = (month: number, year: number, enabled: bool
     queryKey: payrollKeys.list(month, year),
     queryFn: () => payrollService.getPayrollByMonthYear(month, year),
     enabled,
+    refetchOnMount: 'always',
   });
 };
 
