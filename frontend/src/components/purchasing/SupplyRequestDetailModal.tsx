@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { X, ClipboardList } from 'lucide-react';
 import Modal from '../Modal';
 import supplyRequestService, { SupplyRequest } from '../../services/supplyRequestService';
+import AttachmentList, { collectAttachments } from '../common/AttachmentList';
 
 interface Props {
   supplyRequestId: string | null;
@@ -143,6 +144,7 @@ export default function SupplyRequestDetailModal({ supplyRequestId, isOpen, onCl
                 )}
                 <div><span className="font-medium text-gray-600">Tạo lúc:</span> <span className="text-gray-700">{new Date(data.createdAt).toLocaleString('vi-VN')}</span></div>
                 <div><span className="font-medium text-gray-600">Cập nhật:</span> <span className="text-gray-700">{new Date(data.updatedAt).toLocaleString('vi-VN')}</span></div>
+                <AttachmentList className="sm:col-span-2" urls={collectAttachments(data)} />
               </div>
 
               {(data.replenishmentRequests?.length || data.purchaseRequests?.length) ? (

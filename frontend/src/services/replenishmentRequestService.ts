@@ -53,7 +53,11 @@ export interface ReplenishmentRequest {
   createdAt: string;
   updatedAt: string;
   items: ReplenishmentRequestItem[];
-  supplyRequest?: { id: string; maYeuCau: string; trangThai: string } | null;
+  /** `tepDinhKem`/`fileKemTheo` let the YCBS surface the originating YCCC's attachments. */
+  supplyRequest?: {
+    id: string; maYeuCau: string; trangThai: string; boPhan?: string;
+    tepDinhKem?: string[] | null; fileKemTheo?: string | null;
+  } | null;
   convertedPurchaseRequest?: { id: string; maYeuCau: string; trangThai: string } | null;
   /** Reopening provenance: when set, this YCBS was reopened by a cancelled YCMH. */
   cancelledYcmh?: { maYeuCau: string; lyDoHuy: string | null; ngayHuy: string | null } | null;

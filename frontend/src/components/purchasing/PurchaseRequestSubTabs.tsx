@@ -5,6 +5,7 @@ import purchaseRequestService from '../../services/purchaseRequestService';
 import { normalizeBoPhan, CANONICAL_BO_PHAN } from '../../utils/normalizeBoPhan';
 import { labelForPurchaseRequest } from '../../utils/purchaseRequestLabel';
 import type { PurchaseRequest } from '../../types/purchaseRequest';
+import AttachmentList, { collectAttachments } from '../common/AttachmentList';
 
 export type PurchaseSubTab = 'requests' | 'purchased';
 
@@ -224,6 +225,7 @@ export default function PurchaseRequestSubTabs({
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hàng hóa</th>
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mức độ ưu tiên</th>
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
+            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider" title="Tệp đính kèm (YCMH + YCCC nguồn)">Tệp</th>
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
           </tr>
         </thead>
@@ -303,6 +305,9 @@ export default function PurchaseRequestSubTabs({
                   >
                     {item.trangThai}
                   </span>
+                </td>
+                <td className="px-4 py-4 text-center text-sm">
+                  <AttachmentList variant="chip" urls={collectAttachments(item, item.supplyRequest)} />
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900" onClick={(e) => e.stopPropagation()}>
                   <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">

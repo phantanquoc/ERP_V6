@@ -5,6 +5,7 @@ import type { PurchaseRequest } from '../../types/purchaseRequest';
 import { labelForPurchaseRequest } from '../../utils/purchaseRequestLabel';
 import { sourceTypeLabel, sourceTypeBadgeClass, trangThaiBadgeClass } from '../../utils/purchaseRequestBadges';
 import { normalizeBoPhan } from '../../utils/normalizeBoPhan';
+import AttachmentList, { collectAttachments } from '../common/AttachmentList';
 
 interface Props {
   isOpen: boolean;
@@ -320,12 +321,11 @@ export default function PurchaseRequestDetailModal({
               <p className="text-sm text-gray-900">{pr.ngayDuyet ? formatDate(pr.ngayDuyet) : <span className="text-gray-400 italic">Chưa duyệt</span>}</p>
             </div>
             <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2">
-              <label className="block text-sm font-medium text-gray-500 mb-1">File đính kèm</label>
-              {pr.fileKemTheo ? (
-                <a href={pr.fileKemTheo} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline break-all">{pr.fileKemTheo}</a>
-              ) : (
-                <p className="text-sm text-gray-400 italic">Không có file đính kèm</p>
-              )}
+              <AttachmentList
+                label={`Tệp đính kèm${pr.supplyRequest ? ` (YCCC ${pr.supplyRequest.maYeuCau})` : ''}`}
+                urls={collectAttachments(pr, pr.supplyRequest)}
+                emptyText="Không có file đính kèm"
+              />
             </div>
             <div className="bg-blue-50 p-3 rounded-lg col-span-1 sm:col-span-2 border border-blue-100 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600">
               <span>Ngày tạo: <span className="font-medium text-gray-800">{formatDateTime(pr.createdAt)}</span></span>

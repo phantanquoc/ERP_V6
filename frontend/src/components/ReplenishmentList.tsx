@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Eye, CheckCircle, PackageOpen, XCircle } from 'lucide-react';
 import { useReplenishmentRequests } from '../hooks/useReplenishmentRequests';
 import type { ReplenishmentRequest } from '../services/replenishmentRequestService';
+import AttachmentList, { collectAttachments } from './common/AttachmentList';
 
 interface ReplenishmentListProps {
   /** Opens the YCBS detail/pricing modal. Content lives in a sibling modal owned by the page. */
@@ -83,6 +84,7 @@ const ReplenishmentList: React.FC<ReplenishmentListProps> = ({
               <th className="px-3 py-2 text-left">Nhân viên</th>
               <th className="px-3 py-2 text-left">Hàng hóa</th>
               <th className="px-3 py-2 text-left">Nguồn</th>
+              <th className="px-3 py-2 text-center" title="Tệp đính kèm từ YCCC nguồn">Tệp</th>
               <th className="px-3 py-2 text-center">Thao tác</th>
             </tr>
           </thead>
@@ -129,6 +131,9 @@ const ReplenishmentList: React.FC<ReplenishmentListProps> = ({
                     ) : (
                       <span className="text-xs text-gray-400">—</span>
                     )}
+                  </td>
+                  <td className="px-3 py-2 text-center">
+                    <AttachmentList variant="chip" urls={collectAttachments(r, r.supplyRequest)} />
                   </td>
                   <td className="px-3 py-2 text-center">
                     <button onClick={(e) => { e.stopPropagation(); onOpenDetail?.(r); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Xem / điền giá và chuyển YCMH">

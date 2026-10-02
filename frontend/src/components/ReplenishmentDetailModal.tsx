@@ -10,6 +10,7 @@ import { useSupplierOptions } from '../hooks/useSuppliers';
 import QuickCreateSupplierModal from './QuickCreateSupplierModal';
 import SupplierCombobox from './common/SupplierCombobox';
 import CancelWithReasonModal from './common/CancelWithReasonModal';
+import AttachmentList, { collectAttachments } from './common/AttachmentList';
 
 interface ReplenishmentDetailModalProps {
   isOpen: boolean;
@@ -381,6 +382,15 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
                 </tbody>
               </table>
             </div>
+          )}
+
+          {/* Attachments from the originating YCCC, so purchasing sees the requester's
+              evidence without opening the YCCC modal in another tab. */}
+          {!loading && (detail ?? ybs) && (
+            <AttachmentList
+              label={`Tệp đính kèm${detail?.supplyRequest ? ` (từ ${(detail.supplyRequest as { maYeuCau?: string })?.maYeuCau ?? 'YCCC'})` : ''}`}
+              urls={collectAttachments(detail ?? ybs, (detail ?? ybs)?.supplyRequest)}
+            />
           )}
         </div>
 

@@ -10,6 +10,8 @@ import { labelForPurchaseRequest } from '../../../utils/purchaseRequestLabel';
 import TableFilter, { FilterField } from '../../TableFilter';
 import Modal from '../../Modal';
 import ConfirmDialog from '../../common/ConfirmDialog';
+import AttachmentList, { collectAttachments } from '../../common/AttachmentList';
+import { normalizeBoPhan } from '../../../utils/normalizeBoPhan';
 import { getPricingPriorityBadge as getPriorityBadge, getPricingStatusBadge as getStatusBadge } from './pricingBadge';
 
 const PurchaseRequestReviewTab: React.FC = () => {
@@ -258,6 +260,7 @@ const PurchaseRequestReviewTab: React.FC = () => {
                   Ngày yêu cầu <span className="inline-block ml-1 text-[10px]">{sortIndicator('ngayYeuCau')}</span>
                 </th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Nhân viên</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider hidden xl:table-cell">Bộ phận</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Hàng hóa</th>
                 <th
                   className="px-3 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer select-none hover:text-blue-600 hover:bg-gray-100"
@@ -268,13 +271,14 @@ const PurchaseRequestReviewTab: React.FC = () => {
                 </th>
                 <th className="px-3 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Ưu tiên</th>
                 <th className="px-3 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Trạng thái</th>
+                <th className="px-3 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider" title="Tệp đính kèm (YCMH + YCCC nguồn)">Tệp</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Người duyệt</th>
                 <th className="px-3 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Hành động</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {pageRows.length === 0 ? (
-                <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-gray-500">Không có yêu cầu</td></tr>
+                <tr><td colSpan={12} className="px-4 py-8 text-center text-sm text-gray-500">Không có yêu cầu</td></tr>
               ) : pageRows.map((r: any, idx: number) => {
                 const items = r.items ?? [];
                 const productNames = items.map((it: any) => it.tenHangHoa).filter(Boolean) as string[];
@@ -293,6 +297,7 @@ const PurchaseRequestReviewTab: React.FC = () => {
                   <td className="px-3 py-3 whitespace-nowrap text-sm font-medium text-blue-600">{r.maYeuCau}</td>
                   <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-600">{r.ngayYeuCau ? new Date(r.ngayYeuCau).toLocaleDateString('vi-VN') : '—'}</td>
                   <td className="px-3 py-3 whitespace-nowrap text-sm">{r.tenNhanVien ?? r.maNhanVien ?? '—'}</td>
+                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-600 hidden xl:table-cell" title={r.supplyRequest?.boPhan ?? ''}>{r.supplyRequest?.boPhan ? normalizeBoPhan(r.supplyRequest.boPhan) : '—'}</td>
                   <td className="px-3 py-3 text-sm max-w-[220px] truncate" title={productNames.join(', ')}>{productDisplay || '—'}</td>
                   <td className="px-3 py-3 whitespace-nowrap text-sm text-right font-medium">{totalAmount > 0 ? `${totalAmount.toLocaleString('vi-VN')}đ` : '—'}</td>
                   <td className="px-3 py-3 whitespace-nowrap text-center">
@@ -300,6 +305,9 @@ const PurchaseRequestReviewTab: React.FC = () => {
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap text-center">
                     {(() => { const b = getStatusBadge(String(r.trangThai ?? '')); return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${b.class}`}>{b.label}</span>; })()}
+                  </td>
+                  <td className="px-3 py-3 whitespace-nowrap text-center">
+                    <AttachmentList variant="chip" urls={collectAttachments(r, r.supplyRequest)} />
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-600">{r.nguoiDuyet || '—'}</td>
                   <td className="px-3 py-3 text-center whitespace-nowrap" onClick={e => e.stopPropagation()}>
@@ -403,6 +411,10 @@ const PurchaseRequestReviewTab: React.FC = () => {
                     <div><p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Ngày yêu cầu</p><p className="font-medium mt-1">{row.ngayYeuCau ? new Date(row.ngayYeuCau).toLocaleDateString('vi-VN') : '—'}</p></div>
                     <div><p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Nhân viên</p><p className="font-medium mt-1">{row.tenNhanVien ?? row.maNhanVien ?? '—'}</p></div>
                     <div><p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Mã nhân viên</p><p className="font-medium mt-1">{row.maNhanVien ?? '—'}</p></div>
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Bộ phận yêu cầu</p>
+                      <p className="font-medium mt-1" title={row.supplyRequest?.boPhan ?? ''}>{row.supplyRequest?.boPhan ? normalizeBoPhan(row.supplyRequest.boPhan) : '—'}</p>
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
                     <div>
@@ -449,6 +461,11 @@ const PurchaseRequestReviewTab: React.FC = () => {
                       </table>
                     </div>
                   </div>
+                  <AttachmentList
+                    label={`Tệp đính kèm${row.supplyRequest ? ` (YCCC ${row.supplyRequest.maYeuCau})` : ''}`}
+                    urls={collectAttachments(row, row.supplyRequest)}
+                    emptyText="Không có file đính kèm"
+                  />
                 </>
               );
             })()}
@@ -506,6 +523,10 @@ const PurchaseRequestReviewTab: React.FC = () => {
                 <div><p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Mã yêu cầu</p><p className="font-semibold text-blue-600 mt-0.5">{approveRow.maYeuCau ?? '—'}</p></div>
                 <div><p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Ngày yêu cầu</p><p className="mt-0.5">{approveRow.ngayYeuCau ? new Date(approveRow.ngayYeuCau).toLocaleDateString('vi-VN') : '—'}</p></div>
                 <div><p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Nhân viên</p><p className="mt-0.5">{approveRow.tenNhanVien ? `${approveRow.tenNhanVien}${approveRow.maNhanVien ? ` (${approveRow.maNhanVien})` : ''}` : (approveRow.maNhanVien ?? '—')}</p></div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Bộ phận yêu cầu</p>
+                  <p className="mt-0.5" title={approveRow.supplyRequest?.boPhan ?? ''}>{approveRow.supplyRequest?.boPhan ? normalizeBoPhan(approveRow.supplyRequest.boPhan) : '—'}</p>
+                </div>
                 <div><p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Ưu tiên</p>{(() => { const b = getPriorityBadge(String(approveRow.mucDoUuTien ?? '')); return <span className={`inline-flex mt-1 px-2 py-0.5 rounded-full text-xs font-medium ${b.class}`}>{approveRow.mucDoUuTien ? b.label : '—'}</span>; })()}</div>
               </div>
               {approveRow.mucDichYeuCau && (
@@ -535,6 +556,10 @@ const PurchaseRequestReviewTab: React.FC = () => {
                   </div>
                 )}
               </div>
+              <AttachmentList
+                label={`Tệp đính kèm${approveRow.supplyRequest ? ` (YCCC ${approveRow.supplyRequest.maYeuCau})` : ''}`}
+                urls={collectAttachments(approveRow, approveRow.supplyRequest)}
+              />
             </div>
           );
         })()}
