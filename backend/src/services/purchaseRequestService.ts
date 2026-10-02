@@ -209,7 +209,7 @@ class PurchaseRequestService {
               position: { select: { name: true } },
             },
           },
-          supplyRequest: { select: { id: true, maYeuCau: true, trangThai: true, boPhan: true } },
+          supplyRequest: { select: { id: true, maYeuCau: true, trangThai: true, boPhan: true, tepDinhKem: true, fileKemTheo: true } },
           supplier: { select: { id: true, tenNhaCungCap: true, maNhaCungCap: true } },
           warehouse: { select: { id: true, tenKho: true, maKho: true } },
           inboundPlan: { include: { warehouse: { select: { id: true, tenKho: true, maKho: true } }, logs: { orderBy: { createdAt: 'desc' }, take: 20 } } },

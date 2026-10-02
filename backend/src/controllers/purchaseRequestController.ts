@@ -54,8 +54,14 @@ class PurchaseRequestController {
         isPurchasing = depts.some(d => d.code === 'DEPT_PURCHASING');
       }
 
-      // If purchasing or admin, no dept filter; otherwise filter by all user's depts
-      const departmentIds = (isAdmin || isPurchasing) ? undefined : (allDeptIds.length > 0 ? allDeptIds : undefined);
+      // Pricing approvers review PRs from EVERY department — like purchasing and
+      // admin, they must see the full list or approvals get silently skipped.
+      // RBAC (requireRule READ) still gates who reaches here; this only lifts the
+      // data-permission filter, never grants access by itself.
+      const isPricing = !isAdmin && !isPurchasing ? await isPricingApprover(req.user) : false;
+
+      // If purchasing, pricing approver, or admin, no dept filter; otherwise filter by all user's depts
+      const departmentIds = (isAdmin || isPurchasing || isPricing) ? undefined : (allDeptIds.length > 0 ? allDeptIds : undefined);
 
       const result = await purchaseRequestService.getAllPurchaseRequests(
         page,
