@@ -62,8 +62,8 @@ export const useUpdateMaintenancePlan = () => {
 export const useToggleMonth = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ planId, itemId, month, lanThu, ghiChu, nguoiThucHien, nguoiPhu }: { planId: string; itemId: string; month: number; lanThu?: number; ghiChu?: string; nguoiThucHien?: string; nguoiPhu?: string[] }) =>
-      maintenancePlanService.toggleMonth(planId, itemId, month, lanThu, ghiChu, nguoiThucHien, nguoiPhu),
+    mutationFn: ({ planId, itemId, month, lanThu, ghiChu, nguoiThucHien, nguoiPhu, ngayThucHien, recordData }: { planId: string; itemId: string; month: number; lanThu?: number; ghiChu?: string; nguoiThucHien?: string; nguoiPhu?: string[]; ngayThucHien?: string; recordData?: { tinhTrangTruoc?: string; tinhTrangSau?: string; deXuat?: string; thoiGianThucHien?: string; noiDung?: string } }) =>
+      maintenancePlanService.toggleMonth(planId, itemId, month, lanThu, ghiChu, nguoiThucHien, nguoiPhu, ngayThucHien, recordData),
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: maintenancePlanKeys.lists() });
       const previousData = queryClient.getQueriesData({ queryKey: maintenancePlanKeys.lists() });
@@ -137,7 +137,7 @@ export const useToggleMonth = () => {
 export const useUpdateLogNote = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ logId, data }: { logId: string; data: { ghiChu?: string; nguoiThucHien?: string; nguoiPhu?: string[] } }) =>
+    mutationFn: ({ logId, data }: { logId: string; data: { ghiChu?: string; nguoiThucHien?: string; nguoiPhu?: string[]; ngayThucHien?: string; recordData?: { tinhTrangTruoc?: string; tinhTrangSau?: string; deXuat?: string; thoiGianThucHien?: string; noiDung?: string } } }) =>
       maintenancePlanService.updateLogNote(logId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: maintenancePlanKeys.lists() });

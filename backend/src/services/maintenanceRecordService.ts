@@ -12,6 +12,7 @@ export interface MaintenanceRecordFilters {
   machineSystemDetailId?: string;
   loai?: string;
   maintenancePlanId?: string;
+  sourceLogId?: string;
   startDate?: string;
   endDate?: string;
   search?: string;
@@ -63,6 +64,7 @@ class MaintenanceRecordService {
     if (filters.machineSystemDetailId) where.machineSystemDetailId = filters.machineSystemDetailId;
     if (filters.loai) where.loai = filters.loai;
     if (filters.maintenancePlanId) where.maintenancePlanId = filters.maintenancePlanId;
+    if (filters.sourceLogId) where.sourceLogId = filters.sourceLogId;
     if (filters.startDate || filters.endDate) {
       where.ngayThucHien = {};
       if (filters.startDate) where.ngayThucHien.gte = new Date(filters.startDate);

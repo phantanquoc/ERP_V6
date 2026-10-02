@@ -138,7 +138,16 @@ class MaintenancePlanController {
       const ghiChu = req.body.ghiChu as string | undefined;
       const nguoiThucHien = req.body.nguoiThucHien as string | undefined;
       const nguoiPhu = parseNguoiPhu(req.body.nguoiPhu);
-      const item = await maintenancePlanService.toggleMonth(req.params.id, req.params.itemId, month, lanThu, ghiChu, nguoiThucHien, nguoiPhu);
+      const ngayThucHien = (req.body.ngayThucHien as string | undefined) || undefined;
+      const recordData = (req.body.recordData as Record<string, unknown> | undefined) ?? undefined;
+      const rec: { tinhTrangTruoc?: string; tinhTrangSau?: string; deXuat?: string; thoiGianThucHien?: string; noiDung?: string } | undefined = recordData ? {
+        tinhTrangTruoc: recordData.tinhTrangTruoc as string | undefined,
+        tinhTrangSau: recordData.tinhTrangSau as string | undefined,
+        deXuat: recordData.deXuat as string | undefined,
+        thoiGianThucHien: recordData.thoiGianThucHien as string | undefined,
+        noiDung: recordData.noiDung as string | undefined,
+      } : undefined;
+      const item = await maintenancePlanService.toggleMonth(req.params.id, req.params.itemId, month, lanThu, ghiChu, nguoiThucHien, nguoiPhu, ngayThucHien, rec);
       try {
         const planId = req.params.id;
         let maKeHoach: string | undefined;
@@ -158,10 +167,21 @@ class MaintenancePlanController {
   async updateLogNote(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const nguoiPhu = parseNguoiPhu(req.body.nguoiPhu);
+      const ngayThucHien = (req.body.ngayThucHien as string | undefined) || undefined;
+      const recordData = (req.body.recordData as Record<string, unknown> | undefined) ?? undefined;
+      const rec: { tinhTrangTruoc?: string; tinhTrangSau?: string; deXuat?: string; thoiGianThucHien?: string; noiDung?: string } | undefined = recordData ? {
+        tinhTrangTruoc: recordData.tinhTrangTruoc as string | undefined,
+        tinhTrangSau: recordData.tinhTrangSau as string | undefined,
+        deXuat: recordData.deXuat as string | undefined,
+        thoiGianThucHien: recordData.thoiGianThucHien as string | undefined,
+        noiDung: recordData.noiDung as string | undefined,
+      } : undefined;
       const log = await maintenancePlanService.updateLogNote(req.params.logId, {
         ghiChu: req.body.ghiChu,
         nguoiThucHien: req.body.nguoiThucHien,
         nguoiPhu,
+        ...(ngayThucHien !== undefined ? { ngayThucHien } : {}),
+        ...(rec !== undefined ? { recordData: rec } : {}),
       });
       res.json({ success: true, data: log, message: 'Cập nhật thông tin thành công' });
     } catch (error) {

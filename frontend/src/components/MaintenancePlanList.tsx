@@ -1,9 +1,8 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import maintenancePlanService from '../services/maintenancePlanService';
 import toast from 'react-hot-toast';
-import { Plus, Eye, Pencil, Trash2, Check, ChevronLeft, ChevronRight, Download, RefreshCw } from 'lucide-react';
-import { useMaintenancePlans, useToggleMonth, useDeleteMaintenancePlan, useUpdateLogNote, useSyncDetails } from '../hooks/useMaintenancePlans';
+import { Plus, Eye, Pencil, Trash2, Check, ChevronLeft, ChevronRight, Download, RefreshCw, Search } from 'lucide-react';
+import { useMaintenancePlans, useMaintenancePlan, useToggleMonth, useDeleteMaintenancePlan, useUpdateLogNote, useSyncDetails } from '../hooks/useMaintenancePlans';
 import { useMachineSystems } from '../hooks/useMachineSystemDetails';
 import MaintenancePlanForm from './MaintenancePlanForm';
 import MaintenanceLogModal from './MaintenanceLogModal';
@@ -14,14 +13,12 @@ import { ErrorState } from '../design-system/States';
 import { useAuth } from '../contexts/AuthContext';
 import { canDeleteTechnical } from '../utils/permissions';
 
-// Shared table styles (keep in sync with the technical tabs table contract)
 const TH_CLASS = 'px-3 py-2.5 text-left text-xs font-semibold text-gray-500 whitespace-nowrap';
 const STICKY_LEFT_SHADOW = 'shadow-[1px_0_0_0_rgb(229_231_235)]';
 const CONTROL_CLASS = 'h-9 px-3 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500';
 const ICON_BTN_CLASS = 'inline-flex items-center justify-center h-7 w-7 rounded text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500';
 const PAGER_BTN_CLASS = 'inline-flex items-center gap-1 h-8 px-2.5 text-sm rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500';
 
-/** Same colors as before: in-progress green, completed blue, anything else yellow */
 const PLAN_STATUS_TONE: Record<string, BadgeTone> = {
   'Đang thực hiện': 'green',
   'Hoàn thành': 'blue',
@@ -51,7 +48,6 @@ const TEAM_LABELS: Record<string, string> = {
   TONG_HOP: 'Tổng hợp',
 };
 
-/** Number of occurrences per applicable month for each frequency */
 const FREQUENCY_TIMES: Record<string, number> = {
   HANG_NGAY: 22,
   HANG_TUAN: 4,
@@ -63,7 +59,6 @@ const FREQUENCY_TIMES: Record<string, number> = {
   KHONG_CO_DINH: 0,
 };
 
-/** Which months are applicable for each frequency, starting from thangBatDau */
 function getApplicableMonths(frequency: string, thangBatDau: number = 1): number[] {
   switch (frequency) {
     case 'HAI_THANG': {
@@ -83,21 +78,18 @@ function getApplicableMonths(frequency: string, thangBatDau: number = 1): number
     }
     case 'HANG_NAM': return [thangBatDau];
     case 'KHONG_CO_DINH': return MONTHS;
-    default: return MONTHS; // HANG_NGAY, HANG_TUAN, HANG_THANG
+    default: return MONTHS;
   }
 }
 
-/** Get times per month for a frequency */
 function getTimesPerMonth(frequency: string): number {
   return FREQUENCY_TIMES[frequency] ?? 1;
 }
 
-/** Calculate plan progress: completed / total applicable occurrences */
 function calculatePlanProgress(items: MaintenancePlanItem[]): { completed: number; total: number } {
   let total = 0;
   let completed = 0;
   for (const item of items) {
-    // KHONG_CO_DINH items do not count toward plan progress
     if (item.tanSuat === 'KHONG_CO_DINH') continue;
     const applicableMonths = getApplicableMonths(item.tanSuat, item.thangBatDau ?? 1);
     const timesPerMonth = getTimesPerMonth(item.tanSuat);
@@ -107,7 +99,6 @@ function calculatePlanProgress(items: MaintenancePlanItem[]): { completed: numbe
   return { completed, total };
 }
 
-/** Export plan as CSV download */
 function exportPlanCSV(plan: MaintenancePlan) {
   const items = plan.items ?? [];
   const headers = ['Thiết bị', 'Nội dung BD', 'Tần suất', 'Tổ TH', ...MONTHS.map((m) => `T${m}`)];
@@ -131,7 +122,6 @@ function exportPlanCSV(plan: MaintenancePlan) {
       ...monthCells,
     ];
   });
-
   const csvContent = [headers, ...rows]
     .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
     .join('\n');
@@ -145,12 +135,9 @@ function exportPlanCSV(plan: MaintenancePlan) {
   URL.revokeObjectURL(url);
 }
 
-// Namespaced URL params: plans and records share the same page, so `page` / `q` must not collide.
-const PAGE_PARAM = 'planPage';
 const Q_PARAM = 'planQ';
-const PAGE_SIZE = 5;
+const NAV_LIMIT = 200;
 
-/** Current month (1-12), refreshed when the tab regains focus so a long-open tab never shows a stale month. */
 const useCurrentMonth = (): number => {
   const [month, setMonth] = useState(() => new Date().getMonth() + 1);
   useEffect(() => {
@@ -193,16 +180,13 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
   const currentMonth = useCurrentMonth();
   const [pendingDelete, setPendingDelete] = useState<MaintenancePlan | null>(null);
 
-  const initPage = Math.max(1, Number(getParam(PAGE_PARAM) ?? '1') || 1);
   const initNam = Number(getParam('nam') ?? '') || new Date().getFullYear();
   const initQ = getParam(Q_PARAM) ?? '';
   const initTrangThai = getParam('trangThai') ?? '';
   const initMachineSystemId = lockedMachineSystemId ?? (getParam('machineSystemId') ?? '');
-  const initPlanId = getParam('planId');
   const initPlanMonth = Number(getParam('planMonth') ?? '') || null;
   const initMode = getParam('mode') as ModalMode | null;
 
-  const [page, setPage] = useState(initPage);
   const [selectedYear, setSelectedYear] = useState(initNam);
   const [search, setSearch] = useState(initQ);
   const [appliedSearch, setAppliedSearch] = useState(initQ);
@@ -212,13 +196,25 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
   const [modalMode, setModalMode] = useState<ModalMode>(initMode && ['create','view','edit'].includes(initMode) ? initMode : null);
   const [viewingPlan, setViewingPlan] = useState<MaintenancePlan | null>(null);
   const [logModal, setLogModal] = useState<LogModalState | null>(null);
+  const [navDropdownOpen, setNavDropdownOpen] = useState(false);
+  const [navSearch, setNavSearch] = useState('');
 
   useEffect(() => {
     if (lockedMachineSystemId) {
       setSelectedSystemId(lockedMachineSystemId);
-      setPage(1);
     }
   }, [lockedMachineSystemId]);
+
+  // Strip deprecated planPage on entry
+  useEffect(() => {
+    if (searchParams.get('planPage') !== null) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('planPage');
+      syncingRef.current = true;
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const updateParams = useCallback((patch: Record<string, string | null>) => {
     const next = new URLSearchParams(searchParams);
@@ -226,6 +222,7 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
       if (v === null || v === '') next.delete(k);
       else next.set(k, v);
     }
+    next.delete('planPage');
     syncingRef.current = true;
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
@@ -235,23 +232,20 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
     if (search === appliedSearch) return;
     const t = setTimeout(() => {
       setAppliedSearch(search);
-      setPage(1);
-      updateParams({ [Q_PARAM]: search || null, [PAGE_PARAM]: null });
+      updateParams({ [Q_PARAM]: search || null });
     }, 400);
     return () => clearTimeout(t);
   }, [search, appliedSearch, updateParams]);
 
-  // URL -> state sync (back/reload/share) — do not duplicate ?sub
+  // URL -> state sync (back/reload/share)
   useEffect(() => {
     if (syncingRef.current) { syncingRef.current = false; return; }
-    const p = Math.max(1, Number(searchParams.get(PAGE_PARAM) ?? '1') || 1);
     const nam = Number(searchParams.get('nam') ?? '') || null;
     const q = searchParams.get(Q_PARAM) ?? '';
     const tt = searchParams.get('trangThai') ?? '';
     const msId = searchParams.get('machineSystemId') ?? '';
     const planMonth = Number(searchParams.get('planMonth') ?? '') || null;
     const mode = searchParams.get('mode') as ModalMode | null;
-    if (p !== page) setPage(p);
     if (nam !== null && nam !== selectedYear) setSelectedYear(nam);
     if (q !== appliedSearch) { setAppliedSearch(q); setSearch(q); }
     if (tt !== selectedTrangThai) setSelectedTrangThai(tt);
@@ -262,87 +256,122 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
     if (!mode && modalMode) { /* keep until user closes */ }
   }, [searchParams]);
 
-  const filters = useMemo(() => ({
-    page,
-    limit: PAGE_SIZE,
+  // Navigator filtered set (capped)
+  const navigatorFilters = useMemo(() => ({
+    limit: NAV_LIMIT,
     nam: selectedYear,
     ...(appliedSearch && { search: appliedSearch }),
     ...(selectedSystemId && { machineSystemId: selectedSystemId }),
     ...(selectedTrangThai && { trangThai: selectedTrangThai }),
-  }), [page, selectedYear, appliedSearch, selectedSystemId, selectedTrangThai]);
+  }), [selectedYear, appliedSearch, selectedSystemId, selectedTrangThai]);
 
-  const { data: plansResponse, isLoading, isError, refetch } = useMaintenancePlans(filters);
+  const { data: navResponse, isLoading: navLoading, isError: navError, refetch: navRefetch } = useMaintenancePlans(navigatorFilters);
   const { data: systemsResponse } = useMachineSystems({ page: 1, limit: 200, hoatDong: true });
   const toggleMonth = useToggleMonth();
   const deletePlan = useDeleteMaintenancePlan();
   const updateLogNote = useUpdateLogNote();
   const syncDetails = useSyncDetails();
 
-  const plans = plansResponse?.data ?? [];
-  const pagination = plansResponse?.pagination;
+  const filteredPlans: MaintenancePlan[] = navResponse?.data ?? [];
+  const navPagination = navResponse?.pagination;
   const systems = systemsResponse?.data ?? [];
-  const planRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const openedPlanIdRef = useRef<string | null>(null);
 
-  // Deep-link ?planId -> open detail (view), highlight and scroll to card
+  // Active plan id resolution
+  const urlPlanId = searchParams.get('planId');
+  const filteredIds = useMemo(() => filteredPlans.map((p) => p.id), [filteredPlans]);
+  const activePlanId = useMemo(() => {
+    if (filteredPlans.length === 0) return null;
+    if (urlPlanId && filteredIds.includes(urlPlanId)) return urlPlanId;
+    return filteredIds[0] ?? null;
+  }, [urlPlanId, filteredIds, filteredPlans.length]);
+
+  // Sync URL planId to first when missing or stale
   useEffect(() => {
-    const planId = searchParams.get('planId');
-    if (!planId) { openedPlanIdRef.current = null; return; }
-    if (openedPlanIdRef.current === planId && viewingPlan?.id === planId) return;
-    if (viewingPlan?.id === planId) return;
-    const highlightAndScroll = (id: string, month: number | null) => {
-      requestAnimationFrame(() => {
-        const el = planRefs.current.get(id);
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          if (month && month >= 1 && month <= 12) {
-            const monthEl = el.querySelector(`[data-month="${month}"]`);
-            if (monthEl) (monthEl as HTMLElement).scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-          }
-        }
-      });
-    };
-    const monthParam = Number(searchParams.get('planMonth') ?? '') || null;
-    const validMonth = monthParam && monthParam >= 1 && monthParam <= 12 ? monthParam : null;
-    const found = plans.find((pl: MaintenancePlan) => pl.id === planId);
-    if (found) {
-      setViewingPlan(found);
-      if (!modalMode) setModalMode('view');
-      openedPlanIdRef.current = planId;
-      highlightAndScroll(planId, validMonth);
+    if (navLoading) return;
+    if (filteredPlans.length === 0) return;
+    if (!urlPlanId) {
+      updateParams({ planId: filteredPlans[0].id });
       return;
     }
-    // Fetch if not in current page
-    let cancelled = false;
-    maintenancePlanService.getById(planId).then((res: any) => {
-      if (cancelled) return;
-      const plan = res?.data ?? res;
-      if (plan?.id) {
-        setViewingPlan(plan as MaintenancePlan);
-        if (!modalMode) setModalMode('view');
-        openedPlanIdRef.current = planId;
-        highlightAndScroll(planId, validMonth);
-      }
-    }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [searchParams.get('planId'), searchParams.get('planMonth'), plans]);
+    if (!filteredIds.includes(urlPlanId)) {
+      updateParams({ planId: filteredPlans[0].id });
+    }
+  }, [navLoading, filteredPlans, filteredIds, urlPlanId, updateParams]);
 
-  // Keep viewingPlan in sync when plans refresh (e.g., after toggle)
+  // Keep viewingPlan in sync when filtered plans refresh
   useEffect(() => {
     if (!viewingPlan) return;
-    const updated = plans.find((pl: MaintenancePlan) => pl.id === viewingPlan.id);
+    const updated = filteredPlans.find((pl) => pl.id === viewingPlan.id);
     if (updated) setViewingPlan(updated);
-  }, [plans]);
+  }, [filteredPlans, viewingPlan]);
 
-  void initPlanId;
+  // Detail query for active plan
+  const { data: detailResponse, isLoading: detailLoading, isError: detailError, refetch: detailRefetch } = useMaintenancePlan(activePlanId ?? '');
+  const detailPlan: MaintenancePlan | null = (detailResponse?.data as unknown as MaintenancePlan) ?? null;
+  // Prefer detail with items/logs; fallback to entry from filtered set (which may already have items)
+  const activePlan: MaintenancePlan | null = useMemo(() => {
+    if (detailPlan?.id) return detailPlan;
+    if (activePlanId) return filteredPlans.find((p) => p.id === activePlanId) ?? null;
+    return null;
+  }, [detailPlan, activePlanId, filteredPlans]);
 
-  const handleToggle = (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string, nguoiPhu?: string[]) => {
-    toggleMonth.mutate({ planId, itemId, month, lanThu, nguoiThucHien, nguoiPhu }, {
+  const activeIndex = activePlanId ? filteredIds.indexOf(activePlanId) : -1;
+  const canPrev = activeIndex > 0;
+  const canNext = activeIndex >= 0 && activeIndex < filteredIds.length - 1;
+
+  const handlePrev = () => {
+    if (!canPrev) return;
+    const nextId = filteredIds[activeIndex - 1];
+    updateParams({ planId: nextId });
+  };
+  const handleNext = () => {
+    if (!canNext) return;
+    const nextId = filteredIds[activeIndex + 1];
+    updateParams({ planId: nextId });
+  };
+
+  const handleNavigatorSelect = (id: string) => {
+    setNavDropdownOpen(false);
+    setNavSearch('');
+    updateParams({ planId: id });
+  };
+
+  const filteredDropdownOptions = useMemo(() => {
+    const q = navSearch.trim().toLowerCase();
+    if (!q) return filteredPlans;
+    return filteredPlans.filter((p) => {
+      const code = p.maKeHoach?.toLowerCase() ?? '';
+      const sys = p.machineSystem?.tenHeThong?.toLowerCase() ?? '';
+      return code.includes(q) || sys.includes(q);
+    });
+  }, [filteredPlans, navSearch]);
+
+  // Scroll to highlighted month after detail loads
+  const gridContainerRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!activePlan || !highlightPlanMonth) return;
+    // wait for grid render
+    requestAnimationFrame(() => {
+      const container = gridContainerRef.current;
+      if (!container) return;
+      const header = container.querySelector<HTMLElement>(`th[data-month-header="${highlightPlanMonth}"]`);
+      if (header) {
+        const stickyWidth = container.querySelector<HTMLElement>('th[data-sticky-col]')?.offsetWidth ?? 0;
+        const target = header.offsetLeft - stickyWidth - (container.clientWidth - stickyWidth - header.offsetWidth) / 2;
+        container.scrollLeft = Math.max(0, target);
+      }
+      const monthCell = container.querySelector<HTMLElement>(`[data-month="${highlightPlanMonth}"]`);
+      if (monthCell) monthCell.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    });
+  }, [activePlan, highlightPlanMonth]);
+
+  const handleToggle = (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string, nguoiPhu?: string[], ngayThucHien?: string, recordData?: { tinhTrangTruoc?: string; tinhTrangSau?: string; deXuat?: string; thoiGianThucHien?: string; noiDung?: string }) => {
+    toggleMonth.mutate({ planId, itemId, month, lanThu, nguoiThucHien, nguoiPhu, ngayThucHien, recordData } as any, {
       onError: (err) => toast.error(err instanceof Error ? err.message : 'Cập nhật tháng thất bại'),
     });
   };
 
-  const handleUpdateNote = (logId: string, data: { ghiChu?: string; nguoiThucHien?: string; nguoiPhu?: string[] }) => {
+  const handleUpdateNote = (logId: string, data: { ghiChu?: string; nguoiThucHien?: string; nguoiPhu?: string[]; ngayThucHien?: string; recordData?: { tinhTrangTruoc?: string; tinhTrangSau?: string; deXuat?: string; thoiGianThucHien?: string; noiDung?: string } }) => {
     updateLogNote.mutate({ logId, data }, {
       onSuccess: () => toast.success('Đã cập nhật ghi chú'),
       onError: (err) => toast.error(err instanceof Error ? err.message : 'Cập nhật ghi chú thất bại'),
@@ -357,16 +386,6 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
     });
   };
 
-  // Page beyond the last page (stale URL or last plan deleted) → clamp to the last page
-  useEffect(() => {
-    if (!pagination || isLoading) return;
-    const last = Math.max(1, pagination.totalPages || 1);
-    if (page > last) {
-      setPage(last);
-      updateParams({ [PAGE_PARAM]: last > 1 ? String(last) : null });
-    }
-  }, [pagination, page, isLoading, updateParams]);
-
   const openPlanView = (plan: MaintenancePlan) => {
     setViewingPlan(plan);
     setModalMode('view');
@@ -380,41 +399,43 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
   const openCreate = () => {
     setViewingPlan(null);
     setModalMode('create');
-    updateParams({ mode: 'create', planId: null, planMonth: null });
+    updateParams({ mode: 'create', planMonth: null });
   };
   const closePlanModal = () => {
     setModalMode(null);
     setViewingPlan(null);
     const next = new URLSearchParams(searchParams);
     next.delete('mode');
-    next.delete('planId');
-    // keep planMonth? spec says focus, so keep until explicit change; but clear on close view
-    // Do not delete planMonth automatically - let user navigate
     syncingRef.current = true;
     setSearchParams(next, { replace: true });
   };
 
-  const handleToggleWithFocus = (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string, nguoiPhu?: string[]) => {
-    handleToggle(planId, itemId, month, lanThu, nguoiThucHien, nguoiPhu);
+  const handleToggleWithFocus = (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string, nguoiPhu?: string[], ngayThucHien?: string, recordData?: { tinhTrangTruoc?: string; tinhTrangSau?: string; deXuat?: string; thoiGianThucHien?: string; noiDung?: string }) => {
+    handleToggle(planId, itemId, month, lanThu, nguoiThucHien, nguoiPhu, ngayThucHien, recordData);
     setHighlightPlanMonth(month);
     updateParams({ planId, planMonth: String(month) });
   };
 
   const handleOpenLogModal = (state: LogModalState) => {
+    // Single-modal invariant: close plan form before opening log
+    if (modalMode) {
+      setModalMode(null);
+      setViewingPlan(null);
+    }
     setLogModal(state);
     setHighlightPlanMonth(state.month);
     updateParams({ planId: state.planId, planMonth: String(state.month) });
   };
 
   const hasFilters = !!(appliedSearch || selectedTrangThai || (!lockedMachineSystemId && selectedSystemId));
-  const totalPages = pagination?.totalPages ?? 1;
-  // Dynamic year range (current-2 … current+1), always including the selected year
   const yearOptions = useMemo(() => {
     const now = new Date().getFullYear();
     const years = new Set<number>([selectedYear]);
     for (let y = now - 2; y <= now + 1; y++) years.add(y);
     return Array.from(years).sort((a, b) => a - b);
   }, [selectedYear]);
+
+  const isLoading = navLoading || (activePlanId !== null && detailLoading && !activePlan);
 
   return (
     <div className="space-y-3">
@@ -427,13 +448,13 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
             aria-label="Tìm kế hoạch bảo dưỡng"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && (setAppliedSearch(search), setPage(1), updateParams({ [Q_PARAM]: search || null, [PAGE_PARAM]: null }))}
+            onKeyDown={(e) => e.key === 'Enter' && (setAppliedSearch(search), updateParams({ [Q_PARAM]: search || null }))}
             className={`${CONTROL_CLASS} w-48`}
           />
           <select
             aria-label="Lọc theo năm"
             value={selectedYear}
-            onChange={(e) => { const v = Number(e.target.value); setSelectedYear(v); setPage(1); updateParams({ nam: String(v), [PAGE_PARAM]: null }); }}
+            onChange={(e) => { const v = Number(e.target.value); setSelectedYear(v); updateParams({ nam: String(v) }); }}
             className={CONTROL_CLASS}
           >
             {yearOptions.map((y) => (
@@ -444,7 +465,7 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
             <select
               aria-label="Lọc theo hệ thống"
               value={selectedSystemId}
-              onChange={(e) => { const v = e.target.value; setSelectedSystemId(v); setPage(1); updateParams({ machineSystemId: v || null, [PAGE_PARAM]: null }); }}
+              onChange={(e) => { const v = e.target.value; setSelectedSystemId(v); updateParams({ machineSystemId: v || null }); }}
               className={`${CONTROL_CLASS} max-w-[16rem]`}
             >
               <option value="">Tất cả hệ thống</option>
@@ -456,7 +477,7 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
           <select
             aria-label="Lọc theo trạng thái"
             value={selectedTrangThai}
-            onChange={(e) => { const v = e.target.value; setSelectedTrangThai(v); setPage(1); updateParams({ trangThai: v || null, [PAGE_PARAM]: null }); }}
+            onChange={(e) => { const v = e.target.value; setSelectedTrangThai(v); updateParams({ trangThai: v || null }); }}
             className={CONTROL_CLASS}
           >
             <option value="">Tất cả trạng thái</option>
@@ -472,7 +493,70 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
         </button>
       </div>
 
-      {/* Legend for the month grid (color is never the only indicator) */}
+      {/* Plan navigator */}
+      {filteredPlans.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap p-2 border border-gray-200 rounded-lg bg-gray-50">
+          <button type="button" onClick={handlePrev} disabled={!canPrev} className={PAGER_BTN_CLASS} aria-label="Kế hoạch trước">
+            <ChevronLeft className="w-4 h-4" aria-hidden="true" /> Trước
+          </button>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setNavDropdownOpen((v) => !v)}
+              className="h-8 px-3 text-sm border border-gray-300 rounded-lg bg-white flex items-center gap-2 min-w-[14rem] justify-between"
+              aria-haspopup="listbox"
+              aria-expanded={navDropdownOpen}
+            >
+              <span className="truncate font-medium text-gray-800">{activePlan?.maKeHoach ?? '—'}</span>
+              <span className="truncate text-gray-500 text-xs hidden sm:inline">{activePlan?.machineSystem?.tenHeThong ?? ''}</span>
+              <ChevronRight className={`w-3 h-3 text-gray-400 transition-transform ${navDropdownOpen ? 'rotate-90' : ''}`} />
+            </button>
+            {navDropdownOpen && (
+              <div className="absolute z-20 mt-1 w-[22rem] max-w-[80vw] bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                <div className="p-2 border-b border-gray-100 flex items-center gap-2">
+                  <Search className="w-4 h-4 text-gray-400" />
+                  <input
+                    autoFocus
+                    type="search"
+                    placeholder="Tìm mã / hệ thống..."
+                    value={navSearch}
+                    onChange={(e) => setNavSearch(e.target.value)}
+                    className="flex-1 text-sm outline-none"
+                  />
+                </div>
+                <div className="max-h-64 overflow-auto py-1" role="listbox">
+                  {filteredDropdownOptions.length === 0 ? (
+                    <div className="px-3 py-6 text-sm text-gray-400 text-center">Không khớp</div>
+                  ) : (
+                    filteredDropdownOptions.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        role="option"
+                        aria-selected={p.id === activePlanId}
+                        onClick={() => handleNavigatorSelect(p.id)}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 flex items-center justify-between gap-2 ${p.id === activePlanId ? 'bg-blue-50 text-blue-700' : 'text-gray-700'}`}
+                      >
+                        <span className="font-medium truncate">{p.maKeHoach}</span>
+                        <span className="text-xs text-gray-500 truncate">{p.machineSystem?.tenHeThong ?? ''}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          <button type="button" onClick={handleNext} disabled={!canNext} className={PAGER_BTN_CLASS} aria-label="Kế hoạch sau">
+            Sau <ChevronRight className="w-4 h-4" aria-hidden="true" />
+          </button>
+          <span className="text-xs text-gray-500">
+            {activeIndex >= 0 ? `${activeIndex + 1} / ${filteredPlans.length}` : ''}
+            {(navPagination?.total ?? 0) > NAV_LIMIT ? ` — Hiển thị ${NAV_LIMIT} kế hoạch gần nhất — hãy lọc thêm` : ''}
+          </span>
+        </div>
+      )}
+
+      {/* Legend */}
       <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-flex w-4 h-4 rounded border bg-green-500 border-green-500 text-white items-center justify-center"><Check className="w-2.5 h-2.5" aria-hidden="true" /></span>
@@ -496,92 +580,58 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
         </span>
       </div>
 
-      {/* Plans */}
+      {/* Single plan grid */}
       {isLoading ? (
-        <div className="space-y-3" aria-busy="true" aria-label="Đang tải kế hoạch bảo dưỡng">
-          {Array.from({ length: 2 }).map((_, i) => (
-            <div key={i} className="border border-gray-200 rounded-lg overflow-hidden" aria-hidden="true">
-              <div className="h-11 bg-gray-50 border-b border-gray-200 px-4 flex items-center gap-3">
-                <div className="h-3 w-28 bg-gray-200 rounded animate-pulse" />
-                <div className="h-3 w-48 bg-gray-200 rounded animate-pulse" />
-              </div>
-              {Array.from({ length: 4 }).map((__, j) => (
-                <div key={j} className="h-9 px-4 flex items-center gap-4 border-b border-gray-100 last:border-b-0">
-                  <div className="h-3 w-56 bg-gray-200 rounded animate-pulse" />
-                  <div className="h-3 w-40 bg-gray-200 rounded animate-pulse" />
-                  <div className="h-3 flex-1 bg-gray-100 rounded animate-pulse" />
-                </div>
-              ))}
+        <div className="border border-gray-200 rounded-lg overflow-hidden" aria-busy="true" aria-label="Đang tải kế hoạch bảo dưỡng">
+          <div className="h-11 bg-gray-50 border-b border-gray-200 px-4 flex items-center gap-3">
+            <div className="h-3 w-28 bg-gray-200 rounded animate-pulse" />
+            <div className="h-3 w-48 bg-gray-200 rounded animate-pulse" />
+          </div>
+          {Array.from({ length: 4 }).map((_, j) => (
+            <div key={j} className="h-9 px-4 flex items-center gap-4 border-b border-gray-100 last:border-b-0">
+              <div className="h-3 w-56 bg-gray-200 rounded animate-pulse" />
+              <div className="h-3 w-40 bg-gray-200 rounded animate-pulse" />
+              <div className="h-3 flex-1 bg-gray-100 rounded animate-pulse" />
             </div>
           ))}
         </div>
-      ) : isError ? (
-        <div className="border border-gray-200 rounded-lg">
-          <ErrorState message="Không tải được danh sách kế hoạch bảo dưỡng." onRetry={() => { void refetch(); }} />
+      ) : navError || detailError ? (
+        <div className="border border-gray-200 rounded-lg p-4">
+          <ErrorState message="Không tải được kế hoạch bảo dưỡng." onRetry={() => { void navRefetch(); if (activePlanId) void detailRefetch(); }} />
         </div>
-      ) : plans.length === 0 && (pagination?.total ?? 0) > 0 ? (
-        // Out-of-range page: the clamp effect is moving to the last page
-        <div className="border border-gray-200 rounded-lg px-3 py-10 text-center text-sm text-gray-400">Đang chuyển trang…</div>
-      ) : plans.length === 0 ? (
-        <div className="border border-gray-200 rounded-lg px-3 py-10 text-center text-sm text-gray-400">
-          {hasFilters
-            ? 'Không có kế hoạch bảo dưỡng nào khớp với bộ lọc hiện tại.'
-            : `Chưa có kế hoạch bảo dưỡng nào cho năm ${selectedYear}.`}
+      ) : filteredPlans.length === 0 ? (
+        <div className="border border-gray-200 rounded-lg px-3 py-10 text-center">
+          <p className="text-sm text-gray-400">
+            {hasFilters
+              ? 'Không có kế hoạch bảo dưỡng nào khớp với bộ lọc hiện tại.'
+              : `Chưa có kế hoạch bảo dưỡng nào cho năm ${selectedYear}.`}
+          </p>
+          <button onClick={openCreate} className="mt-3 inline-flex items-center gap-1.5 h-9 px-4 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+            <Plus className="w-4 h-4" /> Tạo kế hoạch
+          </button>
         </div>
-      ) : (
-        plans.map((plan: MaintenancePlan) => (
-          <PlanCard
-            key={plan.id}
-            plan={plan}
-            onToggle={handleToggleWithFocus}
-            onOpenLogModal={handleOpenLogModal}
-            highlightMonth={highlightPlanMonth}
-            isHighlighted={searchParams.get('planId') === plan.id}
-            registerRef={(el) => {
-              if (el) planRefs.current.set(plan.id, el);
-              else planRefs.current.delete(plan.id);
-            }}
-            onView={() => openPlanView(plan)}
-            onEdit={() => openPlanEdit(plan)}
-            onDelete={canDelete ? () => setPendingDelete(plan) : undefined}
-            currentMonth={currentMonth}
-            onSync={() => syncDetails.mutate(plan.id, {
-              onSuccess: () => toast.success('Đồng bộ linh kiện thành công'),
-              onError: (err) => toast.error(err instanceof Error ? err.message : 'Đồng bộ thất bại'),
-            })}
-            isSyncing={syncDetails.isPending}
-          />
-        ))
-      )}
+      ) : activePlan ? (
+        <PlanCard
+          plan={activePlan}
+          onToggle={handleToggleWithFocus}
+          onOpenLogModal={handleOpenLogModal}
+          highlightMonth={highlightPlanMonth}
+          isHighlighted={false}
+          registerRef={null}
+          gridContainerRef={gridContainerRef}
+          onView={() => openPlanView(activePlan)}
+          onEdit={() => openPlanEdit(activePlan)}
+          onDelete={canDelete ? () => setPendingDelete(activePlan) : undefined}
+          currentMonth={currentMonth}
+          onSync={() => syncDetails.mutate(activePlan.id, {
+            onSuccess: () => toast.success('Đồng bộ linh kiện thành công'),
+            onError: (err) => toast.error(err instanceof Error ? err.message : 'Đồng bộ thất bại'),
+          })}
+          isSyncing={syncDetails.isPending}
+        />
+      ) : null}
 
-      {/* Pagination */}
-      {pagination && pagination.total > 0 && (
-        <div className="flex items-center justify-between gap-2 px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm">
-          <span className="text-gray-600">
-            Tổng <span className="font-medium text-gray-900">{pagination.total}</span> kế hoạch — Trang {page}/{totalPages}
-          </span>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => { const np = Math.max(1, page - 1); setPage(np); updateParams({ [PAGE_PARAM]: np > 1 ? String(np) : null }); }}
-              disabled={page === 1}
-              className={PAGER_BTN_CLASS}
-            >
-              <ChevronLeft className="w-4 h-4" aria-hidden="true" /> Trước
-            </button>
-            <button
-              type="button"
-              onClick={() => { const np = Math.min(totalPages, page + 1); setPage(np); updateParams({ [PAGE_PARAM]: String(np) }); }}
-              disabled={page >= totalPages}
-              className={PAGER_BTN_CLASS}
-            >
-              Sau <ChevronRight className="w-4 h-4" aria-hidden="true" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Modal */}
+      {/* Plan form modals */}
       {modalMode === 'create' && (
         <MaintenancePlanForm
           onClose={closePlanModal}
@@ -619,10 +669,9 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
           month={logModal.month}
           timesPerMonth={logModal.timesPerMonth}
           logs={
-            plans
-              .find((p) => p.id === logModal.planId)
-              ?.items?.find((i) => i.id === logModal.itemId)
-              ?.logs?.filter((l) => l.thang === logModal.month) ?? []
+            (activePlan?.id === logModal.planId
+              ? activePlan.items?.find((i) => i.id === logModal.itemId)?.logs?.filter((l) => l.thang === logModal.month)
+              : filteredPlans.find((p) => p.id === logModal.planId)?.items?.find((i) => i.id === logModal.itemId)?.logs?.filter((l) => l.thang === logModal.month)) ?? []
           }
           noiDung={logModal.noiDung}
           tenThietBi={logModal.tenThietBi}
@@ -650,21 +699,20 @@ interface PlanCardProps {
   onOpenLogModal: (state: LogModalState) => void;
   onView: () => void;
   onEdit: () => void;
-  /** Omitted when the user may not delete (canDeleteTechnical) — the button is then hidden. */
   onDelete?: () => void;
   onSync: () => void;
   isSyncing: boolean;
   highlightMonth?: number | null;
   isHighlighted?: boolean;
-  registerRef?: (el: HTMLDivElement | null) => void;
+  registerRef?: ((el: HTMLDivElement | null) => void) | null;
+  gridContainerRef?: React.RefObject<HTMLDivElement | null>;
   currentMonth: number;
 }
 
-const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, onSync, isSyncing, highlightMonth, isHighlighted, registerRef, currentMonth }: PlanCardProps) => {
-  const scrollRef = useRef<HTMLDivElement>(null);
+const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, onSync, isSyncing, highlightMonth, isHighlighted, registerRef, gridContainerRef, currentMonth }: PlanCardProps) => {
+  const localRef = useRef<HTMLDivElement>(null);
+  const scrollRef = gridContainerRef ?? localRef;
 
-  // Bring the current month column into view on mount (narrow screens hide T4..T12 otherwise).
-  // Skipped when a deep-linked month is highlighted — that flow scrolls to its own month.
   useEffect(() => {
     if (highlightMonth) return;
     const container = scrollRef.current;
@@ -682,10 +730,6 @@ const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, on
 
   const items = plan.items ?? [];
 
-  // Build parent-child groups for display
-  // Parents: items where machineSystemDetail.parentDetailId === null (or undefined)
-  // Children: items where parentDetailId is set
-  // Standalone: items with no parent and no children themselves
   const parentItems = items.filter((i) => !i.machineSystemDetail?.parentDetailId);
   const childItemsByParentDetailId = new Map<string, MaintenancePlanItem[]>();
   for (const item of items) {
@@ -697,7 +741,6 @@ const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, on
     }
   }
 
-  // Determine which parentItems actually have children
   const renderedRows: Array<{ type: 'parent-header'; item: MaintenancePlanItem; children: MaintenancePlanItem[] } | { type: 'child' | 'standalone'; item: MaintenancePlanItem }> = [];
   for (const parentItem of parentItems) {
     const children = childItemsByParentDetailId.get(parentItem.machineSystemDetailId) ?? [];
@@ -711,8 +754,6 @@ const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, on
     }
   }
 
-  // Orphan sweep: render children whose parentDetailId points to a device
-  // not present in the plan (parent was never added or was removed).
   const parentDetailIdSet = new Set(parentItems.map((p) => p.machineSystemDetailId));
   for (const [key, orphans] of childItemsByParentDetailId) {
     if (!parentDetailIdSet.has(key)) {
@@ -723,8 +764,7 @@ const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, on
   }
 
   return (
-    <div ref={registerRef} className={`border rounded-lg overflow-hidden ${isHighlighted ? "border-blue-400 ring-1 ring-blue-200" : "border-gray-200"}`} data-plan-id={plan.id} data-highlight-month={highlightMonth ?? ""}>
-      {/* Header */}
+    <div ref={registerRef as any} className={`border rounded-lg overflow-hidden ${isHighlighted ? "border-blue-400 ring-1 ring-blue-200" : "border-gray-200"}`} data-plan-id={plan.id} data-highlight-month={highlightMonth ?? ""}>
       <div className="flex items-start justify-between flex-wrap gap-x-3 gap-y-2 px-4 py-2.5 bg-gray-50 border-b border-gray-200">
         <div className="min-w-0 flex-1">
           <div className="flex items-center flex-wrap gap-x-2 gap-y-1">
@@ -742,58 +782,27 @@ const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, on
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {plan.trangThai === 'Đang thực hiện' && (
-            <button
-              type="button"
-              onClick={onSync}
-              disabled={isSyncing}
-              className={`${ICON_BTN_CLASS} hover:text-indigo-600 hover:bg-indigo-50 disabled:opacity-50`}
-              title="Đồng bộ linh kiện mới"
-              aria-label={`Đồng bộ linh kiện mới cho ${plan.maKeHoach}`}
-            >
+            <button type="button" onClick={onSync} disabled={isSyncing} className={`${ICON_BTN_CLASS} hover:text-indigo-600 hover:bg-indigo-50 disabled:opacity-50`} title="Đồng bộ linh kiện mới" aria-label={`Đồng bộ linh kiện mới cho ${plan.maKeHoach}`}>
               <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} aria-hidden="true" />
               <span className="sr-only">Đồng bộ linh kiện</span>
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => exportPlanCSV(plan)}
-            className={`${ICON_BTN_CLASS} hover:text-green-600 hover:bg-green-50`}
-            title="Xuất CSV"
-            aria-label={`Xuất CSV kế hoạch ${plan.maKeHoach}`}
-          >
+          <button type="button" onClick={() => exportPlanCSV(plan)} className={`${ICON_BTN_CLASS} hover:text-green-600 hover:bg-green-50`} title="Xuất CSV" aria-label={`Xuất CSV kế hoạch ${plan.maKeHoach}`}>
             <Download className="w-4 h-4" aria-hidden="true" />
             <span className="sr-only">Xuất CSV</span>
           </button>
-          <button
-            type="button"
-            onClick={onView}
-            className={`${ICON_BTN_CLASS} hover:text-blue-600 hover:bg-blue-50`}
-            title="Xem chi tiết kế hoạch"
-            aria-label={`Xem chi tiết kế hoạch ${plan.maKeHoach}`}
-          >
+          <button type="button" onClick={onView} className={`${ICON_BTN_CLASS} hover:text-blue-600 hover:bg-blue-50`} title="Xem chi tiết kế hoạch" aria-label={`Xem chi tiết kế hoạch ${plan.maKeHoach}`}>
             <Eye className="w-4 h-4" aria-hidden="true" />
             <span className="sr-only">Xem</span>
           </button>
-          <button
-            type="button"
-            onClick={onEdit}
-            className={`${ICON_BTN_CLASS} hover:text-amber-600 hover:bg-amber-50`}
-            title="Sửa kế hoạch"
-            aria-label={`Sửa kế hoạch ${plan.maKeHoach}`}
-          >
+          <button type="button" onClick={onEdit} className={`${ICON_BTN_CLASS} hover:text-amber-600 hover:bg-amber-50`} title="Sửa kế hoạch" aria-label={`Sửa kế hoạch ${plan.maKeHoach}`}>
             <Pencil className="w-4 h-4" aria-hidden="true" />
             <span className="sr-only">Sửa</span>
           </button>
           {onDelete && (
             <>
               <span className="mx-0.5 h-4 w-px bg-gray-200" aria-hidden="true" />
-              <button
-                type="button"
-                onClick={onDelete}
-                className={`${ICON_BTN_CLASS} hover:text-red-600 hover:bg-red-50`}
-                title="Xóa kế hoạch"
-                aria-label={`Xóa kế hoạch ${plan.maKeHoach}`}
-              >
+              <button type="button" onClick={onDelete} className={`${ICON_BTN_CLASS} hover:text-red-600 hover:bg-red-50`} title="Xóa kế hoạch" aria-label={`Xóa kế hoạch ${plan.maKeHoach}`}>
                 <Trash2 className="w-4 h-4" aria-hidden="true" />
                 <span className="sr-only">Xóa</span>
               </button>
@@ -802,9 +811,7 @@ const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, on
         </div>
       </div>
 
-      {/* Items table with month columns — bounded scroll container (both axes) so the month
-          header stays sticky while scrolling long plans; device column stays pinned. */}
-      <div ref={scrollRef} className="overflow-auto max-h-[60vh]">
+      <div ref={scrollRef as any} className="overflow-auto max-h-[60vh]">
         <table className="w-full border-collapse text-xs">
           <thead className="bg-gray-50 sticky top-0 z-20 shadow-[inset_0_-1px_0_0_rgb(229_231_235)]">
             <tr>
@@ -813,13 +820,7 @@ const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, on
               <th scope="col" className={`${TH_CLASS} bg-gray-50`}>Tần suất</th>
               <th scope="col" className={`${TH_CLASS} bg-gray-50`}>Tổ TH</th>
               {MONTHS.map((m) => (
-                <th
-                  key={m}
-                  scope="col"
-                  data-month-header={m}
-                  className={`px-1 py-2.5 text-center text-xs font-semibold w-8 min-w-[2rem] ${m === currentMonth ? 'bg-blue-50 text-blue-700 shadow-[inset_0_-2px_0_0_rgb(96_165_250)]' : 'bg-gray-50 text-gray-500'}`}
-                  title={m === currentMonth ? `Tháng ${m} (tháng hiện tại)` : `Tháng ${m}`}
-                >
+                <th key={m} scope="col" data-month-header={m} className={`px-1 py-2.5 text-center text-xs font-semibold w-8 min-w-[2rem] ${m === currentMonth ? 'bg-blue-50 text-blue-700 shadow-[inset_0_-2px_0_0_rgb(96_165_250)]' : 'bg-gray-50 text-gray-500'}`} title={m === currentMonth ? `Tháng ${m} (tháng hiện tại)` : `Tháng ${m}`}>
                   T{m}
                 </th>
               ))}
@@ -828,7 +829,6 @@ const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, on
           <tbody className="divide-y divide-gray-100">
             {renderedRows.map((row) => {
               if (row.type === 'parent-header') {
-                // Calculate group progress for current month
                 const groupChildren = row.children;
                 const groupTotal = groupChildren.length;
                 const groupCompleted = groupChildren.filter((child) => {
@@ -860,27 +860,15 @@ const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, on
                   </tr>
                 );
               }
-
               const indent = row.type === 'child';
               return (
-                <PlanItemRow
-                  key={row.item.id}
-                  planId={plan.id}
-                  item={row.item}
-                  nguoiLap={plan.nguoiLap}
-                  onToggle={onToggle}
-                  onOpenLogModal={onOpenLogModal}
-                  indent={indent}
-                  highlightMonth={highlightMonth}
-                  currentMonth={currentMonth}
-                />
+                <PlanItemRow key={row.item.id} planId={plan.id} item={row.item} nguoiLap={plan.nguoiLap} onToggle={onToggle} onOpenLogModal={onOpenLogModal} indent={indent} highlightMonth={highlightMonth} currentMonth={currentMonth} />
               );
             })}
           </tbody>
         </table>
       </div>
 
-      {/* Footer with progress bar */}
       <div className="px-4 py-2 bg-gray-50 border-t border-gray-200">
         <div className="flex items-center justify-between flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
           <span>
@@ -897,10 +885,7 @@ const PlanCard = ({ plan, onToggle, onOpenLogModal, onView, onEdit, onDelete, on
           <span className="text-gray-700 font-medium tabular-nums">{completed}/{total} hoàn thành ({percent}%)</span>
         </div>
         <div className="mt-1.5 w-full bg-gray-200 rounded-full h-1.5">
-          <div
-            className="bg-green-500 h-1.5 rounded-full transition-all duration-300"
-            style={{ width: `${percent}%` }}
-          />
+          <div className="bg-green-500 h-1.5 rounded-full transition-all duration-300" style={{ width: `${percent}%` }} />
         </div>
       </div>
     </div>
@@ -923,16 +908,12 @@ const PlanItemRow = ({ planId, item, nguoiLap, onToggle, onOpenLogModal, indent,
   const timesPerMonth = getTimesPerMonth(item.tanSuat);
   const logs = item.logs ?? [];
   const isKhongCoDinh = item.tanSuat === 'KHONG_CO_DINH';
-
-  // Smart suggestion: skip for KHONG_CO_DINH
   const suggestedMonth = isKhongCoDinh ? null : (applicableMonths.find((m) => {
     const monthLogs = logs.filter((l) => l.thang === m);
     const completedCount = monthLogs.filter((l) => l.hoanThanh).length;
     return completedCount < timesPerMonth;
   }) ?? null);
-
   const hoatDong = item.machineSystemDetail?.hoatDong !== false;
-
   return (
     <tr className="group hover:bg-gray-50">
       <td className={`px-3 py-2 align-middle text-gray-900 sticky left-0 z-10 bg-white group-hover:bg-gray-50 ${STICKY_LEFT_SHADOW}`}>
@@ -941,17 +922,11 @@ const PlanItemRow = ({ planId, item, nguoiLap, onToggle, onOpenLogModal, indent,
           <span className="line-clamp-2 break-words" title={item.machineSystemDetail?.tenChiTiet ?? undefined}>
             {item.machineSystemDetail?.tenChiTiet ?? <span className="text-gray-400">—</span>}
           </span>
-          {!hoatDong && (
-            <span className="shrink-0"><StatusBadge label="Ngừng HĐ" tone="red" size="sm" /></span>
-          )}
+          {!hoatDong && (<span className="shrink-0"><StatusBadge label="Ngừng HĐ" tone="red" size="sm" /></span>)}
         </div>
       </td>
       <td className="px-3 py-2 align-middle text-gray-700">
-        {item.noiDung ? (
-          <div className="line-clamp-2 break-words min-w-[10rem] max-w-[16rem]" title={item.noiDung}>{item.noiDung}</div>
-        ) : (
-          <span className="text-gray-400">—</span>
-        )}
+        {item.noiDung ? (<div className="line-clamp-2 break-words min-w-[10rem] max-w-[16rem]" title={item.noiDung}>{item.noiDung}</div>) : (<span className="text-gray-400">—</span>)}
       </td>
       <td className="px-3 py-2 align-middle text-gray-600 whitespace-nowrap">{FREQUENCY_LABELS[item.tanSuat] ?? item.tanSuat}</td>
       <td className="px-3 py-2 align-middle text-gray-600 whitespace-nowrap">{TEAM_LABELS[item.toThucHien] ?? item.toThucHien ?? '—'}</td>
@@ -962,21 +937,7 @@ const PlanItemRow = ({ planId, item, nguoiLap, onToggle, onOpenLogModal, indent,
         const monthLogs = logs.filter((l) => l.thang === m);
         return (
           <td key={m} data-month={m} className={`px-1 py-2 align-middle text-center ${isCurrentMonth ? 'bg-blue-50/40' : ''} ${highlightMonth === m ? 'ring-2 ring-amber-300 ring-inset' : ''}`}>
-            <MonthCell
-              planId={planId}
-              itemId={item.id}
-              month={m}
-              isHighlighted={highlightMonth === m}
-              timesPerMonth={timesPerMonth}
-              logs={monthLogs}
-              noiDung={item.noiDung}
-              tenThietBi={item.machineSystemDetail?.tenChiTiet ?? '—'}
-              nguoiLap={nguoiLap}
-              isApplicable={isApplicable}
-              isSuggested={isSuggested}
-              onToggle={onToggle}
-              onOpenLogModal={onOpenLogModal}
-            />
+            <MonthCell planId={planId} itemId={item.id} month={m} isHighlighted={highlightMonth === m} timesPerMonth={timesPerMonth} logs={monthLogs} noiDung={item.noiDung} tenThietBi={item.machineSystemDetail?.tenChiTiet ?? '—'} nguoiLap={nguoiLap} isApplicable={isApplicable} isSuggested={isSuggested} onToggle={onToggle} onOpenLogModal={onOpenLogModal} />
           </td>
         );
       })}
@@ -1000,76 +961,37 @@ interface MonthCellProps {
   onOpenLogModal: (state: LogModalState) => void;
 }
 
-const MonthCell = ({ planId, itemId, month, timesPerMonth, logs, noiDung, tenThietBi, nguoiLap, isApplicable, isSuggested, isHighlighted: _isHighlighted, onToggle: _onToggle, onOpenLogModal }: MonthCellProps) => {
+const MonthCell = ({ planId, itemId, month, timesPerMonth, logs, noiDung, tenThietBi, nguoiLap, isApplicable, isSuggested, onToggle: _onToggle, onOpenLogModal }: MonthCellProps) => {
   const openModal = () => {
     onOpenLogModal({ planId, itemId, month, timesPerMonth, noiDung, tenThietBi, nguoiLap });
   };
-
-  // Non-applicable months: clickable but styled with dashed border to indicate "extra"
   if (!isApplicable) {
     return (
       <div className="flex flex-col items-center gap-0.5">
-        <button
-          onClick={openModal}
-          type="button"
-          className="w-6 h-6 rounded border border-dashed border-gray-200 flex items-center justify-center text-gray-300 hover:border-gray-400 hover:text-gray-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-          title="Tháng không áp dụng — nhấn để xem / ghi chú"
-          aria-label={`${tenThietBi} — tháng ${month}: ngoài lịch, nhấn để xem / ghi chú`}
-        >
+        <button onClick={openModal} type="button" className="w-6 h-6 rounded border border-dashed border-gray-200 flex items-center justify-center text-gray-300 hover:border-gray-400 hover:text-gray-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500" title="Tháng không áp dụng — nhấn để xem / ghi chú" aria-label={`${tenThietBi} — tháng ${month}: ngoài lịch, nhấn để xem / ghi chú`}>
           <span className="text-[9px]">+</span>
         </button>
       </div>
     );
   }
-
   if (timesPerMonth === 1) {
     const log = logs.find((l) => l.lanThu === 1);
     const checked = log?.hoanThanh ?? false;
     const hasNote = !!log?.ghiChu;
     return (
       <div className="flex flex-col items-center gap-0.5 relative">
-        <button
-          type="button"
-          onClick={openModal}
-          title={checked ? `Tháng ${month}: đã hoàn thành` : `Tháng ${month}: chưa hoàn thành`}
-          aria-label={`${tenThietBi} — tháng ${month}: ${checked ? 'đã hoàn thành' : 'chưa hoàn thành'}${hasNote ? ', có ghi chú' : ''}`}
-          className={`w-6 h-6 rounded border flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-            checked
-              ? 'bg-green-500 border-green-500 text-white'
-              : isSuggested
-              ? 'border-blue-400 bg-blue-50 ring-1 ring-blue-300 hover:bg-blue-100'
-              : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'
-          }`}
-        >
+        <button type="button" onClick={openModal} title={checked ? `Tháng ${month}: đã hoàn thành` : `Tháng ${month}: chưa hoàn thành`} aria-label={`${tenThietBi} — tháng ${month}: ${checked ? 'đã hoàn thành' : 'chưa hoàn thành'}${hasNote ? ', có ghi chú' : ''}`} className={`w-6 h-6 rounded border flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${checked ? 'bg-green-500 border-green-500 text-white' : isSuggested ? 'border-blue-400 bg-blue-50 ring-1 ring-blue-300 hover:bg-blue-100' : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'}`}>
           {checked && <Check className="w-3 h-3" />}
         </button>
-        {hasNote && (
-          <span className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full" title={log?.ghiChu ?? ''} />
-        )}
+        {hasNote && (<span className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full" title={log?.ghiChu ?? ''} />)}
       </div>
     );
   }
-
   const completedCount = logs.filter((l) => l.hoanThanh).length;
   const allDone = completedCount === timesPerMonth;
-
   return (
     <div className="flex flex-col items-center">
-      <button
-        type="button"
-        onClick={openModal}
-        aria-label={`${tenThietBi} — tháng ${month}: ${completedCount}/${timesPerMonth} lượt hoàn thành`}
-        className={`w-6 h-6 rounded border text-[10px] font-medium flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-          allDone
-            ? 'bg-green-500 border-green-500 text-white'
-            : completedCount > 0
-            ? 'bg-green-100 border-green-300 text-green-700'
-            : isSuggested
-            ? 'border-blue-400 bg-blue-50 ring-1 ring-blue-300 hover:bg-blue-100 text-gray-500'
-            : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50 text-gray-500'
-        }`}
-        title={`${completedCount}/${timesPerMonth} hoàn thành`}
-      >
+      <button type="button" onClick={openModal} aria-label={`${tenThietBi} — tháng ${month}: ${completedCount}/${timesPerMonth} lượt hoàn thành`} className={`w-6 h-6 rounded border text-[10px] font-medium flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${allDone ? 'bg-green-500 border-green-500 text-white' : completedCount > 0 ? 'bg-green-100 border-green-300 text-green-700' : isSuggested ? 'border-blue-400 bg-blue-50 ring-1 ring-blue-300 hover:bg-blue-100 text-gray-500' : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50 text-gray-500'}`} title={`${completedCount}/${timesPerMonth} hoàn thành`}>
         {allDone ? <Check className="w-3 h-3" /> : completedCount > 0 ? `${completedCount}` : ''}
       </button>
     </div>
@@ -1077,4 +999,3 @@ const MonthCell = ({ planId, itemId, month, timesPerMonth, logs, noiDung, tenThi
 };
 
 export default MaintenancePlanList;
-

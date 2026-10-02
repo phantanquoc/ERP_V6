@@ -49,6 +49,7 @@ class MaintenanceRecordController {
         machineSystemDetailId: req.query.machineSystemDetailId as string | undefined,
         loai: req.query.loai as string | undefined,
         maintenancePlanId: req.query.maintenancePlanId as string | undefined,
+        sourceLogId: req.query.sourceLogId as string | undefined,
         startDate: req.query.startDate as string | undefined,
         endDate: req.query.endDate as string | undefined,
         search: req.query.search as string | undefined,

@@ -125,11 +125,11 @@ class MaintenancePlanService {
     return apiClient.put<MaintenancePlan>(`/maintenance-plans/${id}`, data);
   }
 
-  async toggleMonth(planId: string, itemId: string, month: number, lanThu: number = 1, ghiChu?: string, nguoiThucHien?: string, nguoiPhu?: string[]) {
-    return apiClient.patch<MaintenancePlanItemLog>(`/maintenance-plans/${planId}/items/${itemId}/toggle`, { month, lanThu, ghiChu, nguoiThucHien, nguoiPhu });
+  async toggleMonth(planId: string, itemId: string, month: number, lanThu: number = 1, ghiChu?: string, nguoiThucHien?: string, nguoiPhu?: string[], ngayThucHien?: string, recordData?: { tinhTrangTruoc?: string; tinhTrangSau?: string; deXuat?: string; thoiGianThucHien?: string; noiDung?: string }) {
+    return apiClient.patch<MaintenancePlanItemLog>(`/maintenance-plans/${planId}/items/${itemId}/toggle`, { month, lanThu, ghiChu, nguoiThucHien, nguoiPhu, ngayThucHien, recordData });
   }
 
-  async updateLogNote(logId: string, data: { ghiChu?: string; nguoiThucHien?: string; nguoiPhu?: string[] }) {
+  async updateLogNote(logId: string, data: { ghiChu?: string; nguoiThucHien?: string; nguoiPhu?: string[]; ngayThucHien?: string; recordData?: { tinhTrangTruoc?: string; tinhTrangSau?: string; deXuat?: string; thoiGianThucHien?: string; noiDung?: string } }) {
     return apiClient.patch<MaintenancePlanItemLog>(`/maintenance-plans/logs/${logId}/note`, data);
   }
 

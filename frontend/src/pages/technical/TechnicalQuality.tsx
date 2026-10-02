@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ShieldCheck } from 'lucide-react';
 import OrderManagement from '../../components/OrderManagement';
+import { useQuery } from '@tanstack/react-query';
+import inspectionRequestService from '../../services/inspectionRequestService';
+import repairRequestService from '../../services/repairRequestService';
 import RepairRequestList from '../../components/RepairRequestList';
 import InspectionRequestList from '../../components/InspectionRequestList';
 import MachineSystemList from '../../components/MachineSystemList';
@@ -26,8 +29,47 @@ const tabs: { key: TabType; label: string }[] = [
 const isTabType = (value: string | null): value is TabType =>
   tabs.some((tab) => tab.key === value);
 
+const BADGE_CLS = 'ml-1 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white min-w-[18px]';
+
 const TechnicalQuality = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  // Badge = số phiếu chưa HOÀN_THÀNH trên toàn thời gian (không giới hạn 90 ngày như /stats).
+  // Dùng count trực tiếp qua pagination.total (limit=1) cho chính xác, refetch định kỳ.
+  const PENDING_INSPECTION = ['CHO_XU_LY','DA_TIEP_NHAN','DANG_KIEM_TRA','DA_KIEM_TRA','CHO_NGHIEM_THU'] as const;
+  const PENDING_REPAIR = ['CHO_XU_LY','DA_TIEP_NHAN','LEN_KE_HOACH','DANG_SUA_CHUA','CHO_NGHIEM_THU','DA_NGHIEM_THU'] as const;
+  const inspectionPendingQ = useQuery({
+    queryKey: ['badge','inspections','pending'] as const,
+    queryFn: async () => {
+      let total = 0;
+      for (const s of PENDING_INSPECTION) {
+        const res: any = await inspectionRequestService.getAll({ page: 1, limit: 1, trangThai: s as any });
+        total += res?.pagination?.total ?? res?.data?.length ?? 0;
+      }
+      return total;
+    },
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+  const repairPendingQ = useQuery({
+    queryKey: ['badge','repairs','pending'] as const,
+    queryFn: async () => {
+      let total = 0;
+      for (const s of PENDING_REPAIR) {
+        const res: any = await repairRequestService.getAll({ page: 1, limit: 1, trangThai: s as any, requestType: 'SUA_CHUA' as any });
+        total += res?.pagination?.total ?? res?.data?.length ?? 0;
+      }
+      return total;
+    },
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+  const countInspections = inspectionPendingQ.data ?? 0;
+  const countRepairs = repairPendingQ.data ?? 0;
+  const badgeFor = (key: TabType): number | null => {
+    if (key === 'inspections') return countInspections > 0 ? countInspections : null;
+    if (key === 'repairs') return countRepairs > 0 ? countRepairs : null;
+    return null;
+  };
 
   const tabParam = searchParams.get('tab');
   const initialTab: TabType = isTabType(tabParam) ? tabParam : 'inspections';
@@ -106,19 +148,22 @@ const TechnicalQuality = () => {
       {/* Tabs */}
       <div className="border-b border-gray-200">
         <nav className="flex gap-1 -mb-px overflow-x-auto">
-          {tabs.map((tab) => (
+          {tabs.map((tab) => {
+            const badge = badgeFor(tab.key);
+            return (
             <button
               key={tab.key}
               onClick={() => handleTabChange(tab.key)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap inline-flex items-center ${
                 activeTab === tab.key
                   ? 'border-cyan-500 text-cyan-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
               {tab.label}
+              {badge != null && <span className={BADGE_CLS}>{badge > 99 ? '99+' : badge}</span>}
             </button>
-          ))}
+          );})}
         </nav>
       </div>
 

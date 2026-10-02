@@ -48,6 +48,7 @@ export interface MaintenanceRecordFilters {
   machineSystemDetailId?: string;
   loai?: string;
   maintenancePlanId?: string;
+  sourceLogId?: string;
   startDate?: string;
   endDate?: string;
   search?: string;
