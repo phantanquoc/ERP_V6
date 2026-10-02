@@ -13,7 +13,8 @@ export const useRepairSupplyLinks = (repairId: number | string | null | undefine
     queryKey: repairSupplyLinkKeys.list(repairId as number | string),
     queryFn: () => repairRequestService.listSupplyLinks(repairId!),
     enabled: !!repairId,
-    refetchOnMount: 'always',
+    refetchOnMount: 'always' as const,
+    refetchOnWindowFocus: true,
   });
 
 export const useRepairSupplyChain = (repairId: number | string | null | undefined) =>
@@ -21,6 +22,8 @@ export const useRepairSupplyChain = (repairId: number | string | null | undefine
     queryKey: repairSupplyLinkKeys.chain(repairId as number | string),
     queryFn: () => repairRequestService.getSupplyChain(repairId!),
     enabled: !!repairId,
+    refetchOnMount: 'always' as const,
+    refetchOnWindowFocus: true,
   });
 
 export const useLinkSupplyRequest = () => {

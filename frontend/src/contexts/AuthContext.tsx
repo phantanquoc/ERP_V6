@@ -72,6 +72,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           } else {
             queryClient.invalidateQueries({ queryKey: ['notifications'] });
             window.dispatchEvent(new CustomEvent('ws-notification', { detail: msg.payload }));
+            // C-nhẹ: supply flow touches YCSC material need — refresh linked YCSC detail + chain
+            const suppEvents = new Set([
+              'SUPPLY_REQUEST_FULFILLED',
+              'SUPPLY_REQUEST_PARTIAL_FULFILLED',
+              'SUPPLY_REQUEST_RECEIVED',
+              'SUPPLY_REQUEST_PURCHASED',
+              'SUPPLY_REQUEST_WAITING_REPLENISHMENT',
+              'SUPPLY_REQUEST_APPROVED',
+              'SUPPLY_REQUEST_PROCESSING',
+            ]);
+            const evType = String(msg.payload?.type ?? msg.payload?.event ?? '');
+            if (suppEvents.has(evType)) {
+              queryClient.invalidateQueries({ queryKey: ['repairRequests'] });
+            }
           }
         } else if (msg.type === 'FORCE_LOGOUT') {
           disconnectWs();

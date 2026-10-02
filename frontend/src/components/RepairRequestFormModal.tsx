@@ -464,6 +464,13 @@ const RepairRequestFormModal = ({
   const [incEdit, setIncEdit] = useState({ tenKhoan: '', soTien: '', lyDo: '', fileMinhChung: '' });
   const incidentalCosts: { id: string; tenKhoan: string; soTien: number | string; lyDo: string; fileMinhChung?: string | null }[] = ((ycscIncidentalQ.data as unknown as { data?: unknown[] })?.data ?? (record as unknown as { incidentalCosts?: unknown[] })?.incidentalCosts ?? []) as never;
   const formatVND = (n: number | null | undefined) => n == null ? '—' : Number(n).toLocaleString('vi-VN') + ' ₫';
+  const formatNum = (n: number | string | null | undefined) => {
+    if (n == null || n === '') return '';
+    const v = Number(String(n).replace(/[.,\s]/g, ''));
+    if (!Number.isFinite(v)) return String(n);
+    return v.toLocaleString('vi-VN');
+  };
+  const vndInputCls = 'w-full rounded border px-2 py-1 text-sm text-right tabular-nums';
   // Technician-entered actual execution data (YCSC, DA_NGHIEM_THU) — PATCH /:id/actual-fields
   type ActualFieldsSource = { chiPhiThucTe?: number | string | null; gioCongThucTe?: number | string | null; noiDungThucHien?: string | null; ngayHoanThanhThucTe?: string | null };
   const toDateInputValue = (v: string | null | undefined) => {
@@ -1743,24 +1750,29 @@ const RepairRequestFormModal = ({
                       <div className="space-y-1">
                         <p className="text-xs font-medium text-gray-600">Chuỗi YCCC → YCBS → YCMH</p>
                         <ul className="divide-y divide-gray-100 rounded border border-gray-100">
-                          {supplyLinksRO.map((link) => (
+                          {supplyLinksRO.map((link) => {
+                            const chForLink = (ycscSupplyChainQ.data?.data as unknown as { link: { id: string; supplyRequestId: string }; warehouseIssue?: { maPhieu: string } | null }[] | undefined)?.find((c) => c.link.id === link.id);
+                            const px = chForLink?.warehouseIssue?.maPhieu;
+                            return (
                             <li key={link.id} className="flex flex-wrap items-center gap-2 px-2.5 py-1.5 text-xs">
                               <span className="inline-flex items-center rounded bg-blue-50 border border-blue-200 px-2 py-0.5 font-mono text-blue-700">YCCC #{link.supplyRequestId.slice(0, 8)}</span>
                               <span className="text-gray-400">→</span>
                               <span className="text-gray-500">YCBS / YCMH theo dõi qua YCCC</span>
+                              {px && (<><span className="text-gray-400">→</span><span className="inline-flex items-center rounded bg-emerald-50 border border-emerald-200 px-2 py-0.5 font-mono text-emerald-700">PX {px}</span></>)}
                               {link.soLuong != null && <span className="text-gray-500">SL: {link.soLuong}</span>}
                             </li>
-                          ))}
+                          );})}
                         </ul>
-                        {ycscSupplyChainQ.data?.data && (ycscSupplyChainQ.data.data as unknown as { supplyRequest?: { maYeuCau: string; trangThai: string } | null; replenishmentRequest?: { maYeuCau: string; trangThai: string } | null; purchaseRequest?: { maYeuCau: string; trangThai: string } | null; decisionsMeta?: { reason?: string | null } | null }[]).length > 0 && (
+                        {ycscSupplyChainQ.data?.data && (ycscSupplyChainQ.data.data as unknown as { supplyRequest?: { maYeuCau: string; trangThai: string } | null; replenishmentRequest?: { maYeuCau: string; trangThai: string } | null; purchaseRequest?: { maYeuCau: string; trangThai: string } | null; warehouseIssue?: { maPhieu: string } | null; decisionsMeta?: { reason?: string | null } | null }[]).length > 0 && (
                           <div className="mt-2 space-y-1">
-                            {(ycscSupplyChainQ.data.data as unknown as { supplyRequest?: { maYeuCau: string; trangThai: string } | null; replenishmentRequest?: { maYeuCau: string; trangThai: string } | null; purchaseRequest?: { maYeuCau: string; trangThai: string } | null; decisionsMeta?: { reason?: string | null } | null }[]).map((ch, i) => (
+                            {(ycscSupplyChainQ.data.data as unknown as { supplyRequest?: { maYeuCau: string; trangThai: string } | null; replenishmentRequest?: { maYeuCau: string; trangThai: string } | null; purchaseRequest?: { maYeuCau: string; trangThai: string } | null; warehouseIssue?: { maPhieu: string } | null; decisionsMeta?: { reason?: string | null } | null }[]).map((ch, i) => (
                               <div key={i} className="rounded border bg-white px-2 py-1.5 text-xs flex flex-wrap items-center gap-1">
                                 {ch.supplyRequest ? <span className="rounded-full border bg-blue-50 px-1.5 py-0.5">YCCC {ch.supplyRequest.maYeuCau} [{ch.supplyRequest.trangThai}]</span> : <span className="text-gray-400">YCCC —</span>}
                                 <span className="text-gray-400">→</span>
                                 {ch.replenishmentRequest ? <span className="rounded-full border bg-amber-50 px-1.5 py-0.5">YCBS {ch.replenishmentRequest.maYeuCau} [{ch.replenishmentRequest.trangThai}]</span> : <span className="text-gray-400">Chưa bổ sung</span>}
                                 <span className="text-gray-400">→</span>
                                 {ch.purchaseRequest ? <span className="rounded-full border bg-green-50 px-1.5 py-0.5">YCMH {ch.purchaseRequest.maYeuCau} [{ch.purchaseRequest.trangThai}]</span> : <span className="text-gray-400">—</span>}
+                                {ch.warehouseIssue ? (<><span className="text-gray-400">→</span><span className="rounded-full border bg-emerald-50 px-1.5 py-0.5 text-emerald-700">PX {ch.warehouseIssue.maPhieu}</span></>) : null}
                                 {ch.decisionsMeta?.reason && <span className="text-gray-500">({ch.decisionsMeta.reason})</span>}
                               </div>
                             ))}
@@ -1852,9 +1864,9 @@ const RepairRequestFormModal = ({
                           {incEditId === row.id ? (
                             <>
                               <td className="px-1.5 py-1"><input value={incEdit.tenKhoan} onChange={e=>setIncEdit(s=>({...s, tenKhoan:e.target.value}))} className="w-full rounded border px-2 py-1 text-sm" /></td>
-                              <td className="px-1.5 py-1"><input type="number" min={0} value={incEdit.soTien} onChange={e=>setIncEdit(s=>({...s, soTien:e.target.value}))} className="w-full rounded border px-2 py-1 text-sm" /></td>
+                              <td className="px-1.5 py-1"><input inputMode="numeric" value={incEdit.soTien ? formatNum(incEdit.soTien) : ''} onChange={e=>{ const v=e.target.value.replace(/[^\d]/g,''); setIncEdit(s=>({...s, soTien: v})); }} className={vndInputCls} /></td>
                               <td className="px-1.5 py-1"><input value={incEdit.lyDo} onChange={e=>setIncEdit(s=>({...s, lyDo:e.target.value}))} className="w-full rounded border px-2 py-1 text-sm" /></td>
-                              <td className="px-1.5 py-1"><input value={incEdit.fileMinhChung ?? ''} onChange={e=>setIncEdit(s=>({...s, fileMinhChung:e.target.value}))} className="w-full rounded border px-2 py-1 text-sm" placeholder="URL" /></td>
+                              <td className="px-1.5 py-1"><div className="flex items-center gap-1"><input value={incEdit.fileMinhChung ?? ''} onChange={e=>setIncEdit(s=>({...s, fileMinhChung:e.target.value}))} className="w-full rounded border px-2 py-1 text-xs flex-1 min-w-0" placeholder="URL" /><label className="shrink-0 inline-flex items-center justify-center h-7 w-7 rounded border bg-white hover:bg-gray-50 cursor-pointer" title="Chọn file"><input type="file" className="hidden" onChange={async e=>{ const f=e.target.files?.[0]; if(!f) return; try{ const fd=new FormData(); fd.append('file', f); const res=await fetch('/api/upload', { method:'POST', body: fd, headers:{ Authorization:`Bearer ${localStorage.getItem('accessToken')||''}` }}); const j=await res.json(); const url=j?.data?.url || j?.url || URL.createObjectURL(f); setIncEdit(s=>({...s, fileMinhChung: url})); } catch{ setIncEdit(s=>({...s, fileMinhChung: f.name})); } }} /><span className="text-[11px]">📎</span></label></div></td>
                               <td className="px-1 py-1 flex gap-1"><button onClick={async()=>{ if(!ycscIdForChain) return; const soTien=Number(incEdit.soTien); if(!Number.isFinite(soTien)||soTien<0){ toast.error('Số tiền phải >=0'); return; } if(!incEdit.lyDo.trim()){ toast.error('Lý do bắt buộc'); return; } try{ await updateIncidental.mutateAsync({ id: ycscIdForChain, costId: row.id, payload: { tenKhoan: incEdit.tenKhoan.trim()||row.tenKhoan, soTien, lyDo: incEdit.lyDo.trim(), fileMinhChung: incEdit.fileMinhChung||null } as never }); toast.success('Đã cập nhật'); setIncEditId(null);}catch(e){ toast.error(e instanceof Error?e.message:'Lỗi cập nhật'); } }} className="text-blue-600 text-xs">Lưu</button><button onClick={()=>setIncEditId(null)} className="text-gray-500 text-xs">Hủy</button></td>
                             </>
                           ) : (
@@ -1870,9 +1882,9 @@ const RepairRequestFormModal = ({
                       ))}
                       <tr className="bg-gray-50/50">
                         <td className="px-1.5 py-1"><input placeholder="Tên khoản" value={incForm.tenKhoan} onChange={e=>setIncForm(s=>({...s, tenKhoan:e.target.value}))} className="w-full rounded border px-2 py-1.5 text-sm" /></td>
-                        <td className="px-1.5 py-1"><input type="number" min={0} placeholder="0" value={incForm.soTien} onChange={e=>setIncForm(s=>({...s, soTien:e.target.value}))} className="w-full rounded border px-2 py-1.5 text-sm" /></td>
+                        <td className="px-1.5 py-1"><input inputMode="numeric" placeholder="0" value={incForm.soTien ? formatNum(incForm.soTien) : ''} onChange={e=>{ const v=e.target.value.replace(/[^\d]/g,''); setIncForm(s=>({...s, soTien: v})); }} className={vndInputCls + ' py-1.5'} /></td>
                         <td className="px-1.5 py-1"><input placeholder="Lý do *" value={incForm.lyDo} onChange={e=>setIncForm(s=>({...s, lyDo:e.target.value}))} className="w-full rounded border px-2 py-1.5 text-sm" /></td>
-                        <td className="px-1.5 py-1"><input placeholder="File URL" value={incForm.fileMinhChung} onChange={e=>setIncForm(s=>({...s, fileMinhChung:e.target.value}))} className="w-full rounded border px-2 py-1.5 text-sm" /></td>
+                        <td className="px-1.5 py-1"><div className="flex items-center gap-1"><input placeholder="URL / chọn file" value={incForm.fileMinhChung} onChange={e=>setIncForm(s=>({...s, fileMinhChung:e.target.value}))} className="w-full rounded border px-2 py-1 text-xs flex-1 min-w-0" /><label className="shrink-0 inline-flex items-center justify-center h-7 w-7 rounded border bg-white hover:bg-gray-50 cursor-pointer" title="Chọn file"><input type="file" className="hidden" onChange={async e=>{ const f=e.target.files?.[0]; if(!f) return; try{ const fd=new FormData(); fd.append('file', f); const res=await fetch('/api/upload', { method:'POST', body: fd, headers:{ Authorization:`Bearer ${localStorage.getItem('accessToken')||''}` }}); const j=await res.json(); const url=j?.data?.url || j?.url || URL.createObjectURL(f); setIncForm(s=>({...s, fileMinhChung: url})); } catch{ setIncForm(s=>({...s, fileMinhChung: f.name})); } }} /><span className="text-[11px]">📎</span></label></div></td>
                         <td className="px-1 py-1"><button onClick={async()=>{ if(!ycscIdForChain) return; const soTien=Number(incForm.soTien); if(!incForm.tenKhoan.trim()){ toast.error('Tên khoản bắt buộc'); return; } if(!Number.isFinite(soTien)||soTien<0){ toast.error('Số tiền phải >=0'); return; } if(!incForm.lyDo.trim()){ toast.error('Lý do bắt buộc'); return; } try{ await createIncidental.mutateAsync({ id: ycscIdForChain, payload: { tenKhoan: incForm.tenKhoan.trim(), soTien, lyDo: incForm.lyDo.trim(), fileMinhChung: incForm.fileMinhChung||null } as never }); toast.success('Đã thêm'); setIncForm({ tenKhoan:'', soTien:'', lyDo:'', fileMinhChung:'' }); }catch(e){ toast.error(e instanceof Error?e.message:'Lỗi thêm'); } }} className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white">Thêm</button></td>
                       </tr>
                     </tbody>

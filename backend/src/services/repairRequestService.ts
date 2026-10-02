@@ -15,12 +15,13 @@ import logger from '@config/logger';
 export const STALE_ROW_MESSAGE = 'Phiếu đã được cập nhật bởi người khác, vui lòng tải lại';
 export const ITEM_IN_USE_MESSAGE = 'Không thể xóa hạng mục đã có nghiệm thu/vật tư/liên kết';
 
-// Technician / ADMIN may edit a YCSC only before acceptance (never in CHO_NGHIEM_THU or later).
+// Technician / ADMIN may edit a YCSC up to Chờ nghiệm thu (B: allow edit at CHO_NGHIEM_THU).
 const YCSC_TECH_EDITABLE: ReadonlySet<RepairRequestStatus> = new Set<RepairRequestStatus>([
   RepairRequestStatus.CHO_XU_LY,
   RepairRequestStatus.DA_TIEP_NHAN,
   RepairRequestStatus.LEN_KE_HOACH,
   RepairRequestStatus.DANG_SUA_CHUA,
+  RepairRequestStatus.CHO_NGHIEM_THU,
 ]);
 const YCSC_DELETABLE: ReadonlySet<RepairRequestStatus> = new Set<RepairRequestStatus>([
   RepairRequestStatus.CHO_XU_LY,
