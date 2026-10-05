@@ -10,12 +10,14 @@ import { isTechnicalUser, canDeleteTechnical } from '../utils/permissions';
 import { useAuth as useAuthCtx } from '../contexts/AuthContext';
 import FileUpload from './FileUpload';
 import Modal from './Modal';
-import { ModalForm, ModalFooter, FormField, inputCls, selectCls, textareaCls } from './ModalForm';
+import { ModalForm, ModalFooter, FormField, inputCls, selectCls, textareaCls, readonlyCls } from './ModalForm';
 import StatusBadge, { type BadgeTone } from './shared/StatusBadge';
 import MachineSystemCombobox from './common/MachineSystemCombobox';
+import MachineSystemDetailCombobox from './common/MachineSystemDetailCombobox';
 import EmployeeCombobox from './common/EmployeeCombobox';
 import ProductCombobox from './common/ProductCombobox';
 import UnitSelect from './common/UnitSelect';
+import { getDepartmentDisplayName } from '../utils/permissions';
 import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
 import { internationalProductService, type InternationalProduct } from '../services/internationalProductService';
 import { parseNumberInput } from '../utils/numberInput';
@@ -132,10 +134,11 @@ interface FaultRecordTypeaheadCellProps {
   value: string; // faultRecordSearch display text
   faultRecordId: string | null;
   disabled: boolean;
+  placeholder?: string;
   onSelect: (item: FaultTypeaheadItem | null) => void;
 }
 
-const FaultRecordTypeaheadCell = ({ value, faultRecordId, disabled, onSelect }: FaultRecordTypeaheadCellProps) => {
+const FaultRecordTypeaheadCell = ({ value, faultRecordId, disabled, placeholder, onSelect }: FaultRecordTypeaheadCellProps) => {
   const navigate = useNavigate();
   const [search, setSearch] = useState(value);
   const [open, setOpen] = useState(false);
@@ -190,7 +193,7 @@ const FaultRecordTypeaheadCell = ({ value, faultRecordId, disabled, onSelect }: 
       <input
         type="text"
         value={search}
-        placeholder="Tìm mã/tên lỗi..."
+        placeholder={placeholder ?? 'Tìm mã/tên lỗi...'}
         className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-xs min-h-[38px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
         onChange={(e) => {
           setSearch(e.target.value);
@@ -330,7 +333,8 @@ const RepairRequestFormModal = ({
   const generatedCode = useGeneratedRepairRequestCode();
   const generatedInspectionCode = useGeneratedInspectionCode();
   const systemsQuery = useMachineSystems({ page: 1, limit: 200, hoatDong: true, sortBy: 'maHeThong', sortOrder: 'asc' });
-  const detailsQuery = useMachineSystemDetails({ page: 1, limit: 400, hoatDong: true, sortBy: 'thuTu', sortOrder: 'asc' });
+  // Bulk fetch full tree (backend cap raised to 2000, covers current 301 rows). BQ-001 was missing because old cap=100 truncated before cmrt0…
+  const detailsQuery = useMachineSystemDetails({ page: 1, limit: 2000, hoatDong: true, sortBy: 'thuTu', sortOrder: 'asc' });
   const systems = systemsQuery.data?.data ?? [];
   const details = detailsQuery.data?.data ?? [];
   const detailOptions = useMemo(() => details, [details]);
@@ -1369,6 +1373,20 @@ const RepairRequestFormModal = ({
           );
         })()}
 
+        {(() => {
+          const isKiemTraRequesterBlock = !isView && lockedRequestType === 'KIEM_TRA';
+          if (!isKiemTraRequesterBlock) return null;
+          const u = viewUser as unknown as Record<string, unknown> | null;
+          const tenNhanVien = String((u?.fullName as string) ?? ([(u?.firstName as string) ?? '', (u?.lastName as string) ?? ''].filter(Boolean).join(' ').trim()) ?? '').trim() || String((u?.name as string) ?? '').trim() || '—';
+          const boPhan = String((u?.subDepartmentName as string) ?? (u?.departmentName as string) ?? '').trim() || getDepartmentDisplayName(String((u?.department as string) ?? '')) || '—';
+          return (
+            <div className="grid gap-2 md:grid-cols-2">
+              <FormField label="Tên nhân viên"><input readOnly value={tenNhanVien} className={`${readonlyCls} min-h-[44px]`} /></FormField>
+              <FormField label="Bộ phận"><input readOnly value={boPhan} className={`${readonlyCls} min-h-[44px]`} /></FormField>
+            </div>
+          );
+        })()}
+
         {!isView && (
         <div className={`grid gap-2 ${hideCodeField ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
           <FormField label="Ngày" required>
@@ -1393,7 +1411,7 @@ const RepairRequestFormModal = ({
           {isView ? (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
-                <thead><tr className="bg-gray-50 text-left text-[11px] font-medium text-gray-500 border-b"><th className="px-2 py-1 w-6">#</th><th className="px-2 py-1">Hệ thống / Chi tiết</th><th className="px-2 py-1">Vị trí</th><th className="px-2 py-1">Loại lỗi</th><th className="px-2 py-1">Nội dung</th><th className="px-2 py-1">Lỗi liên quan</th></tr></thead>
+                <thead><tr className="bg-gray-50 text-left text-[11px] font-medium text-gray-500 border-b"><th className="px-2 py-1 w-6">#</th><th className="px-2 py-1">Hệ thống / Chi tiết</th><th className="px-2 py-1">Vị trí</th><th className="px-2 py-1">Loại lỗi</th><th className="px-2 py-1">{effectiveIsKiemTra || lockedRequestType === 'KIEM_TRA' ? 'Nội dung kiểm tra' : 'Nội dung'}</th><th className="px-2 py-1">{effectiveIsKiemTra || lockedRequestType === 'KIEM_TRA' ? 'Các nguyên nhân' : 'Lỗi liên quan'}</th></tr></thead>
                 <tbody className="divide-y divide-gray-100">
                   {items.map((item, index) => {
                     const sysLabel = item.machineSystem ? `${item.machineSystem.maHeThong} - ${item.machineSystem.tenHeThong}` : item.tenHeThong || '—';
@@ -1442,10 +1460,11 @@ const RepairRequestFormModal = ({
                             {picked && (
                               <div className="md:col-span-2">
                                 <FormField label="Chi tiết máy (tùy chọn)">
-                                  <select value={item.machineSystemDetailId ?? ''} onChange={(event) => selectDetail(index, event.target.value)} className={`${selectCls()} min-h-[44px] text-sm`}>
-                                    <option value="">Không chọn</option>
-                                    {itemDetails.map((detail) => <option key={detail.id} value={detail.id}>{detail.maChiTiet} - {detail.tenChiTiet}</option>)}
-                                  </select>
+                                  <MachineSystemDetailCombobox
+                                    details={itemDetails}
+                                    value={item.machineSystemDetailId ?? ''}
+                                    onSelectDetail={(did) => selectDetail(index, did)}
+                                  />
                                 </FormField>
                               </div>
                             )}
@@ -1466,16 +1485,17 @@ const RepairRequestFormModal = ({
                           </select>
                         </FormField>
                         <div className="md:col-span-2">
-                          <FormField label="Nội dung lỗi" required hint={!isView ? 'Mô tả ngắn triệu chứng, ví dụ: kẹt băng tải, rò dầu thủy lực' : undefined}>
-                            <input required disabled={isView} placeholder="Mô tả ngắn gọn triệu chứng lỗi" value={item.noiDungLoi} onChange={(event) => patchItem(index, { noiDungLoi: event.target.value })} className={`${inputCls()} min-h-[44px] text-sm disabled:bg-gray-50`} />
+                          <FormField label={lockedRequestType === 'KIEM_TRA' ? 'Nội dung kiểm tra' : 'Nội dung lỗi'} required hint={!isView ? (lockedRequestType === 'KIEM_TRA' ? 'Mô tả nội dung cần kiểm tra, hạng mục, yêu cầu' : 'Mô tả ngắn triệu chứng, ví dụ: kẹt băng tải, rò dầu thủy lực') : undefined}>
+                            <input required disabled={isView} placeholder={lockedRequestType === 'KIEM_TRA' ? 'Nhập nội dung cần kiểm tra...' : 'Mô tả ngắn gọn triệu chứng lỗi'} value={item.noiDungLoi} onChange={(event) => patchItem(index, { noiDungLoi: event.target.value })} className={`${inputCls()} min-h-[44px] text-sm disabled:bg-gray-50`} />
                           </FormField>
                         </div>
                         <div className="md:col-span-2">
-                          <FormField label="Lỗi liên quan (tùy chọn)">
+                          <FormField label={lockedRequestType === 'KIEM_TRA' ? 'Các nguyên nhân (tùy chọn)' : 'Lỗi liên quan (tùy chọn)'}>
                             <FaultRecordTypeaheadCell
                               value={item.faultRecordSearch ?? ''}
                               faultRecordId={item.faultRecordId ?? null}
                               disabled={isView}
+                              placeholder={lockedRequestType === 'KIEM_TRA' ? 'Tìm nguyên nhân theo mã/tên...' : undefined}
                               onSelect={(selected) => patchItem(index, {
                                 faultRecordId: selected?.id ?? null,
                                 faultRecordSearch: selected ? `${selected.maLoi} - ${selected.tenLoi}` : '',

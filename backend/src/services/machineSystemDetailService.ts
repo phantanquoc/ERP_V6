@@ -1,6 +1,5 @@
 import { MachineSystemDetailType, Prisma } from '@prisma/client';
 import prisma from '@config/database';
-import { getPaginationParams } from '@utils/helpers';
 import { ConflictError, NotFoundError, ValidationError } from '@utils/errors';
 import { nextStaticCode, staticCodeWhere } from '@utils/codeGenerator';
 
@@ -127,7 +126,14 @@ class MachineSystemDetailService {
 
   async list(filters: MachineSystemDetailFilters = {}) {
     const page = filters.page ?? 1;
-    const { skip, limit } = getPaginationParams(page, filters.limit ?? 10);
+    // Detail tree is small (305 rows) and filtered by machineSystemId in callers like
+    // RepairRequestFormModal. The shared getPaginationParams caps at 100, which
+    // truncates BQ-001 (id cmrt0... sorts after 238 rows) — raise cap for this service.
+    const rawLimit = filters.limit ?? 10;
+    const limitNum = Math.max(1, Math.min(2000, parseInt(String(rawLimit), 10) || 10));
+    const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
+    const skip = (pageNum - 1) * limitNum;
+    const limit = limitNum;
     const where: Prisma.MachineSystemDetailWhereInput = {};
 
     if (filters.machineSystemId) where.machineSystemId = filters.machineSystemId;
