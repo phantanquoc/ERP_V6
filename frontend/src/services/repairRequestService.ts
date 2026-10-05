@@ -556,11 +556,13 @@ class RepairRequestService {
     return apiClient.get<RepairIncidentalCost[]>(`/repair-requests/${id}/incidental-costs`);
   }
 
-  async createIncidentalCost(id: number | string, payload: CreateIncidentalCostRequest): Promise<ApiResponse<RepairIncidentalCost>> {
+  async createIncidentalCost(id: number | string, payload: CreateIncidentalCostRequest | FormData): Promise<ApiResponse<RepairIncidentalCost>> {
+    if (payload instanceof FormData) return apiClient.post<RepairIncidentalCost>(`/repair-requests/${id}/incidental-costs`, payload);
     return apiClient.post<RepairIncidentalCost>(`/repair-requests/${id}/incidental-costs`, payload as unknown as Record<string, unknown>);
   }
 
-  async updateIncidentalCost(id: number | string, costId: string, payload: UpdateIncidentalCostRequest): Promise<ApiResponse<RepairIncidentalCost>> {
+  async updateIncidentalCost(id: number | string, costId: string, payload: UpdateIncidentalCostRequest | FormData): Promise<ApiResponse<RepairIncidentalCost>> {
+    if (payload instanceof FormData) return apiClient.put<RepairIncidentalCost>(`/repair-requests/${id}/incidental-costs/${costId}`, payload);
     return apiClient.put<RepairIncidentalCost>(`/repair-requests/${id}/incidental-costs/${costId}`, payload as unknown as Record<string, unknown>);
   }
 

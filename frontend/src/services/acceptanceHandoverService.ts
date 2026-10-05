@@ -25,7 +25,8 @@ export interface AcceptanceHandover {
   id: string;
   maNghiemThu: string;
   ngayNghiemThu: string;
-  repairRequestId: number;
+  repairRequestId: number | null;
+  inspectionRequestId?: number | null;
   maYeuCauSuaChua: string;
   tenHeThongThietBi: string;
   tinhTrangTruocSuaChua: string;
@@ -34,6 +35,11 @@ export interface AcceptanceHandover {
   nguoiNhan: string;
   fileDinhKem?: string;
   ghiChu?: string;
+  ketQua?: 'DAT' | 'KHONG_DAT' | null;
+  nguoiXacNhanId?: string | null;
+  nguoiXacNhanTen?: string | null;
+  lyDoXacNhan?: string | null;
+  xacNhanLuc?: string | null;
   createdAt: string;
   updatedAt: string;
   repairRequest?: RepairRequest;

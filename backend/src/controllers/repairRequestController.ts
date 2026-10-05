@@ -494,7 +494,10 @@ class RepairRequestController {
   async createIncidentalCost(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
-      const data = await repairRequestService.createIncidentalCost(id, req.body as never);
+      const fileMinhChung = (req as unknown as { file?: Express.Multer.File }).file
+        ? getFileUrl('repair-incidental-costs', (req as unknown as { file: Express.Multer.File }).file.filename)
+        : req.body.fileMinhChung;
+      const data = await repairRequestService.createIncidentalCost(id, { ...req.body, fileMinhChung } as never);
       res.status(201).json({ success: true, data, message: 'Đã thêm chi phí phát sinh' });
     } catch (error) { next(error); }
   }
@@ -503,7 +506,11 @@ class RepairRequestController {
     try {
       const id = parseInt(req.params.id as string, 10);
       const costId = req.params.costId as string;
-      const data = await repairRequestService.updateIncidentalCost(id, costId, req.body as never);
+      const fileMinhChung = (req as unknown as { file?: Express.Multer.File }).file
+        ? getFileUrl('repair-incidental-costs', (req as unknown as { file: Express.Multer.File }).file.filename)
+        : req.body.fileMinhChung;
+      const body = fileMinhChung !== undefined ? { ...req.body, fileMinhChung } : req.body;
+      const data = await repairRequestService.updateIncidentalCost(id, costId, body as never);
       res.json({ success: true, data, message: 'Đã cập nhật chi phí phát sinh' });
     } catch (error) { next(error); }
   }

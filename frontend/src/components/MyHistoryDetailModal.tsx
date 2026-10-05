@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { X, ExternalLink, Clock, Tag, User, Users } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { HistoryItem, getEntityDetailEndpoint } from '../services/myHistoryService';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types/auth';
@@ -13,6 +15,8 @@ import LeaveRequestApprovalModal from './LeaveRequestApprovalModal';
 import AcceptanceHandoverViewModal from './AcceptanceHandoverViewModal';
 import FeedbackListModal from './FeedbackListModal';
 import HistoryEntityDetailModal from './HistoryEntityDetailModal';
+import repairRequestService from '../services/repairRequestService';
+import inspectionRequestService from '../services/inspectionRequestService';
 
 // ---- status display ---------------------------------------------------
 const STATUS_LABEL: Record<string, string> = {
@@ -274,7 +278,11 @@ const MyHistoryDetailModal: React.FC<MyHistoryDetailModalProps> = ({ item, onClo
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-gray-100 flex justify-end gap-2">
+            <div className="p-4 border-t border-gray-100 flex flex-col gap-2">
+              {(item.status === 'CHO_NGHIEM_THU' || !item.status) && (item.entityType === 'repair-request' || item.entityType === 'inspection-request' || item.entityType === 'acceptance-handover') && (
+                <QuickConfirmRow item={item} onDone={handleClose} />
+              )}
+              <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={handleClose}
@@ -292,6 +300,7 @@ const MyHistoryDetailModal: React.FC<MyHistoryDetailModalProps> = ({ item, onClo
                   {openButtonLabel}
                 </button>
               )}
+              </div>
             </div>
           </div>
           </div>
@@ -351,7 +360,44 @@ const MyHistoryDetailModal: React.FC<MyHistoryDetailModalProps> = ({ item, onClo
         routeHint={openEntityDetail?.routeHint ?? null}
         displayTitle={openEntityDetail?.displayTitle}
       />
+      {/* inline helper */}
     </>
+  );
+};
+
+const QuickConfirmRow: React.FC<{ item: HistoryItem; onDone: () => void }> = ({ item, onDone }) => {
+  const [lyDo, setLyDo] = useState('');
+  const [busy, setBusy] = useState(false);
+  const qc = useQueryClient();
+  const doConfirm = async (ketQua: 'DAT' | 'KHONG_DAT') => {
+    if (ketQua === 'KHONG_DAT' && !lyDo.trim()) { toast.error('Nhập lý do không đạt'); return; }
+    setBusy(true);
+    try {
+      if (item.entityType === 'repair-request') {
+        await repairRequestService.confirmAcceptance(item.entityId, { ketQua, lyDo: lyDo.trim() || undefined });
+      } else if (item.entityType === 'inspection-request') {
+        await inspectionRequestService.confirmAcceptance(item.entityId, { ketQua, lyDo: lyDo.trim() || undefined });
+      } else {
+        toast('Mở chi tiết nghiệm thu để xác nhận', { icon: 'ℹ️' });
+        return;
+      }
+      toast.success(ketQua === 'DAT' ? 'Đã xác nhận ĐẠT' : 'Đã xác nhận KHÔNG ĐẠT');
+      qc.invalidateQueries({ queryKey: ['my-history'] });
+      qc.invalidateQueries({ queryKey: ['repairRequests'] });
+      qc.invalidateQueries({ queryKey: ['inspectionRequests'] });
+      onDone();
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Xác nhận thất bại'); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 flex flex-col gap-2">
+      <p className="text-xs font-medium text-amber-800">Xác nhận nghiệm thu nhanh</p>
+      <textarea value={lyDo} onChange={e=>setLyDo(e.target.value)} rows={2} placeholder="Lý do (bắt buộc khi KHÔNG ĐẠT)" className="w-full rounded border bg-white px-2 py-1.5 text-sm" />
+      <div className="flex gap-2 justify-end">
+        <button disabled={busy} onClick={()=>doConfirm('KHONG_DAT')} className="rounded border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50">KHÔNG ĐẠT</button>
+        <button disabled={busy} onClick={()=>doConfirm('DAT')} className="rounded bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50">ĐẠT</button>
+      </div>
+    </div>
   );
 };
 

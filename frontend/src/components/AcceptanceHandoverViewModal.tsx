@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react';
 import { X, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { useQueryClient } from '@tanstack/react-query';
 import acceptanceHandoverService, { AcceptanceHandover } from '../services/acceptanceHandoverService';
 import { getFileUrl } from '../config/api';
+import { useAuth } from '../contexts/AuthContext';
+import repairRequestService from '../services/repairRequestService';
+import inspectionRequestService from '../services/inspectionRequestService';
 import Modal from './Modal';
 
 interface AcceptanceHandoverViewModalProps {
@@ -15,6 +20,12 @@ const AcceptanceHandoverViewModal = ({ isOpen, onClose, acceptanceHandoverId, no
   const [data, setData] = useState<AcceptanceHandover | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [lyDo, setLyDo] = useState('');
+  const [confirming, setConfirming] = useState(false);
+  const qc = useQueryClient();
+  const { user } = useAuth() as unknown as { user: { id?: string; _id?: string; role?: string } | null };
+  const userId = String(user?.id ?? (user as unknown as { _id?: string })?._id ?? '');
+  const isAdmin = String(user?.role ?? '').toUpperCase() === 'ADMIN';
 
   useEffect(() => {
     if (isOpen && (acceptanceHandoverId || notificationMessage)) {
@@ -22,6 +33,7 @@ const AcceptanceHandoverViewModal = ({ isOpen, onClose, acceptanceHandoverId, no
     } else {
       setData(null);
       setError('');
+      setLyDo('');
     }
   }, [isOpen, acceptanceHandoverId, notificationMessage]);
 
@@ -54,6 +66,41 @@ const AcceptanceHandoverViewModal = ({ isOpen, onClose, acceptanceHandoverId, no
     } finally {
       setLoading(false);
     }
+  };
+
+  const canConfirm = data && (data as unknown as { ketQua?: string | null }).ketQua == null
+    && ((data as unknown as { nguoiXacNhanId?: string | null }).nguoiXacNhanId == null
+      || String((data as unknown as { nguoiXacNhanId?: string | null }).nguoiXacNhanId) === userId || isAdmin);
+
+  const doConfirm = async (ketQua: 'DAT' | 'KHONG_DAT') => {
+    if (!data) return;
+    if (ketQua === 'KHONG_DAT' && !lyDo.trim()) { toast.error('Vui lòng nhập lý do không đạt'); return; }
+    const d = data as unknown as { repairRequestId?: number | null; inspectionRequestId?: number | null };
+    const isRepair = d.repairRequestId != null;
+    const isInspection = d.inspectionRequestId != null;
+    // derive ids: prefer explicit FK, fallback to parsing maYeuCau is not safe — try both endpoints if unknown
+    setConfirming(true);
+    try {
+      if (isRepair) {
+        await repairRequestService.confirmAcceptance(d.repairRequestId as number, { ketQua, lyDo: lyDo.trim() || undefined });
+      } else if (isInspection) {
+        await inspectionRequestService.confirmAcceptance(d.inspectionRequestId as number, { ketQua, lyDo: lyDo.trim() || undefined });
+      } else {
+        // Ambiguous — try repair then inspection by re-fetching parent id from server object
+        // Last resort: reload and infer from maYeuCau prefix is unreliable, so error out
+        throw new Error('Không xác định được phiếu gốc của nghiệm thu này');
+      }
+      toast.success(ketQua === 'DAT' ? 'Đã xác nhận ĐẠT' : 'Đã xác nhận KHÔNG ĐẠT');
+      qc.invalidateQueries({ queryKey: ['acceptanceHandovers'] });
+      qc.invalidateQueries({ queryKey: ['repairRequests'] });
+      qc.invalidateQueries({ queryKey: ['inspectionRequests'] });
+      qc.invalidateQueries({ queryKey: ['my-history'] });
+      const fresh = await acceptanceHandoverService.getAcceptanceHandoverById(data.id);
+      setData(fresh.data || fresh as unknown as AcceptanceHandover);
+      onClose();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Xác nhận thất bại');
+    } finally { setConfirming(false); }
   };
 
   if (!isOpen) return null;
@@ -140,6 +187,24 @@ const AcceptanceHandoverViewModal = ({ isOpen, onClose, acceptanceHandoverId, no
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
                   <p className="text-gray-900 bg-gray-50 p-3 rounded-lg">{data.ghiChu}</p>
+                </div>
+              )}
+              {canConfirm && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+                  <p className="text-sm font-medium text-amber-800">Xác nhận nghiệm thu</p>
+                  <textarea value={lyDo} onChange={e=>setLyDo(e.target.value)} rows={2} placeholder="Lý do (bắt buộc khi KHÔNG ĐẠT)" className="w-full rounded border border-amber-200 bg-white px-3 py-2 text-sm" />
+                  <div className="flex gap-2 justify-end">
+                    <button disabled={confirming} onClick={()=>doConfirm('KHONG_DAT')} className="rounded border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50">KHÔNG ĐẠT</button>
+                    <button disabled={confirming} onClick={()=>doConfirm('DAT')} className="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50">ĐẠT</button>
+                  </div>
+                </div>
+              )}
+              {(data as unknown as { ketQua?: string | null }).ketQua && (
+                <div className="text-sm">
+                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${(data as unknown as { ketQua?: string | null }).ketQua === 'DAT' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                    {(data as unknown as { ketQua?: string | null }).ketQua === 'DAT' ? 'ĐẠT' : 'KHÔNG ĐẠT'}
+                  </span>
+                  {(data as unknown as { lyDoXacNhan?: string | null }).lyDoXacNhan && <span className="ml-2 text-gray-600">{(data as unknown as { lyDoXacNhan?: string | null }).lyDoXacNhan}</span>}
                 </div>
               )}
             </div>

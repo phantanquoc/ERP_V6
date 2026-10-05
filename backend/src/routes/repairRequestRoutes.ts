@@ -9,6 +9,7 @@ import { repairActualFieldsSchema } from '@schemas';
 const router = Router();
 
 const uploadRepairRequest = createSingleUploadMiddleware('repair-requests');
+const uploadIncidental = createSingleUploadMiddleware('repair-incidental-costs');
 
 // Public authenticated routes (read)
 router.get('/', authenticate, repairRequestController.getAllRepairRequests);
@@ -58,8 +59,8 @@ router.delete('/:id/supply-links/:linkId', authenticate, requireRule('repair-req
 
 // Incidental costs
 router.get('/:id/incidental-costs', authenticate, repairRequestController.listIncidentalCosts);
-router.post('/:id/incidental-costs', authenticate, requireRule('repair-requests', 'UPDATE'), requireTechnical, repairRequestController.createIncidentalCost);
-router.put('/:id/incidental-costs/:costId', authenticate, requireRule('repair-requests', 'UPDATE'), requireTechnical, repairRequestController.updateIncidentalCost);
+router.post('/:id/incidental-costs', authenticate, requireRule('repair-requests', 'UPDATE'), requireTechnical, uploadIncidental, repairRequestController.createIncidentalCost);
+router.put('/:id/incidental-costs/:costId', authenticate, requireRule('repair-requests', 'UPDATE'), requireTechnical, uploadIncidental, repairRequestController.updateIncidentalCost);
 router.delete('/:id/incidental-costs/:costId', authenticate, requireRule('repair-requests', 'UPDATE'), requireTechnical, repairRequestController.deleteIncidentalCost);
 
 export default router;

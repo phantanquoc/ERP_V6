@@ -271,8 +271,8 @@ export const useRepairIncidentalCosts = (id: number | string | null | undefined)
 export const useCreateIncidentalCost = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: number | string; payload: import('../services/repairRequestService').CreateIncidentalCostRequest }) =>
-      repairRequestService.createIncidentalCost(id, payload),
+    mutationFn: ({ id, payload }: { id: number | string; payload: import('../services/repairRequestService').CreateIncidentalCostRequest | FormData }) =>
+      repairRequestService.createIncidentalCost(id, payload as never),
     onSuccess: (_, v) => {
       qc.invalidateQueries({ queryKey: repairRequestKeys.incidentalCosts(v.id) });
       qc.invalidateQueries({ queryKey: repairRequestKeys.costSummary(v.id) });
@@ -284,8 +284,8 @@ export const useCreateIncidentalCost = () => {
 export const useUpdateIncidentalCost = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, costId, payload }: { id: number | string; costId: string; payload: import('../services/repairRequestService').UpdateIncidentalCostRequest }) =>
-      repairRequestService.updateIncidentalCost(id, costId, payload),
+    mutationFn: ({ id, costId, payload }: { id: number | string; costId: string; payload: import('../services/repairRequestService').UpdateIncidentalCostRequest | FormData }) =>
+      repairRequestService.updateIncidentalCost(id, costId, payload as never),
     onSuccess: (_, v) => {
       qc.invalidateQueries({ queryKey: repairRequestKeys.incidentalCosts(v.id) });
       qc.invalidateQueries({ queryKey: repairRequestKeys.costSummary(v.id) });

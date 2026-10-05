@@ -57,9 +57,13 @@ function parseParams(sp: URLSearchParams): MyHistoryParams {
   const statuses = sp.getAll('statuses');
   if (statuses.length) params.statuses = statuses;
 
-  // roleFilter
+  // roleFilter — ?view=created forces roleFilter=created
+  const view = sp.get('view');
   const role = sp.get('roleFilter');
-  if (role === 'created' || role === 'related') params.roleFilter = role;
+  if (view === 'created') params.roleFilter = 'created';
+  else if (role === 'created' || role === 'related') params.roleFilter = role;
+  // default when no view/roleFilter supplied
+  if (!params.roleFilter && !view && !role) params.roleFilter = 'created';
 
   // search
   const search = sp.get('search');
@@ -401,6 +405,14 @@ const ActiveFilterChips: React.FC<ActiveFilterChipsProps> = ({ params, onRemove,
 
 // ---- Group count pills (clickable) --------------------------------------
 const GROUP_LABELS_LIST = ['Yêu cầu', 'Nhiệm vụ', 'Kế hoạch', 'Báo cáo', 'Phiếu'];
+// Used by task 3: quick YCKT/YCSC/YCCC/YCMH/Kho pills (no new table)
+const TECH_PILLS: { label: string; types: string[] }[] = [
+  { label: 'YCKT', types: ['inspection-request'] },
+  { label: 'YCSC', types: ['repair-request'] },
+  { label: 'YCCC', types: ['supply-request'] },
+  { label: 'YCMH', types: ['purchase-request'] },
+  { label: 'Kho', types: ['warehouse-receipt', 'warehouse-issue'] },
+];
 
 interface GroupPillsProps {
   groupCounts: Record<string, number>;
@@ -456,6 +468,22 @@ const GroupPills: React.FC<GroupPillsProps> = ({ groupCounts, params, onChange }
             {key}
             <span className="font-semibold text-gray-800">{count}</span>
           </button>
+        );
+      })}
+      <span className="w-px bg-gray-200 mx-1" aria-hidden />
+      {TECH_PILLS.map((p) => {
+        const active = p.types.every((t) => types.includes(t));
+        return (
+          <button
+            key={p.label}
+            type="button"
+            onClick={()=>{
+              const next = active ? types.filter((t)=>!p.types.includes(t)) : [...types, ...p.types.filter((t)=>!types.includes(t))];
+              onChange({ ...params, types: next.length ? next : undefined, page: 1 });
+            }}
+            aria-pressed={active}
+            className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full border ${active ? 'bg-amber-100 border-amber-300 text-amber-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+          >{p.label}</button>
         );
       })}
     </div>
