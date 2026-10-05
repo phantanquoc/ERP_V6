@@ -16,6 +16,7 @@ import { canEditQuotation, canDeleteQuotation } from '../utils/permissions';
 import { UserRole } from '../types/auth';
 import { useAuditLogs } from '../hooks/useAuditLogs';
 import AuditTimeline from './quotation/AuditTimeline';
+import { getApiErrorMessage } from '../utils/getApiError';
 
 // Aging badge thresholds (task 12.3)
 const AGING_THRESHOLD = 7;
@@ -165,7 +166,7 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
       queryClient.invalidateQueries({ queryKey: quotationKeys.lists() });
     } catch (error: any) {
       console.error('Error updating quotation:', error);
-      toast.error(error.response?.data?.message || 'Lỗi khi cập nhật báo giá');
+      toast.error(getApiErrorMessage(error, 'Lỗi khi cập nhật báo giá'));
     }
   };
 
@@ -179,7 +180,7 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
         queryClient.invalidateQueries({ queryKey: quotationKeys.lists() });
       } catch (error: any) {
         console.error('Error deleting quotation:', error);
-        toast.error(error.response?.data?.message || 'Lỗi khi xóa báo giá');
+        toast.error(getApiErrorMessage(error, 'Lỗi khi xóa báo giá'));
       }
     });
     setConfirmOpen(true);
@@ -195,7 +196,7 @@ const QuotationManagement: React.FC<QuotationManagementProps> = ({ customerType 
         queryClient.invalidateQueries({ queryKey: quotationKeys.lists() });
       } catch (error: any) {
         console.error('Error creating order:', error);
-        toast.error(error.response?.data?.message || 'Lỗi khi tạo đơn hàng');
+        toast.error(getApiErrorMessage(error, 'Lỗi khi tạo đơn hàng'));
       }
     });
     setConfirmOpen(true);

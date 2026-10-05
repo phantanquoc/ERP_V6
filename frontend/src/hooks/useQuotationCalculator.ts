@@ -17,6 +17,7 @@ import {
   QuotationFormData,
 } from '../components/quotation-calculator/types';
 import { formatNumberWithDots, parseNumberFromDots } from '../components/quotation-calculator/utils';
+import { getApiErrorMessage } from '../utils/getApiError';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -356,7 +357,7 @@ export function useQuotationCalculator(
     } catch (error: any) {
       setTabsData(items.map((_: any, index: number) => ({ selectedStandard: null, selectedProcess: null, formData: emptyTabFormData(`BG-TEMP-${index + 1}`) })));
       setActiveTab(0);
-      if (error.response?.status === 401) alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+      if ((error as any)?.statusCode ?? (error as any)?.response?.status === 401) alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
     }
   };
 
@@ -1015,7 +1016,7 @@ export function useQuotationCalculator(
       const calculatorData = buildCalculatorData();
       if (calculatorData) await quotationCalculatorService.upsertCalculator(calculatorData as any);
       alert('Lưu dữ liệu thành công!');
-    } catch (error: any) { console.error('Error in handleSubmit:', error); alert(error.response?.data?.message || 'Lỗi khi lưu dữ liệu'); }
+    } catch (error: any) { console.error('Error in handleSubmit:', error); alert(getApiErrorMessage(error, 'Lỗi khi lưu dữ liệu')); }
     finally { setLoading(false); }
   };
 
@@ -1026,7 +1027,7 @@ export function useQuotationCalculator(
       const calculatorData = buildCalculatorData();
       if (calculatorData) await quotationCalculatorService.upsertCalculator(calculatorData as any);
       alert('Lưu dữ liệu thành công!');
-    } catch (error: any) { console.error('Error in handleSaveOrderSummaryData:', error); alert(error.response?.data?.message || 'Lỗi khi lưu dữ liệu'); }
+    } catch (error: any) { console.error('Error in handleSaveOrderSummaryData:', error); alert(getApiErrorMessage(error, 'Lỗi khi lưu dữ liệu')); }
     finally { setLoading(false); }
   };
 
@@ -1046,7 +1047,7 @@ export function useQuotationCalculator(
       await quotationCalculatorService.deleteCalculator(quotationRequest.id);
       await initializeTabs();
       alert('Đã xóa dữ liệu đã lưu và khởi tạo lại!');
-    } catch (error: any) { console.error('Error clearing saved data:', error); alert(error.response?.data?.message || 'Lỗi khi xóa dữ liệu'); }
+    } catch (error: any) { console.error('Error clearing saved data:', error); alert(getApiErrorMessage(error, 'Lỗi khi xóa dữ liệu')); }
   };
 
   const handleCreateQuotation = async () => {
@@ -1064,7 +1065,7 @@ export function useQuotationCalculator(
       setQuotationFormData({ hieuLucBaoGia: '', tinhTrang: 'DANG_CHO_PHAN_HOI', ghiChu: '' });
       onClose();
       if (onSuccess) onSuccess();
-    } catch (error: any) { console.error('Error creating quotation:', error); alert(error.response?.data?.message || 'Lỗi khi tạo báo giá'); }
+    } catch (error: any) { console.error('Error creating quotation:', error); alert(getApiErrorMessage(error, 'Lỗi khi tạo báo giá')); }
     finally { setLoading(false); }
   };
 

@@ -39,6 +39,7 @@ import type { ReplenishmentRequest } from '../../services/replenishmentRequestSe
 import replenishmentRequestService from '../../services/replenishmentRequestService';
 import { useUrlTab, useUrlDetailId } from '../../hooks/useUrlState';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
+import { getApiErrorMessage } from '../../utils/getApiError';
 
 type PurchaseRequest = import('../../types/purchaseRequest').PurchaseRequest;
 
@@ -272,7 +273,7 @@ const PurchasingEquipment = () => {
         setSelectedPurchaseRequest(null);
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Lỗi khi hủy yêu cầu mua hàng');
+      toast.error(getApiErrorMessage(error, 'Lỗi khi hủy yêu cầu mua hàng'));
       throw error;
     } finally {
       setCancellingPr(false);
@@ -336,7 +337,7 @@ const PurchasingEquipment = () => {
           setConfirmAction(null);
           fetchPurchaseRequests();
         } catch (error: any) {
-          alert(error.response?.data?.message || 'Lỗi khi gửi duyệt');
+          alert(getApiErrorMessage(error, 'Lỗi khi gửi duyệt'));
         } finally {
           setConfirmLoading(false);
         }
@@ -357,7 +358,7 @@ const PurchasingEquipment = () => {
           setConfirmAction(null);
           fetchPurchaseRequests();
         } catch (error: any) {
-          alert(error.response?.data?.message || 'Lỗi khi xóa');
+          alert(getApiErrorMessage(error, 'Lỗi khi xóa'));
         } finally {
           setConfirmLoading(false);
         }
@@ -400,7 +401,7 @@ const PurchasingEquipment = () => {
           setConfirmAction(null);
           fetchPurchaseRequests();
         } catch (error: any) {
-          alert(error.response?.data?.message || 'Lỗi khi cập nhật trạng thái');
+          alert(getApiErrorMessage(error, 'Lỗi khi cập nhật trạng thái'));
         } finally {
           setConfirmLoading(false);
         }

@@ -8,6 +8,7 @@ import LotProductCombobox from './common/LotProductCombobox';
 import EmployeeCombobox from './common/EmployeeCombobox';
 import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
 import { TINH_TRANG_OPTIONS, LY_DO_XUAT_KHO_PRESETS } from '../constants/warehouseCatalogs';
+import { getApiErrorMessage } from '../utils/getApiError';
 
 interface EditWarehouseIssueModalProps {
   isOpen: boolean;
@@ -247,7 +248,7 @@ const EditWarehouseIssueModal: React.FC<EditWarehouseIssueModalProps> = ({
       onSuccess?.(updated as WarehouseIssue | undefined);
       onClose();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Lỗi khi cập nhật phiếu xuất kho');
+      alert(getApiErrorMessage(error, 'Lỗi khi cập nhật phiếu xuất kho'));
     } finally {
       setLoading(false);
     }

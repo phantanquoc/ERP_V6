@@ -18,6 +18,7 @@ import { TINH_TRANG_OPTIONS, BO_PHAN_OPTIONS } from '../constants/warehouseCatal
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types/auth';
 import { useUrlDetailId, useUrlFilters } from '../hooks/useUrlState';
+import { getApiErrorMessage } from '../utils/getApiError';
 
 interface WarehouseIssueTabProps {
   month?: number;
@@ -199,7 +200,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
       if ((error as any)?.name === 'CanceledError' || (error as any)?.code === 'ERR_CANCELED' || controller.signal.aborted) return;
       if (cur !== reqIdRef.current) return;
       console.error('Error fetching issues:', error);
-      setLoadError(error.response?.data?.message || 'Không thể tải danh sách phiếu xuất kho');
+      setLoadError(getApiErrorMessage(error, 'Không thể tải danh sách phiếu xuất kho'));
     } finally {
       if (cur === reqIdRef.current) setLoading(false);
     }
@@ -224,7 +225,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
       queryClient.invalidateQueries({ queryKey: warehouseKeys.lotProducts() });
       queryClient.invalidateQueries({ queryKey: warehouseKeys.receiptHistories() });
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Lỗi khi xóa phiếu xuất kho');
+      toast.error(getApiErrorMessage(error, 'Lỗi khi xóa phiếu xuất kho'));
     } finally {
       setDeleting(false);
     }

@@ -11,6 +11,7 @@ import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
 import { SERVER_BASE_URL } from '../config/api';
 import UnitSelect from './common/UnitSelect';
+import { getApiErrorMessage } from '../utils/getApiError';
 
 interface ProcessManagementProps {
   mode?: 'full' | 'standard-only' | 'production';
@@ -532,7 +533,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
       fetchProcesses();
     } catch (error: any) {
       console.error('Error saving process:', error);
-      alert(error.response?.data?.message || 'Lỗi khi lưu quy trình');
+      alert(getApiErrorMessage(error, 'Lỗi khi lưu quy trình'));
     }
   };
 
@@ -547,7 +548,7 @@ const ProcessManagement: React.FC<ProcessManagementProps> = ({ mode = 'full', sh
       fetchProcesses();
     } catch (error: any) {
       console.error('Error deleting process:', error);
-      alert(error.response?.data?.message || 'Lỗi khi xóa quy trình');
+      alert(getApiErrorMessage(error, 'Lỗi khi xóa quy trình'));
     }
   };
 

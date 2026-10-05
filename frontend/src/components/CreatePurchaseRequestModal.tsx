@@ -9,6 +9,7 @@ import Modal from './Modal';
 import { useSupplierOptions } from '../hooks/useSuppliers';
 import UnitSelect from './common/UnitSelect';
 import { can } from '../utils/permissions';
+import { getApiErrorMessage } from '../utils/getApiError';
 
 interface CreatePurchaseRequestModalProps {
   isOpen: boolean;
@@ -190,7 +191,7 @@ const CreatePurchaseRequestModal: React.FC<CreatePurchaseRequestModalProps> = ({
       onSuccess?.();
       onClose();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Loi khi tao yeu cau mua hang');
+      alert(getApiErrorMessage(error, 'Loi khi tao yeu cau mua hang'));
     } finally {
       setLoading(false);
     }

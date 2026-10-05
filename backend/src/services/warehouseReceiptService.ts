@@ -914,8 +914,13 @@ class WarehouseReceiptService {
       const bought = purchased.get(key);
       if (!bought) continue;
       const already = priorByKey.get(key) ?? 0;
+      const remaining = bought.qty - already;
       if (already + rec.qty - bought.qty > 1e-9) {
-        exceeded.push(`${bought.tenHangHoa} (đã nhập ${already} + thêm ${rec.qty} > mua ${bought.qty} ${bought.donViTinh})`);
+        const over = (already + rec.qty - bought.qty).toFixed(2).replace(/\.00$/, '');
+        const remStr = Math.max(0, remaining).toFixed(2).replace(/\.00$/, '');
+        exceeded.push(
+          `${bought.tenHangHoa} (đã nhập ${already}, đã mua ${bought.qty} ${bought.donViTinh} — còn lại ${remStr}, bạn nhập thêm ${rec.qty} vượt ${over}). Hãy giảm số lượng về ≤ ${remStr} hoặc tạo YCMH bổ sung`
+        );
       }
     }
     if (exceeded.length > 0) {

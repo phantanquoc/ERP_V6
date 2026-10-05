@@ -9,6 +9,7 @@ import { parseNumberInputStr } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
 import StatusBadge, { BadgeTone } from './shared/StatusBadge';
 import DataTable from '../design-system/DataTable';
+import { getApiErrorMessage } from '../utils/getApiError';
 
 interface DebtManagementProps {
   month?: number;
@@ -95,7 +96,7 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ month, year }) => {
       fetchSummary();
     } catch (error: any) {
       console.error('Error deleting debt:', error);
-      alert(error.response?.data?.message || 'Lỗi khi xóa công nợ');
+      alert(getApiErrorMessage(error, 'Lỗi khi xóa công nợ'));
     }
   };
 
@@ -186,7 +187,7 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ month, year }) => {
       fetchSummary();
     } catch (error: any) {
       console.error('Error creating debt:', error);
-      alert(error.response?.data?.message || 'Lỗi khi thêm công nợ');
+      alert(getApiErrorMessage(error, 'Lỗi khi thêm công nợ'));
     } finally {
       setLoading(false);
     }
@@ -226,7 +227,7 @@ const DebtManagement: React.FC<DebtManagementProps> = ({ month, year }) => {
       fetchSummary();
     } catch (error: any) {
       console.error('Error updating debt:', error);
-      alert(error.response?.data?.message || 'Lỗi khi cập nhật công nợ');
+      alert(getApiErrorMessage(error, 'Lỗi khi cập nhật công nợ'));
     } finally {
       setLoading(false);
     }

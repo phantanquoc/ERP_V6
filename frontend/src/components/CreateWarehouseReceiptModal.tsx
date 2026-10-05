@@ -16,6 +16,7 @@ import { useProducts } from '../hooks';
 import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
 import { TINH_TRANG_OPTIONS } from '../constants/warehouseCatalogs';
 import { kienCapacityByUnit } from '../utils/kienCapacity';
+import { getApiErrorMessage, getApiFieldErrors } from '../utils/getApiError';
 import { can } from '../utils/permissions';
 
 import type { InboundPlan } from '../services/inboundPlanService';
@@ -100,9 +101,12 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
   const [completedPurchaseRequests, setCompletedPurchaseRequests] = useState<NonNullable<SupplyRequest['purchaseRequests']>>([]);
   /** Purchased quantity keyed by normalized product name — drives the "đã mua" hint + client-side cap. */
   const [purchasedByItem, setPurchasedByItem] = useState<Record<string, number>>({});
+  /** Already-received qty per normalized name for the active PR — for cumulative guard + inline còn lại */
+  const [alreadyByItem, setAlreadyByItem] = useState<Record<string, number>>({});
   /** Remaining qty per YCMH id — null = chưa tính, 0 = đã nhập đủ */
   const [remainingByPrId, setRemainingByPrId] = useState<Record<string, number | null>>({});
   const [remainingLoading, setRemainingLoading] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const handleNguoiDeNghiChange = (name: string) => {
     setNguoiDeNghi(name);
@@ -162,6 +166,21 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
   const handlePurchasePrChange = (prId: string) => {
     setLinkedPurchaseRequestId(prId || null);
     applyPurchasePr(prId || null);
+    if (prId) {
+      warehouseReceiptService.getAllWarehouseReceipts({ purchaseRequestId: prId, limit: 100 } as any).then((res: any) => {
+        const list: any[] = (res as any)?.data?.data ?? (res as any)?.data ?? [];
+        const already: Record<string, number> = {};
+        for (const r of list) {
+          if ((r as any).isVoided) continue;
+          for (const it of (r as any).items ?? []) {
+            const k = nameKeyOf(it.tenSanPham);
+            if (!k) continue;
+            already[k] = (already[k] ?? 0) + Number(it.soLuongThucTe ?? 0);
+          }
+        }
+        setAlreadyByItem(already);
+      }).catch(() => setAlreadyByItem({}));
+    } else setAlreadyByItem({});
   };
 
   const isInboundPlanMode = !!inboundPlan;
@@ -197,7 +216,48 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
         setBoPhan(pr?.supplyRequest?.boPhan ?? '');
         setMaNguoiDeNghi('');
         setCompletedPurchaseRequests([]);
-        setPurchasedByItem({});
+        // Populate purchasedByItem for InboundPlan too — so cumulative guard + inline còn lại work
+        {
+          const bought: Record<string, number> = {};
+          for (const it of prItems) {
+            const key = nameKeyOf((it as any).tenHangHoa);
+            if (!key) continue;
+            bought[key] = (bought[key] ?? 0) + (Number((it as any).soLuongThucTe ?? (it as any).soLuong) || 0);
+          }
+          setPurchasedByItem(bought);
+        }
+        // Fetch already for active PR so inline còn lại is populated
+        if (pr?.id) {
+          setRemainingLoading(true);
+          warehouseReceiptService.getAllWarehouseReceipts({ purchaseRequestId: pr.id, limit: 100 } as any).then((res: any) => {
+            if (cancelled) return;
+            const list: any[] = (res as any)?.data?.data ?? (res as any)?.data ?? [];
+            const already: Record<string, number> = {};
+            for (const r of list) {
+              if ((r as any).isVoided) continue;
+              for (const it of (r as any).items ?? []) {
+                const k = nameKeyOf(it.tenSanPham);
+                if (!k) continue;
+                already[k] = (already[k] ?? 0) + Number(it.soLuongThucTe ?? 0);
+              }
+            }
+            if (!cancelled) {
+              setAlreadyByItem(already);
+              let rem = Infinity;
+              for (const it of prItems) {
+                const k = nameKeyOf((it as any).tenHangHoa);
+                const bought = Number((it as any).soLuongThucTe ?? (it as any).soLuong ?? 0);
+                rem = Math.min(rem, bought - (already[k] ?? 0));
+              }
+              if (!isFinite(rem)) rem = 0;
+              setRemainingByPrId({ [pr.id]: Math.max(0, rem) });
+              setRemainingLoading(false);
+            }
+          }).catch(() => { if (!cancelled) setRemainingLoading(false); });
+        } else {
+          setAlreadyByItem({});
+          setRemainingByPrId({});
+        }
         setLinkedPurchaseRequestId(pr?.id ?? null);
         const prefRows: ReceiptRow[] = prItems.map((it: any) => {
           const kh = Number(it.soLuong) || 0;
@@ -260,7 +320,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
             let remaining = Infinity;
             for (const it of (pr.items ?? [])) {
               const k = nameKey((it as any).tenHangHoa);
-              const bought = Number((it as any).soLuong ?? 0);
+              const bought = Number((it as any).soLuongThucTe ?? (it as any).soLuong ?? 0);
               const got = already[k] ?? 0;
               remaining = Math.min(remaining, bought - got);
             }
@@ -272,6 +332,30 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
           const map: Record<string, number | null> = {};
           for (const p of pairs) map[p.id] = p.remaining;
           setRemainingByPrId(map);
+          // Populate alreadyByItem for active PR (for cumulative guard + inline)
+          {
+            const activeId = linkedPurchaseRequestId ?? primary?.id;
+            if (activeId) {
+              const pr = completedPrs.find((x) => x.id === activeId);
+              if (pr) {
+                warehouseReceiptService.getAllWarehouseReceipts({ purchaseRequestId: pr.id, limit: 100 } as any).then((res: any) => {
+                  if (cancelled) return;
+                  const list: any[] = (res as any)?.data?.data ?? (res as any)?.data ?? [];
+                  const already: Record<string, number> = {};
+                  const nk = (v: unknown) => String(v ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+                  for (const r of list) {
+                    if ((r as any).isVoided) continue;
+                    for (const it of (r as any).items ?? []) {
+                      const k = nk(it.tenSanPham);
+                      if (!k) continue;
+                      already[k] = (already[k] ?? 0) + Number(it.soLuongThucTe ?? 0);
+                    }
+                  }
+                  if (!cancelled) setAlreadyByItem(already);
+                }).catch(() => {});
+              }
+            }
+          }
           setRemainingLoading(false);
         });
       } else {
@@ -464,14 +548,10 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
       setLyDoChenhLechError(null);
     }
 
-    // Client-side mirror of the backend reconciliation, so the operator sees which
-    // line overflows instead of a generic 400. Only applies when receiving against
-    // a specific YCMH — the server validates against that single purchaseRequestId.
+    // Client-side mirror of the backend reconciliation (cumulative: already + this slip > bought)
     if (linkedPurchaseRequestId && Object.keys(purchasedByItem).length > 0) {
       const receivedByItem: Record<string, { label: string; qty: number }> = {};
       for (const row of submittedRows) {
-        // Resolve the name exactly like the payload does, so this matches what the
-        // server will compare.
         const lotProduct = row.lotProducts.find((candidate) => candidate.id === row.lotProductId);
         const label = lotProduct?.internationalProduct?.tenSanPham || row.tenSanPham;
         const key = nameKeyOf(label);
@@ -481,8 +561,14 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
       const problems: string[] = [];
       for (const [key, { label, qty }] of Object.entries(receivedByItem)) {
         const bought = purchasedByItem[key];
+        const already = alreadyByItem[key] ?? 0;
+        const remaining = bought !== undefined ? bought - already : undefined;
         if (bought === undefined) problems.push(`"${label}" không có trong yêu cầu mua hàng`);
-        else if (qty > bought + 1e-9) problems.push(`"${label}": nhập ${qty}, chỉ mua ${bought}`);
+        else if (already + qty - bought > 1e-9) {
+          const over = (already + qty - bought).toFixed(2).replace(/\.00$/, '');
+          const remStr = Math.max(0, remaining ?? 0).toFixed(2).replace(/\.00$/, '');
+          problems.push(`"${label}": đã nhập ${already}, còn lại ${remStr} — bạn nhập ${qty} vượt ${over}`);
+        }
       }
       if (problems.length > 0) {
         alert(`Không khớp với yêu cầu mua hàng đã hoàn thành:\n- ${problems.join('\n- ')}`);
@@ -490,6 +576,13 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
       }
     }
 
+    // Open confirm modal instead of calling API directly
+    setConfirmOpen(true);
+    return;
+  };
+
+  const doCreateReceipt = async () => {
+    const submittedRows = isSupplyBatch ? selectedRows : rows;
     setLoading(true);
     try {
       const items = submittedRows.flatMap((row) => {
@@ -562,11 +655,11 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
       queryClient.invalidateQueries({ queryKey: warehouseKeys.lotProducts() });
       onClose();
     } catch (error: any) {
-      const msg = error.response?.data?.message;
-      const errs = error.response?.data?.errors;
+      const msg = getApiErrorMessage(error, 'Lỗi khi tạo phiếu nhập kho');
+      const errs = getApiFieldErrors(error);
       const detail = errs ? `\n${Object.entries(errs).map(([k,v])=>`• ${k}: ${v}`).join('\n')}` : '';
-      alert((msg || 'Lỗi khi tạo phiếu nhập kho') + detail);
-      console.error('[CreateReceipt] validation errors', errs, error.response?.data);
+      alert(msg + detail);
+      console.error('[CreateReceipt] validation errors', errs, (error as any)?.body ?? (error as any)?.response?.data);
     } finally {
       setLoading(false);
     }
@@ -743,11 +836,23 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
                   )}
 
                   {/* SL TT (editable) */}
+                  {(() => {
+                    const bought = linkedPurchaseRequestId ? (purchasedByItem[nameKeyOf(row.tenSanPham)] ?? null) : null;
+                    const already = alreadyByItem[nameKeyOf(row.tenSanPham)] ?? 0;
+                    const remaining = bought !== null ? bought - already : null;
+                    const over = remaining !== null && row.soLuong - remaining > 1e-9;
+                    return (
                   <div className={hasKeHoachColumn ? 'col-span-4 sm:col-span-1 flex flex-col' : 'col-span-4 sm:col-span-1 flex flex-col'}>
                     <label className="block text-xs font-medium text-gray-600 min-h-[16px] h-4 leading-4 mb-1">SL TT <span className="text-red-500">*</span></label>
-                    <input type="number" value={row.soLuong === 0 ? '' : row.soLuong} onChange={(event) => handleTotalChange(index, parseNumberInput(event.target.value))} min="0.01" step="0.01" required disabled={isSupplyBatch && !row.selected} className="w-full h-[32px] px-2 py-1.5 border border-gray-300 rounded text-sm bg-white disabled:bg-gray-100 text-center" />
-                    <div className="mt-1 min-h-[16px]" />
+                    <input type="number" value={row.soLuong === 0 ? '' : row.soLuong} onChange={(event) => handleTotalChange(index, parseNumberInput(event.target.value))} min="0.01" step="0.01" required disabled={isSupplyBatch && !row.selected} className={`w-full h-[32px] px-2 py-1.5 border rounded text-sm bg-white disabled:bg-gray-100 text-center ${over ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} />
+                    <div className="mt-1 min-h-[16px] text-[11px] leading-none">
+                      {remaining !== null ? (
+                        over ? <span className="text-red-600 font-medium">Còn lại {remaining} — vượt {(row.soLuong - remaining).toFixed(2).replace(/\.00$/,'')}</span>
+                        : <span className="text-gray-500">Còn lại {remaining} / đã mua {bought}</span>
+                      ) : null}
+                    </div>
                   </div>
+                    );})()}
                 </div>
 
                 {/* Tình trạng / quy cách — ngay trên Ghi chú */}
@@ -807,6 +912,81 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
           <div className="flex justify-end gap-2 pt-2"><button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Hủy</button><button type="submit" disabled={loading} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2">{loading ? 'Đang xử lý...' : <><Check className="w-4 h-4" />Nhập kho {isSupplyBatch ? selectedRows.length : rows.length} dòng</>}</button></div>
         </form>
       </div>
+      {/* Confirm modal — đối chiếu YCMH trước khi gọi API */}
+      {confirmOpen && (() => {
+        const cRows = isSupplyBatch ? selectedRows : rows;
+        const prCode = inboundPlan?.purchaseRequest?.maYeuCau ?? (supplyRequest?.purchaseRequests ?? []).find(p=>p.id===linkedPurchaseRequestId)?.maYeuCau ?? '—';
+        const hasOver = linkedPurchaseRequestId ? cRows.some(r => {
+          const b = purchasedByItem[nameKeyOf(r.tenSanPham)];
+          if (b === undefined) return true;
+          const a = alreadyByItem[nameKeyOf(r.tenSanPham)] ?? 0;
+          return a + Number(r.soLuong) - b > 1e-9;
+        }) : false;
+        return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={()=>!loading && setConfirmOpen(false)}>
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-[900px] max-h-[85vh] flex flex-col" onClick={e=>e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
+              <h3 className="font-bold text-gray-900">Xác nhận nhập kho — đối chiếu thu mua</h3>
+              <button type="button" onClick={()=> setConfirmOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="px-5 py-3 overflow-y-auto space-y-3 flex-1">
+              <div className="flex flex-wrap gap-3 text-xs bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <span><span className="text-gray-500">YCMH:</span> <strong className="text-blue-700">{prCode}</strong></span>
+                {inboundPlan && <span><span className="text-gray-500">KH:</span> <strong>{inboundPlan.maKeHoach}</strong></span>}
+                <span><span className="text-gray-500">Kho:</span> <strong>{cRows[0]?.warehouseId ? (warehouses.find(w=>w.id===cRows[0].warehouseId)?.tenKho ?? cRows[0].warehouseId) : '—'}</strong></span>
+                <span><span className="text-gray-500">Tổng dòng:</span> <strong>{cRows.length}</strong></span>
+              </div>
+              <div className="overflow-x-auto border rounded-lg">
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-50 text-gray-600">
+                    <tr><th className="px-2 py-1.5 text-left">#</th><th className="px-2 py-1.5 text-left">Hàng hóa</th><th className="px-2 py-1.5 text-center">ĐVT</th><th className="px-2 py-1.5 text-right">Đã mua</th><th className="px-2 py-1.5 text-right">Đã nhập</th><th className="px-2 py-1.5 text-right">Còn lại</th><th className="px-2 py-1.5 text-right">Sẽ nhập</th><th className="px-2 py-1.5 text-center">Lệch</th></tr>
+                  </thead>
+                  <tbody>
+                    {cRows.map((r, i) => {
+                      const key = nameKeyOf(r.tenSanPham);
+                      const bought = linkedPurchaseRequestId ? (purchasedByItem[key] ?? null) : null;
+                      const already = alreadyByItem[key] ?? 0;
+                      const remaining = bought !== null ? bought - already : null;
+                      const qty = Number(r.soLuong) || 0;
+                      const over = remaining !== null && qty - remaining > 1e-9;
+                      const under = remaining !== null && remaining - qty > 1e-9;
+                      return (
+                        <tr key={i} className={`border-t ${over ? 'bg-red-50' : ''}`}>
+                          <td className="px-2 py-1.5">{i+1}</td>
+                          <td className="px-2 py-1.5 font-medium">{r.tenSanPham || '—'}</td>
+                          <td className="px-2 py-1.5 text-center">{r.donViTinh || '—'}</td>
+                          <td className="px-2 py-1.5 text-right">{bought !== null ? bought : '—'}</td>
+                          <td className="px-2 py-1.5 text-right">{bought !== null ? already : '—'}</td>
+                          <td className={`px-2 py-1.5 text-right font-semibold ${over ? 'text-red-600' : ''}`}>{remaining !== null ? Math.max(0, remaining) : '—'}</td>
+                          <td className={`px-2 py-1.5 text-right font-semibold ${over ? 'text-red-600' : ''}`}>{qty}</td>
+                          <td className="px-2 py-1.5 text-center">
+                            {bought === null ? <span className="text-gray-400">—</span>
+                              : over ? <span className="inline-flex px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">Vượt {(qty - (remaining ?? 0)).toFixed(2).replace(/\.00$/,'')}</span>
+                              : under ? <span className="inline-flex px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">Thiếu {((remaining ?? 0)-qty).toFixed(2).replace(/\.00$/,'')}</span>
+                              : <span className="inline-flex px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200">Khớp</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {hasOver && <div className="text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">Có dòng vượt số còn lại — hãy quay lại sửa số lượng (giảm về ≤ còn lại) hoặc tạo YCMH bổ sung trước khi xác nhận.</div>}
+              {hasKeHoachColumn && (() => {
+                const hasDiff = cRows.some(r => r.soLuongYeuCau != null && Math.abs(Number(r.soLuongYeuCau)-Number(r.soLuong)) > 1e-9);
+                return hasDiff && !lyDoChenhLech.trim() ? <div className="text-xs text-red-600">Thiếu lý do chênh lệch KH/TT — quay lại nhập lý do.</div> : null;
+              })()}
+              {lyDoChenhLech.trim() && <div className="text-xs bg-gray-50 border rounded p-2"><span className="text-gray-500">Lý do chênh lệch:</span> {lyDoChenhLech}</div>}
+              {ghiChu.trim() && <div className="text-xs bg-gray-50 border rounded p-2"><span className="text-gray-500">Ghi chú:</span> {ghiChu}</div>}
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-3 border-t bg-gray-50 rounded-b-lg shrink-0">
+              <button type="button" onClick={()=> setConfirmOpen(false)} disabled={loading} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-white disabled:opacity-50">Quay lại sửa</button>
+              <button type="button" onClick={doCreateReceipt} disabled={loading || hasOver} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">{loading ? 'Đang tạo...' : <><Check className="w-4 h-4" />Xác nhận nhập</>}</button>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
     </Modal>
   );
 };

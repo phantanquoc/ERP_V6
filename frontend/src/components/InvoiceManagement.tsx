@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import internationalCustomerService from '../services/internationalCustomerService';
 import { parseNumberInputStr } from '../utils/numberInput';
 import { SERVER_BASE_URL } from '../config/api';
+import { getApiErrorMessage } from '../utils/getApiError';
 
 interface Customer {
   id: string;
@@ -320,7 +321,7 @@ const InvoiceManagement: React.FC<InvoiceManagementProps> = ({ month, year }) =>
         alert('Xóa hóa đơn thành công!');
         fetchInvoices();
       } catch (error: any) {
-        alert(error.response?.data?.message || 'Lỗi khi xóa hóa đơn');
+        alert(getApiErrorMessage(error, 'Lỗi khi xóa hóa đơn'));
       }
     }
   };
@@ -342,7 +343,7 @@ const InvoiceManagement: React.FC<InvoiceManagementProps> = ({ month, year }) =>
       resetFormData();
       fetchInvoices();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Lỗi khi thêm hóa đơn');
+      alert(getApiErrorMessage(error, 'Lỗi khi thêm hóa đơn'));
     } finally {
       setLoading(false);
     }
@@ -367,7 +368,7 @@ const InvoiceManagement: React.FC<InvoiceManagementProps> = ({ month, year }) =>
       resetFormData();
       fetchInvoices();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Lỗi khi cập nhật hóa đơn');
+      alert(getApiErrorMessage(error, 'Lỗi khi cập nhật hóa đơn'));
     } finally {
       setLoading(false);
     }

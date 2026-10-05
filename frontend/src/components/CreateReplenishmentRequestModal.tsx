@@ -11,6 +11,7 @@ import { ModalForm, ModalFooter, FormField, textareaCls, readonlyCls, inputCls, 
 import UnitSelect from './common/UnitSelect';
 import ProductCombobox from './common/ProductCombobox';
 import { can } from '../utils/permissions';
+import { getApiErrorMessage } from '../utils/getApiError';
 
 interface CreateReplenishmentRequestModalProps {
   isOpen: boolean;
@@ -218,7 +219,7 @@ const CreateReplenishmentRequestModal: React.FC<CreateReplenishmentRequestModalP
       onSuccess?.();
       onClose();
     } catch (error: any) {
-      toast.error(error.response?.data?.message ?? 'Lỗi khi tạo yêu cầu bổ sung');
+      toast.error(getApiErrorMessage(error, 'Lỗi khi tạo yêu cầu bổ sung'));
     } finally {
       setLoading(false);
     }

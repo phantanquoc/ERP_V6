@@ -10,6 +10,7 @@ import { ModalForm, ModalFooter, FormField, textareaCls, readonlyCls } from './M
 import UnitSelect from './common/UnitSelect';
 import ProductCombobox from './common/ProductCombobox';
 import FileUpload from './FileUpload';
+import { getApiErrorMessage } from '../utils/getApiError';
 
 interface SupplyRequestModalProps {
   isOpen: boolean;
@@ -195,7 +196,7 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
       resetForm();
       onClose();
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Lỗi khi tạo yêu cầu cung cấp');
+      toast.error(getApiErrorMessage(error, 'Lỗi khi tạo yêu cầu cung cấp'));
     } finally {
       setLoading(false);
     }

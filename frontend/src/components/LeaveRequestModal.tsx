@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import Modal from './Modal';
 import DatePicker from './DatePicker';
 import leaveRequestService, { LeaveRequest } from '../services/leaveRequestService';
+import { getApiErrorMessage } from '../utils/getApiError';
 
 interface LeaveRequestModalProps {
   isOpen: boolean;
@@ -173,7 +174,7 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose, 
       setTimeout(() => { setSubmitSuccess(false); onClose(); }, 2000);
     } catch (error: any) {
       console.error('Error submitting leave request:', error);
-      alert(error.response?.data?.message || 'Lỗi khi gửi đơn nghỉ phép');
+      alert(getApiErrorMessage(error, 'Lỗi khi gửi đơn nghỉ phép'));
     } finally {
       setIsSubmitting(false);
     }

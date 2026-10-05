@@ -13,6 +13,7 @@ import { useQuotationRequests, quotationRequestKeys } from '../hooks';
 import QuotationCalculatorModal from './QuotationCalculatorModal';
 import { parseNumberInput } from '../utils/numberInput';
 import UnitSelect from './common/UnitSelect';
+import { getApiErrorMessage } from '../utils/getApiError';
 
 interface QuotationRequestManagementProps {
   mode?: 'business' | 'pricing';
@@ -215,7 +216,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
       queryClient.invalidateQueries({ queryKey: quotationRequestKeys.lists() });
     } catch (error: any) {
       console.error('Error creating quotation request:', error);
-      toast.error(error.response?.data?.message || 'Lỗi khi tạo yêu cầu báo giá');
+      toast.error(getApiErrorMessage(error, 'Lỗi khi tạo yêu cầu báo giá'));
     }
   };
 
@@ -271,7 +272,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
       queryClient.invalidateQueries({ queryKey: quotationRequestKeys.lists() });
     } catch (error: any) {
       console.error('Error updating quotation request:', error);
-      toast.error(error.response?.data?.message || 'Lỗi khi cập nhật yêu cầu báo giá');
+      toast.error(getApiErrorMessage(error, 'Lỗi khi cập nhật yêu cầu báo giá'));
     }
   };
 
@@ -285,7 +286,7 @@ const QuotationRequestManagement: React.FC<QuotationRequestManagementProps> = ({
         queryClient.invalidateQueries({ queryKey: quotationRequestKeys.lists() });
       } catch (error: any) {
         console.error('Error deleting quotation request:', error);
-        toast.error(error.response?.data?.message || 'Lỗi khi xóa yêu cầu báo giá');
+        toast.error(getApiErrorMessage(error, 'Lỗi khi xóa yêu cầu báo giá'));
       }
     });
     setConfirmOpen(true);

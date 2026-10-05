@@ -1,4 +1,5 @@
 import apiClient from './apiClient';
+import { getApiErrorMessage } from '../utils/getApiError';
 
 export interface SparePart {
   id: string;
@@ -51,7 +52,7 @@ class SparePartService {
       if (filters.loai) params.loai = filters.loai;
       return await apiClient.get('/spare-parts', { params });
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Lỗi khi lấy danh sách linh kiện');
+      throw new Error(getApiErrorMessage(error, 'Lỗi khi lấy danh sách linh kiện'));
     }
   }
 
@@ -59,7 +60,7 @@ class SparePartService {
     try {
       return await apiClient.get('/spare-parts/stats');
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Lỗi khi lấy thống kê linh kiện');
+      throw new Error(getApiErrorMessage(error, 'Lỗi khi lấy thống kê linh kiện'));
     }
   }
 
@@ -67,7 +68,7 @@ class SparePartService {
     try {
       return await apiClient.get(`/spare-parts/${id}`);
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Không tìm thấy linh kiện');
+      throw new Error(getApiErrorMessage(error, 'Không tìm thấy linh kiện'));
     }
   }
 
@@ -78,7 +79,7 @@ class SparePartService {
       if (file) formData.append('file', file);
       return await apiClient.post('/spare-parts', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Lỗi khi tạo linh kiện');
+      throw new Error(getApiErrorMessage(error, 'Lỗi khi tạo linh kiện'));
     }
   }
 
@@ -89,7 +90,7 @@ class SparePartService {
       if (file) formData.append('file', file);
       return await apiClient.put(`/spare-parts/${id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Lỗi khi cập nhật linh kiện');
+      throw new Error(getApiErrorMessage(error, 'Lỗi khi cập nhật linh kiện'));
     }
   }
 
@@ -97,7 +98,7 @@ class SparePartService {
     try {
       return await apiClient.delete(`/spare-parts/${id}`);
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Lỗi khi xóa linh kiện');
+      throw new Error(getApiErrorMessage(error, 'Lỗi khi xóa linh kiện'));
     }
   }
 

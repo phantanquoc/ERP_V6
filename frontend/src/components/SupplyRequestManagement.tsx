@@ -28,6 +28,7 @@ import AttachmentList, { collectAttachments, fileNameOf } from './common/Attachm
 import { FormField, inputCls, readonlyCls, textareaCls } from './ModalForm';
 import { useLookups } from '../hooks/useLookups';
 import { LOOKUP_GROUPS } from '../types/lookup';
+import { getApiErrorMessage } from '../utils/getApiError';
 
 interface SupplyRequestManagementProps {
   onClose?: () => void;
@@ -625,7 +626,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
       setRequests(Array.isArray(rows) ? rows : []);
       setTotalItems(pagination?.total ?? pagination?.totalItems ?? (Array.isArray(rows) ? rows.length : 0));
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Lỗi khi tải danh sách yêu cầu cung cấp');
+      alert(getApiErrorMessage(error, 'Lỗi khi tải danh sách yêu cầu cung cấp'));
     } finally {
       setLoading(false);
     }
@@ -690,7 +691,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
           await supplyRequestService.deleteSupplyRequest(id);
           fetchRequests();
         } catch (error: any) {
-          alert(error.response?.data?.message || 'Lỗi khi xóa yêu cầu cung cấp');
+          alert(getApiErrorMessage(error, 'Lỗi khi xóa yêu cầu cung cấp'));
         } finally {
           setLoading(false);
         }
@@ -711,7 +712,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
       setCancelTargetId(null);
       fetchRequests();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Lỗi khi hủy yêu cầu cung cấp');
+      alert(getApiErrorMessage(error, 'Lỗi khi hủy yêu cầu cung cấp'));
     } finally {
       setCancelling(false);
     }
@@ -780,7 +781,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
       closeDetailModal();
       fetchRequests();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Lỗi khi cập nhật yêu cầu cung cấp');
+      alert(getApiErrorMessage(error, 'Lỗi khi cập nhật yêu cầu cung cấp'));
     } finally {
       setLoading(false);
     }

@@ -19,6 +19,7 @@ import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types/auth';
 import { useUrlDetailId, useUrlFilters } from '../hooks/useUrlState';
+import { getApiErrorMessage } from '../utils/getApiError';
 
 interface WarehouseReceiptTabProps {
   month?: number;
@@ -220,7 +221,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
       if ((error as any)?.name === 'CanceledError' || (error as any)?.code === 'ERR_CANCELED' || controller.signal.aborted) return;
       if (cur !== reqIdRef.current) return;
       console.error('Error fetching receipts:', error);
-      setLoadError(error.response?.data?.message || 'Không thể tải danh sách phiếu nhập kho');
+      setLoadError(getApiErrorMessage(error, 'Không thể tải danh sách phiếu nhập kho'));
     } finally {
       if (cur === reqIdRef.current) setLoading(false);
     }
@@ -252,7 +253,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
       fetchReceipts();
       refreshInventoryCaches();
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Lỗi khi xóa phiếu nhập kho');
+      toast.error(getApiErrorMessage(error, 'Lỗi khi xóa phiếu nhập kho'));
     } finally {
       setDeleting(false);
     }

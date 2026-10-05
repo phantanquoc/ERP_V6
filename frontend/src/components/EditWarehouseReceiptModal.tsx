@@ -12,6 +12,7 @@ import { useProducts } from '../hooks';
 import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
 import { TINH_TRANG_OPTIONS } from '../constants/warehouseCatalogs';
 import { kienCapacityByUnit } from '../utils/kienCapacity';
+import { getApiErrorMessage } from '../utils/getApiError';
 
 /** Purpose presets — cover the common cases; the field stays free text for the rest. */
 const MUC_DICH_PRESETS = [
@@ -372,7 +373,7 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
       onSuccess?.(updated as WarehouseReceipt | undefined);
       onClose();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Lỗi khi cập nhật phiếu nhập kho');
+      alert(getApiErrorMessage(error, 'Lỗi khi cập nhật phiếu nhập kho'));
     } finally {
       setLoading(false);
     }

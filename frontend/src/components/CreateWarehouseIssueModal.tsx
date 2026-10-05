@@ -14,6 +14,7 @@ import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
 import { TINH_TRANG_OPTIONS, LY_DO_XUAT_KHO_PRESETS } from '../constants/warehouseCatalogs';
 import { can } from '../utils/permissions';
 import type { OutboundPlan } from '../services/outboundPlanService';
+import { getApiErrorMessage } from '../utils/getApiError';
 
 interface CreateWarehouseIssueModalProps {
   isOpen: boolean;
@@ -294,7 +295,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
         queryClient.invalidateQueries({ queryKey: warehouseKeys.lotProducts() });
         onClose();
       } catch (error: any) {
-        alert(error.response?.data?.message || error.message || 'Lỗi khi tạo phiếu xuất kho');
+        alert(getApiErrorMessage(error) || error.message || 'Lỗi khi tạo phiếu xuất kho');
       } finally {
         setLoading(false);
       }
@@ -361,7 +362,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
         queryClient.invalidateQueries({ queryKey: warehouseKeys.lotProducts() });
         onClose();
       } catch (error: any) {
-        alert(error.response?.data?.message || 'Lỗi khi cấp phát yêu cầu cung cấp');
+        alert(getApiErrorMessage(error, 'Lỗi khi cấp phát yêu cầu cung cấp'));
       } finally {
         setLoading(false);
       }
@@ -432,7 +433,7 @@ const CreateWarehouseIssueModal: React.FC<CreateWarehouseIssueModalProps> = ({
       onSuccess?.();
       onClose();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Lỗi khi tạo phiếu xuất kho');
+      alert(getApiErrorMessage(error, 'Lỗi khi tạo phiếu xuất kho'));
     } finally {
       setLoading(false);
     }

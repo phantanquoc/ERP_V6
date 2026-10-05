@@ -15,6 +15,7 @@ import { UserRole } from '../types/auth';
 import ProductFormModal from './products/ProductFormModal';
 import ProductDetailModal from './products/ProductDetailModal';
 import CategorySettingsModal from './products/CategorySettingsModal';
+import { getApiErrorMessage } from '../utils/getApiError';
 
 const InternationalProductManagement: React.FC = () => {
   const { user } = useAuth();
@@ -167,7 +168,7 @@ const InternationalProductManagement: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: productKeys.lists() });
     } catch (error: any) {
       console.error('Error creating product:', error);
-      toast.error(error.response?.data?.message || 'Lỗi khi tạo hàng hóa');
+      toast.error(getApiErrorMessage(error, 'Lỗi khi tạo hàng hóa'));
     }
   };
 
@@ -202,7 +203,7 @@ const InternationalProductManagement: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: productKeys.lists() });
     } catch (error: any) {
       console.error('Error updating product:', error);
-      toast.error(error.response?.data?.message || 'Lỗi khi cập nhật hàng hóa');
+      toast.error(getApiErrorMessage(error, 'Lỗi khi cập nhật hàng hóa'));
     }
   };
 
@@ -217,8 +218,7 @@ const InternationalProductManagement: React.FC = () => {
     } catch (error: any) {
       console.error('Error deleting product:', error);
       const errorMessage =
-        error.response?.data?.message ||
-        error.response?.data?.error ||
+        getApiErrorMessage(error) ||
         error.message ||
         'Lỗi khi xóa hàng hóa';
       toast.error(errorMessage);

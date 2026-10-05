@@ -3,6 +3,7 @@ import { X, Plus, Trash2 } from 'lucide-react';
 import Modal from './Modal';
 import processService, { ProcessFlowchartSection, ProcessFlowchartCost } from '../services/processService';
 import FileUpload from './FileUpload';
+import { getApiErrorMessage } from '../utils/getApiError';
 
 interface FlowchartEditorProps {
   processId: string;
@@ -141,7 +142,7 @@ const FlowchartEditor: React.FC<FlowchartEditorProps> = ({ processId, processNam
       onClose();
     } catch (error: any) {
       console.error('Error saving flowchart:', error);
-      alert(error.response?.data?.message || 'Lỗi khi lưu lưu đồ');
+      alert(getApiErrorMessage(error, 'Lỗi khi lưu lưu đồ'));
     } finally {
       setLoading(false);
     }

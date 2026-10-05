@@ -10,6 +10,7 @@ import { UserRole } from '../types/auth';
 import { parseNumberInput } from '../utils/numberInput';
 import TableFilter, { FilterField } from './TableFilter';
 import { SERVER_BASE_URL } from '../config/api';
+import { getApiErrorMessage } from '../utils/getApiError';
 
 type ProductionCostColumn = {
   key: keyof ProductionFlowchartCost;
@@ -360,7 +361,7 @@ const ProductionProcessManagement: React.FC = () => {
       loadProductionProcesses();
     } catch (error: any) {
       console.error('Error saving production process:', error);
-      alert(error.response?.data?.message || 'Lỗi khi lưu quy trình sản xuất');
+      alert(getApiErrorMessage(error, 'Lỗi khi lưu quy trình sản xuất'));
     } finally {
       setLoading(false);
     }
@@ -429,7 +430,7 @@ const ProductionProcessManagement: React.FC = () => {
       loadProductionProcesses();
     } catch (error: any) {
       console.error('Error deleting production process:', error);
-      alert(error.response?.data?.message || 'Lỗi khi xóa quy trình sản xuất');
+      alert(getApiErrorMessage(error, 'Lỗi khi xóa quy trình sản xuất'));
     } finally {
       setLoading(false);
     }
@@ -452,7 +453,7 @@ const ProductionProcessManagement: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Error syncing from template:', error);
-      alert(error.response?.data?.message || 'Lỗi khi đồng bộ từ quy trình mẫu');
+      alert(getApiErrorMessage(error, 'Lỗi khi đồng bộ từ quy trình mẫu'));
     } finally {
       setLoading(false);
     }

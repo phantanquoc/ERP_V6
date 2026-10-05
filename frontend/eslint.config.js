@@ -35,6 +35,13 @@ export default tseslint.config(
         'warn',
         { allowConstantExport: true },
       ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "MemberExpression[object.name='error'][property.name='response']",
+          message: "Dùng getApiErrorMessage(error) từ utils/getApiError thay vì error.response?.data (apiClient ném ApiError, không phải axios).",
+        },
+      ],
     },
   },
 )

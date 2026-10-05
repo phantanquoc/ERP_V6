@@ -4,6 +4,7 @@ import { Plus, Edit, Trash2, X } from 'lucide-react';
 import Modal from '../Modal';
 import internationalProductService, { RenameCategoryPreview } from '../../services/internationalProductService';
 import { categoryAbbr as abbreviate } from '../../utils/productCode';
+import { getApiErrorMessage } from '../../utils/getApiError';
 
 interface CategorySettingsModalProps {
   isOpen: boolean;
@@ -42,7 +43,7 @@ const CategorySettingsModal: React.FC<CategorySettingsModalProps> = ({ isOpen, c
       setNewCategoryName('');
       toast.success('Đã thêm loại hàng hóa');
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Lỗi khi thêm loại hàng hóa');
+      toast.error(getApiErrorMessage(error, 'Lỗi khi thêm loại hàng hóa'));
     } finally {
       setLoading(false);
     }
@@ -70,7 +71,7 @@ const CategorySettingsModal: React.FC<CategorySettingsModalProps> = ({ isOpen, c
       setRenamePreview({ oldName, newName, ...preview.data });
     } catch (error: any) {
       setLoading(false);
-      toast.error(error.response?.data?.message || 'Lỗi khi kiểm tra thay đổi mã');
+      toast.error(getApiErrorMessage(error, 'Lỗi khi kiểm tra thay đổi mã'));
     }
   };
 
@@ -85,7 +86,7 @@ const CategorySettingsModal: React.FC<CategorySettingsModalProps> = ({ isOpen, c
       setRenamePreview(null);
       toast.success(res.message || 'Đã đổi tên loại hàng hóa');
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Lỗi khi đổi tên');
+      toast.error(getApiErrorMessage(error, 'Lỗi khi đổi tên'));
     } finally {
       setLoading(false);
     }
@@ -99,7 +100,7 @@ const CategorySettingsModal: React.FC<CategorySettingsModalProps> = ({ isOpen, c
       onChanged();
       toast.success('Đã xóa loại hàng hóa');
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Lỗi khi xóa');
+      toast.error(getApiErrorMessage(error, 'Lỗi khi xóa'));
     } finally {
       setLoading(false);
     }
