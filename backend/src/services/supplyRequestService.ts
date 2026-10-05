@@ -184,7 +184,7 @@ class SupplyRequestService {
               lyDoHuy: true,
               ngayHuy: true,
               nguoiHuy: true,
-              items: { select: { tenHangHoa: true, soLuong: true, donViTinh: true } },
+              items: { select: { tenHangHoa: true, soLuong: true, soLuongThucTe: true, donViTinh: true } },
             },
           },
           replenishmentRequests: {

@@ -107,6 +107,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
   const [remainingByPrId, setRemainingByPrId] = useState<Record<string, number | null>>({});
   const [remainingLoading, setRemainingLoading] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [inlineError, setInlineError] = useState<string | null>(null);
 
   const handleNguoiDeNghiChange = (name: string) => {
     setNguoiDeNghi(name);
@@ -492,13 +493,13 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
 
     // Rule Matrix gate — warehouse receipt from a supply request is a supply-side mutation
     if (!can('supply-requests', 'UPDATE', user?.role)) {
-      alert('Bạn không có quyền tạo phiếu nhập kho');
+      setInlineError('Bạn không có quyền tạo phiếu nhập kho');
       return;
     }
 
     const submittedRows = isSupplyBatch ? selectedRows : rows;
     if (submittedRows.length === 0) {
-      alert('Vui lòng chọn ít nhất một hàng hóa');
+      setInlineError('Vui lòng chọn ít nhất một hàng hóa');
       return;
     }
     const invalidIndex = submittedRows.findIndex((row) => {
@@ -509,7 +510,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
     if (invalidIndex >= 0) {
       const row = submittedRows[invalidIndex];
       const rowNumber = rows.indexOf(row) + 1;
-      alert(`Dòng ${rowNumber}: Vui lòng chọn kho, lô, hàng hóa/kiện, đơn vị tính và số lượng lớn hơn 0`);
+      setInlineError(`Dòng ${rowNumber}: Vui lòng chọn kho, lô, hàng hóa/kiện, đơn vị tính và số lượng lớn hơn 0`);
       return;
     }
 
@@ -525,13 +526,13 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
     });
     if (emptyKienNoProductIndex >= 0) {
       const rowNumber = rows.indexOf(submittedRows[emptyKienNoProductIndex]) + 1;
-      alert(`Dòng ${rowNumber}: Kiện được chọn đang trống — hãy nhập/tên hàng hóa để gắn hàng hóa vào kiện`);
+      setInlineError(`Dòng ${rowNumber}: Kiện được chọn đang trống — hãy nhập/tên hàng hóa để gắn hàng hóa vào kiện`);
       return;
     }
 
     // Fully received YCMH — block client-side with clear message (BE also blocks)
     if (linkedPurchaseRequestId && remainingByPrId[linkedPurchaseRequestId] === 0) {
-      alert('Yêu cầu mua hàng này đã nhập đủ — không thể tạo thêm phiếu. Tạo YCMH mới nếu cần nhập thêm.');
+      setInlineError('Yêu cầu mua hàng này đã nhập đủ — không thể tạo thêm phiếu. Tạo YCMH mới nếu cần nhập thêm.');
       return;
     }
 
@@ -571,7 +572,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
         }
       }
       if (problems.length > 0) {
-        alert(`Không khớp với yêu cầu mua hàng đã hoàn thành:\n- ${problems.join('\n- ')}`);
+        setInlineError(`Không khớp với yêu cầu mua hàng đã hoàn thành: ${problems.join('\n- ')}`);
         return;
       }
     }
@@ -649,7 +650,7 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
         nguoiDeNghi: nguoiDeNghi || undefined, maNguoiDeNghi: maNguoiDeNghi || undefined, boPhan: boPhan || undefined,
         items,
       });
-      alert(`Đã tạo phiếu nhập kho ${items.length} dòng thành công!`);
+      // success — parent list refreshes via invalidate, no alert needed
       onSuccess?.();
       queryClient.invalidateQueries({ queryKey: warehouseKeys.lists() });
       queryClient.invalidateQueries({ queryKey: warehouseKeys.lotProducts() });
@@ -658,7 +659,8 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
       const msg = getApiErrorMessage(error, 'Lỗi khi tạo phiếu nhập kho');
       const errs = getApiFieldErrors(error);
       const detail = errs ? `\n${Object.entries(errs).map(([k,v])=>`• ${k}: ${v}`).join('\n')}` : '';
-      alert(msg + detail);
+      setConfirmOpen(false);
+      setInlineError(msg + detail);
       console.error('[CreateReceipt] validation errors', errs, (error as any)?.body ?? (error as any)?.response?.data);
     } finally {
       setLoading(false);
@@ -678,6 +680,12 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
           <button type="button" onClick={onClose} aria-label="Đóng" className="text-gray-400 hover:text-gray-600"><X className="h-6 w-6" /></button>
         </div>
         <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
+          {inlineError && (
+            <div className="flex items-start justify-between gap-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+              <span className="whitespace-pre-wrap flex-1">{inlineError}</span>
+              <button type="button" onClick={() => setInlineError(null)} className="shrink-0 text-red-400 hover:text-red-600"><X className="h-4 w-4" /></button>
+            </div>
+          )}
           {inboundPlan && (
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm flex flex-wrap gap-2">
               <span><span className="text-gray-600">Kế hoạch: </span><strong className="text-blue-700">{inboundPlan.maKeHoach}</strong></span>
