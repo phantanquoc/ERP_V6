@@ -843,19 +843,22 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
                     </div>
                   )}
 
-                  {/* SL TT (editable) */}
+                  {/* SL TT (editable) — Đã mua: vàng khi thu mua đổi soLuongThucTe khác KH */}
                   {(() => {
                     const bought = linkedPurchaseRequestId ? (purchasedByItem[nameKeyOf(row.tenSanPham)] ?? null) : null;
                     const already = alreadyByItem[nameKeyOf(row.tenSanPham)] ?? 0;
                     const remaining = bought !== null ? bought - already : null;
                     const over = remaining !== null && row.soLuong - remaining > 1e-9;
+                    const isPurchasedDiff = linkedPurchaseRequestId !== null && row.soLuongYeuCau != null && Math.abs(Number(row.soLuongYeuCau) - Number(row.soLuong)) > 1e-9;
+                    const borderCls = over ? 'border-red-400 bg-red-50' : isPurchasedDiff ? 'border-amber-400 bg-amber-50' : 'border-gray-300';
                     return (
                   <div className={hasKeHoachColumn ? 'col-span-4 sm:col-span-1 flex flex-col' : 'col-span-4 sm:col-span-1 flex flex-col'}>
-                    <label className="block text-xs font-medium text-gray-600 min-h-[16px] h-4 leading-4 mb-1">SL TT <span className="text-red-500">*</span></label>
-                    <input type="number" value={row.soLuong === 0 ? '' : row.soLuong} onChange={(event) => handleTotalChange(index, parseNumberInput(event.target.value))} min="0.01" step="0.01" required disabled={isSupplyBatch && !row.selected} className={`w-full h-[32px] px-2 py-1.5 border rounded text-sm bg-white disabled:bg-gray-100 text-center ${over ? 'border-red-400 bg-red-50' : 'border-gray-300'}`} />
+                    <label className="block text-xs font-medium text-gray-600 min-h-[16px] h-4 leading-4 mb-1">SL TT <span className="text-red-500">*</span>{isPurchasedDiff && <span className="ml-1 inline-flex px-1 py-0 rounded bg-amber-100 text-amber-700 border border-amber-200 text-[10px]">Đã mua đổi</span>}</label>
+                    <input type="number" value={row.soLuong === 0 ? '' : row.soLuong} onChange={(event) => handleTotalChange(index, parseNumberInput(event.target.value))} min="0.01" step="0.01" required disabled={isSupplyBatch && !row.selected} title={isPurchasedDiff ? `Thu mua đổi: KH ${row.soLuongYeuCau} → đã mua ${row.soLuong}` : undefined} className={`w-full h-[32px] px-2 py-1.5 border rounded text-sm bg-white disabled:bg-gray-100 text-center ${borderCls}`} />
                     <div className="mt-1 min-h-[16px] text-[11px] leading-none">
                       {remaining !== null ? (
                         over ? <span className="text-red-600 font-medium">Còn lại {remaining} — vượt {(row.soLuong - remaining).toFixed(2).replace(/\.00$/,'')}</span>
+                        : isPurchasedDiff ? <span className="text-amber-700">KH {row.soLuongYeuCau} → đã mua {bought} · Còn lại {remaining}</span>
                         : <span className="text-gray-500">Còn lại {remaining} / đã mua {bought}</span>
                       ) : null}
                     </div>
@@ -958,12 +961,14 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
                       const qty = Number(r.soLuong) || 0;
                       const over = remaining !== null && qty - remaining > 1e-9;
                       const under = remaining !== null && remaining - qty > 1e-9;
+                      const isDiff = r.soLuongYeuCau != null && Math.abs(Number(r.soLuongYeuCau) - Number(r.soLuong)) > 1e-9;
+                      const boughtDisp = isDiff ? qty : bought;
                       return (
-                        <tr key={i} className={`border-t ${over ? 'bg-red-50' : ''}`}>
+                        <tr key={i} className={`border-t ${over ? 'bg-red-50' : isDiff ? 'bg-amber-50' : ''}`}>
                           <td className="px-2 py-1.5">{i+1}</td>
-                          <td className="px-2 py-1.5 font-medium">{r.tenSanPham || '—'}</td>
+                          <td className="px-2 py-1.5 font-medium">{r.tenSanPham || '—'}{isDiff && <span className="ml-1 text-[10px] px-1 py-0 rounded bg-amber-100 text-amber-700 border border-amber-200">KH {r.soLuongYeuCau}→{qty}</span>}</td>
                           <td className="px-2 py-1.5 text-center">{r.donViTinh || '—'}</td>
-                          <td className="px-2 py-1.5 text-right">{bought !== null ? bought : '—'}</td>
+                          <td className={`px-2 py-1.5 text-right ${isDiff ? 'bg-amber-50 font-semibold text-amber-800' : ''}`}>{bought !== null ? boughtDisp : '—'}</td>
                           <td className="px-2 py-1.5 text-right">{bought !== null ? already : '—'}</td>
                           <td className={`px-2 py-1.5 text-right font-semibold ${over ? 'text-red-600' : ''}`}>{remaining !== null ? Math.max(0, remaining) : '—'}</td>
                           <td className={`px-2 py-1.5 text-right font-semibold ${over ? 'text-red-600' : ''}`}>{qty}</td>
