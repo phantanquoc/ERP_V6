@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, AlertTriangle, Package } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import supplyRequestService, { SUPPLY_MAX_FILES } from '../services/supplyRequestService';
 import { useAuth } from '../contexts/AuthContext';
@@ -202,10 +202,6 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
     }
   };
 
-  const hasLowStockWarning = items.some(row =>
-    row.stockInfo && row.soLuong > row.stockInfo.totalQuantity
-  );
-
   return (
     <ModalForm
       isOpen={isOpen}
@@ -241,15 +237,6 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
             </button>
           </div>
 
-          {hasLowStockWarning && (
-            <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
-              <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-              <p className="text-sm text-amber-800">
-                Một số hàng hóa có số lượng yêu cầu <strong>lớn hơn tồn kho hiện tại</strong>. Vui lòng kiểm tra lại.
-              </p>
-            </div>
-          )}
-
           <div className="space-y-3">
             {items.map((row, index) => {
               const hasStockWarning = row.stockInfo && row.soLuong > row.stockInfo.totalQuantity;
@@ -279,27 +266,6 @@ const SupplyRequestModal: React.FC<SupplyRequestModalProps> = ({ isOpen, onClose
                           allowCreate
                           placeholder="Tìm theo mã, tên hoặc loại hàng hóa, hoặc nhập tên mới..."
                         />
-                        {!row.internationalProductId && row.tenGoi && (
-                          <p className="mt-1.5 text-xs text-amber-700 flex items-center gap-1">
-                            <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-                            Chưa có trong danh mục hàng hóa — kho sẽ xem xét khi xử lý
-                          </p>
-                        )}
-                        {row.stockInfo && (
-                          <div className={`mt-1.5 flex items-center gap-1.5 text-xs ${
-                            hasStockWarning ? 'text-amber-700' : 'text-green-700'
-                          }`}>
-                            <Package className="h-3.5 w-3.5" />
-                            <span>
-                              Tồn kho: <strong>{row.stockInfo.totalQuantity} {row.stockInfo.unit}</strong>
-                            </span>
-                            {hasStockWarning && (
-                              <span className="text-amber-600 font-medium ml-1">
-                                (Yêu cầu vượt tồn!)
-                              </span>
-                            )}
-                          </div>
-                        )}
                       </div>
 
                       {/* Quantity + Unit */}
