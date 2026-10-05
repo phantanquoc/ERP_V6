@@ -975,6 +975,24 @@ class WarehouseReceiptService {
       }
     }
 
+    // BE fallback for Lo/Kien KH/ThucTe (ponytail: naive per-line fill; no cross-line dedup)
+    for (const line of effective as any[]) {
+      if (line.soLoKeHoach == null || (typeof line.soLoKeHoach === 'string' && line.soLoKeHoach.trim() === '')) {
+        const fb = line.soLoThucTe ?? line.tenLo;
+        if (fb != null && String(fb).trim() !== '') line.soLoKeHoach = String(fb);
+      }
+      if (line.soKienKeHoach == null || (typeof line.soKienKeHoach === 'string' && line.soKienKeHoach.trim() === '') || (Array.isArray(line.soKienKeHoach) && line.soKienKeHoach.length === 0)) {
+        const fb = line.soKienThucTe ?? line.maKien;
+        if (fb != null && !(Array.isArray(fb) && fb.length === 0) && String(Array.isArray(fb) ? (fb as any[]).join(',') : fb).trim() !== '') line.soKienKeHoach = fb;
+      }
+      if (line.soLoThucTe == null || (typeof line.soLoThucTe === 'string' && line.soLoThucTe.trim() === '')) {
+        if (line.tenLo != null && String(line.tenLo).trim() !== '') line.soLoThucTe = String(line.tenLo);
+      }
+      if (line.soKienThucTe == null || (typeof line.soKienThucTe === 'string' && line.soKienThucTe.trim() === '') || (Array.isArray(line.soKienThucTe) && line.soKienThucTe.length === 0)) {
+        if (line.maKien != null && String(line.maKien).trim() !== '') line.soKienThucTe = String(line.maKien);
+      }
+    }
+
     await this.validateFreeTextFields(tx, effective, normalized.boPhan as string | undefined);
 
     const resolved = await this.resolveLines(tx, effective);

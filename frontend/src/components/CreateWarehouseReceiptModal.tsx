@@ -617,11 +617,14 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
               })();
           return kienIds.map((kid, i) => {
             const lp = row.lotProducts.find((p) => p.id === kid);
+            const tenLoResolved = (warehouses.find((w) => w.id === row.warehouseId)?.lots?.find((l) => l.id === (lp?.lotId ?? row.lotId))?.tenLo) ?? lot?.tenLo ?? '';
+            const maKienResolved = lp?.maKien ?? '';
             return {
               lotProductId: kid,
               tenSanPham: lp?.internationalProduct?.tenSanPham || row.tenSanPham,
               warehouseId: row.warehouseId, tenKho: warehouse?.tenKho || '', lotId: lp?.lotId ?? row.lotId,
-              tenLo: (warehouses.find((w) => w.id === row.warehouseId)?.lots?.find((l) => l.id === (lp?.lotId ?? row.lotId))?.tenLo) ?? lot?.tenLo ?? '',
+              tenLo: tenLoResolved, soLoKeHoach: tenLoResolved, soLoThucTe: tenLoResolved,
+              soKienKeHoach: maKienResolved, soKienThucTe: maKienResolved,
               soLuongYeuCau: perKienKH[i], soLuongThucTe: perKien[i],
               donViTinh: lp?.donViTinh || row.donViTinh, ghiChu: row.ghiChu,
               tinhTrang: tinhTrangVal || undefined, quyCach: row.quyCach || undefined,
@@ -629,11 +632,14 @@ const CreateWarehouseReceiptModal: React.FC<CreateWarehouseReceiptModalProps> = 
           });
         }
         const lotProduct = row.lotProducts.find((candidate) => candidate.id === row.lotProductId);
+        const tenLoResolved = lot?.tenLo ?? '';
+        const singleMaKien = lotProduct?.maKien ?? (row.selectedKienIds[0] ? (row.lotProducts.find((p) => p.id === row.selectedKienIds[0])?.maKien ?? '') : '');
         return [{
           lotProductId: row.lotProductId || undefined,
           tenSanPham: lotProduct?.internationalProduct?.tenSanPham || row.tenSanPham,
           warehouseId: row.warehouseId, tenKho: warehouse?.tenKho || '', lotId: row.lotId,
-          tenLo: lot?.tenLo || '',
+          tenLo: tenLoResolved, soLoKeHoach: tenLoResolved, soLoThucTe: tenLoResolved,
+          soKienKeHoach: singleMaKien, soKienThucTe: singleMaKien,
           soLuongYeuCau: (row.soLuongYeuCau ?? 0) > 0 ? row.soLuongYeuCau : row.soLuong,
           soLuongThucTe: row.soLuong,
           donViTinh: lotProduct?.donViTinh || row.donViTinh, ghiChu: row.ghiChu,

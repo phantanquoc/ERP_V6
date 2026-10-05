@@ -630,6 +630,13 @@ class WarehouseIssueService {
       if (!plan) throw new NotFoundError('Kế hoạch không tồn tại');
     }
     const items = this.assertLinesPresent(rawItems);
+    for (const it of items) {
+      const anyIt = it as any;
+      if (it.soLoKeHoach == null || it.soLoKeHoach === '') it.soLoKeHoach = (it.soLoThucTe as string) ?? it.tenLo ?? undefined;
+      if (it.soKienKeHoach == null || it.soKienKeHoach === '' || (Array.isArray(it.soKienKeHoach) && it.soKienKeHoach.length === 0)) it.soKienKeHoach = (it.soKienThucTe as any) ?? (anyIt.maKien != null ? String(anyIt.maKien) : undefined) ?? undefined;
+      if (it.soLoThucTe == null || it.soLoThucTe === '') it.soLoThucTe = (it.soLoKeHoach as string) ?? it.tenLo ?? undefined;
+      if (it.soKienThucTe == null || it.soKienThucTe === '' || (Array.isArray(it.soKienThucTe) && it.soKienThucTe.length === 0)) it.soKienThucTe = (it.soKienKeHoach as any) ?? (anyIt.maKien != null ? String(anyIt.maKien) : undefined) ?? undefined;
+    }
     await this.fillHeaderFromSupplyRequest(tx, normalized);
     await this.deriveSoLoThucTeFromKien(tx, items);
     const lotProductIds = items.map((line) => line.lotProductId);
