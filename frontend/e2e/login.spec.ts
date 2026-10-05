@@ -13,7 +13,7 @@ test.describe('Login', () => {
 
     // Fill credentials and submit
     await page.locator('input').first().fill('admin@example.com');
-    await page.locator('input[type=password]').fill('admin123');
+    await page.locator('input[type=password]').fill('Anbinh@58');
     await page.getByRole('button').filter({ hasText: 'Đăng nhập' }).click();
 
     // Wait for redirect to dashboard
