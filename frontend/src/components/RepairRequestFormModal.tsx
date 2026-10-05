@@ -408,6 +408,7 @@ const RepairRequestFormModal = ({
   const viewStatus = String((record as unknown as { trangThai?: string })?.trangThai ?? '');
   const viewKetLuanStr = String((record as unknown as { ketLuan?: string })?.ketLuan ?? '');
   const [viewHistoryOpen, setViewHistoryOpen] = useState(false);
+  const [historyTab, setHistoryTab] = useState<'handover'|'status'>('handover');
   const [viewCancelOpen, setViewCancelOpen] = useState(false);
   const [viewCancelMode, setViewCancelMode] = useState<'cancel'|'reject'>('cancel');
   const [viewCancelReason, setViewCancelReason] = useState('');
@@ -1294,15 +1295,17 @@ const RepairRequestFormModal = ({
         maxWidth="5xl"
         footer={isView ? viewFooter : <ModalFooter onClose={onClose} onSubmit={() => formRefSubmit()} submitLabel={record ? 'Lưu' : 'Tạo yêu cầu'} isLoading={isSaving} />}
       >
-      <form ref={formRef} id={formDomId} onSubmit={save} className="space-y-3 text-sm">
+      <form ref={formRef} id={formDomId} onSubmit={save} className="space-y-2.5 text-sm">
         {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-700">{error}</div>}
 
-        {/* P1: status + priority badges in read-only view */}
-        {isView && (statusEntry || record?.maYeuCau) && (
-          <div className="flex flex-wrap items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-            {record?.maYeuCau && <span className="font-mono text-xs font-medium text-gray-700">{record.maYeuCau}</span>}
-            {statusEntry && <StatusBadge label={statusEntry.label} tone={statusEntry.tone as BadgeTone} />}
-            <StatusBadge label={form.mucDoUuTien} tone={PRIORITY_TONE[form.mucDoUuTien] ?? 'gray'} />
+        {/* 1C: merged sticky header A+C+D */}
+        {isView && (
+          <div className="sticky top-0 z-10 -mx-1 flex flex-wrap items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs">
+            {record?.maYeuCau && <span className="font-mono text-[11px] font-semibold text-gray-800">{record.maYeuCau}</span>}
+            {statusEntry && <StatusBadge label={statusEntry.label} tone={statusEntry.tone as BadgeTone} size="sm" />}
+            <StatusBadge label={form.mucDoUuTien} tone={PRIORITY_TONE[form.mucDoUuTien] ?? 'gray'} size="sm" />
+            <span className="text-gray-500 tabular-nums">{formatDateVN((record as unknown as { ngayThang?: string })?.ngayThang || (record as unknown as { createdAt?: string })?.createdAt || form.ngayThang)}</span>
+            {record?.createdByName && <span className="text-gray-600">Người yêu cầu: <span className="font-medium text-gray-800">{record.createdByName}</span></span>}
           </div>
         )}
 
@@ -1324,16 +1327,16 @@ const RepairRequestFormModal = ({
           const currentIndex = steps.findIndex((s) => s.key === viewStatus);
           const branchLabelMap: Record<string, string> = { TU_CHOI: 'Từ chối', DA_HUY: 'Đã hủy' };
           return (
-            <div className="rounded-lg border border-gray-200 bg-white px-3 py-3">
+            <div className="rounded-lg border border-gray-200 bg-white px-2.5 py-2">
               {isBranch && (
-                <div className="mb-2 flex items-center gap-2">
-                  <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700 border border-red-200">
+                <div className="mb-1.5 flex items-center gap-2">
+                  <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700 border border-red-200">
                     {branchLabelMap[viewStatus] ?? viewStatus}
                   </span>
-                  <span className="text-xs text-gray-500">nhánh rẽ — không nằm trong luồng chính</span>
+                  <span className="text-xs text-gray-500">nhánh rẽ</span>
                 </div>
               )}
-              <div className="flex items-start gap-0 overflow-x-auto pb-1">
+              <div className="flex items-start gap-0 overflow-x-auto">
                 {steps.map((step, idx) => {
                   const isPast = currentIndex !== -1 && idx < currentIndex;
                   const isCurrent = idx === currentIndex && !isBranch;
@@ -1348,15 +1351,15 @@ const RepairRequestFormModal = ({
                   return (
                     <div key={step.key} className="flex flex-1 items-start">
                       <div className="flex flex-col items-center min-w-0 flex-1">
-                        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold transition-colors ${circleCls}`}>
+                        <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold transition-colors ${circleCls}`}>
                           {isPast ? '✓' : idx + 1}
                         </span>
-                        <span className={`mt-1.5 text-center text-[11px] leading-tight font-medium break-words ${isCurrent ? 'text-blue-700' : isPast ? 'text-green-700' : 'text-gray-500'}`}>
+                        <span className={`mt-1 text-center text-[10px] leading-tight font-medium break-words ${isCurrent ? 'text-blue-700' : isPast ? 'text-green-700' : 'text-gray-500'}`}>
                           {step.label}
                         </span>
                       </div>
                       {idx < steps.length - 1 && (
-                        <div className={`mt-3.5 h-0.5 flex-1 min-w-[12px] mx-1 rounded ${lineCls}`} aria-hidden />
+                        <div className={`mt-3 h-0.5 flex-1 min-w-[8px] mx-0.5 rounded ${lineCls}`} aria-hidden />
                       )}
                     </div>
                   );
@@ -1366,67 +1369,65 @@ const RepairRequestFormModal = ({
           );
         })()}
 
+        {!isView && (
         <div className={`grid gap-2 ${hideCodeField ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
           <FormField label="Ngày" required>
-            <input required type="date" disabled={isView} value={form.ngayThang} onChange={(event) => setForm((value) => ({ ...value, ngayThang: event.target.value }))} className={`${inputCls()} min-h-[44px] disabled:bg-gray-50`} />
+            <input required type="date" value={form.ngayThang} onChange={(event) => setForm((value) => ({ ...value, ngayThang: event.target.value }))} className={`${inputCls()} min-h-[44px]`} />
           </FormField>
           {!hideCodeField && (
             <FormField label="Mã yêu cầu" required>
-              <input required disabled={isView || !!record} value={form.maYeuCau} onChange={(event) => setForm((value) => ({ ...value, maYeuCau: event.target.value }))} className={`${inputCls()} min-h-[44px] disabled:bg-gray-50`} />
+              <input required disabled={!!record} value={form.maYeuCau} onChange={(event) => setForm((value) => ({ ...value, maYeuCau: event.target.value }))} className={`${inputCls()} min-h-[44px] disabled:bg-gray-50`} />
             </FormField>
           )}
           <FormField label="Ưu tiên" required>
-            <select disabled={isView} value={form.mucDoUuTien} onChange={(event) => setForm((value) => ({ ...value, mucDoUuTien: event.target.value }))} className={`${selectCls()} min-h-[44px] disabled:bg-gray-50`}>{PRIORITIES.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+            <select value={form.mucDoUuTien} onChange={(event) => setForm((value) => ({ ...value, mucDoUuTien: event.target.value }))} className={`${selectCls()} min-h-[44px]`}>{PRIORITIES.map((item) => <option key={item} value={item}>{item}</option>)}</select>
           </FormField>
         </div>
-
-        {isView && record?.createdByName && (
-          <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2">
-            <span className="text-xs font-medium text-blue-700">Người yêu cầu: </span>
-            <span className="text-sm font-medium text-blue-900">{record.createdByName}</span>
-          </div>
         )}
 
         <div className="rounded-lg border border-gray-200">
-          <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-3 py-1.5">
-            <div className="flex items-center gap-2 font-medium text-gray-800"><Wrench className="h-4 w-4" /> Thiết bị lỗi</div>
+          <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-2.5 py-1">
+            <div className="flex items-center gap-2 font-medium text-gray-800 text-sm"><Wrench className="h-4 w-4" /> Thiết bị lỗi <span className="text-xs font-normal text-gray-500">({items.length})</span></div>
             {!isView && <button type="button" onClick={() => setItems((value) => [...value, emptyItem(lockedSystemIdStr)])} title="Thêm thiết bị" aria-label="Thêm thiết bị" className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors min-h-[44px]"><Plus className="h-4 w-4" /> Thêm thiết bị</button>}
           </div>
+          {isView ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead><tr className="bg-gray-50 text-left text-[11px] font-medium text-gray-500 border-b"><th className="px-2 py-1 w-6">#</th><th className="px-2 py-1">Hệ thống / Chi tiết</th><th className="px-2 py-1">Vị trí</th><th className="px-2 py-1">Loại lỗi</th><th className="px-2 py-1">Nội dung</th><th className="px-2 py-1">Lỗi liên quan</th></tr></thead>
+                <tbody className="divide-y divide-gray-100">
+                  {items.map((item, index) => {
+                    const sysLabel = item.machineSystem ? `${item.machineSystem.maHeThong} - ${item.machineSystem.tenHeThong}` : item.tenHeThong || '—';
+                    const detailLabel = item.machineSystemDetail ? `${item.machineSystemDetail.maChiTiet} - ${item.machineSystemDetail.tenChiTiet}` : '';
+                    const dotCls = item.loaiLoi === 'Lỗi lặp lại' ? 'bg-amber-400' : item.loaiLoi === 'Lỗi mới' ? 'bg-red-400' : 'bg-gray-300';
+                    return (
+                      <tr key={item.id ?? index} className="hover:bg-gray-50/60">
+                        <td className="px-2 py-1 text-center"><span className={`inline-block h-2 w-2 rounded-full ${dotCls} mr-1 align-middle`} />{index + 1}</td>
+                        <td className="px-2 py-1 max-w-[180px]"><span className="line-clamp-2 text-gray-800" title={`${sysLabel}${detailLabel ? ' / ' + detailLabel : ''}`}>{sysLabel}{detailLabel ? ` / ${detailLabel}` : ''}</span></td>
+                        <td className="px-2 py-1 max-w-[120px]"><span className="line-clamp-2 text-gray-700" title={item.tinhTrangThietBi}>{item.tinhTrangThietBi || '—'}</span></td>
+                        <td className="px-2 py-1 whitespace-nowrap text-gray-700">{item.loaiLoi || '—'}</td>
+                        <td className="px-2 py-1 max-w-[180px]"><span className="line-clamp-2 text-gray-700" title={item.noiDungLoi}>{item.noiDungLoi || '—'}</span></td>
+                        <td className="px-2 py-1"><FaultRecordTypeaheadCell value={item.faultRecordSearch ?? ''} faultRecordId={item.faultRecordId ?? null} disabled onSelect={() => {}} /></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
           <div className="space-y-2 p-2.5">
             {items.map((item, index) => {
               const itemDetails = detailOptions.filter((detail) => !hasSystemPicked(item) || detail.machineSystemId === item.machineSystemId);
               const manual = isManualEntry(item);
               const picked = hasSystemPicked(item);
-              const systemDropdownValue = !isView && !picked && !manual ? '' : (item.machineSystemId ?? '');
+              const systemDropdownValue = !picked && !manual ? '' : (item.machineSystemId ?? '');
               return (
-                <div key={item.id ?? index} className={`rounded-lg border border-gray-200 bg-gray-50/50 p-3 border-l-4 ${item.loaiLoi === 'Lỗi lặp lại' ? 'border-l-amber-400' : item.loaiLoi === 'Lỗi mới' ? 'border-l-red-400' : 'border-l-gray-300'}`}>
+                <div key={item.id ?? index} className={`rounded-lg border border-gray-200 bg-gray-50/50 p-2.5 border-l-4 ${item.loaiLoi === 'Lỗi lặp lại' ? 'border-l-amber-400' : item.loaiLoi === 'Lỗi mới' ? 'border-l-red-400' : 'border-l-gray-300'}`}>
                   <div className="flex items-start gap-2">
                     <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-semibold text-sm shrink-0 mt-1">
                       {index + 1}
                     </div>
                     <div className="flex-1">
                       <div className="grid gap-2 md:grid-cols-2">
-                        {isView ? (
-                          <>
-                            <div className="space-y-1 md:col-span-2">
-                              <span className="text-xs font-medium text-gray-600">Hệ thống</span>
-                              <div className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5 text-sm text-gray-800">
-                                {item.machineSystem
-                                  ? `${item.machineSystem.maHeThong} - ${item.machineSystem.tenHeThong}`
-                                  : item.tenHeThong || '—'}
-                              </div>
-                            </div>
-                            {item.machineSystemDetail && (
-                              <div className="space-y-1 md:col-span-2">
-                                <span className="text-xs font-medium text-gray-600">Chi tiết máy</span>
-                                <div className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5 text-sm text-gray-800">
-                                  {`${item.machineSystemDetail.maChiTiet} - ${item.machineSystemDetail.tenChiTiet}`}
-                                </div>
-                              </div>
-                            )}
-                          </>
-                        ) : (
-                          <>
                             <div className="md:col-span-2">
                               <FormField label="Hệ thống" required>
                                 <MachineSystemCombobox
@@ -1455,8 +1456,6 @@ const RepairRequestFormModal = ({
                                 </FormField>
                               </div>
                             )}
-                          </>
-                        )}
                         <FormField label="Vị trí / khu vực" required hint={isView ? undefined : picked && locationOf(item.machineSystemId, item.machineSystemDetailId) ? 'Tự điền từ danh mục hệ thống — có thể sửa' : 'VD: Khu B, tầng 2, dây chuyền 3'}>
                           <input required disabled={isView} placeholder="VD: Khu B, tầng 2" value={item.tinhTrangThietBi} onChange={(event) => patchItem(index, { tinhTrangThietBi: event.target.value })} className={`${inputCls()} min-h-[44px] text-sm disabled:bg-gray-50`} />
                         </FormField>
@@ -1486,7 +1485,7 @@ const RepairRequestFormModal = ({
                         </div>
                       </div>
                     </div>
-                    {!isView && items.length > 1 && (
+                    {items.length > 1 && (
                       <button
                         type="button"
                         title="Xóa thiết bị"
@@ -1503,6 +1502,7 @@ const RepairRequestFormModal = ({
             })}
           </div>
         </div>
+          )}
 
         {showAssigneeAndMaterial && (
           <>
@@ -1664,7 +1664,7 @@ const RepairRequestFormModal = ({
           </>
         )}
 
-        {/* ===== READ-ONLY blocks for view YCSC (4B) — only when viewing a repair record ===== */}
+        {/* ===== READ-ONLY blocks for view YCSC — grid 3B ===== */}
         {isView && !effectiveIsKiemTra && (() => {
           const r = record as RepairRequest | null | undefined;
           const keHoachChiTiet = String((r as unknown as Record<string, unknown> | null)?.keHoachChiTiet ?? '').trim();
@@ -1681,9 +1681,12 @@ const RepairRequestFormModal = ({
             return formatDateVN(v);
           };
           return (
-            <>
+            <div className="grid gap-3 lg:grid-cols-[2fr_1fr]">
+              <div className="space-y-2.5 min-w-0">
+
+              <div className="grid gap-3 md:grid-cols-2">
               {/* Block: Kế hoạch */}
-              <div className="rounded-lg border border-gray-200 bg-white p-3 space-y-2">
+              <div className="rounded-lg border border-gray-200 bg-white p-2.5 space-y-2">
                 <h4 className="text-sm font-semibold text-gray-800">Kế hoạch</h4>
                 <div className="space-y-2 text-sm">
                   <div><span className="text-xs font-medium text-gray-500">Kế hoạch chi tiết: </span><span className="text-gray-800 whitespace-pre-wrap">{keHoachChiTiet || '—'}</span></div>
@@ -1698,33 +1701,14 @@ const RepairRequestFormModal = ({
               </div>
 
               {/* A3: Chi phí dự kiến (từ YCCC đầu) */}
-              <div className="rounded-lg border border-gray-200 bg-white p-3">
+              <div className="rounded-lg border border-gray-200 bg-white p-2.5">
                 <h4 className="text-sm font-semibold text-gray-800">Chi phí dự kiến (từ YCCC đầu)</h4>
                 <p className="mt-1 text-sm">{(r as unknown as { chiPhiDuKien?: number | null })?.chiPhiDuKien != null ? <span className="font-semibold text-gray-900">{formatVND(Number((r as unknown as { chiPhiDuKien: number }).chiPhiDuKien))}</span> : <span className="text-gray-400">Chưa có YCCC</span>}</p>
               </div>
-
-              {/* Block: Người phụ trách */}
-              <div className="rounded-lg border border-gray-200 bg-white p-3 space-y-2">
-                <h4 className="text-sm font-semibold text-gray-800">Người phụ trách</h4>
-                {assigneesRO.length === 0 ? (
-                  <p className="text-xs text-gray-400">Chưa phân công.</p>
-                ) : (
-                  <ul className="space-y-1.5">
-                    {assigneesRO.map((a) => (
-                      <li key={a.id} className="flex items-center gap-2 rounded border border-gray-100 bg-gray-50 px-2.5 py-2">
-                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">
-                          {(a.userName ?? '?').trim().charAt(0).toUpperCase() || '?'}
-                        </span>
-                        <span className="flex-1 text-sm font-medium text-gray-800 truncate">{a.userName ?? a.userId ?? '—'}</span>
-                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium shrink-0 ${a.isLead || a.vaiTro === 'CHINH' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600'}`}>{a.isLead || a.vaiTro === 'CHINH' ? 'CHÍNH' : 'PHỤ'}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
               </div>
 
               {/* Block: YCCC chain — hydrate supplyChain via useRepairSupplyChain */}
-              <div className="rounded-lg border border-gray-200 bg-white p-3 space-y-2">
+              <div className="rounded-lg border border-gray-200 bg-white p-2.5 space-y-2">
                 <div className="border-b -mx-3 -mt-3 mb-2 bg-gray-50 px-3 py-1.5">
                   <h4 className="text-sm font-semibold text-gray-800">Yêu cầu cung cấp (YCCC)</h4>
                 </div>
@@ -1787,6 +1771,69 @@ const RepairRequestFormModal = ({
                 )}
               </div>
 
+
+              {/* C2: Chi phí phát sinh */}
+              <div className="rounded-lg border border-gray-200 bg-white p-2.5 space-y-2">
+                <h4 className="text-sm font-semibold text-gray-800">Chi phí phát sinh</h4>
+                <div className="overflow-x-auto rounded border border-gray-200">
+                  <table className="w-full text-sm">
+                    <thead><tr className="bg-gray-50 text-left text-xs text-gray-500"><th className="px-2 py-1.5">Tên khoản</th><th className="px-2 py-1.5 w-28">Số tiền</th><th className="px-2 py-1.5">Lý do *</th><th className="px-2 py-1.5 w-24">File</th><th className="px-1 py-1.5 w-12"></th></tr></thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {incidentalCosts.map((row) => (
+                        <tr key={row.id}>
+                          {incEditId === row.id ? (
+                            <>
+                              <td className="px-1.5 py-1"><input value={incEdit.tenKhoan} onChange={e=>setIncEdit(s=>({...s, tenKhoan:e.target.value}))} className="w-full rounded border px-2 py-1 text-sm" /></td>
+                              <td className="px-1.5 py-1"><input inputMode="numeric" value={incEdit.soTien ? formatNum(incEdit.soTien) : ''} onChange={e=>{ const v=e.target.value.replace(/[^\d]/g,''); setIncEdit(s=>({...s, soTien: v})); }} className={vndInputCls} /></td>
+                              <td className="px-1.5 py-1"><input value={incEdit.lyDo} onChange={e=>setIncEdit(s=>({...s, lyDo:e.target.value}))} className="w-full rounded border px-2 py-1 text-sm" /></td>
+                              <td className="px-1.5 py-1"><div className="flex items-center gap-1"><input value={incEdit.fileMinhChung ?? ''} onChange={e=>setIncEdit(s=>({...s, fileMinhChung:e.target.value}))} className="w-full rounded border px-2 py-1 text-xs flex-1 min-w-0" placeholder="URL" /><label className="shrink-0 inline-flex items-center justify-center h-6 w-6 rounded border bg-white hover:bg-gray-50 cursor-pointer" title="Chọn file"><input type="file" className="hidden" onChange={async e=>{ const f=e.target.files?.[0]; if(!f) return; try{ const fd=new FormData(); fd.append('file', f); const res=await fetch('/api/upload', { method:'POST', body: fd, headers:{ Authorization:`Bearer ${localStorage.getItem('accessToken')||''}` }}); const j=await res.json(); const url=j?.data?.url || j?.url || URL.createObjectURL(f); setIncEdit(s=>({...s, fileMinhChung: url})); } catch{ setIncEdit(s=>({...s, fileMinhChung: f.name})); } }} /><span className="text-[11px]">📎</span></label></div></td>
+                              <td className="px-1 py-1 flex gap-1"><button onClick={async()=>{ if(!ycscIdForChain) return; const soTien=Number(incEdit.soTien); if(!Number.isFinite(soTien)||soTien<0){ toast.error('Số tiền phải >=0'); return; } if(!incEdit.lyDo.trim()){ toast.error('Lý do bắt buộc'); return; } try{ await updateIncidental.mutateAsync({ id: ycscIdForChain, costId: row.id, payload: { tenKhoan: incEdit.tenKhoan.trim()||row.tenKhoan, soTien, lyDo: incEdit.lyDo.trim(), fileMinhChung: incEdit.fileMinhChung||null } as never }); toast.success('Đã cập nhật'); setIncEditId(null);}catch(e){ toast.error(e instanceof Error?e.message:'Lỗi cập nhật'); } }} className="text-blue-600 text-xs">Lưu</button><button onClick={()=>setIncEditId(null)} className="text-gray-500 text-xs">Hủy</button></td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="px-2 py-1.5">{row.tenKhoan}</td>
+                              <td className="px-2 py-1.5 text-right">{formatVND(Number(row.soTien))}</td>
+                              <td className="px-2 py-1.5 text-xs">{row.lyDo}</td>
+                              <td className="px-2 py-1.5 text-xs truncate max-w-[120px]">{row.fileMinhChung ? <a href={row.fileMinhChung} target="_blank" rel="noreferrer" className="text-blue-600 underline">Xem</a> : '—'}</td>
+                              <td className="px-1 py-1 text-right flex gap-1 justify-end"><button onClick={()=>{ setIncEditId(row.id); setIncEdit({ tenKhoan: row.tenKhoan, soTien: String(row.soTien), lyDo: row.lyDo, fileMinhChung: row.fileMinhChung ?? '' }); }} className="text-blue-600 text-xs">Sửa</button><button onClick={async()=>{ if(!confirm('Xóa khoản này?')) return; try{ await deleteIncidental.mutateAsync({ id: ycscIdForChain as string, costId: row.id }); toast.success('Đã xóa'); }catch(e){ toast.error(e instanceof Error?e.message:'Lỗi xóa'); } }} className="text-red-500 text-xs">Xóa</button></td>
+                            </>
+                          )}
+                        </tr>
+                      ))}
+                      <tr className="bg-gray-50/50">
+                        <td className="px-1.5 py-1"><input placeholder="Tên khoản" value={incForm.tenKhoan} onChange={e=>setIncForm(s=>({...s, tenKhoan:e.target.value}))} className="w-full rounded border px-2 py-1.5 text-sm" /></td>
+                        <td className="px-1.5 py-1"><input inputMode="numeric" placeholder="0" value={incForm.soTien ? formatNum(incForm.soTien) : ''} onChange={e=>{ const v=e.target.value.replace(/[^\d]/g,''); setIncForm(s=>({...s, soTien: v})); }} className={vndInputCls + ' py-1.5'} /></td>
+                        <td className="px-1.5 py-1"><input placeholder="Lý do *" value={incForm.lyDo} onChange={e=>setIncForm(s=>({...s, lyDo:e.target.value}))} className="w-full rounded border px-2 py-1.5 text-sm" /></td>
+                        <td className="px-1.5 py-1"><div className="flex items-center gap-1"><input placeholder="URL / chọn file" value={incForm.fileMinhChung} onChange={e=>setIncForm(s=>({...s, fileMinhChung:e.target.value}))} className="w-full rounded border px-2 py-1 text-xs flex-1 min-w-0" /><label className="shrink-0 inline-flex items-center justify-center h-6 w-6 rounded border bg-white hover:bg-gray-50 cursor-pointer" title="Chọn file"><input type="file" className="hidden" onChange={async e=>{ const f=e.target.files?.[0]; if(!f) return; try{ const fd=new FormData(); fd.append('file', f); const res=await fetch('/api/upload', { method:'POST', body: fd, headers:{ Authorization:`Bearer ${localStorage.getItem('accessToken')||''}` }}); const j=await res.json(); const url=j?.data?.url || j?.url || URL.createObjectURL(f); setIncForm(s=>({...s, fileMinhChung: url})); } catch{ setIncForm(s=>({...s, fileMinhChung: f.name})); } }} /><span className="text-[11px]">📎</span></label></div></td>
+                        <td className="px-1 py-1"><button onClick={async()=>{ if(!ycscIdForChain) return; const soTien=Number(incForm.soTien); if(!incForm.tenKhoan.trim()){ toast.error('Tên khoản bắt buộc'); return; } if(!Number.isFinite(soTien)||soTien<0){ toast.error('Số tiền phải >=0'); return; } if(!incForm.lyDo.trim()){ toast.error('Lý do bắt buộc'); return; } try{ await createIncidental.mutateAsync({ id: ycscIdForChain, payload: { tenKhoan: incForm.tenKhoan.trim(), soTien, lyDo: incForm.lyDo.trim(), fileMinhChung: incForm.fileMinhChung||null } as never }); toast.success('Đã thêm'); setIncForm({ tenKhoan:'', soTien:'', lyDo:'', fileMinhChung:'' }); }catch(e){ toast.error(e instanceof Error?e.message:'Lỗi thêm'); } }} className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white">Thêm</button></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-[11px] text-gray-400">soTien ≥0, lyDo bắt buộc. Tổng được cộng vào Thực tế.</p>
+              </div>
+              </div>
+              <div className="space-y-2.5 min-w-0">
+              {/* Block: Người phụ trách */}
+              <div className="rounded-lg border border-gray-200 bg-white p-2.5 space-y-2">
+                <h4 className="text-sm font-semibold text-gray-800">Người phụ trách</h4>
+                {assigneesRO.length === 0 ? (
+                  <p className="text-xs text-gray-400">Chưa phân công.</p>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {assigneesRO.map((a) => (
+                      <li key={a.id} className="flex items-center gap-2 rounded border border-gray-100 bg-gray-50 px-2.5 py-2">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[11px] font-semibold text-blue-700">
+                          {(a.userName ?? '?').trim().charAt(0).toUpperCase() || '?'}
+                        </span>
+                        <span className="flex-1 text-sm font-medium text-gray-800 truncate">{a.userName ?? a.userId ?? '—'}</span>
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium shrink-0 ${a.isLead || a.vaiTro === 'CHINH' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600'}`}>{a.isLead || a.vaiTro === 'CHINH' ? 'CHÍNH' : 'PHỤ'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
               {/* B3: Cost summary — Dự kiến | Thực tế | Chênh lệch + null-price banner */}
               {(() => {
                 const cs = (ycscCostQ.data as unknown as { data?: { duKien: number | null; thucTe: number; chenhLech: number | null; incidentalTotal: number; itemsWithNullPrice: { tenGoi: string }[] } })?.data ?? null;
@@ -1796,7 +1843,7 @@ const RepairRequestFormModal = ({
                 const nullItems: { tenGoi: string }[] = cs?.itemsWithNullPrice ?? [];
                 const hasNull = nullItems.length > 0;
                 return (
-                  <div className="rounded-lg border border-gray-200 bg-white p-3 space-y-2">
+                  <div className="rounded-lg border border-gray-200 bg-white p-2.5 space-y-2">
                     <h4 className="text-sm font-semibold text-gray-800">Tổng hợp chi phí</h4>
                     {hasNull && (
                       <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -1841,7 +1888,7 @@ const RepairRequestFormModal = ({
                 </div>
               )}
               {viewStatus === 'HOAN_THANH' && (
-                <div className="rounded-lg border border-gray-200 bg-white p-3 space-y-2">
+                <div className="rounded-lg border border-gray-200 bg-white p-2.5 space-y-2">
                   <h4 className="text-sm font-semibold text-gray-800">Thông tin thực tế</h4>
                   <div className="grid gap-2 text-sm md:grid-cols-3">
                     <div><span className="text-xs font-medium text-gray-500">Chi phí thực tế: </span><span className="text-gray-800">{actualForm.chiPhiThucTe ? formatVND(Number(actualForm.chiPhiThucTe)) : '—'}</span></div>
@@ -1852,56 +1899,22 @@ const RepairRequestFormModal = ({
                 </div>
               )}
 
-              {/* C2: Chi phí phát sinh */}
-              <div className="rounded-lg border border-gray-200 bg-white p-3 space-y-2">
-                <h4 className="text-sm font-semibold text-gray-800">Chi phí phát sinh</h4>
-                <div className="overflow-x-auto rounded border border-gray-200">
-                  <table className="w-full text-sm">
-                    <thead><tr className="bg-gray-50 text-left text-xs text-gray-500"><th className="px-2 py-1.5">Tên khoản</th><th className="px-2 py-1.5 w-28">Số tiền</th><th className="px-2 py-1.5">Lý do *</th><th className="px-2 py-1.5 w-24">File</th><th className="px-1 py-1.5 w-12"></th></tr></thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {incidentalCosts.map((row) => (
-                        <tr key={row.id}>
-                          {incEditId === row.id ? (
-                            <>
-                              <td className="px-1.5 py-1"><input value={incEdit.tenKhoan} onChange={e=>setIncEdit(s=>({...s, tenKhoan:e.target.value}))} className="w-full rounded border px-2 py-1 text-sm" /></td>
-                              <td className="px-1.5 py-1"><input inputMode="numeric" value={incEdit.soTien ? formatNum(incEdit.soTien) : ''} onChange={e=>{ const v=e.target.value.replace(/[^\d]/g,''); setIncEdit(s=>({...s, soTien: v})); }} className={vndInputCls} /></td>
-                              <td className="px-1.5 py-1"><input value={incEdit.lyDo} onChange={e=>setIncEdit(s=>({...s, lyDo:e.target.value}))} className="w-full rounded border px-2 py-1 text-sm" /></td>
-                              <td className="px-1.5 py-1"><div className="flex items-center gap-1"><input value={incEdit.fileMinhChung ?? ''} onChange={e=>setIncEdit(s=>({...s, fileMinhChung:e.target.value}))} className="w-full rounded border px-2 py-1 text-xs flex-1 min-w-0" placeholder="URL" /><label className="shrink-0 inline-flex items-center justify-center h-7 w-7 rounded border bg-white hover:bg-gray-50 cursor-pointer" title="Chọn file"><input type="file" className="hidden" onChange={async e=>{ const f=e.target.files?.[0]; if(!f) return; try{ const fd=new FormData(); fd.append('file', f); const res=await fetch('/api/upload', { method:'POST', body: fd, headers:{ Authorization:`Bearer ${localStorage.getItem('accessToken')||''}` }}); const j=await res.json(); const url=j?.data?.url || j?.url || URL.createObjectURL(f); setIncEdit(s=>({...s, fileMinhChung: url})); } catch{ setIncEdit(s=>({...s, fileMinhChung: f.name})); } }} /><span className="text-[11px]">📎</span></label></div></td>
-                              <td className="px-1 py-1 flex gap-1"><button onClick={async()=>{ if(!ycscIdForChain) return; const soTien=Number(incEdit.soTien); if(!Number.isFinite(soTien)||soTien<0){ toast.error('Số tiền phải >=0'); return; } if(!incEdit.lyDo.trim()){ toast.error('Lý do bắt buộc'); return; } try{ await updateIncidental.mutateAsync({ id: ycscIdForChain, costId: row.id, payload: { tenKhoan: incEdit.tenKhoan.trim()||row.tenKhoan, soTien, lyDo: incEdit.lyDo.trim(), fileMinhChung: incEdit.fileMinhChung||null } as never }); toast.success('Đã cập nhật'); setIncEditId(null);}catch(e){ toast.error(e instanceof Error?e.message:'Lỗi cập nhật'); } }} className="text-blue-600 text-xs">Lưu</button><button onClick={()=>setIncEditId(null)} className="text-gray-500 text-xs">Hủy</button></td>
-                            </>
-                          ) : (
-                            <>
-                              <td className="px-2 py-1.5">{row.tenKhoan}</td>
-                              <td className="px-2 py-1.5 text-right">{formatVND(Number(row.soTien))}</td>
-                              <td className="px-2 py-1.5 text-xs">{row.lyDo}</td>
-                              <td className="px-2 py-1.5 text-xs truncate max-w-[120px]">{row.fileMinhChung ? <a href={row.fileMinhChung} target="_blank" rel="noreferrer" className="text-blue-600 underline">Xem</a> : '—'}</td>
-                              <td className="px-1 py-1 text-right flex gap-1 justify-end"><button onClick={()=>{ setIncEditId(row.id); setIncEdit({ tenKhoan: row.tenKhoan, soTien: String(row.soTien), lyDo: row.lyDo, fileMinhChung: row.fileMinhChung ?? '' }); }} className="text-blue-600 text-xs">Sửa</button><button onClick={async()=>{ if(!confirm('Xóa khoản này?')) return; try{ await deleteIncidental.mutateAsync({ id: ycscIdForChain as string, costId: row.id }); toast.success('Đã xóa'); }catch(e){ toast.error(e instanceof Error?e.message:'Lỗi xóa'); } }} className="text-red-500 text-xs">Xóa</button></td>
-                            </>
-                          )}
-                        </tr>
-                      ))}
-                      <tr className="bg-gray-50/50">
-                        <td className="px-1.5 py-1"><input placeholder="Tên khoản" value={incForm.tenKhoan} onChange={e=>setIncForm(s=>({...s, tenKhoan:e.target.value}))} className="w-full rounded border px-2 py-1.5 text-sm" /></td>
-                        <td className="px-1.5 py-1"><input inputMode="numeric" placeholder="0" value={incForm.soTien ? formatNum(incForm.soTien) : ''} onChange={e=>{ const v=e.target.value.replace(/[^\d]/g,''); setIncForm(s=>({...s, soTien: v})); }} className={vndInputCls + ' py-1.5'} /></td>
-                        <td className="px-1.5 py-1"><input placeholder="Lý do *" value={incForm.lyDo} onChange={e=>setIncForm(s=>({...s, lyDo:e.target.value}))} className="w-full rounded border px-2 py-1.5 text-sm" /></td>
-                        <td className="px-1.5 py-1"><div className="flex items-center gap-1"><input placeholder="URL / chọn file" value={incForm.fileMinhChung} onChange={e=>setIncForm(s=>({...s, fileMinhChung:e.target.value}))} className="w-full rounded border px-2 py-1 text-xs flex-1 min-w-0" /><label className="shrink-0 inline-flex items-center justify-center h-7 w-7 rounded border bg-white hover:bg-gray-50 cursor-pointer" title="Chọn file"><input type="file" className="hidden" onChange={async e=>{ const f=e.target.files?.[0]; if(!f) return; try{ const fd=new FormData(); fd.append('file', f); const res=await fetch('/api/upload', { method:'POST', body: fd, headers:{ Authorization:`Bearer ${localStorage.getItem('accessToken')||''}` }}); const j=await res.json(); const url=j?.data?.url || j?.url || URL.createObjectURL(f); setIncForm(s=>({...s, fileMinhChung: url})); } catch{ setIncForm(s=>({...s, fileMinhChung: f.name})); } }} /><span className="text-[11px]">📎</span></label></div></td>
-                        <td className="px-1 py-1"><button onClick={async()=>{ if(!ycscIdForChain) return; const soTien=Number(incForm.soTien); if(!incForm.tenKhoan.trim()){ toast.error('Tên khoản bắt buộc'); return; } if(!Number.isFinite(soTien)||soTien<0){ toast.error('Số tiền phải >=0'); return; } if(!incForm.lyDo.trim()){ toast.error('Lý do bắt buộc'); return; } try{ await createIncidental.mutateAsync({ id: ycscIdForChain, payload: { tenKhoan: incForm.tenKhoan.trim(), soTien, lyDo: incForm.lyDo.trim(), fileMinhChung: incForm.fileMinhChung||null } as never }); toast.success('Đã thêm'); setIncForm({ tenKhoan:'', soTien:'', lyDo:'', fileMinhChung:'' }); }catch(e){ toast.error(e instanceof Error?e.message:'Lỗi thêm'); } }} className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white">Thêm</button></td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <p className="text-[11px] text-gray-400">soTien ≥0, lyDo bắt buộc. Tổng được cộng vào Thực tế.</p>
+
               </div>
-            </>
+            </div>
           );
         })()}
 
-        <div className={`rounded-lg border p-2.5 ${isView && form.ghiChu?.trim() ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-white'}`}>
-          <FormField label="Ghi chú">
-            <textarea disabled={isView} rows={2} maxLength={500} placeholder="Ghi chú thêm về yêu cầu (tùy chọn, tối đa 500 ký tự)..." value={form.ghiChu ?? ''} onChange={(event) => setForm((value) => ({ ...value, ghiChu: event.target.value }))} className={`${textareaCls()} min-h-[44px] disabled:bg-gray-50`} />
-            {!isView && <p className="mt-1 text-right text-[11px] text-gray-400">{(form.ghiChu ?? '').length}/500 ký tự</p>}
-          </FormField>
-        </div>
+        {isView && !form.ghiChu?.trim() ? (
+          <p className="text-sm text-gray-400"><span className="text-xs font-medium text-gray-500">Ghi chú:</span> —</p>
+        ) : (
+          <div className={`rounded-lg border p-2.5 ${isView && form.ghiChu?.trim() ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-white'}`}>
+            <FormField label="Ghi chú">
+              <textarea disabled={isView} rows={2} maxLength={500} placeholder="Ghi chú thêm về yêu cầu (tùy chọn, tối đa 500 ký tự)..." value={form.ghiChu ?? ''} onChange={(event) => setForm((value) => ({ ...value, ghiChu: event.target.value }))} className={`${textareaCls()} min-h-[44px] disabled:bg-gray-50`} />
+              {!isView && <p className="mt-1 text-right text-[11px] text-gray-400">{(form.ghiChu ?? '').length}/500 ký tự</p>}
+            </FormField>
+          </div>
+        )}
         {isView && effectiveIsKiemTra && (viewStatus === 'DANG_KIEM_TRA' || viewStatus === 'DA_KIEM_TRA' || viewStatus === 'CHO_NGHIEM_THU' || (viewStatus === 'HOAN_THANH' && !!viewKetLuanStr)) && (
           <div className={`rounded-lg border p-3 space-y-3 ${viewStatus === 'DANG_KIEM_TRA' ? 'border-yellow-200 bg-yellow-50' : 'border-green-200 bg-green-50'}`}>
             <h4 className="text-sm font-semibold text-gray-800">Kết quả kiểm tra thực tế</h4>
@@ -1912,8 +1925,8 @@ const RepairRequestFormModal = ({
                 <FormField label="Đề xuất xử lý"><textarea rows={2} value={viewInspectForm.deXuatXuLy} onChange={e=>setViewInspectForm(v=>({...v, deXuatXuLy: e.target.value}))} className={`${textareaCls()} min-h-[60px]`} /></FormField>
                 <FormField label="Kết luận" required><select value={viewInspectForm.ketLuan} onChange={e=>setViewInspectForm(v=>({...v, ketLuan: e.target.value}))} className={`${selectCls()} min-h-[44px]`}><option value="">— Chọn —</option>{KET_LUAN_OPTIONS.map(k => <option key={k} value={k}>{KET_LUAN_LABELS[k]}</option>)}</select></FormField>
                 {viewIsFixed && (
-                  <div className="rounded-lg border border-green-200 bg-white p-3 space-y-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-green-700">Dữ liệu nghiệm thu — gửi người tạo yêu cầu xác nhận</p>
+                  <div className="rounded-lg border border-green-200 bg-white p-2.5 space-y-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-green-700">Dữ liệu nghiệm thu — gửi người tạo yêu cầu xác nhận</p>
                     <FormField label="Tình trạng sau khắc phục" required><textarea rows={3} value={viewFixForm.tinhTrangSau} onChange={e=>setViewFixForm(v=>({...v, tinhTrangSau: e.target.value}))} className={`${textareaCls()} min-h-[60px]`} placeholder="Mô tả tình trạng thiết bị sau khi khắc phục" /></FormField>
                     <FormField label="Ghi chú nghiệm thu"><textarea rows={2} value={viewFixForm.ghiChu} onChange={e=>setViewFixForm(v=>({...v, ghiChu: e.target.value}))} className={`${textareaCls()} min-h-[44px]`} placeholder="Tùy chọn" /></FormField>
                     <FileUpload label="Tệp đính kèm nghiệm thu *" files={viewFixFile ? [viewFixFile] : []} onChange={(files) => setViewFixFile(files[0] ?? null)} accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.rar" compact />
@@ -2001,7 +2014,7 @@ const RepairRequestFormModal = ({
             </div>
             {(() => {
               const repairs = (record as unknown as { repairRequests?: { id: number | string; maYeuCau: string; trangThai: string }[] })?.repairRequests ?? [];
-              if (repairs.length === 0) return <p className="px-3 py-3 text-xs text-gray-400">Chưa tạo YCSC từ phiếu này.</p>;
+              if (repairs.length === 0) return <p className="px-2.5 py-2 text-xs text-gray-400">Chưa tạo YCSC từ phiếu này.</p>;
               return (
                 <div className="p-2.5 flex flex-wrap gap-1.5">
                   {repairs.map((rr) => (
@@ -2014,68 +2027,43 @@ const RepairRequestFormModal = ({
         )}
         {isView && (
           <div className="rounded-lg border border-gray-200">
-            <div className="border-b bg-gray-50 px-3 py-2">
-              <span className="font-medium text-gray-800">Lịch sử nghiệm thu</span>
+            <div className="flex items-center gap-1 border-b bg-gray-50 px-2 py-1">
+              <button type="button" onClick={() => setHistoryTab('handover')} className={`rounded px-2.5 py-1 text-xs font-medium ${historyTab === 'handover' ? 'bg-white border shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}>Nghiệm thu</button>
+              <button type="button" onClick={() => setHistoryTab('status')} className={`rounded px-2.5 py-1 text-xs font-medium ${historyTab === 'status' ? 'bg-white border shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}>Trạng thái</button>
+              {historyTab === 'status' && hasMoreHistory && <button type="button" onClick={() => setViewHistoryOpen(true)} className="ml-auto text-xs font-medium text-blue-600 hover:underline">Xem tất cả ({historyEntries.length})</button>}
             </div>
-            {(record?.acceptanceHandovers?.length ?? 0) === 0 ? (
-              <p className="px-3 py-4 text-sm text-gray-400">Chưa có nghiệm thu cho yêu cầu này.</p>
-            ) : (
+            {historyTab === 'handover' ? (
+              (record?.acceptanceHandovers?.length ?? 0) === 0 ? <p className="px-3 py-4 text-sm text-gray-400">Chưa có nghiệm thu cho yêu cầu này.</p> : (
               <div className="divide-y divide-gray-100">
                 {record!.acceptanceHandovers!.map((nt) => (
-                  <div key={nt.id} className="px-3 py-3 text-sm">
+                  <div key={nt.id} className="px-3 py-2.5 text-sm">
                     <div className="flex items-center justify-between gap-2 mb-1">
                       <span className="font-mono text-xs font-medium text-blue-700">{nt.maNghiemThu}</span>
                       <span className="text-xs text-gray-500 tabular-nums">{formatDateVN(nt.ngayNghiemThu)}</span>
                     </div>
-                    {nt.tenHeThongThietBi && (
-                      <div className="text-gray-700 mb-1">
-                        <span className="text-xs font-medium text-gray-500">Hệ thống/thiết bị: </span>{nt.tenHeThongThietBi}
-                      </div>
-                    )}
-                    {nt.tinhTrangTruocSuaChua && (
-                      <div className="text-gray-700 mb-1">
-                        <span className="text-xs font-medium text-gray-500">Trước sửa: </span>{nt.tinhTrangTruocSuaChua}
-                      </div>
-                    )}
-                    {nt.tinhTrangSauSuaChua && (
-                      <div className="text-gray-700 mb-1">
-                        <span className="text-xs font-medium text-gray-500">Sau sửa: </span>{nt.tinhTrangSauSuaChua}
-                      </div>
-                    )}
+                    {nt.tenHeThongThietBi && (<div className="text-gray-700 mb-1"><span className="text-xs font-medium text-gray-500">Hệ thống/thiết bị: </span>{nt.tenHeThongThietBi}</div>)}
+                    {nt.tinhTrangTruocSuaChua && (<div className="text-gray-700 mb-1"><span className="text-xs font-medium text-gray-500">Trước sửa: </span>{nt.tinhTrangTruocSuaChua}</div>)}
+                    {nt.tinhTrangSauSuaChua && (<div className="text-gray-700 mb-1"><span className="text-xs font-medium text-gray-500">Sau sửa: </span>{nt.tinhTrangSauSuaChua}</div>)}
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
                       {nt.nguoiBanGiao && <span>Người bàn giao: <span className="text-gray-700">{nt.nguoiBanGiao}</span></span>}
                       {(nt.nguoiXacNhanTen || nt.nguoiNhan) && <span>Người xác nhận: <span className="text-gray-700">{nt.nguoiXacNhanTen || nt.nguoiNhan}</span></span>}
                       {nt.fileDinhKem && <a href={getFileUrl(nt.fileDinhKem)} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">Tệp nghiệm thu</a>}
                     </div>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
-                      {nt.ketQua
-                        ? <StatusBadge label={nt.ketQua === 'DAT' ? 'ĐẠT' : 'KHÔNG ĐẠT'} tone={nt.ketQua === 'DAT' ? 'green' : 'red'} />
-                        : <StatusBadge label="Chờ xác nhận" tone="yellow" />}
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                      {nt.ketQua ? <StatusBadge label={nt.ketQua === 'DAT' ? 'ĐẠT' : 'KHÔNG ĐẠT'} tone={nt.ketQua === 'DAT' ? 'green' : 'red'} /> : <StatusBadge label="Chờ xác nhận" tone="yellow" />}
                       {nt.xacNhanLuc && <span className="text-gray-500 tabular-nums">{formatDateTimeVN(nt.xacNhanLuc)}</span>}
                       {nt.lyDoXacNhan && <span className="text-gray-600">Lý do: {nt.lyDoXacNhan}</span>}
                     </div>
                   </div>
                 ))}
               </div>
+              )
+            ) : (
+              <div className="p-2.5">
+                <StatusTimeline entries={inlineEntries} isLoading={!!activeHistoryQ.isLoading} compact statusLabels={VIEW_STATUS_LABELS} />
+                {hasMoreHistory && (<button type="button" onClick={() => setViewHistoryOpen(true)} className="mt-2 text-xs font-medium text-blue-600 hover:underline">Xem tất cả ({historyEntries.length})</button>)}
+              </div>
             )}
-          </div>
-        )}
-
-        {/* Lịch sử trạng thái — cuối phiếu, trước footer */}
-        {isView && (
-          <div className="rounded-lg border border-gray-200">
-            <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-3 py-1.5">
-              <span className="flex items-center gap-2 font-medium text-gray-800"><History className="h-4 w-4" /> Lịch sử trạng thái</span>
-              {hasMoreHistory && (
-                <button type="button" onClick={() => setViewHistoryOpen(true)} className="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline">Xem tất cả ({historyEntries.length})</button>
-              )}
-            </div>
-            <div className="p-2.5">
-              <StatusTimeline entries={inlineEntries} isLoading={!!activeHistoryQ.isLoading} compact statusLabels={VIEW_STATUS_LABELS} />
-              {hasMoreHistory && (
-                <button type="button" onClick={() => setViewHistoryOpen(true)} className="mt-2 text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline">Xem tất cả ({historyEntries.length})</button>
-              )}
-            </div>
           </div>
         )}
       </form>
@@ -2278,8 +2266,8 @@ const RepairRequestFormModal = ({
             <div className="flex-1 overflow-y-auto p-4 space-y-4 text-sm">
               {ycscHandoverError && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-700">{ycscHandoverError}</div>}
               {/* Read-only block: Nội dung lỗi + Kế hoạch */}
-              <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 space-y-3">
-                <h5 className="text-xs font-semibold uppercase tracking-wide text-gray-600">Đối chiếu — Nội dung lỗi &amp; Kế hoạch</h5>
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-2 space-y-3">
+                <h5 className="text-[11px] font-semibold uppercase tracking-wide text-gray-600">Đối chiếu — Nội dung lỗi &amp; Kế hoạch</h5>
                 <div className="space-y-1.5">
                   <p className="text-xs font-medium text-gray-500">Thiết bị lỗi ({rItems.length})</p>
                   {rItems.length === 0 ? <p className="text-xs text-gray-400">—</p> : (
@@ -2335,7 +2323,7 @@ const RepairRequestFormModal = ({
                       <div key={draft.rowId} className="rounded-lg border border-gray-200 bg-white shadow-sm">
                         <div className="flex items-center justify-between gap-2 border-b border-gray-100 bg-gray-50 px-3 py-2">
                           <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700">{idx + 1}</span>
+                            <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[11px] font-semibold text-blue-700">{idx + 1}</span>
                             <select value={draft.repairRequestItemId} onChange={(e) => selectYcscItem(draft.rowId, e.target.value)} className="min-w-0 flex-1 truncate rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm">
                               <option value="">Chọn thiết bị lỗi</option>
                               {rItems.map((opt) => <option key={opt.id} value={opt.id}>{opt.tenHeThong}</option>)}
@@ -2347,11 +2335,11 @@ const RepairRequestFormModal = ({
                         </div>
                         <div className="grid gap-3 p-3 md:grid-cols-2">
                           <label className="space-y-1">
-                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">Trước sửa chữa</span>
+                            <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-600">Trước sửa chữa</span>
                             <textarea rows={3} value={draft.tinhTrangTruocSuaChua} readOnly className="w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-sm text-gray-600" placeholder={ri ? `${ri.tinhTrangThietBi} - ${ri.noiDungLoi}` : '—'} />
                           </label>
                           <label className="space-y-1">
-                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">Sau sửa chữa <span className="text-red-500">*</span></span>
+                            <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-600">Sau sửa chữa <span className="text-red-500">*</span></span>
                             <textarea rows={3} value={draft.tinhTrangSauSuaChua} onChange={(e) => patchYcscItem(draft.rowId, { tinhTrangSauSuaChua: e.target.value })} placeholder="Mô tả kết quả sau sửa chữa" className="w-full rounded-md border border-gray-300 px-2.5 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
                           </label>
                           <label className="space-y-1 md:col-span-2">
@@ -2445,7 +2433,7 @@ const RepairRequestFormModal = ({
 
             <div className="rounded-md border border-gray-200">
               <div className="border-b border-gray-200 bg-gray-50 px-3 py-1.5 font-medium text-gray-800">Thiết bị lỗi ({previewItems.length})</div>
-              {previewItems.length === 0 ? <p className="px-3 py-3 text-xs text-gray-400">Chưa có thiết bị hợp lệ.</p> : (
+              {previewItems.length === 0 ? <p className="px-2.5 py-2 text-xs text-gray-400">Chưa có thiết bị hợp lệ.</p> : (
                 <ul className="divide-y divide-gray-100">
                   {previewItems.map((it, i) => (
                     <li key={i} className="px-3 py-2 text-sm">
@@ -2471,7 +2459,7 @@ const RepairRequestFormModal = ({
                 )}
                 <div className="rounded-md border border-gray-200">
                   <div className="border-b border-gray-200 bg-gray-50 px-3 py-1.5 font-medium text-gray-800">Người phụ trách ({previewAssignees.length})</div>
-                  {previewAssignees.length === 0 ? <p className="px-3 py-3 text-xs text-gray-400">Chưa chọn người phụ trách.</p> : (
+                  {previewAssignees.length === 0 ? <p className="px-2.5 py-2 text-xs text-gray-400">Chưa chọn người phụ trách.</p> : (
                     <ul className="divide-y divide-gray-100">
                       {previewAssignees.map((a, i) => (
                         <li key={i} className="flex items-center justify-between px-3 py-1.5 text-sm">
@@ -2484,7 +2472,7 @@ const RepairRequestFormModal = ({
                 </div>
                 <div className="rounded-md border border-gray-200">
                   <div className="border-b border-gray-200 bg-gray-50 px-3 py-1.5 font-medium text-gray-800">Hàng hóa / YCCC ({previewMaterials.length})</div>
-                  {previewMaterials.length === 0 ? <p className="px-3 py-3 text-xs text-gray-400">Chưa có hàng hóa.</p> : (
+                  {previewMaterials.length === 0 ? <p className="px-2.5 py-2 text-xs text-gray-400">Chưa có hàng hóa.</p> : (
                     <ul className="divide-y divide-gray-100">
                       {previewMaterials.map((m, i) => (
                         <li key={i} className="px-3 py-1.5 text-sm flex flex-wrap items-center gap-x-3 gap-y-0.5">
