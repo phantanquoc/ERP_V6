@@ -1501,8 +1501,8 @@ const RepairRequestFormModal = ({
               );
             })}
           </div>
+        )}
         </div>
-          )}
 
         {showAssigneeAndMaterial && (
           <>
