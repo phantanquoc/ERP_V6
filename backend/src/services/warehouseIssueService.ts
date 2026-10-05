@@ -617,8 +617,23 @@ class WarehouseIssueService {
     maPhieuXuat: string,
     tx: Prisma.TransactionClient,
   ) {
+    // P1 outbound symmetry: if YCCC is given but no plan, auto-resolve open OutboundPlan of that YCCC
+    let effectiveOutboundPlanId = (normalized as any).outboundPlanId as string | undefined;
+    if (!effectiveOutboundPlanId && normalized.supplyRequestId) {
+      try {
+        const auto = await (tx as any).outboundPlan.findFirst({
+          where: { supplyRequestId: normalized.supplyRequestId, trangThai: { in: ['Chờ xuất', 'Quá hạn'] } },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true },
+        });
+        if (auto?.id) {
+          effectiveOutboundPlanId = auto.id;
+          (normalized as any).outboundPlanId = auto.id;
+        }
+      } catch {}
+    }
     // A2 outbound: cross-check outboundPlan.supplyRequestId vs supplyRequestId — no swallow
-    const outboundPlanIdRaw = (normalized as any).outboundPlanId as string | undefined;
+    const outboundPlanIdRaw = effectiveOutboundPlanId;
     if (outboundPlanIdRaw && normalized.supplyRequestId) {
       const plan = await (tx as any).outboundPlan.findUnique({ where: { id: outboundPlanIdRaw }, select: { supplyRequestId: true } });
       if (!plan) throw new NotFoundError('Kế hoạch không tồn tại');

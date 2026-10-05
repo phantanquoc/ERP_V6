@@ -34,6 +34,10 @@ interface EditIssueRow {
   lotProducts: LotProduct[];
   tenSanPham: string;
   donViTinh: string;
+  soLoKeHoach?: string;
+  soKienKeHoach?: string;
+  soLoThucTe?: string;
+  soKienThucTe?: string;
 }
 
 const emptyRow = (): EditIssueRow => ({
@@ -144,6 +148,10 @@ const EditWarehouseIssueModal: React.FC<EditWarehouseIssueModalProps> = ({
         lotProducts: lot?.lotProducts ?? [],
         tenSanPham: line.tenSanPham ?? '',
         donViTinh: line.donViTinh ?? '',
+        soLoKeHoach: (line as any).soLoKeHoach ?? undefined,
+        soKienKeHoach: (line as any).soKienKeHoach ?? undefined,
+        soLoThucTe: (line as any).soLoThucTe ?? undefined,
+        soKienThucTe: (line as any).soKienThucTe ?? undefined,
       };
     });
   };
@@ -329,6 +337,12 @@ const EditWarehouseIssueModal: React.FC<EditWarehouseIssueModalProps> = ({
                         <option value="">Chọn lô</option>
                         {row.lots.map((l) => <option key={l.id} value={l.id}>{l.tenLo}</option>)}
                       </select>
+                      {(() => {
+                        const kh = String((row as any).soLoKeHoach ?? '').trim();
+                        const tt = row.lots.find((l) => l.id === row.lotId)?.tenLo ?? '';
+                        const isLoDiff = kh !== '' && tt !== '' && kh !== tt;
+                        return isLoDiff ? <p className="mt-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">KH: {kh} → TT: {tt} <span className="ml-1 px-1 py-0 rounded bg-amber-100 border border-amber-200 text-[10px]">Lệch Lô</span></p> : null;
+                      })()}
                     </div>
 
                     <div>
@@ -342,6 +356,14 @@ const EditWarehouseIssueModal: React.FC<EditWarehouseIssueModalProps> = ({
                         hideEmpty={!row.id}
                         onChange={(lotProductId) => updateRow(index, { lotProductId: lotProductId ?? '' })}
                       />
+                      {(() => {
+                        const norm = (v: any) => { try { const a = JSON.parse(v); if (Array.isArray(a)) return a.join(',').trim(); } catch {} return String(v ?? '').trim(); };
+                        const kh = norm((row as any).soKienKeHoach ?? '');
+                        const lp = row.lotProducts.find((p) => p.id === row.lotProductId);
+                        const tt = norm(lp?.maKien ?? '');
+                        const isKienDiff = kh !== '' && tt !== '' && kh !== tt;
+                        return isKienDiff ? <p className="mt-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">KH: {kh} → TT: {tt} <span className="ml-1 px-1 py-0 rounded bg-amber-100 border border-amber-200 text-[10px]">Lệch Kiện</span></p> : null;
+                      })()}
                     </div>
                   </div>
 

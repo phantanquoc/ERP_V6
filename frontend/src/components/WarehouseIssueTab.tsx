@@ -643,26 +643,36 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                         </tr>
                       </thead>
                       <tbody>
-                        {selectedIssueLines.map((item: any, idx) => (
-                          <tr key={item.id || idx} className="hover:bg-gray-100">
+                        {selectedIssueLines.map((item: any, idx) => {
+                          const normKien = (v: any) => { try { const a = JSON.parse(v); if (Array.isArray(a)) return a.join(',').trim(); } catch {} return String(v ?? '').trim(); };
+                          const loTT = String(item.soLoThucTe ?? item.tenLo ?? '').trim();
+                          const loKH = String(item.soLoKeHoach ?? '').trim();
+                          const kienTT = normKien(item.soKienThucTe ?? item.maKien ?? '');
+                          const kienKH = normKien(item.soKienKeHoach ?? '');
+                          const isLoDiff = loKH !== '' && loKH !== loTT;
+                          const isKienDiff = kienKH !== '' && kienKH !== kienTT;
+                          const isSlDiff = item.soLuongYeuCau != null && String(item.soLuongYeuCau).trim() !== '' && Math.abs(Number(item.soLuongYeuCau) - Number(item.soLuongThucTe)) > 1e-9;
+                          const rowHl = (isLoDiff || isKienDiff || isSlDiff) ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-gray-100';
+                          return (
+                          <tr key={item.id || idx} className={rowHl}>
                             <td className="px-2 py-1.5 border text-center">{item.stt || idx + 1}</td>
                             <td className="px-2 py-1.5 border font-mono text-xs">{displayMaHang(item)}</td>
                             <td className="px-2 py-1.5 border">{displayLoaiKho(item)}</td>
                             <td className="px-2 py-1.5 border">{item.tenSanPham || '-'}</td>
                             <td className="px-2 py-1.5 border text-center">{item.soLoKeHoach ?? '-'}</td>
-                            <td className="px-2 py-1.5 border text-center">{item.soLoThucTe ?? item.tenLo ?? '-'}</td>
+                            <td className={`px-2 py-1.5 border text-center ${isLoDiff ? 'bg-amber-100 font-semibold text-amber-800' : ''}`}>{item.soLoThucTe ?? item.tenLo ?? '-'}{isLoDiff && <span className="ml-1 inline-flex px-1 py-0 rounded bg-amber-100 text-amber-700 border border-amber-200 text-[10px]">Lệch Lô</span>}</td>
                             <td className="px-2 py-1.5 border font-mono text-xs">{(() => { try { const a = JSON.parse(item.soKienKeHoach); if (Array.isArray(a)) return a.join(', '); } catch { void 0; } return item.soKienKeHoach ?? '-'; })()}</td>
-                            <td className="px-2 py-1.5 border font-mono text-xs">{(() => { try { const a = JSON.parse(item.soKienThucTe); if (Array.isArray(a)) return a.join(', '); } catch { void 0; } return item.soKienThucTe ?? item.maKien ?? '-'; })()}</td>
+                            <td className={`px-2 py-1.5 border font-mono text-xs ${isKienDiff ? 'bg-amber-100 font-semibold text-amber-800' : ''}`}>{(() => { try { const a = JSON.parse(item.soKienThucTe); if (Array.isArray(a)) return a.join(', '); } catch { void 0; } return item.soKienThucTe ?? item.maKien ?? '-'; })()}{isKienDiff && <span className="ml-1 inline-flex px-1 py-0 rounded bg-amber-100 text-amber-700 border border-amber-200 text-[10px]">Lệch Kiện</span>}</td>
                             <td className="px-2 py-1.5 border">{item.tinhTrang ?? '-'}</td>
                             <td className="px-2 py-1.5 border">{item.quyCach ?? '-'}</td>
                             <td className="px-2 py-1.5 border text-center">{item.donViTinh || '-'}</td>
                             <td className="px-2 py-1.5 border text-right">{item.soLuongYeuCau ?? item.soLuongThucTe}</td>
-                            <td className="px-2 py-1.5 border text-right font-semibold text-red-600">{item.soLuongThucTe} {item.donViTinh || ''}</td>
+                            <td className={`px-2 py-1.5 border text-right font-semibold ${isSlDiff ? 'text-amber-700 bg-amber-50' : 'text-red-600'}`}>{item.soLuongThucTe} {item.donViTinh || ''}</td>
                             <td className="px-2 py-1.5 border">{item.ghiChu || '-'}</td>
                             <td className="px-2 py-1.5 border text-right">{item.soLuongTruoc ?? '-'}</td>
                             <td className="px-2 py-1.5 border text-right">{item.soLuongSau ?? '-'}</td>
                           </tr>
-                        ))}
+                          ); })}
                       </tbody>
                       <tfoot>
                         <tr className="bg-gray-100 font-semibold">
@@ -677,8 +687,16 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                   </div>
                   {/* Mobile: card per line — 16-column table is unreadable on phones */}
                   <div className="md:hidden mt-3 space-y-3">
-                    {selectedIssueLines.map((item: any, idx) => (
-                      <div key={item.id || idx} className="rounded-lg border border-gray-200 bg-white p-3 text-sm">
+                    {selectedIssueLines.map((item: any, idx) => {
+                      const normKien = (v: any) => { try { const a = JSON.parse(v); if (Array.isArray(a)) return a.join(',').trim(); } catch {} return String(v ?? '').trim(); };
+                      const loTT = String(item.soLoThucTe ?? item.tenLo ?? '').trim();
+                      const loKH = String(item.soLoKeHoach ?? '').trim();
+                      const kienTT = normKien(item.soKienThucTe ?? item.maKien ?? '');
+                      const kienKH = normKien(item.soKienKeHoach ?? '');
+                      const isLoDiff = loKH !== '' && loKH !== loTT;
+                      const isKienDiff = kienKH !== '' && kienKH !== kienTT;
+                      return (
+                      <div key={item.id || idx} className={`rounded-lg border p-3 text-sm ${isLoDiff || isKienDiff ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white'}`}>
                         <div className="flex items-start justify-between gap-2">
                           <span className="font-mono text-xs font-semibold text-blue-700">{displayMaHang(item)}</span>
                           <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{displayLoaiKho(item)}</span>
@@ -686,9 +704,9 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                         <div className="mt-1 font-medium text-gray-900">{item.tenSanPham || '-'}</div>
                         <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                           <dt className="text-gray-500">Số lô KH</dt><dd className="text-right">{item.soLoKeHoach ?? '-'}</dd>
-                          <dt className="text-gray-500">Số lô TT</dt><dd className="text-right">{item.soLoThucTe ?? item.tenLo ?? '-'}</dd>
+                          <dt className="text-gray-500">Số lô TT</dt><dd className={`text-right ${isLoDiff ? 'font-semibold text-amber-700 bg-amber-100 rounded px-1' : ''}`}>{item.soLoThucTe ?? item.tenLo ?? '-'}{isLoDiff && <span className="ml-1 text-[10px] px-1 py-0 rounded bg-amber-100 text-amber-700 border border-amber-200">Lệch Lô</span>}</dd>
                           <dt className="text-gray-500">Số kiện KH</dt><dd className="text-right font-mono text-xs">{(() => { try { const a = JSON.parse(item.soKienKeHoach); if (Array.isArray(a)) return a.join(', '); } catch { void 0; } return item.soKienKeHoach ?? '-'; })()}</dd>
-                          <dt className="text-gray-500">Số kiện TT</dt><dd className="text-right font-mono text-xs">{(() => { try { const a = JSON.parse(item.soKienThucTe); if (Array.isArray(a)) return a.join(', '); } catch { void 0; } return item.soKienThucTe ?? item.maKien ?? '-'; })()}</dd>
+                          <dt className="text-gray-500">Số kiện TT</dt><dd className={`text-right font-mono text-xs ${isKienDiff ? 'font-semibold text-amber-700 bg-amber-100 rounded px-1' : ''}`}>{(() => { try { const a = JSON.parse(item.soKienThucTe); if (Array.isArray(a)) return a.join(', '); } catch { void 0; } return item.soKienThucTe ?? item.maKien ?? '-'; })()}{isKienDiff && <span className="ml-1 text-[10px] px-1 py-0 rounded bg-amber-100 text-amber-700 border border-amber-200">Lệch Kiện</span>}</dd>
                           <dt className="text-gray-500">Tình trạng</dt><dd className="text-right">{item.tinhTrang ?? '-'}</dd>
                           <dt className="text-gray-500">Quy cách</dt><dd className="text-right">{item.quyCach ?? '-'}</dd>
                           <dt className="text-gray-500">ĐV</dt><dd className="text-right">{item.donViTinh || '-'}</dd>
@@ -699,7 +717,8 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                         </dl>
                         {item.ghiChu && <div className="mt-2 text-xs text-gray-600"><span className="text-gray-500">Ghi chú:</span> {item.ghiChu}</div>}
                       </div>
-                    ))}
+                      );
+                    })}
                     <div className="rounded-lg bg-gray-100 px-3 py-2 text-right text-sm font-semibold text-red-700">Tổng cộng (SL TT): {formatActualTotalByUnit(selectedIssueLines)}</div>
                   </div>
                 </div>

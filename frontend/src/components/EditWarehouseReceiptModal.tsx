@@ -52,6 +52,10 @@ interface EditReceiptRow {
   selectedKienIds: string[];
   perKienQty: number[];
   perKienYeuCau: number[];
+  soLoKeHoach?: string;
+  soKienKeHoach?: string;
+  soLoThucTe?: string;
+  soKienThucTe?: string;
 }
 
 const emptyRow = (): EditReceiptRow => ({
@@ -182,6 +186,10 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
         selectedKienIds: line.lotProductId ? [line.lotProductId] : [],
         perKienQty: line.lotProductId ? [line.soLuongThucTe ?? 0] : [],
         perKienYeuCau: line.lotProductId ? [Number((line as any).soLuongYeuCau ?? line.soLuongThucTe ?? 0)] : [],
+        soLoKeHoach: (line as any).soLoKeHoach ?? undefined,
+        soKienKeHoach: (line as any).soKienKeHoach ?? undefined,
+        soLoThucTe: (line as any).soLoThucTe ?? undefined,
+        soKienThucTe: (line as any).soKienThucTe ?? undefined,
       };
     });
   };
@@ -457,6 +465,12 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
                         <option value="">Chọn lô</option>
                         {row.lots.map((l) => <option key={l.id} value={l.id}>{l.tenLo}</option>)}
                       </select>
+                      {(() => {
+                        const kh = String(row.soLoKeHoach ?? '').trim();
+                        const tt = row.lots.find((l) => l.id === row.lotId)?.tenLo ?? '';
+                        const isLoDiff = kh !== '' && tt !== '' && kh !== tt;
+                        return isLoDiff ? <p className="mt-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">KH: {kh} → TT: {tt} <span className="ml-1 px-1 py-0 rounded bg-amber-100 border border-amber-200 text-[10px]">Lệch Lô</span></p> : null;
+                      })()}
                     </div>
                   </div>
 
@@ -490,10 +504,17 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
                     />
                     {row.lotProductId ? (() => {
                       const lp = row.lotProducts.find((p) => p.id === row.lotProductId);
+                      const norm = (v: any) => { try { const a = JSON.parse(v); if (Array.isArray(a)) return a.join(',').trim(); } catch {} return String(v ?? '').trim(); };
+                      const kienKH = norm(row.soKienKeHoach ?? '');
+                      const kienTT = norm(lp?.maKien ?? row.selectedKienIds.join(',') ?? '');
+                      const isKienDiff = kienKH !== '' && kienTT !== '' && kienKH !== kienTT;
                       return lp ? (
-                        <p className="mt-1 text-xs text-blue-600">
-                          Kiện {lp.maKien ?? lp.id.slice(-4)}, tồn hiện tại {lp.soLuong} {lp.donViTinh}
-                        </p>
+                        <>
+                          <p className="mt-1 text-xs text-blue-600">
+                            Kiện {lp.maKien ?? lp.id.slice(-4)}, tồn hiện tại {lp.soLuong} {lp.donViTinh}
+                          </p>
+                          {isKienDiff && <p className="mt-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">KH: {kienKH} → TT: {kienTT} <span className="ml-1 px-1 py-0 rounded bg-amber-100 border border-amber-200 text-[10px]">Lệch Kiện</span></p>}
+                        </>
                       ) : null;
                     })() : row.tenSanPham ? (
                       <p className="mt-1 text-xs text-green-600">

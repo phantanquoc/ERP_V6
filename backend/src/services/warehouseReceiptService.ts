@@ -946,8 +946,23 @@ class WarehouseReceiptService {
     // resolution can create catalog rows and kiện, so a slip that fails the quantity
     // guard must not leave that scaffolding behind. The supplyRequestId backfill runs
     // after the guard so an over-receipt can never inherit the SR linkage it was rejected for.
+    // P1: if YCMH is given but inboundPlanId is not, auto-resolve the plan of that YCMH
+    // so a receipt created from YCCC detail still advances the InboundPlan (symmetry fix).
+    let effectiveInboundPlanId = (normalized as any).inboundPlanId as string | undefined;
+    if (!effectiveInboundPlanId && normalized.purchaseRequestId) {
+      try {
+        const auto = await (tx as any).inboundPlan.findUnique({
+          where: { purchaseRequestId: normalized.purchaseRequestId },
+          select: { id: true, purchaseRequestId: true, trangThai: true },
+        });
+        if (auto?.id) {
+          effectiveInboundPlanId = auto.id;
+          (normalized as any).inboundPlanId = auto.id;
+        }
+      } catch {}
+    }
     // A2: cross-check inboundPlan.purchaseRequestId vs purchaseRequestId — no swallow
-    const inboundPlanIdRaw = (normalized as any).inboundPlanId as string | undefined;
+    const inboundPlanIdRaw = effectiveInboundPlanId;
     if (inboundPlanIdRaw) {
       const plan = await (tx as any).inboundPlan.findUnique({ where: { id: inboundPlanIdRaw }, select: { purchaseRequestId: true, trangThai: true } });
       if (!plan) throw new NotFoundError('Kế hoạch không tồn tại');
