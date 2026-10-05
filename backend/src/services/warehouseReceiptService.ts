@@ -1274,8 +1274,10 @@ class WarehouseReceiptService {
           throw new ValidationError(`Không tìm thấy kiện hàng ${lotProductId} trong kho`);
         }
         if (balance.soLuong + netIn < 0) {
+          const canTru = -netIn;
+          const duLieu = `Tồn hiện tại ${balance.soLuong}${balance.donViTinh ? ' ' + balance.donViTinh : ''}, cần trừ ${canTru}${balance.donViTinh ? ' ' + balance.donViTinh : ''} (phiếu cũ ${reversal} → mới ${incomingByPackage.get(lotProductId) ?? 0}), thiếu ${Math.abs(balance.soLuong + netIn)} — hàng có thể đã xuất đi, hãy kiểm tra tồn kiện hoặc giảm số lượng sửa đổi`;
           throw new ValidationError(
-            `Số lượng tồn kho của ${balance.tenSanPham ? `"${balance.tenSanPham}"` : `kiện ${lotProductId}`} không đủ để điều chỉnh`
+            `Số lượng tồn kho của ${balance.tenSanPham ? `"${balance.tenSanPham}"` : `kiện ${lotProductId}`} không đủ để điều chỉnh. ${duLieu}`
           );
         }
       }
@@ -1321,8 +1323,9 @@ class WarehouseReceiptService {
             data: { soLuong: { decrement: -netIn } },
           });
           if (res.count === 0) {
+            const cur = afterReversal.get(lotProductId);
             throw new ValidationError(
-              `Số lượng tồn kho của ${balance.tenSanPham ? `"${balance.tenSanPham}"` : `kiện ${lotProductId}`} không đủ`
+              `Số lượng tồn kho của ${balance.tenSanPham ? `"${balance.tenSanPham}"` : `kiện ${lotProductId}`} không đủ — tồn sau hoàn tác ${cur?.soLuong ?? 0}${balance.donViTinh ? ' ' + balance.donViTinh : ''}, cần trừ ${-netIn}`
             );
           }
         }

@@ -370,7 +370,9 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
           const perKienKH = row.perKienYeuCau?.length === kienIds.length ? row.perKienYeuCau : (()=>{ const b=Math.floor(totalKH/kienIds.length); const r=totalKH%kienIds.length; return kienIds.map((_,i)=> i===kienIds.length-1? b+r : b);})();
           return kienIds.map((kid, i) => {
             const lp = row.lotProducts.find((p)=> p.id===kid);
-            return { ...(row.id && i===0 ? { id: row.id } : {}), lotProductId: kid, tenSanPham: lp?.internationalProduct?.tenSanPham || row.tenSanPham, warehouseId: row.warehouseId, tenKho: warehouse?.tenKho || '', lotId: lp?.lotId ?? row.lotId, tenLo: warehouses.find((w)=> w.id===row.warehouseId)?.lots?.find((l)=> l.id===(lp?.lotId ?? row.lotId))?.tenLo ?? lot?.tenLo ?? '', soLuongThucTe: perKien[i], soLuongYeuCau: hasKH ? perKienKH[i] : undefined, donViTinh: lp?.donViTinh || row.donViTinh, ghiChu: row.ghiChu, tinhTrang: tinhTrangVal, quyCach: row.quyCach || undefined };
+            const tenLoKid = warehouses.find((w)=> w.id===row.warehouseId)?.lots?.find((l)=> l.id===(lp?.lotId ?? row.lotId))?.tenLo ?? lot?.tenLo ?? '';
+            const maKienKid = lp?.maKien ?? '';
+            return { ...(row.id && i===0 ? { id: row.id } : {}), lotProductId: kid, tenSanPham: lp?.internationalProduct?.tenSanPham || row.tenSanPham, warehouseId: row.warehouseId, tenKho: warehouse?.tenKho || '', lotId: lp?.lotId ?? row.lotId, tenLo: tenLoKid, soLoKeHoach: row.soLoKeHoach ?? undefined, soLoThucTe: tenLoKid || row.soLoKeHoach || undefined, soKienKeHoach: row.soKienKeHoach ?? undefined, soKienThucTe: maKienKid || row.soKienKeHoach || undefined, soLuongThucTe: perKien[i], soLuongYeuCau: hasKH ? perKienKH[i] : undefined, donViTinh: lp?.donViTinh || row.donViTinh, ghiChu: row.ghiChu, tinhTrang: tinhTrangVal, quyCach: row.quyCach || undefined };
           });
         }
         const singleKienId = kienIds.length === 1 ? kienIds[0] : row.lotProductId;
@@ -379,7 +381,8 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
         const singleMaKien = lotProduct?.maKien || '';
         // Khi đổi Lô mà chưa chọn kiện mới: lotProductId rỗng nhưng tenSanPham vẫn có
         // -> bỏ lotProductId để BE tự resolveOrCreateLotProduct (tạo kiện mới trong Lô mới)
-        return [{ ...(row.id ? { id: row.id } : {}), ...(singleKienId ? { lotProductId: singleKienId } : {}), tenSanPham: lotProduct?.internationalProduct?.tenSanPham || row.tenSanPham, warehouseId: row.warehouseId, tenKho: warehouse?.tenKho || '', lotId: (lotProduct as any)?.lotId ?? row.lotId, tenLo: singleTenLo, soLoKeHoach: row.soLoKeHoach, soLoThucTe: singleTenLo || undefined, soKienKeHoach: row.soKienKeHoach, soKienThucTe: singleMaKien || undefined, soLuongThucTe: row.soLuongNhap, soLuongYeuCau: row.soLuongYeuCau ?? undefined, donViTinh: lotProduct?.donViTinh || row.donViTinh, ghiChu: row.ghiChu, tinhTrang: tinhTrangVal, quyCach: row.quyCach || undefined }];
+        // KH giữ nguyên, TT lấy theo Lô/Kiện mới chọn — để highlight Lệch Lô/Kiện đúng
+        return [{ ...(row.id ? { id: row.id } : {}), ...(singleKienId ? { lotProductId: singleKienId } : {}), tenSanPham: lotProduct?.internationalProduct?.tenSanPham || row.tenSanPham, warehouseId: row.warehouseId, tenKho: warehouse?.tenKho || '', lotId: (lotProduct as any)?.lotId ?? row.lotId, tenLo: singleTenLo, soLoKeHoach: row.soLoKeHoach ?? undefined, soLoThucTe: singleTenLo || row.soLoKeHoach || undefined, soKienKeHoach: row.soKienKeHoach ?? undefined, soKienThucTe: singleMaKien || row.soKienKeHoach || undefined, soLuongThucTe: row.soLuongNhap, soLuongYeuCau: row.soLuongYeuCau ?? undefined, donViTinh: lotProduct?.donViTinh || row.donViTinh || row.donViTinh, ghiChu: row.ghiChu, tinhTrang: tinhTrangVal, quyCach: row.quyCach || undefined }];
       });
 
       const res: any = await warehouseReceiptService.updateWarehouseReceipt(receipt.id, {
