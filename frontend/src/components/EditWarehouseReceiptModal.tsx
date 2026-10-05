@@ -94,6 +94,8 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
   const [rows, setRows] = useState<EditReceiptRow[]>([]);
   const [pendingConfirm, setPendingConfirm] = useState<null | 'remove' | 'repoint'>(null);
   const [pendingRemovedCount, setPendingRemovedCount] = useState(0);
+  const [inlineError, setInlineError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const handleNguoiDeNghiChange = (name: string) => {
     setNguoiDeNghi(name);
@@ -115,6 +117,8 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
       setGhiChu(rawGhiChu.replace(/\s*\|\s*LyDoChenhLech:.*$/,'').trim());
       setLyDoChenhLech(parsedLyDo);
       setLyDoChenhLechError(null);
+      setInlineError(null);
+      setFieldErrors({});
       setMucDich(receipt?.mucDich || '');
       setNguoiDeNghi((receipt as any)?.nguoiDeNghi || '');
       setMaNguoiDeNghi((receipt as any)?.maNguoiDeNghi || '');
@@ -338,9 +342,14 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
     const hasDiff = rows.some((r) => r.soLuongYeuCau != null && Math.abs(Number(r.soLuongYeuCau) - Number(r.soLuongNhap)) > 1e-9);
     if (hasKeHoachValues && hasDiff && !lyDoChenhLech.trim()) {
       setLyDoChenhLechError('Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.');
+      // also surface inline so user sees exactly which field is missing
+      setFieldErrors({ 'lyDoChenhLech': 'Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.' });
+      setInlineError('Thiếu lý do chênh lệch — hãy điền ô "Lý do chênh lệch" (đã tô đỏ).');
       return;
     }
     setLyDoChenhLechError(null);
+    setFieldErrors({});
+    setInlineError(null);
 
     await doUpdate();
   };
@@ -352,6 +361,8 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
     const hasDiff2 = rows.some((r) => r.soLuongYeuCau != null && Math.abs(Number(r.soLuongYeuCau) - Number(r.soLuongNhap)) > 1e-9);
     if (hasKeHoachValues2 && hasDiff2 && !lyDoChenhLech.trim()) {
       setLyDoChenhLechError('Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.');
+      setFieldErrors({ 'lyDoChenhLech': 'Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.' });
+      setInlineError('Thiếu lý do chênh lệch — hãy điền ô "Lý do chênh lệch" (đã tô đỏ).');
       return;
     }
     setLoading(true);
@@ -395,13 +406,27 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
         items,
       });
       const updated = res?.data?.data ?? res?.data ?? null;
+      setFieldErrors({});
+      setInlineError(null);
       alert('Cập nhật phiếu nhập kho thành công!');
       onSuccess?.(updated as WarehouseReceipt | undefined);
       onClose();
     } catch (error: any) {
       const errs = getApiFieldErrors(error);
       const detail = errs ? '\n' + Object.entries(errs).map(([k, v]) => `• ${k}: ${v}`).join('\n') : '';
-      alert(getApiErrorMessage(error, 'Lỗi khi cập nhật phiếu nhập kho') + detail);
+      const msg = getApiErrorMessage(error, 'Lỗi khi cập nhật phiếu nhập kho');
+      // Audit: surface exact field + highlight + inline banner
+      if (errs) {
+        setFieldErrors(errs);
+        // scroll the error banner into view via state; list the missing/invalid fields
+        const missing = Object.entries(errs).map(([k, v]) => `${k}: ${v}`).join(' | ');
+        setInlineError(`${msg} — ${missing}`);
+      } else {
+        // Check stock-specific error (BE now includes tồn/cần trừ/thiếu)
+        setInlineError(msg);
+      }
+      // keep alert for legacy callers but also keep inline banner visible after alert dismissed
+      alert(msg + detail);
     } finally {
       setLoading(false);
     }
@@ -424,6 +449,12 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 p-6 overflow-y-auto flex-1">
+          {inlineError && (
+            <div className="flex items-start justify-between gap-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+              <span className="whitespace-pre-wrap flex-1">{inlineError}</span>
+              <button type="button" onClick={() => { setInlineError(null); setFieldErrors({}); }} className="shrink-0 text-red-400 hover:text-red-600"><X className="h-4 w-4" /></button>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Mã phiếu nhập</label>
@@ -626,11 +657,12 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
           {(() => {
             const hasKeHoachValues = rows.some((r) => r.soLuongYeuCau != null);
             if (!hasKeHoachValues) return null;
+            const isHighlighted = !!(fieldErrors['lyDoChenhLech'] || lyDoChenhLechError);
             return (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Lý do chênh lệch (bắt buộc khi thực tế khác kế hoạch)</label>
-                <textarea value={lyDoChenhLech} onChange={(e) => { setLyDoChenhLech(e.target.value); if (e.target.value.trim()) setLyDoChenhLechError(null); }} rows={2} placeholder="Nhập lý do nếu số lượng thực tế khác kế hoạch..." className={`w-full px-3 py-2 border rounded-lg text-sm ${lyDoChenhLechError ? 'border-red-300 focus:ring-red-400' : 'border-gray-300'}`} />
-                {lyDoChenhLechError && <p className="text-xs text-red-600 mt-1">{lyDoChenhLechError}</p>}
+                <textarea value={lyDoChenhLech} onChange={(e) => { const v = e.target.value; setLyDoChenhLech(v); if (v.trim()) { setLyDoChenhLechError(null); setFieldErrors((prev) => { const n = { ...prev }; delete n['lyDoChenhLech']; return n; }); if (inlineError && inlineError.includes('lý do chênh lệch')) setInlineError(null); } }} rows={2} placeholder="Nhập lý do nếu số lượng thực tế khác kế hoạch..." className={`w-full px-3 py-2 border rounded-lg text-sm ${isHighlighted ? 'border-red-300 bg-red-50 focus:ring-red-400 focus:border-red-400' : lyDoChenhLechError ? 'border-red-300 focus:ring-red-400' : 'border-gray-300'}`} />
+                {(lyDoChenhLechError || fieldErrors['lyDoChenhLech']) && <p className="text-xs text-red-600 mt-1">{fieldErrors['lyDoChenhLech'] || lyDoChenhLechError}</p>}
               </div>
             );
           })()}
