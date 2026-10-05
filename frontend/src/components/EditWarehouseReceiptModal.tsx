@@ -12,7 +12,8 @@ import { useProducts } from '../hooks';
 import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
 import { TINH_TRANG_OPTIONS } from '../constants/warehouseCatalogs';
 import { kienCapacityByUnit } from '../utils/kienCapacity';
-import { getApiErrorMessage } from '../utils/getApiError';
+import { getApiErrorMessage, getApiFieldErrors } from '../utils/getApiError';
+import ConfirmDialog from './common/ConfirmDialog';
 
 /** Purpose presets — cover the common cases; the field stays free text for the rest. */
 const MUC_DICH_PRESETS = [
@@ -91,6 +92,8 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
   const [lyDoChenhLech, setLyDoChenhLech] = useState('');
   const [lyDoChenhLechError, setLyDoChenhLechError] = useState<string | null>(null);
   const [rows, setRows] = useState<EditReceiptRow[]>([]);
+  const [pendingConfirm, setPendingConfirm] = useState<null | 'remove' | 'repoint'>(null);
+  const [pendingRemovedCount, setPendingRemovedCount] = useState(0);
 
   const handleNguoiDeNghiChange = (name: string) => {
     setNguoiDeNghi(name);
@@ -322,17 +325,13 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
       return false;
     });
     if (removedCount > 0) {
-      const ok = confirm(
-        `Bạn đã xóa ${removedCount} dòng hàng khỏi phiếu. ` +
-        'Số lượng đã nhập của các dòng đó sẽ bị trừ khỏi tồn kho. Tiếp tục?'
-      );
-      if (!ok) return;
-    } else if (repointDetected) {
-      const ok = confirm(
-        'Một số dòng được chuyển sang kho/lô/kiện khác. ' +
-        'Số lượng sẽ được hoàn lại về kiện cũ và trừ vào kiện mới. Tiếp tục?'
-      );
-      if (!ok) return;
+      setPendingRemovedCount(removedCount);
+      setPendingConfirm('remove');
+      return;
+    }
+    if (repointDetected) {
+      setPendingConfirm('repoint');
+      return;
     }
 
     const hasKeHoachValues = rows.some((r) => r.soLuongYeuCau != null);
@@ -343,6 +342,18 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
     }
     setLyDoChenhLechError(null);
 
+    await doUpdate();
+  };
+
+  const doUpdate = async () => {
+    if (!receipt) return;
+    setPendingConfirm(null);
+    const hasKeHoachValues2 = rows.some((r) => r.soLuongYeuCau != null);
+    const hasDiff2 = rows.some((r) => r.soLuongYeuCau != null && Math.abs(Number(r.soLuongYeuCau) - Number(r.soLuongNhap)) > 1e-9);
+    if (hasKeHoachValues2 && hasDiff2 && !lyDoChenhLech.trim()) {
+      setLyDoChenhLechError('Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.');
+      return;
+    }
     setLoading(true);
     try {
       const items = rows.flatMap((row) => {
@@ -385,7 +396,9 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
       onSuccess?.(updated as WarehouseReceipt | undefined);
       onClose();
     } catch (error: any) {
-      alert(getApiErrorMessage(error, 'Lỗi khi cập nhật phiếu nhập kho'));
+      const errs = getApiFieldErrors(error);
+      const detail = errs ? '\n' + Object.entries(errs).map(([k, v]) => `• ${k}: ${v}`).join('\n') : '';
+      alert(getApiErrorMessage(error, 'Lỗi khi cập nhật phiếu nhập kho') + detail);
     } finally {
       setLoading(false);
     }
@@ -631,6 +644,28 @@ const EditWarehouseReceiptModal: React.FC<EditWarehouseReceiptModalProps> = ({
           </div>
         </form>
       </div>
+      <ConfirmDialog
+        isOpen={pendingConfirm === 'remove'}
+        title="Xác nhận xóa dòng"
+        message={`Bạn đã xóa ${pendingRemovedCount} dòng khỏi phiếu. Số lượng đã nhập của các dòng đó sẽ bị trừ khỏi tồn kho. Tiếp tục?`}
+        onConfirm={doUpdate}
+        onClose={() => setPendingConfirm(null)}
+        loading={loading}
+        confirmText="Tiếp tục"
+        cancelText="Hủy"
+        variant="danger"
+      />
+      <ConfirmDialog
+        isOpen={pendingConfirm === 'repoint'}
+        title="Xác nhận chuyển vị trí"
+        message="Một số dòng được chuyển sang kho/lô/kiện khác. Số lượng sẽ được hoàn lại về kiện cũ và trừ vào kiện mới. Tiếp tục?"
+        onConfirm={doUpdate}
+        onClose={() => setPendingConfirm(null)}
+        loading={loading}
+        confirmText="Tiếp tục"
+        cancelText="Hủy"
+        variant="danger"
+      />
     </Modal>
   );
 };
