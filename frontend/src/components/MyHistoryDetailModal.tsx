@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { HistoryItem, getEntityDetailEndpoint } from '../services/myHistoryService';
+import { STATUS_LABEL, STATUS_COLOR } from './myHistoryUtils';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types/auth';
 import { useFocusTrap } from '../hooks/useFocusTrap';
@@ -18,38 +19,6 @@ import HistoryEntityDetailModal from './HistoryEntityDetailModal';
 import repairRequestService from '../services/repairRequestService';
 import inspectionRequestService from '../services/inspectionRequestService';
 
-// ---- status display ---------------------------------------------------
-const STATUS_LABEL: Record<string, string> = {
-  PENDING: 'Chờ xử lý',
-  IN_PROGRESS: 'Đang xử lý',
-  COMPLETED: 'Hoàn thành',
-  APPROVED: 'Đã duyệt',
-  REJECTED: 'Từ chối',
-  CANCELLED: 'Đã hủy',
-  CHO_DUYET: 'Chờ duyệt',
-  DA_DUYET: 'Đã duyệt',
-  HOAN_THANH: 'Hoàn thành',
-  DA_HUY: 'Đã hủy',
-  DANG_XU_LY: 'Đang xử lý',
-  MOI_TAO: 'Mới tạo',
-  TU_CHOI: 'Từ chối',
-};
-
-const STATUS_COLOR: Record<string, string> = {
-  PENDING: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-  CHO_DUYET: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-  IN_PROGRESS: 'bg-blue-50 text-blue-700 border-blue-200',
-  DANG_XU_LY: 'bg-blue-50 text-blue-700 border-blue-200',
-  COMPLETED: 'bg-green-50 text-green-700 border-green-200',
-  HOAN_THANH: 'bg-green-50 text-green-700 border-green-200',
-  APPROVED: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  DA_DUYET: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  REJECTED: 'bg-red-50 text-red-700 border-red-200',
-  TU_CHOI: 'bg-red-50 text-red-700 border-red-200',
-  CANCELLED: 'bg-gray-100 text-gray-500 border-gray-200',
-  DA_HUY: 'bg-gray-100 text-gray-500 border-gray-200',
-  MOI_TAO: 'bg-slate-50 text-slate-600 border-slate-200',
-};
 
 // Entity types that have a dedicated list/detail modal (no route to navigate)
 const MODAL_ENTITY_TYPES = new Set([

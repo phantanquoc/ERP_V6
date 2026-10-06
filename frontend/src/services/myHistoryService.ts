@@ -27,9 +27,12 @@ export interface HistoryResult {
   page: number;
   totalPages: number;
   groupCounts: HistoryGroupCounts;
+  pendingCount?: number;
+  weekCount?: number;
 }
 
 export interface MyHistoryParams {
+  range?: 'all';
   dateFrom?: string;   // YYYY-MM-DD
   dateTo?: string;     // YYYY-MM-DD
   types?: string[];
@@ -43,6 +46,7 @@ export interface MyHistoryParams {
 function buildQueryString(params: MyHistoryParams): string {
   const parts: string[] = [];
 
+  if ((params as any).range === 'all') parts.push(`range=all`);
   if (params.dateFrom) parts.push(`dateFrom=${encodeURIComponent(params.dateFrom)}`);
   if (params.dateTo) parts.push(`dateTo=${encodeURIComponent(params.dateTo)}`);
   if (params.types?.length) params.types.forEach((t) => parts.push(`types=${encodeURIComponent(t)}`));
@@ -78,6 +82,8 @@ export function getEntityDetailEndpoint(entityType: string): string | null {
     'supply-request': '/supply-requests',
     'purchase-request': '/purchase-requests',
     'repair-request': '/repair-requests',
+    'inspection-request': '/inspection-requests',
+    'replenishment-request': '/replenishment-requests',
     'maintenance-plan': '/maintenance-plans',
     'project': '/projects',
     'fault-record': '/fault-records',
@@ -94,6 +100,13 @@ export function getEntityDetailEndpoint(entityType: string): string | null {
     'customer-feedback': '/customer-feedbacks',
     'invoice': '/invoices',
     'tax-report': '/tax-reports',
+    'task': '/tasks',
+    'work-plan': '/work-plans',
+    'leave-request': '/leave-requests',
+    'overtime-plan': '/overtime-plans',
+    'daily-work-report': '/daily-work-reports',
+    'private-feedback': '/private-feedbacks',
+    'acceptance-handover': '/acceptance-handovers',
   };
   return map[entityType] ?? null;
 }
@@ -108,6 +121,8 @@ export function getEntityModule(entityType: string): string | null {
     'supply-request': 'production',
     'purchase-request': 'purchasing',
     'repair-request': 'technical',
+    'inspection-request': 'technical',
+    'replenishment-request': 'purchasing',
     'maintenance-plan': 'technical',
     'project': 'technical',
     'fault-record': 'technical',
@@ -124,6 +139,13 @@ export function getEntityModule(entityType: string): string | null {
     'customer-feedback': 'business',
     'invoice': 'accounting',
     'tax-report': 'accounting',
+    'task': 'common',
+    'work-plan': 'common',
+    'overtime-plan': 'common',
+    'daily-work-report': 'production',
+    'leave-request': 'common',
+    'private-feedback': 'common',
+    'acceptance-handover': 'technical',
   };
   return map[entityType] ?? null;
 }

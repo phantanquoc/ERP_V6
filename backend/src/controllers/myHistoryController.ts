@@ -7,6 +7,7 @@ import { AuthorizationError, ValidationError } from '@utils/errors';
 // ─── Zod schema ───────────────────────────────────────────────────────────────
 
 const historyQuerySchema = z.object({
+  range: z.enum(['all']).optional(),
   dateFrom: z.string().optional().transform((v) => (v ? new Date(v) : undefined)),
   dateTo: z.string().optional().transform((v) => (v ? new Date(v) : undefined)),
   types: z

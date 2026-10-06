@@ -4,42 +4,15 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '../services/apiClient';
 import { getEntityDetailEndpoint, getEntityModule } from '../services/myHistoryService';
+import { STATUS_LABEL, STATUS_COLOR } from './myHistoryUtils';
+import RepairRequestFormModal from './RepairRequestFormModal';
+import SupplyRequestDetailModal from './purchasing/SupplyRequestDetailModal';
+import ReplenishmentDetailModal from './ReplenishmentDetailModal';
+import PurchaseRequestDetailModal from './purchasing/PurchaseRequestDetailModal';
 import { useAuth } from '../contexts/AuthContext';
 import { hasModuleAccess } from '../utils/permissions';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
-// ---- status display (subset of MyHistoryDetailModal's tables) ---------
-const STATUS_LABEL: Record<string, string> = {
-  PENDING: 'Chờ xử lý',
-  IN_PROGRESS: 'Đang xử lý',
-  COMPLETED: 'Hoàn thành',
-  APPROVED: 'Đã duyệt',
-  REJECTED: 'Từ chối',
-  CANCELLED: 'Đã hủy',
-  CHO_DUYET: 'Chờ duyệt',
-  DA_DUYET: 'Đã duyệt',
-  HOAN_THANH: 'Hoàn thành',
-  DA_HUY: 'Đã hủy',
-  DANG_XU_LY: 'Đang xử lý',
-  MOI_TAO: 'Mới tạo',
-  TU_CHOI: 'Từ chối',
-};
-
-const STATUS_COLOR: Record<string, string> = {
-  PENDING: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-  CHO_DUYET: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-  IN_PROGRESS: 'bg-blue-50 text-blue-700 border-blue-200',
-  DANG_XU_LY: 'bg-blue-50 text-blue-700 border-blue-200',
-  COMPLETED: 'bg-green-50 text-green-700 border-green-200',
-  HOAN_THANH: 'bg-green-50 text-green-700 border-green-200',
-  APPROVED: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  DA_DUYET: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  REJECTED: 'bg-red-50 text-red-700 border-red-200',
-  TU_CHOI: 'bg-red-50 text-red-700 border-red-200',
-  CANCELLED: 'bg-gray-100 text-gray-500 border-gray-200',
-  DA_HUY: 'bg-gray-100 text-gray-500 border-gray-200',
-  MOI_TAO: 'bg-slate-50 text-slate-600 border-slate-200',
-};
 
 // ---- field label mapping ------------------------------------------------
 const FIELD_LABELS: Record<string, string> = {
@@ -118,6 +91,30 @@ const FIELD_LABELS: Record<string, string> = {
   urgencyLevel: 'Mức độ khẩn',
   tenGoi: 'Tên gọi',
   donViTinh: 'Đơn vị tính',
+  // Warehouse slips
+  tenKho: 'Kho',
+  tenLo: 'Lô',
+  tenSanPham: 'Sản phẩm',
+  soLuongTruoc: 'SL trước',
+  soLuongXuat: 'SL xuất',
+  soLuongNhap: 'SL nhập',
+  soLuongSau: 'SL sau',
+  soLuongYeuCau: 'SL yêu cầu',
+  soLuongThucTe: 'SL thực tế',
+  tongSoLuongThucTe: 'Tổng SL thực tế',
+  tongSoLuongThuTe: 'Tổng SL thực tế',
+  soDongHang: 'Số dòng hàng',
+  nguoiDeNghi: 'Người đề nghị',
+  nguoiGiao: 'Người giao',
+  daIn: 'Đã in',
+  isVoided: 'Đã hủy',
+  isLocked: 'Đã khóa',
+  maPhieuXuat: 'Mã phiếu xuất',
+  maPhieuNhap: 'Mã phiếu nhập',
+  maPhieu: 'Mã phiếu',
+  ngayXuat: 'Ngày xuất',
+  ngayNhap: 'Ngày nhập',
+  ngayDeNghi: 'Ngày đề nghị',
   unit: 'Đơn vị',
   fileKemTheo: 'File đính kèm',
   attachments: 'File đính kèm',
@@ -257,18 +254,19 @@ const PRIORITY_FIELDS = [
 const HIDDEN_FIELD_PATTERN = /Id$/;
 const HIDDEN_FIELDS = new Set(['id', 'stt']);
 
-// Secondary relation arrays that are side-effects of an entity (e.g. generated
-// purchase requests / warehouse documents) rather than its own content.
-// `items` (the request's line items) must stay visible, so it's intentionally excluded.
-const HIDDEN_RELATION_ARRAYS = new Set([
-  'purchaseRequests',
-  'warehouseReceipts',
-  'warehouseIssues',
-  'warehouseIssue',
-]);
+// Secondary relation arrays — no longer hidden; important links (purchaseRequests,
+// warehouse*) must stay visible. Only truly noisy internal arrays would go here.
+const HIDDEN_RELATION_ARRAYS = new Set<string>([]);
+// Keys already rendered as PerEntityItemsTable — suppress from generic filledEntries to avoid duplicate list
+const SUPPRESSED_TABLE_KEYS = new Set(['items','chiTiet','details','danhMuc']);
+const SUPPRESSED_LINE_LEVEL_KEYS = new Set(['tenKho','tenLo','tenSanPham','maKien','lotProductId','warehouseId','lotId','soLuongTruoc','soLuongSau','soLuongXuat','soLuongNhap','donViTinh']);
 
 function getFieldLabel(key: string): string {
   if (FIELD_LABELS[key]) return FIELD_LABELS[key];
+  const lowerKey = key.charAt(0).toLowerCase() + key.slice(1);
+  if (FIELD_LABELS[lowerKey]) return FIELD_LABELS[lowerKey];
+  const lowerFlat = key.toLowerCase().replace(/\s+/g, '');
+  for (const [k,v] of Object.entries(FIELD_LABELS)) if (k.toLowerCase()===lowerFlat) return v;
   // camelCase / snake_case -> "Camel Case" style fallback
   const spaced = key
     .replace(/_/g, ' ')
@@ -357,10 +355,10 @@ function renderItemList(items: any[]): React.ReactNode {
         if (it == null || typeof it !== 'object') {
           return <li key={idx} className="text-gray-700">• {String(it)}</li>;
         }
-        const name = it.tenGoi || it.name || it.productName || it.materialName
+        const name = it.tenSanPham || it.tenGoi || it.name || it.productName || it.materialName
           || it.title || it.description || it.moTa || `Mục ${idx + 1}`;
         const code = it.code || it.ma || it.sku;
-        const qty = it.soLuong ?? it.quantity;
+        const qty = it.soLuongThucTe ?? it.soLuong ?? it.quantity;
         const unit = it.donViTinh || it.unit;
         const price = it.donGia ?? it.unitPrice;
         const total = it.thanhTien ?? it.totalAmount ?? it.amount;
@@ -458,6 +456,50 @@ const DetailRow: React.FC<{ label: string; children: React.ReactNode }> = ({ lab
   </div>
 );
 
+// ---- per-entity detail helpers ----------------------------------------
+const PerEntityItemsTable: React.FC<{ items: any[] }> = ({ items }) => {
+  if (!items || items.length === 0) return <p className="text-sm text-gray-400">Không có dòng hàng</p>;
+  return (
+    <div className="overflow-x-auto rounded-lg border border-gray-200">
+      <table className="w-full text-xs">
+        <thead className="bg-gray-50 text-gray-500">
+          <tr>
+            <th className="px-2 py-1.5 text-left">#</th>
+            <th className="px-2 py-1.5 text-left">Hàng hóa / Thiết bị</th>
+            <th className="px-2 py-1.5 text-right">SL</th>
+            <th className="px-2 py-1.5 text-left">ĐVT</th>
+            <th className="px-2 py-1.5 text-left">Ghi chú</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {items.map((it: any, idx: number) => {
+            const name = it.tenSanPham || it.tenGoi || it.tenVatTu || it.tenHeThong || it.name || it.productName || it.materialName || it.title || `Mục ${idx+1}`;
+            const qty = it.soLuongThucTe ?? it.soLuong ?? it.soLuongYeuCau ?? it.soLuongDuKien ?? it.quantity ?? '';
+            const unit = it.donViTinh || it.donVi || it.unit || '';
+            const note = it.maKien ? `${it.maKien}${it.tenKho ? ' · '+it.tenKho : ''}${it.tenLo ? ' / '+it.tenLo : ''}` : (it.tenKho || it.tenLo || it.ghiChu || it.moTa || it.noiDungLoi || it.tinhTrangThietBi || it.loaiLoi || '');
+            return (
+              <tr key={idx} className="hover:bg-gray-50/60">
+                <td className="px-2 py-1.5 text-gray-400">{idx+1}</td>
+                <td className="px-2 py-1.5 font-medium text-gray-900">{name}</td>
+                <td className="px-2 py-1.5 text-right">{qty !== '' ? String(qty) : '—'}</td>
+                <td className="px-2 py-1.5 text-gray-600">{unit || '—'}</td>
+                <td className="px-2 py-1.5 text-gray-500 max-w-[180px] truncate" title={String(note)}>{note ? String(note).slice(0,80) : '—'}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+const PerEntitySection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+  <div className="pt-3 mt-3 border-t border-gray-100">
+    <p className="text-xs font-semibold text-gray-500 mb-2">{title}</p>
+    {children}
+  </div>
+);
+
 // ---- main component -------------------------------------------------
 interface HistoryEntityDetailModalProps {
   isOpen: boolean;
@@ -495,6 +537,18 @@ const HistoryEntityDetailModal: React.FC<HistoryEntityDetailModalProps> = ({
     enabled: isOpen && !!entityType && !!entityId && !!endpoint,
   });
 
+  const STATUS_HISTORY_TYPES = new Set(['repair-request','inspection-request','supply-request','purchase-request','replenishment-request','quotation-request','order','quotation','warehouse-receipt','warehouse-issue']);
+  const { data: statusHistory } = useQuery({
+    queryKey: ['history-entity-status-history', entityType, entityId],
+    queryFn: async () => {
+      const res = await apiClient.get<{ success: boolean; data: any }>(`${endpoint}/${entityId}/status-history`);
+      const d = (res.data as any)?.data ?? res.data;
+      return Array.isArray(d) ? d : (Array.isArray(d?.history) ? d.history : Array.isArray(d?.logs) ? d.logs : []);
+    },
+    enabled: isOpen && !!entityType && !!entityId && !!endpoint && STATUS_HISTORY_TYPES.has(entityType),
+    retry: false,
+  });
+
   const handleClose = useCallback(() => {
     onClose();
   }, [onClose]);
@@ -507,6 +561,54 @@ const HistoryEntityDetailModal: React.FC<HistoryEntityDetailModalProps> = ({
   }, [isOpen]);
 
   useFocusTrap(dialogRef as React.RefObject<HTMLElement | null>, isOpen, handleClose);
+
+  const isRepairLike = entityType === 'repair-request' || entityType === 'inspection-request';
+  if (isRepairLike && isOpen && data && !isLoading && !isError) {
+    const source = entityType === 'inspection-request' ? 'inspection' as const : 'repair' as const;
+    return (
+      <RepairRequestFormModal
+        isOpen={isOpen}
+        onClose={handleClose}
+        mode="view"
+        record={data as any}
+        _source={source}
+      />
+    );
+  }
+  if (entityType === 'supply-request' && isOpen && !isLoading && !isError) {
+    // Use purchasing's native read-only view — same as opening from the production tab
+    return (
+      <SupplyRequestDetailModal
+        isOpen={isOpen}
+        onClose={handleClose}
+        supplyRequestId={String(entityId)}
+      />
+    );
+  }
+  if (entityType === 'replenishment-request' && isOpen && data && !isLoading && !isError) {
+    return (
+      <ReplenishmentDetailModal
+        isOpen={isOpen}
+        onClose={handleClose}
+        ybs={data as any}
+      />
+    );
+  }
+  if (entityType === 'purchase-request' && isOpen && data && !isLoading && !isError) {
+    return (
+      <PurchaseRequestDetailModal
+        isOpen={isOpen}
+        onClose={handleClose}
+        purchaseRequest={data as any}
+        canEdit={false}
+        canUpdate={false}
+        isActualPriceConfirmed={() => false}
+        onEdit={() => {}}
+        onCancel={() => {}}
+        onConfirmPrice={() => {}}
+      />
+    );
+  }
 
   if (!isOpen || !entityType || !entityId || !endpoint) return null;
 
@@ -544,7 +646,7 @@ const HistoryEntityDetailModal: React.FC<HistoryEntityDetailModalProps> = ({
   // Priority fields (shown first), in the defined order, only if present in data.
   const priorityEntries: [string, unknown][] = PRIORITY_FIELDS
     .filter((key) => data && Object.prototype.hasOwnProperty.call(data, key))
-    .filter((key) => !dedupHiddenKeys.has(key) && !HIDDEN_RELATION_ARRAYS.has(key))
+    .filter((key) => !dedupHiddenKeys.has(key) && !HIDDEN_RELATION_ARRAYS.has(key) && !SUPPRESSED_TABLE_KEYS.has(key) && !((entityType==='warehouse-receipt'||entityType==='warehouse-issue') && SUPPRESSED_LINE_LEVEL_KEYS.has(key)))
     .map((key) => [key, data[key]] as [string, unknown]);
 
   const priorityKeys = new Set(priorityEntries.map(([key]) => key));
@@ -560,6 +662,8 @@ const HistoryEntityDetailModal: React.FC<HistoryEntityDetailModalProps> = ({
         if (dedupHiddenKeys.has(key)) return false;
         if (HIDDEN_RELATION_ARRAYS.has(key)) return false;
         if (priorityKeys.has(key)) return false;
+        if (SUPPRESSED_TABLE_KEYS.has(key)) return false;
+        if ((entityType==='warehouse-receipt'||entityType==='warehouse-issue') && SUPPRESSED_LINE_LEVEL_KEYS.has(key)) return false;
         if (key === 'createdAt' || key === 'updatedAt') return false;
         return true;
       })
@@ -635,6 +739,63 @@ const HistoryEntityDetailModal: React.FC<HistoryEntityDetailModalProps> = ({
 
             {!isLoading && !isError && data && (
               <>
+                {/* Per-entity: items table when present (YCKT/YCSC/YCCC/YCMH/phiếu kho) */}
+                {(() => {
+                  const itemsArr = (data as any).items || (data as any).chiTiet || (data as any).details || (data as any).danhMuc || null;
+                  if (Array.isArray(itemsArr) && itemsArr.length > 0) {
+                    const first = itemsArr[0];
+                    const isItemLike = first && typeof first === 'object' && ('soLuong' in first || 'soLuongThucTe' in first || 'tenSanPham' in first || 'tenGoi' in first || 'tenVatTu' in first || 'tenHeThong' in first || 'donViTinh' in first);
+                    if (isItemLike) {
+                      return <PerEntitySection title="Dòng hàng"><PerEntityItemsTable items={itemsArr} /></PerEntitySection>;
+                    }
+                  }
+                  return null;
+                })()}
+                {/* Per-entity: supply/purchase/warehouse related links */}
+                {entityType === 'supply-request' && Array.isArray((data as any).purchaseRequests) && (data as any).purchaseRequests.length > 0 && (
+                  <PerEntitySection title="YCMH liên kết">
+                    <div className="space-y-1.5">
+                      {(data as any).purchaseRequests.map((pr: any, i: number) => (
+                        <div key={i} className="flex items-center gap-2 text-xs px-2.5 py-1.5 rounded border bg-gray-50/60">
+                          <span className="font-mono text-gray-500">{pr.maYeuCau || pr.code || pr.id.slice(0,8)}</span>
+                          <span className="px-1.5 py-0.5 rounded border text-[11px]">{pr.trangThai || pr.status || ''}</span>
+                          {pr.convertedPurchaseRequest && <span className="text-gray-400">→ {pr.convertedPurchaseRequest.maYeuCau}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </PerEntitySection>
+                )}
+                {entityType === 'supply-request' && Array.isArray((data as any).replenishmentRequests) && (data as any).replenishmentRequests.length > 0 && (
+                  <PerEntitySection title="YCBS liên kết">
+                    <div className="space-y-1.5">
+                      {(data as any).replenishmentRequests.map((r: any, i: number) => (
+                        <div key={i} className="flex items-center gap-2 text-xs px-2.5 py-1.5 rounded border bg-gray-50/60">
+                          <span className="font-mono text-gray-500">{r.maYeuCau || r.id.slice(0,8)}</span>
+                          <span className="px-1.5 py-0.5 rounded border text-[11px]">{r.trangThai || ''}</span>
+                          <span className="text-gray-400">{r.phanLoaiGroup || ''}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </PerEntitySection>
+                )}
+                {(entityType === 'warehouse-receipt' || entityType === 'warehouse-issue') && Array.isArray((data as any).items) === false && Array.isArray((data as any).chiTiet) === false && (
+                  <></>
+                )}
+                {(entityType === 'purchase-request' || entityType === 'quotation-request' || entityType === 'order' || entityType === 'quotation') && (data as any).items && Array.isArray((data as any).items) && (
+                  <PerEntitySection title="Chi phí / Nhà cung cấp">
+                    <div className="text-xs text-gray-500">Xem chi tiết dòng hàng ở bảng trên; thông tin giá/NCC nằm trong từng dòng nếu có.</div>
+                  </PerEntitySection>
+                )}
+                {/* Per-entity: repair/inspection key fields */}
+                {(entityType === 'repair-request' || entityType === 'inspection-request') && (data as any).ketLuan && (
+                  <PerEntitySection title="Kết luận kiểm tra">
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      {(data as any).ketLuan && <span className="px-2 py-1 rounded bg-gray-50 border">Kết luận: {(data as any).ketLuan}</span>}
+                      {(data as any).mucDoHuHong && <span className="px-2 py-1 rounded bg-gray-50 border">Mức độ: {(data as any).mucDoHuHong}</span>}
+                      {(data as any).ketQuaKiemTra && <span className="px-2 py-1 rounded bg-gray-50 border">KQ: {String((data as any).ketQuaKiemTra).slice(0,80)}</span>}
+                    </div>
+                  </PerEntitySection>
+                )}
                 {filledEntries.map(([key, value]) => (
                   <DetailRow key={key} label={getFieldLabel(key)}>
                     {renderValue(key, value)}
@@ -666,6 +827,32 @@ const HistoryEntityDetailModal: React.FC<HistoryEntityDetailModalProps> = ({
                         ))}
                       </div>
                     )}
+                  </div>
+                )}
+                {/* items table: arrays that looked like domain items shown as table, else generic list */}
+                {/* status timeline */}
+                {Array.isArray(statusHistory) && statusHistory.length > 0 && (
+                  <div className="pt-3 mt-3 border-t border-gray-100">
+                    <p className="text-xs font-semibold text-gray-500 mb-2">Lịch sử trạng thái</p>
+                    <ul className="space-y-1.5">
+                      {(statusHistory as any[]).map((h: any, i: number) => {
+                        const from = h.fromStatus ?? h.tuTrangThai ?? h.oldStatus ?? '';
+                        const to = h.toStatus ?? h.denTrangThai ?? h.newStatus ?? h.status ?? '';
+                        const at = h.createdAt ?? h.ngayTao ?? h.at ?? '';
+                        const by = h.createdBy?.email ?? h.nguoiThaoTac ?? h.by ?? '';
+                        const labelTo = to ? (STATUS_LABEL[to] ?? to) : '';
+                        const labelFrom = from ? (STATUS_LABEL[from] ?? from) : '';
+                        return (
+                          <li key={i} className="text-xs text-gray-600 flex flex-wrap gap-1">
+                            <span className="text-gray-400">{at ? formatDateTime(String(at)) : ''}</span>
+                            {from && <><span className="text-gray-300">•</span>{labelFrom}<span className="text-gray-400">→</span></>}
+                            <span className="font-medium text-gray-700">{labelTo || to}</span>
+                            {by && <span className="text-gray-400">({by})</span>}
+                            {h.note && <span className="text-gray-500">— {String(h.note).slice(0,120)}</span>}
+                          </li>
+                        );
+                      })}
+                    </ul>
                   </div>
                 )}
               </>

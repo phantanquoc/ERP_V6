@@ -3,40 +3,12 @@ import { Search, Filter, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { MyHistoryParams } from '../services/myHistoryService';
 import {
   GROUP_TO_ENTITY_TYPES,
+  ENTITY_TYPE_LABELS,
   STATUS_LABEL_TO_CODES,
   isStatusLabelActive,
   detectPreset,
   type DatePreset,
 } from './myHistoryUtils';
-
-/** Human-readable labels for entity types within sub-chips */
-const ENTITY_TYPE_LABELS: Record<string, string> = {
-  'quotation-request': 'Yêu cầu báo giá',
-  'supply-request': 'Yêu cầu cung ứng',
-  'purchase-request': 'Yêu cầu mua hàng',
-  'leave-request': 'Yêu cầu nghỉ phép',
-  'repair-request': 'Yêu cầu sửa chữa',
-  'task': 'Nhiệm vụ',
-  'work-plan': 'Kế hoạch công việc',
-  'project': 'Dự án',
-  'maintenance-plan': 'Kế hoạch bảo trì',
-  'daily-work-report': 'Báo cáo công việc',
-  'private-feedback': 'Phản hồi',
-  'fault-record': 'Ghi nhận lỗi',
-  'material-evaluation': 'Đánh giá nguyên liệu',
-  'finished-product': 'Thành phẩm',
-  'quality-evaluation': 'Đánh giá chất lượng',
-  'production-report': 'Báo cáo sản xuất',
-  'internal-inspection': 'Kiểm tra nội bộ',
-  'customer-feedback': 'Phản hồi khách hàng',
-  'tax-report': 'Báo cáo thuế',
-  'warehouse-receipt': 'Phiếu nhập kho',
-  'warehouse-issue': 'Phiếu xuất kho',
-  'quotation': 'Báo giá',
-  'maintenance-record': 'Phiếu bảo trì',
-  'acceptance-handover': 'Biên bản nghiệm thu',
-  'invoice': 'Hóa đơn',
-};
 
 const GROUP_OPTIONS: string[] = ['Yêu cầu', 'Nhiệm vụ', 'Kế hoạch', 'Báo cáo', 'Phiếu'];
 
@@ -57,8 +29,8 @@ function toDateStr(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-function getPresetDates(preset: DatePreset): { dateFrom?: string; dateTo?: string } {
-  if (preset === 'all') return {};
+function getPresetDates(preset: DatePreset): { dateFrom?: string; dateTo?: string } | { clearDates: true } {
+  if (preset === 'all') return { clearDates: true } as any;
   if (preset === 'custom') return {};
   const days = parseInt(preset, 10);
   const to = new Date();
@@ -82,6 +54,9 @@ const MyHistoryFilters: React.FC<MyHistoryFiltersProps> = ({ params, onChange, a
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [customFrom, setCustomFrom] = useState(params.dateFrom ?? '');
   const [customTo, setCustomTo] = useState(params.dateTo ?? '');
+
+  useEffect(() => { setCustomFrom(params.dateFrom ?? ''); }, [params.dateFrom]);
+  useEffect(() => { setCustomTo(params.dateTo ?? ''); }, [params.dateTo]);
 
   // Controlled input value for search (raw, not yet committed to URL)
   const [inputSearch, setInputSearch] = useState(params.search ?? '');
@@ -123,15 +98,23 @@ const MyHistoryFilters: React.FC<MyHistoryFiltersProps> = ({ params, onChange, a
   };
 
   const handlePreset = (preset: DatePreset) => {
-    if (preset === 'custom') return; // handled by date inputs
-    const dates = getPresetDates(preset);
+    if (preset === 'custom') return;
+    const dates: any = getPresetDates(preset);
+    if (dates.clearDates) {
+      const { dateFrom: _a, dateTo: _b, ...rest } = params as any;
+      onChange({ ...rest, page: 1 } as MyHistoryParams);
+      setCustomFrom('');
+      setCustomTo('');
+      return;
+    }
     onChange({ ...params, ...dates, page: 1 });
   };
 
   const handleCustomDateChange = (field: 'dateFrom' | 'dateTo', value: string) => {
     if (field === 'dateFrom') setCustomFrom(value);
     else setCustomTo(value);
-    onChange({ ...params, [field]: value || undefined, page: 1 });
+    const { range: _r, ...rest } = params as any;
+    onChange({ ...rest, [field]: value || undefined, page: 1 });
   };
 
   const handleGroupToggle = (group: string) => {
@@ -189,10 +172,10 @@ const MyHistoryFilters: React.FC<MyHistoryFiltersProps> = ({ params, onChange, a
 
   const filterPanel = (
     <div className="space-y-4 border-t border-gray-100 pt-4">
-      {/* Date range presets */}
-      <div>
-        <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Khoảng thời gian</p>
-        <div className="flex flex-wrap gap-2">
+      {/* Khoảng thời gian — hàng ngang */}
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap w-24 shrink-0">Khoảng thời gian</p>
+        <div className="flex flex-wrap gap-2 flex-1">
           {([
             { value: '7', label: '7 ngày' },
             { value: '30', label: '30 ngày' },
@@ -200,63 +183,61 @@ const MyHistoryFilters: React.FC<MyHistoryFiltersProps> = ({ params, onChange, a
             { value: '365', label: '1 năm' },
             { value: 'all', label: 'Tất cả' },
             { value: 'custom', label: 'Tùy chỉnh' },
-          ] as { value: DatePreset; label: string }[]).map((p) => (
+          ] as { value: DatePreset; label: string }[]).map((pr) => (
             <button
-              key={p.value}
+              key={pr.value}
               type="button"
               onClick={() => {
-                if (p.value === 'custom') {
-                  // just switch UI to show inputs; don't clear dates
+                if (pr.value === 'custom') {
                   onChange({ ...params, page: 1 });
                 } else {
-                  handlePreset(p.value);
+                  handlePreset(pr.value);
                 }
               }}
-              aria-pressed={activePreset === p.value}
-              className={`px-3 py-1 rounded-full text-sm border transition-colors ${
-                activePreset === p.value
+              aria-pressed={activePreset === pr.value}
+              className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                activePreset === pr.value
                   ? 'bg-blue-600 text-white border-blue-600'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
               }`}
             >
-              {p.label}
+              {pr.label}
             </button>
           ))}
         </div>
-        {activePreset === 'custom' && (
-          <div className="flex gap-3 mt-2">
-            <div className="flex-1">
-              <label className="text-xs text-gray-500 mb-1 block">Từ ngày</label>
-              <input
-                type="date"
-                value={customFrom}
-                onChange={(e) => handleCustomDateChange('dateFrom', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div className="flex-1">
-              <label className="text-xs text-gray-500 mb-1 block">Đến ngày</label>
-              <input
-                type="date"
-                value={customTo}
-                onChange={(e) => handleCustomDateChange('dateTo', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-        )}
       </div>
+      {activePreset === 'custom' && (
+        <div className="flex gap-3 ml-24">
+          <div className="flex-1">
+            <label className="text-xs text-gray-500 mb-1 block">Từ ngày</label>
+            <input
+              type="date"
+              value={customFrom}
+              onChange={(e) => handleCustomDateChange('dateFrom', e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="text-xs text-gray-500 mb-1 block">Đến ngày</label>
+            <input
+              type="date"
+              value={customTo}
+              onChange={(e) => handleCustomDateChange('dateTo', e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+      )}
 
-      {/* Group pills with expandable sub-chips */}
-      <div>
-        <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Nhóm</p>
-        <div className="space-y-2">
+      {/* Nhóm — hàng ngang: label + pills nằm ngang */}
+      <div className="flex flex-wrap items-start gap-3">
+        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap w-24 shrink-0 pt-1">Nhóm</p>
+        <div className="flex-1 min-w-0 flex flex-wrap gap-2">
           {GROUP_OPTIONS.map((group) => {
             const active = isGroupActive(group);
             const partial = isGroupPartial(group);
             const isExpanded = expandedGroups.has(group);
             const subChipsId = getGroupSubChipsId(group);
-
             return (
               <div key={group}>
                 <div className="flex items-center gap-2">
@@ -288,7 +269,6 @@ const MyHistoryFilters: React.FC<MyHistoryFiltersProps> = ({ params, onChange, a
                     {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                   </button>
                 </div>
-                {/* Sub-chips */}
                 <div
                   id={subChipsId}
                   className={`mt-1.5 ml-2 flex flex-wrap gap-1.5 ${isExpanded ? '' : 'hidden'}`}
@@ -318,10 +298,10 @@ const MyHistoryFilters: React.FC<MyHistoryFiltersProps> = ({ params, onChange, a
         </div>
       </div>
 
-      {/* Status chips */}
-      <div>
-        <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Trạng thái</p>
-        <div className="flex flex-wrap gap-2">
+      {/* Trạng thái — hàng ngang */}
+      <div className="flex flex-wrap items-start gap-3">
+        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap w-24 shrink-0 pt-1">Trạng thái</p>
+        <div className="flex flex-wrap gap-2 flex-1">
           {STATUS_LABEL_TO_CODES.map(({ label, codes }) => {
             const active = isStatusLabelActive(codes, activeStatuses);
             return (
@@ -330,7 +310,7 @@ const MyHistoryFilters: React.FC<MyHistoryFiltersProps> = ({ params, onChange, a
                 type="button"
                 onClick={() => handleStatusChipToggle(codes)}
                 aria-pressed={active}
-                className={`px-3 py-1 rounded-full text-sm border transition-colors ${
+                className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
                   active
                     ? 'bg-blue-600 text-white border-blue-600'
                     : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -340,14 +320,13 @@ const MyHistoryFilters: React.FC<MyHistoryFiltersProps> = ({ params, onChange, a
               </button>
             );
           })}
-          {/* Tail chips for unknown raw codes */}
           {unknownCodes.map((code) => (
             <button
               key={code}
               type="button"
               onClick={() => handleStatusChipToggle([code])}
               aria-pressed
-              className="px-3 py-1 rounded-full text-sm border bg-gray-100 border-gray-300 text-gray-600"
+              className="px-2.5 py-1 rounded-full text-xs border bg-gray-100 border-gray-300 text-gray-600"
             >
               {code}
             </button>
@@ -355,9 +334,9 @@ const MyHistoryFilters: React.FC<MyHistoryFiltersProps> = ({ params, onChange, a
         </div>
       </div>
 
-      {/* Role toggle */}
-      <div>
-        <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Vai trò của tôi</p>
+      {/* Vai trò — hàng ngang */}
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap w-24 shrink-0">Vai trò</p>
         <div className="flex rounded-lg border border-gray-300 overflow-hidden w-fit">
           {([
             { value: 'both', label: 'Tất cả' },

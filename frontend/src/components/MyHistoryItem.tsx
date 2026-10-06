@@ -103,22 +103,22 @@ const MyHistoryItem: React.FC<MyHistoryItemProps> = ({ item, onClick }) => {
       type="button"
       onClick={() => onClick(item, buttonRef.current ?? undefined)}
       title={formatFullDateTime(item.createdAt)}
-      className="relative w-full text-left flex items-center gap-3 pl-24 pr-4 py-2.5 hover:bg-gray-50/70 transition-colors scroll-mt-16 focus:outline-none focus-visible:bg-blue-50/40 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset"
+      className="relative w-full text-left flex items-center gap-2.5 pl-20 pr-3 py-2 hover:bg-gray-50/70 transition-colors scroll-mt-16 focus:outline-none focus-visible:bg-blue-50/40 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset"
       style={{ scrollMarginTop: '4rem' }}
     >
       {/* Time on left of rail */}
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-mono tabular-nums text-gray-400 select-none">
+      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono tabular-nums text-gray-400 select-none">
         {formatTimeOnly(item.createdAt)}
       </span>
 
       {/* Rail dot — sits over the vertical rail line (rail itself rendered by Timeline wrapper) */}
       <span
-        className={`absolute left-[4.5rem] top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full ${dotColor} ring-2 ring-white shadow-sm`}
+        className={`absolute left-[3.75rem] top-1/2 -translate-y-1/2 w-2 h-2 rounded-full ${dotColor} ring-2 ring-white shadow-sm`}
         aria-hidden="true"
       />
 
       {/* Outline group icon */}
-      <div className={`flex-shrink-0 w-7 h-7 rounded-md flex items-center justify-center ${groupColor}`}>
+      <div className={`flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center ${groupColor}`}>
         {groupIcon}
       </div>
 

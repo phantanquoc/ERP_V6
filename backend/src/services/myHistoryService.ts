@@ -21,6 +21,7 @@ export interface HistoryItem {
 
 export interface MyHistoryQuery {
   userId: string;
+  range?: 'all';
   dateFrom?: Date;
   dateTo?: Date;
   types?: string[];
@@ -37,6 +38,8 @@ export interface MyHistoryResult {
   page: number;
   totalPages: number;
   groupCounts: Record<HistoryGroup, number>;
+  pendingCount: number;
+  weekCount: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -673,6 +676,26 @@ async function fetchPrivateFeedbacks(userId: string, dateWhere: any): Promise<Hi
   }));
 }
 
+async function fetchReplenishmentRequests(employeeId: string, dateWhere: any): Promise<HistoryItem[]> {
+  const rows = await prisma.replenishmentRequest.findMany({
+    where: { employeeId, ...(dateWhere ? { createdAt: dateWhere } : {}) },
+    select: { id: true, maYeuCau: true, phanLoaiGroup: true, trangThai: true, createdAt: true },
+    orderBy: { createdAt: 'desc' },
+  });
+  return rows.map((r) => ({
+    entityType: 'replenishment-request',
+    entityId: r.id,
+    group: 'Yêu cầu' as HistoryGroup,
+    title: `Yêu cầu bổ sung ${r.maYeuCau}${r.phanLoaiGroup ? ' · '+r.phanLoaiGroup : ''}`,
+    code: r.maYeuCau,
+    status: r.trangThai as string,
+    createdAt: r.createdAt,
+    role: 'creator' as const,
+    routeHint: `/purchasing/materials?tab=replenishment&replenishmentId=${r.id}`,
+    metadata: { phanLoaiGroup: r.phanLoaiGroup },
+  }));
+}
+
 // ─── Deduplication ────────────────────────────────────────────────────────────
 
 /**
@@ -699,6 +722,7 @@ function deduplicateItems(items: HistoryItem[]): HistoryItem[] {
 export async function getMyHistory(params: MyHistoryQuery): Promise<MyHistoryResult> {
   const {
     userId,
+    range,
     types,
     statuses,
     roleFilter = 'both',
@@ -707,16 +731,16 @@ export async function getMyHistory(params: MyHistoryQuery): Promise<MyHistoryRes
     limit = 20,
   } = params;
 
-  // Resolve dateFrom — default 90 days ago when not supplied
-  const dateFrom = params.dateFrom ?? (() => {
+  // Resolve dateFrom — default 90 days when not supplied, unless range=all means no date filter
+  const dateFrom = range === 'all' ? undefined : (params.dateFrom ?? (() => {
     const d = new Date();
     d.setDate(d.getDate() - 90);
     return d;
-  })();
-  const dateTo = params.dateTo;
+  })());
+  const dateTo = range === 'all' ? undefined : params.dateTo;
 
-  // Validate date range
-  if (dateTo && dateFrom > dateTo) {
+  // Validate date range (skip when range=all)
+  if (dateTo && dateFrom && dateFrom > dateTo) {
     throw new ValidationError('Khoảng thời gian không hợp lệ: dateFrom phải trước dateTo');
   }
 
@@ -743,6 +767,9 @@ export async function getMyHistory(params: MyHistoryQuery): Promise<MyHistoryRes
   }
   if (shouldQuery(types, 'purchase-request') && employeeId) {
     branches.push(safeWrap(fetchPurchaseRequests(employeeId, dateWhere), 'purchase-request'));
+  }
+  if (shouldQuery(types, 'replenishment-request') && employeeId) {
+    branches.push(safeWrap(fetchReplenishmentRequests(employeeId, dateWhere), 'replenishment-request'));
   }
   if (shouldQuery(types, 'leave-request') && employeeId) {
     branches.push(safeWrap(fetchLeaveRequests(employeeId, dateWhere), 'leave-request'));
@@ -871,13 +898,30 @@ export async function getMyHistory(params: MyHistoryQuery): Promise<MyHistoryRes
     groupCounts[item.group] = (groupCounts[item.group] ?? 0) + 1;
   }
 
+  // Summary counts over the entire filtered set (before pagination)
+  const PENDING_SET = new Set([
+    'CHO_XU_LY','CHO_DUYET','PENDING','MOI_TAO',
+    'DA_TIEP_NHAN','DANG_KIEM_TRA','DANG_XU_LY','IN_PROGRESS',
+    'DANG_SUA_CHUA','LEN_KE_HOACH','CHO_NGHIEM_THU',
+  ]);
+  function getWeekStart(): Date {
+    const d = new Date(); const day = d.getDay(); const diff = (day === 0 ? -6 : 1 - day);
+    const m = new Date(d); m.setDate(d.getDate() + diff); m.setHours(0,0,0,0); return m;
+  }
+  const weekStart = getWeekStart();
+  let pendingCount = 0; let weekCount = 0;
+  for (const it of filtered) {
+    if (it.status && PENDING_SET.has(it.status)) pendingCount++;
+    if (it.createdAt >= weekStart) weekCount++;
+  }
+
   // Paginate
   const total = filtered.length;
   const totalPages = Math.ceil(total / limit);
   const offset = (page - 1) * limit;
   const items = filtered.slice(offset, offset + limit);
 
-  return { items, total, page, totalPages, groupCounts };
+  return { items, total, page, totalPages, groupCounts, pendingCount, weekCount };
 }
 
 export default { getMyHistory };

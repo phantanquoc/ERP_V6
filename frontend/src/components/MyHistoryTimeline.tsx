@@ -32,7 +32,7 @@ function groupByDay(items: HistoryItem[]): { day: string; dayLabel: string; item
 
 // ---- loading skeleton --------------------------------------------------
 const SkeletonRow: React.FC = () => (
-  <div className="flex items-center gap-3 px-4 py-3 animate-pulse">
+  <div className="flex items-center gap-2.5 px-3 py-2.5 animate-pulse">
     <div className="w-8 h-8 rounded-lg bg-gray-200 flex-shrink-0" />
     <div className="flex-1 space-y-1.5">
       <div className="h-3.5 bg-gray-200 rounded w-2/3" />
@@ -184,7 +184,7 @@ const MyHistoryTimeline: React.FC<MyHistoryTimelineProps> = ({
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       {/* total count */}
-      <div className="px-4 py-2.5 bg-gray-50/60 border-b border-gray-100 flex items-center justify-between">
+      <div className="px-3 py-2 bg-gray-50/60 border-b border-gray-100 flex items-center justify-between">
         <span className="text-xs text-gray-500">
           <span className="font-semibold text-gray-700">{total}</span> hoạt động
         </span>
@@ -195,7 +195,7 @@ const MyHistoryTimeline: React.FC<MyHistoryTimelineProps> = ({
         {/* Vertical rail line — aligns with item dots at left-[4.5rem] + 5px (half of dot 10px) */}
         <div
           className="pointer-events-none absolute top-0 bottom-0 w-px bg-gradient-to-b from-gray-100 via-gray-200 to-gray-100"
-          style={{ left: 'calc(4.5rem + 5px)' }}
+          style={{ left: 'calc(3.75rem + 4px)' }}
           aria-hidden="true"
         />
 
@@ -208,7 +208,7 @@ const MyHistoryTimeline: React.FC<MyHistoryTimelineProps> = ({
           return (
             <section key={day} className="relative">
               {/* Sticky day header with rule line cutting through the rail */}
-              <div className="sticky top-0 z-[5] bg-white/95 backdrop-blur-sm px-4 py-2 flex items-center gap-3">
+              <div className="sticky top-0 z-[5] bg-white/95 backdrop-blur-sm px-3 py-1.5 flex items-center gap-2">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">{dayLabel}</p>
                 <span className="flex-1 h-px bg-gray-100" aria-hidden="true" />
                 <span className="text-[11px] text-gray-400 whitespace-nowrap">{dayItems.length} hđ</span>
@@ -227,7 +227,7 @@ const MyHistoryTimeline: React.FC<MyHistoryTimelineProps> = ({
 
               {/* Expand / collapse button — indented to align with content column */}
               {dayItems.length > DAY_COLLAPSE_THRESHOLD && (
-                <div className="pl-24 pr-4 py-2">
+                <div className="pl-20 pr-3 py-1.5">
                   <button
                     type="button"
                     onClick={() => {

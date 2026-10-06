@@ -7,6 +7,7 @@ import MyHistoryFilters from '../components/MyHistoryFilters';
 import {
   GROUP_TO_ENTITY_TYPES,
   STATUS_LABEL_TO_CODES,
+  ENTITY_TYPE_LABELS,
   isStatusLabelActive,
   detectPreset,
 } from '../components/myHistoryUtils';
@@ -40,10 +41,12 @@ const GROUP_NAMES = Object.keys(GROUP_TO_ENTITY_TYPES);
 function parseParams(sp: URLSearchParams): MyHistoryParams {
   const params: MyHistoryParams = {};
 
-  // dateFrom / dateTo
+  // range=all means truly all (no date WHERE)
+  if (sp.get('range') === 'all') (params as any).range = 'all';
+  // dateFrom / dateTo — absent = no explicit filter
   const dateFrom = sp.get('dateFrom');
   const dateTo = sp.get('dateTo');
-  params.dateFrom = dateFrom ?? getDefaultDateFrom();
+  if (dateFrom) params.dateFrom = dateFrom;
   if (dateTo) params.dateTo = dateTo;
 
   // Expand shorthand `groups=<name>` back into individual types
@@ -57,13 +60,10 @@ function parseParams(sp: URLSearchParams): MyHistoryParams {
   const statuses = sp.getAll('statuses');
   if (statuses.length) params.statuses = statuses;
 
-  // roleFilter — ?view=created forces roleFilter=created
   const view = sp.get('view');
   const role = sp.get('roleFilter');
   if (view === 'created') params.roleFilter = 'created';
-  else if (role === 'created' || role === 'related') params.roleFilter = role;
-  // default when no view/roleFilter supplied
-  if (!params.roleFilter && !view && !role) params.roleFilter = 'created';
+  else if (role === 'created' || role === 'related' || role === 'both') params.roleFilter = role;
 
   // search
   const search = sp.get('search');
@@ -82,16 +82,12 @@ function parseParams(sp: URLSearchParams): MyHistoryParams {
 function serializeParams(params: MyHistoryParams): URLSearchParams {
   const sp = new URLSearchParams();
 
-  // dateFrom — strip if it matches the 30-day default (± 1 day tolerance)
-  const defaultFrom = getDefaultDateFrom();
-  const isDefaultDateFrom =
-    !params.dateFrom ||
-    params.dateFrom === defaultFrom ||
-    Math.abs(new Date(params.dateFrom).getTime() - new Date(defaultFrom).getTime()) <= 86400000;
-  if (params.dateFrom && !isDefaultDateFrom) {
-    sp.set('dateFrom', params.dateFrom);
+  if ((params as any).range === 'all') {
+    sp.set('range', 'all');
+  } else {
+    if (params.dateFrom) sp.set('dateFrom', params.dateFrom);
+    if (params.dateTo) sp.set('dateTo', params.dateTo);
   }
-  if (params.dateTo) sp.set('dateTo', params.dateTo);
 
   // Collapse fully-selected groups to `groups=<name>`
   const types = params.types ?? [];
@@ -133,17 +129,11 @@ function serializeParams(params: MyHistoryParams): URLSearchParams {
 
 // ---- hasNonDefaultFilters helper ----------------------------------------
 function hasNonDefaultFilters(params: MyHistoryParams): boolean {
-  const defaultFrom = getDefaultDateFrom();
-  const isDefaultDateFrom =
-    !params.dateFrom ||
-    params.dateFrom === defaultFrom ||
-    Math.abs(new Date(params.dateFrom).getTime() - new Date(defaultFrom).getTime()) <= 86400000;
-
-  if (!isDefaultDateFrom) return true;
+  if (params.dateFrom) return true;
   if (params.dateTo) return true;
   if (params.types && params.types.length > 0) return true;
   if (params.statuses && params.statuses.length > 0) return true;
-  if (params.roleFilter && params.roleFilter !== 'both') return true;
+  if (params.roleFilter && params.roleFilter !== 'both' && params.roleFilter) return true;
   if (params.search) return true;
   return false;
 }
@@ -151,16 +141,10 @@ function hasNonDefaultFilters(params: MyHistoryParams): boolean {
 // ---- count active non-default filters (for badge) -----------------------
 function countActiveFilters(params: MyHistoryParams): number {
   let count = 0;
-  const defaultFrom = getDefaultDateFrom();
-  const isDefaultDateFrom =
-    !params.dateFrom ||
-    params.dateFrom === defaultFrom ||
-    Math.abs(new Date(params.dateFrom).getTime() - new Date(defaultFrom).getTime()) <= 86400000;
-
-  if (!isDefaultDateFrom || params.dateTo) count++;
+  if (params.dateFrom || params.dateTo) count++;
   if (params.types && params.types.length > 0) count++;
   if (params.statuses && params.statuses.length > 0) count++;
-  if (params.roleFilter && params.roleFilter !== 'both') count++;
+  if (params.roleFilter && params.roleFilter !== 'both' && params.roleFilter) count++;
   if (params.search) count++;
   return count;
 }
@@ -174,35 +158,6 @@ function formatDisplayDate(iso: string): string {
   return `${day}/${month}/${year}`;
 }
 
-// ---- entity type label lookup (mirrors MyHistoryFilters) ----------------
-const ENTITY_TYPE_LABELS: Record<string, string> = {
-  'quotation-request': 'Yêu cầu báo giá',
-  'supply-request': 'Yêu cầu cung ứng',
-  'purchase-request': 'Yêu cầu mua hàng',
-  'leave-request': 'Yêu cầu nghỉ phép',
-  'repair-request': 'Yêu cầu sửa chữa',
-  'task': 'Nhiệm vụ',
-  'work-plan': 'Kế hoạch công việc',
-  'project': 'Dự án',
-  'maintenance-plan': 'Kế hoạch bảo trì',
-  'daily-work-report': 'Báo cáo công việc',
-  'private-feedback': 'Phản hồi',
-  'fault-record': 'Ghi nhận lỗi',
-  'material-evaluation': 'Đánh giá nguyên liệu',
-  'finished-product': 'Thành phẩm',
-  'quality-evaluation': 'Đánh giá chất lượng',
-  'production-report': 'Báo cáo sản xuất',
-  'internal-inspection': 'Kiểm tra nội bộ',
-  'customer-feedback': 'Phản hồi khách hàng',
-  'tax-report': 'Báo cáo thuế',
-  'warehouse-receipt': 'Phiếu nhập kho',
-  'warehouse-issue': 'Phiếu xuất kho',
-  'quotation': 'Báo giá',
-  'maintenance-record': 'Phiếu bảo trì',
-  'acceptance-handover': 'Biên bản nghiệm thu',
-  'invoice': 'Hóa đơn',
-};
-
 // ---- summary stats helpers ---------------------------------------------
 function getStartOfWeek(): Date {
   const today = new Date();
@@ -214,8 +169,11 @@ function getStartOfWeek(): Date {
   return monday;
 }
 
+// Single-source pending semantics (mirrors STATUS_LABEL_TO_CODES in myHistoryUtils.ts)
 const PENDING_STATUS_CODES = new Set([
-  'CHO_DUYET', 'PENDING', 'DANG_XU_LY', 'IN_PROGRESS', 'MOI_TAO',
+  'CHO_XU_LY', 'CHO_DUYET', 'PENDING', 'MOI_TAO',
+  'DA_TIEP_NHAN', 'DANG_KIEM_TRA', 'DANG_XU_LY', 'IN_PROGRESS',
+  'DANG_SUA_CHUA', 'LEN_KE_HOACH', 'CHO_NGHIEM_THU',
 ]);
 
 function computeStats(items: HistoryItem[], total: number) {
@@ -236,28 +194,33 @@ interface SummaryCardProps {
   thisWeek: number;
   pendingCount: number;
   isLoading: boolean;
+  onPendingClick?: () => void;
+  onWeekClick?: () => void;
 }
 
-const MyHistorySummaryCard: React.FC<SummaryCardProps> = ({ total, thisWeek, pendingCount, isLoading }) => {
-  const tiles = [
+const MyHistorySummaryCard: React.FC<SummaryCardProps> = ({ total, thisWeek, pendingCount, isLoading, onPendingClick, onWeekClick }) => {
+  const tiles: { label: string; value: number; onClick?: () => void }[] = [
     { label: 'Tổng hoạt động', value: total },
-    { label: 'Tuần này', value: thisWeek },
-    { label: 'Chờ xử lý', value: pendingCount },
+    { label: 'Tuần này', value: thisWeek, onClick: onWeekClick },
+    { label: 'Chờ xử lý', value: pendingCount, onClick: onPendingClick },
   ];
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 mb-4">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
-        {tiles.map(({ label, value }) => (
+        {tiles.map(({ label, value, onClick }) => onClick ? (
+          <button key={label} type="button" onClick={onClick} className="flex items-center justify-between sm:flex-col sm:items-center sm:justify-center py-2 sm:py-0 sm:px-2 rounded-lg hover:bg-gray-50 w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+            <p className="text-xs text-gray-500 sm:order-2 sm:mt-0.5">{label}</p>
+            <p className="text-2xl font-bold text-gray-900 sm:order-1">{isLoading ? <span className="inline-block w-8 h-6 bg-gray-200 rounded animate-pulse" /> : value}</p>
+          </button>
+        ) : (
           <div key={label} className="flex items-center justify-between sm:flex-col sm:items-center sm:justify-center py-2 sm:py-0 sm:px-2">
             <p className="text-xs text-gray-500 sm:order-2 sm:mt-0.5">{label}</p>
-            <p className="text-2xl font-bold text-gray-900 sm:order-1">
-              {isLoading ? <span className="inline-block w-8 h-6 bg-gray-200 rounded animate-pulse" /> : value}
-            </p>
+            <p className="text-2xl font-bold text-gray-900 sm:order-1">{isLoading ? <span className="inline-block w-8 h-6 bg-gray-200 rounded animate-pulse" /> : value}</p>
           </div>
         ))}
       </div>
-      <p className="text-xs text-gray-400 text-center mt-3">* Tuần này và Chờ xử lý tính trên trang hiện tại</p>
+      <p className="text-xs text-gray-400 text-center mt-3">* Tuần này và Chờ xử lý tính trên toàn bộ kết quả đã lọc</p>
     </div>
   );
 };
@@ -272,14 +235,10 @@ interface ActiveFilterChipsProps {
 const ActiveFilterChips: React.FC<ActiveFilterChipsProps> = ({ params, onRemove, onClearAll }) => {
   const chips: { label: string; onRemove: () => void }[] = [];
 
-  // Date range chip
-  const defaultFrom = getDefaultDateFrom();
-  const isDefaultDateFrom =
-    !params.dateFrom ||
-    params.dateFrom === defaultFrom ||
-    Math.abs(new Date(params.dateFrom).getTime() - new Date(defaultFrom).getTime()) <= 86400000;
-
-  if (!isDefaultDateFrom || params.dateTo) {
+  // Date range chip — any date param means active; range=all shows 'Tất cả' chip
+  if ((params as any).range === 'all') {
+    chips.push({ label: 'Tất cả', onRemove: () => onRemove({ ...params, range: undefined, page: 1 } as MyHistoryParams) });
+  } else if (params.dateFrom || params.dateTo) {
     const preset = detectPreset(params);
     let label: string;
     if (preset === '7') label = '7 ngày qua';
@@ -498,8 +457,16 @@ const MyHistory: React.FC = () => {
 
   // Derive params from URL on every render (memoized)
   const params = useMemo(() => parseParams(searchParams), [searchParams]);
+  const effectiveParams = useMemo(() => {
+    const isAll = (params as any).range === 'all';
+    return {
+      ...params,
+      ...(isAll ? { dateFrom: undefined, dateTo: undefined } : { dateFrom: params.dateFrom ?? getDefaultDateFrom() }),
+      roleFilter: params.roleFilter ?? 'both',
+    } as MyHistoryParams;
+  }, [params]);
 
-  const { data, isLoading, isError } = useMyHistory(params);
+  const { data, isLoading, isError } = useMyHistory(effectiveParams);
 
   // Auto-snap back to page 1 if current page is out of range
   React.useEffect(() => {
@@ -526,12 +493,13 @@ const MyHistory: React.FC = () => {
   }, [setSearchParams]);
 
   const groupCounts = data?.groupCounts as Record<string, number> | undefined;
+  const pendingCodes = useMemo(() => STATUS_LABEL_TO_CODES.filter(s => ['Chờ xử lý','Chờ duyệt','Đã tiếp nhận','Đang kiểm tra','Đang xử lý','Chờ nghiệm thu'].includes(s.label)).flatMap(s=>s.codes), []);
   const activeFilterCount = useMemo(() => countActiveFilters(params), [params]);
   const nonDefaultFilters = useMemo(() => hasNonDefaultFilters(params), [params]);
-  const stats = useMemo(
-    () => computeStats(data?.items ?? [], data?.total ?? 0),
-    [data]
-  );
+  const stats = useMemo(() => {
+    if (data && typeof (data as any).pendingCount === 'number' && typeof (data as any).weekCount === 'number') return { total: data.total ?? 0, thisWeek: (data as any).weekCount, pendingCount: (data as any).pendingCount };
+    return computeStats(data?.items ?? [], data?.total ?? 0);
+  }, [data]);
 
   const handleItemClick = useCallback((item: HistoryItem, buttonEl?: HTMLButtonElement) => {
     lastClickedItemRef.current = buttonEl ?? null;
@@ -587,6 +555,8 @@ const MyHistory: React.FC = () => {
         thisWeek={stats.thisWeek}
         pendingCount={stats.pendingCount}
         isLoading={isLoading}
+        onPendingClick={() => handleFiltersChange({ ...params, statuses: pendingCodes, page: 1 })}
+        onWeekClick={() => handleFiltersChange({ ...params, dateFrom: daysAgo(7), dateTo: undefined, page: 1 })}
       />
 
       {/* Error state */}
