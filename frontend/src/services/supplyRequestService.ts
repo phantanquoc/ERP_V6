@@ -126,6 +126,11 @@ export interface BatchFulfillLine {
   fulfilledQty: number;
   reason?: string;
   decidedByEmployeeId: string;
+  /**
+   * When false, backend skips ReplenishmentRequest creation and the
+   * "Chờ bổ sung" status bridge (warehouse-issue path). Defaults to
+   * routing shortage to purchasing for generic partialFulfill.
+   */
   routeShortageToPurchase?: boolean;
   lotProductId?: string;
   warehouseId?: string;

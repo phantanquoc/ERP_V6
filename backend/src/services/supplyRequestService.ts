@@ -785,41 +785,47 @@ class SupplyRequestService {
 
     }
 
-    // 2. Prepare issue lines for lines with fulfilledQty > 0 and warehouse info.
-    // Package resolution and the aggregate stock check happen INSIDE the main
-    // transaction below so an insufficient-stock error rolls back fulfilledQty,
-    // the decisions and the shortage PRs as well.
+    // Aggregate per itemId to support split-package (same itemId across N lines)
+    const agg = new Map<string, { item: any; fulfilledQty: number; lines: typeof lines }>();
+    for (const line of lines) {
+      const e = agg.get(line.itemId);
+      if (!e) agg.set(line.itemId, { item: itemMap.get(line.itemId)!, fulfilledQty: line.fulfilledQty, lines: [line] });
+      else { e.fulfilledQty += line.fulfilledQty; e.lines.push(line); }
+    }
+    for (const [, { item, fulfilledQty }] of agg) {
+      const alreadyFulfilled = item.fulfilledQty ?? 0;
+      const remaining = Math.max(0, item.soLuong - alreadyFulfilled);
+      if (fulfilledQty - remaining > 1e-9) throw new ValidationError(`Tổng số lượng cấp (${fulfilledQty}) vượt phần còn lại (${remaining}) cho "${item.tenGoi}".`);
+    }
+    // 2. Prepare issue lines (one per package row) — inside tx later
     const warehouseIssueService = (await import('./warehouseIssueService')).default;
     const warehouseReceiptService = (await import('./warehouseReceiptService')).default;
-
     const issueLines: Array<{ line: any; item: any }> = [];
-    for (const line of lines) {
-      if (line.fulfilledQty <= 0 || !line.warehouseId || !line.lotId) continue;
-      issueLines.push({ line, item: itemMap.get(line.itemId)! });
-    }
+    for (const line of lines) { if (line.fulfilledQty > 0 && line.warehouseId && line.lotId) issueLines.push({ line, item: itemMap.get(line.itemId)! }); }
 
     // 4. — bucketed shortage YCBS, one YCBS per phanLoai group (4.1/4.2)
+    // Use aggregated quantities; shortage routing respects false on ANY line of the item → skip YCBS
     type ShortageEntry = { itemId: string; phanLoai: string; tenHangHoa: string; soLuong: number; donViTinh: string };
     const shortageBuckets = new Map<string, ShortageEntry[]>();
-    const lineShortage = new Map<string, number>();
-    const lineDecisionLabel = new Map<string, string>();
+    const aggShortage = new Map<string, number>();
+    const aggLabel = new Map<string, string>();
     let hasShortage = false;
-    for (const line of lines) {
-      const item = itemMap.get(line.itemId)!;
+    for (const [itemId, { item, fulfilledQty, lines: grp }] of agg) {
       const alreadyFulfilled = item.fulfilledQty ?? 0;
-      const newFulfilled = alreadyFulfilled + line.fulfilledQty;
+      const newFulfilled = alreadyFulfilled + fulfilledQty;
       const shortage = Math.max(0, item.soLuong - newFulfilled);
-      lineShortage.set(line.itemId, shortage);
+      aggShortage.set(itemId, shortage);
       let label: string;
       if (newFulfilled === 0) label = 'Không cấp';
       else if (shortage === 0) label = 'Cấp đủ';
       else label = 'Cấp một phần';
-      lineDecisionLabel.set(line.itemId, label);
-      if (shortage > 0 && line.routeShortageToPurchase !== false) {
+      aggLabel.set(itemId, label);
+      const routeOff = grp.some((l) => l.routeShortageToPurchase === false);
+      if (shortage > 0 && !routeOff) {
         hasShortage = true;
         const b = bucketPhanLoai(item.phanLoai);
         const arr = shortageBuckets.get(b) ?? [];
-        arr.push({ itemId: line.itemId, phanLoai: item.phanLoai, tenHangHoa: item.tenGoi, soLuong: shortage, donViTinh: item.donViTinh });
+        arr.push({ itemId, phanLoai: item.phanLoai, tenHangHoa: item.tenGoi, soLuong: shortage, donViTinh: item.donViTinh });
         shortageBuckets.set(b, arr);
       }
     }
@@ -828,19 +834,17 @@ class SupplyRequestService {
     let bucketReqIdByItem = new Map<string, string>();
     let batchCreatedReqMeta: Array<{ id: string; maYeuCau: string; bucket: string; items: ShortageEntry[] }> = [];
     await prisma.$transaction(async (tx) => {
-      for (const line of lines) {
-        const item = itemMap.get(line.itemId)!;
-        const alreadyFulfilled = item.fulfilledQty ?? 0;
-        const newFulfilled = alreadyFulfilled + line.fulfilledQty;
-        const shortage = lineShortage.get(line.itemId) ?? 0;
+      // Update fulfilledQty once per distinct item (aggregated)
+      for (const [itemId, { item, fulfilledQty }] of agg) {
+        const shortage = aggShortage.get(itemId) ?? 0;
+        void item;
         let fulfillmentStatus: string;
+        const alreadyFulfilled = item.fulfilledQty ?? 0;
+        const newFulfilled = alreadyFulfilled + fulfilledQty;
         if (newFulfilled === 0) fulfillmentStatus = 'Không cấp';
         else if (shortage === 0) fulfillmentStatus = 'Đã cấp đủ';
         else fulfillmentStatus = 'Đã cấp một phần';
-        await tx.supplyRequestItem.update({
-          where: { id: line.itemId },
-          data: { fulfilledQty: newFulfilled, fulfillmentStatus },
-        });
+        await tx.supplyRequestItem.update({ where: { id: itemId }, data: { fulfilledQty: newFulfilled, fulfillmentStatus } });
       }
       for (const [bucket, entries] of shortageBuckets) {
         const maYeuCau = await generateReplenishmentRequestCodeTx(tx);
@@ -870,20 +874,14 @@ class SupplyRequestService {
         for (const e of entries) bucketReqIdByItem.set(e.itemId, ybs.id);
         batchCreatedReqMeta.push({ id: ybs.id, maYeuCau, bucket, items: entries });
       }
-      for (const line of lines) {
-        const shortage = lineShortage.get(line.itemId) ?? 0;
-        const label = lineDecisionLabel.get(line.itemId) ?? 'Không cấp';
-        const reqIdForItem = bucketReqIdByItem.get(line.itemId) ?? null;
+      // One decision per distinct item, fulfilledQty = aggregate
+      for (const [itemId, { fulfilledQty }] of agg) {
+        const shortage = aggShortage.get(itemId) ?? 0;
+        const label = aggLabel.get(itemId) ?? 'Không cấp';
+        const reqIdForItem = bucketReqIdByItem.get(itemId) ?? null;
+        const repLine = agg.get(itemId)!.lines[0];
         await tx.supplyRequestDecision.create({
-          data: {
-            supplyRequestItemId: line.itemId,
-            decision: reqIdForItem ? 'Chuyển thu mua' : label,
-            fulfilledQty: line.fulfilledQty,
-            shortageQty: shortage,
-            reason: line.reason,
-            decidedByEmployeeId: line.decidedByEmployeeId ?? '',
-            triggeredReplenishmentRequestId: reqIdForItem,
-          },
+          data: { supplyRequestItemId: itemId, decision: reqIdForItem ? 'Chuyển thu mua' : label, fulfilledQty, shortageQty: shortage, reason: repLine.reason, decidedByEmployeeId: repLine.decidedByEmployeeId ?? '', triggeredReplenishmentRequestId: reqIdForItem },
         });
       }
       if (hasShortage && batchSupplyRequestId) {
