@@ -418,12 +418,17 @@ const RepairRequestFormModal = ({
   const [viewCancelReason, setViewCancelReason] = useState('');
   const [viewDeleteOpen, setViewDeleteOpen] = useState(false);
   const [viewInspectForm, setViewInspectForm] = useState({ ketQuaKiemTra: '', mucDoHuHong: '', deXuatXuLy: '', ketLuan: '' });
+  const [viewInspectTouched, setViewInspectTouched] = useState(false);
   // "Đã khắc phục" → technician must enter acceptance data + attach a file
   const [viewFixForm, setViewFixForm] = useState({ tinhTrangSau: '', ghiChu: '' });
   const [viewFixFile, setViewFixFile] = useState<File | null>(null);
   const viewIsFixed = viewInspectForm.ketLuan === 'DA_KHAC_PHUC';
   const viewCanSubmit = !!(viewInspectForm.ketQuaKiemTra.trim() && viewInspectForm.ketLuan.trim())
     && (!viewIsFixed || (!!viewFixForm.tinhTrangSau.trim() && !!viewFixFile));
+  const viewMissingKetQua = viewInspectTouched && !viewInspectForm.ketQuaKiemTra.trim();
+  const viewMissingKetLuan = viewInspectTouched && !viewInspectForm.ketLuan.trim();
+  const viewMissingTinhTrangSau = viewInspectTouched && viewIsFixed && !viewFixForm.tinhTrangSau.trim();
+  const viewMissingFile = viewInspectTouched && viewIsFixed && !viewFixFile;
   const [viewConfirmOpen, setViewConfirmOpen] = useState(false);
   const [viewConfirmForm, setViewConfirmForm] = useState<{ ketQua: 'DAT' | 'KHONG_DAT'; lyDo: string }>({ ketQua: 'DAT', lyDo: '' });
   const [viewConfirmSubmitting, setViewConfirmSubmitting] = useState(false);
@@ -541,6 +546,7 @@ const RepairRequestFormModal = ({
       });
       setViewFixForm({ tinhTrangSau: '', ghiChu: '' });
       setViewFixFile(null);
+      setViewInspectTouched(false);
     }
   }, [isView, effectiveIsKiemTra, viewStatus, record]);
   const VIEW_STATUS_LABELS = effectiveIsKiemTra ? INSPECTION_STATUS_LABELS : REPAIR_STATUS_LABELS;
@@ -683,8 +689,9 @@ const RepairRequestFormModal = ({
     const doSubmit = async () => {
       const id = (record as unknown as { id: number }).id;
       const isFixed = viewInspectForm.ketLuan === 'DA_KHAC_PHUC';
-      if (isFixed && (!viewFixForm.tinhTrangSau.trim() || !viewFixFile)) {
-        toast.error('Đã khắc phục: nhập tình trạng sau khắc phục và đính kèm tệp nghiệm thu');
+      if (!viewInspectForm.ketQuaKiemTra.trim() || !viewInspectForm.ketLuan.trim() || (isFixed && (!viewFixForm.tinhTrangSau.trim() || !viewFixFile))) {
+        setViewInspectTouched(true);
+        toast.error('Vui lòng điền đủ các trường bắt buộc được tô đỏ');
         return;
       }
       try {
@@ -746,8 +753,8 @@ const RepairRequestFormModal = ({
       if (existingRepair) {
         rightCta = (<button type="button" onClick={() => goToRepair(existingRepair.id)} className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 min-h-[44px]">Đã tạo {existingRepair.maYeuCau} [Xem] <ArrowRight className="h-4 w-4" /></button>);
       } else {
-        // Only the saved conclusion counts (server requires DA_KIEM_TRA + CAN_SUA_CHUA)
         if (viewKetLuanStr === 'CAN_SUA_CHUA') rightCta = (<button type="button" onClick={doCreateRepair} className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 min-h-[44px]">Tạo yêu cầu sửa chữa <ArrowRight className="h-4 w-4" /></button>);
+        else if (viewKetLuanStr === 'DA_KHAC_PHUC') rightCta = (<span className="text-xs text-gray-500">Kết luận Đã khắc phục — chờ xác nhận nghiệm thu trước đó</span>);
       }
     }
     // Requester-confirmation step is independent of technician role
@@ -1939,21 +1946,44 @@ const RepairRequestFormModal = ({
           <div className={`rounded-lg border p-3 space-y-3 ${viewStatus === 'DANG_KIEM_TRA' ? 'border-yellow-200 bg-yellow-50' : 'border-green-200 bg-green-50'}`}>
             <h4 className="text-sm font-semibold text-gray-800">Kết quả kiểm tra thực tế</h4>
             {viewStatus === 'DANG_KIEM_TRA' && isToBTView ? (
-              <div className="space-y-3">
-                <FormField label="Kết quả kiểm tra" required><textarea rows={3} value={viewInspectForm.ketQuaKiemTra} onChange={e=>setViewInspectForm(v=>({...v, ketQuaKiemTra: e.target.value}))} className={`${textareaCls()} min-h-[60px]`} placeholder="Mô tả kết quả thực tế" /></FormField>
+              <>
+                {(() => {
+                  const last = historyEntries.length ? historyEntries[historyEntries.length - 1] : null;
+                  const reason = last?.reason ?? '';
+                  if (reason.startsWith('acceptance_khong_dat')) {
+                    const why = reason.slice('acceptance_khong_dat'.length).replace(/^:\s*/, '').trim();
+                    return <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800"><span className="font-semibold">KHÔNG ĐẠT — lý do:</span> {why || 'chưa ghi rõ'} — vui lòng xử lý lại và gửi kết quả mới.</div>;
+                  }
+                  return null;
+                })()}
+                <div className="space-y-3">
+                <div className={viewMissingKetQua ? 'rounded border border-red-300 bg-red-50/50 p-1' : ''}>
+                  <FormField label="Kết quả kiểm tra" required><textarea rows={3} value={viewInspectForm.ketQuaKiemTra} onChange={e=>{ setViewInspectForm(v=>({...v, ketQuaKiemTra: e.target.value})); setViewInspectTouched(true); }} className={`${textareaCls()} min-h-[60px] ${viewMissingKetQua ? 'border-red-400 ring-1 ring-red-300' : ''}`} placeholder="Mô tả kết quả thực tế" /></FormField>
+                  {viewMissingKetQua && <p className="mt-1 text-xs text-red-600">Vui lòng nhập kết quả kiểm tra</p>}
+                </div>
                 <FormField label="Mức độ hư hỏng"><select value={viewInspectForm.mucDoHuHong} onChange={e=>setViewInspectForm(v=>({...v, mucDoHuHong: e.target.value}))} className={`${selectCls()} min-h-[44px]`}><option value="">— Chọn —</option>{MUC_DO_OPTIONS.map(k => <option key={k} value={k}>{MUC_DO_LABELS[k]}</option>)}</select></FormField>
                 <FormField label="Đề xuất xử lý"><textarea rows={2} value={viewInspectForm.deXuatXuLy} onChange={e=>setViewInspectForm(v=>({...v, deXuatXuLy: e.target.value}))} className={`${textareaCls()} min-h-[60px]`} /></FormField>
-                <FormField label="Kết luận" required><select value={viewInspectForm.ketLuan} onChange={e=>setViewInspectForm(v=>({...v, ketLuan: e.target.value}))} className={`${selectCls()} min-h-[44px]`}><option value="">— Chọn —</option>{KET_LUAN_OPTIONS.map(k => <option key={k} value={k}>{KET_LUAN_LABELS[k]}</option>)}</select></FormField>
+                <div className={viewMissingKetLuan ? 'rounded border border-red-300 bg-red-50/50 p-1' : ''}>
+                  <FormField label="Kết luận" required><select value={viewInspectForm.ketLuan} onChange={e=>{ setViewInspectForm(v=>({...v, ketLuan: e.target.value})); setViewInspectTouched(true); }} className={`${selectCls()} min-h-[44px] ${viewMissingKetLuan ? 'border-red-400 ring-1 ring-red-300' : ''}`}><option value="">— Chọn —</option>{KET_LUAN_OPTIONS.map(k => <option key={k} value={k}>{KET_LUAN_LABELS[k]}</option>)}</select></FormField>
+                  {viewMissingKetLuan && <p className="mt-1 text-xs text-red-600">Vui lòng chọn kết luận</p>}
+                </div>
                 {viewIsFixed && (
                   <div className="rounded-lg border border-green-200 bg-white p-2.5 space-y-3">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-green-700">Dữ liệu nghiệm thu — gửi người tạo yêu cầu xác nhận</p>
-                    <FormField label="Tình trạng sau khắc phục" required><textarea rows={3} value={viewFixForm.tinhTrangSau} onChange={e=>setViewFixForm(v=>({...v, tinhTrangSau: e.target.value}))} className={`${textareaCls()} min-h-[60px]`} placeholder="Mô tả tình trạng thiết bị sau khi khắc phục" /></FormField>
+                    <div className={viewMissingTinhTrangSau ? 'rounded border border-red-300 bg-red-50/50 p-1' : ''}>
+                      <FormField label="Tình trạng sau khắc phục" required><textarea rows={3} value={viewFixForm.tinhTrangSau} onChange={e=>{ setViewFixForm(v=>({...v, tinhTrangSau: e.target.value})); setViewInspectTouched(true); }} className={`${textareaCls()} min-h-[60px] ${viewMissingTinhTrangSau ? 'border-red-400 ring-1 ring-red-300' : ''}`} placeholder="Mô tả tình trạng thiết bị sau khi khắc phục" /></FormField>
+                      {viewMissingTinhTrangSau && <p className="mt-1 text-xs text-red-600">Vui lòng nhập tình trạng sau khắc phục</p>}
+                    </div>
                     <FormField label="Ghi chú nghiệm thu"><textarea rows={2} value={viewFixForm.ghiChu} onChange={e=>setViewFixForm(v=>({...v, ghiChu: e.target.value}))} className={`${textareaCls()} min-h-[44px]`} placeholder="Tùy chọn" /></FormField>
-                    <FileUpload label="Tệp đính kèm nghiệm thu *" files={viewFixFile ? [viewFixFile] : []} onChange={(files) => setViewFixFile(files[0] ?? null)} accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.rar" compact />
+                    <div className={viewMissingFile ? 'rounded border border-red-300 bg-red-50/50 p-1' : ''}>
+                      <FileUpload label="Tệp đính kèm nghiệm thu *" files={viewFixFile ? [viewFixFile] : []} onChange={(files) => { setViewFixFile(files[0] ?? null); setViewInspectTouched(true); }} accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.rar" compact />
+                      {viewMissingFile && <p className="mt-1 text-xs text-red-600">Vui lòng đính kèm tệp nghiệm thu</p>}
+                    </div>
                   </div>
                 )}
                 {!viewCanSubmit && <p className="text-xs text-amber-600">{viewIsFixed ? 'Nhập Kết quả kiểm tra, Tình trạng sau khắc phục và đính kèm tệp để Gửi.' : 'Nhập đủ Kết quả kiểm tra và Kết luận để Gửi kết quả ở footer.'}</p>}
-              </div>
+                </div>
+              </>
             ) : (
               <div className="space-y-2 text-sm text-gray-700">
                 <p><span className="text-xs font-medium text-gray-500">Kết quả:</span> {viewInspectForm.ketQuaKiemTra || String((record as unknown as Record<string,unknown>)?.ketQuaKiemTra ?? '—')}</p>
@@ -1969,7 +1999,10 @@ const RepairRequestFormModal = ({
             label={`File đính kèm (tối đa ${INSPECTION_MAX_FILES} tệp)`}
             helpText="PDF, Word, Excel, ảnh, TXT, ZIP/RAR — mỗi tệp tối đa 100MB"
             files={selectedFiles}
-            onChange={(files) => setSelectedFiles(files.slice(0, INSPECTION_MAX_FILES))}
+            onChange={(files) => {
+              if (files.length > INSPECTION_MAX_FILES) { toast.error(`Tối đa ${INSPECTION_MAX_FILES} tệp`); }
+              setSelectedFiles(files.slice(0, INSPECTION_MAX_FILES));
+            }}
             multiple
             maxFiles={INSPECTION_MAX_FILES}
             accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
@@ -1997,7 +2030,11 @@ const RepairRequestFormModal = ({
                   label="Thêm tệp đính kèm"
                   helpText={`Còn thêm được ${INSPECTION_MAX_FILES - keptCount} tệp`}
                   files={selectedFiles}
-                  onChange={(files) => setSelectedFiles(files.slice(0, INSPECTION_MAX_FILES - keptCount))}
+                  onChange={(files) => {
+                    const cap = INSPECTION_MAX_FILES - keptCount;
+                    if (files.length > cap) toast.error(`Chỉ thêm được ${cap} tệp nữa`);
+                    setSelectedFiles(files.slice(0, cap));
+                  }}
                   multiple
                   maxFiles={INSPECTION_MAX_FILES - keptCount}
                   accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
@@ -2034,12 +2071,19 @@ const RepairRequestFormModal = ({
             </div>
             {(() => {
               const repairs = (record as unknown as { repairRequests?: { id: number | string; maYeuCau: string; trangThai: string }[] })?.repairRequests ?? [];
+              const active = activeRepairs(repairs as { trangThai: string }[]);
+              const hasActive = active.length > 0;
               if (repairs.length === 0) return <p className="px-2.5 py-2 text-xs text-gray-400">Chưa tạo YCSC từ phiếu này.</p>;
               return (
-                <div className="p-2.5 flex flex-wrap gap-1.5">
+                <div className="p-2.5 space-y-2">
+                  {hasActive && viewStatus === 'DA_KIEM_TRA' && (
+                    <p className="rounded border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">Đã có YCSC đang xử lý — hoàn thành YCSC để đóng YCKT.</p>
+                  )}
+                  <div className="flex flex-wrap gap-1.5">
                   {repairs.map((rr) => (
                     <button key={String(rr.id)} type="button" onClick={() => setSearchParams(buildTechnicalDetailParams(searchParams, 'repair', rr.id))} className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 whitespace-nowrap"><Link2 className="h-3 w-3" /> <span className="font-mono">{rr.maYeuCau}</span> <StatusBadge label={(REPAIR_STATUS_LABELS as Record<string, { label: string }>)[rr.trangThai]?.label ?? rr.trangThai} tone={((REPAIR_STATUS_LABELS as Record<string, { tone: BadgeTone }>)[rr.trangThai]?.tone ?? 'gray')} size="sm" /></button>
                   ))}
+                  </div>
                 </div>
               );
             })()}
