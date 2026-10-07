@@ -542,6 +542,22 @@ class SupplyRequestService {
         data: { fulfilledQty: newFulfilled, fulfillmentStatus },
       });
 
+      // Keep YCSC material-needs in sync with warehouse fulfillment so RepairRequestList 0/3 → n/3 is live (ponytail: same tx, rolls back with fulfilledQty)
+      try {
+        const links = await (tx as any).repairSupplyLink.findMany({
+          where: { supplyRequestId: item.supplyRequestId },
+          select: { repairRequestId: true },
+        });
+        const rIds = [...new Set((links as { repairRequestId: number }[]).map((l) => l.repairRequestId))];
+        const tenGoi = String((item as any).tenGoi ?? '').trim();
+        if (rIds.length && tenGoi) {
+          await (tx as any).repairMaterialNeed.updateMany({
+            where: { repairRequestId: { in: rIds }, tenVatTu: tenGoi },
+            data: { soLuongThucTe: newFulfilled },
+          });
+        }
+      } catch (e) { console.error('sync repairMaterialNeed after partialFulfill failed', e); }
+
       // Create shortage YCBS (ReplenishmentRequest) from SR ownership (4.2), one per bucket
       if (buckets && buckets.size > 0) {
         const sr = item.supplyRequest as any;
@@ -846,6 +862,28 @@ class SupplyRequestService {
         else fulfillmentStatus = 'Đã cấp một phần';
         await tx.supplyRequestItem.update({ where: { id: itemId }, data: { fulfilledQty: newFulfilled, fulfillmentStatus } });
       }
+      // Keep YCSC material-needs live (same tx, so list 0/3 → n/3 updates without F5). One SR per batch, so one link lookup.
+      try {
+        if (batchSupplyRequestId) {
+          const links = await (tx as any).repairSupplyLink.findMany({
+            where: { supplyRequestId: batchSupplyRequestId },
+            select: { repairRequestId: true },
+          });
+          const rIds = [...new Set((links as { repairRequestId: number }[]).map((l) => l.repairRequestId))];
+          if (rIds.length) for (const [itemId] of agg) {
+            const it = itemMap.get(itemId)!;
+            const tenGoi = String((it as any).tenGoi ?? '').trim();
+            if (!tenGoi) continue;
+            const already = Number((it as any).fulfilledQty ?? 0);
+            const add = Number(agg.get(itemId)!.fulfilledQty ?? 0);
+            const newFulfilled = already + add;
+            await (tx as any).repairMaterialNeed.updateMany({
+              where: { repairRequestId: { in: rIds }, tenVatTu: tenGoi },
+              data: { soLuongThucTe: newFulfilled },
+            });
+          }
+        }
+      } catch (e) { console.error('sync repairMaterialNeed after batchFulfill failed', e); }
       for (const [bucket, entries] of shortageBuckets) {
         const maYeuCau = await generateReplenishmentRequestCodeTx(tx);
         const ybs = await tx.replenishmentRequest.create({

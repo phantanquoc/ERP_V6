@@ -745,7 +745,7 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
                           ? <button type="button" title={`Mở phiếu kiểm tra ${srcMa}`} onClick={(e) => { e.stopPropagation(); setSearchParams(buildTechnicalDetailParams(searchParams, 'inspection', String(request.sourceInspectionRequestId))); }} className="font-mono text-amber-700 hover:underline">{srcMa}</button>
                           : <span className="font-mono text-amber-700">{srcMa}</span>
                       ) : <span className="text-gray-400">—</span>}</td>}
-                      {showNeeds && <td className={`${TD} text-xs whitespace-nowrap`}>{needs.length === 0 ? <span className="text-gray-400">—</span> : <span title={needsTitle} className={supplied < needs.length ? 'text-amber-700' : 'text-green-700'}>{supplied}/{needs.length} món đã cấp</span>}</td>}
+                      {showNeeds && <td className={`${TD} text-xs whitespace-nowrap`}>{needs.length === 0 ? <span className="text-gray-400">—</span> : <span title={needsTitle} className={supplied >= needs.length ? 'text-green-600 font-medium' : 'text-amber-600'}>{supplied}/{needs.length}</span>}</td>}
                       <td className={`px-3 py-1.5 align-middle ${STICKY_RIGHT} ${stickyBg}`} onClick={(e) => e.stopPropagation()}>
                         {(() => {
                           const s = request.trangThai as RepairRequestStatus;
