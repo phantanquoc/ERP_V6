@@ -60,6 +60,7 @@ import inspectionRequestService, {
 import repairRequestService from '../services/repairRequestService';
 import supplyRequestService from '../services/supplyRequestService';
 import { useRepairSupplyChain } from '../hooks/useRepairSupplyLinks';
+import SupplyRequestDetailModal from './purchasing/SupplyRequestDetailModal';
 import type { MachineSystem, MachineSystemDetail } from '../services/machineSystemService';
 
 import {
@@ -120,6 +121,73 @@ const emptyItem = (machineSystemId = ''): ItemDraft => ({
   loaiLoi: '',
   noiDungLoi: '',
 });
+
+// ponytail: single row per YCCC chain — compact stepper, no raw codes in primary text
+type YCCCChain = {
+  link?: { id: string; supplyRequestId: string };
+  supplyRequest?: { id?: string; maYeuCau?: string; trangThai?: string } | null;
+  replenishmentRequest?: { maYeuCau?: string; trangThai?: string } | null;
+  purchaseRequest?: { maYeuCau?: string; trangThai?: string } | null;
+  warehouseIssue?: { id?: string; maPhieu?: string } | null;
+  decisionsMeta?: { reason?: string | null } | null;
+};
+function YCCCChainRow({ chain, index, onOpenSupplyRequest, onOpenWarehouseIssue }: {
+  chain: YCCCChain; index: number;
+  onOpenSupplyRequest: (id: string) => void;
+  onOpenWarehouseIssue: (id: string) => void;
+}) {
+  const sr = chain.supplyRequest;
+  const rr = chain.replenishmentRequest;
+  const pr = chain.purchaseRequest;
+  const wi = chain.warehouseIssue;
+  const srId = chain.link?.supplyRequestId ?? sr?.id ?? '';
+  const wiId = wi?.id ?? '';
+  // status pill: most advanced completed stage
+  let pillLabel = '—';
+  let pillCls = 'bg-gray-50 border-gray-200 text-gray-500';
+  if (wi) { pillLabel = 'Đã xuất'; pillCls = 'bg-emerald-50 border-emerald-200 text-emerald-700'; }
+  else if (pr) { pillLabel = pr.trangThai ?? 'YCMH'; pillCls = 'bg-green-50 border-green-200 text-green-700'; }
+  else if (rr) { pillLabel = rr.trangThai ?? 'YCBS'; pillCls = 'bg-amber-50 border-amber-200 text-amber-700'; }
+  else if (sr) { pillLabel = sr.trangThai ?? 'Chờ xử lý'; pillCls = 'bg-blue-50 border-blue-200 text-blue-700'; }
+  const dot = (done: boolean, activeCls: string) => done
+    ? `h-2.5 w-2.5 rounded-full border ${activeCls}`
+    : 'h-2.5 w-2.5 rounded-full border-2 border-gray-300 bg-white';
+  const name = sr?.maYeuCau ? `YCCC` : srId ? `YCCC` : `YCCC #${index + 1}`;
+  const srCode = sr?.maYeuCau ?? '';
+  const pxCode = wi?.maPhieu ?? '';
+  return (
+    <li
+      role="button"
+      tabIndex={0}
+      onClick={() => srId && onOpenSupplyRequest(srId)}
+      onKeyDown={(e) => { if (e.key === 'Enter' && srId) onOpenSupplyRequest(srId); }}
+      className="flex flex-wrap items-center gap-2 px-2.5 py-2 text-xs hover:bg-gray-50 cursor-pointer"
+      title={srCode ? `YCCC ${srCode}` : undefined}
+    >
+      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gray-800 px-1.5 text-[10px] font-bold text-white">{index + 1}</span>
+      <span className="font-medium text-gray-800">{name}</span>
+      <span className="flex items-center gap-1.5 ml-1">
+        <span className={dot(!!sr, 'bg-blue-500 border-blue-500')} title={srCode ? `YCCC ${srCode}` : 'YCCC'} />
+        <span className="h-px w-4 bg-gray-300" />
+        <span className={dot(!!rr, 'bg-amber-500 border-amber-500')} title={rr?.maYeuCau ? `YCBS ${rr.maYeuCau}` : 'YCBS'} />
+        <span className="h-px w-4 bg-gray-300" />
+        <span className={dot(!!pr, 'bg-green-500 border-green-500')} title={pr?.maYeuCau ? `YCMH ${pr.maYeuCau}` : 'YCMH'} />
+        <span className="h-px w-4 bg-gray-300" />
+        <span
+          role={wiId ? 'button' : undefined}
+          tabIndex={wiId ? 0 : undefined}
+          onClick={(e) => { if (wiId) { e.stopPropagation(); onOpenWarehouseIssue(wiId); } }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && wiId) { e.stopPropagation(); onOpenWarehouseIssue(wiId); } }}
+          className={`${dot(!!wi, 'bg-emerald-500 border-emerald-500')} ${wiId ? 'cursor-pointer ring-1 ring-emerald-300 ring-offset-1' : ''}`}
+          title={pxCode ? `PX ${pxCode}` : wi ? 'PX' : 'Chưa xuất'}
+        />
+      </span>
+      <span className="ml-auto flex items-center gap-1">
+        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${pillCls}`}>{pillLabel}</span>
+      </span>
+    </li>
+  );
+}
 
 const emptyForm = (code = ''): CreateRepairRequestRequest => ({
   ngayThang: new Date().toISOString().split('T')[0],
@@ -469,6 +537,7 @@ const RepairRequestFormModal = ({
   const createIncidental = useCreateIncidentalCost();
   const updateIncidental = useUpdateIncidentalCost();
   const deleteIncidental = useDeleteIncidentalCost();
+  const [selectedSupplyId, setSelectedSupplyId] = useState<string | null>(null);
   const [incForm, setIncForm] = useState<{ tenKhoan: string; soTien: string; lyDo: string; filePending: File | null }>({ tenKhoan: '', soTien: '', lyDo: '', filePending: null });
   const [incEditId, setIncEditId] = useState<string | null>(null);
   const [incEdit, setIncEdit] = useState<{ tenKhoan: string; soTien: string; lyDo: string; filePending: File | null }>({ tenKhoan: '', soTien: '', lyDo: '', filePending: null });
@@ -1711,8 +1780,7 @@ const RepairRequestFormModal = ({
             <div className="grid gap-3 lg:grid-cols-[2fr_1fr]">
               <div className="space-y-2.5 min-w-0">
 
-              <div className="grid gap-3 md:grid-cols-2">
-              {/* Block: Kế hoạch */}
+              {/* Block: Kế hoạch — full width (Chi phí dự kiến merged into Tổng hợp chi phí) */}
               <div className="rounded-lg border border-gray-200 bg-white p-2.5 space-y-2">
                 <h4 className="text-sm font-semibold text-gray-800">Kế hoạch</h4>
                 <div className="space-y-2 text-sm">
@@ -1727,25 +1795,18 @@ const RepairRequestFormModal = ({
                 </div>
               </div>
 
-              {/* A3: Chi phí dự kiến (từ YCCC đầu) */}
-              <div className="rounded-lg border border-gray-200 bg-white p-2.5">
-                <h4 className="text-sm font-semibold text-gray-800">Chi phí dự kiến (từ YCCC đầu)</h4>
-                <p className="mt-1 text-sm">{(r as unknown as { chiPhiDuKien?: number | null })?.chiPhiDuKien != null ? <span className="font-semibold text-gray-900">{formatVND(Number((r as unknown as { chiPhiDuKien: number }).chiPhiDuKien))}</span> : <span className="text-gray-400">Chưa có YCCC</span>}</p>
-              </div>
-              </div>
-
-              {/* Block: YCCC chain — hydrate supplyChain via useRepairSupplyChain */}
+              {/* Block: YCCC chain — single compact list via YCCCChainRow */}
               <div className="rounded-lg border border-gray-200 bg-white p-2.5 space-y-2">
                 <div className="border-b -mx-3 -mt-3 mb-2 bg-gray-50 px-3 py-1.5">
                   <h4 className="text-sm font-semibold text-gray-800">Yêu cầu cung cấp (YCCC)</h4>
                 </div>
-                {materialNeedsRO.length === 0 && supplyLinksRO.length === 0 ? (
+                {materialNeedsRO.length === 0 && supplyLinksRO.length === 0 && !(ycscSupplyChainQ.data?.data as unknown[] | undefined)?.length ? (
                   <p className="text-xs text-gray-400">Chưa có nhu cầu vật tư / liên kết YCCC.</p>
                 ) : (
                   <>
                     {materialNeedsRO.length > 0 && (
                       <div className="space-y-1">
-                        <p className="text-xs font-medium text-gray-600">Nhu cầu vật tư ({materialNeedsRO.length})</p>
+                        <p className="text-xs font-medium text-gray-600">Danh sách hàng hóa ({materialNeedsRO.length})</p>
                         <ul className="divide-y divide-gray-100 rounded border border-gray-100">
                           {materialNeedsRO.map((m) => (
                             <li key={m.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-2.5 py-1.5 text-sm">
@@ -1757,43 +1818,32 @@ const RepairRequestFormModal = ({
                         </ul>
                       </div>
                     )}
-                    {supplyLinksRO.length > 0 ? (
-                      <div className="space-y-1">
-                        <p className="text-xs font-medium text-gray-600">Chuỗi YCCC → YCBS → YCMH</p>
-                        <ul className="divide-y divide-gray-100 rounded border border-gray-100">
-                          {supplyLinksRO.map((link) => {
-                            const chForLink = (ycscSupplyChainQ.data?.data as unknown as { link: { id: string; supplyRequestId: string }; warehouseIssue?: { maPhieu: string } | null }[] | undefined)?.find((c) => c.link.id === link.id);
-                            const px = chForLink?.warehouseIssue?.maPhieu;
-                            return (
-                            <li key={link.id} className="flex flex-wrap items-center gap-2 px-2.5 py-1.5 text-xs">
-                              <span className="inline-flex items-center rounded bg-blue-50 border border-blue-200 px-2 py-0.5 font-mono text-blue-700">YCCC #{link.supplyRequestId.slice(0, 8)}</span>
-                              <span className="text-gray-400">→</span>
-                              <span className="text-gray-500">YCBS / YCMH theo dõi qua YCCC</span>
-                              {px && (<><span className="text-gray-400">→</span><span className="inline-flex items-center rounded bg-emerald-50 border border-emerald-200 px-2 py-0.5 font-mono text-emerald-700">PX {px}</span></>)}
-                              {link.soLuong != null && <span className="text-gray-500">SL: {link.soLuong}</span>}
-                            </li>
-                          );})}
-                        </ul>
-                        {ycscSupplyChainQ.data?.data && (ycscSupplyChainQ.data.data as unknown as { supplyRequest?: { maYeuCau: string; trangThai: string } | null; replenishmentRequest?: { maYeuCau: string; trangThai: string } | null; purchaseRequest?: { maYeuCau: string; trangThai: string } | null; warehouseIssue?: { maPhieu: string } | null; decisionsMeta?: { reason?: string | null } | null }[]).length > 0 && (
-                          <div className="mt-2 space-y-1">
-                            {(ycscSupplyChainQ.data.data as unknown as { supplyRequest?: { maYeuCau: string; trangThai: string } | null; replenishmentRequest?: { maYeuCau: string; trangThai: string } | null; purchaseRequest?: { maYeuCau: string; trangThai: string } | null; warehouseIssue?: { maPhieu: string } | null; decisionsMeta?: { reason?: string | null } | null }[]).map((ch, i) => (
-                              <div key={i} className="rounded border bg-white px-2 py-1.5 text-xs flex flex-wrap items-center gap-1">
-                                {ch.supplyRequest ? <span className="rounded-full border bg-blue-50 px-1.5 py-0.5">YCCC {ch.supplyRequest.maYeuCau} [{ch.supplyRequest.trangThai}]</span> : <span className="text-gray-400">YCCC —</span>}
-                                <span className="text-gray-400">→</span>
-                                {ch.replenishmentRequest ? <span className="rounded-full border bg-amber-50 px-1.5 py-0.5">YCBS {ch.replenishmentRequest.maYeuCau} [{ch.replenishmentRequest.trangThai}]</span> : <span className="text-gray-400">Chưa bổ sung</span>}
-                                <span className="text-gray-400">→</span>
-                                {ch.purchaseRequest ? <span className="rounded-full border bg-green-50 px-1.5 py-0.5">YCMH {ch.purchaseRequest.maYeuCau} [{ch.purchaseRequest.trangThai}]</span> : <span className="text-gray-400">—</span>}
-                                {ch.warehouseIssue ? (<><span className="text-gray-400">→</span><span className="rounded-full border bg-emerald-50 px-1.5 py-0.5 text-emerald-700">PX {ch.warehouseIssue.maPhieu}</span></>) : null}
-                                {ch.decisionsMeta?.reason && <span className="text-gray-500">({ch.decisionsMeta.reason})</span>}
-                              </div>
+                    {(() => {
+                      const chains = (ycscSupplyChainQ.data?.data as unknown as YCCCChain[] | undefined) ?? null;
+                      const hasChains = chains && chains.length > 0;
+                      const fallbackChains: YCCCChain[] = !hasChains ? supplyLinksRO.map((link) => ({ link })) : [];
+                      const rows = hasChains ? chains! : fallbackChains;
+                      if (rows.length === 0) {
+                        return materialNeedsRO.length > 0 ? <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs font-medium text-amber-800">Chưa tạo YCCC</div> : null;
+                      }
+                      return (
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-gray-600">Chuỗi YCCC → YCBS → YCMH → PX</p>
+                          <ul className="divide-y divide-gray-100 rounded border border-gray-100">
+                            {rows.map((ch, i) => (
+                              <YCCCChainRow
+                                key={ch.link?.id ?? `chain-${i}`}
+                                chain={ch}
+                                index={i}
+                                onOpenSupplyRequest={(id) => setSelectedSupplyId(id)}
+                                onOpenWarehouseIssue={(id) => navigate(`/production/warehouse?tab=outbound&issueId=${id}`)}
+                              />
                             ))}
-                          </div>
-                        )}
-                        <p className="text-[11px] text-gray-400">Chi tiết YCBS/YCMH xem trong phiếu YCCC liên kết.</p>
-                      </div>
-                    ) : materialNeedsRO.length > 0 ? (
-                      <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs font-medium text-amber-800">Chưa tạo YCCC</div>
-                    ) : null}
+                          </ul>
+                          <p className="text-[11px] text-gray-400">Bấm dòng để mở YCCC · bấm PX để mở phiếu xuất.</p>
+                        </div>
+                      );
+                    })()}
                   </>
                 )}
               </div>
@@ -2558,6 +2608,8 @@ const RepairRequestFormModal = ({
           </div>
         </Modal>
       )}
+      {/* Inline YCCC detail — stays inside the repair modal instead of navigating away (was /production/warehouse?tab=supplyRequest&supplyRequestId= which un mounts this modal and relies on deep-link remount, often blocked) */}
+      <SupplyRequestDetailModal supplyRequestId={selectedSupplyId} isOpen={!!selectedSupplyId} onClose={() => setSelectedSupplyId(null)} />
     </>
   );
 };
