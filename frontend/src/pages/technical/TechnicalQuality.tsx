@@ -29,6 +29,28 @@ const tabs: { key: TabType; label: string }[] = [
 const isTabType = (value: string | null): value is TabType =>
   tabs.some((tab) => tab.key === value);
 
+// Union of all URL params owned by any technical tab — deleted on every tab switch
+// so stale ids (e.g. planId) never leak to an unrelated tab. Matches MaintenanceTab
+// SUB_VIEW_PARAMS pattern which clears both plans+records keys on view switch.
+const ALL_TECH_PARAMS: string[] = [
+  // inspections / repairs / faults shared generics
+  'q', 'search', 'status', 'trangThai', 'page', 'limit', 'create',
+  // inspections
+  'inspectionId', 'inspectionRequestId',
+  // repairs
+  'repairId', 'repairRequestId',
+  // faults
+  'mucDo', 'machineSystemId', 'machineSystemDetailId', 'sortBy', 'sortOrder', 'faultId', 'faultRecordId',
+  // machineSystems
+  'hoatDong', 'systemId', 'drawer', 'drawerTab', 'detailId', 'detailMode', 'systemModal', 'systemModalId',
+  // maintenance — plans + records + mView (machineSystemId/sortBy/sortOrder/q/page/trangThai already listed)
+  'mView', 'planPage', 'planQ', 'nam', 'planId', 'planMonth', 'mode', 'recPage', 'recQ', 'loai', 'recordId',
+  // spareParts
+  'partId', 'partRecordId', 'sparePartId',
+  // orders
+  'orderQ', 'orderStatus', 'orderPage', 'orderLimit', 'orderId',
+];
+
 const BADGE_CLS = 'ml-1 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white min-w-[18px]';
 
 const TechnicalQuality = () => {
@@ -124,7 +146,8 @@ const TechnicalQuality = () => {
   const pushParams = useCallback((nextTab: TabType) => {
     const next = new URLSearchParams(searchParams);
     next.set('tab', nextTab);
-    // Clean legacy params per 4C — no sub/type/requestType
+    for (const k of ALL_TECH_PARAMS) next.delete(k);
+    // Legacy aliases per 4C
     next.delete('sub');
     next.delete('type');
     next.delete('requestType');
