@@ -7,12 +7,23 @@ import { isPricingApprover } from '@utils/isPricingApprover';
 
 const PR_ALLOWED_FIELDS = ['mucDichYeuCau','mucDoUuTien','ghiChu','fileKemTheo','supplyRequestId','nhaCungCapId','giaDuKien','ghiChuMuaHang','isQuickPurchase','sourceType','ngayDuKienNhap','warehouseId','ghiChuVanChuyen','trangThai','nguoiDuyet','ngayDuyet','items'] as const;
 const PR_ADMIN_ONLY = new Set<string>(['trangThai','nguoiDuyet','ngayDuyet']);
+async function isPurchasingMember(user?: unknown): Promise<boolean> {
+  const u = user as any;
+  const ids: string[] = [u?.departmentId, ...(u?.secondaryDepartments?.map((s: any) => s.departmentId) ?? [])].filter(Boolean);
+  if (!ids.length) return false;
+  const depts = await prisma.department.findMany({ where: { id: { in: ids } }, select: { code: true } });
+  return depts.some((d) => d.code === 'DEPT_PURCHASING');
+}
+
 async function pickPR(body: Record<string,unknown>, isAdmin: boolean, user?: unknown): Promise<Record<string,unknown>> {
   const out: Record<string,unknown> = {};
   const isPricing = !isAdmin ? await isPricingApprover(user as any) : false;
+  const trangThaiVal = body.trangThai as string | undefined;
+  // Thu mua được phép tự đóng Hoàn thành (Đã duyệt → Hoàn thành) dù không phải pricing approver
+  const allowHoanThanh = !isAdmin && trangThaiVal === 'Hoàn thành' ? await isPurchasingMember(user) : false;
   for (const k of PR_ALLOWED_FIELDS) if (k in body) {
     if (!isAdmin && PR_ADMIN_ONLY.has(k)) {
-      if (k === 'trangThai' && isPricing) { /* allow pricing approver to set trangThai */ }
+      if (k === 'trangThai' && (isPricing || allowHoanThanh)) { /* pricing duyệt, thu mua được Hoàn thành */ }
       else continue;
     }
     out[k]=body[k];
@@ -226,8 +237,12 @@ class PurchaseRequestController {
       const data: any = await pickPR(raw, isAdmin, (req as any).user);
       // Explicit 403 when non-pricing tries to send trangThai (stripped by pickPR)
       if (raw.trangThai !== undefined && !isAdmin && (data as any).trangThai === undefined) {
-        const ok = await isPricingApprover((req as any).user);
-        if (!ok) return res.status(403).json({ success: false, message: 'Không có quyền duyệt yêu cầu mua hàng' });
+        const forHoanThanh = String(raw.trangThai) === 'Hoàn thành' && await isPurchasingMember((req as any).user);
+        if (forHoanThanh) (data as any).trangThai = raw.trangThai;
+        else {
+          const ok = await isPricingApprover((req as any).user);
+          if (!ok) return res.status(403).json({ success: false, message: 'Không có quyền duyệt yêu cầu mua hàng' });
+        }
       }
       if (raw.items !== undefined) data.items = raw.items;
       // Block client identity override on update as well

@@ -451,6 +451,17 @@ class PurchaseRequestService {
 
   // 3.3 — tighten: remove universal TEAM_LEAD/DEPARTMENT_HEAD bypass, require
   // __actorUserId, restrict EMPLOYEE approvals to the pricing sub-department
+  private async isPurchasingMemberForGuard(actorUserId?: string): Promise<boolean> {
+    if (!actorUserId) return false;
+    const user = await prisma.user.findUnique({ where: { id: actorUserId } });
+    if (!user) return false;
+    const secondary = await prisma.userSecondaryDepartment.findMany({ where: { userId: user.id } }).then((rows: any[]) => rows.map((r) => ({ departmentId: r.departmentId })));
+    const ids = [user.departmentId, ...secondary.map((s: any) => s.departmentId)].filter(Boolean) as string[];
+    if (!ids.length) return false;
+    const depts = await prisma.department.findMany({ where: { id: { in: ids } }, select: { code: true } });
+    return depts.some((d) => d.code === 'DEPT_PURCHASING');
+  }
+
   private async assertCanApprovePurchase(actorUserId?: string): Promise<void> {
     if (!actorUserId) throw new ValidationError('Thiếu thông tin người duyệt');
     const user = await prisma.user.findUnique({ where: { id: actorUserId } });
@@ -679,10 +690,14 @@ class PurchaseRequestService {
     }
 
     // Guard: approval/rejection requires pricing approver (called via controller with actorId)
+    // Thu mua được Hoàn thành (Đã duyệt → Hoàn thành) — not an approval, no pricing check.
     // 3.3 — __actorUserId is required; no silent pass on undefined
     const _actorIdForGuard = (data as any).__actorUserId as string | undefined;
     if (data.trangThai === 'Đã duyệt' || data.trangThai === 'Từ chối') {
       await this.assertCanApprovePurchase(_actorIdForGuard);
+    } else if (data.trangThai === 'Hoàn thành') {
+      const ok = await this.isPurchasingMemberForGuard(_actorIdForGuard);
+      if (!ok) await this.assertCanApprovePurchase(_actorIdForGuard);
     }
     // Server-derived approver identity (mirror cancelPurchaseRequest): ignore client
     // nguoiDuyet/ngayDuyet and derive from actor user. No validation on client fields.
