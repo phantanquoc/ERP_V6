@@ -490,6 +490,13 @@ class RepairRequestService {
       if (src.trangThai !== InspectionRequestStatus.DA_KIEM_TRA || src.ketLuan !== SOURCE_KET_LUAN_CAN_SUA_CHUA) {
         throw new ValidationError('Chỉ tạo yêu cầu sửa chữa từ phiếu kiểm tra đã kiểm tra với kết luận Cần sửa chữa');
       }
+      // Prevent duplicate active YCSC from the same YCKT
+      const existingActive = await prisma.repairRequest.count({
+        where: { sourceInspectionRequestId: sid, trangThai: { notIn: ['DA_HUY', 'TU_CHOI'] as any } },
+      });
+      if (existingActive > 0) {
+        throw new ValidationError('Phiếu kiểm tra này đã có yêu cầu sửa chữa đang xử lý');
+      }
       sourceInspectionRequestId = String(src.id);
     }
 

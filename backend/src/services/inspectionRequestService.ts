@@ -6,6 +6,8 @@ import { AuthorizationError, ConflictError, NotFoundError, ValidationError } fro
 import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import acceptanceHandoverService from '@services/acceptanceHandoverService';
 import { isTechnicalMember } from '@middlewares/technicalAccess';
+import notificationService from '@services/notificationService';
+import { NotificationEvent } from '@types';
 import logger from '@config/logger';
 
 interface InspectionRequestItemData {
@@ -421,6 +423,12 @@ class InspectionRequestService {
         include: inspectionInclude as never,
       }) as Promise<Record<string, unknown>>;
     });
+    // Notify technical dept — fire-and-forget
+    notificationService.notify(NotificationEvent.INSPECTION_REQUEST_CREATED, {
+      entityId: String((row as { id: number }).id),
+      actorUserId: data.userId ?? undefined,
+      metadata: { maYeuCau: data.maYeuCau },
+    }).catch(() => {});
     return row;
   }
 
@@ -595,7 +603,9 @@ class InspectionRequestService {
   }
 
   async accept(id: number, actor: ActorContext) {
-    return this.transition(id, InspectionRequestStatus.DA_TIEP_NHAN, actor, 'accept');
+    const result = await this.transition(id, InspectionRequestStatus.DA_TIEP_NHAN, actor, 'accept');
+    this.notifyInspection(id, NotificationEvent.INSPECTION_REQUEST_ACCEPTED, actor.actorId).catch(() => {});
+    return result;
   }
   async startInspection(id: number, actor: ActorContext) {
     const row = await (prisma.inspectionRequest as unknown as { findUnique: (a: unknown) => Promise<{ id: number; trangThai: InspectionRequestStatus } | null> }).findUnique({ where: { id }, select: { id: true, trangThai: true } });
@@ -606,14 +616,25 @@ class InspectionRequestService {
       if (user) nguoiKiemTra = `${(user as { lastName: string }).lastName} ${(user as { firstName: string }).firstName}`.trim();
     }
     // thoiGianKiemTra / nguoiKiemTra are written with the status change (same guarded update).
-    return this.transition(id, InspectionRequestStatus.DANG_KIEM_TRA, actor, 'startInspection', {
+    const result = await this.transition(id, InspectionRequestStatus.DANG_KIEM_TRA, actor, 'startInspection', {
       extraData: { thoiGianKiemTra: new Date(), ...(nguoiKiemTra ? { nguoiKiemTra } : {}) },
     });
+    this.notifyInspection(id, NotificationEvent.INSPECTION_REQUEST_STARTED, actor.actorId).catch(() => {});
+    return result;
   }
   async updateInspectionDetails(id: number, data: { ketQuaKiemTra?: string | null; mucDoHuHong?: string | null; deXuatXuLy?: string | null; ketLuan?: string | null; anhKiemTra?: string | null; thoiGianKiemTra?: Date | string | null; nguoiKiemTra?: string | null }, _actor: ActorContext) {
-    const row = await (prisma.inspectionRequest as unknown as { findUnique: (a: unknown) => Promise<{ id: number; trangThai: InspectionRequestStatus } | null> }).findUnique({ where: { id }, select: { id: true, trangThai: true } });
+    const row = await (prisma.inspectionRequest as unknown as { findUnique: (a: unknown) => Promise<{ id: number; trangThai: InspectionRequestStatus; ketLuan: string | null } | null> }).findUnique({ where: { id }, select: { id: true, trangThai: true, ketLuan: true } });
     if (!row) throw new NotFoundError('Không tìm thấy phiếu kiểm tra');
-    // Conclusion is locked once submitted (DA_KIEM_TRA / CHO_NGHIEM_THU) — otherwise it could bypass acceptance
+    // ketLuan is locked once submitted (DA_KIEM_TRA / CHO_NGHIEM_THU / HOAN_THANH) — even for ADMIN
+    const isKetLuanChange = 'ketLuan' in data && data.ketLuan !== undefined;
+    const lockedKetLuanStatuses: Set<InspectionRequestStatus> = new Set([InspectionRequestStatus.DA_KIEM_TRA, InspectionRequestStatus.CHO_NGHIEM_THU, InspectionRequestStatus.HOAN_THANH]);
+    if (isKetLuanChange && lockedKetLuanStatuses.has(row.trangThai)) {
+      // Allow no-op (same value) but block actual change
+      const incoming = data.ketLuan == null || data.ketLuan === '' ? null : String(data.ketLuan);
+      if (incoming !== row.ketLuan) {
+        throw new ValidationError('Kết luận đã khóa sau khi gửi kết quả — không thể đổi');
+      }
+    }
     if (row.trangThai !== InspectionRequestStatus.DANG_KIEM_TRA && _actor?.actorRole !== 'ADMIN') {
       throw new ValidationError('Chỉ được cập nhật chi tiết kiểm tra ở trạng thái Đang kiểm tra');
     }
@@ -674,13 +695,15 @@ class InspectionRequestService {
       throw new ValidationError('Vui lòng chọn kết luận kiểm tra (Cần sửa chữa / Đã khắc phục) trước khi hoàn tất');
     }
     if (row.ketLuan === KET_LUAN_CAN_SUA_CHUA) {
-      return this.transition(id, InspectionRequestStatus.DA_KIEM_TRA, actor, 'submitInspection', {
+      const result = await this.transition(id, InspectionRequestStatus.DA_KIEM_TRA, actor, 'submitInspection', {
         precheck: (fresh) => {
           if (fresh.trangThai !== InspectionRequestStatus.DANG_KIEM_TRA || fresh.ketLuan !== KET_LUAN_CAN_SUA_CHUA) {
             throw new ConflictError(STALE_ROW_MESSAGE);
           }
         },
       });
+      this.notifyInspection(id, NotificationEvent.INSPECTION_REQUEST_SUBMITTED, actor.actorId, { maYeuCau: row.maYeuCau, ketLuan: KET_LUAN_CAN_SUA_CHUA }).catch(() => {});
+      return result;
     }
 
     // DA_KHAC_PHUC — acceptance data is mandatory
@@ -773,7 +796,7 @@ class InspectionRequestService {
    */
   async complete(id: number, actor: ActorContext): Promise<Record<string, unknown> | null> {
     const reason = actor.actorRole === 'ADMIN' ? 'complete_admin' : 'complete';
-    return this.transition(id, InspectionRequestStatus.HOAN_THANH, actor, reason, {
+    const result = await this.transition(id, InspectionRequestStatus.HOAN_THANH, actor, reason, {
       precheck: async (row, tx) => {
         if (row.ketLuan === KET_LUAN_DA_KHAC_PHUC) {
           throw new ValidationError('Kết luận Đã khắc phục phải được người tạo yêu cầu xác nhận nghiệm thu');
@@ -786,6 +809,29 @@ class InspectionRequestService {
         }
       },
     });
+    this.notifyInspection(id, NotificationEvent.INSPECTION_REQUEST_COMPLETED, actor.actorId).catch(() => {});
+    return result;
+  }
+
+  private async notifyInspection(id: number, event: (typeof NotificationEvent)[keyof typeof NotificationEvent], actorUserId?: string, extraMeta: Record<string, unknown> = {}) {
+    try {
+      const row = await prisma.inspectionRequest.findUnique({ where: { id }, select: { maYeuCau: true, createdById: true } });
+      if (!row) return;
+      const empIds = row.createdById ? await this.employeeIdsForUser(row.createdById) : [];
+      await notificationService.notify(event as any, {
+        entityId: String(id),
+        actorUserId,
+        targetEmployeeIds: empIds.length ? empIds : undefined,
+        metadata: { maYeuCau: row.maYeuCau, ...extraMeta },
+      });
+    } catch { /* best-effort */ }
+  }
+
+  private async employeeIdsForUser(userId: string): Promise<string[]> {
+    try {
+      const emp = await prisma.employee.findUnique({ where: { userId }, select: { id: true } });
+      return emp ? [emp.id] : [];
+    } catch { return []; }
   }
 
   private async userFullName(userId?: string): Promise<string | null> {

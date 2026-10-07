@@ -630,6 +630,75 @@ const entries: NotificationEventDef[] = [
     },
   },
 
+  // ── Inspection Request (YCKT) ──
+  {
+    event: NotificationEvent.INSPECTION_REQUEST_CREATED,
+    notificationType: NotificationType.INSPECTION_REQUEST,
+    buildMessage: (ctx) => ({
+      title: 'Yêu cầu kiểm tra mới',
+      message: `Yêu cầu kiểm tra ${ctx.metadata?.maYeuCau ?? ''} đã được tạo — chờ tiếp nhận.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const technical = await getEmployeeIdsByDeptCode('DEPT_TECHNICAL');
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...technical, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.INSPECTION_REQUEST_ACCEPTED,
+    notificationType: NotificationType.INSPECTION_REQUEST,
+    buildMessage: (ctx) => ({
+      title: 'Yêu cầu kiểm tra đã tiếp nhận',
+      message: `Yêu cầu kiểm tra ${ctx.metadata?.maYeuCau ?? ''} đã được tiếp nhận.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const direct = ctx.targetEmployeeIds ?? [];
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...direct, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.INSPECTION_REQUEST_STARTED,
+    notificationType: NotificationType.INSPECTION_REQUEST,
+    buildMessage: (ctx) => ({
+      title: 'Đã bắt đầu kiểm tra',
+      message: `Yêu cầu kiểm tra ${ctx.metadata?.maYeuCau ?? ''} đang được kiểm tra.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const direct = ctx.targetEmployeeIds ?? [];
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...direct, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.INSPECTION_REQUEST_SUBMITTED,
+    notificationType: NotificationType.INSPECTION_REQUEST,
+    buildMessage: (ctx) => ({
+      title: ctx.metadata?.ketLuan === 'DA_KHAC_PHUC' ? 'Đã gửi phiếu nghiệm thu kiểm tra' : 'Kết quả kiểm tra: Cần sửa chữa',
+      message: ctx.metadata?.ketLuan === 'DA_KHAC_PHUC'
+        ? `Yêu cầu kiểm tra ${ctx.metadata?.maYeuCau ?? ''} đã khắc phục — chờ bạn xác nhận nghiệm thu.`
+        : `Yêu cầu kiểm tra ${ctx.metadata?.maYeuCau ?? ''} kết luận Cần sửa chữa — vui lòng tạo yêu cầu sửa chữa.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const direct = ctx.targetEmployeeIds ?? [];
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...direct, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.INSPECTION_REQUEST_COMPLETED,
+    notificationType: NotificationType.INSPECTION_REQUEST,
+    buildMessage: (ctx) => ({
+      title: 'Yêu cầu kiểm tra đã hoàn thành',
+      message: `Yêu cầu kiểm tra ${ctx.metadata?.maYeuCau ?? ''} đã hoàn thành.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const direct = ctx.targetEmployeeIds ?? [];
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...direct, ...admins])];
+    },
+  },
+
   // ── Order ──
   {
     event: NotificationEvent.ORDER_CREATED,
