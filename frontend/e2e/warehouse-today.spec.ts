@@ -34,13 +34,13 @@ async function loginWithFallback(page: import('@playwright/test').Page) {
       return false;
     }
   };
-  if (await tryLogin('Anbinh@58')) return;
+  if (await tryLogin('123123')) return;
   if (await tryLogin('admin123')) return;
-  throw new Error('Login failed with both Anbinh@58 and admin123 — check seed / JWT_SECRET');
+  throw new Error('Login failed with both 123123 and admin123 — check seed / JWT_SECRET');
 }
 
 test.describe.serial('Warehouse today — /production/warehouse', () => {
-  test('login with Anbinh@58 (fallback admin123)', async ({ page }) => {
+  test('login with 123123 (fallback admin123)', async ({ page }) => {
     await setupApiRouting(page);
     await loginWithFallback(page);
     await expect(page).toHaveURL(/\/dashboard/);

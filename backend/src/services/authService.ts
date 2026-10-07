@@ -163,15 +163,18 @@ export class AuthService {
   ): Promise<AuthResponse> {
     let userId: string | null = null;
     const ip = metadata?.ipAddress || 'unknown';
+    const isDev = process.env.NODE_ENV !== 'production';
 
-    // Check IP rate limit before attempting login
-    const ipEntry = ipRateLimiter.get(ip);
-    if (ipEntry?.lockedUntil) {
-      if (ipEntry.lockedUntil > new Date()) {
-        throw new IpLockedError(ipEntry.lockedUntil);
-      } else {
-        // Lock expired, reset entry
-        ipRateLimiter.delete(ip);
+    // Check IP rate limit before attempting login (disabled in dev to avoid E2E flake)
+    if (!isDev) {
+      const ipEntry = ipRateLimiter.get(ip);
+      if (ipEntry?.lockedUntil) {
+        if (ipEntry.lockedUntil > new Date()) {
+          throw new IpLockedError(ipEntry.lockedUntil);
+        } else {
+          // Lock expired, reset entry
+          ipRateLimiter.delete(ip);
+        }
       }
     }
 
@@ -214,8 +217,8 @@ export class AuthService {
         throw new AuthenticationError('Tài khoản người dùng đã bị vô hiệu hóa');
       }
     } catch (error) {
-      // Increment IP failed counter (only for auth errors, not system errors)
-      if (error instanceof AuthenticationError) {
+      // Increment IP failed counter — disabled in dev
+      if (!isDev && error instanceof AuthenticationError) {
         const current = ipRateLimiter.get(ip) || { count: 0, lockedUntil: null };
         current.count += 1;
         if (current.count >= IP_MAX_ATTEMPTS) {

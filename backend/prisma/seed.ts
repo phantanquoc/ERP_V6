@@ -6,8 +6,8 @@ const prisma = new PrismaClient();
 async function main(): Promise<void> {
   console.log('🌱 Seeding database...');
 
-  // Hash passwords
-  const adminPassword = await bcrypt.hash('admin123', 10);
+  // Hash passwords — dev default 123123 (override via ADMIN_PASSWORD env if needed)
+  const adminPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD || '123123', 10);
 
   // Create Departments (7 departments)
   console.log('\n📋 Creating departments...');

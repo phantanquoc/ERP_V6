@@ -1,7 +1,10 @@
 import { Page } from '@playwright/test';
 
 export async function setupApiRouting(page: Page) {
-  const backendUrl = process.env.BACKEND_URL || 'http://backend:5000';
+  // Only proxy when explicitly requested (Docker network where "backend:5000" resolves).
+  // On host, VITE_API_URL=http://localhost:5003/api is directly reachable — proxying breaks it.
+  if (!process.env.BACKEND_URL) return;
+  const backendUrl = process.env.BACKEND_URL;
 
   await page.route('**/api/**', async (route) => {
     const url = route.request().url();
@@ -49,7 +52,7 @@ export async function login(page: Page) {
   await page.goto('/');
   await page.waitForLoadState('load');
   await page.locator('input').first().fill('admin@example.com');
-  await page.locator('input[type=password]').fill('Anbinh@58');
+  await page.locator('input[type=password]').fill('123123');
   await page.getByRole('button').filter({ hasText: 'Đăng nhập' }).click();
   await page.waitForURL('**/dashboard', { timeout: 15000 });
   await page.waitForLoadState('networkidle');
