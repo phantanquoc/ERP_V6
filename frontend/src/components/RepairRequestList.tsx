@@ -21,7 +21,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { isTechnicalUser, canDeleteTechnical } from '../utils/permissions';
 import { UserRole } from '../types/auth';
-import { StatCard, CollapsibleSection, StatusBadge } from './shared';
+import { StatusBadge } from './shared';
 import {
   useAcceptRepair,
   useCancelRepair,
@@ -30,7 +30,6 @@ import {
   useDeleteRepairRequest,
   usePlanRepair,
   useRepairRequests,
-  useRepairRequestStats,
   useRepairStatusHistory,
   useStartRepair,
   useSubmitAcceptance,
@@ -117,18 +116,6 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
   })();
   const [filters, setFilters] = useState(initialParsed);
   const [searchInput, setSearchInput] = useState(initialParsed.search);
-
-  const today = new Date().toISOString().split('T')[0];
-  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-  const [statsDateFrom, setStatsDateFrom] = useState(ninetyDaysAgo);
-  const [statsDateTo, setStatsDateTo] = useState(today);
-  const repairStatsQuery = useRepairRequestStats({
-    dateFrom: statsDateFrom,
-    dateTo: statsDateTo,
-    machineSystemId: lockedMachineSystemId,
-    requestType: 'SUA_CHUA' as never,
-  });
-  const stats = repairStatsQuery.data?.data as unknown as { byStatus?: Record<string, number>; delta?: { total?: number; byStatus?: Record<string, number>; avgCompletionHours?: number | null }; avgCompletionHours?: number | null; topMachines?: { machineSystemId: string | null; tenHeThong: string | null; count: number }[]; recurringItems?: { machineSystemDetailId: string | null; tenChiTiet: string | null; count: number; latestMaYeuCau: string | null }[]; monthlyTrend?: { month: string; total: number; hoanThanh: number }[]; recentlyCreated?: { id: number; maYeuCau: string; tenHeThongThietBi: string | null; trangThai: string; createdAt: string }[] } | undefined;
 
   useEffect(() => {
     if (lockedMachineSystemId) {
@@ -458,10 +445,6 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
     }
   };
 
-  // Badge counts from stats.byStatus
-  const countFor = (key: string) => (stats?.byStatus?.[key] as number | undefined) ?? 0;
-  const suaChuaTotal = SUA_CHUA_STATUSES.reduce((s, k) => s + countFor(k), 0);
-
   // Optional columns: hide when empty for the whole page
   const showRequester = requests.some((r) => !!r.createdByName);
   const showLead = requests.some((r) => !!leadOf(r));
@@ -484,179 +467,6 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
           )}
         </div>
       </div>
-
-      {/* Statistics only — the list endpoint has no date filter, so this range never filters the table */}
-      <CollapsibleSection
-        title="Thống kê"
-        rightAdornment={<span className="text-xs font-normal text-gray-500 tabular-nums">{formatDateVN(statsDateFrom)} – {formatDateVN(statsDateTo)}</span>}
-      >
-      <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="font-medium text-gray-700">Khoảng thống kê từ:</span>
-        <input
-          type="date"
-          aria-label="Thống kê từ ngày"
-          value={statsDateFrom}
-          max={statsDateTo}
-          onChange={(e) => setStatsDateFrom(e.target.value)}
-          className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-        />
-        <span className="font-medium text-gray-700">đến:</span>
-        <input
-          type="date"
-          aria-label="Thống kê đến ngày"
-          value={statsDateTo}
-          min={statsDateFrom}
-          onChange={(e) => setStatsDateTo(e.target.value)}
-          className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-        />
-        <span className="text-xs text-gray-400">Chỉ áp dụng cho số liệu thống kê, không lọc danh sách.</span>
-      </div>
-
-      {repairStatsQuery.isError && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          Không thể tải thống kê yêu cầu sửa chữa.
-        </div>
-      )}
-
-      {/* Stat cards are read-only — filtering lives in the table toolbar */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {repairStatsQuery.isLoading ? (
-          Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="rounded-lg border bg-white px-4 py-3 animate-pulse">
-              <div className="h-3 w-20 rounded bg-gray-200 mb-2" />
-              <div className="h-7 w-10 rounded bg-gray-200" />
-            </div>
-          ))
-        ) : (
-          <>
-            <StatCard
-              label="Tổng (kỳ thống kê)"
-              value={suaChuaTotal}
-              delta={stats?.delta?.byStatus ? undefined : stats?.delta?.total}
-              deltaLabel="vs kỳ trước"
-            />
-            <StatCard
-              label={STATUS_LABELS.CHO_XU_LY.label}
-              value={countFor('CHO_XU_LY')}
-              delta={stats?.delta?.byStatus?.['CHO_XU_LY']}
-            />
-            <StatCard
-              label={STATUS_LABELS.DANG_SUA_CHUA.label}
-              value={countFor('DANG_SUA_CHUA')}
-              delta={stats?.delta?.byStatus?.['DANG_SUA_CHUA']}
-            />
-            <StatCard
-              label={STATUS_LABELS.HOAN_THANH.label}
-              value={countFor('HOAN_THANH')}
-              delta={stats?.delta?.byStatus?.['HOAN_THANH']}
-              deltaLabel={stats?.avgCompletionHours != null ? `Tb. ${Math.round(stats.avgCompletionHours)}h` : undefined}
-            />
-          </>
-        )}
-      </div>
-
-      <CollapsibleSection title="Máy hay yêu cầu sửa chữa nhất">
-        {repairStatsQuery.isLoading ? (
-          <p className="text-sm text-gray-400">Đang tải...</p>
-        ) : !stats?.topMachines || stats.topMachines.length === 0 ? (
-          <p className="text-sm text-gray-400">Chưa có dữ liệu.</p>
-        ) : (
-          <ul className="space-y-1 text-sm">
-            {stats.topMachines.map((m, i) => (
-              <li key={m.machineSystemId ?? i} className="flex items-center justify-between">
-                <span className="text-gray-700">{m.tenHeThong ?? m.machineSystemId ?? '—'}</span>
-                <span className="font-medium text-gray-900">{m.count} lần</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </CollapsibleSection>
-
-      <CollapsibleSection title="Yêu cầu tái phát">
-        {repairStatsQuery.isLoading ? (
-          <p className="text-sm text-gray-400">Đang tải...</p>
-        ) : !stats?.recurringItems || stats.recurringItems.length === 0 ? (
-          <p className="text-sm text-gray-400">Không có mục tái phát trong 180 ngày qua.</p>
-        ) : (
-          <ul className="space-y-1 text-sm">
-            {stats.recurringItems.map((r, i) => (
-              <li key={r.machineSystemDetailId ?? i} className="flex items-center justify-between gap-2">
-                <div>
-                  <span className="text-gray-700">{r.tenChiTiet ?? r.machineSystemDetailId ?? '—'}</span>
-                  {r.latestMaYeuCau && (
-                    <p className="text-[11px] text-gray-400">Mã mới nhất: {r.latestMaYeuCau}</p>
-                  )}
-                </div>
-                <span className="shrink-0 font-medium text-gray-900">{r.count} lần</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </CollapsibleSection>
-
-      <CollapsibleSection title="Xu hướng theo tháng">
-        {repairStatsQuery.isLoading ? (
-          <p className="text-sm text-gray-400">Đang tải...</p>
-        ) : !stats?.monthlyTrend || stats.monthlyTrend.length === 0 ? (
-          <p className="text-sm text-gray-400">Chưa có dữ liệu.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[400px] text-xs">
-              <thead>
-                <tr className="text-gray-500">
-                  <th className="py-1 text-left font-medium">Tháng</th>
-                  <th className="py-1 text-right font-medium">Tổng</th>
-                  <th className="py-1 text-right font-medium">Hoàn thành</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {stats.monthlyTrend.map((row) => (
-                  <tr key={row.month}>
-                    <td className="py-1 text-gray-700">{row.month}</td>
-                    <td className="py-1 text-right text-gray-900 font-medium">{row.total}</td>
-                    <td className="py-1 text-right text-green-700">{row.hoanThanh}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </CollapsibleSection>
-
-      <CollapsibleSection title="Mới phát sinh">
-        {repairStatsQuery.isLoading ? (
-          <p className="text-sm text-gray-400">Đang tải...</p>
-        ) : !stats?.recentlyCreated || stats.recentlyCreated.length === 0 ? (
-          <p className="text-sm text-gray-400">Không có yêu cầu mới phát sinh.</p>
-        ) : (
-          <ul className="space-y-1">
-            {stats.recentlyCreated.map((r) => (
-              <li key={r.id}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    repairRequestService.getById(r.id).then((res) => {
-                      if (res?.data) openModal('view', res.data as unknown as RepairRequest);
-                    }).catch(()=>null);
-                  }}
-                  className="w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-gray-50 flex items-center justify-between gap-2"
-                >
-                  <div>
-                    <span className="font-medium text-gray-800">{r.maYeuCau}</span>
-                    {r.tenHeThongThietBi && (
-                      <span className="ml-2 text-xs text-gray-400">{r.tenHeThongThietBi}</span>
-                    )}
-                  </div>
-                  <StatusBadge label={STATUS_LABELS[r.trangThai as RepairRequestStatus]?.label ?? r.trangThai} tone={STATUS_LABELS[r.trangThai as RepairRequestStatus]?.tone ?? 'gray'} size="sm" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </CollapsibleSection>
-      </div>
-      </CollapsibleSection>
 
       <section className="rounded-xl border border-gray-200 bg-white overflow-hidden">
         <div className="flex flex-col gap-2 border-b border-gray-200 p-3">

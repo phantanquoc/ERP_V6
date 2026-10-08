@@ -10,7 +10,7 @@ interface PageHeaderProps {
 }
 
 export const PageHeader: React.FC<PageHeaderProps> = ({ title, description, icon, actions, breadcrumb }) => (
-  <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4 gap-y-2 mb-5">
+  <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4 gap-y-2 mb-3">
     <div className="min-w-0">
       {breadcrumb && <div className="mb-1">{breadcrumb}</div>}
       <h1 className={`${typography.pageTitle} flex items-center gap-2`}>
