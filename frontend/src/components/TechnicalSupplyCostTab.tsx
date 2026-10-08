@@ -155,9 +155,9 @@ export default function TechnicalSupplyCostTab() {
         {/* KPI row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
           <div className="rounded-lg border bg-white p-2.5"><p className="text-xs text-gray-500">Tổng</p><p className="text-lg font-bold text-gray-900">{supplyTotal}</p></div>
-          <div className="rounded-lg border bg-white p-2.5"><p className="text-xs text-gray-500">Chưa cung cấp</p><p className="text-lg font-bold text-gray-900">{kpiCounts['Chưa cung cấp'] ?? 0}</p></div>
-          <div className="rounded-lg border bg-white p-2.5"><p className="text-xs text-gray-500">Đã cung cấp</p><p className="text-lg font-bold text-gray-900">{kpiCounts['Đã cung cấp'] ?? 0}</p></div>
-          <div className="rounded-lg border bg-white p-2.5"><p className="text-xs text-gray-500">Đã hủy</p><p className="text-lg font-bold text-gray-900">{kpiCounts['Đã hủy'] ?? 0}</p></div>
+          <div className="rounded-lg border bg-white p-2.5"><p className="text-xs text-gray-500">Chưa cung cấp</p><p className="text-lg font-bold text-gray-900">{kpiCounts['Chưa cung cấp'] ?? 0}</p><p className="text-[11px] text-gray-400">trong trang hiện tại</p></div>
+          <div className="rounded-lg border bg-white p-2.5"><p className="text-xs text-gray-500">Đã cung cấp</p><p className="text-lg font-bold text-gray-900">{kpiCounts['Đã cung cấp'] ?? 0}</p><p className="text-[11px] text-gray-400">trong trang hiện tại</p></div>
+          <div className="rounded-lg border bg-white p-2.5"><p className="text-xs text-gray-500">Đã hủy</p><p className="text-lg font-bold text-gray-900">{kpiCounts['Đã hủy'] ?? 0}</p><p className="text-[11px] text-gray-400">trong trang hiện tại</p></div>
         </div>
 
         {supplyQuery.isLoading ? (
