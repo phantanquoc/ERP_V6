@@ -457,6 +457,10 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
                 <>
                   {activeTab === 'status' && (
                     <div className="space-y-4">
+                      <div>
+                        <h2 className="text-base font-semibold text-gray-900">Trạng thái hệ thống/thiết bị</h2>
+                        <p className="text-xs text-gray-500">Theo dõi trạng thái vận hành, nhật ký và lịch sử yêu cầu kiểm tra — sửa chữa.</p>
+                      </div>
                       <div className="flex flex-wrap items-center gap-2">
                         {statusBadge(summary.machine.trangThai)}
                         <span className="text-sm text-gray-600">{CATEGORY_LABELS[summary.machine.loaiHeThong] ?? summary.machine.loaiHeThong}</span>
@@ -482,6 +486,10 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
 
                   {activeTab === 'faults' && (
                     <div className="space-y-4">
+                      <div>
+                        <h2 className="text-base font-semibold text-gray-900">Danh sách lỗi</h2>
+                        <p className="text-xs text-gray-500">Bản ghi lỗi, mẫu lỗi, tài liệu sửa chữa và nghiệm thu sau sửa chữa.</p>
+                      </div>
                       <FaultRecordList lockedMachineSystemId={machineSystemId ?? undefined} />
                       <section className="rounded-lg border border-gray-200 bg-white">
                         <div className="border-b border-gray-200 bg-gray-50 px-3 py-2">
@@ -521,19 +529,41 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
                   )}
 
                   {activeTab === 'maintenance' && (
-                    <MaintenanceTab lockedMachineSystemId={machineSystemId ?? undefined} />
+                    <div className="space-y-4">
+                      <div>
+                        <h2 className="text-base font-semibold text-gray-900">Kế hoạch bảo dưỡng</h2>
+                        <p className="text-xs text-gray-500">Kế hoạch định kỳ và biên bản thực hiện bảo dưỡng/sửa chữa.</p>
+                      </div>
+                      <MaintenanceTab lockedMachineSystemId={machineSystemId ?? undefined} />
+                    </div>
                   )}
 
                   {activeTab === 'operations' && (
                     canShowOperations ? (
-                      <SystemOperationManagement lockedMachineSystemId={machineSystemId ?? undefined} />
+                      <div className="space-y-4">
+                        <div>
+                          <h2 className="text-base font-semibold text-gray-900">Thông tin vận hành</h2>
+                          <p className="text-xs text-gray-500">Thông số vận hành theo ca, khối lượng, nhiệt độ và áp suất các giai đoạn.</p>
+                        </div>
+                        <SystemOperationManagement lockedMachineSystemId={machineSystemId ?? undefined} />
+                      </div>
                     ) : (
-                      <div className="py-8 text-center text-sm text-gray-500">Tab vận hành chỉ áp dụng cho hệ thống Sản xuất / Đóng gói / Bảo quản.</div>
+                      <div className="space-y-4">
+                        <div>
+                          <h2 className="text-base font-semibold text-gray-900">Thông tin vận hành</h2>
+                          <p className="text-xs text-gray-500">Thông số vận hành theo ca, khối lượng, nhiệt độ và áp suất các giai đoạn.</p>
+                        </div>
+                        <div className="py-8 text-center text-sm text-gray-500">Tab vận hành chỉ áp dụng cho hệ thống Sản xuất / Đóng gói / Bảo quản.</div>
+                      </div>
                     )
                   )}
 
                   {activeTab === 'system' && (
                     <div className="space-y-4">
+                      <div>
+                        <h2 className="text-base font-semibold text-gray-900">Thông tin hệ thống</h2>
+                        <p className="text-xs text-gray-500">Thông tin chung và cây linh kiện/thiết bị thuộc hệ thống.</p>
+                      </div>
                       <div className="inline-flex gap-1 rounded-lg bg-gray-100 p-1">
                         {SYSTEM_SUB_TABS.map(({ key, label, icon: Icon }) => {
                           const active = systemSubTab === key;
