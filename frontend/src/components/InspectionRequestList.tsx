@@ -76,7 +76,7 @@ const SkeletonRows = ({ cols }: { cols: number }) => (
   </>
 );
 
-export default function InspectionRequestList(_props: { lockedMachineSystemId?: string } = {}) {
+export default function InspectionRequestList({ lockedMachineSystemId }: { lockedMachineSystemId?: string } = {}) {
   const { user } = useAuth();
   // Delete: ADMIN / Trưởng bộ phận Kỹ thuật only. Process: any Kỹ thuật member (primary or secondary), any role.
   const canDelete = canDeleteTechnical(user);
@@ -95,11 +95,29 @@ export default function InspectionRequestList(_props: { lockedMachineSystemId?: 
   const detailSyncRef = useRef(false);
   const filterSyncRef = useRef(false);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [filters, setFilters] = useState<Filters>(() => parseFilters(new URLSearchParams(window.location.search)));
+  const [filters, setFilters] = useState<Filters>(() => {
+    const init = parseFilters(new URLSearchParams(window.location.search));
+    // When locked, fetch a larger page so client-side filter has enough data
+    if (lockedMachineSystemId) init.limit = 200;
+    return init;
+  });
   const [searchInput, setSearchInput] = useState(filters.search);
   const listQ = useInspectionRequests({ page: filters.page, limit: filters.limit, search: filters.search || undefined, trangThai: (filters.trangThai as InspectionRequestStatus) || undefined });
-  const requests = useMemo(() => listQ.data?.data ?? [], [listQ.data]);
-  const pagination = listQ.data?.pagination;
+  const rawRequests = useMemo(() => listQ.data?.data ?? [], [listQ.data]);
+  // Client-side filter when locked: InspectionRequest has no server-side machineSystemId filter
+  const requests = useMemo(() => {
+    if (!lockedMachineSystemId) return rawRequests;
+    return rawRequests.filter((r) =>
+      (r.items ?? []).some((it) => it.machineSystemId === lockedMachineSystemId)
+    );
+  }, [rawRequests, lockedMachineSystemId]);
+  const serverPagination = listQ.data?.pagination;
+  const pagination = useMemo(() => {
+    if (!lockedMachineSystemId || !serverPagination) return serverPagination;
+    const total = requests.length;
+    const limit = filters.limit || 200;
+    return { ...serverPagination, total, totalPages: Math.max(1, Math.ceil(total / limit)), page: 1 };
+  }, [lockedMachineSystemId, serverPagination, requests.length, filters.limit]);
   const hasActiveFilter = !!filters.search || !!filters.trangThai;
   const [modal, setModal] = useState<{ mode: 'create' | 'edit' | 'view'; record?: InspectionRequest } | null>(null);
   const [historyId, setHistoryId] = useState<number | null>(null);
@@ -111,8 +129,9 @@ export default function InspectionRequestList(_props: { lockedMachineSystemId?: 
   const completeMut = useCompleteInspection();
   const cancelMut = useCancelInspection();
 
-  // filters -> URL (replace, so F5 / shared links keep q/status/page/limit)
+  // filters -> URL (replace, so F5 / shared links keep q/status/page/limit) — skip when locked (drawer owns no URL)
   useEffect(() => {
+    if (lockedMachineSystemId) return;
     const next = new URLSearchParams(searchParams);
     const before = next.toString();
     next.delete('search');
@@ -128,8 +147,9 @@ export default function InspectionRequestList(_props: { lockedMachineSystemId?: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
 
-  // URL -> filters (back/forward, pasted link)
+  // URL -> filters (back/forward, pasted link) — skip when locked
   useEffect(() => {
+    if (lockedMachineSystemId) return;
     if (filterSyncRef.current) { filterSyncRef.current = false; return; }
     const parsed = parseFilters(searchParams);
     setFilters((f) => (f.page === parsed.page && f.limit === parsed.limit && f.search === parsed.search && f.trangThai === parsed.trangThai ? f : parsed));
@@ -138,6 +158,7 @@ export default function InspectionRequestList(_props: { lockedMachineSystemId?: 
 
   const openModal = (mode: 'create' | 'edit' | 'view', record?: InspectionRequest) => {
     setModal({ mode, record });
+    if (lockedMachineSystemId) return;
     if (mode === 'view' && record?.id != null) {
       const next = new URLSearchParams(searchParams);
       next.set('inspectionId', String(record.id));
@@ -158,6 +179,7 @@ export default function InspectionRequestList(_props: { lockedMachineSystemId?: 
     const wasView = modal?.mode === 'view';
     const wasCreate = modal?.mode === 'create';
     setModal(null);
+    if (lockedMachineSystemId) return;
     if (wasView && (searchParams.has('inspectionId') || searchParams.has('inspectionRequestId'))) {
       const n = new URLSearchParams(searchParams);
       n.delete('inspectionId');

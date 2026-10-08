@@ -8,9 +8,9 @@ import type { MachineStatus, MachineSystem, MachineSystemDetail, MachineSystemCa
 import MachineStatusLogList from './MachineStatusLogList';
 import MachineStatusUpdateDialog from './MachineStatusUpdateDialog';
 import FaultRecordList from './FaultRecordList';
+import InspectionRequestList from './InspectionRequestList';
 import RepairRequestList from './RepairRequestList';
-import MaintenanceRecordList from './MaintenanceRecordList';
-import MaintenancePlanList from './MaintenancePlanList';
+import MaintenanceTab from './MaintenanceTab';
 import SystemOperationManagement from './SystemOperationManagement';
 import MachineSystemDetailFormModal from './MachineSystemDetailFormModal';
 import ResponsiveRowActions, { type RowAction } from './ResponsiveRowActions';
@@ -20,17 +20,37 @@ interface MachineSummaryDrawerProps {
   onClose: () => void;
 }
 
-type ProfileTab = 'general' | 'details' | 'status' | 'faults' | 'maintenance' | 'operations';
+type ProfileTab = 'status' | 'faults' | 'maintenance' | 'operations' | 'system';
+type SystemSubTab = 'overview' | 'tree';
 type TreeNode = MachineSystemDetail & { depth: number; children: string[] };
 
+const OPERATION_CATEGORIES: MachineSystemCategory[] = ['SAN_XUAT', 'DONG_GOI', 'BAO_QUAN'];
+
 const PROFILE_TABS: { key: ProfileTab; label: string; icon: typeof Info }[] = [
-  { key: 'general', label: 'Thông tin chung', icon: Info },
-  { key: 'details', label: 'Chi tiết/cây linh kiện', icon: Settings2 },
-  { key: 'status', label: 'Nhật ký trạng thái', icon: History },
-  { key: 'faults', label: 'Lỗi & sửa chữa', icon: AlertTriangle },
-  { key: 'maintenance', label: 'Bảo dưỡng', icon: Wrench },
-  { key: 'operations', label: 'Vận hành', icon: ClipboardCheck },
+  { key: 'status', label: 'Trạng thái hệ thống/thiết bị', icon: History },
+  { key: 'faults', label: 'Danh sách lỗi', icon: AlertTriangle },
+  { key: 'maintenance', label: 'Kế hoạch bảo dưỡng', icon: Wrench },
+  { key: 'operations', label: 'Thông tin vận hành', icon: ClipboardCheck },
+  { key: 'system', label: 'Thông tin hệ thống', icon: Info },
 ];
+
+const SYSTEM_SUB_TABS: { key: SystemSubTab; label: string; icon: typeof Info }[] = [
+  { key: 'overview', label: 'Tổng quan', icon: Info },
+  { key: 'tree', label: 'Cây linh kiện', icon: Settings2 },
+];
+
+const CollapsibleSection = ({ title, defaultOpen = true, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) => {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section className="rounded-lg border border-gray-200 bg-white">
+      <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-2 px-3 py-2.5 text-left">
+        {open ? <ChevronDown className="h-4 w-4 shrink-0 text-gray-500" /> : <ChevronRight className="h-4 w-4 shrink-0 text-gray-500" />}
+        <span className="text-sm font-semibold text-gray-900">{title}</span>
+      </button>
+      {open && <div className="border-t border-gray-100 p-3">{children}</div>}
+    </section>
+  );
+};
 
 const DETAIL_TYPE_LABELS: Record<string, string> = {
   THIET_BI: 'Thiết bị',
@@ -139,8 +159,9 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
   const syncingRef = useRef(false);
   const [activeTab, setActiveTab] = useState<ProfileTab>(() => {
     const p = searchParams.get('drawerTab');
-    return isProfileTab(p) ? p : 'general';
+    return isProfileTab(p) ? p : 'status';
   });
+  const [systemSubTab, setSystemSubTab] = useState<SystemSubTab>('overview');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [detailModal, setDetailModal] = useState<{ mode: 'create' | 'edit' | 'view'; record?: MachineSystemDetail } | null>(null);
@@ -157,6 +178,12 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
   const isOpen = !!machineSystemId;
   const treeItems = detailTreeQuery.data?.data;
   const treeData = useMemo(() => buildTreeData(treeItems, expandedIds), [treeItems, expandedIds]);
+
+  const canShowOperations = useMemo(() => {
+    const cat = summary?.machine?.loaiHeThong as MachineSystemCategory | undefined;
+    return !!cat && (OPERATION_CATEGORIES as string[]).includes(cat);
+  }, [summary?.machine?.loaiHeThong]);
+  const visibleTabs = useMemo(() => PROFILE_TABS.filter((t) => t.key !== 'operations' || canShowOperations), [canShowOperations]);
 
   const faultCount = summary?.faultRecords?.length ?? 0;
   const repairCount = summary?.repairItems?.length ?? 0;
@@ -210,7 +237,7 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
     if (!isOpen) return;
     const urlTab = searchParams.get('drawerTab');
     if (isProfileTab(urlTab)) setActiveTab(urlTab);
-    else if (!searchParams.has('drawerTab')) setActiveTab('general');
+    else if (!searchParams.has('drawerTab')) setActiveTab('status');
     setExpandedIds(new Set());
   }, [machineSystemId, isOpen]);
 
@@ -230,8 +257,15 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
     pushDrawerTab(activeTab);
   }, [activeTab, isOpen]);
 
-  const toggleExpand = (id: string) => {
-    setExpandedIds((prev) => {
+  // Redirect away from operations when category doesn't allow it
+  useEffect(() => {
+    if (activeTab === 'operations' && !canShowOperations && summary?.machine) {
+      setActiveTab('status');
+      pushDrawerTab('status');
+    }
+  }, [activeTab, canShowOperations, summary?.machine, pushDrawerTab]);
+
+  const toggleExpand = (id: string) => {    setExpandedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -289,7 +323,8 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
       let cur: string | null = fromTree.parentDetailId ?? null;
       while (cur) { ancestors.push(cur); cur = parentMap.get(cur) ?? null; }
       if (ancestors.length) setExpandedIds((prev) => { const n = new Set(prev); ancestors.forEach((a) => n.add(a)); return n; });
-      setActiveTab('details');
+      setActiveTab('system');
+      setSystemSubTab('tree');
       setDetailModal({ mode, record: fromTree });
       detailHydratedRef.current = detailIdParam;
       return;
@@ -303,7 +338,8 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
       let cur: string | null = (fetched as any).parentDetailId ?? null;
       while (cur) { ancestors.push(cur); cur = parentMap.get(cur) ?? null; }
       if (ancestors.length) setExpandedIds((prev) => { const n = new Set(prev); ancestors.forEach((a) => n.add(a)); return n; });
-      setActiveTab('details');
+      setActiveTab('system');
+      setSystemSubTab('tree');
       setDetailModal({ mode, record: fetched as any });
       detailHydratedRef.current = detailIdParam;
       return;
@@ -381,8 +417,8 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
                 <SummaryMetric label="Nghiệm thu" value={handoverCount} tone="success" />
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-6">
-                {PROFILE_TABS.map((tab) => {
+              <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-5">
+                {visibleTabs.map((tab) => {
                   const Icon = tab.icon;
                   return (
                     <button
@@ -410,192 +446,38 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
                 <div className="py-8 text-center text-gray-500">Không tìm thấy dữ liệu</div>
               ) : (
                 <>
-                  {activeTab === 'general' && (
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <section className="rounded-lg border border-gray-200 bg-white p-3">
-                        <h3 className="mb-3 text-sm font-semibold text-gray-900">Thông tin chung</h3>
-                        <dl className="grid grid-cols-[120px_1fr] gap-x-3 gap-y-2 text-sm">
-                          <dt className="text-gray-500">Mã hệ thống</dt>
-                          <dd className="font-mono text-xs font-medium text-blue-700">{summary.machine.maHeThong}</dd>
-                          <dt className="text-gray-500">Tên hệ thống</dt>
-                          <dd className="font-medium text-gray-900">{summary.machine.tenHeThong}</dd>
-                          <dt className="text-gray-500">Loại hệ thống</dt>
-                          <dd className="text-gray-700">{CATEGORY_LABELS[summary.machine.loaiHeThong] ?? summary.machine.loaiHeThong}</dd>
-                          <dt className="text-gray-500">Trạng thái</dt>
-                          <dd>{statusBadge(summary.machine.trangThai)}</dd>
-                          <dt className="text-gray-500">Hoạt động</dt>
-                          <dd className="text-gray-700">{summary.machine.hoatDong ? 'Đang hoạt động' : 'Dừng'}</dd>
-                          <dt className="text-gray-500">Khu vực</dt>
-                          <dd className="text-gray-700">{summary.machine.khuVuc || '—'}</dd>
-                          <dt className="text-gray-500">Vị trí</dt>
-                          <dd className="text-gray-700">{summary.machine.viTri || '—'}</dd>
-                          <dt className="text-gray-500">Người TH</dt>
-                          <dd className="text-gray-700">{summary.machine.nguoiThucHien || '—'}</dd>
-                          {summary.machine.maThietBi && (
-                            <>
-                              <dt className="text-gray-500">Mã thiết bị</dt>
-                              <dd className="font-mono text-xs text-gray-700">{summary.machine.maThietBi}</dd>
-                            </>
-                          )}
-                          {summary.machine.tenThietBi && (
-                            <>
-                              <dt className="text-gray-500">Tên thiết bị</dt>
-                              <dd className="text-gray-700">{summary.machine.tenThietBi}</dd>
-                            </>
-                          )}
-                          {summary.machine.fileDinhKem && (
-                            <>
-                              <dt className="text-gray-500">File đính kèm</dt>
-                              <dd>
-                                <a
-                                  href={summary.machine.fileDinhKem}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-xs text-blue-600 underline hover:text-blue-800 break-all"
-                                >
-                                  {summary.machine.fileDinhKem.split('/').pop() ?? 'Tải xuống'}
-                                </a>
-                              </dd>
-                            </>
-                          )}
-                          <dt className="text-gray-500">Ngày tạo</dt>
-                          <dd className="text-gray-700">{formatDate(summary.machine.createdAt)}</dd>
-                          <dt className="text-gray-500">Cập nhật</dt>
-                          <dd className="text-gray-700">{formatDate(summary.machine.updatedAt)}</dd>
-                        </dl>
-                        {(summary.parentSystem || (summary.clonedSystemsCount ?? 0) > 0) && (
-                          <div className="mt-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm">
-                            <p className="mb-1 text-xs font-semibold text-blue-700">Dòng hệ thống</p>
-                            {summary.parentSystem && (
-                              <p className="text-gray-700">
-                                Hệ thống gốc:{' '}
-                                <span className="font-medium text-blue-700">
-                                  {summary.parentSystem.tenHeThong} ({summary.parentSystem.maHeThong})
-                                </span>
-                              </p>
-                            )}
-                            {(summary.clonedSystemsCount ?? 0) > 0 && (
-                              <p className="text-gray-700">
-                                Số bản sao: <span className="font-medium">{summary.clonedSystemsCount}</span>
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </section>
-                      <section className="rounded-lg border border-gray-200 bg-white p-3">
-                        <h3 className="mb-3 text-sm font-semibold text-gray-900">Mô tả vận hành</h3>
-                        <dl className="space-y-3 text-sm">
-                          <div>
-                            <dt className="text-xs font-medium text-gray-500">Chức năng</dt>
-                            <dd className="mt-1 text-gray-700">{summary.machine.chucNang || '—'}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-xs font-medium text-gray-500">Nhiệm vụ</dt>
-                            <dd className="mt-1 text-gray-700">{summary.machine.nhiemVu || '—'}</dd>
-                          </div>
-                        </dl>
-                      </section>
-                    </div>
-                  )}
-
-                  {activeTab === 'details' && (
-                    <section className="rounded-lg border border-gray-200 bg-white">
-                      <div className="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2">
-                        <button type="button" onClick={expandAll} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-200" title="Mở tất cả">
-                          <ChevronsUpDown className="h-3.5 w-3.5" /> Mở
-                        </button>
-                        <button type="button" onClick={() => setExpandedIds(new Set())} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-200" title="Thu gọn">
-                          <ChevronsDownUp className="h-3.5 w-3.5" /> Gọn
-                        </button>
-                        <span className="ml-auto text-xs text-gray-400">{treeItems?.length ?? 0} chi tiết</span>
-                        <button
-                          type="button"
-                          onClick={() => openDetailModal('create')}
-                          className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
-                        >
-                          <Plus className="h-3.5 w-3.5" /> Thêm chi tiết
-                        </button>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full min-w-[760px] border-collapse text-sm">
-                          <thead className="bg-gray-50 text-xs font-medium text-gray-500">
-                            <tr>
-                              <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[220px]">Tên chi tiết</th>
-                              <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[90px]">Mã</th>
-                              <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[100px]">Loại</th>
-                              <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[100px]">Vị trí</th>
-                              <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[120px]">Phụ trách</th>
-                              <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[110px]">Trạng thái</th>
-                              <th className="border-b border-gray-200 px-3 py-2.5 text-right min-w-[110px]">Thao tác</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
-                            {detailTreeQuery.isLoading ? (
-                              <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr>
-                            ) : !treeData || treeData.length === 0 ? (
-                              <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Chưa có chi tiết/cây linh kiện.</td></tr>
-                            ) : treeData.map((node) => {
-                              const actions: RowAction[] = [
-                                { key: 'view', label: 'Xem chi tiết', icon: <Eye className="h-4 w-4" />, onClick: () => openDetailModal('view', node), tone: 'primary' },
-                                { key: 'edit', label: 'Sửa chi tiết', icon: <Edit className="h-4 w-4" />, onClick: () => openDetailModal('edit', node), tone: 'success' },
-                                ...(node.hoatDong ? [{ key: 'deactivate', label: 'Dừng hoạt động', icon: <Power className="h-4 w-4" />, onClick: () => deactivateDetailRow(node), tone: 'warning' } satisfies RowAction] : []),
-                                { key: 'delete', label: 'Xóa chi tiết', icon: <Trash2 className="h-4 w-4" />, onClick: () => removeDetail(node), tone: 'danger' },
-                              ];
-                              return (
-                                <tr key={node.id} className="hover:bg-gray-50/50">
-                                  <td className="px-3 py-2.5">
-                                    <div className="flex items-center" style={{ paddingLeft: `${node.depth * 24}px` }}>
-                                      {node.children.length > 0 ? (
-                                        <button type="button" onClick={() => toggleExpand(node.id)} className="mr-1 rounded p-0.5 text-gray-400 hover:text-gray-700">
-                                          {expandedIds.has(node.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                                        </button>
-                                      ) : <span className="mr-1 inline-block w-5" />}
-                                      <span className="font-medium text-gray-900">{node.tenChiTiet}</span>
-                                    </div>
-                                  </td>
-                                  <td className="px-3 py-2.5 font-mono text-xs font-medium text-blue-700">{node.maChiTiet}</td>
-                                  <td className="px-3 py-2.5 text-xs text-gray-600">{detailTypeLabel(node.loaiChiTiet)}</td>
-                                  <td className="px-3 py-2.5 text-xs text-gray-600">{node.viTri || '—'}</td>
-                                  <td className="px-3 py-2.5 text-xs text-gray-600">{node.nguoiPhuTrach || '—'}</td>
-                                  <td className="px-3 py-2.5">
-                                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${node.hoatDong ? 'border-green-200 bg-green-100 text-green-700' : 'border-gray-200 bg-gray-100 text-gray-600'}`}>
-                                      {node.hoatDong ? node.trangThai : 'Dừng'}
-                                    </span>
-                                  </td>
-                                  <td className="px-3 py-2.5 text-right">
-                                    <ResponsiveRowActions actions={actions} />
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </section>
-                  )}
-
                   {activeTab === 'status' && (
                     <div className="space-y-3">
-                      <div className="flex items-center justify-end">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {statusBadge(summary.machine.trangThai)}
+                        <span className="text-sm text-gray-600">{CATEGORY_LABELS[summary.machine.loaiHeThong] ?? summary.machine.loaiHeThong}</span>
                         <button
                           type="button"
                           onClick={() => setStatusDialogOpen(true)}
-                          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                          className="ml-auto inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
                         >
                           <RefreshCw className="h-4 w-4" /> Cập nhật trạng thái
                         </button>
                       </div>
-                      <MachineStatusLogList lockedMachineSystemId={machineSystemId ?? undefined} hideHeader />
+                      <CollapsibleSection title="Nhật ký trạng thái">
+                        <MachineStatusLogList lockedMachineSystemId={machineSystemId ?? undefined} hideHeader />
+                      </CollapsibleSection>
+                      <CollapsibleSection title="Yêu cầu kiểm tra" defaultOpen={false}>
+                        <InspectionRequestList lockedMachineSystemId={machineSystemId ?? undefined} />
+                      </CollapsibleSection>
+                      <CollapsibleSection title="Yêu cầu sửa chữa" defaultOpen={false}>
+                        <RepairRequestList lockedMachineSystemId={machineSystemId ?? undefined} />
+                      </CollapsibleSection>
                     </div>
                   )}
 
                   {activeTab === 'faults' && (
                     <div className="space-y-4">
                       <FaultRecordList lockedMachineSystemId={machineSystemId ?? undefined} />
-                      <RepairRequestList lockedMachineSystemId={machineSystemId ?? undefined} />
                       <section className="rounded-lg border border-gray-200 bg-white">
                         <div className="border-b border-gray-200 bg-gray-50 px-3 py-2">
-                          <h3 className="text-sm font-semibold text-gray-900">Nghiệm thu sau sửa chữa</h3>
+                          <h3 className="text-sm font-semibold text-gray-900">Tài liệu sửa chữa</h3>
+                          <p className="text-xs text-gray-500">Hướng dẫn chi tiết (RepairStep) cho từng lỗi — xem trong chi tiết lỗi.</p>
                         </div>
                         {!summary?.handoverItems || summary.handoverItems.length === 0 ? (
                           <p className="px-3 py-4 text-sm text-gray-400">Chưa có nghiệm thu</p>
@@ -630,14 +512,183 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
                   )}
 
                   {activeTab === 'maintenance' && (
-                    <div className="space-y-4">
-                      <MaintenanceRecordList lockedMachineSystemId={machineSystemId ?? undefined} />
-                      <MaintenancePlanList lockedMachineSystemId={machineSystemId ?? undefined} />
-                    </div>
+                    <MaintenanceTab lockedMachineSystemId={machineSystemId ?? undefined} />
                   )}
 
                   {activeTab === 'operations' && (
-                    <SystemOperationManagement lockedMachineSystemId={machineSystemId ?? undefined} />
+                    canShowOperations ? (
+                      <SystemOperationManagement lockedMachineSystemId={machineSystemId ?? undefined} />
+                    ) : (
+                      <div className="py-8 text-center text-sm text-gray-400">Tab vận hành chỉ áp dụng cho hệ thống Sản xuất / Đóng gói / Bảo quản.</div>
+                    )
+                  )}
+
+                  {activeTab === 'system' && (
+                    <div className="space-y-3">
+                      <div className="inline-flex gap-1 rounded-lg bg-gray-100 p-1">
+                        {SYSTEM_SUB_TABS.map(({ key, label, icon: Icon }) => {
+                          const active = systemSubTab === key;
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => setSystemSubTab(key)}
+                              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${active ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                            >
+                              <Icon className="h-3.5 w-3.5" /> {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {systemSubTab === 'overview' && (
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <section className="rounded-lg border border-gray-200 bg-white p-3">
+                            <h3 className="mb-3 text-sm font-semibold text-gray-900">Thông tin chung</h3>
+                            <dl className="grid grid-cols-[120px_1fr] gap-x-3 gap-y-2 text-sm">
+                              <dt className="text-gray-500">Mã hệ thống</dt>
+                              <dd className="font-mono text-xs font-medium text-blue-700">{summary.machine.maHeThong}</dd>
+                              <dt className="text-gray-500">Tên hệ thống</dt>
+                              <dd className="font-medium text-gray-900">{summary.machine.tenHeThong}</dd>
+                              <dt className="text-gray-500">Loại hệ thống</dt>
+                              <dd className="text-gray-700">{CATEGORY_LABELS[summary.machine.loaiHeThong] ?? summary.machine.loaiHeThong}</dd>
+                              <dt className="text-gray-500">Trạng thái</dt>
+                              <dd>{statusBadge(summary.machine.trangThai)}</dd>
+                              <dt className="text-gray-500">Hoạt động</dt>
+                              <dd className="text-gray-700">{summary.machine.hoatDong ? 'Đang hoạt động' : 'Dừng'}</dd>
+                              <dt className="text-gray-500">Khu vực</dt>
+                              <dd className="text-gray-700">{summary.machine.khuVuc || '—'}</dd>
+                              <dt className="text-gray-500">Vị trí</dt>
+                              <dd className="text-gray-700">{summary.machine.viTri || '—'}</dd>
+                              <dt className="text-gray-500">Người TH</dt>
+                              <dd className="text-gray-700">{summary.machine.nguoiThucHien || '—'}</dd>
+                              {summary.machine.maThietBi && (
+                                <>
+                                  <dt className="text-gray-500">Mã thiết bị</dt>
+                                  <dd className="font-mono text-xs text-gray-700">{summary.machine.maThietBi}</dd>
+                                </>
+                              )}
+                              {summary.machine.tenThietBi && (
+                                <>
+                                  <dt className="text-gray-500">Tên thiết bị</dt>
+                                  <dd className="text-gray-700">{summary.machine.tenThietBi}</dd>
+                                </>
+                              )}
+                              {summary.machine.fileDinhKem && (
+                                <>
+                                  <dt className="text-gray-500">File đính kèm</dt>
+                                  <dd>
+                                    <a href={summary.machine.fileDinhKem} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline hover:text-blue-800 break-all">
+                                      {summary.machine.fileDinhKem.split('/').pop() ?? 'Tải xuống'}
+                                    </a>
+                                  </dd>
+                                </>
+                              )}
+                              <dt className="text-gray-500">Ngày tạo</dt>
+                              <dd className="text-gray-700">{formatDate(summary.machine.createdAt)}</dd>
+                              <dt className="text-gray-500">Cập nhật</dt>
+                              <dd className="text-gray-700">{formatDate(summary.machine.updatedAt)}</dd>
+                            </dl>
+                            {(summary.parentSystem || (summary.clonedSystemsCount ?? 0) > 0) && (
+                              <div className="mt-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm">
+                                <p className="mb-1 text-xs font-semibold text-blue-700">Dòng hệ thống</p>
+                                {summary.parentSystem && (
+                                  <p className="text-gray-700">
+                                    Hệ thống gốc: <span className="font-medium text-blue-700">{summary.parentSystem.tenHeThong} ({summary.parentSystem.maHeThong})</span>
+                                  </p>
+                                )}
+                                {(summary.clonedSystemsCount ?? 0) > 0 && (
+                                  <p className="text-gray-700">Số bản sao: <span className="font-medium">{summary.clonedSystemsCount}</span></p>
+                                )}
+                              </div>
+                            )}
+                          </section>
+                          <section className="rounded-lg border border-gray-200 bg-white p-3">
+                            <h3 className="mb-3 text-sm font-semibold text-gray-900">Mô tả vận hành</h3>
+                            <dl className="space-y-3 text-sm">
+                              <div>
+                                <dt className="text-xs font-medium text-gray-500">Chức năng</dt>
+                                <dd className="mt-1 text-gray-700">{summary.machine.chucNang || '—'}</dd>
+                              </div>
+                              <div>
+                                <dt className="text-xs font-medium text-gray-500">Nhiệm vụ</dt>
+                                <dd className="mt-1 text-gray-700">{summary.machine.nhiemVu || '—'}</dd>
+                              </div>
+                            </dl>
+                          </section>
+                        </div>
+                      )}
+                      {systemSubTab === 'tree' && (
+                        <section className="rounded-lg border border-gray-200 bg-white">
+                          <div className="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2">
+                            <button type="button" onClick={expandAll} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-200" title="Mở tất cả">
+                              <ChevronsUpDown className="h-3.5 w-3.5" /> Mở
+                            </button>
+                            <button type="button" onClick={() => setExpandedIds(new Set())} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-200" title="Thu gọn">
+                              <ChevronsDownUp className="h-3.5 w-3.5" /> Gọn
+                            </button>
+                            <span className="ml-auto text-xs text-gray-400">{treeItems?.length ?? 0} chi tiết</span>
+                            <button type="button" onClick={() => openDetailModal('create')} className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700">
+                              <Plus className="h-3.5 w-3.5" /> Thêm chi tiết
+                            </button>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full min-w-[760px] border-collapse text-sm">
+                              <thead className="bg-gray-50 text-xs font-medium text-gray-500">
+                                <tr>
+                                  <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[220px]">Tên chi tiết</th>
+                                  <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[90px]">Mã</th>
+                                  <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[100px]">Loại</th>
+                                  <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[100px]">Vị trí</th>
+                                  <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[120px]">Phụ trách</th>
+                                  <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[110px]">Trạng thái</th>
+                                  <th className="border-b border-gray-200 px-3 py-2.5 text-right min-w-[110px]">Thao tác</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100">
+                                {detailTreeQuery.isLoading ? (
+                                  <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Đang tải...</td></tr>
+                                ) : !treeData || treeData.length === 0 ? (
+                                  <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Chưa có chi tiết/cây linh kiện.</td></tr>
+                                ) : treeData.map((node) => {
+                                  const actions: RowAction[] = [
+                                    { key: 'view', label: 'Xem chi tiết', icon: <Eye className="h-4 w-4" />, onClick: () => openDetailModal('view', node), tone: 'primary' },
+                                    { key: 'edit', label: 'Sửa chi tiết', icon: <Edit className="h-4 w-4" />, onClick: () => openDetailModal('edit', node), tone: 'success' },
+                                    ...(node.hoatDong ? [{ key: 'deactivate', label: 'Dừng hoạt động', icon: <Power className="h-4 w-4" />, onClick: () => deactivateDetailRow(node), tone: 'warning' } satisfies RowAction] : []),
+                                    { key: 'delete', label: 'Xóa chi tiết', icon: <Trash2 className="h-4 w-4" />, onClick: () => removeDetail(node), tone: 'danger' },
+                                  ];
+                                  return (
+                                    <tr key={node.id} className="hover:bg-gray-50/50">
+                                      <td className="px-3 py-2.5">
+                                        <div className="flex items-center" style={{ paddingLeft: `${node.depth * 24}px` }}>
+                                          {node.children.length > 0 ? (
+                                            <button type="button" onClick={() => toggleExpand(node.id)} className="mr-1 rounded p-0.5 text-gray-400 hover:text-gray-700">
+                                              {expandedIds.has(node.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                            </button>
+                                          ) : <span className="mr-1 inline-block w-5" />}
+                                          <span className="font-medium text-gray-900">{node.tenChiTiet}</span>
+                                        </div>
+                                      </td>
+                                      <td className="px-3 py-2.5 font-mono text-xs font-medium text-blue-700">{node.maChiTiet}</td>
+                                      <td className="px-3 py-2.5 text-xs text-gray-600">{detailTypeLabel(node.loaiChiTiet)}</td>
+                                      <td className="px-3 py-2.5 text-xs text-gray-600">{node.viTri || '—'}</td>
+                                      <td className="px-3 py-2.5 text-xs text-gray-600">{node.nguoiPhuTrach || '—'}</td>
+                                      <td className="px-3 py-2.5">
+                                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${node.hoatDong ? 'border-green-200 bg-green-100 text-green-700' : 'border-gray-200 bg-gray-100 text-gray-600'}`}>
+                                          {node.hoatDong ? node.trangThai : 'Dừng'}
+                                        </span>
+                                      </td>
+                                      <td className="px-3 py-2.5 text-right">
+                                        <ResponsiveRowActions actions={actions} />
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </section>
+                      )}
+                    </div>
                   )}
                 </>
               )}

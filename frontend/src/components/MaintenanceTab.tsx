@@ -28,9 +28,10 @@ const LEGACY_PARAMS = ['page', 'q'];
 type MaintenanceTabProps = {
   activeView?: SubView;
   onViewChange?: (v: SubView) => void;
+  lockedMachineSystemId?: string;
 };
 
-const MaintenanceTab = ({ activeView: controlledView, onViewChange }: MaintenanceTabProps = {}) => {
+const MaintenanceTab = ({ activeView: controlledView, onViewChange, lockedMachineSystemId }: MaintenanceTabProps = {}) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initial: SubView = isSubView(searchParams.get('mView')) ? (searchParams.get('mView') as SubView) : 'plans';
   const [internalView, setInternalView] = useState<SubView>(initial);
@@ -78,8 +79,8 @@ const MaintenanceTab = ({ activeView: controlledView, onViewChange }: Maintenanc
         })}
       </div>
 
-      {subView === 'plans' && <MaintenancePlanList />}
-      {subView === 'records' && <MaintenanceRecordList />}
+      {subView === 'plans' && <MaintenancePlanList lockedMachineSystemId={lockedMachineSystemId} />}
+      {subView === 'records' && <MaintenanceRecordList lockedMachineSystemId={lockedMachineSystemId} />}
     </div>
   );
 };

@@ -61,8 +61,6 @@ interface SummaryLimits {
   maintenanceRecords?: number;
   statusLogs?: number;
   maintenancePlans?: number;
-  finishedProducts?: number;
-  qualityEvaluations?: number;
 }
 
 const CATEGORY_PREFIX_MAP: Record<MachineSystemCategory, string> = {
@@ -372,8 +370,6 @@ class MachineSystemService {
     const maintenanceLimit = limits.maintenanceRecords ?? 5;
     const statusLimit = limits.statusLogs ?? 10;
     const maintenancePlanLimit = limits.maintenancePlans ?? 5;
-    const finishedProductLimit = limits.finishedProducts ?? 5;
-    const qualityEvalLimit = limits.qualityEvaluations ?? 5;
 
     const [
       faultRecords,
@@ -384,8 +380,6 @@ class MachineSystemService {
       statusLogs,
       machineWithLineage,
       maintenancePlans,
-      finishedProducts,
-      qualityEvaluations,
     ] = await Promise.all([
       prisma.faultRecord.findMany({
         where: { machineSystemId: systemId },
@@ -457,18 +451,6 @@ class MachineSystemService {
         take: maintenancePlanLimit,
         select: { id: true, maKeHoach: true, nam: true, nguoiLap: true, trangThai: true, ngayLap: true },
       }),
-      prisma.finishedProduct.findMany({
-        where: { machineSystemId: systemId },
-        orderBy: { createdAt: 'desc' },
-        take: finishedProductLimit,
-        select: { id: true, maChien: true, thoiGianChien: true, tenHangHoa: true, khoiLuong: true, trangThai: true },
-      }),
-      prisma.qualityEvaluation.findMany({
-        where: { machineSystemId: systemId },
-        orderBy: { createdAt: 'desc' },
-        take: qualityEvalLimit,
-        select: { id: true, maChien: true, createdAt: true },
-      }),
     ]);
 
     const parentSystem = machineWithLineage?.parentSystem ?? null;
@@ -483,8 +465,6 @@ class MachineSystemService {
       maintenanceRecords,
       statusLogs,
       maintenancePlans,
-      finishedProducts,
-      qualityEvaluations,
       parentSystem,
       clonedSystemsCount,
     };

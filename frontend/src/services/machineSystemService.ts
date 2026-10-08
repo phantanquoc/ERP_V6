@@ -173,8 +173,6 @@ export interface MachineSystemSummary {
   maintenanceRecords: any[];
   statusLogs: MachineStatusLog[];
   maintenancePlans: any[];
-  finishedProducts: any[];
-  qualityEvaluations: any[];
   parentSystem: { id: string; maHeThong: string; tenHeThong: string } | null;
   clonedSystemsCount: number;
 }
