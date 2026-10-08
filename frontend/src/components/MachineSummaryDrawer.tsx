@@ -388,10 +388,11 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
 
   return (
     <Portal>
-      <div className="fixed inset-0 z-[9999]" onClick={handleDrawerClose}>
+      {/* ponytail: drawer fills viewport minus sidebar (md:left-64 = 256px expanded). Collapsed sidebar (64px) leaves 192px gap — wire --sidebar-width CSS var if that matters */}
+      <div className="fixed inset-0 z-[9999] md:left-64" onClick={handleDrawerClose}>
         <div className="absolute inset-0 bg-black/30" />
         <div
-          className="absolute right-0 top-0 h-full w-[min(96vw,880px)] max-w-none bg-white shadow-xl"
+          className="absolute inset-0 bg-white shadow-xl overflow-hidden flex flex-col"
           onClick={(event) => event.stopPropagation()}
         >
           <div className="flex h-full flex-col">
