@@ -44,7 +44,7 @@ const ALL_TECH_PARAMS: string[] = [
   // faults
   'mucDo', 'machineSystemId', 'machineSystemDetailId', 'sortBy', 'sortOrder', 'faultId', 'faultRecordId',
   // machineSystems
-  'hoatDong', 'systemId', 'drawer', 'drawerTab', 'detailId', 'detailMode', 'systemModal', 'systemModalId',
+  'hoatDong', 'systemId', 'drawer', 'drawerTab', 'detailId', 'detailMode', 'systemModal', 'systemModalId', 'listView',
   // maintenance — plans + records + mView (machineSystemId/sortBy/sortOrder/q/page/trangThai already listed)
   'mView', 'planPage', 'planQ', 'nam', 'planId', 'planMonth', 'mode', 'recPage', 'recQ', 'loai', 'recordId',
   // spareParts

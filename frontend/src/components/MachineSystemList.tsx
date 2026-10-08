@@ -587,9 +587,9 @@ const MachineSystemList = () => {
 
   return (
     <div className="space-y-4">
-      <div className="inline-flex gap-1 rounded-lg bg-gray-100 p-1">
-        <button type="button" onClick={() => setListView('systems')} aria-pressed={!isLogView} className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium ${!isLogView ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}><Search className="h-3.5 w-3.5" /> Danh sách máy</button>
-        <button type="button" onClick={() => setListView('logs')} aria-pressed={isLogView} className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium ${isLogView ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}><History className="h-3.5 w-3.5" /> Nhật ký trạng thái</button>
+      <div className="inline-flex gap-1 rounded-lg bg-gray-100 p-1" role="tablist" aria-label="Chế độ xem danh sách máy">
+        <button type="button" role="tab" aria-selected={!isLogView} onClick={() => setListView('systems')} aria-pressed={!isLogView} className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${!isLogView ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}><Search className="h-3.5 w-3.5" /> Danh sách máy</button>
+        <button type="button" role="tab" aria-selected={isLogView} onClick={() => setListView('logs')} aria-pressed={isLogView} className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${isLogView ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}><History className="h-3.5 w-3.5" /> Nhật ký trạng thái</button>
       </div>
       {isLogView ? <MachineStatusLogList /> : (
       <section className="rounded-lg border border-gray-200 bg-white">

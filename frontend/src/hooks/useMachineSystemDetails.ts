@@ -75,6 +75,8 @@ export const useUpdateMachineSystem = () => {
       queryClient.invalidateQueries({ queryKey: machineSystemKeys.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: machineSystemKeys.lists() });
       queryClient.invalidateQueries({ queryKey: machineSystemDetailKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: machineStatusLogKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: machineSystemSummaryKeys.detail(variables.id) });
     },
   });
 };

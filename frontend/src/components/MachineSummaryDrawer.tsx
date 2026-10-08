@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { AlertTriangle, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ClipboardCheck, Edit, Eye, History, Info, Plus, Power, RefreshCw, Settings2, Trash2, Wrench, X } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ClipboardCheck, Edit, Eye, FileText, History, Info, LayoutGrid, Plus, Power, RefreshCw, Trash2, Wrench, X } from 'lucide-react';
 import Portal from './Portal';
 import { useDeactivateMachineSystemDetail, useDeleteMachineSystemDetail, useDetailTree, useMachineSystemDetail, useMachineSystemSummary, useMachineSystems } from '../hooks/useMachineSystemDetails';
 import type { MachineStatus, MachineSystem, MachineSystemDetail, MachineSystemCategory } from '../services/machineSystemService';
@@ -14,6 +14,7 @@ import MaintenanceTab from './MaintenanceTab';
 import SystemOperationManagement from './SystemOperationManagement';
 import MachineSystemDetailFormModal from './MachineSystemDetailFormModal';
 import ResponsiveRowActions, { type RowAction } from './ResponsiveRowActions';
+import { CollapsibleSection } from './shared';
 
 interface MachineSummaryDrawerProps {
   machineSystemId: string | null;
@@ -35,22 +36,9 @@ const PROFILE_TABS: { key: ProfileTab; label: string; icon: typeof Info }[] = [
 ];
 
 const SYSTEM_SUB_TABS: { key: SystemSubTab; label: string; icon: typeof Info }[] = [
-  { key: 'overview', label: 'Tổng quan', icon: Info },
-  { key: 'tree', label: 'Cây linh kiện', icon: Settings2 },
+  { key: 'overview', label: 'Tổng quan', icon: FileText },
+  { key: 'tree', label: 'Cây linh kiện', icon: LayoutGrid },
 ];
-
-const CollapsibleSection = ({ title, defaultOpen = true, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) => {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <section className="rounded-lg border border-gray-200 bg-white">
-      <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-2 px-3 py-2.5 text-left">
-        {open ? <ChevronDown className="h-4 w-4 shrink-0 text-gray-500" /> : <ChevronRight className="h-4 w-4 shrink-0 text-gray-500" />}
-        <span className="text-sm font-semibold text-gray-900">{title}</span>
-      </button>
-      {open && <div className="border-t border-gray-100 p-3">{children}</div>}
-    </section>
-  );
-};
 
 const DETAIL_TYPE_LABELS: Record<string, string> = {
   THIET_BI: 'Thiết bị',
@@ -161,7 +149,10 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
     const p = searchParams.get('drawerTab');
     return isProfileTab(p) ? p : 'status';
   });
-  const [systemSubTab, setSystemSubTab] = useState<SystemSubTab>('overview');
+  const [systemSubTab, setSystemSubTab] = useState<SystemSubTab>(() => {
+    const v = searchParams.get('systemView');
+    return v === 'tree' ? 'tree' : 'overview';
+  });
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [detailModal, setDetailModal] = useState<{ mode: 'create' | 'edit' | 'view'; record?: MachineSystemDetail } | null>(null);
@@ -241,11 +232,16 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
     setExpandedIds(new Set());
   }, [machineSystemId, isOpen]);
 
-  // URL → state: back/forward restores drawer tab
+  // URL → state: back/forward restores drawer tab + system sub-tab
   useEffect(() => {
     if (syncingRef.current) { syncingRef.current = false; return; }
     const urlTab = searchParams.get('drawerTab');
     if (isProfileTab(urlTab)) setActiveTab((prev) => prev === urlTab ? prev : urlTab);
+    const sv = searchParams.get('systemView');
+    if (sv === 'tree' || sv === null) {
+      const expected: SystemSubTab = sv === 'tree' ? 'tree' : 'overview';
+      setSystemSubTab((prev) => prev === expected ? prev : expected);
+    }
   }, [searchParams]);
 
   // state → URL: keep ?drawer & ?drawerTab in sync while drawer is open
@@ -253,9 +249,22 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
     if (!isOpen) return;
     const curDrawer = searchParams.get('drawer');
     const curTab = searchParams.get('drawerTab');
-    if (curDrawer === 'open' && curTab === activeTab) return;
-    pushDrawerTab(activeTab);
-  }, [activeTab, isOpen]);
+    const curSysView = searchParams.get('systemView');
+    const expectedSysView = activeTab === 'system' ? systemSubTab : null;
+    if (curDrawer === 'open' && curTab === activeTab && (expectedSysView === null || curSysView === expectedSysView || (expectedSysView === 'overview' && !curSysView))) return;
+    // sync drawerTab
+    if (curDrawer !== 'open' || curTab !== activeTab) pushDrawerTab(activeTab);
+    // sync systemView when on system tab
+    if (activeTab === 'system') {
+      syncingRef.current = true;
+      setSearchParams((prev) => {
+        const n = new URLSearchParams(prev);
+        if (systemSubTab === 'tree') n.set('systemView', 'tree');
+        else n.delete('systemView');
+        return n;
+      }, { replace: true });
+    }
+  }, [activeTab, systemSubTab, isOpen]);
 
   // Redirect away from operations when category doesn't allow it
   useEffect(() => {
@@ -382,11 +391,11 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
       <div className="fixed inset-0 z-[9999]" onClick={handleDrawerClose}>
         <div className="absolute inset-0 bg-black/30" />
         <div
-          className="absolute right-0 top-0 h-full w-[min(96vw,1440px)] max-w-none bg-white shadow-xl"
+          className="absolute right-0 top-0 h-full w-[min(96vw,880px)] max-w-none bg-white shadow-xl"
           onClick={(event) => event.stopPropagation()}
         >
           <div className="flex h-full flex-col">
-            <div className="border-b border-gray-200 px-6 py-4">
+            <div className="border-b border-gray-200 px-5 py-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-blue-600">Hồ sơ máy</p>
@@ -407,7 +416,7 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
                 </button>
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-7">
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-7">
                 <SummaryMetric label="Chi tiết" value={treeItems?.length ?? 0} />
                 <SummaryMetric label="Nhật ký trạng thái" value={statusLogCount} />
                 <SummaryMetric label="Lỗi" value={faultCount} tone="warning" />
@@ -417,7 +426,7 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
                 <SummaryMetric label="Nghiệm thu" value={handoverCount} tone="success" />
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-5">
+              <div className={`mt-4 grid grid-cols-2 gap-2 ${visibleTabs.length === 4 ? 'sm:grid-cols-4 lg:grid-cols-4' : 'sm:grid-cols-3 lg:grid-cols-5'}`}>
                 {visibleTabs.map((tab) => {
                   const Icon = tab.icon;
                   return (
@@ -425,9 +434,9 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
                       key={tab.key}
                       type="button"
                       onClick={() => handleTabChange(tab.key)}
-                      className={`flex min-h-[58px] items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs font-medium transition-colors ${
+                      className={`flex min-h-[58px] items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs font-medium leading-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
                         activeTab === tab.key
-                          ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm'
+                          ? 'border-blue-600 bg-blue-50 text-blue-700'
                           : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
                       }`}
                     >
@@ -447,7 +456,7 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
               ) : (
                 <>
                   {activeTab === 'status' && (
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                       <div className="flex flex-wrap items-center gap-2">
                         {statusBadge(summary.machine.trangThai)}
                         <span className="text-sm text-gray-600">{CATEGORY_LABELS[summary.machine.loaiHeThong] ?? summary.machine.loaiHeThong}</span>
@@ -459,7 +468,7 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
                           <RefreshCw className="h-4 w-4" /> Cập nhật trạng thái
                         </button>
                       </div>
-                      <CollapsibleSection title="Nhật ký trạng thái">
+                      <CollapsibleSection title="Nhật ký trạng thái" defaultOpen>
                         <MachineStatusLogList lockedMachineSystemId={machineSystemId ?? undefined} hideHeader />
                       </CollapsibleSection>
                       <CollapsibleSection title="Yêu cầu kiểm tra" defaultOpen={false}>
@@ -480,9 +489,9 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
                           <p className="text-xs text-gray-500">Hướng dẫn chi tiết (RepairStep) cho từng lỗi — xem trong chi tiết lỗi.</p>
                         </div>
                         {!summary?.handoverItems || summary.handoverItems.length === 0 ? (
-                          <p className="px-3 py-4 text-sm text-gray-400">Chưa có nghiệm thu</p>
+                          <p className="px-3 py-8 text-center text-sm text-gray-500">Chưa có nghiệm thu</p>
                         ) : (
-                          <ul className="divide-y divide-gray-100">
+                          <ul className="max-h-64 divide-y divide-gray-100 overflow-y-auto">
                             {summary.handoverItems.map((item: any) => (
                               <li key={item.id} className="px-3 py-3 text-sm">
                                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -519,12 +528,12 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
                     canShowOperations ? (
                       <SystemOperationManagement lockedMachineSystemId={machineSystemId ?? undefined} />
                     ) : (
-                      <div className="py-8 text-center text-sm text-gray-400">Tab vận hành chỉ áp dụng cho hệ thống Sản xuất / Đóng gói / Bảo quản.</div>
+                      <div className="py-8 text-center text-sm text-gray-500">Tab vận hành chỉ áp dụng cho hệ thống Sản xuất / Đóng gói / Bảo quản.</div>
                     )
                   )}
 
                   {activeTab === 'system' && (
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                       <div className="inline-flex gap-1 rounded-lg bg-gray-100 p-1">
                         {SYSTEM_SUB_TABS.map(({ key, label, icon: Icon }) => {
                           const active = systemSubTab === key;
@@ -532,8 +541,17 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
                             <button
                               key={key}
                               type="button"
-                              onClick={() => setSystemSubTab(key)}
-                              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${active ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                              onClick={() => {
+                                setSystemSubTab(key);
+                                syncingRef.current = true;
+                                setSearchParams((prev) => {
+                                  const n = new URLSearchParams(prev);
+                                  if (key === 'tree') n.set('systemView', 'tree');
+                                  else n.delete('systemView');
+                                  return n;
+                                }, { replace: true });
+                              }}
+                              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${active ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
                             >
                               <Icon className="h-3.5 w-3.5" /> {label}
                             </button>
@@ -544,7 +562,7 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
                         <div className="grid gap-3 md:grid-cols-2">
                           <section className="rounded-lg border border-gray-200 bg-white p-3">
                             <h3 className="mb-3 text-sm font-semibold text-gray-900">Thông tin chung</h3>
-                            <dl className="grid grid-cols-[120px_1fr] gap-x-3 gap-y-2 text-sm">
+                            <dl className="grid grid-cols-1 gap-x-3 gap-y-2 text-sm sm:grid-cols-[120px_1fr]">
                               <dt className="text-gray-500">Mã hệ thống</dt>
                               <dd className="font-mono text-xs font-medium text-blue-700">{summary.machine.maHeThong}</dd>
                               <dt className="text-gray-500">Tên hệ thống</dt>
@@ -657,7 +675,7 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
                                     { key: 'delete', label: 'Xóa chi tiết', icon: <Trash2 className="h-4 w-4" />, onClick: () => removeDetail(node), tone: 'danger' },
                                   ];
                                   return (
-                                    <tr key={node.id} className="hover:bg-gray-50/50">
+                                    <tr key={node.id} className="hover:bg-gray-50">
                                       <td className="px-3 py-2.5">
                                         <div className="flex items-center" style={{ paddingLeft: `${node.depth * 24}px` }}>
                                           {node.children.length > 0 ? (
@@ -673,9 +691,7 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
                                       <td className="px-3 py-2.5 text-xs text-gray-600">{node.viTri || '—'}</td>
                                       <td className="px-3 py-2.5 text-xs text-gray-600">{node.nguoiPhuTrach || '—'}</td>
                                       <td className="px-3 py-2.5">
-                                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${node.hoatDong ? 'border-green-200 bg-green-100 text-green-700' : 'border-gray-200 bg-gray-100 text-gray-600'}`}>
-                                          {node.hoatDong ? node.trangThai : 'Dừng'}
-                                        </span>
+                                        {node.hoatDong ? statusBadge(node.trangThai) : <span className="inline-flex rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">Dừng</span>}
                                       </td>
                                       <td className="px-3 py-2.5 text-right">
                                         <ResponsiveRowActions actions={actions} />
