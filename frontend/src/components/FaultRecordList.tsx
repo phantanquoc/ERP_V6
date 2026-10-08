@@ -861,10 +861,12 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h2 className="text-base font-semibold text-gray-900">Lỗi cơ điện</h2>
-        <p className="text-xs text-gray-500">Mẫu lỗi tham chiếu và bản ghi lỗi thực tế theo chi tiết máy.</p>
-      </div>
+      {!lockedMachineSystemId && (
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">Lỗi cơ điện</h2>
+          <p className="text-xs text-gray-500">Mẫu lỗi tham chiếu và bản ghi lỗi thực tế theo chi tiết máy.</p>
+        </div>
+      )}
       <div className="inline-flex w-fit gap-1 rounded-lg bg-gray-100 p-1">
         <button type="button" aria-pressed={view === 'records'} onClick={() => setView('records')} className={`rounded-md px-3 py-1.5 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${view === 'records' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>Bản ghi lỗi</button>
         {canMutate && (

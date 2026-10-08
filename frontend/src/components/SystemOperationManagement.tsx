@@ -373,15 +373,26 @@ const SystemOperationManagement: React.FC<SystemOperationManagementProps> = ({ i
   };
 
   return (
-    <div className="space-y-3 sm:space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Thông số vận hành hệ thống</h2>
-        <button onClick={() => handleOpenModal()} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-          <Plus className="w-4 h-4" />
-          Thêm thông số
-        </button>
-      </div>
+    <div className="space-y-4">
+      {!lockedMachineSystemId ? (
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Thông số vận hành hệ thống</h2>
+            <p className="text-xs text-gray-500">Theo dõi thông số theo ca, khối lượng và các giai đoạn vận hành.</p>
+          </div>
+          <button onClick={() => handleOpenModal()} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <Plus className="w-4 h-4" />
+            Thêm thông số
+          </button>
+        </div>
+      ) : (
+        <div className="flex justify-end">
+          <button onClick={() => handleOpenModal()} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+            <Plus className="w-4 h-4" />
+            Thêm thông số
+          </button>
+        </div>
+      )}
 
       {/* Error Message */}
       {error && (
