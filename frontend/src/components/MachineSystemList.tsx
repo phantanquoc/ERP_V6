@@ -272,7 +272,7 @@ const MachineSystemList = () => {
       if (id) {
         params.set('systemId', id);
         params.set('drawer', 'open');
-        if (!params.has('drawerTab')) params.set('drawerTab', 'general');
+        if (!params.has('drawerTab')) params.set('drawerTab', 'status');
       } else {
         params.delete('systemId');
         params.delete('drawer');
