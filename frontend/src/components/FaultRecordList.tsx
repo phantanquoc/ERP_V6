@@ -861,18 +861,15 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Header row with title and tab switcher */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h2 className="text-base font-semibold text-gray-900">Lỗi cơ điện</h2>
-          <p className="text-xs text-gray-500">Mẫu lỗi tham chiếu và bản ghi lỗi thực tế theo chi tiết máy.</p>
-        </div>
-        <div className="flex w-fit rounded-lg border border-gray-300 bg-white p-1 text-sm">
-          <button type="button" aria-pressed={view === 'records'} onClick={() => setView('records')} className={`rounded-md px-3 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${view === 'records' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-50'}`}>Bản ghi lỗi</button>
-          {canMutate && (
-            <button type="button" aria-pressed={view === 'templates'} onClick={() => setView('templates')} className={`rounded-md px-3 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${view === 'templates' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-50'}`}>Mẫu lỗi</button>
-          )}
-        </div>
+      <div>
+        <h2 className="text-base font-semibold text-gray-900">Lỗi cơ điện</h2>
+        <p className="text-xs text-gray-500">Mẫu lỗi tham chiếu và bản ghi lỗi thực tế theo chi tiết máy.</p>
+      </div>
+      <div className="inline-flex w-fit gap-1 rounded-lg bg-gray-100 p-1">
+        <button type="button" aria-pressed={view === 'records'} onClick={() => setView('records')} className={`rounded-md px-3 py-1.5 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${view === 'records' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>Bản ghi lỗi</button>
+        {canMutate && (
+          <button type="button" aria-pressed={view === 'templates'} onClick={() => setView('templates')} className={`rounded-md px-3 py-1.5 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${view === 'templates' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>Mẫu lỗi</button>
+        )}
       </div>
 
       {/* Summary stat cards — only shown in records view (they double as status filters) */}
