@@ -195,7 +195,11 @@ class SupplyRequestService {
         select: { supplyRequestId: true },
         distinct: ['supplyRequestId'],
       });
-      const linkedIds: string[] = [...new Set(allLinks.map((r: any) => r.supplyRequestId).filter(Boolean))];
+      const linkedIds: string[] = [];
+      for (const r of allLinks as any[]) {
+        const v = String((r as any).supplyRequestId);
+        if (v && !linkedIds.includes(v)) linkedIds.push(v);
+      }
       if (opts.linkedToRepair === true) {
         if (linkedIds.length === 0) {
           return { data: [], pagination: { currentPage: page, totalPages: 0, totalItems: 0, itemsPerPage: limit } };
