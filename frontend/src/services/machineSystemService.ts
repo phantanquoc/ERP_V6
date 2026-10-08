@@ -134,6 +134,7 @@ export interface MachineStatusLog {
   trangThaiMoi: MachineStatus;
   nguyenNhan: string;
   nguoiCapNhat: string;
+  nguoiCapNhatId?: string | null;
   ghiChu?: string | null;
   thoiDiem: string;
   createdAt: string;

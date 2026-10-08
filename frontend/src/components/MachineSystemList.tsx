@@ -1,8 +1,9 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { ChevronDown, Copy, Edit, Eye, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { ChevronDown, Copy, Edit, Eye, History, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import Modal from './Modal';
+import MachineStatusLogList from './MachineStatusLogList';
 import {
   useCloneMachineSystem,
   useCreateMachineSystem,
@@ -309,6 +310,16 @@ const MachineSystemList = () => {
   const [cloneDialog, setCloneDialog] = useState<{ system: MachineSystem; maHeThong: string; tenHeThong: string } | null>(null);
   const [cloneError, setCloneError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<MachineSystem | null>(null);
+  const listViewParam = searchParams.get('listView');
+  const isLogView = listViewParam === 'logs';
+  const setListView = useCallback((view: 'systems' | 'logs') => {
+    syncingRef.current = true;
+    setSearchParams((prev) => {
+      const pa = new URLSearchParams(prev);
+      if (view === 'logs') pa.set('listView', 'logs'); else pa.delete('listView');
+      return pa;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   // Employee dropdown for assignment
   const [employeeSearch, setEmployeeSearch] = useState('');
@@ -576,6 +587,11 @@ const MachineSystemList = () => {
 
   return (
     <div className="space-y-4">
+      <div className="inline-flex gap-1 rounded-lg bg-gray-100 p-1">
+        <button type="button" onClick={() => setListView('systems')} aria-pressed={!isLogView} className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium ${!isLogView ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}><Search className="h-3.5 w-3.5" /> Danh sách máy</button>
+        <button type="button" onClick={() => setListView('logs')} aria-pressed={isLogView} className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium ${isLogView ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}><History className="h-3.5 w-3.5" /> Nhật ký trạng thái</button>
+      </div>
+      {isLogView ? <MachineStatusLogList /> : (
       <section className="rounded-lg border border-gray-200 bg-white">
         <div className="flex flex-col gap-3 border-b border-gray-200 p-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -749,6 +765,7 @@ const MachineSystemList = () => {
         </div>
         {renderPager(systemPagination, systemFilters.page ?? 1, (page) => { const next = { ...systemFilters, page }; pushSystemFilters(next); setSystemFilters(next); })}
       </section>
+      )}
 
       {/* "Đang xem" banner removed: the summary drawer opens on selection and the row stays highlighted. */}
 

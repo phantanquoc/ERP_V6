@@ -134,7 +134,10 @@ class MachineSystemController {
       if (parsed.hoatDong !== undefined) data.hoatDong = parseHoatDong(parsed.hoatDong);
       if (req.file) data.fileDinhKem = getFileUrl('machine-systems', req.file.filename);
 
-      const system = await machineSystemService.updateMachineSystem(req.params.id, data);
+      const system = await machineSystemService.updateMachineSystem(req.params.id, data, {
+        nguoiCapNhat: req.user ? `${(req.user as { lastName?: string }).lastName ?? ''} ${(req.user as { firstName?: string }).firstName ?? ''}`.trim() || (req.user as { username?: string }).username || 'Hệ thống' : 'Hệ thống',
+        nguoiCapNhatId: req.user?.id ?? undefined,
+      });
       try {
         await notificationService.notify(NotificationEvent.MACHINE_SYSTEM_UPDATED, {
           actorUserId: req.user?.id,
@@ -257,6 +260,7 @@ class MachineSystemController {
         nguyenNhan,
         nguoiCapNhat,
         ghiChu,
+        req.user?.id ?? undefined,
       );
       try {
         await notificationService.notify(NotificationEvent.MACHINE_SYSTEM_STATUS_UPDATED, {

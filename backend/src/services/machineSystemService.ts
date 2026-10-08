@@ -186,16 +186,39 @@ class MachineSystemService {
     }
   }
 
-  async updateMachineSystem(id: string, data: UpdateMachineSystemData) {
-    await this.getMachineSystemById(id);
+  async updateMachineSystem(id: string, data: UpdateMachineSystemData, audit?: { nguoiCapNhat: string; nguoiCapNhatId?: string }) {
+    const before = await this.getMachineSystemById(id);
     if (data.maHeThong !== undefined && !data.maHeThong.trim()) {
       throw new ValidationError('Mã hệ thống không được để trống');
     }
     if (data.tenHeThong !== undefined && !data.tenHeThong.trim()) {
       throw new ValidationError('Tên hệ thống không được để trống');
     }
+    // Detect hoatDong toggle for audit log
+    const hoatDongChanged = data.hoatDong !== undefined && data.hoatDong !== before.hoatDong;
     try {
-      return await prisma.machineSystem.update({ where: { id }, data });
+      if (!hoatDongChanged) {
+        return await prisma.machineSystem.update({ where: { id }, data });
+      }
+      return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        const updated = await tx.machineSystem.update({ where: { id }, data });
+        const moi: MachineStatus = updated.trangThai as unknown as MachineStatus;
+        const cu: MachineStatus = before.trangThai as unknown as MachineStatus;
+        // Log the hoatDong toggle as a status log entry; nguyenNhan/ghiChu captures the semantics.
+        // nguoiCapNhatId is persisted when available; nguoiCapNhat remains display name.
+        await tx.machineStatusLog.create({
+          data: {
+            machineSystemId: id,
+            trangThaiCu: cu,
+            trangThaiMoi: moi,
+            nguyenNhan: updated.hoatDong ? 'Bật hoạt động hệ thống' : 'Ngưng sử dụng hệ thống',
+            nguoiCapNhat: audit?.nguoiCapNhat ?? 'Hệ thống',
+            nguoiCapNhatId: audit?.nguoiCapNhatId ?? null,
+            ghiChu: `hoatDong: ${before.hoatDong} → ${updated.hoatDong}`,
+          } as unknown as Prisma.MachineStatusLogCreateInput,
+        });
+        return updated;
+      });
     } catch (e: unknown) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
         throw new ConflictError('Mã hệ thống đã tồn tại');
@@ -480,6 +503,7 @@ class MachineSystemService {
     nguyenNhan: string,
     nguoiCapNhat: string,
     ghiChu?: string,
+    nguoiCapNhatId?: string,
   ) {
     const system = await this.getMachineSystemById(systemId);
 
@@ -503,8 +527,9 @@ class MachineSystemService {
           trangThaiMoi: newStatus,
           nguyenNhan,
           nguoiCapNhat,
+          nguoiCapNhatId: nguoiCapNhatId ?? null,
           ghiChu,
-        },
+        } as unknown as Prisma.MachineStatusLogCreateInput,
       });
 
       return updated;

@@ -108,6 +108,7 @@ model MachineStatusLog {
   trangThaiMoi    MachineStatus
   nguyenNhan      String        @db.Text
   nguoiCapNhat    String
+  nguoiCapNhatId  String?
   ghiChu          String?       @db.Text
   thoiDiem        DateTime      @default(now())
   createdAt       DateTime      @default(now())
@@ -116,6 +117,7 @@ model MachineStatusLog {
   machineSystem MachineSystem @relation(fields: [machineSystemId], references: [id], onDelete: Cascade)
 
   @@index([machineSystemId])
+  @@index([nguoiCapNhatId])
   @@index([thoiDiem])
   @@map("machine_status_logs")
   @@schema("business")
