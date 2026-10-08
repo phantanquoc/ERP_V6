@@ -262,8 +262,8 @@ export default function TechnicalSupplyCostTab() {
                     <thead><tr className="bg-gray-50 text-gray-600"><th className="px-2 py-2 text-left font-semibold">Mã</th><th className="px-2 py-2 text-left font-semibold">Ngày</th><th className="px-2 py-2 text-left font-semibold">Người YC</th><th className="px-2 py-2 text-left font-semibold">Mục đích</th><th className="px-2 py-2 text-left font-semibold">Trạng thái</th><th className="px-2 py-2 text-left font-semibold">Loại</th><th className="px-2 py-2 text-left font-semibold">YCSC liên kết</th></tr></thead>
                     <tbody>
                       {supplyRows.map(r => (
-                        <tr key={r.id} className="border-t hover:bg-gray-50">
-                          <td className="px-2 py-2"><button onClick={() => setSelectedSupplyId(r.id)} className="font-mono text-xs font-medium text-cyan-700 hover:underline">{r.maYeuCau}</button></td>
+                        <tr key={r.id} onClick={() => setSelectedSupplyId(r.id)} className="cursor-pointer border-t hover:bg-gray-50">
+                          <td className="px-2 py-2"><span className="font-mono text-xs font-medium text-cyan-700">{r.maYeuCau}</span></td>
                           <td className="whitespace-nowrap px-2 py-2">{fmtDateVN(r.ngayYeuCau)}</td>
                           <td className="px-2 py-2">{r.tenNhanVien}</td>
                           <td className="max-w-[180px] truncate px-2 py-2" title={r.mucDichYeuCau}>{r.mucDichYeuCau}</td>
@@ -273,7 +273,7 @@ export default function TechnicalSupplyCostTab() {
                             {!r.supplyLinks || r.supplyLinks.length === 0 ? <span className="text-gray-400">—</span> : (
                               <span className="flex flex-wrap gap-1">
                                 {r.supplyLinks.map(l => (
-                                  <button key={l.repairRequestId} onClick={() => setSelectedRepairId(l.repairRequestId)} className="rounded-full bg-cyan-50 px-2 py-0.5 font-mono text-[11px] text-cyan-700 ring-1 ring-cyan-200 hover:bg-cyan-100" title={l.trangThai}>{l.maYeuCau}</button>
+                                  <button key={l.repairRequestId} onClick={(e) => { e.stopPropagation(); setSelectedRepairId(l.repairRequestId); }} className="rounded-full bg-cyan-50 px-2 py-0.5 font-mono text-[11px] text-cyan-700 ring-1 ring-cyan-200 hover:bg-cyan-100" title={l.trangThai}>{l.maYeuCau}</button>
                                 ))}
                               </span>
                             )}
@@ -333,7 +333,7 @@ export default function TechnicalSupplyCostTab() {
               {!sd.topExpensive || (sd.topExpensive as unknown[]).length === 0 ? <p className="text-xs text-gray-400">Chưa có dữ liệu</p> : (
                 <ul className="space-y-1.5 text-xs">
                   {(sd.topExpensive as Array<{ id: number; maYeuCau: string; total: number }>).map(r => (
-                    <li key={r.id} className="flex justify-between gap-2"><button onClick={() => setSelectedRepairId(r.id)} className="truncate font-mono text-cyan-700 hover:underline">{r.maYeuCau}</button><span className="shrink-0 font-medium">{fmtVND(r.total)}</span></li>
+                    <li key={r.id} onClick={() => setSelectedRepairId(r.id)} className="flex cursor-pointer justify-between gap-2 rounded px-1 py-0.5 hover:bg-gray-50"><span className="truncate font-mono text-cyan-700">{r.maYeuCau}</span><span className="shrink-0 font-medium">{fmtVND(r.total)}</span></li>
                   ))}
                 </ul>
               )}
@@ -392,8 +392,8 @@ export default function TechnicalSupplyCostTab() {
                         <thead><tr className="bg-gray-50 text-gray-600"><th className="px-2 py-2 text-left font-semibold">Mã YCSC</th><th className="px-2 py-2 text-left font-semibold">Ngày</th><th className="px-2 py-2 text-right font-semibold">Dự kiến</th><th className="px-2 py-2 text-right font-semibold">Thực tế</th><th className="px-2 py-2 text-right font-semibold">Chênh lệch</th></tr></thead>
                         <tbody>
                           {pagedCostRows.map(r => (
-                            <tr key={r.id} className="border-t hover:bg-gray-50">
-                              <td className="px-2 py-2"><button onClick={() => setSelectedRepairId(r.id)} className="font-mono text-cyan-700 hover:underline">{r.maYeuCau}</button></td>
+                            <tr key={r.id} onClick={() => setSelectedRepairId(r.id)} className="cursor-pointer border-t hover:bg-gray-50">
+                              <td className="px-2 py-2"><span className="font-mono text-cyan-700">{r.maYeuCau}</span></td>
                               <td className="whitespace-nowrap px-2 py-2">{fmtDateVN(r.ngayThang)}</td>
                               <td className="px-2 py-2 text-right">{fmtMaybeVND(r.duKien)}</td>
                               <td className="px-2 py-2 text-right">{fmtMaybeVND(r.thucTe)}</td>
