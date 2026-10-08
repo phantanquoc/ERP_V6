@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Package, FileText, AlertTriangle, Trophy, Clock, DollarSign, Inbox, ChevronDown, ChevronUp } from 'lucide-react';
+import { Package, FileText, AlertTriangle, Trophy, Clock, DollarSign, Inbox, Search } from 'lucide-react';
 import { useSupplyCostList } from '../hooks/useSupplyRequests';
 import { useRepairRequestStats, useRepairRequest } from '../hooks/useRepairRequests';
 import type { CostDetailEntry } from '../services/repairRequestService';
 import type { SupplyRequest } from '../services/supplyRequestService';
 import RepairRequestFormModal from './RepairRequestFormModal';
+import SupplyRequestDetailModal from './purchasing/SupplyRequestDetailModal';
 
 // ── formatters ──
 const fmtVND = (n: number) => new Intl.NumberFormat('vi-VN').format(Math.round(n)) + ' ₫';
@@ -15,7 +15,6 @@ const fmtHours = (h: number | null) => (h == null ? '—' : `${h.toFixed(1)} gi�
 const fmtDateVN = (s: string) => {
   try { const d = new Date(s); return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`; } catch { return s; }
 };
-const fmtCompact = (v: number) => new Intl.NumberFormat('vi-VN', { notation: 'compact' }).format(v);
 
 const SUPPLY_STATUSES = ['Chưa cung cấp', 'Đang xử lý', 'Chờ bổ sung', 'Đã duyệt mua', 'Đã mua hàng', 'Đã nhập kho', 'Đã cung cấp', 'Đã hủy'] as const;
 const LOAI_OPTIONS = [{ value: '', label: 'Tất cả loại' }, { value: 'Thường', label: 'Thường' }, { value: 'Mua nhanh', label: 'Mua nhanh' }];
@@ -109,7 +108,9 @@ function KpiCard({ label, value, sub, accent, icon: Icon }: { label: string; val
 export default function TechnicalSupplyCostTab() {
   const { currentYear, year, dateFrom, dateTo, phongBanId, supplyStatus, supplyLoai, supplyLinked, page, setParam, setPage, searchParams, setSearchParams, supplyView, setSupplyView } = useUrlFilters();
   const [selectedRepairId, setSelectedRepairId] = useState<number | null>(null);
-  const [expandedMonth, setExpandedMonth] = useState<Set<string>>(new Set());
+  const [selectedSupplyId, setSelectedSupplyId] = useState<string | null>(null);
+  const [costSearch, setCostSearch] = useState('');
+  const [costPage, setCostPage] = useState(1);
 
   const yearForSupply = !dateFrom && !dateTo ? year : undefined;
   const supplyQuery = useSupplyCostList({
@@ -152,6 +153,26 @@ export default function TechnicalSupplyCostTab() {
   const hasAnyFilter = year !== currentYear || !!(dateFrom || dateTo || phongBanId || supplyStatus || supplyLoai || supplyLinked !== undefined);
 
   const yearRange = Array.from({ length: 6 }, (_, i) => currentYear - 2 + i);
+
+  // ── cost flattened rows ──
+  const allCostRows: CostDetailEntry[] = useMemo(() => {
+    const rows = Object.values(costDetailByMonth).flat();
+    return rows.sort((a, b) => b.ngayThang.localeCompare(a.ngayThang));
+  }, [costDetailByMonth]);
+
+  const filteredCostRows = useMemo(() => {
+    const q = costSearch.trim().toLowerCase();
+    if (!q) return allCostRows;
+    return allCostRows.filter(r => r.maYeuCau.toLowerCase().includes(q));
+  }, [allCostRows, costSearch]);
+
+  const COST_PAGE_SIZE = 10;
+  const costTotalPages = Math.max(1, Math.ceil(filteredCostRows.length / COST_PAGE_SIZE));
+  const costPageSafe = Math.min(costPage, costTotalPages);
+  const pagedCostRows = useMemo(() => {
+    const start = (costPageSafe - 1) * COST_PAGE_SIZE;
+    return filteredCostRows.slice(start, start + COST_PAGE_SIZE);
+  }, [filteredCostRows, costPageSafe]);
 
   return (
     <div className="space-y-4">
@@ -242,7 +263,7 @@ export default function TechnicalSupplyCostTab() {
                     <tbody>
                       {supplyRows.map(r => (
                         <tr key={r.id} className="border-t hover:bg-gray-50">
-                          <td className="px-2 py-2 font-mono text-xs font-medium">{r.maYeuCau}</td>
+                          <td className="px-2 py-2"><button onClick={() => setSelectedSupplyId(r.id)} className="font-mono text-xs font-medium text-cyan-700 hover:underline">{r.maYeuCau}</button></td>
                           <td className="whitespace-nowrap px-2 py-2">{fmtDateVN(r.ngayYeuCau)}</td>
                           <td className="px-2 py-2">{r.tenNhanVien}</td>
                           <td className="max-w-[180px] truncate px-2 py-2" title={r.mucDichYeuCau}>{r.mucDichYeuCau}</td>
@@ -278,71 +299,6 @@ export default function TechnicalSupplyCostTab() {
       {/* ── Sub-tab: Cost ── */}
       {supplyView === 'cost' && (
         <div className="space-y-4">
-          {/* Chart card */}
-          <div className="rounded-xl border bg-white p-4 shadow-sm">
-            <div className="mb-3">
-              <h3 className="text-sm font-semibold text-gray-900">Chi phí theo tháng</h3>
-              <p className="text-xs text-gray-400">Thực tế + phát sinh (cột chồng) và dự kiến (nét xanh)</p>
-            </div>
-            {statsQuery.isError ? (
-              <ErrorCard message="Không tải được thống kê chi phí." onRetry={() => statsQuery.refetch()} />
-            ) : statsQuery.isLoading ? (
-              <div className="space-y-2"><Skeleton className="h-48" /><Skeleton className="h-12" /></div>
-            ) : costByMonth.length === 0 ? (
-              <EmptyState title="Chưa có dữ liệu chi phí trong kỳ" icon={DollarSign} />
-            ) : (
-              <>
-                <ResponsiveContainer width="100%" height={260}>
-                  <ComposedChart data={costByMonth}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                    <YAxis tickFormatter={fmtCompact} tick={{ fontSize: 11 }} width={56} />
-                    <Tooltip formatter={(v: unknown) => fmtVND(Number(v ?? 0))} contentStyle={{ borderRadius: 12, border: '1px solid #e5e7eb' }} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="thucTe" stackId="cost" name="Thực tế" fill="#0891b2" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="incidental" stackId="cost" name="Phát sinh" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                    <Line type="monotone" dataKey="duKien" name="Dự kiến" stroke="#16a34a" dot={false} strokeWidth={2} />
-                  </ComposedChart>
-                </ResponsiveContainer>
-
-                <div className="mt-4 divide-y divide-gray-100 overflow-hidden rounded-lg border">
-                  {costByMonth.map(row => {
-                    const details = costDetailByMonth[row.month] ?? [];
-                    const isOpen = expandedMonth.has(row.month);
-                    return (
-                      <div key={row.month}>
-                        <button onClick={() => setExpandedMonth(s => { const n = new Set(s); if (n.has(row.month)) n.delete(row.month); else n.add(row.month); return n; })} className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm hover:bg-gray-50">
-                          <span className="font-medium text-gray-900">{row.month} — {details.length} phiếu — {fmtVND(row.thucTe + row.incidental)} <span className="font-normal text-gray-400">/ dự kiến {fmtVND(row.duKien)}</span></span>
-                          <span className="shrink-0 text-gray-400">{isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</span>
-                        </button>
-                        {isOpen && (
-                          <div className="overflow-x-auto bg-gray-50/50 px-3 pb-3">
-                            {details.length === 0 ? <p className="py-2 text-xs text-gray-400">Không có phiếu</p> : (
-                              <table className="w-full text-xs">
-                                <thead><tr className="text-gray-500"><th className="py-1.5 text-left font-semibold">Mã</th><th className="py-1.5 text-left font-semibold">Ngày</th><th className="py-1.5 text-right font-semibold">Dự kiến (₫)</th><th className="py-1.5 text-right font-semibold">Thực tế (₫)</th><th className="py-1.5 text-right font-semibold">Chênh lệch (₫)</th></tr></thead>
-                                <tbody>
-                                  {details.map(r => (
-                                    <tr key={r.id} className="border-t border-gray-200">
-                                      <td className="py-1.5"><button onClick={() => setSelectedRepairId(r.id)} className="font-mono text-cyan-700 hover:underline">{r.maYeuCau}</button></td>
-                                      <td className="py-1.5">{r.ngayThang}</td>
-                                      <td className="py-1.5 text-right">{fmtMaybeVND(r.duKien)}</td>
-                                      <td className="py-1.5 text-right">{fmtMaybeVND(r.thucTe)}</td>
-                                      <td className="py-1.5 text-right">{r.chenhLech == null ? '—' : fmtVND(r.chenhLech)}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </div>
-
           {/* KPI cards */}
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
             <div className="rounded-xl border bg-white p-4 shadow-sm border-l-4 border-cyan-500">
@@ -383,12 +339,89 @@ export default function TechnicalSupplyCostTab() {
               )}
             </div>
           </div>
+
+          {/* Cost table card */}
+          <div className="rounded-xl border bg-white shadow-sm">
+            {statsQuery.isError ? (
+              <div className="p-4"><ErrorCard message="Không tải được thống kê chi phí." onRetry={() => statsQuery.refetch()} /></div>
+            ) : statsQuery.isLoading ? (
+              <div className="space-y-2 p-4"><Skeleton className="h-10" /><Skeleton className="h-48" /></div>
+            ) : allCostRows.length === 0 && costByMonth.length === 0 ? (
+              <EmptyState title="Chưa có dữ liệu chi phí trong kỳ" icon={DollarSign} />
+            ) : allCostRows.length === 0 ? (
+              /* Fallback: monthly summary when no detail rows but costByMonth has data */
+              <div className="p-3">
+                <h3 className="mb-2 text-sm font-semibold text-gray-900">Tổng hợp theo tháng</h3>
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full text-xs">
+                    <thead><tr className="bg-gray-50 text-gray-600"><th className="px-2 py-2 text-left font-semibold">Tháng</th><th className="px-2 py-2 text-right font-semibold">Số phiếu</th><th className="px-2 py-2 text-right font-semibold">Dự kiến</th><th className="px-2 py-2 text-right font-semibold">Thực tế + Phát sinh</th><th className="px-2 py-2 text-right font-semibold">Chênh lệch</th></tr></thead>
+                    <tbody>
+                      {costByMonth.map(row => {
+                        const thucTeFull = row.thucTe + row.incidental;
+                        const chenh = thucTeFull - row.duKien;
+                        const cnt = (costDetailByMonth[row.month] ?? []).length;
+                        return (
+                          <tr key={row.month} className="border-t hover:bg-gray-50">
+                            <td className="px-2 py-2 font-medium">{row.month}</td>
+                            <td className="px-2 py-2 text-right">{cnt || '—'}</td>
+                            <td className="px-2 py-2 text-right">{fmtVND(row.duKien)}</td>
+                            <td className="px-2 py-2 text-right">{fmtVND(thucTeFull)}</td>
+                            <td className={`px-2 py-2 text-right font-medium ${chenh > 0 ? 'text-red-600' : chenh < 0 ? 'text-emerald-600' : 'text-gray-500'}`}>{fmtVND(chenh)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-gray-900">Chi tiết chi phí ({filteredCostRows.length} phiếu)</h3>
+                  <label className="relative flex items-center">
+                    <Search className="pointer-events-none absolute left-2 h-3.5 w-3.5 text-gray-400" />
+                    <input value={costSearch} onChange={e => { setCostSearch(e.target.value); setCostPage(1); }} placeholder="Tìm mã YCSC" className="rounded-lg border border-gray-200 bg-white py-1 pl-7 pr-2 text-xs shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+                  </label>
+                </div>
+                {filteredCostRows.length === 0 ? (
+                  <EmptyState title="Không tìm thấy phiếu" hint="Thử từ khóa khác" />
+                ) : (
+                  <>
+                    <div className="overflow-x-auto rounded-lg border">
+                      <table className="w-full text-xs">
+                        <thead><tr className="bg-gray-50 text-gray-600"><th className="px-2 py-2 text-left font-semibold">Mã YCSC</th><th className="px-2 py-2 text-left font-semibold">Ngày</th><th className="px-2 py-2 text-right font-semibold">Dự kiến</th><th className="px-2 py-2 text-right font-semibold">Thực tế</th><th className="px-2 py-2 text-right font-semibold">Chênh lệch</th></tr></thead>
+                        <tbody>
+                          {pagedCostRows.map(r => (
+                            <tr key={r.id} className="border-t hover:bg-gray-50">
+                              <td className="px-2 py-2"><button onClick={() => setSelectedRepairId(r.id)} className="font-mono text-cyan-700 hover:underline">{r.maYeuCau}</button></td>
+                              <td className="whitespace-nowrap px-2 py-2">{fmtDateVN(r.ngayThang)}</td>
+                              <td className="px-2 py-2 text-right">{fmtMaybeVND(r.duKien)}</td>
+                              <td className="px-2 py-2 text-right">{fmtMaybeVND(r.thucTe)}</td>
+                              <td className={`px-2 py-2 text-right font-medium ${r.chenhLech == null ? 'text-gray-400' : r.chenhLech > 0 ? 'text-red-600' : r.chenhLech < 0 ? 'text-emerald-600' : 'text-gray-500'}`}>{r.chenhLech == null ? '—' : fmtVND(r.chenhLech)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between text-xs">
+                      <span className="text-gray-500">Trang {costPageSafe} / {costTotalPages} · {filteredCostRows.length} phiếu</span>
+                      <span className="flex gap-1">
+                        <button disabled={costPageSafe <= 1} onClick={() => setCostPage(p => p - 1)} className="rounded-full border bg-white px-3 py-1 text-xs font-medium disabled:opacity-40 hover:bg-gray-50">‹ Trước</button>
+                        <button disabled={costPageSafe >= costTotalPages} onClick={() => setCostPage(p => p + 1)} className="rounded-full border bg-white px-3 py-1 text-xs font-medium disabled:opacity-40 hover:bg-gray-50">Sau ›</button>
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
       {selectedRepairId != null && (
         <RepairRequestFormModal isOpen={!!selectedRepairId} onClose={() => setSelectedRepairId(null)} mode="view" record={modalRecord as never} lockedRequestType="SUA_CHUA" />
       )}
+      <SupplyRequestDetailModal supplyRequestId={selectedSupplyId} isOpen={!!selectedSupplyId} onClose={() => setSelectedSupplyId(null)} />
     </div>
   );
 }
