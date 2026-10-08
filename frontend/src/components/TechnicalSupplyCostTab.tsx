@@ -176,6 +176,10 @@ export default function TechnicalSupplyCostTab() {
 
   return (
     <div className="space-y-4">
+      <div>
+        <h2 className="text-base font-semibold text-gray-900">Vật tư & Chi phí</h2>
+        <p className="text-xs text-gray-500">Yêu cầu cung ứng của Kỹ thuật và chi phí sửa chữa phát sinh.</p>
+      </div>
       {/* Shared header filters */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-gray-50 px-3 py-2.5 text-sm">
         <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600">Năm

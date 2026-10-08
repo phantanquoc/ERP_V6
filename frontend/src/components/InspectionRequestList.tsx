@@ -251,16 +251,18 @@ export default function InspectionRequestList({ lockedMachineSystemId }: { locke
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h2 className="text-base font-semibold text-gray-900">Phiếu kiểm tra</h2>
-          <p className="text-xs text-gray-500">Theo dõi yêu cầu kiểm tra thiết bị từ các bộ phận.</p>
+      {!lockedMachineSystemId && (
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Phiếu kiểm tra</h2>
+            <p className="text-xs text-gray-500">Theo dõi yêu cầu kiểm tra thiết bị từ các bộ phận.</p>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={exportExcel} className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Xuất Excel</button>
+            <button type="button" onClick={() => openModal('create')} className="inline-flex items-center gap-1.5 rounded-md bg-cyan-600 px-3 py-2 text-sm font-medium text-white hover:bg-cyan-700"><Plus className="h-4 w-4" /> Thêm kiểm tra</button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <button type="button" onClick={exportExcel} className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Xuất Excel</button>
-          <button type="button" onClick={() => openModal('create')} className="inline-flex items-center gap-1.5 rounded-md bg-cyan-600 px-3 py-2 text-sm font-medium text-white hover:bg-cyan-700"><Plus className="h-4 w-4" /> Thêm kiểm tra</button>
-        </div>
-      </div>
+      )}
 
       <section className="rounded-xl border border-gray-200 bg-white overflow-hidden">
         <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 p-3">

@@ -59,8 +59,14 @@ const MaintenanceTab = ({ activeView: controlledView, onViewChange, lockedMachin
   };
 
   return (
-    <div className="space-y-3">
-      <div className="inline-flex flex-wrap gap-1 p-1 bg-gray-100 rounded-lg" role="group" aria-label="Chọn danh sách bảo dưỡng">
+    <div className="flex flex-col gap-4">
+      {!lockedMachineSystemId && (
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">Bảo dưỡng thiết bị</h2>
+          <p className="text-xs text-gray-500">Kế hoạch định kỳ và biên bản thực hiện bảo dưỡng/sửa chữa theo hệ thống máy.</p>
+        </div>
+      )}
+      <div className="inline-flex w-fit gap-1 rounded-lg bg-gray-100 p-1" role="group" aria-label="Chọn danh sách bảo dưỡng">
         {SUB_VIEWS.map(({ key, label }) => {
           const active = subView === key;
           return (

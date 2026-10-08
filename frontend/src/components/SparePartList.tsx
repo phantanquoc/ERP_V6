@@ -341,11 +341,12 @@ const SparePartList = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-800">Danh sách linh kiện</h2>
-          <p className="text-sm text-gray-500 mt-0.5">{isError ? 'Không tải được dữ liệu' : `Tổng: ${Number(total).toLocaleString('vi-VN')} linh kiện · Mới nhất trước`}</p>
-        </div>
+      <div>
+        <h2 className="text-base font-semibold text-gray-900">Danh sách linh kiện</h2>
+        <p className="text-xs text-gray-500">Theo dõi tồn kho, giá nhập và trạng thái sử dụng linh kiện phụ tùng.</p>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-gray-500">{isError ? 'Không tải được dữ liệu' : `Tổng: ${Number(total).toLocaleString('vi-VN')} linh kiện · Mới nhất trước`}</p>
         <div className="flex gap-2">
           {!forbidden && (
             <button type="button" onClick={handleExport} disabled={exporting} className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed">

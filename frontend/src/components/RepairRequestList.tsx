@@ -455,18 +455,20 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h2 className="text-base font-semibold text-gray-900">Yêu cầu sửa chữa</h2>
-          <p className="text-xs text-gray-500">Mỗi yêu cầu có thể gồm nhiều thiết bị lỗi, có hoặc không có liên kết máy.</p>
+      {!lockedMachineSystemId && (
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Yêu cầu sửa chữa</h2>
+            <p className="text-xs text-gray-500">Mỗi yêu cầu có thể gồm nhiều thiết bị lỗi, có hoặc không có liên kết máy.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={exportExcel} className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Xuất Excel</button>
+            {canUpdateRepair && (
+              <button type="button" onClick={() => openModal('create')} className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"><Plus className="h-4 w-4" /> Thêm mới</button>
+            )}
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={exportExcel} className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Xuất Excel</button>
-          {canUpdateRepair && (
-            <button type="button" onClick={() => openModal('create')} className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"><Plus className="h-4 w-4" /> Thêm mới</button>
-          )}
-        </div>
-      </div>
+      )}
 
       <section className="rounded-xl border border-gray-200 bg-white overflow-hidden">
         <div className="flex flex-col gap-2 border-b border-gray-200 p-3">
