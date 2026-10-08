@@ -52,7 +52,7 @@ const ALL_TECH_PARAMS: string[] = [
   // orders
   'orderQ', 'orderStatus', 'orderPage', 'orderLimit', 'orderId',
   // supplyCost
-  'supplyStatus', 'supplyLinked', 'supplyLoai',
+  'supplyStatus', 'supplyLinked', 'supplyLoai', 'supplyView', 'year', 'dateFrom', 'dateTo', 'phongBanId',
 ];
 
 const BADGE_CLS = 'ml-1 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white min-w-[18px]';
