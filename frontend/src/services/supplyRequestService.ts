@@ -72,6 +72,7 @@ export interface SupplyRequest {
   createdAt: string;
   updatedAt: string;
   items: SupplyRequestItem[];
+  supplyLinks?: Array<{ repairRequestId: number; maYeuCau: string; trangThai: string }>;
   /**
    * YCMH attached to this request. `items` carries what purchasing actually bought
    * (quantity per line), which is what the receipt modal prefills from — the supply
@@ -144,6 +145,13 @@ export interface BatchFulfillResult {
   createdPurchaseRequests: { id: string; maYeuCau: string; bucket: string }[];
 }
 
+export interface SupplyCostFilters {
+  technicalOnly?: boolean;
+  linkedToRepair?: boolean;
+  year?: number;
+  loaiYeuCau?: string;
+}
+
 export interface SupplyRequestListFilters {
   search?: string;
   maYeuCau?: string;
@@ -152,6 +160,10 @@ export interface SupplyRequestListFilters {
   phanLoai?: string;
   trangThai?: string;
   mucDoUuTien?: string;
+  technicalOnly?: boolean;
+  linkedToRepair?: boolean;
+  year?: number;
+  loaiYeuCau?: string;
 }
 
 export const SUPPLY_MAX_FILES = 4;
@@ -177,6 +189,10 @@ class SupplyRequestService {
     if (filters?.phanLoai) params.phanLoai = filters.phanLoai;
     if (filters?.trangThai) params.trangThai = filters.trangThai;
     if (filters?.mucDoUuTien) params.mucDoUuTien = filters.mucDoUuTien;
+    if (filters?.technicalOnly !== undefined) params.technicalOnly = String(filters.technicalOnly);
+    if (filters?.linkedToRepair !== undefined) params.linkedToRepair = String(filters.linkedToRepair);
+    if (filters?.year !== undefined) params.year = String(filters.year);
+    if (filters?.loaiYeuCau) params.loaiYeuCau = filters.loaiYeuCau;
 
     const response = await apiClient.get('/supply-requests', { params });
     return response;

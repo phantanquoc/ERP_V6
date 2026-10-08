@@ -11,10 +11,11 @@ import MachineSystemList from '../../components/MachineSystemList';
 import MaintenanceTab from '../../components/MaintenanceTab';
 import FaultRecordList from '../../components/FaultRecordList';
 import SparePartList from '../../components/SparePartList';
+import TechnicalSupplyCostTab from '../../components/TechnicalSupplyCostTab';
 import PageHeader from '../../design-system/PageHeader';
 import SectionCard from '../../design-system/SectionCard';
 
-type TabType = 'inspections' | 'repairs' | 'faults' | 'machineSystems' | 'maintenance' | 'spareParts' | 'orders';
+type TabType = 'inspections' | 'repairs' | 'faults' | 'machineSystems' | 'maintenance' | 'spareParts' | 'orders' | 'supplyCost';
 
 const tabs: { key: TabType; label: string }[] = [
   { key: 'inspections', label: 'Danh sách yêu cầu kiểm tra' },
@@ -24,6 +25,7 @@ const tabs: { key: TabType; label: string }[] = [
   { key: 'maintenance', label: 'Danh sách bảo dưỡng' },
   { key: 'spareParts', label: 'Danh sách linh kiện' },
   { key: 'orders', label: 'Danh sách đơn hàng' },
+  { key: 'supplyCost', label: 'Vật tư & Chi phí' },
 ];
 
 const isTabType = (value: string | null): value is TabType =>
@@ -49,6 +51,8 @@ const ALL_TECH_PARAMS: string[] = [
   'partId', 'partRecordId', 'sparePartId',
   // orders
   'orderQ', 'orderStatus', 'orderPage', 'orderLimit', 'orderId',
+  // supplyCost
+  'supplyStatus', 'supplyLinked', 'supplyLoai',
 ];
 
 const BADGE_CLS = 'ml-1 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white min-w-[18px]';
@@ -230,6 +234,12 @@ const TechnicalQuality = () => {
       {activeTab === 'orders' && (
         <SectionCard bodyClassName="">
           <OrderManagement hideHeader={true} />
+        </SectionCard>
+      )}
+
+      {activeTab === 'supplyCost' && (
+        <SectionCard bodyClassName="">
+          <TechnicalSupplyCostTab />
         </SectionCard>
       )}
     </div>

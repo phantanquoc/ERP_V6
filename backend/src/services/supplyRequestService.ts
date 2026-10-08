@@ -81,6 +81,8 @@ const MUAN_HANH_STATUS_SEQUENCE = ['Chưa cung cấp', 'Đã mua hàng', 'Đã c
 // Max files per supply request — mirrors InspectionRequest.MAX_ATTACHMENT_FILES
 export const SUPPLY_MAX_FILES = 4;
 
+const TECHNICAL_DEPARTMENT_CODE = 'DEPT_TECHNICAL';
+
 class SupplyRequestService {
   async getAllSupplyRequests(
     page: number = 1,
@@ -96,6 +98,7 @@ class SupplyRequestService {
       trangThai?: string;
       mucDoUuTien?: string;
     },
+    opts?: { technicalOnly?: boolean; linkedToRepair?: boolean; year?: number },
   ) {
     const { skip } = getPaginationParams(page, limit);
 
@@ -149,6 +152,60 @@ class SupplyRequestService {
     }
     if (filters?.mucDoUuTien) {
       conditions.push({ mucDoUuTien: filters.mucDoUuTien });
+    }
+
+    if (opts?.year !== undefined) {
+      if (!Number.isInteger(opts.year) || opts.year < 1900 || opts.year > 2100) {
+        throw new ValidationError('year phai la 4 chu so (1900-2100)');
+      }
+      conditions.push({
+        ngayYeuCau: {
+          gte: new Date(opts.year, 0, 1, 0, 0, 0, 0),
+          lte: new Date(opts.year, 11, 31, 23, 59, 59, 999),
+        },
+      });
+    }
+
+    if (opts?.technicalOnly) {
+      const techDept = await prisma.department.findFirst({
+        where: { code: TECHNICAL_DEPARTMENT_CODE },
+        select: { id: true },
+      });
+      if (!techDept) {
+        return { data: [], pagination: { currentPage: page, totalPages: 0, totalItems: 0, itemsPerPage: limit } };
+      }
+      const techUsers = await prisma.user.findMany({
+        where: {
+          OR: [
+            { departmentId: techDept.id },
+            { secondaryDepartments: { some: { departmentId: techDept.id } } },
+          ],
+        },
+        select: { id: true },
+      });
+      const techUserIds = techUsers.map((u) => u.id);
+      if (techUserIds.length === 0) {
+        return { data: [], pagination: { currentPage: page, totalPages: 0, totalItems: 0, itemsPerPage: limit } };
+      }
+      conditions.push({ employee: { userId: { in: techUserIds } } });
+    }
+
+    if (opts?.linkedToRepair !== undefined) {
+      const allLinks = await (prisma as any).repairSupplyLink.findMany({
+        select: { supplyRequestId: true },
+        distinct: ['supplyRequestId'],
+      });
+      const linkedIds: string[] = [...new Set(allLinks.map((r: any) => r.supplyRequestId).filter(Boolean))];
+      if (opts.linkedToRepair === true) {
+        if (linkedIds.length === 0) {
+          return { data: [], pagination: { currentPage: page, totalPages: 0, totalItems: 0, itemsPerPage: limit } };
+        }
+        conditions.push({ id: { in: linkedIds } });
+      } else {
+        if (linkedIds.length > 0) {
+          conditions.push({ id: { notIn: linkedIds } });
+        }
+      }
     }
 
     const where = { AND: conditions };
@@ -227,8 +284,47 @@ class SupplyRequestService {
       }
     }
 
+    // Enrich with supplyLinks (distinct RepairSupplyLink -> RepairRequest)
+    const pageIds = (data as any[]).map((r) => r.id);
+    let linksBySupplyId = new Map<string, any[]>();
+    if (pageIds.length > 0) {
+      const links = await (prisma as any).repairSupplyLink.findMany({
+        where: { supplyRequestId: { in: pageIds } },
+        select: { supplyRequestId: true, repairRequestId: true },
+      });
+      const distinctRepairIds = [...new Set(links.map((l: any) => l.repairRequestId))];
+      let repairMap = new Map<number, any>();
+      if (distinctRepairIds.length > 0) {
+        const repairs = await (prisma as any).repairRequest.findMany({
+          where: { id: { in: distinctRepairIds } },
+          select: { id: true, maYeuCau: true, trangThai: true },
+        });
+        repairMap = new Map(repairs.map((r: any) => [r.id, r]));
+      }
+      // Group by supplyRequestId, distinct by repairRequestId
+      const grouped = new Map<string, Map<number, any>>();
+      for (const l of links) {
+        const sid = l.supplyRequestId as string;
+        const rid = l.repairRequestId as number;
+        if (!grouped.has(sid)) grouped.set(sid, new Map());
+        if (!grouped.get(sid)!.has(rid)) {
+          const r = repairMap.get(rid);
+          grouped.get(sid)!.set(rid, {
+            repairRequestId: rid,
+            maYeuCau: r?.maYeuCau ?? '',
+            trangThai: r?.trangThai ?? '',
+          });
+        }
+      }
+      for (const [sid, m] of grouped) linksBySupplyId.set(sid, Array.from(m.values()));
+    }
+    const enrichedData = (data as any[]).map((row) => ({
+      ...row,
+      supplyLinks: linksBySupplyId.get(row.id) ?? [],
+    }));
+
     return {
-      data,
+      data: enrichedData,
       pagination: {
         currentPage: page,
         totalPages: Math.ceil(total / limit),

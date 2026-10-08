@@ -10,7 +10,20 @@ export const supplyRequestKeys = {
     [...supplyRequestKeys.lists(), { page, limit, search }] as const,
   detail: (id: string) => [...supplyRequestKeys.all, 'detail', id] as const,
   decisions: (id: string) => [...supplyRequestKeys.all, 'decisions', id] as const,
+  supplyCost: (filters: SupplyCostListFilters) =>
+    [...supplyRequestKeys.all, 'supplyCost', filters] as const,
 };
+
+export interface SupplyCostListFilters {
+  page?: number;
+  limit?: number;
+  search?: string;
+  trangThai?: string;
+  loaiYeuCau?: string;
+  technicalOnly?: boolean;
+  linkedToRepair?: boolean;
+  year?: number;
+}
 
 export const useSupplyRequests = (
   page: number = 1,
@@ -25,6 +38,25 @@ export const useSupplyRequests = (
         limit,
         search ? { search } : undefined
       );
+      return response;
+    },
+    refetchOnMount: 'always',
+  });
+};
+
+export const useSupplyCostList = (filters: SupplyCostListFilters) => {
+  const { page = 1, limit = 10, ...rest } = filters;
+  return useQuery({
+    queryKey: supplyRequestKeys.supplyCost(filters),
+    queryFn: async () => {
+      const response = await supplyRequestService.getAllSupplyRequests(page, limit, {
+        search: rest.search,
+        trangThai: rest.trangThai,
+        loaiYeuCau: rest.loaiYeuCau,
+        technicalOnly: rest.technicalOnly,
+        linkedToRepair: rest.linkedToRepair,
+        year: rest.year,
+      });
       return response;
     },
     refetchOnMount: 'always',

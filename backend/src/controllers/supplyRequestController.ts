@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import prisma from '@config/database';
 import supplyRequestService from '@services/supplyRequestService';
 import { getFileUrl } from '@middlewares/upload';
+import { ValidationError } from '@utils/errors';
 import { isPricingApprover } from '@utils/isPricingApprover';
 import type { AuthenticatedRequest } from '@types';
 
@@ -66,7 +67,25 @@ class SupplyRequestController {
       const effectiveDepartmentIds = isPricing ? undefined : departmentIds;
       const effectiveSubDepartmentIds = isPricing ? undefined : subDepartmentIds;
 
-      const result = await supplyRequestService.getAllSupplyRequests(page, limit, search, effectiveDepartmentIds, effectiveSubDepartmentIds, phanLoai, filters);
+      // Parse additive filters for supply-cost tab
+      const techRaw = req.query.technicalOnly as string | undefined;
+      const technicalOnly = techRaw === 'true' || techRaw === '1' ? true : undefined;
+
+      const linkedRaw = req.query.linkedToRepair as string | undefined;
+      let linkedToRepair: boolean | undefined;
+      if (linkedRaw === 'true' || linkedRaw === '1') linkedToRepair = true;
+      else if (linkedRaw === 'false' || linkedRaw === '0') linkedToRepair = false;
+
+      let year: number | undefined;
+      const yearRaw = req.query.year as string | undefined;
+      if (yearRaw !== undefined && yearRaw !== '') {
+        if (!/^\d{4}$/.test(yearRaw)) throw new ValidationError('year phai la 4 chu so (1900-2100)');
+        const y = parseInt(yearRaw, 10);
+        if (y < 1900 || y > 2100) throw new ValidationError('year phai la 4 chu so (1900-2100)');
+        year = y;
+      }
+
+      const result = await supplyRequestService.getAllSupplyRequests(page, limit, search, effectiveDepartmentIds, effectiveSubDepartmentIds, phanLoai, filters, { technicalOnly, linkedToRepair, year });
 
       return res.json({
         success: true,
