@@ -1349,16 +1349,40 @@ class RepairRequestService {
     }));
   }
 
-  async getStats(filters?: { dateFrom?: Date; dateTo?: Date; machineSystemId?: string; requestType?: RequestType }) {
+  async getStats(filters?: { dateFrom?: Date; dateTo?: Date; machineSystemId?: string; requestType?: RequestType; year?: number; phongBanId?: string }) {
+    // year → Jan1-Dec31 of that year; dateFrom/dateTo takes precedence; default = current year
+    let yearWindow: { from: Date; to: Date } | null = null;
+    if (filters?.year !== undefined && !filters?.dateFrom && !filters?.dateTo) {
+      const y = filters.year;
+      yearWindow = { from: new Date(y, 0, 1, 0, 0, 0, 0), to: new Date(y, 11, 31, 23, 59, 59, 999) };
+    }
     const now = new Date();
-    const dateTo = filters?.dateTo ?? now;
-    const windowMs = filters?.dateFrom
-      ? dateTo.getTime() - filters.dateFrom.getTime()
-      : 90 * 24 * 60 * 60 * 1000;
-    const dateFrom = filters?.dateFrom ?? new Date(dateTo.getTime() - windowMs);
+    let dateFrom: Date;
+    let dateTo: Date;
+    if (filters?.dateFrom || filters?.dateTo) {
+      dateTo = filters?.dateTo ?? now;
+      const windowMs = filters?.dateFrom ? dateTo.getTime() - filters.dateFrom.getTime() : 90 * 24 * 60 * 60 * 1000;
+      dateFrom = filters?.dateFrom ?? new Date(dateTo.getTime() - windowMs);
+    } else if (yearWindow) {
+      dateFrom = yearWindow.from;
+      dateTo = yearWindow.to;
+    } else {
+      // default: current year
+      const y = filters?.year ?? now.getFullYear();
+      dateFrom = new Date(y, 0, 1, 0, 0, 0, 0);
+      dateTo = new Date(y, 11, 31, 23, 59, 59, 999);
+    }
 
+    const windowMs2 = dateTo.getTime() - dateFrom.getTime();
     const prevDateTo = new Date(dateFrom.getTime() - 1);
-    const prevDateFrom = new Date(prevDateTo.getTime() - windowMs);
+    const prevDateFrom = new Date(prevDateTo.getTime() - windowMs2);
+
+    // phongBanId filter now means requester's department (User.departmentId), not RepairRequest.phongBanId planning field
+    const deptFilterUserIds: string[] | null = filters?.phongBanId
+      ? (await prisma.user.findMany({ where: { departmentId: filters.phongBanId }, select: { id: true } })).map((u) => u.id)
+      : null;
+    // Sentinel for dept with no users -> match nothing
+    const deptNoUsers = deptFilterUserIds !== null && deptFilterUserIds.length === 0;
 
     const buildWhere = (from: Date, to: Date): Prisma.RepairRequestWhereInput => {
       const where: Prisma.RepairRequestWhereInput = {
@@ -1369,6 +1393,10 @@ class RepairRequestService {
       }
       if (filters?.requestType) {
         where.requestType = filters.requestType;
+      }
+      if (filters?.phongBanId) {
+        if (deptNoUsers) where.id = -1 as unknown as number; // impossible
+        else where.createdById = { in: deptFilterUserIds! };
       }
       return where;
     };
@@ -1474,35 +1502,41 @@ class RepairRequestService {
       },
       _count: { _all: true },
       orderBy: { _count: { machineSystemId: 'desc' } },
-      take: 5,
+      take: 10,
     });
 
     const topMachineIds = topMachinesRaw.map((r) => r.machineSystemId!).filter(Boolean);
-    const machineSystemsMap = new Map<string, string>();
+    const machineSystemsMap = new Map<string, { tenHeThong: string; khuVuc: string | null }>();
     if (topMachineIds.length > 0) {
       const machineSystems = await prisma.machineSystem.findMany({
         where: { id: { in: topMachineIds } },
-        select: { id: true, tenHeThong: true },
+        select: { id: true, tenHeThong: true, khuVuc: true },
       });
       for (const ms of machineSystems) {
-        machineSystemsMap.set(ms.id, ms.tenHeThong);
+        machineSystemsMap.set(ms.id, { tenHeThong: ms.tenHeThong, khuVuc: ms.khuVuc ?? null });
       }
     }
 
     const topMachines = topMachinesRaw.map((r) => ({
       machineSystemId: r.machineSystemId,
-      tenHeThong: r.machineSystemId ? (machineSystemsMap.get(r.machineSystemId) ?? null) : null,
+      tenHeThong: r.machineSystemId ? (machineSystemsMap.get(r.machineSystemId!)?.tenHeThong ?? null) : null,
+      khuVuc: r.machineSystemId ? (machineSystemsMap.get(r.machineSystemId!)?.khuVuc ?? null) : null,
       count: r._count._all,
     }));
 
-    const recurringWindowFrom = new Date(dateTo.getTime() - 180 * 24 * 60 * 60 * 1000);
+    const deptFilterWhere = (base: Prisma.RepairRequestWhereInput): Prisma.RepairRequestWhereInput => {
+      if (!filters?.phongBanId) return base;
+      if (deptNoUsers) return { ...base, id: -1 as unknown as number };
+      return { ...base, createdById: { in: deptFilterUserIds! } };
+    };
     const recurringRaw = await prisma.repairRequestItem.groupBy({
       by: ['machineSystemDetailId'],
       where: {
-        repairRequest: {
-          createdAt: { gte: recurringWindowFrom, lte: dateTo },
+        repairRequest: deptFilterWhere({
+          createdAt: { gte: dateFrom, lte: dateTo },
           ...(filters?.machineSystemId ? { items: { some: { machineSystemId: filters.machineSystemId } } } : {}),
-        },
+          ...(filters?.requestType ? { requestType: filters.requestType } : {}),
+        }),
         machineSystemDetailId: { not: null },
       },
       _count: { repairRequestId: true },
@@ -1527,7 +1561,7 @@ class RepairRequestService {
       recurringRaw.map(async (r) => {
         const latest = await prisma.repairRequest.findFirst({
           where: {
-            createdAt: { gte: recurringWindowFrom, lte: dateTo },
+            createdAt: { gte: dateFrom, lte: dateTo },
             items: { some: { machineSystemDetailId: r.machineSystemDetailId! } },
           },
           orderBy: { createdAt: 'desc' },
@@ -1556,11 +1590,11 @@ class RepairRequestService {
       bucketStart.setHours(0, 0, 0, 0);
 
       const monthKey = `${bucketStart.getFullYear()}-${String(bucketStart.getMonth() + 1).padStart(2, '0')}`;
-      const bucketWhere: Prisma.RepairRequestWhereInput = {
+      const bucketWhere: Prisma.RepairRequestWhereInput = deptFilterWhere({
         createdAt: { gte: bucketStart, lte: bucketEnd },
         ...(filters?.machineSystemId ? { items: { some: { machineSystemId: filters.machineSystemId } } } : {}),
         ...(filters?.requestType ? { requestType: filters.requestType } : {}),
-      };
+      });
 
       const [bucketTotal, bucketHoanThanh] = await Promise.all([
         prisma.repairRequest.count({ where: bucketWhere }),
@@ -1571,11 +1605,12 @@ class RepairRequestService {
     }
 
     const recentlyCreatedRaw = await prisma.repairRequest.findMany({
-      where: {
+      where: deptFilterWhere({
+        createdAt: { gte: dateFrom, lte: dateTo },
         trangThai: { in: [RepairRequestStatus.CHO_XU_LY, RepairRequestStatus.DANG_SUA_CHUA] },
         ...(filters?.machineSystemId ? { items: { some: { machineSystemId: filters.machineSystemId } } } : {}),
         ...(filters?.requestType ? { requestType: filters.requestType } : {}),
-      },
+      }),
       orderBy: { createdAt: 'desc' },
       take: 10,
       select: {
@@ -1597,6 +1632,194 @@ class RepairRequestService {
       itemCount: r._count.items,
     }));
 
+    // ── Enriched aggregations — dept = requesting dept (createdById -> User.departmentId) ──
+    const windowRows = await prisma.repairRequest.findMany({
+      where: currentWhere,
+      select: { id: true, maYeuCau: true, createdById: true, chiPhiDuKien: true, chiPhiThucTe: true, createdAt: true, ngayThang: true },
+    });
+    // Resolve requesting dept: User.departmentId -> Department.name
+    const userIds = [...new Set(windowRows.map((r) => r.createdById).filter((v): v is string => !!v) as string[])];
+    const userDept = new Map<string, string | null>();
+    if (userIds.length > 0) {
+      const users = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, departmentId: true } });
+      for (const u of users) userDept.set(u.id, (u as any).departmentId ?? null);
+    }
+    const deptIdForRow = (r: typeof windowRows[number]) => r.createdById ? (userDept.get(r.createdById) ?? null) : null;
+    const deptIds = [...new Set(windowRows.map(deptIdForRow).filter((v): v is string => !!v) as string[])];
+    let deptNameMap = new Map<string, string>();
+    if (deptIds.length > 0) {
+      const depts = await (prisma as any).department.findMany({ where: { id: { in: deptIds } }, select: { id: true, name: true } }).catch(() => []);
+      for (const d of depts) deptNameMap.set(d.id, d.name);
+    }
+    // Also include deptFilter dept name when it isn't in windowRows
+    if (filters?.phongBanId && !deptNameMap.has(filters.phongBanId)) {
+      const dep = await (prisma as any).department.findUnique({ where: { id: filters.phongBanId }, select: { name: true } }).catch(() => null);
+      if (dep?.name) deptNameMap.set(filters.phongBanId, dep.name);
+    }
+    // Departments list = Departments that actually appear as requester dept + Chưa phân bổ sentinel
+    const departments = deptIds.map((id) => ({ id, name: deptNameMap.get(id) ?? id }));
+    const hasUnassigned = windowRows.some((r) => deptIdForRow(r) == null);
+    if (hasUnassigned && !departments.some((d) => d.id === '_unassigned')) {
+      // sentinel for UI; filtered by null but keep discoverable via "Chưa phân bổ" entry if desired
+    }
+    const deptDisplayName = (id: string | null) => id ? (deptNameMap.get(id) ?? id) : 'Chưa phân bổ';
+
+    const monthKeyOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const trendMonths: string[] = [];
+    if (yearWindow || (!filters?.dateFrom && !filters?.dateTo)) {
+      const y = yearWindow ? yearWindow.from.getFullYear() : dateFrom.getFullYear();
+      for (let m = 1; m <= 12; m++) trendMonths.push(`${y}-${String(m).padStart(2, '0')}`);
+    } else {
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(dateTo); d.setDate(1); d.setMonth(d.getMonth() - i); trendMonths.push(monthKeyOf(d));
+      }
+    }
+    const deptTotal = new Map<string | null, number>();
+    const byMonthDept = new Map<string, Map<string | null, number>>();
+    for (const r of windowRows) {
+      const mk = monthKeyOf(r.createdAt);
+      const key = deptIdForRow(r);
+      deptTotal.set(key, (deptTotal.get(key) ?? 0) + 1);
+      if (!byMonthDept.has(mk)) byMonthDept.set(mk, new Map());
+      byMonthDept.get(mk)!.set(key, (byMonthDept.get(mk)!.get(key) ?? 0) + 1);
+    }
+    const sortedDept = [...deptTotal.entries()].sort((a, b) => b[1] - a[1]);
+    const top5Keys = new Set(sortedDept.slice(0, 5).map(([k]) => k));
+    const departmentTrend = trendMonths.map((month) => {
+      const mMap = byMonthDept.get(month) ?? new Map();
+      const departmentsArr: Array<{ deptId: string | null; deptName: string; count: number }> = [];
+      let khac = 0;
+      for (const [k, cnt] of mMap.entries()) {
+        if (top5Keys.has(k)) departmentsArr.push({ deptId: k, deptName: deptDisplayName(k), count: cnt });
+        else khac += cnt;
+      }
+      if (khac > 0) departmentsArr.push({ deptId: null, deptName: 'Khác', count: khac });
+      for (const k of top5Keys) {
+        if (!departmentsArr.some((d) => d.deptId === k)) {
+          departmentsArr.push({ deptId: k, deptName: deptDisplayName(k), count: 0 });
+        }
+      }
+      return { month, departments: departmentsArr };
+    });
+
+    // byArea via RepairRequestItem -> MachineSystem.khuVuc + viTri breakdown
+    // DA audit: 24% items have machineSystemId=null; 5 MachineSystem have khuVuc="" — both bucket to "Chưa xác định"
+    const UNMAPPED_LABEL = 'Chưa xác định';
+    const areaItems = await prisma.repairRequestItem.findMany({
+      where: { repairRequest: currentWhere },
+      select: {
+        machineSystemId: true,
+        machineSystem: { select: { khuVuc: true, viTri: true, tenHeThong: true } },
+      },
+    });
+    let unmappedCount = 0;
+    // khuVuc -> { count, viTri breakdown, machines }
+    const areaGroup = new Map<string, { count: number; viTriMap: Map<string, number>; machinesMap: Map<string, number> }>();
+    const areaKeyNorm = new Map<string, string>(); // lower -> display (case-insensitive dedup, except UNMAPPED_LABEL)
+    for (const it of areaItems) {
+      if (!it.machineSystemId || !it.machineSystem) {
+        unmappedCount += 1;
+        const g = areaGroup.get(UNMAPPED_LABEL) ?? { count: 0, viTriMap: new Map(), machinesMap: new Map() };
+        g.count += 1;
+        areaGroup.set(UNMAPPED_LABEL, g);
+        continue;
+      }
+      const rawKhuVuc = (it.machineSystem.khuVuc ?? '').trim();
+      const isEmptyKhuVuc = rawKhuVuc === '';
+      const khuVuc = isEmptyKhuVuc ? UNMAPPED_LABEL : rawKhuVuc;
+      // Reason: empty khuVuc (e.g. Xe ba gác) is a data-quality issue — bucket with unmapped so dashboard can call it out
+      if (khuVuc !== UNMAPPED_LABEL) {
+        const norm = khuVuc.toLowerCase();
+        if (!areaKeyNorm.has(norm)) areaKeyNorm.set(norm, khuVuc);
+      }
+      const displayKhuVuc = khuVuc === UNMAPPED_LABEL ? UNMAPPED_LABEL : areaKeyNorm.get(khuVuc.toLowerCase())!;
+      let g = areaGroup.get(displayKhuVuc);
+      if (!g) { g = { count: 0, viTriMap: new Map(), machinesMap: new Map() }; areaGroup.set(displayKhuVuc, g); }
+      g.count += 1;
+      // viTri breakdown: empty viTri -> also "Chưa xác định" within the khuVuc
+      const viTri = (it.machineSystem.viTri ?? '').trim() || (displayKhuVuc === UNMAPPED_LABEL ? 'Thiếu liên kết máy' : 'Chưa rõ vị trí');
+      g.viTriMap.set(viTri, (g.viTriMap.get(viTri) ?? 0) + 1);
+      const tenHeThong = (it.machineSystem.tenHeThong ?? '').trim() || '—';
+      g.machinesMap.set(tenHeThong, (g.machinesMap.get(tenHeThong) ?? 0) + 1);
+    }
+    const byArea = [...areaGroup.entries()]
+      .map(([khuVuc, g]) => ({
+        khuVuc,
+        count: g.count,
+        // drill: viTri heatmap + machine list — optional for backward compat
+        viTriBreakdown: [...g.viTriMap.entries()].map(([viTri, count]) => ({ viTri, count })).sort((a, b) => b.count - a.count),
+        machines: [...g.machinesMap.entries()].map(([tenHeThong, count]) => ({ tenHeThong, count })).sort((a, b) => b.count - a.count),
+        // reason only for the unmapped bucket so frontend can show tooltip
+        ...(khuVuc === UNMAPPED_LABEL ? { reason: 'Hạng mục thiếu liên kết MachineSystem hoặc MachineSystem.khuVuc trống' } : {}),
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    // costByMonth + costDetailByMonth
+    const incidentalByRepair = new Map<number, number>();
+    if (windowRows.length > 0) {
+      const ics = await (prisma as any).repairIncidentalCost.findMany({ where: { repairRequestId: { in: windowRows.map((r) => r.id) } }, select: { repairRequestId: true, soTien: true } }).catch(() => []);
+      for (const ic of ics) incidentalByRepair.set(ic.repairRequestId, (incidentalByRepair.get(ic.repairRequestId) ?? 0) + Number(ic.soTien ?? 0));
+    }
+    const costByMonth: Array<{ month: string; duKien: number; thucTe: number; incidental: number }> = trendMonths.map((m) => ({ month: m, duKien: 0, thucTe: 0, incidental: 0 }));
+    const costMonthIdx = new Map(trendMonths.map((m, i) => [m, i]));
+    const costDetailByMonth: Record<string, Array<{ id: number; maYeuCau: string; ngayThang: string; duKien: number | null; thucTe: number | null; chenhLech: number | null }>> = {};
+    for (const m of trendMonths) costDetailByMonth[m] = [];
+    for (const r of windowRows) {
+      const mk = monthKeyOf(r.createdAt);
+      const idx = costMonthIdx.get(mk);
+      const duKienRaw = r.chiPhiDuKien != null ? Number(r.chiPhiDuKien) : null;
+      const thucTeRaw = r.chiPhiThucTe != null ? Number(r.chiPhiThucTe) : null;
+      const inc = incidentalByRepair.get(r.id) ?? 0;
+      if (idx !== undefined) {
+        costByMonth[idx].duKien += duKienRaw ?? 0;
+        costByMonth[idx].thucTe += thucTeRaw ?? 0;
+        costByMonth[idx].incidental += inc;
+      }
+      if (costDetailByMonth[mk]) {
+        const chenhLech = duKienRaw != null && thucTeRaw != null ? thucTeRaw - duKienRaw : null;
+        costDetailByMonth[mk].push({ id: r.id, maYeuCau: r.maYeuCau, ngayThang: (r.ngayThang ?? r.createdAt).toISOString().slice(0, 10), duKien: duKienRaw, thucTe: thucTeRaw, chenhLech });
+      }
+    }
+
+    // MTTR global + by dept (dept = requester's department)
+    const mttrLogs = await prisma.repairRequestStatusLog.findMany({
+      where: { newStatus: RepairRequestStatus.HOAN_THANH, repairRequest: currentWhere },
+      select: { repairRequestId: true, createdAt: true, repairRequest: { select: { createdAt: true, createdById: true } } },
+    });
+    let mttrHours: number | null = null;
+    if (mttrLogs.length > 0) {
+      const totalH = mttrLogs.reduce((s, l) => s + (l.createdAt.getTime() - l.repairRequest.createdAt.getTime()) / 3_600_000, 0);
+      mttrHours = totalH / mttrLogs.length;
+    }
+    const mttrByDeptMap = new Map<string | null, number[]>();
+    for (const l of mttrLogs) {
+      const k = l.repairRequest.createdById ? (userDept.get(l.repairRequest.createdById) ?? null) : null;
+      const h = (l.createdAt.getTime() - l.repairRequest.createdAt.getTime()) / 3_600_000;
+      if (!mttrByDeptMap.has(k)) mttrByDeptMap.set(k, []);
+      mttrByDeptMap.get(k)!.push(h);
+    }
+    const mttrByDept: Array<{ deptId: string | null; deptName: string; mttrHours: number | null }> = [...mttrByDeptMap.entries()].map(([deptId, arr]) => ({ deptId, deptName: deptDisplayName(deptId), mttrHours: arr.reduce((a, b) => a + b, 0) / arr.length }));
+    for (const id of deptIds) if (!mttrByDeptMap.has(id)) mttrByDept.push({ deptId: id, deptName: deptDisplayName(id), mttrHours: null as number | null });
+    if (deptTotal.has(null) && !mttrByDeptMap.has(null)) mttrByDept.push({ deptId: null, deptName: deptDisplayName(null), mttrHours: null as number | null });
+
+    // khongDatRate: confirmations = status logs where newStatus in {DA_NGHIEM_THU, DANG_SUA_CHUA} after CHO_NGHIEM_THU or reason startsWith acceptance_
+    const confLogs = await prisma.repairRequestStatusLog.findMany({
+      where: { repairRequest: currentWhere, OR: [{ reason: { startsWith: 'acceptance_' } }, { newStatus: { in: [RepairRequestStatus.DA_NGHIEM_THU, RepairRequestStatus.DANG_SUA_CHUA] } }] },
+      select: { newStatus: true, reason: true },
+    });
+    // filter to actual confirmations: acceptance_dat or acceptance_khong_dat, or DA_NGHIEM_THU/DANG_SUA_CHUA that came from CHO_NGHIEM_THU (approx by reason prefix)
+    const confirmations = confLogs.filter((l) => String(l.reason ?? '').startsWith('acceptance_'));
+    const khongDat = confirmations.filter((l) => String(l.reason ?? '').startsWith('acceptance_khong_dat')).length;
+    const totalConfirmations = confirmations.length;
+    const khongDatRate = { totalConfirmations, khongDat, rate: totalConfirmations > 0 ? khongDat / totalConfirmations : null };
+
+    // topExpensive Top 10 by thucTe+incidental
+    const topExpensive = windowRows.map((r) => {
+      const thucTe = r.chiPhiThucTe != null ? Number(r.chiPhiThucTe) : 0;
+      const incidental = incidentalByRepair.get(r.id) ?? 0;
+      return { id: r.id, maYeuCau: r.maYeuCau, thucTe, incidental, total: thucTe + incidental };
+    }).sort((a, b) => b.total - a.total).slice(0, 10);
+
     return {
       total,
       byStatus,
@@ -1607,6 +1830,16 @@ class RepairRequestService {
       recurringItems,
       monthlyTrend,
       recentlyCreated,
+      departmentTrend,
+      departments,
+      byArea,
+      unmappedCount,
+      costByMonth,
+      costDetailByMonth,
+      mttrHours,
+      mttrByDept,
+      khongDatRate,
+      topExpensive,
     };
   }
 

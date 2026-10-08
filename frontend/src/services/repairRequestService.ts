@@ -303,11 +303,14 @@ export interface RepairRequestStatsFilters {
   dateTo?: string;
   machineSystemId?: string;
   requestType?: RequestType;
+  year?: number;
+  phongBanId?: string;
 }
 
 export interface RepairRequestStatsMachine {
   machineSystemId: string | null;
   tenHeThong: string | null;
+  khuVuc?: string | null;
   count: number;
 }
 
@@ -327,6 +330,18 @@ export interface RepairRequestStatsRecentlyCreated {
   itemCount: number;
 }
 
+export interface DepartmentTrendEntry { month: string; departments: Array<{ deptId: string | null; deptName: string; count: number }>; }
+export interface ByAreaEntry {
+  khuVuc: string;
+  count: number;
+  viTriBreakdown?: Array<{ viTri: string; count: number }>;
+  machines?: Array<{ tenHeThong: string; count: number }>;
+  reason?: string;
+}
+export interface CostByMonthEntry { month: string; duKien: number; thucTe: number; incidental: number; }
+export interface CostDetailEntry { id: number; maYeuCau: string; ngayThang: string; duKien: number | null; thucTe: number | null; chenhLech: number | null; }
+export interface MttrByDeptEntry { deptId: string | null; deptName: string; mttrHours: number | null; }
+
 export interface RepairRequestStatsResponse {
   total: number;
   byStatus: Record<string, number>;
@@ -342,6 +357,16 @@ export interface RepairRequestStatsResponse {
   recurringItems: RepairRequestStatsRecurring[];
   monthlyTrend: Array<{ month: string; total: number; hoanThanh: number }>;
   recentlyCreated: RepairRequestStatsRecentlyCreated[];
+  departmentTrend?: DepartmentTrendEntry[];
+  departments?: Array<{ id: string; name: string }>;
+  byArea?: ByAreaEntry[];
+  unmappedCount?: number;
+  costByMonth?: CostByMonthEntry[];
+  costDetailByMonth?: Record<string, CostDetailEntry[]>;
+  mttrHours?: number | null;
+  mttrByDept?: MttrByDeptEntry[];
+  khongDatRate?: { totalConfirmations: number; khongDat: number; rate: number | null };
+  topExpensive?: Array<{ id: number; maYeuCau: string; thucTe: number; incidental: number; total: number }>;
 }
 
 // Planning / status transition payloads
@@ -495,6 +520,8 @@ class RepairRequestService {
     if (filters?.dateTo) params.dateTo = filters.dateTo;
     if (filters?.machineSystemId) params.machineSystemId = filters.machineSystemId;
     if (filters?.requestType) params.requestType = filters.requestType;
+    if (filters?.year != null) params.year = String(filters.year);
+    if (filters?.phongBanId) params.phongBanId = filters.phongBanId;
     return apiClient.get<RepairRequestStatsResponse>('/repair-requests/stats', { params });
   }
 

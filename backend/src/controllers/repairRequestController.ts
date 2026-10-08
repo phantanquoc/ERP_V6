@@ -355,14 +355,33 @@ class RepairRequestController {
     } catch (error) { next(error); }
   }
 
+  /** GET /repair-requests/stats — phongBanId = requesting department (createdById -> User.departmentId), not the planning field RepairRequest.phongBanId (kept for planning only). */
   async getStats(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
+      // year: YYYY 1900-2100, dateFrom/dateTo take precedence when present
+      let year: number | undefined;
+      if (req.query.year !== undefined && String(req.query.year).trim() !== '') {
+        const raw = String(req.query.year).trim();
+        if (!/^\d{4}$/.test(raw)) {
+          const { ValidationError } = await import('@utils/errors');
+          throw new ValidationError('year phải là 4 chữ số (1900-2100)');
+        }
+        const n = parseInt(raw, 10);
+        if (n < 1900 || n > 2100) {
+          const { ValidationError } = await import('@utils/errors');
+          throw new ValidationError('year phải trong khoảng 1900-2100');
+        }
+        year = n;
+      }
       const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom as string) : undefined;
       const dateTo = req.query.dateTo ? new Date(req.query.dateTo as string) : undefined;
       const machineSystemId = req.query.machineSystemId as string | undefined;
+      const phongBanId = (req.query.phongBanId as string | undefined)?.trim() || undefined;
+      const requestTypeRaw = req.query.requestType as string | undefined;
+      const requestType = requestTypeRaw && Object.values(RequestType).includes(requestTypeRaw as RequestType) ? (requestTypeRaw as RequestType) : undefined;
       const data = await repairRequestService.getStats(
-        dateFrom || dateTo || machineSystemId
-          ? { dateFrom, dateTo, machineSystemId }
+        dateFrom || dateTo || machineSystemId || year !== undefined || phongBanId || requestType
+          ? { dateFrom, dateTo, machineSystemId, year, phongBanId, requestType }
           : undefined
       );
       res.json({ success: true, data });
