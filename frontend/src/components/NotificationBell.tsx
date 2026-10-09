@@ -94,6 +94,9 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
   const userIsAdmin = user?.role === UserRole.ADMIN;
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [isRinging, setIsRinging] = useState(false);
+  const prevUnreadRef = useRef<number>(0);
+  const hasMountedRef = useRef(false);
   const [isTaskListModalOpen, setIsTaskListModalOpen] = useState(false);
   const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
   const [selectedEvaluationNotification, setSelectedEvaluationNotification] = useState<AppNotification | null>(null);
@@ -186,6 +189,36 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
     queryFn: () => notificationService.getUnreadCount(),
     refetchOnWindowFocus: true,
   });
+
+  // Ring on unread increase (skip initial load / decrease / zero)
+  useEffect(() => {
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      prevUnreadRef.current = unreadCount;
+      return;
+    }
+    if (unreadCount > prevUnreadRef.current && unreadCount > 0) {
+      setIsRinging(true);
+      const t = setTimeout(() => setIsRinging(false), 1100);
+      prevUnreadRef.current = unreadCount;
+      return () => clearTimeout(t);
+    }
+    prevUnreadRef.current = unreadCount;
+  }, [unreadCount]);
+
+  // While unread > 0, repeat a short ring every 5s (pause in between so it doesn't annoy).
+  // Stops when all read (unread==0) or dropdown is open.
+  useEffect(() => {
+    if (unreadCount === 0 || isOpen) {
+      setIsRinging(false);
+      return;
+    }
+    const id = setInterval(() => {
+      setIsRinging(true);
+      setTimeout(() => setIsRinging(false), 1100);
+    }, 5000);
+    return () => clearInterval(id);
+  }, [unreadCount, isOpen]);
 
   const { data: notifications = [], isFetching: loading, isError, error, refetch: refetchNotifications } = useQuery({
     queryKey: ['notifications', 'recent', showUnreadOnly],
@@ -344,6 +377,7 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
 
   return (
     <>
+    <style>{`@keyframes bell-ring{0%{transform:rotate(0)}12%{transform:rotate(14deg)}24%{transform:rotate(-13deg)}36%{transform:rotate(11deg)}48%{transform:rotate(-8deg)}60%{transform:rotate(5deg)}72%{transform:rotate(-2deg)}84%,100%{transform:rotate(0)}}@keyframes badge-pulse{0%{transform:translate(50%,-50%) scale(1)}25%{transform:translate(50%,-50%) scale(1.18)}50%{transform:translate(50%,-50%) scale(1)}75%{transform:translate(50%,-50%) scale(1.08)}100%{transform:translate(50%,-50%) scale(1)}}@media(prefers-reduced-motion:reduce){.bell-animate{animation:none!important}.badge-animate{animation:none!important}}`}</style>
     <div className="relative" ref={dropdownRef}>
       {/* Bell Button */}
       <button
@@ -351,9 +385,11 @@ const NotificationBell = ({ onNotificationClick }: { onNotificationClick?: (noti
         className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
         title="Thông báo"
       >
-        <Bell className="w-6 h-6" />
+        <span className="inline-flex" style={isRinging ? { animation: 'bell-ring 1.1s cubic-bezier(0.36,0.07,0.19,0.97) both', transformOrigin: '50% 0%' } : undefined}>
+          <Bell className="w-6 h-6" />
+        </span>
         {unreadCount > 0 && (
-          <span className="absolute top-0 right-0 translate-x-1/2 -translate-y-1/2 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold leading-none text-white bg-red-600 rounded-full pointer-events-none">
+          <span className="absolute top-0 right-0 translate-x-1/2 -translate-y-1/2 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold leading-none text-white bg-red-600 rounded-full pointer-events-none shadow-sm shadow-red-600/25" style={isRinging ? { animation: 'badge-pulse 0.7s ease 0.05s' } : undefined}>
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
