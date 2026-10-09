@@ -2,10 +2,10 @@ import { Router } from 'express';
 import replenishmentRequestController from '@controllers/replenishmentRequestController';
 import { authenticate } from '@middlewares/auth';
 import { requireRule } from '@middlewares/requireRule';
-import { createSingleUploadMiddleware } from '@middlewares/upload';
+import { createCompatUploadMiddleware } from '@middlewares/upload';
 
 const router = Router();
-const uploadReplenishmentRequest = createSingleUploadMiddleware('replenishment-requests');
+const uploadReplenishmentRequest = createCompatUploadMiddleware('replenishment-requests', 4);
 
 router.use(authenticate);
 

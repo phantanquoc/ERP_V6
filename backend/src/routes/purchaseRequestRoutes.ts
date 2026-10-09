@@ -2,11 +2,11 @@ import { Router } from 'express';
 import purchaseRequestController from '@controllers/purchaseRequestController';
 import { authenticate } from '@middlewares/auth';
 import { requireRule } from '@middlewares/requireRule';
-import { createSingleUploadMiddleware } from '@middlewares/upload';
+import { createCompatUploadMiddleware } from '@middlewares/upload';
 const router = Router();
 
-// Upload middleware for purchase requests (single file)
-const uploadPurchaseRequest = createSingleUploadMiddleware('purchase-requests');
+// Upload middleware for purchase requests (up to 4 files, accepts `files` + legacy `file`)
+const uploadPurchaseRequest = createCompatUploadMiddleware('purchase-requests', 4);
 
 // All routes require authentication
 router.use(authenticate);

@@ -5,7 +5,7 @@ import type { AuthenticatedRequest } from '@types';
 import prisma from '@config/database';
 import { isPricingApprover } from '@utils/isPricingApprover';
 
-const PR_ALLOWED_FIELDS = ['mucDichYeuCau','mucDoUuTien','ghiChu','fileKemTheo','supplyRequestId','nhaCungCapId','giaDuKien','ghiChuMuaHang','isQuickPurchase','sourceType','ngayDuKienNhap','warehouseId','ghiChuVanChuyen','trangThai','nguoiDuyet','ngayDuyet','items'] as const;
+const PR_ALLOWED_FIELDS = ['mucDichYeuCau','mucDoUuTien','ghiChu','fileKemTheo','tepDinhKem','keptUrls','supplyRequestId','nhaCungCapId','giaDuKien','ghiChuMuaHang','isQuickPurchase','sourceType','ngayDuKienNhap','warehouseId','ghiChuVanChuyen','trangThai','nguoiDuyet','ngayDuyet','items'] as const;
 const PR_ADMIN_ONLY = new Set<string>(['trangThai','nguoiDuyet','ngayDuyet']);
 async function isPurchasingMember(user?: unknown): Promise<boolean> {
   const u = user as any;
@@ -189,10 +189,16 @@ class PurchaseRequestController {
       }
       // Preserve items (with per-item whitelist handled in service); still block if not in allowlist via pickPR already includes items
       if (raw.items !== undefined) data.items = raw.items;
-
-      // Handle file upload
-      if (req.file) {
-        data.fileKemTheo = getFileUrl('purchase-requests', req.file.filename);
+      // Handle file upload (multi-file "files" + compat single "file")
+      {
+        const files = ((req as unknown as { files?: Express.Multer.File[] }).files ?? (req.file ? [req.file] : [])) as Express.Multer.File[];
+        if (files.length) (data as Record<string, unknown>).tepDinhKem = files.map((f) => getFileUrl('purchase-requests', f.filename));
+        else if (req.file) data.fileKemTheo = getFileUrl('purchase-requests', req.file.filename);
+      }
+      if (raw.keptUrls !== undefined) {
+        let kv: unknown = raw.keptUrls;
+        if (typeof kv === 'string') try { kv = JSON.parse(kv as string); } catch { /* ignore */ }
+        if (Array.isArray(kv)) (data as Record<string, unknown>).keptUrls = kv as string[];
       }
 
       // Parse items from FormData JSON string if needed
@@ -248,9 +254,16 @@ class PurchaseRequestController {
       // Block client identity override on update as well
       delete data.employeeId; delete data.maNhanVien; delete data.tenNhanVien;
 
-      // Handle file upload
-      if (req.file) {
-        data.fileKemTheo = getFileUrl('purchase-requests', req.file.filename);
+      // Handle file upload (multi-file "files" + compat single "file")
+      {
+        const files = ((req as unknown as { files?: Express.Multer.File[] }).files ?? (req.file ? [req.file] : [])) as Express.Multer.File[];
+        if (files.length) (data as Record<string, unknown>).tepDinhKem = files.map((f) => getFileUrl('purchase-requests', f.filename));
+        else if (req.file) data.fileKemTheo = getFileUrl('purchase-requests', req.file.filename);
+      }
+      if (raw.keptUrls !== undefined) {
+        let kv: unknown = raw.keptUrls;
+        if (typeof kv === 'string') try { kv = JSON.parse(kv as string); } catch { /* ignore */ }
+        if (Array.isArray(kv)) (data as Record<string, unknown>).keptUrls = kv as string[];
       }
 
       // Parse items from FormData JSON string if needed

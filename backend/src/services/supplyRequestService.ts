@@ -7,6 +7,8 @@ import { NotificationEvent } from '@types';
 import notificationService from '@services/notificationService';
 import { bucketPhanLoai } from '@utils/phanLoaiBucket';
 import { renameAttachmentsByCode } from '@middlewares/upload';
+import { normalizeAttachments } from '@utils/attachmentUtils';
+import { batchSupplyChainAttachments, resolveSupplyChainAttachments } from '@utils/supplyChainAttachments';
 
 async function generateReplenishmentRequestCodeTx(tx: any): Promise<string> {
   const year = new Date().getFullYear();
@@ -245,6 +247,8 @@ class SupplyRequestService {
               lyDoHuy: true,
               ngayHuy: true,
               nguoiHuy: true,
+              tepDinhKem: true,
+              fileKemTheo: true,
               items: { select: { tenHangHoa: true, soLuong: true, soLuongThucTe: true, donViTinh: true } },
             },
           },
@@ -257,7 +261,9 @@ class SupplyRequestService {
               lyDoHuy: true,
               ngayHuy: true,
               nguoiHuy: true,
-              convertedPurchaseRequest: { select: { id: true, maYeuCau: true } },
+              tepDinhKem: true,
+              fileKemTheo: true,
+              convertedPurchaseRequest: { select: { id: true, maYeuCau: true, tepDinhKem: true, fileKemTheo: true } },
             },
           },
           warehouseReceipts: { select: { id: true, maPhieuNhap: true, purchaseRequestId: true, isVoided: true, voidReason: true, items: { select: { tenSanPham: true, soLuongThucTe: true } } } },
@@ -326,9 +332,11 @@ class SupplyRequestService {
       ...row,
       supplyLinks: linksBySupplyId.get(row.id) ?? [],
     }));
+    const supChainMap = await batchSupplyChainAttachments(enrichedData as any[]);
+    const withChain = enrichedData.map((row: any) => ({ ...row, aggregatedAttachments: supChainMap.get(row.id) ?? { own: normalizeAttachments(row as never), ybs: [], ycmh: [], all: normalizeAttachments(row as never) } }));
 
     return {
-      data: enrichedData,
+      data: withChain,
       pagination: {
         currentPage: page,
         totalPages: Math.ceil(total / limit),
@@ -358,6 +366,8 @@ class SupplyRequestService {
             lyDoHuy: true,
             ngayHuy: true,
             nguoiHuy: true,
+            tepDinhKem: true,
+            fileKemTheo: true,
             items: true,
           },
         },
@@ -370,7 +380,9 @@ class SupplyRequestService {
             lyDoHuy: true,
             ngayHuy: true,
             nguoiHuy: true,
-            convertedPurchaseRequest: { select: { id: true, maYeuCau: true } },
+            tepDinhKem: true,
+            fileKemTheo: true,
+            convertedPurchaseRequest: { select: { id: true, maYeuCau: true, tepDinhKem: true, fileKemTheo: true } },
           },
         },
         warehouseReceipts: { select: { id: true, maPhieuNhap: true, purchaseRequestId: true, isVoided: true, voidReason: true, items: { select: { tenSanPham: true, soLuongThucTe: true } } } },
@@ -395,7 +407,8 @@ class SupplyRequestService {
       (supplyRequest as any).warehouseReceipts = Array.from(byId.values());
     }
 
-    return supplyRequest;
+    const aggregatedAttachments = await resolveSupplyChainAttachments(supplyRequest as any);
+    return { ...supplyRequest, aggregatedAttachments } as unknown as typeof supplyRequest & { aggregatedAttachments: { own: string[]; ybs: string[]; ycmh: string[]; all: string[] } };
   }
 
   async createSupplyRequest(data: CreateSupplyRequestRequest) {

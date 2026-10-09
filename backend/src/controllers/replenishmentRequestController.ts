@@ -114,7 +114,14 @@ class ReplenishmentRequestController {
       if (data.items && typeof data.items === 'string') {
         try { data.items = JSON.parse(data.items as string) as unknown; } catch { /* validated by service */ }
       }
-      if (req.file) data.fileKemTheo = getFileUrl('replenishment-requests', req.file.filename);
+      {
+        const files = ((req as unknown as { files?: Express.Multer.File[] }).files ?? (req.file ? [req.file] : [])) as Express.Multer.File[];
+        if (files.length) data.tepDinhKem = files.map((f) => getFileUrl('replenishment-requests', f.filename));
+        else if (req.file) data.fileKemTheo = getFileUrl('replenishment-requests', req.file.filename);
+      }
+      if (data.keptUrls !== undefined && typeof data.keptUrls === 'string') {
+        try { const kv = JSON.parse(data.keptUrls as string); if (Array.isArray(kv)) data.keptUrls = kv as unknown as string; } catch { /* ignore */ }
+      }
 
       // Derive the owner from the authenticated user — the warehouse clerk filing the
       // YCBS. Mirrors supplyRequestController: never trust a client-provided employeeId.
@@ -138,6 +145,8 @@ class ReplenishmentRequestController {
         mucDichYeuCau: (data.mucDichYeuCau as string) ?? '',
         mucDoUuTien: (data.mucDoUuTien as string) ?? 'Trung bình',
         ghiChu: data.ghiChu as string | undefined,
+        fileKemTheo: data.fileKemTheo as string | undefined,
+        tepDinhKem: data.tepDinhKem as string[] | undefined,
         items: (data.items as { phanLoai: string; tenGoi: string; soLuong: number; donViTinh: string }[]) ?? [],
         supplyRequestId: data.supplyRequestId as string | undefined,
         phanLoaiGroup: data.phanLoaiGroup as string | undefined,
@@ -158,7 +167,14 @@ class ReplenishmentRequestController {
         // with a clear ValidationError, instead of silently dropping the payload.
         try { data.items = JSON.parse(data.items as string) as unknown; } catch { /* handled downstream */ }
       }
-      if (req.file) data.fileKemTheo = getFileUrl('replenishment-requests', req.file.filename);
+      {
+        const files = ((req as unknown as { files?: Express.Multer.File[] }).files ?? (req.file ? [req.file] : [])) as Express.Multer.File[];
+        if (files.length) data.tepDinhKem = files.map((f) => getFileUrl('replenishment-requests', f.filename));
+        else if (req.file) data.fileKemTheo = getFileUrl('replenishment-requests', req.file.filename);
+      }
+      if (data.keptUrls !== undefined && typeof data.keptUrls === 'string') {
+        try { const kv = JSON.parse(data.keptUrls as string); if (Array.isArray(kv)) data.keptUrls = kv as unknown as string; } catch { /* ignore */ }
+      }
       (data as Record<string, unknown>).__actorUserId = req.user?.id;
       const row = await replenishmentRequestService.updateReplenishmentRequest(id, data as any);
       return res.json({ success: true, message: 'Cập nhật yêu cầu bổ sung thành công', data: row });

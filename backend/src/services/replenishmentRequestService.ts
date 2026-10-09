@@ -6,6 +6,9 @@ import { bucketPhanLoai } from '@utils/phanLoaiBucket';
 import ExcelJS from 'exceljs';
 import notificationService from './notificationService';
 import { NotificationEvent } from '@types';
+import { deleteUploadedFile, renameAttachmentsByCode } from '@middlewares/upload';
+import { normalizeAttachments } from '@utils/attachmentUtils';
+import { batchReplenishmentChainAttachments, resolveReplenishmentChainAttachments } from '@utils/replenishmentChainAttachments';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -26,9 +29,13 @@ export interface CreateReplenishmentRequestRequest {
   mucDichYeuCau: string;
   mucDoUuTien: string;
   ghiChu?: string;
+  fileKemTheo?: string;
+  tepDinhKem?: string[];
   supplyRequestId?: string;
   phanLoaiGroup?: string;
 }
+
+export const REPLENISHMENT_MAX_FILES = 4;
 
 // ─── Allowed transitions (YCBS is thin: Chờ báo giá → Đã chuyển mua hàng / Đã hủy) ───
 
@@ -105,6 +112,8 @@ class ReplenishmentRequestService {
         mucDichYeuCau: data.mucDichYeuCau,
         mucDoUuTien: data.mucDoUuTien,
         ghiChu: data.ghiChu,
+        fileKemTheo: (data as { fileKemTheo?: string }).fileKemTheo,
+        tepDinhKem: ((data as { tepDinhKem?: string[] }).tepDinhKem ?? []).slice(0, REPLENISHMENT_MAX_FILES),
         supplyRequestId: data.supplyRequestId,
         phanLoaiGroup: derivedGroup,
         trangThai: 'Chờ báo giá',
@@ -122,6 +131,13 @@ class ReplenishmentRequestService {
         giaDuKien: null,
       })),
     });
+    // Rename attachments post-create if any
+    if (((data as { tepDinhKem?: string[] }).tepDinhKem?.length ?? 0) > 0) {
+      try {
+        const renamed = renameAttachmentsByCode('replenishment-requests', code, (data as { tepDinhKem?: string[] }).tepDinhKem!);
+        await tx.replenishmentRequest.update({ where: { id: header.id }, data: { tepDinhKem: renamed } });
+      } catch (e) { console.error('rename YCBS attachments failed', e); }
+    }
 
     return tx.replenishmentRequest.findUnique({
       where: { id: header.id },
@@ -221,8 +237,11 @@ class ReplenishmentRequestService {
       prisma.replenishmentRequest.count({ where }),
     ]);
 
+    const chainMap = await batchReplenishmentChainAttachments(data as unknown as Array<Record<string, unknown>> & { id: string }[]);
+    const enriched = (data as unknown as Array<Record<string, unknown>>).map((r) => ({ ...r, aggregatedAttachments: chainMap.get(r.id as string) ?? { own: normalizeAttachments(r as never), yccc: [], ycmh: null, all: normalizeAttachments(r as never) } }));
+
     const totalPages = Math.ceil(total / limit);
-    return { data, pagination: { page, limit, total, totalPages } };
+    return { data: enriched, pagination: { page, limit, total, totalPages } };
   }
 
   async getReplenishmentRequestById(id: string) {
@@ -257,10 +276,25 @@ class ReplenishmentRequestService {
       cancelledYcmh = reopenedRecently ? reopen : null;
     }
 
-    return { ...row, cancelledYcmh };
+    return { ...row, cancelledYcmh, aggregatedAttachments: await resolveReplenishmentChainAttachments(row as unknown as { id: string; tepDinhKem?: string[] | null; fileKemTheo?: string | null; supplyRequestId?: string | null; convertedPurchaseRequestId?: string | null; supplyRequest?: any; convertedPurchaseRequest?: any }) };
   }
 
   // ── Update — only Chờ báo giá, only fills giá+NCC/ghi chú, never changes phanLoai/soLuong ─
+
+  private async mergeReplenishmentAttachments(id: string, maYeuCau: string | undefined, incoming: string[], keptUrls?: string[]): Promise<string[]> {
+    const cur = await prisma.replenishmentRequest.findUnique({ where: { id }, select: { tepDinhKem: true, fileKemTheo: true } });
+    const all = normalizeAttachments(cur as never);
+    let kept: string[];
+    if (keptUrls !== undefined) {
+      const keepSet = new Set(keptUrls);
+      const evicted = all.filter((u) => !keepSet.has(u));
+      kept = all.filter((u) => keepSet.has(u));
+      for (const u of evicted) if (u.startsWith('/uploads/replenishment-requests/')) deleteUploadedFile(u);
+    } else kept = all;
+    if (kept.length + incoming.length > REPLENISHMENT_MAX_FILES) throw new ValidationError(`Mỗi phiếu tối đa ${REPLENISHMENT_MAX_FILES} tệp đính kèm (tối đa 4 tệp)`);
+    const renamed = renameAttachmentsByCode('replenishment-requests', maYeuCau, incoming, kept.length + 1);
+    return [...kept, ...renamed];
+  }
 
   async updateReplenishmentRequest(
     id: string,
@@ -300,9 +334,22 @@ class ReplenishmentRequestService {
       }
     }
 
+    // Attachments: merge outside tx (rename + cap check) then persist inside tx together with header/items
+    let mergedAttachments: string[] | undefined;
+    {
+      const incomingTep = (data as { tepDinhKem?: string[] }).tepDinhKem;
+      const keptUrls = (data as { keptUrls?: string[] }).keptUrls;
+      const legacyFile = (data as { fileKemTheo?: string }).fileKemTheo;
+      const hasFile = incomingTep !== undefined || keptUrls !== undefined || (legacyFile !== undefined && legacyFile !== null && String(legacyFile).trim() !== '');
+      if (hasFile) {
+        const incoming = Array.isArray(incomingTep) ? incomingTep : (legacyFile ? [String(legacyFile)] : []);
+        mergedAttachments = await this.mergeReplenishmentAttachments(id, (existing as { maYeuCau: string }).maYeuCau, incoming.filter(Boolean), keptUrls as string[] | undefined);
+      }
+    }
     const result = await prisma.$transaction(async (tx) => {
       // Header patch
       const headerPatch: Record<string, unknown> = {};
+      if (mergedAttachments !== undefined) headerPatch.tepDinhKem = mergedAttachments;
       if ((data as Record<string, unknown>).mucDoUuTien != null) headerPatch.mucDoUuTien = (data as Record<string, unknown>).mucDoUuTien;
       if ((data as Record<string, unknown>).ghiChu != null) headerPatch.ghiChu = (data as Record<string, unknown>).ghiChu;
       if ((data as Record<string, unknown>).ghiChuMuaHang != null) headerPatch.ghiChu = (data as Record<string, unknown>).ghiChuMuaHang; // alias

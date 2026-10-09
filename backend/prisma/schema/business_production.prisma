@@ -126,6 +126,7 @@ model ReplenishmentRequest {
   mucDoUuTien                String
   ghiChu                     String?
   fileKemTheo                String?
+  tepDinhKem                 String[]                  @default([]) @map("tep_dinh_kem")
   // "Chờ báo giá" → "Đã chuyển mua hàng" (and "Đã hủy" via cancel)
   trangThai                  String                     @default("Chờ báo giá")
   // Cancel audit — set by cancelReplenishmentRequest (lyDoHuy required)
@@ -193,6 +194,7 @@ model PurchaseRequest {
   mucDoUuTien          String
   ghiChu               String?
   fileKemTheo          String?
+  tepDinhKem           String[]                  @default([]) @map("tep_dinh_kem")
   trangThai            String                  @default("Chờ duyệt")
   nguoiDuyet           String?
   ngayDuyet            DateTime?

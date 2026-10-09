@@ -7,6 +7,9 @@ import supplyRequestService from './supplyRequestService';
 import notificationService from './notificationService';
 import { NotificationEvent } from '@types';
 import { normalizeBoPhan } from '@utils/normalizeBoPhan';
+import { deleteUploadedFile, renameAttachmentsByCode } from '@middlewares/upload';
+import { normalizeAttachments } from '@utils/attachmentUtils';
+import { batchPurchaseChainAttachments, resolvePurchaseChainAttachments } from '@utils/purchaseChainAttachments';
 
 interface PurchaseRequestItemInput {
   phanLoai: string;
@@ -26,6 +29,7 @@ interface CreatePurchaseRequestRequest {
   mucDoUuTien: string;
   ghiChu?: string;
   fileKemTheo?: string;
+  tepDinhKem?: string[];
   supplyRequestId?: string;
   nhaCungCapId?: string;
   giaDuKien?: number;
@@ -37,6 +41,8 @@ interface CreatePurchaseRequestRequest {
   warehouseId?: string | null;
   ghiChuVanChuyen?: string | null;
 }
+
+export const PURCHASE_MAX_FILES = 4;
 
 // 3.1 — strict allowlist: every transition must be explicitly listed.
 // Keep legacy `Chờ duyệt` paths for migration, but block shortcuts.
@@ -67,6 +73,21 @@ class PurchaseRequestService {
       select: { maYeuCau: true },
     });
     return nextYearlyCode(last?.maYeuCau ?? null, 'YC-MH', year);
+  }
+
+  private async mergePurchaseAttachments(id: string, maYeuCau: string | undefined, incoming: string[], opts?: { keptUrls?: string[] }): Promise<string[]> {
+    const current = await prisma.purchaseRequest.findUnique({ where: { id }, select: { tepDinhKem: true, fileKemTheo: true } });
+    const allCurrent = normalizeAttachments(current as never);
+    let kept: string[];
+    if (opts?.keptUrls !== undefined) {
+      const keepSet = new Set(opts.keptUrls);
+      const evicted = allCurrent.filter((u) => !keepSet.has(u));
+      kept = allCurrent.filter((u) => keepSet.has(u));
+      for (const u of evicted) if (u.startsWith('/uploads/purchase-requests/')) deleteUploadedFile(u);
+    } else kept = allCurrent;
+    if (kept.length + incoming.length > PURCHASE_MAX_FILES) throw new ValidationError(`Mỗi phiếu tối đa ${PURCHASE_MAX_FILES} tệp đính kèm (tối đa 4 tệp)`);
+    const renamed = renameAttachmentsByCode('purchase-requests', maYeuCau, incoming, kept.length + 1);
+    return [...kept, ...renamed];
   }
 
   async getAllPurchaseRequests(
@@ -219,8 +240,10 @@ class PurchaseRequestService {
       prisma.purchaseRequest.count({ where }),
     ]);
 
+    const chainMap = await batchPurchaseChainAttachments(data as unknown as Array<{ id: string; maYeuCau?: string; tepDinhKem?: string[] | null; fileKemTheo?: string | null; supplyRequestId?: string | null }>);
+    const enriched = (data as unknown as Array<Record<string, unknown>>).map((r) => ({ ...r, aggregatedAttachments: chainMap.get(r.id as string) ?? { own: normalizeAttachments(r as never), ybs: null, yccc: [], all: normalizeAttachments(r as never) } }));
     return {
-      data,
+      data: enriched,
       pagination: {
         page,
         limit,
@@ -254,7 +277,8 @@ class PurchaseRequestService {
       throw new NotFoundError('Không tìm thấy yêu cầu mua hàng');
     }
 
-    return request;
+    const aggregatedAttachments = await resolvePurchaseChainAttachments(request as unknown as { id: string; maYeuCau?: string; tepDinhKem?: string[] | null; fileKemTheo?: string | null; supplyRequestId?: string | null });
+    return { ...request, aggregatedAttachments } as unknown as typeof request & { aggregatedAttachments: { own: string[]; ybs: string[] | null; yccc: string[]; all: string[] } };
   }
 
   async createPurchaseRequest(data: CreatePurchaseRequestRequest) {
@@ -352,6 +376,7 @@ class PurchaseRequestService {
           mucDoUuTien: data.mucDoUuTien,
           ghiChu: data.ghiChu,
           fileKemTheo: data.fileKemTheo,
+          tepDinhKem: (data.tepDinhKem ?? []).slice(0, PURCHASE_MAX_FILES),
           supplyRequestId: data.supplyRequestId || null,
           nhaCungCapId: data.nhaCungCapId || null,
           giaDuKien: data.giaDuKien ?? null,
@@ -398,6 +423,13 @@ class PurchaseRequestService {
         },
       });
     });
+    if (purchaseRequest && (purchaseRequest as unknown as { tepDinhKem?: string[] }).tepDinhKem?.length && (purchaseRequest as unknown as { maYeuCau?: string }).maYeuCau) {
+      try {
+        const renamed = renameAttachmentsByCode('purchase-requests', (purchaseRequest as unknown as { maYeuCau: string }).maYeuCau, (purchaseRequest as unknown as { tepDinhKem: string[] }).tepDinhKem);
+        await prisma.purchaseRequest.update({ where: { id: purchaseRequest.id }, data: { tepDinhKem: renamed } });
+        (purchaseRequest as unknown as { tepDinhKem: string[] }).tepDinhKem = renamed;
+      } catch (e) { console.error('rename purchase attachments failed', e); }
+    }
 
     // Trigger supply request status advancement
     if (data.supplyRequestId) {
@@ -525,6 +557,8 @@ class PurchaseRequestService {
     mucDoUuTien?: string;
     ghiChu?: string;
     fileKemTheo?: string;
+    tepDinhKem?: string[];
+    keptUrls?: string[];
     trangThai?: string;
     nguoiDuyet?: string;
     ngayDuyet?: string;
@@ -561,16 +595,9 @@ class PurchaseRequestService {
     if (data.trangThai === 'Hoàn thành' && existingRequest.trangThai !== 'Đã duyệt') {
       throw new ValidationError('Chỉ có thể chuyển sang Hoàn thành khi đang ở Đã duyệt');
     }
-    // 3.1 — lock items and pricing after Hoàn thành ONLY. Đã duyệt is deliberately
-    // editable now: purchasing must be able to correct giá dự kiến / NCC after
-    // approval (e.g. supplier renegotiated before goods arrived). The actual-price
-    // confirmation (confirmActualPrice) still gates on Đã duyệt, and the per-line
-    // giaThucTe is preserved across an item re-write below so a post-approval edit
-    // never wipes a cost basis that was already booked into the catalog.
-    // Inbound scheduling fields (ngayDuKienNhap/warehouseId/ghiChuVanChuyen) are
-    // editable even after Đã duyệt — only Hoàn thành/Đã hủy lock them (and items/pricing).
-    // Hoàn thành: allow fileKemTheo (invoice attachment) + ghiChu header edits; block items/pricing/schedule.
-    // Đã hủy: fully locked except ghiChu — file also blocked.
+    // 3.1 — lock items and pricing after Hoàn thành ONLY.
+    // Hoàn thành: allow tepDinhKem/fileKemTheo append & per-URL delete; block items/pricing/schedule.
+    // Đã hủy: fully locked — no file mutation.
     if (existingRequest.trangThai === 'Hoàn thành') {
       const touchesItems = data.items !== undefined;
       const touchesPricing =
@@ -586,7 +613,7 @@ class PurchaseRequestService {
       if (touchesItems || touchesPricing || touchesSchedule) {
         throw new ValidationError('Không thể sửa yêu cầu đã hoàn thành');
       }
-      // fileKemTheo + ghiChu/mucDichYeuCau etc. allowed when Hoàn thành
+      // tepDinhKem / fileKemTheo / keptUrls allowed when Hoàn thành
     } else if (existingRequest.trangThai === 'Đã hủy') {
       const touchesItems = data.items !== undefined;
       const touchesPricing =
@@ -599,7 +626,7 @@ class PurchaseRequestService {
         (data as any).ngayDuKienNhap !== undefined ||
         (data as any).warehouseId !== undefined ||
         (data as any).ghiChuVanChuyen !== undefined;
-      const touchesFile = (data as any).fileKemTheo !== undefined;
+      const touchesFile = (data as any).fileKemTheo !== undefined || (data as any).tepDinhKem !== undefined || (data as any).keptUrls !== undefined;
       if (touchesItems || touchesPricing || touchesSchedule || touchesFile) {
         throw new ValidationError('Không thể sửa yêu cầu đã hủy');
       }
@@ -788,6 +815,29 @@ class PurchaseRequestService {
       updateData.giaDuKien = updateData.giaDuKien === '' ? null : parseFloat(updateData.giaDuKien);
     }
 
+    // Merge tepDinhKem attachments (append-only, cap 4, code-based rename, per-URL delete via keptUrls)
+    {
+      const incomingTep = (data as { tepDinhKem?: string[] }).tepDinhKem;
+      const keptUrls = (data as { keptUrls?: string[] }).keptUrls;
+      const legacySingle = (data as { fileKemTheo?: string }).fileKemTheo;
+      const hasAttachmentPayload = incomingTep !== undefined || keptUrls !== undefined || (legacySingle !== undefined && legacySingle !== null && legacySingle !== '');
+      if (hasAttachmentPayload) {
+        // Legacy single file string is treated as one-element incoming
+        const incomingFromTep = Array.isArray(incomingTep) ? incomingTep : (legacySingle ? [String(legacySingle)] : []);
+        const incomingCombined = incomingFromTep.filter(Boolean);
+        // If keptUrls supplied, merge with delete; else append incoming to current
+        const merged = await this.mergePurchaseAttachments(id, (existingRequest as { maYeuCau: string }).maYeuCau, incomingCombined, keptUrls !== undefined ? { keptUrls } : undefined);
+        updateData.tepDinhKem = merged;
+        // Clear legacy file url list by keeping fileKemTheo as-is (not used for new writes) — still persist legacy alias as null to avoid confusion
+        // Don't write fileKemTheo separately; tepDinhKem is canonical
+      }
+      // Remove attachment temp fields from updateData — only tepDinhKem should persist
+      delete (updateData as Record<string, unknown>).keptUrls;
+      delete (updateData as Record<string, unknown>).fileKemTheo;
+      // If tepDinhKem was already set by merge above keep it; if caller sent empty array payload, that case is handled above
+      // For backward compat: if caller sent tepDinhKem as empty array (explicit clear w/o keptUrls) we treat it as no-op unless keptUrls was sent
+    }
+
     let purchaseRequest: any;
     // Snapshot prior schedule values to detect InboundPlan reschedule after the write
     const priorNgayDuKienNhap: Date | null = (existingRequest as any).ngayDuKienNhap ?? null;
@@ -796,9 +846,6 @@ class PurchaseRequestService {
 
     if (items && Array.isArray(items)) {
       purchaseRequest = await prisma.$transaction(async (tx) => {
-        // Preserve confirmed actual price/qty across the delete-then-recreate: an
-        // edit after Đã duyệt must never wipe giaThucTe/soLuongThucTe that confirmActualPrice booked.
-        // Keyed by the incoming item's id (the row being replaced); name is the fallback.
         const prior = await tx.purchaseRequestItem.findMany({
           where: { purchaseRequestId: id },
           select: { id: true, tenHangHoa: true, giaThucTe: true, soLuongThucTe: true },
