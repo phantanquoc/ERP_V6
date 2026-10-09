@@ -1224,8 +1224,8 @@ const FaultRecordList = ({ lockedMachineSystemId, prefilledDetailId: prefilledDe
               <option value="true">Đang hoạt động</option>
               <option value="false">Dừng</option>
             </select>
-            <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={templateOrphan} onChange={(e) => { setTemplateOrphan(e.target.checked); setTemplateFilters((f) => ({ ...f, page: 1 })); }} /> Chưa gắn chi tiết</label>
-            <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={templateInactiveDetail} onChange={(e) => { setTemplateInactiveDetail(e.target.checked); setTemplateFilters((f) => ({ ...f, page: 1 })); }} /> Chi tiết đã dừng</label>
+            <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={templateOrphan} onChange={(e) => { const v = e.target.checked; setTemplateOrphan(v); if (v) setTemplateInactiveDetail(false); setTemplateFilters((f) => ({ ...f, page: 1 })); }} /> Chưa gắn chi tiết</label>
+            <label className="flex items-center gap-1 text-xs" title={templateOrphan ? 'Không áp dụng khi lọc "Chưa gắn chi tiết" (mẫu không có chi tiết để lọc)' : undefined}><input type="checkbox" checked={templateInactiveDetail} disabled={templateOrphan} onChange={(e) => { setTemplateInactiveDetail(e.target.checked); setTemplateFilters((f) => ({ ...f, page: 1 })); }} /> Chi tiết đã dừng</label>
             <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={groupByDetail} onChange={(e) => setGroupByDetail(e.target.checked)} /> Nhóm theo chi tiết</label>
             <div className="ml-auto flex items-center gap-3">
               <span className="whitespace-nowrap text-sm text-gray-600">Tổng: {templatesQuery.data?.pagination?.total ?? 0} mẫu</span>

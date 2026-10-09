@@ -262,8 +262,8 @@ class MachineSystemDetailService {
     const all = await prisma.machineSystemDetail.findMany({ where: { machineSystemId: detail.machineSystemId }, select: { id: true, parentDetailId: true } });
     const childrenMap = new Map<string, string[]>();
     for (const d of all) if (d.parentDetailId) { const a = childrenMap.get(d.parentDetailId) ?? []; a.push(d.id); childrenMap.set(d.parentDetailId, a); }
-    const result = [detailId]; const q = [detailId];
-    while (q.length) { const cur = q.shift()!; for (const c of childrenMap.get(cur) ?? []) { result.push(c); q.push(c); } }
+    const result = [detailId]; const q = [detailId]; const visited = new Set<string>([detailId]);
+    while (q.length) { const cur = q.shift()!; for (const c of childrenMap.get(cur) ?? []) { if (visited.has(c)) continue; visited.add(c); result.push(c); q.push(c); } }
     return result;
   }
 

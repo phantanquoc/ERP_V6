@@ -39,13 +39,24 @@ const machineSystemUpdateSchema = z.object({
   hoatDong: z.union([z.boolean(), z.string()]).optional(),
 });
 
-const cloneSchema = z.object({
-  maHeThong: z.string().min(1, 'maHeThong là bắt buộc'),
-  tenHeThong: z.string().min(1, 'tenHeThong là bắt buộc'),
-  khuVuc: z.string().optional(),
-  viTri: z.string().optional(),
-  includeFaultTemplates: z.boolean().optional(),
-});
+const cloneSchema = z.union([
+  z.object({
+    maHeThong: z.string().min(1, 'maHeThong là bắt buộc'),
+    tenHeThong: z.string().min(1, 'tenHeThong là bắt buộc'),
+    khuVuc: z.string().optional(),
+    viTri: z.string().optional(),
+    includeFaultTemplates: z.boolean().optional(),
+  }),
+  z.object({
+    overrides: z.object({
+      maHeThong: z.string().min(1, 'maHeThong là bắt buộc'),
+      tenHeThong: z.string().min(1, 'tenHeThong là bắt buộc'),
+      khuVuc: z.string().optional(),
+      viTri: z.string().optional(),
+    }),
+    includeFaultTemplates: z.boolean().optional(),
+  }),
+]);
 
 const statusSchema = z.object({
   trangThaiMoi: z.nativeEnum(MachineStatus),
@@ -213,7 +224,10 @@ class MachineSystemController {
 
   async clone(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { maHeThong, tenHeThong, khuVuc, viTri, includeFaultTemplates } = cloneSchema.parse(req.body);
+      const parsed = cloneSchema.parse(req.body) as any;
+      const src = parsed.overrides ?? parsed;
+      const { maHeThong, tenHeThong, khuVuc, viTri } = src;
+      const includeFaultTemplates: boolean | undefined = parsed.includeFaultTemplates;
 
       const result = await machineSystemService.clone(req.params.id, { maHeThong, tenHeThong, khuVuc, viTri, includeFaultTemplates });
       try {

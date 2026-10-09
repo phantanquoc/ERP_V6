@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import type { AuthenticatedRequest } from '@types';
 import faultTemplateService from '@services/faultTemplateService';
 import { getFileUrl } from '@middlewares/upload';
+import { ValidationError } from '@utils/errors';
 
 const parseBoolean = (value: unknown): boolean | undefined => {
   if (value === undefined) return undefined;
@@ -52,7 +53,9 @@ class FaultTemplateController {
 
   async getCountsBySystem(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const counts = await faultTemplateService.getTemplateCountsBySystem(req.query.machineSystemId as string);
+      const machineSystemId = req.query.machineSystemId as string | undefined;
+      if (!machineSystemId) throw new ValidationError('Thiếu machineSystemId');
+      const counts = await faultTemplateService.getTemplateCountsBySystem(machineSystemId);
       res.json({ success: true, data: counts });
     } catch (error) {
       next(error);

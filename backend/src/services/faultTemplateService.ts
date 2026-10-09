@@ -106,6 +106,7 @@ class FaultTemplateService {
     if (filters.activeOnly) where.hoatDong = true;
     if (filters.hoatDong !== undefined) where.hoatDong = filters.hoatDong;
     if (filters.hoatDongDetail !== undefined && !filters.orphan) {
+      // orphan templates have no detail, so hoatDongDetail filter is N/A when orphan=true
       where.machineSystemDetail = { hoatDong: filters.hoatDongDetail };
     }
     if (filters.search) {
@@ -149,9 +150,12 @@ class FaultTemplateService {
     }
     const result: string[] = [detailId];
     const queue = [detailId];
+    const visited = new Set<string>([detailId]);
     while (queue.length) {
       const cur = queue.shift()!;
       for (const child of childrenMap.get(cur) ?? []) {
+        if (visited.has(child)) continue;
+        visited.add(child);
         result.push(child);
         queue.push(child);
       }
@@ -182,10 +186,14 @@ class FaultTemplateService {
       }
     }
     const subtreeMemo = new Map<string, number>();
+    const visiting = new Set<string>();
     const subtree = (id: string): number => {
       if (subtreeMemo.has(id)) return subtreeMemo.get(id)!;
+      if (visiting.has(id)) return directMap.get(id) ?? 0; // cycle guard
+      visiting.add(id);
       let sum = directMap.get(id) ?? 0;
       for (const child of childrenMap.get(id) ?? []) sum += subtree(child);
+      visiting.delete(id);
       subtreeMemo.set(id, sum);
       return sum;
     };
@@ -324,7 +332,7 @@ class FaultTemplateService {
       let machineSystemId = data.machineSystemId ?? existing.machineSystemId;
       let machineSystemDetailId = data.machineSystemDetailId ?? existing.machineSystemDetailId;
 
-      if (data.machineSystemDetailId || data.machineSystemId) {
+      if (data.machineSystemDetailId !== undefined || data.machineSystemId !== undefined) {
         const detail = await this.validateMachineDetail(machineSystemDetailId, machineSystemId, true, tx);
         machineSystemId = detail ? detail.machineSystemId : machineSystemId;
         machineSystemDetailId = detail ? detail.id : null;
