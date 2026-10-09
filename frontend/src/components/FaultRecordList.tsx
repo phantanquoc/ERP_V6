@@ -685,8 +685,8 @@ const FaultRecordList = ({ lockedMachineSystemId, prefilledDetailId: prefilledDe
         tenMauLoi: template.tenMauLoi,
         moTa: template.moTa,
         mucDo: template.mucDo,
-        machineSystemId: template.machineSystemId,
-        machineSystemDetailId: template.machineSystemDetailId,
+        machineSystemId: template.machineSystemId ?? undefined,
+        machineSystemDetailId: template.machineSystemDetailId ?? undefined,
         hoatDong: template.hoatDong,
         trangThai: template.trangThai,
         ghiChu: template.ghiChu ?? '',
@@ -780,6 +780,7 @@ const FaultRecordList = ({ lockedMachineSystemId, prefilledDetailId: prefilledDe
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const closeTemplateModal = () => { setTemplateModal(null); setPrefillDetailId(prefilledDetailIdProp ?? null); };
   const saveTemplate = async (event: FormEvent) => {
     event.preventDefault();
@@ -1594,7 +1595,7 @@ const FaultRecordList = ({ lockedMachineSystemId, prefilledDetailId: prefilledDe
       </Modal>
 
       {/* Template create/edit/view modal */}
-      <Modal isOpen={!!templateModal} onClose={() => setTemplateModal(null)} showBackdrop closeOnBackdrop>
+      <Modal isOpen={!!templateModal} onClose={closeTemplateModal} showBackdrop closeOnBackdrop>
         <div className="flex modal-viewport-h w-full max-w-3xl flex-col rounded-lg bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
           <div className="flex items-center justify-between border-b px-4 py-3">
             <h3 className="text-base font-semibold text-gray-900">{templateModal?.mode === 'view' ? 'Chi tiết mẫu lỗi' : templateModal?.template ? 'Sửa mẫu lỗi' : 'Thêm mẫu lỗi'}</h3>
@@ -1612,7 +1613,7 @@ const FaultRecordList = ({ lockedMachineSystemId, prefilledDetailId: prefilledDe
               </label>
               <label className="space-y-1">
                 <span className="font-medium text-gray-700">Chi tiết máy</span>
-                <select required disabled={templateModal?.mode === 'view' || (!!prefillDetailId && !templateModal?.template)} value={templateForm.machineSystemDetailId} onChange={(event) => syncSystemFromDetail(event.target.value, 'template')} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50">
+                <select required disabled={templateModal?.mode === 'view' || (!!prefillDetailId && !templateModal?.template)} value={templateForm.machineSystemDetailId ?? ''} onChange={(event) => syncSystemFromDetail(event.target.value, 'template')} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50">
                   <option value="">Chọn chi tiết</option>
                   {detailOptionsForTemplate.map((detail) => <option key={detail.id} value={detail.id}>{detail.maChiTiet} - {detail.tenChiTiet}</option>)}
                   {/* keep prefilled inactive detail visible even if filtered out */}

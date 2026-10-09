@@ -10,6 +10,7 @@ import InspectionRequestList from '../../components/InspectionRequestList';
 import MachineSystemList from '../../components/MachineSystemList';
 import MaintenanceTab from '../../components/MaintenanceTab';
 import FaultRecordList from '../../components/FaultRecordList';
+import FaultTemplateTreePanel from '../../components/FaultTemplateTreePanel';
 import SparePartList from '../../components/SparePartList';
 import TechnicalSupplyCostTab from '../../components/TechnicalSupplyCostTab';
 import PageHeader from '../../design-system/PageHeader';
@@ -208,9 +209,12 @@ const TechnicalQuality = () => {
       )}
 
       {activeTab === 'faults' && (
-        <SectionCard bodyClassName="">
-          <FaultRecordList />
-        </SectionCard>
+        <div className="space-y-4">
+          <FaultTemplateTreePanel />
+          <SectionCard bodyClassName="">
+            <FaultRecordList />
+          </SectionCard>
+        </div>
       )}
 
       {activeTab === 'machineSystems' && (
