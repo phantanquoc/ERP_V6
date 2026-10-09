@@ -185,7 +185,7 @@ const CreatePurchaseRequestModal: React.FC<CreatePurchaseRequestModalProps> = ({
         ghiChu,
         supplyRequestId: supplyRequest?.id,
         ghiChuMuaHang: ghiChuMuaHang || undefined,
-      }, file);
+      }, file ? [file] : undefined);
 
       alert('Tao yeu cau mua hang thanh cong!');
       onSuccess?.();

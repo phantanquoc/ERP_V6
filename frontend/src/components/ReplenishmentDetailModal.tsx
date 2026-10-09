@@ -389,7 +389,7 @@ const ReplenishmentDetailModal: React.FC<ReplenishmentDetailModalProps> = ({
           {!loading && (detail ?? ybs) && (
             <AttachmentList
               label={`Tệp đính kèm${detail?.supplyRequest ? ` (từ ${(detail.supplyRequest as { maYeuCau?: string })?.maYeuCau ?? 'YCCC'})` : ''}`}
-              urls={collectAttachments(detail ?? ybs, (detail ?? ybs)?.supplyRequest)}
+              urls={(detail as any)?.aggregatedAttachments?.all ?? collectAttachments(detail ?? ybs, (detail ?? ybs)?.supplyRequest)}
             />
           )}
         </div>

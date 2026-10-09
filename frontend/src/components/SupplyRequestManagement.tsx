@@ -956,7 +956,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                       </span>
                     </td>
                     <td className="px-2 lg:px-4 py-2 sm:py-3 text-center text-sm border-r border-gray-200 hidden lg:table-cell">
-                      <AttachmentList variant="chip" urls={collectAttachments(request)} />
+                      <AttachmentList variant="chip" urls={(request as any).aggregatedAttachments?.all ?? collectAttachments(request)} />
                     </td>
                     <td className="px-2 lg:px-4 py-2 sm:py-3 text-center text-sm" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center gap-0.5">
@@ -1213,7 +1213,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                     {selectedRequest.soTien !== undefined && selectedRequest.soTien !== null && (
                       <div><span className="font-medium text-gray-600">Số tiền:</span> <span className="text-gray-700">{Number(selectedRequest.soTien).toLocaleString('vi-VN')} VNĐ</span></div>
                     )}
-                    <AttachmentList className="sm:col-span-2" urls={collectAttachments(selectedRequest)} />
+                    <AttachmentList className="sm:col-span-2" urls={(selectedRequest as any).aggregatedAttachments?.all ?? collectAttachments(selectedRequest)} />
                     <div><span className="font-medium text-gray-600">Tạo lúc:</span> <span className="text-gray-700">{new Date(selectedRequest.createdAt).toLocaleString('vi-VN')}</span></div>
                     <div><span className="font-medium text-gray-600">Cập nhật:</span> <span className="text-gray-700">{new Date(selectedRequest.updatedAt).toLocaleString('vi-VN')}</span></div>
                   </div>

@@ -778,12 +778,8 @@ const PurchasingMaterials = () => {
           isOpen={!!attachmentTarget}
           onClose={() => setAttachmentTarget(null)}
           purchaseRequest={attachmentTarget}
-          onSubmit={async (id, file, clearExisting) => {
-            const data: any = {};
-            if (file) data.file = file;
-            else if (clearExisting) data.fileKemTheo = '';
-            else return;
-            await purchaseRequestService.updatePurchaseRequest(id, data);
+          onSubmit={async (id, files, keptUrls) => {
+            await purchaseRequestService.updatePurchaseRequest(id, { files, keptUrls } as any);
             fetchPurchaseRequests();
             if (selectedPurchaseRequest?.id === id) {
               try {

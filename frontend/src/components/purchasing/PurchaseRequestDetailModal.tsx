@@ -323,8 +323,8 @@ export default function PurchaseRequestDetailModal({
             </div>
             <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2">
               <AttachmentList
-                label={`Tệp đính kèm${pr.supplyRequest ? ` (YCCC ${pr.supplyRequest.maYeuCau})` : ''}`}
-                urls={collectAttachments(pr, pr.supplyRequest)}
+                label="Tệp đính kèm (tong hop YCCB→YCBS→YCMH)"
+                urls={(pr as unknown as { aggregatedAttachments?: { all: string[] } }).aggregatedAttachments?.all ?? collectAttachments(pr as unknown as { tepDinhKem?: string[] | null; fileKemTheo?: string | null }, pr.supplyRequest as unknown as { tepDinhKem?: string[] | null; fileKemTheo?: string | null } | null)}
                 emptyText="Không có file đính kèm"
               />
             </div>

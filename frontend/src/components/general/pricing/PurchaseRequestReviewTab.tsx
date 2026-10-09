@@ -309,7 +309,7 @@ const PurchaseRequestReviewTab: React.FC = () => {
                     {(() => { const b = getStatusBadge(String(r.trangThai ?? '')); return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${b.class}`}>{b.label}</span>; })()}
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap text-center">
-                    <AttachmentList variant="chip" urls={collectAttachments(r, r.supplyRequest)} />
+                    <AttachmentList variant="chip" urls={(r as any).aggregatedAttachments?.all ?? collectAttachments(r, r.supplyRequest)} />
                   </td>
                   <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-600">{r.nguoiDuyet || '—'}</td>
                   <td className="px-3 py-3 text-center whitespace-nowrap" onClick={e => e.stopPropagation()}>
@@ -465,7 +465,7 @@ const PurchaseRequestReviewTab: React.FC = () => {
                   </div>
                   <AttachmentList
                     label={`Tệp đính kèm${row.supplyRequest ? ` (YCCC ${row.supplyRequest.maYeuCau})` : ''}`}
-                    urls={collectAttachments(row, row.supplyRequest)}
+                    urls={(row as any).aggregatedAttachments?.all ?? collectAttachments(row, row.supplyRequest)}
                     emptyText="Không có file đính kèm"
                   />
                 </>
@@ -560,7 +560,7 @@ const PurchaseRequestReviewTab: React.FC = () => {
               </div>
               <AttachmentList
                 label={`Tệp đính kèm${approveRow.supplyRequest ? ` (YCCC ${approveRow.supplyRequest.maYeuCau})` : ''}`}
-                urls={collectAttachments(approveRow, approveRow.supplyRequest)}
+                urls={(approveRow as any).aggregatedAttachments?.all ?? collectAttachments(approveRow, approveRow.supplyRequest)}
               />
             </div>
           );

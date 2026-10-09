@@ -35,6 +35,8 @@ export interface PurchaseRequest {
   ghiChu?: string | null;
   ghiChuMuaHang?: string | null;
   fileKemTheo?: string | null;
+  tepDinhKem?: string[] | null;
+  aggregatedAttachments?: { own: string[]; ybs: string[] | null; yccc: string[]; all: string[] } | null;
   trangThai: string;
   nguoiDuyet?: string | null;
   ngayDuyet?: string | null;

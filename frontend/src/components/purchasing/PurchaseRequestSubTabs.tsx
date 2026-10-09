@@ -327,7 +327,7 @@ export default function PurchaseRequestSubTabs({
                   </span>
                 </td>
                 <td className="px-4 py-4 text-center text-sm">
-                  <AttachmentList variant="chip" urls={collectAttachments(item, item.supplyRequest)} />
+                  <AttachmentList variant="chip" urls={(item as any).aggregatedAttachments?.all ?? collectAttachments(item, item.supplyRequest)} />
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900" onClick={(e) => e.stopPropagation()}>
                   <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">

@@ -92,6 +92,7 @@ export interface SupplyRequest {
     convertedPurchaseRequest?: { id: string; maYeuCau: string } | null;
   }>;
   warehouseReceipts?: Array<{ id: string; maPhieuNhap: string; purchaseRequestId?: string | null; isVoided?: boolean | null; items?: Array<{ tenSanPham: string; soLuongThucTe: number }> }>;
+  aggregatedAttachments?: { own: string[]; ybs: string[]; ycmh: string[]; all: string[] } | null;
 }
 
 export interface CreateSupplyRequestRequest {

@@ -133,7 +133,7 @@ const ReplenishmentList: React.FC<ReplenishmentListProps> = ({
                     )}
                   </td>
                   <td className="px-3 py-2 text-center">
-                    <AttachmentList variant="chip" urls={collectAttachments(r, r.supplyRequest)} />
+                    <AttachmentList variant="chip" urls={(r as any).aggregatedAttachments?.all ?? collectAttachments(r, r.supplyRequest)} />
                   </td>
                   <td className="px-3 py-2 text-center">
                     <button onClick={(e) => { e.stopPropagation(); onOpenDetail?.(r); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Xem / điền giá và chuyển YCMH">

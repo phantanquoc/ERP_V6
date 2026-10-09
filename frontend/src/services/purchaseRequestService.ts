@@ -35,6 +35,7 @@ export interface PurchaseRequest {
   mucDoUuTien: string;
   ghiChu?: string;
   fileKemTheo?: string;
+  tepDinhKem?: string[];
   trangThai: string;
   /** Cancel audit — set when trangThai === 'Đã hủy' */
   lyDoHuy?: string;
@@ -61,6 +62,7 @@ export interface CreatePurchaseRequestRequest {
   mucDoUuTien: string;
   ghiChu?: string;
   fileKemTheo?: string;
+  tepDinhKem?: string[];
   supplyRequestId?: string;
   ghiChuMuaHang?: string;
   ngayDuKienNhap?: string | null;
@@ -102,20 +104,17 @@ class PurchaseRequestService {
      return response;
   }
 
-  async createPurchaseRequest(data: CreatePurchaseRequestRequest, file?: File) {
-    if (file) {
+  async createPurchaseRequest(data: CreatePurchaseRequestRequest, files?: File[]) {
+    const hasFiles = files && files.length > 0;
+    if (hasFiles || (data as { tepDinhKem?: string[] }).tepDinhKem) {
       const formData = new FormData();
-      // Append non-array fields
       Object.entries(data).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && key !== 'fileKemTheo' && key !== 'items') {
+        if (value !== undefined && value !== null && key !== 'fileKemTheo' && key !== 'tepDinhKem' && key !== 'items') {
           formData.append(key, value.toString());
         }
       });
-      // Append items as JSON
-      if (data.items) {
-        formData.append('items', JSON.stringify(data.items));
-      }
-      formData.append('file', file);
+      if (data.items) formData.append('items', JSON.stringify(data.items));
+      if (files) files.forEach((f) => formData.append('files', f));
        const response = await apiClient.post('/purchase-requests', formData);
        return response;
     }
@@ -133,6 +132,8 @@ class PurchaseRequestService {
     mucDoUuTien?: string;
     ghiChu?: string;
     fileKemTheo?: string;
+    tepDinhKem?: string[];
+    keptUrls?: string[];
     trangThai?: string;
     nguoiDuyet?: string;
     ngayDuyet?: string;
@@ -152,9 +153,18 @@ class PurchaseRequestService {
       giaDuKien?: number | null;
     }[];
     file?: File;
+    files?: File[];
   }) {
-    // If file is present, use FormData
-    if (data.file) {
+    const incomingFiles: File[] = (() => {
+      const f = (data as { files?: unknown; file?: unknown }).files;
+      if (Array.isArray(f) && f.length && f[0] instanceof File) return f as File[];
+      const single = (data as { file?: unknown }).file;
+      if (Array.isArray(single) && single.length && single[0] instanceof File) return single as File[];
+      if (single instanceof File) return [single as File];
+      return [];
+    })();
+    const hasFiles = !!(incomingFiles.length || data.keptUrls !== undefined || data.tepDinhKem !== undefined);
+    if (hasFiles) {
       const formData = new FormData();
       if (data.mucDichYeuCau) formData.append('mucDichYeuCau', data.mucDichYeuCau);
       if (data.mucDoUuTien) formData.append('mucDoUuTien', data.mucDoUuTien);
@@ -169,7 +179,8 @@ class PurchaseRequestService {
       if (data.warehouseId !== undefined) formData.append('warehouseId', data.warehouseId || '');
       if (data.ghiChuVanChuyen !== undefined) formData.append('ghiChuVanChuyen', data.ghiChuVanChuyen || '');
       if (data.items) formData.append('items', JSON.stringify(data.items));
-      formData.append('file', data.file);
+      if (data.keptUrls !== undefined) formData.append('keptUrls', JSON.stringify(data.keptUrls));
+      incomingFiles.forEach((f) => formData.append('files', f));
        const response = await apiClient.put(`/purchase-requests/${id}`, formData);
        return response;
     }
