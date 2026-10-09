@@ -32,6 +32,7 @@ import PurchaseRequestDetailModal from '../../components/purchasing/PurchaseRequ
 import SupplyRequestDetailModal from '../../components/purchasing/SupplyRequestDetailModal';
 import PurchaseRequestEditModal from '../../components/purchasing/PurchaseRequestEditModal';
 import PurchaseRequestQuickUpdateModal from '../../components/purchasing/PurchaseRequestQuickUpdateModal';
+import PurchaseRequestAttachmentModal from '../../components/purchasing/PurchaseRequestAttachmentModal';
 import { getApiErrorMessage } from '../../utils/getApiError';
 import {
   BarChart,
@@ -249,6 +250,7 @@ const PurchasingMaterials = () => {
   const [selectedPurchaseRequest, setSelectedPurchaseRequest] = useState<PurchaseRequest | null>(null);
   const [editingPurchaseRequest, setEditingPurchaseRequest] = useState<PurchaseRequest | null>(null);
   const [quickUpdateTarget, setQuickUpdateTarget] = useState<PurchaseRequest | null>(null);
+  const [attachmentTarget, setAttachmentTarget] = useState<PurchaseRequest | null>(null);
   const [confirmAction, setConfirmAction] = useState<{
     title: string;
     message: string;
@@ -617,6 +619,7 @@ const PurchasingMaterials = () => {
               onSubmitForApproval={handleSubmitForApproval as any}
               onComplete={handleCompletePurchaseRequest as any}
               onQuickUpdate={openQuickUpdate as any}
+              onUpdateAttachment={(pr: any) => setAttachmentTarget(pr as PurchaseRequest)}
               refreshKey={purchaseRefreshKey}
               onCountsChange={setPurchaseSubTotal}
             />
@@ -654,6 +657,7 @@ const PurchasingMaterials = () => {
           onCancel={(pr) => { closePurchaseRequestDetail(); handleCancelPurchaseRequest(pr); }}
           onConfirmPrice={(pr) => { setConfirmActualPriceTarget(pr); setCompleteAfterPriceConfirm(true); setShowConfirmActualPrice(true); }}
           onQuickUpdate={(pr) => { closePurchaseRequestDetail(); openQuickUpdate(pr); }}
+          onUpdateAttachment={(pr) => setAttachmentTarget(pr)}
           onViewInboundPlan={(pr) => {
             const kh = pr.inboundPlan?.maKeHoach;
             toast(kh ? `Kế hoạch nhập kho: ${kh}` : 'Chưa có kế hoạch nhập kho', { icon: '📦' });
@@ -768,6 +772,28 @@ const PurchasingMaterials = () => {
           loading={cancellingPr}
           ticketLabel={cancelPrTarget?.maYeuCau ?? ''}
           description="Hủy yêu cầu mua hàng này sẽ chuyển trạng thái sang Đã hủy và thông báo tới người tạo."
+        />
+
+        <PurchaseRequestAttachmentModal
+          isOpen={!!attachmentTarget}
+          onClose={() => setAttachmentTarget(null)}
+          purchaseRequest={attachmentTarget}
+          onSubmit={async (id, file, clearExisting) => {
+            const data: any = {};
+            if (file) data.file = file;
+            else if (clearExisting) data.fileKemTheo = '';
+            else return;
+            await purchaseRequestService.updatePurchaseRequest(id, data);
+            fetchPurchaseRequests();
+            if (selectedPurchaseRequest?.id === id) {
+              try {
+                const res: any = await purchaseRequestService.getPurchaseRequestById(id);
+                if (res?.data) setSelectedPurchaseRequest(res.data as PurchaseRequest);
+              } catch {}
+            }
+            if (attachmentTarget?.id === id) setAttachmentTarget(null);
+            toast.success('Đã cập nhật tệp đính kèm');
+          }}
         />
     </div>
   );

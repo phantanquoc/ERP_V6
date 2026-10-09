@@ -569,8 +569,9 @@ class PurchaseRequestService {
     // never wipes a cost basis that was already booked into the catalog.
     // Inbound scheduling fields (ngayDuKienNhap/warehouseId/ghiChuVanChuyen) are
     // editable even after Đã duyệt — only Hoàn thành/Đã hủy lock them (and items/pricing).
-    const lockedStatuses = new Set(['Hoàn thành', 'Đã hủy']);
-    if (lockedStatuses.has(existingRequest.trangThai)) {
+    // Hoàn thành: allow fileKemTheo (invoice attachment) + ghiChu header edits; block items/pricing/schedule.
+    // Đã hủy: fully locked except ghiChu — file also blocked.
+    if (existingRequest.trangThai === 'Hoàn thành') {
       const touchesItems = data.items !== undefined;
       const touchesPricing =
         (data as any).nhaCungCapId !== undefined ||
@@ -583,9 +584,25 @@ class PurchaseRequestService {
         (data as any).warehouseId !== undefined ||
         (data as any).ghiChuVanChuyen !== undefined;
       if (touchesItems || touchesPricing || touchesSchedule) {
-        throw new ValidationError('Không thể sửa yêu cầu đã hoàn thành hoặc đã hủy');
+        throw new ValidationError('Không thể sửa yêu cầu đã hoàn thành');
       }
-      // still allow non-pricing/non-schedule header edits (ghiChu, mucDichYeuCau, etc.)
+      // fileKemTheo + ghiChu/mucDichYeuCau etc. allowed when Hoàn thành
+    } else if (existingRequest.trangThai === 'Đã hủy') {
+      const touchesItems = data.items !== undefined;
+      const touchesPricing =
+        (data as any).nhaCungCapId !== undefined ||
+        (data as any).giaDuKien !== undefined ||
+        (data as any).phanLoai !== undefined ||
+        (data as any).tenHangHoa !== undefined ||
+        (data as any).soLuong !== undefined;
+      const touchesSchedule =
+        (data as any).ngayDuKienNhap !== undefined ||
+        (data as any).warehouseId !== undefined ||
+        (data as any).ghiChuVanChuyen !== undefined;
+      const touchesFile = (data as any).fileKemTheo !== undefined;
+      if (touchesItems || touchesPricing || touchesSchedule || touchesFile) {
+        throw new ValidationError('Không thể sửa yêu cầu đã hủy');
+      }
     }
     // Allow ngayDuKienNhap/warehouseId/ghiChuVanChuyen edits while in Đã duyệt (intentional exception)
     // Validate new schedule fields if provided

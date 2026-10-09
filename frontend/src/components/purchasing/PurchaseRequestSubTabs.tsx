@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, Download, Edit, Eye, Trash2, CheckCircle, FilePenLine, RefreshCw } from 'lucide-react';
+import { Search, Download, Edit, Eye, Trash2, CheckCircle, FilePenLine, RefreshCw, Paperclip } from 'lucide-react';
 import purchaseRequestService from '../../services/purchaseRequestService';
 import { normalizeBoPhan, CANONICAL_BO_PHAN } from '../../utils/normalizeBoPhan';
 import { labelForPurchaseRequest } from '../../utils/purchaseRequestLabel';
@@ -64,6 +64,7 @@ export default function PurchaseRequestSubTabs({
   onSubmitForApproval,
   onComplete,
   onQuickUpdate,
+  onUpdateAttachment,
   refreshKey,
   onCountsChange,
 }: {
@@ -77,6 +78,7 @@ export default function PurchaseRequestSubTabs({
   onSubmitForApproval: (pr: PurchaseRequest) => void;
   onComplete: (pr: PurchaseRequest) => void;
   onQuickUpdate?: (pr: PurchaseRequest) => void;
+  onUpdateAttachment?: (pr: PurchaseRequest) => void;
   refreshKey?: number;
   onCountsChange?: (total: number) => void;
 }) {
@@ -363,6 +365,11 @@ export default function PurchaseRequestSubTabs({
                         title="Đã mua hàng xong"
                       >
                         <CheckCircle className="w-3.5 h-3.5" /> Đã mua xong
+                      </button>
+                    )}
+                    {item.trangThai === 'Hoàn thành' && onUpdateAttachment && (canEditPR || canUpdatePR) && (
+                      <button onClick={() => onUpdateAttachment(item)} className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-700 rounded hover:bg-amber-100 border border-amber-200 text-xs font-medium" title="Cập nhật tệp hóa đơn">
+                        <Paperclip className="w-3.5 h-3.5" /> Tệp
                       </button>
                     )}
                     {item.trangThai === 'Hoàn thành' && (

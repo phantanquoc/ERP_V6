@@ -34,6 +34,7 @@ import PurchaseRequestDetailModal from '../../components/purchasing/PurchaseRequ
 import SupplyRequestDetailModal from '../../components/purchasing/SupplyRequestDetailModal';
 import PurchaseRequestEditModal from '../../components/purchasing/PurchaseRequestEditModal';
 import PurchaseRequestQuickUpdateModal from '../../components/purchasing/PurchaseRequestQuickUpdateModal';
+import PurchaseRequestAttachmentModal from '../../components/purchasing/PurchaseRequestAttachmentModal';
 import { useSupplierOptions } from '../../hooks/useSuppliers';
 import type { ReplenishmentRequest } from '../../services/replenishmentRequestService';
 import replenishmentRequestService from '../../services/replenishmentRequestService';
@@ -224,6 +225,7 @@ const PurchasingEquipment = () => {
   const [cancellingPr, setCancellingPr] = useState(false);
   const [editingPurchaseRequest, setEditingPurchaseRequest] = useState<PurchaseRequest | null>(null);
   const [quickUpdateTarget, setQuickUpdateTarget] = useState<PurchaseRequest | null>(null);
+  const [attachmentTarget, setAttachmentTarget] = useState<PurchaseRequest | null>(null);
   // Giá thực tế: mở từ chi tiết YCMH ở trạng thái Đã duyệt, hoặc từ nút
   // "Đã mua xong" khi còn dòng chưa chốt (setCompleteAfterPriceConfirm=true).
   const [showConfirmActualPrice, setShowConfirmActualPrice] = useState(false);
@@ -589,6 +591,7 @@ const PurchasingEquipment = () => {
               onSubmitForApproval={handleSubmitForApproval as any}
               onComplete={handleCompletePurchaseRequest as any}
               onQuickUpdate={openQuickUpdate as any}
+              onUpdateAttachment={(pr: any) => setAttachmentTarget(pr as PurchaseRequest)}
               refreshKey={purchaseRefreshKey}
               onCountsChange={setPurchaseSubTotal}
             />
@@ -626,6 +629,7 @@ const PurchasingEquipment = () => {
           onCancel={(pr) => { closePurchaseRequestDetail(); handleCancelPurchaseRequest(pr); }}
           onConfirmPrice={(pr) => { setConfirmActualPriceTarget(pr); setCompleteAfterPriceConfirm(true); setShowConfirmActualPrice(true); }}
           onQuickUpdate={(pr) => { closePurchaseRequestDetail(); openQuickUpdate(pr); }}
+          onUpdateAttachment={(pr) => setAttachmentTarget(pr)}
           onViewInboundPlan={(pr) => {
             const kh = pr.inboundPlan?.maKeHoach;
             toast(kh ? `Kế hoạch nhập kho: ${kh}` : 'Chưa có kế hoạch nhập kho', { icon: '📦' });
@@ -740,6 +744,28 @@ const PurchasingEquipment = () => {
             </div>
           </div>
         )}
+
+        <PurchaseRequestAttachmentModal
+          isOpen={!!attachmentTarget}
+          onClose={() => setAttachmentTarget(null)}
+          purchaseRequest={attachmentTarget}
+          onSubmit={async (id, file, clearExisting) => {
+            const data: any = {};
+            if (file) data.file = file;
+            else if (clearExisting) data.fileKemTheo = '';
+            else return;
+            await purchaseRequestService.updatePurchaseRequest(id, data);
+            fetchPurchaseRequests();
+            if (selectedPurchaseRequest?.id === id) {
+              try {
+                const res: any = await purchaseRequestService.getPurchaseRequestById(id);
+                if (res?.data) setSelectedPurchaseRequest(res.data as PurchaseRequest);
+              } catch {}
+            }
+            if (attachmentTarget?.id === id) setAttachmentTarget(null);
+            toast.success('Đã cập nhật tệp đính kèm');
+          }}
+        />
 
     </div>
   );
