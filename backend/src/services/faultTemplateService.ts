@@ -329,8 +329,8 @@ class FaultTemplateService {
     const existing = await this.getById(id);
 
     return prisma.$transaction(async (tx) => {
-      let machineSystemId = data.machineSystemId ?? existing.machineSystemId;
-      let machineSystemDetailId = data.machineSystemDetailId ?? existing.machineSystemDetailId;
+      let machineSystemId = data.machineSystemId !== undefined ? data.machineSystemId : existing.machineSystemId;
+      let machineSystemDetailId = data.machineSystemDetailId !== undefined ? data.machineSystemDetailId : existing.machineSystemDetailId;
 
       if (data.machineSystemDetailId !== undefined || data.machineSystemId !== undefined) {
         const detail = await this.validateMachineDetail(machineSystemDetailId, machineSystemId, true, tx);
