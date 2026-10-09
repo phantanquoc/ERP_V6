@@ -1829,7 +1829,7 @@ const FaultRecordList = ({ lockedMachineSystemId, prefilledDetailId: prefilledDe
                 <div><dt className="text-xs text-gray-500">Vị trí</dt><dd className="text-gray-800">{detailView.viTri || '—'}</dd></div>
                 <div><dt className="text-xs text-gray-500">Thứ tự</dt><dd className="text-gray-800">{detailView.thuTu}</dd></div>
                 <div><dt className="text-xs text-gray-500">Người phụ trách</dt><dd className="text-gray-800">{detailView.nguoiPhuTrach || (detailView as any).maNguoiPhuTrach || '—'}</dd></div>
-                <div><dt className="text-xs text-gray-500">Trạng thái / Hoạt động</dt><dd><span className={`rounded px-1.5 py-0.5 text-xs font-medium ${detailView.hoatDong ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{detailView.hoatDong ? 'Đang hoạt động' : 'Đã dừng'}</span> <span className="ml-1 text-xs text-gray-500">{detailView.trangThai ?? '—'}</span></dd></div>
+                <div><dt className="text-xs text-gray-500">Hoạt động</dt><dd><span className={`rounded px-1.5 py-0.5 text-xs font-medium ${detailView.hoatDong ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{detailView.hoatDong ? 'Đang hoạt động' : 'Đã dừng'}</span>{detailView.trangThai && detailView.trangThai !== 'Hoạt động' && detailView.trangThai !== 'Đang hoạt động' && <span className="ml-2 text-xs text-gray-500">({detailView.trangThai})</span>}</dd></div>
                 {detailView.moTa && <div className="col-span-2"><dt className="text-xs text-gray-500">Mô tả</dt><dd className="text-gray-800">{detailView.moTa}</dd></div>}
                 {(() => {
                   const map = new Map((treeItems as MachineSystemDetail[] | undefined)?.map((d) => [d.id, d]) ?? []);
