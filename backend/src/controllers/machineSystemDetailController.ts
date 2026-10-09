@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import type { AuthenticatedRequest } from '@types';
 import machineSystemDetailService from '@services/machineSystemDetailService';
 import { getFileUrl } from '@middlewares/upload';
+import prisma from '@config/database';
 import notificationService from '@services/notificationService';
 import { NotificationEvent } from '@types';
 import logger from '@config/logger';
@@ -137,7 +138,23 @@ class MachineSystemDetailController {
   async deactivate(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const detail = await machineSystemDetailService.deactivate(req.params.id);
-      res.json({ success: true, data: detail, message: 'Ngừng hoạt động chi tiết hệ thống máy thành công' });
+      let relatedTemplateCount: number | undefined;
+      try {
+        const ids = await machineSystemDetailService.getSubtreeIds(req.params.id);
+        const r = await prisma.faultTemplate.count({ where: { machineSystemDetailId: { in: ids } } });
+        relatedTemplateCount = r;
+      } catch (_) { /* ignore */ }
+      res.json({ success: true, data: { ...detail as object, relatedTemplateCount }, message: 'Ngừng hoạt động chi tiết hệ thống máy thành công' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deactivateTemplates(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const ids = await machineSystemDetailService.getSubtreeIds(req.params.id);
+      const result = await machineSystemDetailService.deactivateTemplatesForSubtree(ids);
+      res.json({ success: true, data: result });
     } catch (error) {
       next(error);
     }

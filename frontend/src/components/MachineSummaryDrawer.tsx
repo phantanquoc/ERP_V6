@@ -4,6 +4,10 @@ import toast from 'react-hot-toast';
 import { AlertTriangle, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ClipboardCheck, Edit, Eye, FileText, History, Info, LayoutGrid, Plus, Power, RefreshCw, Trash2, Wrench, X } from 'lucide-react';
 import Portal from './Portal';
 import { useDeactivateMachineSystemDetail, useDeleteMachineSystemDetail, useDetailTree, useMachineSystemDetail, useMachineSystemSummary, useMachineSystems } from '../hooks/useMachineSystemDetails';
+import { useTemplateCountsBySystem, faultTemplateKeys } from '../hooks/useFaultTemplates';
+import faultTemplateService from '../services/faultTemplateService';
+import { useQueryClient } from '@tanstack/react-query';
+import { machineSystemDetailKeys } from '../hooks/useMachineSystemDetails';
 import type { MachineStatus, MachineSystem, MachineSystemDetail, MachineSystemCategory } from '../services/machineSystemService';
 import MachineStatusLogList from './MachineStatusLogList';
 import MachineStatusUpdateDialog from './MachineStatusUpdateDialog';
@@ -161,8 +165,17 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
   const detailIdQuery = useMachineSystemDetail(detailIdParam ?? '');
   const { data: summaryResp, isLoading } = useMachineSystemSummary(machineSystemId ?? '', 10);
   const detailTreeQuery = useDetailTree(machineSystemId ?? undefined);
+  const countsQuery = useTemplateCountsBySystem(machineSystemId ?? undefined);
+  const queryClient = useQueryClient();
+  const countsMap = useMemo(() => new Map((countsQuery.data?.data ?? []).map((c) => [c.detailId, c])), [countsQuery.data]);
   const deactivateDetail = useDeactivateMachineSystemDetail();
   const deleteDetail = useDeleteMachineSystemDetail();
+  const [expandedTemplateNode, setExpandedTemplateNode] = useState<string | null>(null);
+  const [templateNodeItems, setTemplateNodeItems] = useState<Record<string, any[]>>({});
+  const [deactivateConfirm, setDeactivateConfirm] = useState<{ record: MachineSystemDetail; count: number } | null>(null);
+  const [tplNode, setTplNode] = useState<MachineSystemDetail | null>(null);
+  const [tplForm, setTplForm] = useState({ tenMauLoi: '', moTa: '', mucDo: 'TRUNG_BINH' });
+  const [tplSaving, setTplSaving] = useState(false);
   const { data: systemsResp } = useMachineSystems({ page: 1, limit: 200, hoatDong: true });
   const allSystemsForModal: MachineSystem[] = systemsResp?.data ?? [];
   const summary = summaryResp?.data;
@@ -374,10 +387,45 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
     }
   };
 
+  const handleDeactivateConfirm = async (includeTemplates: boolean) => {
+    if (!deactivateConfirm) return;
+    const { record, count } = deactivateConfirm;
+    const shouldInclude = includeTemplates && count > 0;
+    setDeactivateConfirm(null);
+    try {
+      await deactivateDetail.mutateAsync(record.id);
+      if (shouldInclude) {
+        try { await faultTemplateService.deactivateTemplatesForDetail(record.id); } catch (_) {}
+        queryClient.invalidateQueries({ queryKey: faultTemplateKeys.all });
+      }
+      queryClient.invalidateQueries({ queryKey: faultTemplateKeys.counts(machineSystemId ?? '') });
+      queryClient.invalidateQueries({ queryKey: machineSystemDetailKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: [...machineSystemDetailKeys.all, 'tree', machineSystemId ?? ''] });
+      toast.success(shouldInclude ? `Đã dừng chi tiết và ${count} mẫu lỗi liên quan` : 'Đã dừng hoạt động chi tiết');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Không dừng được chi tiết máy');
+    }
+  };
+
   const deactivateDetailRow = async (record: MachineSystemDetail) => {
+    // Use cached subtree count; fall back to live query if missing
+    let count = countsMap.get(record.id)?.subtreeCount;
+    if (count === undefined) {
+      try {
+        const res = await faultTemplateService.getAll({ machineSystemDetailId: record.id, includeSubtree: true, limit: 1, page: 1 } as any);
+        count = res.pagination?.total ?? 0;
+      } catch { count = 0; }
+    }
+    if (count > 0) {
+      setDeactivateConfirm({ record, count });
+      return;
+    }
     if (!confirm(`Dừng hoạt động chi tiết ${record.maChiTiet}?`)) return;
     try {
       await deactivateDetail.mutateAsync(record.id);
+      queryClient.invalidateQueries({ queryKey: faultTemplateKeys.counts(machineSystemId ?? '') });
+      queryClient.invalidateQueries({ queryKey: machineSystemDetailKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: [...machineSystemDetailKeys.all, 'tree', machineSystemId ?? ''] });
       toast.success('Đã dừng hoạt động chi tiết');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Không dừng được chi tiết máy');
@@ -686,6 +734,7 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
                                   <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[220px]">Tên chi tiết</th>
                                   <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[90px]">Mã</th>
                                   <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[100px]">Loại</th>
+                                  <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[80px]">Mẫu lỗi</th>
                                   <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[100px]">Vị trí</th>
                                   <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[120px]">Phụ trách</th>
                                   <th className="border-b border-gray-200 px-3 py-2.5 text-left min-w-[110px]">Trạng thái</th>
@@ -718,6 +767,27 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
                                       </td>
                                       <td className="px-3 py-2.5 font-mono text-xs font-medium text-blue-700">{node.maChiTiet}</td>
                                       <td className="px-3 py-2.5 text-xs text-gray-600">{detailTypeLabel(node.loaiChiTiet)}</td>
+                                      <td className="px-3 py-2.5 text-xs">
+                                        {(() => { const c = countsMap.get(node.id); return c ? <span className="rounded bg-blue-50 px-1.5 py-0.5 font-medium text-blue-700">{c.directCount} / {c.subtreeCount}</span> : <span className="text-gray-400">0 / 0</span>; })()}
+                                        <button type="button" onClick={async () => {
+                                          if (expandedTemplateNode === node.id) { setExpandedTemplateNode(null); return; }
+                                          setExpandedTemplateNode(node.id);
+                                          try { const r = await faultTemplateService.getAll({ machineSystemDetailId: node.id, limit: 20 }); setTemplateNodeItems((p) => ({ ...p, [node.id]: (r as any).data ?? [] })); } catch {}
+                                        }} className="ml-1 text-[10px] text-blue-600 hover:underline">{expandedTemplateNode===node.id ? 'Ẩn' : 'Xem'}</button>
+                                      </td>
+                                      <td className="px-3 py-2.5 text-xs text-gray-600">
+                                        <button type="button" onClick={() => { setTplNode(node); setTplForm({ tenMauLoi: '', moTa: '', mucDo: 'TRUNG_BINH' }); }} className="rounded bg-blue-600 px-2 py-0.5 text-xs text-white hover:bg-blue-700">+ Mẫu</button>
+                                        {expandedTemplateNode===node.id && (templateNodeItems[node.id] ?? []).length > 0 && (
+                                          <div className="mt-1 rounded border bg-gray-50 p-1 text-[11px]">
+                                            {(templateNodeItems[node.id] ?? []).map((t: any) => (
+                                              <div key={t.id} className="flex items-center justify-between py-0.5">
+                                                <span className="truncate">{t.tenMauLoi} — {t.mucDo}</span>
+                                                <span className="ml-2 shrink-0 text-gray-400">{t.trangThai}</span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </td>
                                       <td className="px-3 py-2.5 text-xs text-gray-600">{node.viTri || '—'}</td>
                                       <td className="px-3 py-2.5 text-xs text-gray-600">{node.nguoiPhuTrach || '—'}</td>
                                       <td className="px-3 py-2.5">
@@ -755,6 +825,40 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
         machineName={summary?.machine?.tenHeThong}
         onClose={() => setStatusDialogOpen(false)}
       />
+      {tplNode && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setTplNode(null)} />
+          <div className="relative w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <h3 className="text-base font-semibold text-gray-900">Thêm mẫu lỗi — {tplNode.tenChiTiet}</h3>
+            <p className="mt-1 text-xs text-gray-500">{tplNode.maChiTiet} • {tplNode.machineSystemId}</p>
+            <div className="mt-4 space-y-3">
+              <div><label className="text-xs font-medium text-gray-700">Tên mẫu</label><input value={tplForm.tenMauLoi} onChange={(e)=>setTplForm(p=>({...p,tenMauLoi:e.target.value}))} placeholder="VD: Rò rỉ dầu" className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm" /></div>
+              <div><label className="text-xs font-medium text-gray-700">Mô tả</label><textarea value={tplForm.moTa} onChange={(e)=>setTplForm(p=>({...p,moTa:e.target.value}))} rows={3} className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm" /></div>
+              <div><label className="text-xs font-medium text-gray-700">Mức độ</label><select value={tplForm.mucDo} onChange={(e)=>setTplForm(p=>({...p,mucDo:e.target.value}))} className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"><option value="NHE">Nhẹ</option><option value="TRUNG_BINH">Trung bình</option><option value="NANG">Nặng</option><option value="NGHIEM_TRONG">Nghiêm trọng</option></select></div>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setTplNode(null)} className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Hủy</button>
+              <button type="button" disabled={tplSaving || !tplForm.tenMauLoi.trim() || !tplForm.moTa.trim()} onClick={async()=>{ if(!tplNode) return; setTplSaving(true); try{ await faultTemplateService.create({ tenMauLoi: tplForm.tenMauLoi.trim(), moTa: tplForm.moTa.trim(), mucDo: tplForm.mucDo, machineSystemId: tplNode.machineSystemId, machineSystemDetailId: tplNode.id }); queryClient.invalidateQueries({ queryKey: faultTemplateKeys.lists() }); queryClient.invalidateQueries({ queryKey: faultTemplateKeys.counts(tplNode.machineSystemId) }); toast.success("Đã tạo mẫu lỗi"); setTplNode(null);}catch(e:any){ toast.error(e?.response?.data?.message || e?.message || "Không tạo được mẫu"); } finally{ setTplSaving(false);} }} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">{tplSaving?"Đang lưu...":"Tạo mẫu"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {deactivateConfirm && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setDeactivateConfirm(null)} />
+          <div className="relative w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <h3 className="text-base font-semibold text-gray-900">Dừng chi tiết</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              Chi tiết này có {deactivateConfirm.count} mẫu lỗi liên quan trong cây con. Dừng luôn các mẫu lỗi đó?
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setDeactivateConfirm(null)} className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Hủy</button>
+              <button type="button" onClick={() => handleDeactivateConfirm(false)} className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Không, chỉ dừng chi tiết</button>
+              <button type="button" onClick={() => handleDeactivateConfirm(true)} className="rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700">Có, dừng luôn</button>
+            </div>
+          </div>
+        </div>
+      )}
     </Portal>
   );
 };

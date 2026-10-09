@@ -200,7 +200,13 @@ class MachineSystemDetailService {
   async update(id: string, data: UpdateMachineSystemDetailData) {
     const existing = await this.getById(id);
     const machineSystemId = data.machineSystemId ?? existing.machineSystemId;
-    if (data.machineSystemId) await this.ensureMachineSystem(data.machineSystemId);
+    if (data.machineSystemId && data.machineSystemId !== existing.machineSystemId) {
+      await this.ensureMachineSystem(data.machineSystemId);
+      const cnt = await prisma.faultTemplate.count({ where: { machineSystemDetailId: id } });
+      if (cnt > 0) throw new ValidationError('Chi tiết đang được mẫu lỗi tham chiếu, không thể chuyển hệ thống');
+    } else if (data.machineSystemId) {
+      await this.ensureMachineSystem(data.machineSystemId);
+    }
     await this.validateParent(
       machineSystemId,
       data.parentDetailId !== undefined ? data.parentDetailId : existing.parentDetailId,
@@ -248,6 +254,23 @@ class MachineSystemDetailService {
       include: detailInclude,
       take,
     });
+  }
+
+  async getSubtreeIds(detailId: string): Promise<string[]> {
+    const detail = await prisma.machineSystemDetail.findUnique({ where: { id: detailId }, select: { machineSystemId: true } });
+    if (!detail) throw new NotFoundError('Không tìm thấy chi tiết hệ thống máy');
+    const all = await prisma.machineSystemDetail.findMany({ where: { machineSystemId: detail.machineSystemId }, select: { id: true, parentDetailId: true } });
+    const childrenMap = new Map<string, string[]>();
+    for (const d of all) if (d.parentDetailId) { const a = childrenMap.get(d.parentDetailId) ?? []; a.push(d.id); childrenMap.set(d.parentDetailId, a); }
+    const result = [detailId]; const q = [detailId];
+    while (q.length) { const cur = q.shift()!; for (const c of childrenMap.get(cur) ?? []) { result.push(c); q.push(c); } }
+    return result;
+  }
+
+  async deactivateTemplatesForSubtree(subtreeIds: string[]) {
+    if (!subtreeIds.length) return { count: 0 };
+    const r = await prisma.faultTemplate.updateMany({ where: { machineSystemDetailId: { in: subtreeIds } }, data: { hoatDong: false, trangThai: 'Ngừng hoạt động' } });
+    return { count: r.count };
   }
 
   async delete(id: string) {

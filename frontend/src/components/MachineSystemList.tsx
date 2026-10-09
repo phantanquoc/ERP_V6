@@ -307,7 +307,7 @@ const MachineSystemList = () => {
   const [error, setError] = useState('');
   const [drawerSystemId, setDrawerSystemId] = useState<string | null>(null);
   const [statusUpdateSystemId, setStatusUpdateSystemId] = useState<string | null>(null);
-  const [cloneDialog, setCloneDialog] = useState<{ system: MachineSystem; maHeThong: string; tenHeThong: string } | null>(null);
+  const [cloneDialog, setCloneDialog] = useState<{ system: MachineSystem; maHeThong: string; tenHeThong: string; includeFaultTemplates: boolean } | null>(null);
   const [cloneError, setCloneError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<MachineSystem | null>(null);
   const listViewParam = searchParams.get('listView');
@@ -750,7 +750,7 @@ const MachineSystemList = () => {
                         { key: 'view', label: 'Xem hồ sơ máy', icon: <Eye className="h-4 w-4" />, onClick: () => handleRowClick(system), tone: 'primary' },
                         ...(canWrite ? [
                           { key: 'edit', label: 'Sửa hệ thống', icon: <Edit className="h-4 w-4" />, onClick: () => openSystemModalWithDeepLink('edit', system), tone: 'success' } satisfies RowAction,
-                          { key: 'clone', label: 'Nhân bản hệ thống', icon: <Copy className="h-4 w-4" />, onClick: () => setCloneDialog({ system, maHeThong: system.maHeThong + '-COPY', tenHeThong: system.tenHeThong + ' (bản sao)' }), tone: 'default' } satisfies RowAction,
+                          { key: 'clone', label: 'Nhân bản hệ thống', icon: <Copy className="h-4 w-4" />, onClick: () => setCloneDialog({ system, maHeThong: system.maHeThong + '-COPY', tenHeThong: system.tenHeThong + ' (bản sao)', includeFaultTemplates: false }), tone: 'default' } satisfies RowAction,
                           { key: 'status', label: 'Cập nhật trạng thái', icon: <RefreshCw className="h-4 w-4" />, onClick: () => setStatusUpdateSystemId(system.id), tone: 'warning' } satisfies RowAction,
                         ] : []),
                         ...(canDelete ? [{ key: 'delete', label: 'Xóa hệ thống', icon: <Trash2 className="h-4 w-4" />, onClick: () => setDeleteTarget(system), tone: 'danger' } satisfies RowAction] : []),
@@ -995,6 +995,10 @@ const MachineSystemList = () => {
                   placeholder="Tên hệ thống mới"
                 />
               </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={cloneDialog.includeFaultTemplates} onChange={(e) => setCloneDialog((d) => d ? { ...d, includeFaultTemplates: e.target.checked } : null)} />
+                <span className="font-medium text-gray-700">Sao chép cả mẫu lỗi (và các bước sửa chữa)</span>
+              </label>
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
@@ -1014,7 +1018,7 @@ const MachineSystemList = () => {
                       return;
                     }
                     try {
-                      await cloneSystem.mutateAsync({ id: system.id, data: { overrides: { maHeThong: maHeThong.trim(), tenHeThong: tenHeThong.trim() } } });
+                      await cloneSystem.mutateAsync({ id: system.id, data: cloneDialog.includeFaultTemplates ? { overrides: { maHeThong: maHeThong.trim(), tenHeThong: tenHeThong.trim() }, includeFaultTemplates: true } : { overrides: { maHeThong: maHeThong.trim(), tenHeThong: tenHeThong.trim() } } });
                       setCloneDialog(null);
                     } catch (err) {
                       setCloneError(err instanceof Error ? err.message : 'Không nhân bản được hệ thống');

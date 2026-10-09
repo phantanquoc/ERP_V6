@@ -22,6 +22,9 @@ export interface FaultTemplateFilters {
   trangThai?: string;
   hoatDong?: boolean;
   activeOnly?: boolean;
+  includeSubtree?: boolean;
+  orphan?: boolean;
+  hoatDongDetail?: boolean;
 }
 
 export interface RepairStepData {
@@ -89,12 +92,22 @@ class FaultTemplateService {
     const { skip, limit } = getPaginationParams(page, filters.limit ?? 10);
     const where: Prisma.FaultTemplateWhereInput = {};
 
+    if (filters.orphan) {
+      where.machineSystemDetailId = null;
+    } else if (filters.includeSubtree && filters.machineSystemDetailId) {
+      const expandedIds = await this.expandSubtreeIds(filters.machineSystemDetailId);
+      where.machineSystemDetailId = { in: expandedIds };
+    } else if (filters.machineSystemDetailId) {
+      where.machineSystemDetailId = filters.machineSystemDetailId;
+    }
     if (filters.machineSystemId) where.machineSystemId = filters.machineSystemId;
-    if (filters.machineSystemDetailId) where.machineSystemDetailId = filters.machineSystemDetailId;
     if (filters.mucDo) where.mucDo = filters.mucDo;
     if (filters.trangThai) where.trangThai = filters.trangThai;
     if (filters.activeOnly) where.hoatDong = true;
     if (filters.hoatDong !== undefined) where.hoatDong = filters.hoatDong;
+    if (filters.hoatDongDetail !== undefined && !filters.orphan) {
+      where.machineSystemDetail = { hoatDong: filters.hoatDongDetail };
+    }
     if (filters.search) {
       where.OR = [
         { maMauLoi: { contains: filters.search, mode: 'insensitive' } },
@@ -117,6 +130,70 @@ class FaultTemplateService {
     ]);
 
     return { data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+  }
+
+  private async expandSubtreeIds(detailId: string): Promise<string[]> {
+    const detail = await prisma.machineSystemDetail.findUnique({ where: { id: detailId }, select: { machineSystemId: true } });
+    if (!detail) return [detailId];
+    const all = await prisma.machineSystemDetail.findMany({
+      where: { machineSystemId: detail.machineSystemId },
+      select: { id: true, parentDetailId: true },
+    });
+    const childrenMap = new Map<string, string[]>();
+    for (const d of all) {
+      if (d.parentDetailId) {
+        const arr = childrenMap.get(d.parentDetailId) ?? [];
+        arr.push(d.id);
+        childrenMap.set(d.parentDetailId, arr);
+      }
+    }
+    const result: string[] = [detailId];
+    const queue = [detailId];
+    while (queue.length) {
+      const cur = queue.shift()!;
+      for (const child of childrenMap.get(cur) ?? []) {
+        result.push(child);
+        queue.push(child);
+      }
+    }
+    return result;
+  }
+
+  async getTemplateCountsBySystem(machineSystemId: string) {
+    const [grouped, details] = await Promise.all([
+      prisma.faultTemplate.groupBy({
+        by: ['machineSystemDetailId'],
+        where: { machineSystemId, machineSystemDetailId: { not: null } },
+        _count: { id: true },
+      }),
+      prisma.machineSystemDetail.findMany({ where: { machineSystemId }, select: { id: true, parentDetailId: true } }),
+    ]);
+    const directMap = new Map<string, number>();
+    for (const g of grouped) {
+      if (g.machineSystemDetailId) directMap.set(g.machineSystemDetailId, g._count.id);
+    }
+    // Build children map
+    const childrenMap = new Map<string, string[]>();
+    for (const d of details) {
+      if (d.parentDetailId) {
+        const arr = childrenMap.get(d.parentDetailId) ?? [];
+        arr.push(d.id);
+        childrenMap.set(d.parentDetailId, arr);
+      }
+    }
+    const subtreeMemo = new Map<string, number>();
+    const subtree = (id: string): number => {
+      if (subtreeMemo.has(id)) return subtreeMemo.get(id)!;
+      let sum = directMap.get(id) ?? 0;
+      for (const child of childrenMap.get(id) ?? []) sum += subtree(child);
+      subtreeMemo.set(id, sum);
+      return sum;
+    };
+    return details.map((d) => ({
+      detailId: d.id,
+      directCount: directMap.get(d.id) ?? 0,
+      subtreeCount: subtree(d.id),
+    }));
   }
 
   async getById(id: string) {
@@ -196,12 +273,12 @@ class FaultTemplateService {
     };
   }
 
-  // Task 2.3: create with repairSteps in transaction
+  // Task 2.3: create with repairSteps in transaction — validate inside tx
   async create(data: CreateFaultTemplateData) {
-    const detail = await this.validateMachineDetail(data.machineSystemDetailId, data.machineSystemId);
     const maMauLoi = data.maMauLoi ?? await this.generateTemplateCode();
 
     return prisma.$transaction(async (tx) => {
+      const detail = await this.validateMachineDetail(data.machineSystemDetailId, data.machineSystemId, true, tx);
       const template = await tx.faultTemplate.create({
         data: {
           maMauLoi,
@@ -239,19 +316,20 @@ class FaultTemplateService {
     });
   }
 
-  // Task 2.4: update with delete-then-recreate for repairSteps
+  // Task 2.4: update with delete-then-recreate for repairSteps — validate inside tx
   async update(id: string, data: UpdateFaultTemplateData) {
     const existing = await this.getById(id);
-    let machineSystemId = data.machineSystemId ?? existing.machineSystemId;
-    let machineSystemDetailId = data.machineSystemDetailId ?? existing.machineSystemDetailId;
-
-    if (data.machineSystemDetailId || data.machineSystemId) {
-      const detail = await this.validateMachineDetail(machineSystemDetailId, machineSystemId);
-      machineSystemId = detail ? detail.machineSystemId : machineSystemId;
-      machineSystemDetailId = detail ? detail.id : null;
-    }
 
     return prisma.$transaction(async (tx) => {
+      let machineSystemId = data.machineSystemId ?? existing.machineSystemId;
+      let machineSystemDetailId = data.machineSystemDetailId ?? existing.machineSystemDetailId;
+
+      if (data.machineSystemDetailId || data.machineSystemId) {
+        const detail = await this.validateMachineDetail(machineSystemDetailId, machineSystemId, true, tx);
+        machineSystemId = detail ? detail.machineSystemId : machineSystemId;
+        machineSystemDetailId = detail ? detail.id : null;
+      }
+
       await tx.faultTemplate.update({
         where: { id },
         data: {

@@ -18,6 +18,7 @@ router.get('/:id', authenticate, machineSystemDetailController.getById.bind(mach
 router.post('/', authenticate, technicalAccess, upload, machineSystemDetailController.create.bind(machineSystemDetailController));
 router.put('/:id', authenticate, technicalAccess, upload, machineSystemDetailController.update.bind(machineSystemDetailController));
 router.patch('/:id/deactivate', authenticate, technicalAccess, machineSystemDetailController.deactivate.bind(machineSystemDetailController));
+router.post('/:id/deactivate-templates', authenticate, technicalAccess, machineSystemDetailController.deactivateTemplates.bind(machineSystemDetailController));
 router.delete('/:id', authenticate, technicalAccess, machineSystemDetailController.remove.bind(machineSystemDetailController));
 
 export default router;

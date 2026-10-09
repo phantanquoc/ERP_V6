@@ -268,6 +268,7 @@ const RecurrenceBanner = ({ faultTemplateId, machineSystemDetailId, onMarkRecurr
 
 interface FaultRecordListProps {
   lockedMachineSystemId?: string;
+  prefilledDetailId?: string;
 }
 
 // Deep-link helpers — Phase 2A
@@ -313,7 +314,7 @@ const parseFaultRecordFiltersFromUrl = (sp: URLSearchParams, lockedMachineSystem
   return out;
 };
 
-const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) => {
+const FaultRecordList = ({ lockedMachineSystemId, prefilledDetailId: prefilledDetailIdProp }: FaultRecordListProps = {}) => {
   const { user } = useAuth();
   const reporter = user ? `${user.lastName} ${user.firstName}`.trim() : '';
   // Writes require Kỹ thuật membership (primary or secondary); the Rule Matrix may only narrow it further.
@@ -346,6 +347,17 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
     return init;
   });
   const [templateFilters, setTemplateFilters] = useState<FaultTemplateFilters>({ page: 1, limit: 10, sortBy: 'createdAt', sortOrder: 'desc', machineSystemId: lockedMachineSystemId });
+  const [templateOrphan, setTemplateOrphan] = useState(false);
+  const [templateInactiveDetail, setTemplateInactiveDetail] = useState(false);
+  const [groupByDetail, setGroupByDetail] = useState(false);
+  const [prefillDetailId, setPrefillDetailId] = useState<string | null>(() => prefilledDetailIdProp ?? null);
+
+  // 6.4: sync external prefill (from drawer tree node) or URL ?templateDetailId
+  useEffect(() => {
+    if (prefilledDetailIdProp) { setPrefillDetailId(prefilledDetailIdProp); return; }
+    const urlDetail = searchParams.get('templateDetailId');
+    if (urlDetail) setPrefillDetailId(urlDetail);
+  }, [prefilledDetailIdProp, searchParams]);
 
   // A3: heatmap collapsible tracks its own open state for lazy-loading
   const [heatmapExpanded, setHeatmapExpanded] = useState(false);
@@ -362,10 +374,18 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
   const recordsQuery = useFaultRecords(recordFilters);
   // A5: forward lockedMachineSystemId to stats
   const statsQuery = useFaultRecordStats(lockedMachineSystemId);
-  const templatesQuery = useFaultTemplates(templateFilters);
+  const effectiveTemplateFilters: import('../services/faultTemplateService').FaultTemplateFilters = {
+    ...templateFilters,
+    ...(templateOrphan ? { orphan: true, machineSystemDetailId: undefined } : {}),
+    ...(templateInactiveDetail ? { hoatDongDetail: false } : {}),
+  };
+  const templatesQuery = useFaultTemplates(effectiveTemplateFilters);
   const activeTemplatesQuery = useFaultTemplates({ page: 1, limit: 300, activeOnly: true, sortBy: 'tenMauLoi', sortOrder: 'asc' });
   const systemsQuery = useMachineSystems({ page: 1, limit: 200, hoatDong: true, sortBy: 'maHeThong', sortOrder: 'asc' });
   const detailsQuery = useMachineSystemDetails({ page: 1, limit: 300, hoatDong: true, machineSystemId: recordFilters.machineSystemId || templateFilters.machineSystemId });
+  // For template grouping we need all details (including inactive) to render zero-template groups
+  const templateDetailsQuery = useMachineSystemDetails({ page: 1, limit: 500, machineSystemId: templateFilters.machineSystemId || lockedMachineSystemId });
+  const templateDetails = useMemo(() => templateDetailsQuery.data?.data ?? [], [templateDetailsQuery.data?.data]);
 
   const createRecord = useCreateFaultRecord();
   const createRecordFromTemplate = useCreateFaultRecordFromTemplate();
@@ -658,19 +678,35 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
       dungCu: s.dungCu ?? null,
       ghiChu: s.ghiChu ?? null,
     }));
+    if (template) {
+      setTemplateRepairSteps(steps);
+      setTemplateForm({
+        maMauLoi: template.maMauLoi,
+        tenMauLoi: template.tenMauLoi,
+        moTa: template.moTa,
+        mucDo: template.mucDo,
+        machineSystemId: template.machineSystemId,
+        machineSystemDetailId: template.machineSystemDetailId,
+        hoatDong: template.hoatDong,
+        trangThai: template.trangThai,
+        ghiChu: template.ghiChu ?? '',
+        repairSteps: steps,
+      });
+      return;
+    }
+    // create — honour prefill from tree node if present
+    if (prefillDetailId) {
+      const d = templateDetails.find((x) => x.id === prefillDetailId) ?? details.find((x) => x.id === prefillDetailId);
+      setTemplateRepairSteps([]);
+      setTemplateForm({
+        ...emptyTemplateForm(d?.machineSystemId ?? lockedMachineSystemId ?? ''),
+        machineSystemDetailId: prefillDetailId,
+        machineSystemId: d?.machineSystemId ?? lockedMachineSystemId ?? '',
+      } as CreateFaultTemplateRequest);
+      return;
+    }
     setTemplateRepairSteps(steps);
-    setTemplateForm(template ? {
-      maMauLoi: template.maMauLoi,
-      tenMauLoi: template.tenMauLoi,
-      moTa: template.moTa,
-      mucDo: template.mucDo,
-      machineSystemId: template.machineSystemId,
-      machineSystemDetailId: template.machineSystemDetailId,
-      hoatDong: template.hoatDong,
-      trangThai: template.trangThai,
-      ghiChu: template.ghiChu ?? '',
-      repairSteps: steps,
-    } : emptyTemplateForm(lockedMachineSystemId ?? ''));
+    setTemplateForm(emptyTemplateForm(lockedMachineSystemId ?? ''));
   };
 
   const syncSystemFromDetail = (detailId: string, target: 'record' | 'template') => {
@@ -744,6 +780,7 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
     }
   };
 
+  const closeTemplateModal = () => { setTemplateModal(null); setPrefillDetailId(prefilledDetailIdProp ?? null); };
   const saveTemplate = async (event: FormEvent) => {
     event.preventDefault();
     try {
@@ -758,6 +795,7 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
         await createTemplate.mutateAsync({ data: payload, file: selectedFile ?? undefined });
       }
       setTemplateModal(null);
+      setPrefillDetailId(prefilledDetailIdProp ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không lưu được mẫu lỗi');
     }
@@ -1173,7 +1211,7 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
               <option value="">Tất cả hệ thống</option>
               {systems.map((system) => <option key={system.id} value={system.id}>{system.maHeThong} - {system.tenHeThong}</option>)}
             </select>
-            <select aria-label="Lọc theo chi tiết máy" value={templateFilters.machineSystemDetailId ?? ''} onChange={(event) => setTemplateFilters((filters) => ({ ...filters, machineSystemDetailId: event.target.value || undefined, page: 1 }))} className={`${FILTER_CONTROL} max-w-[200px]`}>
+            <select aria-label="Lọc theo chi tiết máy" value={templateFilters.machineSystemDetailId ?? ''} disabled={templateOrphan} onChange={(event) => setTemplateFilters((filters) => ({ ...filters, machineSystemDetailId: event.target.value || undefined, page: 1 }))} className={`${FILTER_CONTROL} max-w-[200px] disabled:opacity-50`}>
               <option value="">Tất cả chi tiết</option>
               {details.map((detail) => <option key={detail.id} value={detail.id}>{detail.maChiTiet} - {detail.tenChiTiet}</option>)}
             </select>
@@ -1186,6 +1224,9 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
               <option value="true">Đang hoạt động</option>
               <option value="false">Dừng</option>
             </select>
+            <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={templateOrphan} onChange={(e) => { setTemplateOrphan(e.target.checked); setTemplateFilters((f) => ({ ...f, page: 1 })); }} /> Chưa gắn chi tiết</label>
+            <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={templateInactiveDetail} onChange={(e) => { setTemplateInactiveDetail(e.target.checked); setTemplateFilters((f) => ({ ...f, page: 1 })); }} /> Chi tiết đã dừng</label>
+            <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={groupByDetail} onChange={(e) => setGroupByDetail(e.target.checked)} /> Nhóm theo chi tiết</label>
             <div className="ml-auto flex items-center gap-3">
               <span className="whitespace-nowrap text-sm text-gray-600">Tổng: {templatesQuery.data?.pagination?.total ?? 0} mẫu</span>
               {canMutate && <button type="button" onClick={() => openTemplateModal('create')} className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-md bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"><Plus className="h-4 w-4" aria-hidden="true" /> Thêm mẫu lỗi</button>}
@@ -1216,7 +1257,43 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
                         : 'Chưa có mẫu lỗi nào được tạo.'}
                     </td>
                   </tr>
-                ) : templates.map((template) => {
+                ) : groupByDetail ? (() => {
+                  const groups = new Map<string, FaultTemplate[]>();
+                  templates.forEach((t) => {
+                    const key = t.machineSystemDetail?.tenChiTiet ?? (t.tenDetailGoiY ? `${t.tenDetailGoiY} (gợi ý)` : 'Chưa gắn chi tiết');
+                    const arr = groups.get(key) ?? []; arr.push(t); groups.set(key, arr);
+                  });
+                  // Zero-template details for filtered system — use templateDetails (all, incl. inactive)
+                  const systemId = templateFilters.machineSystemId ?? lockedMachineSystemId;
+                  if (systemId) {
+                    templateDetails.filter((d) => !templates.some((t) => t.machineSystemDetailId === d.id)).forEach((d) => {
+                      if (!groups.has(d.tenChiTiet)) groups.set(d.tenChiTiet, []);
+                    });
+                  }
+                  return Array.from(groups.entries()).map(([key, items]) => (
+                    <tr key={key}><td colSpan={7} className="bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600">{key} — {items.length === 0 ? <span className="font-normal text-gray-400">Chưa có mẫu</span> : `${items.length} mẫu`} {items.length===0 && <button type="button" onClick={() => { const did = templateDetails.find((d)=>d.tenChiTiet===key)?.id ?? details.find((d)=>d.tenChiTiet===key)?.id ?? null; setPrefillDetailId(did); openTemplateModal('create'); }} className="ml-2 font-normal text-blue-600 hover:underline">Thêm mẫu</button>}</td></tr>
+                  )).flatMap((header, i) => {
+                    const items = Array.from(groups.values())[i];
+                    return [header, ...items.map((template: FaultTemplate) => {
+                  const statusLabel = template.hoatDong ? template.trangThai : 'Dừng';
+                  const systemLabel = template.machineSystem?.tenHeThong ?? '';
+                  const detailLabel = template.machineSystemDetail?.tenChiTiet ?? (template as any).tenDetailGoiY ?? '';
+                  const detailHint = !template.machineSystemDetail && (template as any).tenDetailGoiY ? `${(template as any).tenDetailGoiY}${(template as any).loaiDetailGoiY ? ` (${(template as any).loaiDetailGoiY})` : ''}` : detailLabel;
+                  const inactiveDetail = (template.machineSystemDetail as any)?.hoatDong === false;
+                  return (
+                  <tr key={template.id} className="group cursor-pointer transition-colors hover:bg-gray-50" onClick={() => setDetailTemplate(template)}>
+                    <td className={`${TD} ${STICKY_LEFT_TD} whitespace-nowrap`}><button type="button" onClick={(e) => { e.stopPropagation(); setDetailTemplate(template); }} className="rounded font-mono text-xs font-medium text-blue-700 hover:underline">{template.maMauLoi}</button></td>
+                    <td className={TD}><div className="max-w-[260px] truncate font-medium text-gray-900">{template.tenMauLoi}</div>{inactiveDetail && <span className="ml-1 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-700">Chi tiết đã dừng</span>}</td>
+                    <td className={TD}>{systemLabel ? <div className="max-w-[180px] truncate text-xs text-gray-800">{systemLabel}</div> : <div className="text-xs text-gray-400">—</div>}{detailHint && <div className="mt-0.5 max-w-[180px] truncate text-[11px] text-gray-400">{detailHint}</div>}</td>
+                    <td className={`${TD} whitespace-nowrap`}>{template.mucDo ? <SeverityBadge value={template.mucDo} /> : <span className="text-gray-400">—</span>}</td>
+                    <td className={`${TD} whitespace-nowrap`}><StatusBadge label={statusLabel} tone={templateStatusTone(statusLabel)} /></td>
+                    <td className={`${TD} text-right tabular-nums`}><span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-gray-100 px-1.5 text-xs font-medium text-gray-600">{template._count?.faultRecords ?? 0}</span></td>
+                    <td className={`${TD} ${STICKY_RIGHT_TD} whitespace-nowrap`} onClick={(e) => e.stopPropagation()}><ResponsiveRowActions actions={[{ key: 'view', label: 'Xem mẫu lỗi', icon: <Eye className="h-4 w-4" />, onClick: () => setDetailTemplate(template), tone: 'primary' }, ...(canMutate ? [{ key: 'edit', label: 'Sửa mẫu lỗi', icon: <Edit className="h-4 w-4" />, onClick: () => openTemplateModal('edit', template), tone: 'success' } as any] : []), ...(canMutate && template.hoatDong ? [{ key: 'deactivate', label: 'Dừng hoạt động', icon: <Power className="h-4 w-4" />, onClick: () => setPendingAction({ kind: 'deactivateTemplate', template }), tone: 'warning' } as any] : []), ...(canDeleteRecord ? [{ key: 'delete', label: 'Xóa mẫu lỗi', icon: <Trash2 className="h-4 w-4" />, onClick: () => setPendingAction({ kind: 'deleteTemplate', template }), tone: 'danger' } as any] : [])]} /></td>
+                  </tr>
+                  );
+                    })];
+                  });
+                })() : templates.map((template) => {
                   const statusLabel = template.hoatDong ? template.trangThai : 'Dừng';
                   const systemLabel = template.machineSystem?.tenHeThong ?? '';
                   const detailLabel = template.machineSystemDetail?.tenChiTiet ?? '';
@@ -1238,12 +1315,13 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
                     </td>
                     <td className={TD}>
                       <div className="max-w-[260px] truncate font-medium text-gray-900" title={template.tenMauLoi}>{template.tenMauLoi}</div>
+                      {(template.machineSystemDetail as any)?.hoatDong === false && <span className="ml-1 rounded bg-amber-100 px-1 py-0.5 text-[10px] text-amber-700">Chi tiết đã dừng</span>}
                     </td>
                     <td className={TD}>
                       {systemLabel
                         ? <div className="max-w-[180px] truncate text-xs leading-tight text-gray-800" title={systemLabel}>{systemLabel}</div>
                         : <div className="text-xs text-gray-400">—</div>}
-                      {detailLabel && <div className="mt-0.5 max-w-[180px] truncate text-[11px] text-gray-400" title={detailLabel}>{detailLabel}</div>}
+                      {(detailLabel || (template as any).tenDetailGoiY) && <div className="mt-0.5 max-w-[180px] truncate text-[11px] text-gray-400" title={detailLabel || (template as any).tenDetailGoiY}>{detailLabel || `${(template as any).tenDetailGoiY}${(template as any).loaiDetailGoiY ? ` (${(template as any).loaiDetailGoiY})` : ''}`}</div>}
                     </td>
                     <td className={`${TD} whitespace-nowrap`}>
                       {template.mucDo ? <SeverityBadge value={template.mucDo} /> : <span className="text-gray-400">—</span>}
@@ -1527,16 +1605,21 @@ const FaultRecordList = ({ lockedMachineSystemId }: FaultRecordListProps = {}) =
             <div className="grid gap-3 md:grid-cols-2">
               <label className="space-y-1">
                 <span className="font-medium text-gray-700">Hệ thống</span>
-                <select disabled={templateModal?.mode === 'view' || !!lockedMachineSystemId} value={templateForm.machineSystemId ?? ''} onChange={(event) => setTemplateForm((form) => ({ ...form, machineSystemId: event.target.value, machineSystemDetailId: '' }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50">
+                <select disabled={templateModal?.mode === 'view' || !!lockedMachineSystemId || (!!prefillDetailId && !templateModal?.template)} value={templateForm.machineSystemId ?? ''} onChange={(event) => setTemplateForm((form) => ({ ...form, machineSystemId: event.target.value, machineSystemDetailId: '' }))} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50">
                   <option value="">Chọn hệ thống</option>
                   {systems.map((system) => <option key={system.id} value={system.id}>{system.maHeThong} - {system.tenHeThong}</option>)}
                 </select>
               </label>
               <label className="space-y-1">
                 <span className="font-medium text-gray-700">Chi tiết máy</span>
-                <select required disabled={templateModal?.mode === 'view'} value={templateForm.machineSystemDetailId} onChange={(event) => syncSystemFromDetail(event.target.value, 'template')} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50">
+                <select required disabled={templateModal?.mode === 'view' || (!!prefillDetailId && !templateModal?.template)} value={templateForm.machineSystemDetailId} onChange={(event) => syncSystemFromDetail(event.target.value, 'template')} className="w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50">
                   <option value="">Chọn chi tiết</option>
                   {detailOptionsForTemplate.map((detail) => <option key={detail.id} value={detail.id}>{detail.maChiTiet} - {detail.tenChiTiet}</option>)}
+                  {/* keep prefilled inactive detail visible even if filtered out */}
+                  {!!prefillDetailId && !templateModal?.template && !detailOptionsForTemplate.some((d) => d.id === prefillDetailId) && (() => {
+                    const d = templateDetails.find((x) => x.id === prefillDetailId);
+                    return d ? <option key={d.id} value={d.id}>{d.maChiTiet} - {d.tenChiTiet}</option> : null;
+                  })()}
                 </select>
               </label>
               <label className="space-y-1">

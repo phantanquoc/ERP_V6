@@ -14,6 +14,7 @@ export const faultTemplateKeys = {
   detail: (id: string) => [...faultTemplateKeys.details(), id] as const,
   summaries: () => [...faultTemplateKeys.all, 'summary'] as const,
   summary: (id: string) => [...faultTemplateKeys.summaries(), id] as const,
+  counts: (systemId: string) => [...faultTemplateKeys.all, 'counts', systemId] as const,
 };
 
 export const useFaultTemplates = (filters: FaultTemplateFilters = {}) =>
@@ -106,8 +107,11 @@ export const useCreateFaultTemplate = () => {
   return useMutation({
     mutationFn: ({ data, file }: { data: CreateFaultTemplateRequest; file?: File }) =>
       faultTemplateService.create(data, file),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: faultTemplateKeys.lists() });
+      const sysId = (vars.data as any)?.machineSystemId;
+      if (sysId) queryClient.invalidateQueries({ queryKey: faultTemplateKeys.counts(sysId) });
+      else queryClient.invalidateQueries({ queryKey: faultTemplateKeys.all });
     },
   });
 };
@@ -121,6 +125,7 @@ export const useUpdateFaultTemplate = () => {
       queryClient.invalidateQueries({ queryKey: faultTemplateKeys.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: faultTemplateKeys.summary(variables.id) });
       queryClient.invalidateQueries({ queryKey: faultTemplateKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: faultTemplateKeys.all });
     },
   });
 };
@@ -132,6 +137,7 @@ export const useDeactivateFaultTemplate = () => {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: faultTemplateKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: faultTemplateKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: faultTemplateKeys.all });
     },
   });
 };
@@ -146,3 +152,10 @@ export const useDeleteFaultTemplate = () => {
     },
   });
 };
+
+export const useTemplateCountsBySystem = (machineSystemId: string | undefined) =>
+  useQuery({
+    queryKey: faultTemplateKeys.counts(machineSystemId ?? ''),
+    queryFn: () => faultTemplateService.getCountsBySystem(machineSystemId!),
+    enabled: !!machineSystemId,
+  });

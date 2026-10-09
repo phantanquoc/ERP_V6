@@ -26,16 +26,18 @@ export interface FaultTemplate {
   tenMauLoi: string;
   moTa: string;
   mucDo: string;
-  machineSystemId: string;
-  machineSystemDetailId: string;
+  machineSystemId: string | null;
+  machineSystemDetailId: string | null;
+  tenDetailGoiY?: string | null;
+  loaiDetailGoiY?: string | null;
   hoatDong: boolean;
   trangThai: string;
   ghiChu?: string | null;
   fileDinhKem?: string | null;
   createdAt: string;
   updatedAt: string;
-  machineSystem?: MachineSystem;
-  machineSystemDetail?: MachineSystemDetail;
+  machineSystem?: MachineSystem | null;
+  machineSystemDetail?: MachineSystemDetail | null;
   _count?: {
     faultRecords: number;
   };
@@ -83,6 +85,9 @@ export interface FaultTemplateFilters {
   activeOnly?: boolean;
   sortBy?: 'maMauLoi' | 'tenMauLoi' | 'mucDo' | 'createdAt' | 'updatedAt';
   sortOrder?: SortOrder;
+  includeSubtree?: boolean;
+  orphan?: boolean;
+  hoatDongDetail?: boolean;
 }
 
 export interface CreateFaultTemplateRequest {
@@ -91,7 +96,9 @@ export interface CreateFaultTemplateRequest {
   moTa: string;
   mucDo: string;
   machineSystemId?: string;
-  machineSystemDetailId: string;
+  machineSystemDetailId?: string | null;
+  tenDetailGoiY?: string;
+  loaiDetailGoiY?: string;
   hoatDong?: boolean;
   trangThai?: string;
   ghiChu?: string;
@@ -126,6 +133,9 @@ class FaultTemplateService {
         activeOnly: filters.activeOnly,
         sortBy: filters.sortBy,
         sortOrder: filters.sortOrder,
+        includeSubtree: filters.includeSubtree,
+        orphan: filters.orphan,
+        hoatDongDetail: filters.hoatDongDetail,
       },
     });
   }
@@ -158,6 +168,14 @@ class FaultTemplateService {
 
   async delete(id: string): Promise<ApiResponse<FaultTemplate>> {
     return apiClient.delete<FaultTemplate>(`/fault-templates/${id}`);
+  }
+
+  async getCountsBySystem(machineSystemId: string): Promise<ApiResponse<{ detailId: string; directCount: number; subtreeCount: number }[]>> {
+    return apiClient.get<{ detailId: string; directCount: number; subtreeCount: number }[]>('/fault-templates/counts/by-system', { params: { machineSystemId } });
+  }
+
+  async deactivateTemplatesForDetail(detailId: string): Promise<ApiResponse<{ count: number }>> {
+    return apiClient.post<{ count: number }>(`/machine-system-details/${detailId}/deactivate-templates`);
   }
 }
 

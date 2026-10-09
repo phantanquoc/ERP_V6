@@ -157,6 +157,7 @@ export interface CloneMachineSystemRequest {
     maHeThong?: string;
     tenHeThong?: string;
   };
+  includeFaultTemplates?: boolean;
 }
 
 export interface UpdateMachineStatusRequest {

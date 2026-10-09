@@ -21,6 +21,9 @@ class FaultTemplateController {
         trangThai: req.query.trangThai as string | undefined,
         hoatDong: parseBoolean(req.query.hoatDong),
         activeOnly: parseBoolean(req.query.activeOnly),
+        includeSubtree: parseBoolean(req.query.includeSubtree),
+        orphan: parseBoolean(req.query.orphan),
+        hoatDongDetail: req.query.hoatDongDetail !== undefined ? parseBoolean(req.query.hoatDongDetail) : undefined,
       });
       res.json({ success: true, data: result.data, pagination: result.pagination });
     } catch (error) {
@@ -42,6 +45,15 @@ class FaultTemplateController {
     try {
       const summary = await faultTemplateService.getSummary(req.params.id);
       res.json({ success: true, data: summary });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getCountsBySystem(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const counts = await faultTemplateService.getTemplateCountsBySystem(req.query.machineSystemId as string);
+      res.json({ success: true, data: counts });
     } catch (error) {
       next(error);
     }

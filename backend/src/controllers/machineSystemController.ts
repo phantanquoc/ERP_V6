@@ -44,6 +44,7 @@ const cloneSchema = z.object({
   tenHeThong: z.string().min(1, 'tenHeThong là bắt buộc'),
   khuVuc: z.string().optional(),
   viTri: z.string().optional(),
+  includeFaultTemplates: z.boolean().optional(),
 });
 
 const statusSchema = z.object({
@@ -212,9 +213,9 @@ class MachineSystemController {
 
   async clone(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { maHeThong, tenHeThong, khuVuc, viTri } = cloneSchema.parse(req.body);
+      const { maHeThong, tenHeThong, khuVuc, viTri, includeFaultTemplates } = cloneSchema.parse(req.body);
 
-      const result = await machineSystemService.clone(req.params.id, { maHeThong, tenHeThong, khuVuc, viTri });
+      const result = await machineSystemService.clone(req.params.id, { maHeThong, tenHeThong, khuVuc, viTri, includeFaultTemplates });
       try {
         await notificationService.notify(NotificationEvent.MACHINE_SYSTEM_CLONED, {
           actorUserId: req.user?.id,

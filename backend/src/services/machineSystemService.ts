@@ -2,6 +2,7 @@ import { MachineStatus, MachineSystemCategory, Prisma } from '@prisma/client';
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
 import { ConflictError, NotFoundError, ValidationError } from '@utils/errors';
+import { nextYearlyCode } from '@utils/codeGenerator';
 import ExcelJS from 'exceljs';
 
 interface CreateMachineSystemData {
@@ -41,6 +42,7 @@ interface CloneOverrides {
   tenHeThong: string;
   khuVuc?: string;
   viTri?: string;
+  includeFaultTemplates?: boolean;
 }
 
 interface MachineSystemFilters {
@@ -307,7 +309,8 @@ class MachineSystemService {
       });
 
       if (source.details.length === 0) {
-        return newSystem;
+        if (!overrides.includeFaultTemplates) return newSystem;
+        // No details but may have detail-less templates — handle after BFS section
       }
 
       // BFS: process details level by level
@@ -365,6 +368,52 @@ class MachineSystemService {
         }
 
         queue = nextQueue;
+      }
+
+      if (overrides.includeFaultTemplates) {
+        const year = new Date().getFullYear();
+        const templates = await tx.faultTemplate.findMany({
+          where: { machineSystemId: sourceId },
+          include: { repairSteps: true },
+        });
+        for (const tpl of templates) {
+          const last = await tx.faultTemplate.findFirst({
+            where: { maMauLoi: { startsWith: `ML-${year}-` } },
+            orderBy: { maMauLoi: 'desc' },
+            select: { maMauLoi: true },
+          });
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const maMauLoi = nextYearlyCode(last?.maMauLoi ?? null, 'ML', year);
+          const newDetailId = tpl.machineSystemDetailId ? (oldToNew.get(tpl.machineSystemDetailId) ?? null) : null;
+          const created = await tx.faultTemplate.create({
+            data: {
+              maMauLoi,
+              tenMauLoi: tpl.tenMauLoi,
+              moTa: tpl.moTa,
+              mucDo: tpl.mucDo,
+              machineSystemId: newSystem.id,
+              machineSystemDetailId: newDetailId,
+              tenDetailGoiY: tpl.tenDetailGoiY,
+              loaiDetailGoiY: tpl.loaiDetailGoiY,
+              hoatDong: tpl.hoatDong,
+              trangThai: tpl.trangThai,
+              ghiChu: tpl.ghiChu,
+              fileDinhKem: tpl.fileDinhKem,
+            },
+          });
+          if (tpl.repairSteps.length) {
+            await tx.repairStep.createMany({
+              data: tpl.repairSteps.map((s) => ({
+                faultTemplateId: created.id,
+                stepNumber: s.stepNumber,
+                moTa: s.moTa,
+                thoiGianUocTinh: s.thoiGianUocTinh,
+                dungCu: s.dungCu,
+                ghiChu: s.ghiChu,
+              })),
+            });
+          }
+        }
       }
 
       return tx.machineSystem.findUnique({
