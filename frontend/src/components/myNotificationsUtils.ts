@@ -57,6 +57,7 @@ export const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   PRIVATE_FEEDBACK: 'Góp ý',
   DAILY_WORK_REPORT: 'Báo cáo công việc',
   REPAIR_REQUEST: 'Yêu cầu sửa chữa',
+  INSPECTION_REQUEST: 'Yêu cầu kiểm tra',
   ORDER: 'Đơn hàng',
   WAREHOUSE: 'Kho',
   INVOICE: 'Hóa đơn',
@@ -145,7 +146,7 @@ export const NOTIFICATION_TYPE_GROUPS: NotificationGroup[] = [
   {
     key: 'other',
     label: 'Khác',
-    types: ['PAYROLL', 'ACCEPTANCE_HANDOVER', 'PASSWORD_RESET', 'REPAIR_REQUEST', 'PROJECT_APPROVAL'],
+    types: ['PAYROLL', 'ACCEPTANCE_HANDOVER', 'PASSWORD_RESET', 'REPAIR_REQUEST', 'INSPECTION_REQUEST', 'PROJECT_APPROVAL'],
   },
 ];
 
@@ -212,6 +213,8 @@ export function getNotificationIcon(type: string): React.ReactNode {
       return React.createElement(FileText, { className: 'w-4 h-4 text-teal-600' });
     case 'REPAIR_REQUEST':
       return React.createElement(Wrench, { className: 'w-4 h-4 text-red-600' });
+    case 'INSPECTION_REQUEST':
+      return React.createElement(ClipboardList, { className: 'w-4 h-4 text-cyan-600' });
     case 'ORDER':
       return React.createElement(ShoppingBag, { className: 'w-4 h-4 text-blue-600' });
     case 'WAREHOUSE':
@@ -335,10 +338,17 @@ export function resolveDeepLink(notification: NotificationForLink): string | nul
     }
 
     case 'REPAIR_REQUEST': {
-      const repairRequestId = meta.entityId as string | undefined;
-      return repairRequestId
-        ? `/technical/quality?tab=repairAndFault&repairRequestId=${repairRequestId}`
-        : '/technical/quality?tab=repairAndFault';
+      const repairId = meta.entityId as string | undefined;
+      return repairId
+        ? `/technical/quality?tab=repairs&repairId=${repairId}`
+        : '/technical/quality?tab=repairs';
+    }
+
+    case 'INSPECTION_REQUEST': {
+      const inspectionId = meta.entityId as string | undefined;
+      return inspectionId
+        ? `/technical/quality?tab=inspections&inspectionId=${inspectionId}`
+        : '/technical/quality?tab=inspections';
     }
 
     case 'ORDER': {
@@ -380,10 +390,10 @@ export function resolveDeepLink(notification: NotificationForLink): string | nul
     }
 
     case 'FAULT_RECORD': {
-      const faultRecordId = meta.entityId as string | undefined;
-      return faultRecordId
-        ? `/technical/quality?tab=repairAndFault&faultRecordId=${faultRecordId}`
-        : '/technical/quality?tab=repairAndFault';
+      const faultId = meta.entityId as string | undefined;
+      return faultId
+        ? `/technical/quality?tab=faults&faultId=${faultId}`
+        : '/technical/quality?tab=faults';
     }
 
     case 'SYSTEM_OPERATION': {

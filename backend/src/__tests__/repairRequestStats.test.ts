@@ -18,12 +18,23 @@ const mockPrisma: any = {
   },
   repairRequestItem: {
     groupBy: jest.fn(),
+    findMany: jest.fn().mockResolvedValue([]),
   },
   machineSystem: {
     findMany: jest.fn(),
   },
   machineSystemDetail: {
     findMany: jest.fn(),
+  },
+  user: {
+    findMany: jest.fn().mockResolvedValue([]),
+  },
+  department: {
+    findMany: jest.fn().mockResolvedValue([]),
+    findUnique: jest.fn().mockResolvedValue(null),
+  },
+  repairIncidentalCost: {
+    findMany: jest.fn().mockResolvedValue([]),
   },
 };
 

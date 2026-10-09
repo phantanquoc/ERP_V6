@@ -24,14 +24,19 @@ vi.mock('../../services/warehouseIssueService', () => ({
   },
 }));
 
-vi.mock('../../hooks', () => ({
-  warehouseKeys: {
-    all: ['warehouses'],
-    lists: () => ['warehouses', 'list'],
-    lotProducts: () => ['warehouses', 'lotProducts'],
-    receiptHistories: () => ['warehouses', 'receiptHistory'],
-  },
-}));
+vi.mock('../../hooks', async (importOriginal) => {
+  const actual = await importOriginal() as Record<string, unknown>;
+  return {
+    ...(actual as object),
+    warehouseKeys: {
+      all: ['warehouses'],
+      lists: () => ['warehouses', 'list'],
+      lotProducts: () => ['warehouses', 'lotProducts'],
+      receiptHistories: () => ['warehouses', 'receiptHistory'],
+    },
+    useWarehouses: () => ({ data: [] }),
+  };
+});
 
 vi.mock('../../components/CreateWarehouseReceiptModal', () => ({
   default: () => null,
@@ -47,6 +52,10 @@ vi.mock('../../components/EditWarehouseIssueModal', () => ({
 }));
 vi.mock('../../components/WarehouseSlipPrintView', () => ({
   default: () => null,
+}));
+
+vi.mock('../../contexts/AuthContext', () => ({
+  useAuth: () => ({ user: { id: 'u1', role: 'ADMIN', employeeId: 'emp1' } }),
 }));
 
 const receiptService = vi.mocked(warehouseReceiptService);
@@ -112,18 +121,18 @@ describe('warehouse slip tabs', () => {
     } as never);
 
     renderWithQuery(<WarehouseReceiptTab />);
-    expect(await screen.findByText('Chuối sấy')).toBeInTheDocument();
+    expect((await screen.findAllByText('Chuối sấy')).length).toBeGreaterThanOrEqual(1);
 
-    fireEvent.change(screen.getByPlaceholderText('Tìm kiếm phiếu nhập...'), {
+    fireEvent.change(screen.getByPlaceholderText('Tìm mã kiện, tên hàng, mã phiếu, nhân viên...'), {
       target: { value: 'Chuối sấy' },
     });
 
     // Filtering is slip-level: finding line 2 keeps the whole matching slip,
     // while unrelated slips are removed.
-    expect(screen.getByText('PN-001')).toBeInTheDocument();
-    expect(screen.getByText('Chuối sấy')).toBeInTheDocument();
-    expect(screen.getByText('Mít sấy')).toBeInTheDocument();
-    expect(screen.queryByText('PN-002')).not.toBeInTheDocument();
+    expect(screen.getAllByText('PN-001').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Chuối sấy').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Mít sấy').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryAllByText('PN-002')).toHaveLength(0);
   });
 
   it('keeps a legacy receipt visible through the header fallback line', async () => {
@@ -140,9 +149,10 @@ describe('warehouse slip tabs', () => {
 
     renderWithQuery(<WarehouseReceiptTab />);
 
-    expect(await screen.findByText('Hàng legacy')).toBeInTheDocument();
-    expect(screen.getByText('Kho cũ')).toBeInTheDocument();
-    expect(screen.getByText('8')).toBeInTheDocument();
+    expect((await screen.findAllByText('Hàng legacy')).length).toBeGreaterThanOrEqual(1);
+    // Kho cũ / 8 also appear in both table and card — check via getAllByText
+    expect(screen.getAllByText('Kho cũ').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('8').length).toBeGreaterThanOrEqual(1);
   });
 
   it('does not offer edit or delete actions for a locked issue', async () => {
@@ -155,7 +165,7 @@ describe('warehouse slip tabs', () => {
 
     renderWithQuery(<WarehouseIssueTab />);
 
-    expect(await screen.findByText('Vật tư khóa')).toBeInTheDocument();
+    expect((await screen.findAllByText('Vật tư khóa')).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Đã khóa — chỉ xem/in')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Xem chi tiết phiếu xuất' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'In phiếu xuất' })).toBeInTheDocument();
@@ -173,7 +183,7 @@ describe('warehouse slip tabs', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
 
-    expect(await screen.findByText('Dữ liệu sau retry')).toBeInTheDocument();
+    expect((await screen.findAllByText('Dữ liệu sau retry')).length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

@@ -698,6 +698,22 @@ const entries: NotificationEventDef[] = [
       return [...new Set([...direct, ...admins])];
     },
   },
+  {
+    event: NotificationEvent.INSPECTION_REQUEST_REJECTED,
+    notificationType: NotificationType.INSPECTION_REQUEST,
+    buildMessage: (ctx) => ({ title: 'Yêu cầu kiểm tra bị từ chối', message: `Yêu cầu kiểm tra ${ctx.metadata?.maYeuCau ?? ''} đã bị từ chối${ctx.metadata?.reason ? ': ' + ctx.metadata.reason : ''}.` }),
+    resolveRecipients: async (ctx) => {
+      const direct = ctx.targetEmployeeIds ?? [];
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...direct, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.INSPECTION_REQUEST_CANCELLED,
+    notificationType: NotificationType.INSPECTION_REQUEST,
+    buildMessage: (ctx) => ({ title: 'Yêu cầu kiểm tra đã hủy', message: `Yêu cầu kiểm tra ${ctx.metadata?.maYeuCau ?? ''} đã được hủy${ctx.metadata?.reason ? ': ' + ctx.metadata.reason : ''}.` }),
+    resolveRecipients: async (ctx) => { const direct = ctx.targetEmployeeIds ?? []; const admins = await getAdminEmployeeIds(ctx.actorUserId); return [...new Set([...direct, ...admins])]; },
+  },
 
   // ── Order ──
   {

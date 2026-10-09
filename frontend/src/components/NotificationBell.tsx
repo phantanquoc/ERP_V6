@@ -48,6 +48,7 @@ const TYPE_LABELS: Record<string, string> = {
   LEAVE_REQUEST_RESPONSE: 'phản hồi nghỉ phép',
   OVERTIME_PLAN: 'kế hoạch tăng ca',
   OVERTIME_PLAN_APPROVAL: 'kế hoạch tăng ca',
+  INSPECTION_REQUEST: 'yêu cầu kiểm tra',
   REPAIR_REQUEST: 'yêu cầu sửa chữa',
   WAREHOUSE: 'phiếu kho',
   INVOICE: 'hóa đơn',

@@ -49,6 +49,34 @@ describe('resolveDeepLink — PURCHASE_REQUEST', () => {
   });
 });
 
+describe('resolveDeepLink — INSPECTION_REQUEST', () => {
+  it('routes to inspections tab with inspectionId when entityId present', () => {
+    expect(
+      resolveDeepLink({ type: 'INSPECTION_REQUEST', metadata: { entityId: 'insp1' } }),
+    ).toBe('/technical/quality?tab=inspections&inspectionId=insp1');
+  });
+
+  it('falls back to inspections tab when id is missing', () => {
+    expect(resolveDeepLink({ type: 'INSPECTION_REQUEST', metadata: {} })).toBe(
+      '/technical/quality?tab=inspections',
+    );
+  });
+});
+
+describe('resolveDeepLink — REPAIR_REQUEST', () => {
+  it('routes to repairs tab with repairId when entityId present', () => {
+    expect(
+      resolveDeepLink({ type: 'REPAIR_REQUEST', metadata: { entityId: 'rep1' } }),
+    ).toBe('/technical/quality?tab=repairs&repairId=rep1');
+  });
+
+  it('falls back to repairs tab when id is missing', () => {
+    expect(resolveDeepLink({ type: 'REPAIR_REQUEST', metadata: {} })).toBe(
+      '/technical/quality?tab=repairs',
+    );
+  });
+});
+
 describe('REPLENISHMENT_REQUEST label', () => {
   it('has a Vietnamese label', () => {
     expect(NOTIFICATION_TYPE_LABELS.REPLENISHMENT_REQUEST).toBe('Yêu cầu bổ sung');

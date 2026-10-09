@@ -840,7 +840,9 @@ class InspectionRequestService {
     return user ? `${user.lastName} ${user.firstName}`.trim() : null;
   }
   async reject(id: number, actor: ActorContext, reason?: string) {
-    return this.transition(id, InspectionRequestStatus.TU_CHOI, actor, reason ?? 'reject');
+    const result = await this.transition(id, InspectionRequestStatus.TU_CHOI, actor, reason ?? 'reject');
+    this.notifyInspection(id, NotificationEvent.INSPECTION_REQUEST_REJECTED, actor.actorId, { reason }).catch(() => {});
+    return result;
   }
   /**
    * Cancel permission: a non-technical user may cancel only their own request while CHO_XU_LY;
@@ -848,7 +850,7 @@ class InspectionRequestService {
    */
   async cancel(id: number, actor: ActorContext, reason?: string) {
     const privileged = await this.isPrivileged(actor);
-    return this.transition(id, InspectionRequestStatus.DA_HUY, actor, reason ?? (actor.actorRole === 'ADMIN' ? 'admin_override' : 'user_cancel'), {
+    const result = await this.transition(id, InspectionRequestStatus.DA_HUY, actor, reason ?? (actor.actorRole === 'ADMIN' ? 'admin_override' : 'user_cancel'), {
       precheck: (row) => {
         if (privileged) return;
         if (!actor.actorId || row.createdById !== actor.actorId) {
@@ -859,6 +861,8 @@ class InspectionRequestService {
         }
       },
     });
+    this.notifyInspection(id, NotificationEvent.INSPECTION_REQUEST_CANCELLED, actor.actorId, { reason }).catch(() => {});
+    return result;
   }
 
   async getStats(filters?: { dateFrom?: Date; dateTo?: Date }) {

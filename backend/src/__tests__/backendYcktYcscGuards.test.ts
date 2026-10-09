@@ -34,7 +34,7 @@ const tx: any = {
 
 const mockPrisma: any = {
   $transaction: jest.fn((fn: (t: any) => unknown) => fn(tx)),
-  repairRequest: { findUnique: jest.fn() },
+  repairRequest: { findUnique: jest.fn(), count: jest.fn().mockResolvedValue(0) },
   inspectionRequest: { findUnique: jest.fn() },
   inspectionRequestItem: { findMany: jest.fn() },
   acceptanceHandover: { findUnique: jest.fn(), findMany: jest.fn() },

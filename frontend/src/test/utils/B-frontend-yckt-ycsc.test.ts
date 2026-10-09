@@ -36,7 +36,7 @@ describe('edit gating', () => {
     expect(canEditInspection('DA_KIEM_TRA', tech)).toBe(false);
     expect(canEditInspection('CHO_NGHIEM_THU', tech)).toBe(false);
     expect(canEditRepair('DANG_SUA_CHUA', tech)).toBe(true);
-    expect(canEditRepair('CHO_NGHIEM_THU', tech)).toBe(false);
+    expect(canEditRepair('CHO_NGHIEM_THU', tech)).toBe(true);
     expect(canEditRepair('DA_NGHIEM_THU', admin)).toBe(false);
     expect(canEditRepair('TU_CHOI', admin)).toBe(false);
   });

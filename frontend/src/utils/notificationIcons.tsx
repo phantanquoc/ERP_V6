@@ -62,6 +62,8 @@ export const getNotificationIcon = (type: string): React.ReactNode => {
       return <FileText className="w-4 h-4 text-teal-600" />;
     case 'WORK_PLAN':
       return <CalendarDays className="w-4 h-4 text-purple-600" />;
+    case 'INSPECTION_REQUEST':
+      return <ClipboardList className="w-4 h-4 text-cyan-600" />;
     case 'REPAIR_REQUEST':
       return <Wrench className="w-4 h-4 text-red-600" />;
     case 'PURCHASE_REQUEST':
