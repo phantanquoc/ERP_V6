@@ -39,6 +39,8 @@ import {
 } from '../hooks/useFaultTemplates';
 import { useDetailTree, useMachineSystemDetails, useMachineSystems } from '../hooks/useMachineSystemDetails';
 import type { MachineSystemDetail } from '../services/machineSystemService';
+import { useQuery } from '@tanstack/react-query';
+import faultTemplateService from '../services/faultTemplateService';
 import type { FaultRecord, CreateFaultRecordRequest, FaultRecordStatus } from '../services/faultRecordService';
 import type { FaultTemplate, CreateFaultTemplateRequest, RepairStepInput } from '../services/faultTemplateService';
 import type { FaultRecordFilters } from '../services/faultRecordService';
@@ -481,6 +483,12 @@ const FaultRecordList = ({ lockedMachineSystemId, prefilledDetailId: prefilledDe
   const pendingViewQuery = useFaultRecord(pendingViewId);
   // 8.2: template detail drawer
   const [detailTemplate, setDetailTemplate] = useState<FaultTemplate | null>(null);
+  const [detailView, setDetailView] = useState<MachineSystemDetail | null>(null);
+  const detailTemplatesQuery = useQuery({
+    queryKey: ['faultTemplates', 'detailView', detailView?.id ?? ''],
+    queryFn: () => faultTemplateService.getAll({ machineSystemDetailId: detailView!.id, limit: 50 } as any),
+    enabled: !!detailView?.id,
+  });
   // 6.1: typeahead combobox state
   const [templateSearch, setTemplateSearch] = useState('');
   const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
@@ -1119,12 +1127,12 @@ const FaultRecordList = ({ lockedMachineSystemId, prefilledDetailId: prefilledDe
                   {treeData.map((node: TreeNode) => {
                     const c = countsMap.get(node.id) as any;
                     return (
-                      <tr key={node.id} className="hover:bg-gray-50">
-                        <td className="px-3 py-2"><div className="flex items-center" style={{ paddingLeft: `${node.depth * 20}px` }}>{node.children.length > 0 ? <button type="button" onClick={() => toggleExpand(node.id)} className="mr-1 rounded p-0.5 text-gray-400 hover:text-gray-700">{expandedIds.has(node.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</button> : <span className="mr-1 inline-block w-5" />}<span className="font-medium text-gray-900">{node.tenChiTiet}</span></div></td>
+                      <tr key={node.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setDetailView(node)}>
+                        <td className="px-3 py-2"><div className="flex items-center" style={{ paddingLeft: `${node.depth * 20}px` }}>{node.children.length > 0 ? <button type="button" onClick={(e) => { e.stopPropagation(); toggleExpand(node.id); }} className="mr-1 rounded p-0.5 text-gray-400 hover:text-gray-700">{expandedIds.has(node.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</button> : <span className="mr-1 inline-block w-5" />}<span className="font-medium text-gray-900 hover:text-blue-700 hover:underline">{node.tenChiTiet}</span></div></td>
                         <td className="px-3 py-2 font-mono text-xs text-blue-700">{node.maChiTiet}</td>
                         <td className="px-3 py-2 text-xs text-gray-600">{DETAIL_TYPE_LABELS[node.loaiChiTiet] ?? node.loaiChiTiet}</td>
                         <td className="px-3 py-2 text-xs"><span className="rounded bg-blue-50 px-1.5 py-0.5 font-medium text-blue-700">{c ? `${c.directCount} / ${c.subtreeCount}` : '0 / 0'}</span></td>
-                        <td className="px-3 py-2 text-right"><button type="button" onClick={() => { setPrefillDetailId(node.id); openTemplateModal('create'); }} className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700">+ Mẫu lỗi</button></td>
+                        <td className="px-3 py-2 text-right"><button type="button" onClick={(e) => { e.stopPropagation(); setPrefillDetailId(node.id); openTemplateModal('create'); }} className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700">+ Mẫu lỗi</button></td>
                       </tr>
                     );
                   })}
@@ -1805,6 +1813,79 @@ const FaultRecordList = ({ lockedMachineSystemId, prefilledDetailId: prefilledDe
         template={detailTemplate}
         onClose={() => setDetailTemplate(null)}
       />
+      {/* Systems detail modal */}
+      <Modal isOpen={!!detailView} onClose={() => setDetailView(null)} showBackdrop closeOnBackdrop>
+        {detailView && (
+          <div className="flex modal-viewport-h w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b px-4 py-3">
+              <h3 className="text-base font-semibold text-gray-900">{detailView.tenChiTiet}</h3>
+              <button title="Đóng" onClick={() => setDetailView(null)} className="rounded p-1.5 text-gray-500 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="flex-1 space-y-4 overflow-y-auto p-4 text-sm">
+              {/* Detail info grid */}
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+                <div><dt className="text-xs text-gray-500">Mã chi tiết</dt><dd className="font-mono text-xs font-medium text-blue-700">{detailView.maChiTiet}</dd></div>
+                <div><dt className="text-xs text-gray-500">Loại chi tiết</dt><dd className="text-gray-800">{DETAIL_TYPE_LABELS[detailView.loaiChiTiet] ?? detailView.loaiChiTiet}</dd></div>
+                <div><dt className="text-xs text-gray-500">Vị trí</dt><dd className="text-gray-800">{detailView.viTri || '—'}</dd></div>
+                <div><dt className="text-xs text-gray-500">Thứ tự</dt><dd className="text-gray-800">{detailView.thuTu}</dd></div>
+                <div><dt className="text-xs text-gray-500">Người phụ trách</dt><dd className="text-gray-800">{detailView.nguoiPhuTrach || (detailView as any).maNguoiPhuTrach || '—'}</dd></div>
+                <div><dt className="text-xs text-gray-500">Trạng thái / Hoạt động</dt><dd><span className={`rounded px-1.5 py-0.5 text-xs font-medium ${detailView.hoatDong ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{detailView.hoatDong ? 'Đang hoạt động' : 'Đã dừng'}</span> <span className="ml-1 text-xs text-gray-500">{detailView.trangThai ?? '—'}</span></dd></div>
+                {detailView.moTa && <div className="col-span-2"><dt className="text-xs text-gray-500">Mô tả</dt><dd className="text-gray-800">{detailView.moTa}</dd></div>}
+                {(() => {
+                  const map = new Map((treeItems as MachineSystemDetail[] | undefined)?.map((d) => [d.id, d]) ?? []);
+                  const chain: string[] = [];
+                  let cur: MachineSystemDetail | undefined = detailView as MachineSystemDetail;
+                  const seen = new Set<string>();
+                  while (cur?.parentDetailId && !seen.has(cur.parentDetailId)) {
+                    seen.add(cur.parentDetailId);
+                    const p = map.get(cur.parentDetailId);
+                    if (!p) break;
+                    chain.unshift(p.tenChiTiet);
+                    cur = p;
+                  }
+                  return chain.length > 0 ? <div className="col-span-2"><dt className="text-xs text-gray-500">Chuỗi cha</dt><dd className="text-xs text-gray-600">{chain.join(' › ')} › <span className="font-medium text-gray-900">{detailView.tenChiTiet}</span></dd></div> : null;
+                })()}
+              </dl>
+              <div className="flex items-center justify-between border-t pt-3">
+                <h4 className="text-sm font-semibold text-gray-900">Mẫu lỗi ({detailTemplatesQuery.data?.pagination?.total ?? detailTemplatesQuery.data?.data?.length ?? 0})</h4>
+                <button type="button" onClick={() => { const id = detailView.id; setPrefillDetailId(id); setDetailView(null); openTemplateModal('create'); }} className="inline-flex items-center gap-1 rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"><Plus className="h-3.5 w-3.5" /> Mẫu lỗi</button>
+              </div>
+              {detailTemplatesQuery.isLoading ? (
+                <p className="py-4 text-center text-sm text-gray-400">Đang tải mẫu lỗi...</p>
+              ) : (detailTemplatesQuery.data?.data?.length ?? 0) === 0 ? (
+                <p className="py-4 text-center text-sm text-gray-400">Chưa có mẫu lỗi nào cho chi tiết này.</p>
+              ) : (
+                <div className="overflow-x-auto rounded border border-gray-200">
+                  <table className="w-full border-collapse text-sm">
+                    <thead className="bg-gray-50 text-xs text-gray-500"><tr><th className="px-3 py-2 text-left">Mã</th><th className="px-3 py-2 text-left">Tên</th><th className="px-3 py-2 text-left">Mức độ</th><th className="px-3 py-2 text-left">Trạng thái</th><th className="px-3 py-2 text-right">Thao tác</th></tr></thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {(detailTemplatesQuery.data?.data ?? []).map((t: FaultTemplate) => {
+                        const statusLabel = (t as any).hoatDong === false ? 'Dừng' : t.trangThai;
+                        return (
+                          <tr key={t.id} className="hover:bg-gray-50">
+                            <td className="px-3 py-2 font-mono text-xs font-medium text-blue-700">{t.maMauLoi}</td>
+                            <td className="px-3 py-2 font-medium text-gray-900">{t.tenMauLoi}</td>
+                            <td className="px-3 py-2"><SeverityBadge value={t.mucDo} size="sm" /></td>
+                            <td className="px-3 py-2"><StatusBadge label={statusLabel} tone={templateStatusTone(statusLabel)} size="sm" /></td>
+                            <td className="px-3 py-2 text-right">
+                              <span className="inline-flex gap-1">
+                                <button type="button" onClick={() => setDetailTemplate(t)} className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-blue-600"><Eye className="h-4 w-4" /></button>
+                                {canMutate && <button type="button" onClick={() => { setDetailView(null); openTemplateModal('edit', t); }} className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-green-600"><Edit className="h-4 w-4" /></button>}
+                                {canMutate && (t as any).hoatDong !== false && <button type="button" onClick={() => setPendingAction({ kind: 'deactivateTemplate', template: t })} className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-amber-600"><Power className="h-4 w-4" /></button>}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end border-t px-4 py-3"><button type="button" onClick={() => setDetailView(null)} className="rounded-md border border-gray-300 px-4 py-2 text-sm">Đóng</button></div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
