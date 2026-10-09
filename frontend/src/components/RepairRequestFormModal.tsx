@@ -375,6 +375,7 @@ interface RepairRequestFormModalProps {
   onSaved?: (info?: RepairRequestSavedInfo) => void;
   onEdit?: () => void;
   initialData?: InitialRepairData | null;
+  readOnly?: boolean;
 }
 
 type CleanedItem = { id?: string; machineSystemId?: string; machineSystemDetailId?: string; faultRecordId: string | null; sourceInspectionItemId?: string; tenHeThong: string; tinhTrangThietBi: string; loaiLoi: string; noiDungLoi: string };
@@ -395,6 +396,7 @@ const RepairRequestFormModal = ({
   onSaved,
   onEdit,
   initialData,
+  readOnly,
 }: RepairRequestFormModalProps) => {
   const lockedSystemIdStr = lockedMachineSystemId != null ? String(lockedMachineSystemId) : undefined;
 
@@ -644,6 +646,14 @@ const RepairRequestFormModal = ({
       : (lockedRequestType === 'KIEM_TRA' ? 'Thêm yêu cầu kiểm tra' : 'Thêm yêu cầu sửa chữa');
 
   const viewFooter = (() => {
+    if (readOnly) {
+      return (
+        <div className="flex w-full items-center justify-between gap-2 flex-wrap">
+          <button type="button" onClick={() => setViewHistoryOpen(true)} title="Lịch sử" className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px]"><History className="h-4 w-4" /> Lịch sử</button>
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px]">Đóng</button>
+        </div>
+      );
+    }
     if (!isView || !record) return (
       <div className="flex justify-end gap-3">
         <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px]">Đóng</button>
@@ -1884,42 +1894,66 @@ const RepairRequestFormModal = ({
                 })()}
                 <div className="rounded-lg border border-gray-200 bg-white p-2.5 space-y-2 min-w-0">
                   <h4 className="text-sm font-semibold text-gray-800">Chi phí phát sinh</h4>
-                  <div className="overflow-x-auto rounded border border-gray-200">
-                    <table className="w-full text-sm">
-                      <thead><tr className="bg-gray-50 text-left text-xs text-gray-500"><th className="px-2 py-1.5">Tên khoản</th><th className="px-2 py-1.5 w-28">Số tiền</th><th className="px-2 py-1.5">Lý do *</th><th className="px-2 py-1.5 w-24">File</th><th className="px-1 py-1.5 w-12"></th></tr></thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {incidentalCosts.map((row) => (
-                          <tr key={row.id}>
-                            {incEditId === row.id ? (
-                              <>
-                                <td className="px-1.5 py-1"><input value={incEdit.tenKhoan} onChange={e=>setIncEdit(s=>({...s, tenKhoan:e.target.value}))} className="w-full rounded border px-2 py-1 text-sm" /></td>
-                                <td className="px-1.5 py-1"><input inputMode="numeric" value={incEdit.soTien ? formatNum(incEdit.soTien) : ''} onChange={e=>{ const v=e.target.value.replace(/[^\d]/g,''); setIncEdit(s=>({...s, soTien: v})); }} className={vndInputCls} /></td>
-                                <td className="px-1.5 py-1"><input value={incEdit.lyDo} onChange={e=>setIncEdit(s=>({...s, lyDo:e.target.value}))} className="w-full rounded border px-2 py-1 text-sm" /></td>
-                                <td className="px-1.5 py-1"><div className="flex items-center gap-1">{incEdit.filePending ? <span className="truncate text-xs text-gray-700 max-w-[90px]" title={incEdit.filePending.name}>{incEdit.filePending.name}</span> : row.fileMinhChung ? <a href={getFileUrl(String(row.fileMinhChung))} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline truncate max-w-[90px]">Xem</a> : <span className="text-xs text-gray-400">—</span>}<label className="shrink-0 inline-flex items-center justify-center h-6 w-6 rounded border bg-white hover:bg-gray-50 cursor-pointer" title="Chọn file"><input type="file" className="hidden" onChange={e=>{ const f=e.target.files?.[0] ?? null; setIncEdit(s=>({...s, filePending: f})); e.target.value=''; }} /><span className="text-[11px]">📎</span></label>{incEdit.filePending && <button type="button" onClick={()=>setIncEdit(s=>({...s, filePending: null}))} className="text-[11px] text-gray-400">✕</button>}</div></td>
-                                <td className="px-1 py-1 flex gap-1"><button onClick={async()=>{ if(!ycscIdForChain) return; const soTien=Number(incEdit.soTien); if(!Number.isFinite(soTien)||soTien<0){ toast.error('Số tiền phải >=0'); return; } if(!incEdit.lyDo.trim()){ toast.error('Lý do bắt buộc'); return; } try{ const fd=new FormData(); fd.append('tenKhoan', incEdit.tenKhoan.trim()||row.tenKhoan); fd.append('soTien', String(soTien)); fd.append('lyDo', incEdit.lyDo.trim()); if(incEdit.filePending) fd.append('file', incEdit.filePending); await updateIncidental.mutateAsync({ id: ycscIdForChain, costId: row.id, payload: fd as never }); toast.success('Đã cập nhật'); setIncEditId(null); setIncEdit({ tenKhoan:'', soTien:'', lyDo:'', filePending: null });}catch(e){ toast.error(e instanceof Error?e.message:'Lỗi cập nhật'); } }} className="text-blue-600 text-xs">Lưu</button><button onClick={()=>setIncEditId(null)} className="text-gray-500 text-xs">Hủy</button></td>
-                              </>
-                            ) : (
-                              <>
+                  {readOnly ? (
+                    incidentalCosts.length === 0 ? (
+                      <p className="text-sm text-gray-400 py-2">Chưa có chi phí phát sinh</p>
+                    ) : (
+                      <div className="overflow-x-auto rounded border border-gray-200">
+                        <table className="w-full text-sm">
+                          <thead><tr className="bg-gray-50 text-left text-xs text-gray-500"><th className="px-2 py-1.5">Tên khoản</th><th className="px-2 py-1.5 w-28">Số tiền</th><th className="px-2 py-1.5">Lý do</th><th className="px-2 py-1.5 w-24">File</th></tr></thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {incidentalCosts.map((row) => (
+                              <tr key={row.id}>
                                 <td className="px-2 py-1.5">{row.tenKhoan}</td>
-                                <td className="px-2 py-1.5 text-right">{formatVND(Number(row.soTien))}</td>
+                                <td className="px-2 py-1.5 text-right tabular-nums">{formatVND(Number(row.soTien))}</td>
                                 <td className="px-2 py-1.5 text-xs">{row.lyDo}</td>
                                 <td className="px-2 py-1.5 text-xs truncate max-w-[120px]">{row.fileMinhChung ? <a href={String(row.fileMinhChung).startsWith('http') ? String(row.fileMinhChung) : getFileUrl(String(row.fileMinhChung))} target="_blank" rel="noreferrer" className="text-blue-600 underline">Xem</a> : '—'}</td>
-                                <td className="px-1 py-1 text-right flex gap-1 justify-end"><button onClick={()=>{ setIncEditId(row.id); setIncEdit({ tenKhoan: row.tenKhoan, soTien: String(row.soTien), lyDo: row.lyDo, filePending: null }); }} className="text-blue-600 text-xs">Sửa</button><button onClick={async()=>{ if(!confirm('Xóa khoản này?')) return; try{ await deleteIncidental.mutateAsync({ id: ycscIdForChain as string, costId: row.id }); toast.success('Đã xóa'); }catch(e){ toast.error(e instanceof Error?e.message:'Lỗi xóa'); } }} className="text-red-500 text-xs">Xóa</button></td>
-                              </>
-                            )}
-                          </tr>
-                        ))}
-                        <tr className="bg-gray-50/50">
-                          <td className="px-1.5 py-1"><input placeholder="Tên khoản" value={incForm.tenKhoan} onChange={e=>setIncForm(s=>({...s, tenKhoan:e.target.value}))} className="w-full rounded border px-2 py-1.5 text-sm" /></td>
-                          <td className="px-1.5 py-1"><input inputMode="numeric" placeholder="0" value={incForm.soTien ? formatNum(incForm.soTien) : ''} onChange={e=>{ const v=e.target.value.replace(/[^\d]/g,''); setIncForm(s=>({...s, soTien: v})); }} className={vndInputCls + ' py-1.5'} /></td>
-                          <td className="px-1.5 py-1"><input placeholder="Lý do *" value={incForm.lyDo} onChange={e=>setIncForm(s=>({...s, lyDo:e.target.value}))} className="w-full rounded border px-2 py-1.5 text-sm" /></td>
-                          <td className="px-1.5 py-1"><div className="flex items-center gap-1">{incForm.filePending ? <span className="truncate text-xs text-gray-700 max-w-[90px]" title={incForm.filePending.name}>{incForm.filePending.name}</span> : <span className="text-xs text-gray-400">—</span>}<label className="shrink-0 inline-flex items-center justify-center h-6 w-6 rounded border bg-white hover:bg-gray-50 cursor-pointer" title="Chọn file"><input type="file" className="hidden" onChange={e=>{ const f=e.target.files?.[0] ?? null; setIncForm(s=>({...s, filePending: f})); e.target.value=''; }} /><span className="text-[11px]">📎</span></label>{incForm.filePending && <button type="button" onClick={()=>setIncForm(s=>({...s, filePending: null}))} className="text-[11px] text-gray-400">✕</button>}</div></td>
-                          <td className="px-1 py-1"><button onClick={async()=>{ if(!ycscIdForChain) return; const soTien=Number(incForm.soTien); if(!incForm.tenKhoan.trim()){ toast.error('Tên khoản bắt buộc'); return; } if(!Number.isFinite(soTien)||soTien<0){ toast.error('Số tiền phải >=0'); return; } if(!incForm.lyDo.trim()){ toast.error('Lý do bắt buộc'); return; } try{ const fd=new FormData(); fd.append('tenKhoan', incForm.tenKhoan.trim()); fd.append('soTien', String(soTien)); fd.append('lyDo', incForm.lyDo.trim()); if(incForm.filePending) fd.append('file', incForm.filePending); await createIncidental.mutateAsync({ id: ycscIdForChain, payload: fd as never }); toast.success('Đã thêm'); setIncForm({ tenKhoan:'', soTien:'', lyDo:'', filePending: null }); }catch(e){ toast.error(e instanceof Error?e.message:'Lỗi thêm'); } }} className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white">Thêm</button></td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                  <p className="text-[11px] text-gray-400">soTien ≥0, lyDo bắt buộc. Tổng được cộng vào Thực tế.</p>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )
+                  ) : (
+                    <>
+                      <div className="overflow-x-auto rounded border border-gray-200">
+                        <table className="w-full text-sm">
+                          <thead><tr className="bg-gray-50 text-left text-xs text-gray-500"><th className="px-2 py-1.5">Tên khoản</th><th className="px-2 py-1.5 w-28">Số tiền</th><th className="px-2 py-1.5">Lý do *</th><th className="px-2 py-1.5 w-24">File</th><th className="px-1 py-1.5 w-12"></th></tr></thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {incidentalCosts.map((row) => (
+                              <tr key={row.id}>
+                                {incEditId === row.id ? (
+                                  <>
+                                    <td className="px-1.5 py-1"><input value={incEdit.tenKhoan} onChange={e=>setIncEdit(s=>({...s, tenKhoan:e.target.value}))} className="w-full rounded border px-2 py-1 text-sm" /></td>
+                                    <td className="px-1.5 py-1"><input inputMode="numeric" value={incEdit.soTien ? formatNum(incEdit.soTien) : ''} onChange={e=>{ const v=e.target.value.replace(/[^\d]/g,''); setIncEdit(s=>({...s, soTien: v})); }} className={vndInputCls} /></td>
+                                    <td className="px-1.5 py-1"><input value={incEdit.lyDo} onChange={e=>setIncEdit(s=>({...s, lyDo:e.target.value}))} className="w-full rounded border px-2 py-1 text-sm" /></td>
+                                    <td className="px-1.5 py-1"><div className="flex items-center gap-1">{incEdit.filePending ? <span className="truncate text-xs text-gray-700 max-w-[90px]" title={incEdit.filePending.name}>{incEdit.filePending.name}</span> : row.fileMinhChung ? <a href={getFileUrl(String(row.fileMinhChung))} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline truncate max-w-[90px]">Xem</a> : <span className="text-xs text-gray-400">—</span>}<label className="shrink-0 inline-flex items-center justify-center h-6 w-6 rounded border bg-white hover:bg-gray-50 cursor-pointer" title="Chọn file"><input type="file" className="hidden" onChange={e=>{ const f=e.target.files?.[0] ?? null; setIncEdit(s=>({...s, filePending: f})); e.target.value=''; }} /><span className="text-[11px]">📎</span></label>{incEdit.filePending && <button type="button" onClick={()=>setIncEdit(s=>({...s, filePending: null}))} className="text-[11px] text-gray-400">✕</button>}</div></td>
+                                    <td className="px-1 py-1 flex gap-1"><button onClick={async()=>{ if(!ycscIdForChain) return; const soTien=Number(incEdit.soTien); if(!Number.isFinite(soTien)||soTien<0){ toast.error('Số tiền phải >=0'); return; } if(!incEdit.lyDo.trim()){ toast.error('Lý do bắt buộc'); return; } try{ const fd=new FormData(); fd.append('tenKhoan', incEdit.tenKhoan.trim()||row.tenKhoan); fd.append('soTien', String(soTien)); fd.append('lyDo', incEdit.lyDo.trim()); if(incEdit.filePending) fd.append('file', incEdit.filePending); await updateIncidental.mutateAsync({ id: ycscIdForChain, costId: row.id, payload: fd as never }); toast.success('Đã cập nhật'); setIncEditId(null); setIncEdit({ tenKhoan:'', soTien:'', lyDo:'', filePending: null });}catch(e){ toast.error(e instanceof Error?e.message:'Lỗi cập nhật'); } }} className="text-blue-600 text-xs">Lưu</button><button onClick={()=>setIncEditId(null)} className="text-gray-500 text-xs">Hủy</button></td>
+                                  </>
+                                ) : (
+                                  <>
+                                    <td className="px-2 py-1.5">{row.tenKhoan}</td>
+                                    <td className="px-2 py-1.5 text-right">{formatVND(Number(row.soTien))}</td>
+                                    <td className="px-2 py-1.5 text-xs">{row.lyDo}</td>
+                                    <td className="px-2 py-1.5 text-xs truncate max-w-[120px]">{row.fileMinhChung ? <a href={String(row.fileMinhChung).startsWith('http') ? String(row.fileMinhChung) : getFileUrl(String(row.fileMinhChung))} target="_blank" rel="noreferrer" className="text-blue-600 underline">Xem</a> : '—'}</td>
+                                    <td className="px-1 py-1 text-right flex gap-1 justify-end"><button onClick={()=>{ setIncEditId(row.id); setIncEdit({ tenKhoan: row.tenKhoan, soTien: String(row.soTien), lyDo: row.lyDo, filePending: null }); }} className="text-blue-600 text-xs">Sửa</button><button onClick={async()=>{ if(!confirm('Xóa khoản này?')) return; try{ await deleteIncidental.mutateAsync({ id: ycscIdForChain as string, costId: row.id }); toast.success('Đã xóa'); }catch(e){ toast.error(e instanceof Error?e.message:'Lỗi xóa'); } }} className="text-red-500 text-xs">Xóa</button></td>
+                                  </>
+                                )}
+                              </tr>
+                            ))}
+                            <tr className="bg-gray-50/50">
+                              <td className="px-1.5 py-1"><input placeholder="Tên khoản" value={incForm.tenKhoan} onChange={e=>setIncForm(s=>({...s, tenKhoan:e.target.value}))} className="w-full rounded border px-2 py-1.5 text-sm" /></td>
+                              <td className="px-1.5 py-1"><input inputMode="numeric" placeholder="0" value={incForm.soTien ? formatNum(incForm.soTien) : ''} onChange={e=>{ const v=e.target.value.replace(/[^\d]/g,''); setIncForm(s=>({...s, soTien: v})); }} className={vndInputCls + ' py-1.5'} /></td>
+                              <td className="px-1.5 py-1"><input placeholder="Lý do *" value={incForm.lyDo} onChange={e=>setIncForm(s=>({...s, lyDo:e.target.value}))} className="w-full rounded border px-2 py-1.5 text-sm" /></td>
+                              <td className="px-1.5 py-1"><div className="flex items-center gap-1">{incForm.filePending ? <span className="truncate text-xs text-gray-700 max-w-[90px]" title={incForm.filePending.name}>{incForm.filePending.name}</span> : <span className="text-xs text-gray-400">—</span>}<label className="shrink-0 inline-flex items-center justify-center h-6 w-6 rounded border bg-white hover:bg-gray-50 cursor-pointer" title="Chọn file"><input type="file" className="hidden" onChange={e=>{ const f=e.target.files?.[0] ?? null; setIncForm(s=>({...s, filePending: f})); e.target.value=''; }} /><span className="text-[11px]">📎</span></label>{incForm.filePending && <button type="button" onClick={()=>setIncForm(s=>({...s, filePending: null}))} className="text-[11px] text-gray-400">✕</button>}</div></td>
+                              <td className="px-1 py-1"><button onClick={async()=>{ if(!ycscIdForChain) return; const soTien=Number(incForm.soTien); if(!incForm.tenKhoan.trim()){ toast.error('Tên khoản bắt buộc'); return; } if(!Number.isFinite(soTien)||soTien<0){ toast.error('Số tiền phải >=0'); return; } if(!incForm.lyDo.trim()){ toast.error('Lý do bắt buộc'); return; } try{ const fd=new FormData(); fd.append('tenKhoan', incForm.tenKhoan.trim()); fd.append('soTien', String(soTien)); fd.append('lyDo', incForm.lyDo.trim()); if(incForm.filePending) fd.append('file', incForm.filePending); await createIncidental.mutateAsync({ id: ycscIdForChain, payload: fd as never }); toast.success('Đã thêm'); setIncForm({ tenKhoan:'', soTien:'', lyDo:'', filePending: null }); }catch(e){ toast.error(e instanceof Error?e.message:'Lỗi thêm'); } }} className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white">Thêm</button></td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="text-[11px] text-gray-400">soTien ≥0, lyDo bắt buộc. Tổng được cộng vào Thực tế.</p>
+                    </>
+                  )}
                 </div>
               </div>
 

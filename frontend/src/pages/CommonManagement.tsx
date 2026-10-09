@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,9 +13,11 @@ import CreateTaskModal from '../components/CreateTaskModal';
 import CreateWorkPlanModal from '../components/CreateWorkPlanModal';
 import OvertimePlanListModal from '../components/OvertimePlanListModal';
 import PrivateFeedbackModal from '../components/PrivateFeedbackModal';
+import ChungInspectionListModal from '../components/ChungInspectionListModal';
+import ChungRepairListModal from '../components/ChungRepairListModal';
 
 import {
-  FileText, Settings, Users, Briefcase, MessageSquare, AlertTriangle, Plus, ClipboardList,
+  FileText, Settings, Users, Briefcase, MessageSquare, AlertTriangle, Plus, ClipboardList, Search, Wrench,
 } from 'lucide-react';
 import PageHeader from '../design-system/PageHeader';
 import { LoadingState } from '../design-system/States';
@@ -31,6 +34,8 @@ type RequestType =
 
 const CommonManagement = () => {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const syncingRef = useRef(false);
   const [isModalOpen, setIsModalOpen]           = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<RequestType | ''>('');
   const [isProcessListOpen, setIsProcessListOpen]       = useState(false);
@@ -39,11 +44,59 @@ const CommonManagement = () => {
   const [isOvertimePlanListOpen, setIsOvertimePlanListOpen] = useState(false);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen]   = useState(false);
   const [feedbackType, setFeedbackType]                 = useState<FeedbackType>('GOP_Y');
+  const [isChungInspectionOpen, setIsChungInspectionOpen] = useState(false);
+  const [isChungRepairOpen, setIsChungRepairOpen]       = useState(false);
 
   const generalForm = useForm<GeneralRequestFormData>({
     resolver: zodResolver(generalRequestSchema),
     defaultValues: { title: '', description: '', priority: undefined, department: user?.department || '' },
   });
+
+  // --- Deep-link URL sync for Chung modals ---
+  // Route: /common?chung=inspection|repair&inspectionId=123&repairId=456
+  // `chung` owns the list modal, inspectionId/repairId owns the detail view.
+  // Reuses inspectionId/repairId so notification links can target /common directly.
+  // Also accepts `chungId` as generic alias for either detail id.
+  const chungParam = searchParams.get('chung');
+  const urlInspectionId = (() => { const v = searchParams.get('inspectionId') ?? searchParams.get('chungId'); const n = v ? Number(v) : NaN; return Number.isFinite(n) ? n : null; })();
+  const urlRepairId = (() => { const v = searchParams.get('repairId') ?? (chungParam === 'repair' || chungParam === 'repairs' ? searchParams.get('chungId') : null); const n = v ? Number(v) : NaN; return Number.isFinite(n) ? n : null; })();
+
+  const pushChung = useCallback((value: 'inspection' | 'repair') => {
+    const next = new URLSearchParams(searchParams);
+    next.set('chung', value);
+    syncingRef.current = true;
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  const clearChung = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('chung');
+    next.delete('inspectionId');
+    next.delete('repairId');
+    next.delete('chungId');
+    syncingRef.current = true;
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  const setDetailParam = useCallback((key: 'inspectionId' | 'repairId', id: number | null) => {
+    const next = new URLSearchParams(searchParams);
+    if (id != null) next.set(key, String(id));
+    else { next.delete(key); next.delete('chungId'); }
+    syncingRef.current = true;
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  // URL -> state: F5 / share link auto-opens modals
+  useEffect(() => {
+    if (syncingRef.current) { syncingRef.current = false; return; }
+    const chung = searchParams.get('chung');
+    if (chung === 'inspection' || chung === 'inspections') {
+      if (!isChungInspectionOpen) setIsChungInspectionOpen(true);
+    } else if (chung === 'repair' || chung === 'repairs') {
+      if (!isChungRepairOpen) setIsChungRepairOpen(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chungParam]);
 
   if (!user) return <LoadingState message="Đang tải thông tin người dùng..." />;
 
@@ -88,6 +141,13 @@ const CommonManagement = () => {
       ],
     },
     {
+      title: 'Theo dõi',
+      items: [
+        { id: 'theo_doi_kiem_tra', title: 'Theo dõi yêu cầu kiểm tra', icon: <Search className="h-6 w-6" />, color: 'bg-sky-500', description: 'Xem danh sách yêu cầu kiểm tra (chỉ xem)' },
+        { id: 'theo_doi_sua_chua',  title: 'Theo dõi yêu cầu sửa chữa', icon: <Wrench className="h-6 w-6" />, color: 'bg-amber-500', description: 'Xem danh sách yêu cầu sửa chữa (chỉ xem)' },
+      ],
+    },
+    {
       title: 'Góp ý riêng',
       items: [
         { id: 'gop_y',       title: 'Góp ý riêng', icon: <MessageSquare className="h-6 w-6" />, color: 'bg-pink-500', description: 'Gửi góp ý, đề xuất cải tiến', create: true },
@@ -111,6 +171,8 @@ const CommonManagement = () => {
     if (id === 'ke_hoach')           { setIsWorkPlanModalOpen(true); return; }
     if (id === 'gop_y')              { setFeedbackType('GOP_Y'); setIsFeedbackModalOpen(true); return; }
     if (id === 'neu_kho_khan')       { setFeedbackType('NEU_KHO_KHAN'); setIsFeedbackModalOpen(true); return; }
+    if (id === 'theo_doi_kiem_tra')  { setIsChungInspectionOpen(true); pushChung('inspection'); return; }
+    if (id === 'theo_doi_sua_chua')  { setIsChungRepairOpen(true); pushChung('repair'); return; }
     setSelectedCategory(id as RequestType);
     setIsModalOpen(true);
   };
@@ -235,6 +297,18 @@ const CommonManagement = () => {
         onClose={() => setIsFeedbackModalOpen(false)}
         type={feedbackType}
         onSuccess={() => {}}
+      />
+      <ChungInspectionListModal
+        isOpen={isChungInspectionOpen}
+        onClose={() => { setIsChungInspectionOpen(false); clearChung(); }}
+        initialViewId={urlInspectionId}
+        onViewIdChange={(id) => setDetailParam('inspectionId', id)}
+      />
+      <ChungRepairListModal
+        isOpen={isChungRepairOpen}
+        onClose={() => { setIsChungRepairOpen(false); clearChung(); }}
+        initialViewId={urlRepairId}
+        onViewIdChange={(id) => setDetailParam('repairId', id)}
       />
     </div>
   );
