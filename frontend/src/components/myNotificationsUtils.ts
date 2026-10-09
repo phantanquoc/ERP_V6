@@ -287,10 +287,11 @@ export interface NotificationForLink {
  * Resolve a notification to a route string, or null if no deep-link exists.
  * Mirrors the navigation logic in NotificationBell.handleNotificationClick.
  * Returns null for types whose detail is only accessible via a modal (TASK,
- * EVALUATION, PAYROLL, ACCEPTANCE_HANDOVER, LEAVE_REQUEST, OVERTIME_PLAN,
- * WORK_PLAN, PRIVATE_FEEDBACK, DAILY_WORK_REPORT, PASSWORD_RESET) — the
+ * EVALUATION, PAYROLL, ACCEPTANCE_HANDOVER, LEAVE_REQUEST, WORK_PLAN,
+ * PRIVATE_FEEDBACK, DAILY_WORK_REPORT, PASSWORD_RESET) — the
  * MyNotificationsDetailModal handles those by opening the corresponding
- * list-modal in place (see resolveModalKind).
+ * list-modal in place (see resolveModalKind). OVERTIME_PLAN now deep-links
+ * to /common?chung=overtime.
  */
 export function resolveDeepLink(notification: NotificationForLink): string | null {
   const { type, metadata } = notification;
@@ -447,6 +448,17 @@ export function resolveDeepLink(notification: NotificationForLink): string | nul
       return '/general/pricing';
     }
 
+    case 'OVERTIME_PLAN':
+    case 'OVERTIME_PLAN_APPROVAL': {
+      const planId =
+        (notification.entityId as string | undefined) ??
+        (meta.planId as string | undefined) ??
+        (meta.entityId as string | undefined);
+      return planId
+        ? `/common?chung=overtime&overtimePlanId=${encodeURIComponent(planId)}`
+        : '/common?chung=overtime';
+    }
+
     // Modal-only types in NotificationBell — no standalone route exists yet.
     // Returning null hides the standalone navigation; MyNotificationsDetailModal
     // calls resolveModalKind() to decide whether to render an in-place list modal.
@@ -464,8 +476,6 @@ export function resolveDeepLink(notification: NotificationForLink): string | nul
     case 'ACCEPTANCE_HANDOVER':
     case 'LEAVE_REQUEST':
     case 'LEAVE_REQUEST_RESPONSE':
-    case 'OVERTIME_PLAN':
-    case 'OVERTIME_PLAN_APPROVAL':
     case 'PASSWORD_RESET':
       return null;
 

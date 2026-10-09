@@ -20,6 +20,8 @@ interface OvertimePlanListModalProps {
   embedded?: boolean;
   /** ID của plan cần highlight khi mở từ notification */
   highlightPlanId?: string;
+  /** Sync detail view với URL (?overtimePlanId=...) */
+  onPlanIdChange?: (id: string | null) => void;
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -120,7 +122,7 @@ function FileCard({ file }: { file: string }) {
 // ── main component ────────────────────────────────────────────────────────────
 
 const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
-  isOpen, onClose, isAdmin = false, canViewAll = false, canCreate = false, embedded = false, highlightPlanId,
+  isOpen, onClose, isAdmin = false, canViewAll = false, canCreate = false, embedded = false, highlightPlanId, onPlanIdChange,
 }) => {
   const { user } = useAuth();
   // Display-only gate for no-department users (change no-dept-self-service-access):
@@ -166,12 +168,20 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
   const deletePlan = useDeleteOvertimePlan();
   const actionLoading = approvePlan.isPending ? approvePlan.variables?.id ?? null : null;
 
-  // Auto-open detail when highlightPlanId is provided from notification
+  // Notify parent (URL) when detail view changes — keeps ?overtimePlanId in sync
+  const setViewPlanAndNotify = (plan: OvertimePlan | null) => {
+    setViewPlan(plan);
+    onPlanIdChange?.(plan?.id ?? null);
+  };
+
+  // Auto-open detail when highlightPlanId is provided from notification / deep-link
+  // (không gọi onPlanIdChange ở đây — URL đã có sẵn id)
   React.useEffect(() => {
     if (isOpen && highlightPlanId && plans.length > 0) {
       const target = plans.find(p => p.id === highlightPlanId);
       if (target) setViewPlan(target);
     }
+    if (!isOpen) setViewPlan(null);
   }, [isOpen, highlightPlanId, plans]);
 
   const getStatusBadge = (status: OvertimePlanStatus) => {
@@ -265,7 +275,7 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
               return (
                 <tr
                   key={plan.id}
-                  onClick={() => setViewPlan(plan)}
+                  onClick={() => setViewPlanAndNotify(plan)}
                   className={`hover:bg-blue-100 border-l-2 border-l-transparent hover:border-l-blue-500 cursor-pointer transition-all ${highlightPlanId === plan.id ? 'bg-blue-50 ring-2 ring-inset ring-blue-400' : ''}`}
                 >
                   <td className="px-4 py-3 whitespace-nowrap">
@@ -381,18 +391,18 @@ const OvertimePlanListModal: React.FC<OvertimePlanListModalProps> = ({
       {/* Detail Modal — Task 3.7: items sub-table */}
       <ModalForm
         isOpen={!!viewPlan}
-        onClose={() => setViewPlan(null)}
+        onClose={() => setViewPlanAndNotify(null)}
         title="Chi tiết kế hoạch tăng ca"
         maxWidth="4xl"
         footer={
           <div className="flex justify-end gap-3">
-            <button onClick={() => setViewPlan(null)}
+            <button onClick={() => setViewPlanAndNotify(null)}
               className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
               Đóng
             </button>
             {effectiveIsAdmin && viewPlan && isEditableStatus(viewPlan.trangThai) && (
               <button
-                onClick={() => { setViewPlan(null); setEditPlan(viewPlan); setShowCreateModal(true); }}
+                onClick={() => { setViewPlanAndNotify(null); setEditPlan(viewPlan); setShowCreateModal(true); }}
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
               >
                 Chỉnh sửa

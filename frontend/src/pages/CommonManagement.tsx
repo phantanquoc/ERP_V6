@@ -53,15 +53,21 @@ const CommonManagement = () => {
   });
 
   // --- Deep-link URL sync for Chung modals ---
-  // Route: /common?chung=inspection|repair&inspectionId=123&repairId=456
-  // `chung` owns the list modal, inspectionId/repairId owns the detail view.
+  // Route: /common?chung=inspection|repair|overtime&inspectionId=123&repairId=456&overtimePlanId=abc
+  // `chung` owns the list modal, inspectionId/repairId/overtimePlanId owns the detail view.
   // Reuses inspectionId/repairId so notification links can target /common directly.
   // Also accepts `chungId` as generic alias for either detail id.
+  const OVERTIME_CHUNG_VALUES = new Set(['overtime', 'tangca', 'overtimeplan', 'overtime_plan', 'ke_hoach_tang_ca', 'ke-hoach-tang-ca']);
+  const isOvertimeChung = (v: string | null) => !!v && OVERTIME_CHUNG_VALUES.has(v.toLowerCase());
   const chungParam = searchParams.get('chung');
   const urlInspectionId = (() => { const v = searchParams.get('inspectionId') ?? searchParams.get('chungId'); const n = v ? Number(v) : NaN; return Number.isFinite(n) ? n : null; })();
   const urlRepairId = (() => { const v = searchParams.get('repairId') ?? (chungParam === 'repair' || chungParam === 'repairs' ? searchParams.get('chungId') : null); const n = v ? Number(v) : NaN; return Number.isFinite(n) ? n : null; })();
+  const urlOvertimePlanId = (() => {
+    const v = searchParams.get('overtimePlanId') ?? searchParams.get('planId') ?? searchParams.get('overtimeId');
+    return v || null;
+  })();
 
-  const pushChung = useCallback((value: 'inspection' | 'repair') => {
+  const pushChung = useCallback((value: 'inspection' | 'repair' | 'overtime') => {
     const next = new URLSearchParams(searchParams);
     next.set('chung', value);
     syncingRef.current = true;
@@ -74,6 +80,9 @@ const CommonManagement = () => {
     next.delete('inspectionId');
     next.delete('repairId');
     next.delete('chungId');
+    next.delete('overtimePlanId');
+    next.delete('planId');
+    next.delete('overtimeId');
     syncingRef.current = true;
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
@@ -86,17 +95,30 @@ const CommonManagement = () => {
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
 
+  // overtimePlanId là CUID string; xóa cả alias khi đóng detail
+  const setOvertimeDetailParam = useCallback((id: string | null) => {
+    const next = new URLSearchParams(searchParams);
+    if (id != null) next.set('overtimePlanId', id);
+    else { next.delete('overtimePlanId'); next.delete('planId'); next.delete('overtimeId'); }
+    syncingRef.current = true;
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
   // URL -> state: F5 / share link auto-opens modals
   useEffect(() => {
     if (syncingRef.current) { syncingRef.current = false; return; }
     const chung = searchParams.get('chung');
+    // overtime detail alone should also open the list (has a place to show)
+    const hasOvertimeDetail = !!(searchParams.get('overtimePlanId') ?? searchParams.get('planId') ?? searchParams.get('overtimeId'));
     if (chung === 'inspection' || chung === 'inspections') {
       if (!isChungInspectionOpen) setIsChungInspectionOpen(true);
     } else if (chung === 'repair' || chung === 'repairs') {
       if (!isChungRepairOpen) setIsChungRepairOpen(true);
+    } else if (isOvertimeChung(chung) || hasOvertimeDetail) {
+      if (!isOvertimePlanListOpen) setIsOvertimePlanListOpen(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chungParam]);
+  }, [chungParam, urlOvertimePlanId]);
 
   if (!user) return <LoadingState message="Đang tải thông tin người dùng..." />;
 
@@ -167,7 +189,7 @@ const CommonManagement = () => {
     if (id === 'ds_cuoc_hop')        { toast.error('Chức năng đang bảo trì, vui lòng quay lại sau!'); return; }
     if (id === 'de_nghi_dieu_chinh') { toast.error('Chức năng đang bảo trì, vui lòng quay lại sau!'); return; }
     if (id === 'nhiem_vu')           { setIsTaskModalOpen(true); return; }
-    if (id === 'ke_hoach_tang_ca')   { setIsOvertimePlanListOpen(true); return; }
+    if (id === 'ke_hoach_tang_ca')   { setIsOvertimePlanListOpen(true); pushChung('overtime'); return; }
     if (id === 'ke_hoach')           { setIsWorkPlanModalOpen(true); return; }
     if (id === 'gop_y')              { setFeedbackType('GOP_Y'); setIsFeedbackModalOpen(true); return; }
     if (id === 'neu_kho_khan')       { setFeedbackType('NEU_KHO_KHAN'); setIsFeedbackModalOpen(true); return; }
@@ -287,10 +309,12 @@ const CommonManagement = () => {
       <CreateWorkPlanModal isOpen={isWorkPlanModalOpen} onClose={() => setIsWorkPlanModalOpen(false)} onSuccess={() => {}} />
       <OvertimePlanListModal
         isOpen={isOvertimePlanListOpen}
-        onClose={() => setIsOvertimePlanListOpen(false)}
+        onClose={() => { setIsOvertimePlanListOpen(false); clearChung(); }}
         isAdmin={isCachedPermissionsLoaded() ? can('overtime-plans', 'APPROVE', user?.role as string) : user?.role === UserRole.ADMIN}
         canViewAll={isCachedPermissionsLoaded() ? can('overtime-plans', 'READ', user?.role as string) : (user?.role === UserRole.ADMIN || user?.role === UserRole.DEPARTMENT_HEAD || user?.department === 'general' || user?.department === 'quality')}
         canCreate={!noDepartment && isManagerOrAdmin}
+        highlightPlanId={urlOvertimePlanId ?? undefined}
+        onPlanIdChange={setOvertimeDetailParam}
       />
       <PrivateFeedbackModal
         isOpen={isFeedbackModalOpen}
