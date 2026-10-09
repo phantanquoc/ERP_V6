@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CheckCircle, Edit, Eye, Plus, Power, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { CheckCircle, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Edit, Eye, Plus, Power, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 import { can, isCachedPermissionsLoaded, isTechnicalUser, canDeleteTechnical } from '../utils/permissions';
@@ -33,16 +33,18 @@ import {
   useDeactivateFaultTemplate,
   useDeleteFaultTemplate,
   useFaultTemplates,
+  useTemplateCountsBySystem,
   useTemplateSearch,
   useUpdateFaultTemplate,
 } from '../hooks/useFaultTemplates';
-import { useMachineSystemDetails, useMachineSystems } from '../hooks/useMachineSystemDetails';
+import { useDetailTree, useMachineSystemDetails, useMachineSystems } from '../hooks/useMachineSystemDetails';
+import type { MachineSystemDetail } from '../services/machineSystemService';
 import type { FaultRecord, CreateFaultRecordRequest, FaultRecordStatus } from '../services/faultRecordService';
 import type { FaultTemplate, CreateFaultTemplateRequest, RepairStepInput } from '../services/faultTemplateService';
 import type { FaultRecordFilters } from '../services/faultRecordService';
 import type { FaultTemplateFilters } from '../services/faultTemplateService';
 
-type ViewMode = 'records' | 'templates';
+type ViewMode = 'records' | 'templates' | 'systems';
 type ModalMode = 'create' | 'edit' | 'view';
 
 const SEVERITIES = ['Nghiêm trọng', 'Trung bình', 'Nhẹ'];
@@ -67,6 +69,19 @@ const RECORD_STATUS_VALUES: FaultRecordStatus[] = ['DANG_THEO_DOI', 'DA_XU_LY', 
 
 // Template status tone (template statuses are still free-form strings)
 const templateStatusTone = (value: string): 'green' | 'gray' => (value === 'Đang áp dụng' ? 'green' : 'gray');
+type TreeNode = MachineSystemDetail & { depth: number; children: string[] };
+const buildTreeData = (items: MachineSystemDetail[] | undefined, expandedIds: Set<string>): TreeNode[] | null => {
+  if (!items || items.length === 0) return null;
+  const map = new Map<string, TreeNode>();
+  items.forEach((item) => map.set(item.id, { ...item, depth: 0, children: [] }));
+  const roots: string[] = [];
+  items.forEach((item) => { if (item.parentDetailId && map.has(item.parentDetailId)) map.get(item.parentDetailId)!.children.push(item.id); else roots.push(item.id); });
+  const setDepth = (id: string, depth: number) => { const n = map.get(id); if (!n) return; n.depth = depth; n.children.forEach((c) => setDepth(c, depth + 1)); };
+  roots.forEach((id) => setDepth(id, 0));
+  const flatten = (ids: string[]): TreeNode[] => ids.flatMap((id) => { const n = map.get(id); if (!n) return []; return expandedIds.has(id) ? [n, ...flatten(n.children)] : [n]; });
+  return flatten(roots);
+};
+const DETAIL_TYPE_LABELS: Record<string, string> = { THIET_BI: 'Thiết bị', CUM: 'Cụm', LINH_KIEN: 'Linh kiện', DIEM_KIEM_TRA: 'Điểm kiểm tra' };
 
 // Shared table style contract (mirrors design-system DataTable look across Technical tabs)
 const TH = 'px-3 py-2.5 text-left text-xs font-semibold text-gray-500 whitespace-nowrap';
@@ -339,7 +354,13 @@ const FaultRecordList = ({ lockedMachineSystemId, prefilledDetailId: prefilledDe
     return sp.get('q') ?? sp.get('search') ?? '';
   });
 
-  const [view, setView] = useState<ViewMode>('records');
+  const [view, setView] = useState<ViewMode>(() => {
+    const v = new URLSearchParams(window.location.search).get('view');
+    return (v === 'templates' || v === 'systems') ? v as ViewMode : 'records';
+  });
+  const [selectedSystemId, setSelectedSystemId] = useState('');
+  const [sysSearch, setSysSearch] = useState('');
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [recordFilters, setRecordFilters] = useState<FaultRecordFilters>(() => {
     const sp = new URLSearchParams(window.location.search);
     const init = parseFaultRecordFiltersFromUrl(sp, lockedMachineSystemId);
@@ -386,6 +407,19 @@ const FaultRecordList = ({ lockedMachineSystemId, prefilledDetailId: prefilledDe
   // For template grouping we need all details (including inactive) to render zero-template groups
   const templateDetailsQuery = useMachineSystemDetails({ page: 1, limit: 500, machineSystemId: templateFilters.machineSystemId || lockedMachineSystemId });
   const templateDetails = useMemo(() => templateDetailsQuery.data?.data ?? [], [templateDetailsQuery.data?.data]);
+  const detailTreeQ = useDetailTree(view === 'systems' ? (selectedSystemId || undefined) : undefined);
+  const countsQ = useTemplateCountsBySystem(view === 'systems' ? (selectedSystemId || undefined) : undefined);
+  const countsMap = useMemo(() => new Map((countsQ.data?.data ?? []).map((c: any) => [c.detailId, c])), [countsQ.data]);
+  const treeItems = detailTreeQ.data?.data;
+  const filteredItems = useMemo(() => {
+    if (!treeItems) return undefined;
+    if (!sysSearch.trim()) return treeItems;
+    const q = sysSearch.trim().toLowerCase();
+    return treeItems.filter((d: MachineSystemDetail) => d.tenChiTiet.toLowerCase().includes(q) || d.maChiTiet.toLowerCase().includes(q));
+  }, [treeItems, sysSearch]);
+  const treeData = useMemo(() => buildTreeData(filteredItems as any, expandedIds), [filteredItems, expandedIds]);
+  const toggleExpand = (id: string) => setExpandedIds((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const expandAll = () => { if (!filteredItems) return; setExpandedIds(new Set((filteredItems as any).filter((i: any) => i.childDetails?.length).map((i: any) => i.id))); };
 
   const createRecord = useCreateFaultRecord();
   const createRecordFromTemplate = useCreateFaultRecordFromTemplate();
@@ -907,10 +941,11 @@ const FaultRecordList = ({ lockedMachineSystemId, prefilledDetailId: prefilledDe
         </div>
       )}
       <div className="inline-flex w-fit gap-1 rounded-lg bg-gray-100 p-1">
-        <button type="button" aria-pressed={view === 'records'} onClick={() => setView('records')} className={`rounded-md px-3 py-1.5 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${view === 'records' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>Bản ghi lỗi</button>
+        <button type="button" aria-pressed={view === 'records'} onClick={() => { setView('records'); const n=new URLSearchParams(searchParams); n.set('view','records'); setSearchParams(n,{replace:true}); }} className={`rounded-md px-3 py-1.5 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${view === 'records' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>Danh sách bản ghi lỗi</button>
         {canMutate && (
-          <button type="button" aria-pressed={view === 'templates'} onClick={() => setView('templates')} className={`rounded-md px-3 py-1.5 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${view === 'templates' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>Mẫu lỗi</button>
+          <button type="button" aria-pressed={view === 'templates'} onClick={() => { setView('templates'); const n=new URLSearchParams(searchParams); n.set('view','templates'); setSearchParams(n,{replace:true}); }} className={`rounded-md px-3 py-1.5 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${view === 'templates' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>Danh sách mẫu lỗi</button>
         )}
+        <button type="button" aria-pressed={view === 'systems'} onClick={() => { setView('systems'); const n=new URLSearchParams(searchParams); n.set('view','systems'); setSearchParams(n,{replace:true}); }} className={`rounded-md px-3 py-1.5 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${view === 'systems' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>Danh sách hệ thống máy</button>
       </div>
 
       {/* Summary stat cards — only shown in records view (they double as status filters) */}
@@ -1052,7 +1087,53 @@ const FaultRecordList = ({ lockedMachineSystemId, prefilledDetailId: prefilledDe
         </div>
       )}
 
-      {view === 'records' ? (
+      {view === 'systems' ? (
+        <section className="min-w-0 rounded-lg border border-gray-200 bg-white p-3 space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <select value={selectedSystemId} onChange={(e) => { setSelectedSystemId(e.target.value); setExpandedIds(new Set()); setSysSearch(''); }} className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm">
+              <option value="">Chọn hệ thống</option>
+              {systems.map((s) => <option key={s.id} value={s.id}>{s.maHeThong} - {s.tenHeThong}</option>)}
+            </select>
+            <div className="relative flex-1 min-w-[180px] max-w-xs">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input value={sysSearch} onChange={(e) => setSysSearch(e.target.value)} placeholder="Tìm linh kiện / điểm kiểm tra" className="h-9 w-full rounded-md border border-gray-300 pl-8 pr-3 text-sm" disabled={!selectedSystemId} />
+            </div>
+            {selectedSystemId && (
+              <>
+                <button type="button" onClick={expandAll} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"><ChevronsUpDown className="h-3.5 w-3.5" /> Mở</button>
+                <button type="button" onClick={() => setExpandedIds(new Set())} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"><ChevronsDownUp className="h-3.5 w-3.5" /> Gọn</button>
+              </>
+            )}
+          </div>
+          {!selectedSystemId ? (
+            <p className="py-6 text-center text-sm text-gray-400">Chọn hệ thống để xem cây và tạo mẫu</p>
+          ) : detailTreeQ.isLoading ? (
+            <p className="py-6 text-center text-sm text-gray-400">Đang tải...</p>
+          ) : !treeData || treeData.length === 0 ? (
+            <p className="py-6 text-center text-sm text-gray-400">{sysSearch ? 'Không tìm thấy chi tiết phù hợp.' : 'Hệ thống này chưa có cây linh kiện.'}</p>
+          ) : (
+            <div className="overflow-x-auto rounded border border-gray-200">
+              <table className="w-full min-w-[560px] border-collapse text-sm">
+                <thead className="bg-gray-50 text-xs font-medium text-gray-500"><tr><th className="border-b px-3 py-2 text-left">Tên chi tiết</th><th className="border-b px-3 py-2 text-left">Mã</th><th className="border-b px-3 py-2 text-left">Loại</th><th className="border-b px-3 py-2 text-left">Mẫu lỗi</th><th className="border-b px-3 py-2 text-right">Tạo mẫu</th></tr></thead>
+                <tbody className="divide-y divide-gray-100">
+                  {treeData.map((node: TreeNode) => {
+                    const c = countsMap.get(node.id) as any;
+                    return (
+                      <tr key={node.id} className="hover:bg-gray-50">
+                        <td className="px-3 py-2"><div className="flex items-center" style={{ paddingLeft: `${node.depth * 20}px` }}>{node.children.length > 0 ? <button type="button" onClick={() => toggleExpand(node.id)} className="mr-1 rounded p-0.5 text-gray-400 hover:text-gray-700">{expandedIds.has(node.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</button> : <span className="mr-1 inline-block w-5" />}<span className="font-medium text-gray-900">{node.tenChiTiet}</span></div></td>
+                        <td className="px-3 py-2 font-mono text-xs text-blue-700">{node.maChiTiet}</td>
+                        <td className="px-3 py-2 text-xs text-gray-600">{DETAIL_TYPE_LABELS[node.loaiChiTiet] ?? node.loaiChiTiet}</td>
+                        <td className="px-3 py-2 text-xs"><span className="rounded bg-blue-50 px-1.5 py-0.5 font-medium text-blue-700">{c ? `${c.directCount} / ${c.subtreeCount}` : '0 / 0'}</span></td>
+                        <td className="px-3 py-2 text-right"><button type="button" onClick={() => { setPrefillDetailId(node.id); openTemplateModal('create'); }} className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700">+ Mẫu lỗi</button></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      ) : view === 'records' ? (
         <section className="min-w-0 rounded-lg border border-gray-200 bg-white">
           {/* Toolbar: search + filters + count + create on one wrapping row */}
           <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 p-3">
