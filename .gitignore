@@ -77,3 +77,13 @@ DEPLOY_PROD_PLAYBOOK.md
 .codex/config.toml
 opencode.json
 .mcp.json
+
+# Playwright temp configs and test artifacts (local only)
+frontend/pw-tmp*.config.ts
+frontend/test-results/
+test-results/
+playwright-report/
+
+# Accidental root npm install (project deps live in backend/ & frontend/)
+/package.json
+/package-lock.json
