@@ -107,7 +107,7 @@ async def chat_stream(req: ChatRequest):
                 yield cached[0]
             return StreamingResponse(_from_cache(), media_type="text/plain; charset=utf-8")
 
-    chunks, confident = build_retrieval(rewritten, req.message, req.department)
+    chunks, confident = build_retrieval(rewritten, req.message, req.department, req.role)
 
     if not confident or not chunks:
         async def _no_info():

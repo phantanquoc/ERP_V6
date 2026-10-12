@@ -1,5 +1,5 @@
 import prisma from '@config/database';
-import { NotFoundError } from '@utils/errors';
+import { ConflictError, NotFoundError } from '@utils/errors';
 import { getPaginationParams, calculateTotalPages } from '@utils/helpers';
 import { nextEmployeeCode } from '@utils/codeGenerator';
 import type { PaginatedResponse } from '@types';
@@ -419,6 +419,15 @@ export class EmployeeService {
 
     if (!employee) {
       throw new NotFoundError('Employee not found');
+    }
+
+    const [taskCount, workPlanCount, overtimePlanCount] = await Promise.all([
+      prisma.task.count({ where: { nguoiGiaoId: employee.userId } }),
+      prisma.workPlan.count({ where: { nguoiTaoId: employee.userId } }),
+      prisma.overtimePlan.count({ where: { nguoiTaoId: employee.userId } }),
+    ]);
+    if (taskCount + workPlanCount + overtimePlanCount > 0) {
+      throw new ConflictError('Còn công việc/kế hoạch liên quan, không thể xóa nhân viên');
     }
 
     await prisma.employee.delete({ where: { id } });

@@ -2,7 +2,7 @@ import { Prisma, RepairRequestStatus, FaultRecordStatus, RequestType, NghiemThuK
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
 import { AuthorizationError, ConflictError, NotFoundError, ValidationError } from '@utils/errors';
-import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
+import { nextYearlyCodeTx } from '@utils/codeGenerator';
 import { NotificationEvent } from '@types';
 import notificationService from './notificationService';
 import { advanceRepairRequestStatus } from '@utils/statusTransitions';
@@ -65,7 +65,7 @@ interface RepairRequestItemData {
 
 interface CreateRepairRequestData {
   ngayThang: Date;
-  maYeuCau: string;
+  maYeuCau?: string;
   tenHeThong?: string;
   tinhTrangThietBi?: string;
   loaiLoi?: string;
@@ -201,14 +201,12 @@ const PLANNING_FIELDS = [
 ] as const;
 
 class RepairRequestService {
-  async generateRepairRequestCode(): Promise<string> {
+  async generateRepairRequestCode(tx?: Prisma.TransactionClient): Promise<string> {
     const year = new Date().getFullYear();
-    const last = await prisma.repairRequest.findFirst({
-      where: { maYeuCau: yearlyCodeWhere('YC-SC', year) },
-      orderBy: { maYeuCau: 'desc' },
-      select: { maYeuCau: true },
-    });
-    return nextYearlyCode(last?.maYeuCau ?? null, 'YC-SC', year);
+    const client: { findMany: (a: unknown) => Promise<{ maYeuCau: string }[]> } =
+      (tx?.repairRequest as unknown as { findMany: (a: unknown) => Promise<{ maYeuCau: string }[]> }) ??
+      (prisma.repairRequest as unknown as { findMany: (a: unknown) => Promise<{ maYeuCau: string }[]> });
+    return nextYearlyCodeTx(client, 'YC-SC', year);
   }
 
   async getAllRepairRequests(page: number = 1, limit: number = 10, filters?: RepairRequestFilters) {
@@ -536,10 +534,16 @@ class RepairRequestService {
     }
 
     const request = await prisma.$transaction(async (tx) => {
+      const maYeuCau =
+        data.maYeuCau ??
+        (await nextYearlyCodeTx(
+          tx.repairRequest as unknown as { findMany: (a: unknown) => Promise<Array<{ maYeuCau: string }>> },
+          'YC-SC',
+        ));
       const created = await tx.repairRequest.create({
         data: {
           ngayThang: data.ngayThang,
-          maYeuCau: data.maYeuCau,
+          maYeuCau,
           tenHeThong: firstItem ? firstItem.tenHeThong : (data.tenHeThong ?? null),
           tinhTrangThietBi: firstItem ? firstItem.tinhTrangThietBi : (data.tinhTrangThietBi ?? null),
           loaiLoi: firstItem ? firstItem.loaiLoi : (data.loaiLoi ?? null),
@@ -900,7 +904,13 @@ class RepairRequestService {
   }
 
   async reject(id: number, actor: ActorContext, reason?: string) {
-    return this.transition(id, RepairRequestStatus.TU_CHOI, actor, reason ?? 'reject');
+    const result = await this.transition(id, RepairRequestStatus.TU_CHOI, actor, reason ?? 'reject');
+    notificationService.notify(NotificationEvent.REPAIR_REQUEST_REJECTED, {
+      entityId: String(id),
+      targetEmployeeIds: result?.createdById ? [result.createdById] : [],
+      metadata: { maYeuCau: result?.maYeuCau, reason: reason ?? 'reject' },
+    }).catch(() => {});
+    return result;
   }
 
   /**
@@ -910,7 +920,7 @@ class RepairRequestService {
   async cancel(id: number, actor: ActorContext, opts?: { reason?: string }) {
     const reason = opts?.reason ?? (actor.actorRole === 'ADMIN' ? 'admin_override' : 'user_cancel');
     const privileged = await this.isPrivileged(actor);
-    return this.transition(id, RepairRequestStatus.DA_HUY, actor, reason, {
+    const result = await this.transition(id, RepairRequestStatus.DA_HUY, actor, reason, {
       precheck: (row) => {
         if (privileged) return;
         if (!actor.actorId || row.createdById !== actor.actorId) {
@@ -921,6 +931,12 @@ class RepairRequestService {
         }
       },
     });
+    notificationService.notify(NotificationEvent.REPAIR_REQUEST_CANCELLED, {
+      entityId: String(id),
+      targetEmployeeIds: (result as any)?.createdById ? [(result as any).createdById] : [],
+      metadata: { maYeuCau: (result as any)?.maYeuCau, reason },
+    }).catch(() => {});
+    return result as never;
   }
 
   // ── Cost helpers ─────────────────────────────────────────────────────────

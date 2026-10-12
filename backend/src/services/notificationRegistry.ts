@@ -630,7 +630,61 @@ const entries: NotificationEventDef[] = [
     },
   },
 
-  // ── Inspection Request (YCKT) ──
+  // ── Evaluation Appeal ──
+  {
+    event: NotificationEvent.EVALUATION_APPEAL_SUBMITTED,
+    notificationType: NotificationType.EVALUATION,
+    buildMessage: (ctx) => ({
+      title: 'Khiếu nại đánh giá',
+      message: `Nhân viên đã gửi khiếu nại cho kỳ đánh giá ${ctx.metadata?.evaluationId ?? ''}.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return admins;
+    },
+  },
+  {
+    event: NotificationEvent.EVALUATION_APPEAL_REPLIED,
+    notificationType: NotificationType.EVALUATION,
+    buildMessage: (ctx) => ({
+      title: 'Phản hồi khiếu nại',
+      message: `Khiếu nại đánh giá ${ctx.metadata?.evaluationId ?? ''} đã được phản hồi.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const ids = ctx.targetEmployeeIds ?? [];
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...ids, ...admins])];
+    },
+  },
+
+    {
+    event: NotificationEvent.REPAIR_REQUEST_REJECTED,
+    notificationType: NotificationType.REPAIR_REQUEST,
+    buildMessage: (ctx) => ({
+      title: 'Yêu cầu sửa chữa bị từ chối',
+      message: `Yêu cầu sửa chữa ${ctx.metadata?.maYeuCau ?? ''} đã bị từ chối${ctx.metadata?.reason ? ': ' + ctx.metadata.reason : ''}.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const ids = ctx.targetEmployeeIds ?? [];
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...ids, ...admins])];
+    },
+  },
+  {
+    event: NotificationEvent.REPAIR_REQUEST_CANCELLED,
+    notificationType: NotificationType.REPAIR_REQUEST,
+    buildMessage: (ctx) => ({
+      title: 'Yêu cầu sửa chữa đã hủy',
+      message: `Yêu cầu sửa chữa ${ctx.metadata?.maYeuCau ?? ''} đã bị hủy${ctx.metadata?.reason ? ': ' + ctx.metadata.reason : ''}.`,
+    }),
+    resolveRecipients: async (ctx) => {
+      const ids = ctx.targetEmployeeIds ?? [];
+      const admins = await getAdminEmployeeIds(ctx.actorUserId);
+      return [...new Set([...ids, ...admins])];
+    },
+  },
+
+    // ── Inspection Request (YCKT) ──
   {
     event: NotificationEvent.INSPECTION_REQUEST_CREATED,
     notificationType: NotificationType.INSPECTION_REQUEST,

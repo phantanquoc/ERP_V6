@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
 import type { AuthenticatedRequest } from '@types';
 import inspectionRequestService, { type InspectionRequestFilters } from '@services/inspectionRequestService';
-import { getFileUrl } from '@middlewares/upload';
+import { deleteUploadedFile, getFileUrl } from '@middlewares/upload';
 import { InspectionRequestStatus } from '@prisma/client';
 import logger from '@config/logger';
 
@@ -65,8 +65,7 @@ class InspectionRequestController {
         userId: req.user?.id,
         ...(items !== undefined && { items }),
       };
-      // Auto-generate maYeuCau if not provided
-      if (!data.maYeuCau) data.maYeuCau = await inspectionRequestService.generateInspectionRequestCode();
+      // maYeuCau auto-generated inside createInspectionRequest's transaction when not provided
       const row = await inspectionRequestService.createInspectionRequest(data as never);
       res.status(201).json({ success: true, data: row, message: 'Tạo phiếu kiểm tra thành công' });
     } catch (error) { next(error); }
@@ -159,7 +158,10 @@ class InspectionRequestController {
       };
       const row = await inspectionRequestService.submitInspection(id, actor, acceptance);
       res.json({ success: true, data: row, message: 'Đã gửi kết quả kiểm tra' });
-    } catch (error) { next(error); }
+    } catch (error) {
+      if (req.file?.filename) { try { deleteUploadedFile(getFileUrl('acceptance-handovers', req.file.filename)); } catch {} }
+      next(error);
+    }
   }
 
   async confirmAcceptance(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {

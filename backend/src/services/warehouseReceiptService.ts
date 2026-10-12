@@ -1685,23 +1685,11 @@ class WarehouseReceiptService {
         for (const [lotProductId, qty] of reversals) {
           const bal = balances.get(lotProductId);
           const cur = bal?.soLuong ?? 0;
-          // Void phiếu nhập = đảo nhập -> trừ tồn. Không cho âm tồn: clamp về 0 thay vì chặn cứng.
-          // Với phiếu trùng 46/47, tồn đã bị xuất về 0 nên trừ 20 sẽ âm — clamp về 0 là hợp lý (lượng ít, 20 Cái).
+          // Void phiếu nhập = đảo nhập -> trừ tồn. Không cho âm tồn.
           if (cur < qty) {
-            await tx.lotProduct.update({ where: { id: lotProductId }, data: { soLuong: 0 } });
-            try {
-              const { recordAudit } = await import('@utils/auditLog');
-              await recordAudit({
-                entityType: 'LotProduct',
-                entityId: lotProductId,
-                action: 'VOID_CLAMPED_TO_ZERO',
-                actorId: opts.userId ?? 'system',
-                actorRole: opts.userRole ?? 'UNKNOWN',
-                note: `Vô hiệu ${existing.maPhieuNhap}: tồn ${cur} < cần trừ ${qty} — clamp về 0 (không cho âm)`,
-                before: { soLuong: cur, needDecrement: qty },
-                after: { soLuong: 0 },
-              } as any);
-            } catch {}
+            throw new ValidationError(
+              `Không thể vô hiệu phiếu ${existing.maPhieuNhap}: tồn hiện tại ${cur} < cần trừ ${qty} cho kiện ${lotProductId}. Vui lòng điều chỉnh tồn kho thủ công trước.`,
+            );
           } else {
             const res = await tx.lotProduct.updateMany({ where: { id: lotProductId, soLuong: { gte: qty } }, data: { soLuong: { decrement: qty } } });
             if (res.count === 0) {

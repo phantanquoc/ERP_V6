@@ -1,6 +1,6 @@
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
-import { NotFoundError, ValidationError } from '@utils/errors';
+import { ConflictError, NotFoundError, ValidationError } from '@utils/errors';
 import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import ExcelJS from 'exceljs';
 import { NotificationEvent } from '@types';
@@ -1386,9 +1386,20 @@ class SupplyRequestService {
   }
 
   async deleteSupplyRequest(id: string) {
-    await prisma.supplyRequest.delete({
-      where: { id },
-    });
+    const supplyRequest = await prisma.supplyRequest.findUnique({ where: { id } });
+    if (!supplyRequest) throw new NotFoundError('Không tìm thấy phiếu');
+
+    const [prCount, rrCount, wrCount, wiCount] = await Promise.all([
+      prisma.purchaseRequest.count({ where: { supplyRequestId: id } }),
+      prisma.replenishmentRequest.count({ where: { supplyRequestId: id } }),
+      prisma.warehouseReceipt.count({ where: { supplyRequestId: id } }),
+      prisma.warehouseIssue.count({ where: { supplyRequestId: id } }),
+    ]);
+    if (prCount + rrCount + wrCount + wiCount > 0) {
+      throw new ConflictError('Phiếu đã phát sinh nghiệp vụ (mua hàng/bổ sung/nhập kho), vui lòng dùng Hủy thay vì Xóa');
+    }
+
+    await prisma.supplyRequest.delete({ where: { id } });
   }
 
   async cancelSupplyRequest(id: string, opts?: { lyDoHuy?: string; nguoiHuy?: string }): Promise<any> {

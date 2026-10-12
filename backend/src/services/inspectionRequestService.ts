@@ -3,7 +3,7 @@ import ExcelJS from 'exceljs';
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
 import { AuthorizationError, ConflictError, NotFoundError, ValidationError } from '@utils/errors';
-import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
+import { nextYearlyCodeTx } from '@utils/codeGenerator';
 import acceptanceHandoverService from '@services/acceptanceHandoverService';
 import { isTechnicalMember } from '@middlewares/technicalAccess';
 import notificationService from '@services/notificationService';
@@ -24,7 +24,7 @@ interface InspectionRequestItemData {
 
 interface CreateInspectionRequestData {
   ngayThang?: Date;
-  maYeuCau: string;
+  maYeuCau?: string;
   mucDoUuTien: string;
   ghiChu?: string | null;
   phongBanId?: string | null;
@@ -195,14 +195,12 @@ interface InspectionTransitionOptions {
 }
 
 class InspectionRequestService {
-  async generateInspectionRequestCode(): Promise<string> {
+  async generateInspectionRequestCode(tx?: Prisma.TransactionClient): Promise<string> {
     const year = new Date().getFullYear();
-    const last = await prisma.inspectionRequest.findFirst({
-      where: { maYeuCau: yearlyCodeWhere('YC-KT', year) },
-      orderBy: { maYeuCau: 'desc' },
-      select: { maYeuCau: true },
-    });
-    return nextYearlyCode(last?.maYeuCau ?? null, 'YC-KT', year);
+    const client: { findMany: (a: unknown) => Promise<{ maYeuCau: string }[]> } =
+      (tx?.inspectionRequest as unknown as { findMany: (a: unknown) => Promise<{ maYeuCau: string }[]> }) ??
+      (prisma.inspectionRequest as unknown as { findMany: (a: unknown) => Promise<{ maYeuCau: string }[]> });
+    return nextYearlyCodeTx(client, 'YC-KT', year);
   }
 
   private buildListWhere(filters?: InspectionRequestFilters): Prisma.InspectionRequestWhereInput {
@@ -385,14 +383,15 @@ class InspectionRequestService {
     }
     const row = await (prisma.$transaction as unknown as (fn: (tx: typeof prisma) => Promise<unknown>) => Promise<Record<string, unknown>>)(async (tx: typeof prisma) => {
       const t = tx as unknown as {
-        inspectionRequest: { create: (a: unknown) => Promise<{ id: number }> };
+        inspectionRequest: { create: (a: unknown) => Promise<{ id: number }>; findMany: (a: unknown) => Promise<{ maYeuCau: string }[]> };
         inspectionRequestItem: { createMany: (a: unknown) => Promise<unknown> };
         inspectionRequestStatusLog: { create: (a: unknown) => Promise<unknown> };
       };
+      const maYeuCau = data.maYeuCau ?? (await nextYearlyCodeTx(t.inspectionRequest as unknown as never, 'YC-KT'));
       const created = await t.inspectionRequest.create({
         data: {
           ngayThang: data.ngayThang ?? new Date(),
-          maYeuCau: data.maYeuCau,
+          maYeuCau,
           mucDoUuTien: data.mucDoUuTien,
           ghiChu: stripNul(data.ghiChu ?? null),
           phongBanId: resolvedPhongBanId ?? null,
@@ -427,7 +426,7 @@ class InspectionRequestService {
     notificationService.notify(NotificationEvent.INSPECTION_REQUEST_CREATED, {
       entityId: String((row as { id: number }).id),
       actorUserId: data.userId ?? undefined,
-      metadata: { maYeuCau: data.maYeuCau },
+      metadata: { maYeuCau: (row as { maYeuCau: string }).maYeuCau },
     }).catch(() => {});
     return row;
   }

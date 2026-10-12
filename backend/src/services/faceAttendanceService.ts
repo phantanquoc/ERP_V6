@@ -1,6 +1,6 @@
 import prisma from '@config/database';
 import { env } from '@config/env';
-import { NotFoundError, ValidationError } from '@utils/errors';
+import { ConflictError, NotFoundError, ValidationError } from '@utils/errors';
 import { decryptText, encryptText } from '@utils/crypto';
 import logger from '@config/logger';
 import fs from 'fs';
@@ -1155,6 +1155,10 @@ export class FaceAttendanceService {
     const txResult = await prisma.$transaction(async (tx) => {
       // Acquire per-employee advisory lock — serializes concurrent verifications for same employee
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${employee.id}))`;
+      // Re-check cooldown after acquiring lock (fixes race where 2 kiosks pass pre-tx check together)
+      if (await isCoolingDown(employee.id)) {
+        throw new ConflictError('Đang trong thời gian chờ, vui lòng thử lại sau');
+      }
 
       const today = getTodayInAppTz();
       const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);

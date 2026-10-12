@@ -60,6 +60,37 @@ export function staticCodeWhere(prefix: string) {
   return { startsWith: `${prefix}-` };
 }
 
+/** Numeric max over suffixes of codes sharing fullPrefix — fixes string-sort bug past 999. */
+export function maxSuffix(codes: string[], fullPrefix: string): number {
+  let max = 0;
+  for (const c of codes) {
+    if (!c.startsWith(fullPrefix)) continue;
+    const n = Number.parseInt(c.slice(fullPrefix.length), 10);
+    if (Number.isFinite(n) && n > max) max = n;
+  }
+  return max;
+}
+
+/**
+ * DB-backed yearly code generator that avoids string-sort ordering.
+ * Pass the Prisma model delegate (prisma.x or tx.x) as `delegate`.
+ * Example: await nextYearlyCodeTx(tx.inspectionRequest, 'YC-KT', 2026)
+ */
+export async function nextYearlyCodeTx(
+  delegate: { findMany: (args: unknown) => Promise<Array<{ maYeuCau: string }>> },
+  prefix: string,
+  year: number = new Date().getFullYear(),
+  pad: number = 3,
+): Promise<string> {
+  const fullPrefix = `${prefix}-${year}-`;
+  const rows = await delegate.findMany({
+    where: { maYeuCau: yearlyCodeWhere(prefix, year) } as never,
+    select: { maYeuCau: true } as never,
+  });
+  const max = maxSuffix(rows.map((r) => r.maYeuCau), fullPrefix);
+  return `${fullPrefix}${String(max + 1).padStart(pad, '0')}`;
+}
+
 // Legacy aliases — kept so callers migrated in the first pass still compile.
 // TODO: replace call sites with nextYearlyCode / nextStaticCode directly.
 export const nextSequentialCode = nextYearlyCode;

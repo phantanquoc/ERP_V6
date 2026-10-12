@@ -6,6 +6,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import logger, MODEL_NAME, VERIFY_DETECTOR, VERIFY_DETECTOR_FB, ALLOWED_ORIGINS
 from face.routes import router as face_router, set_models_loaded
+from chat.routes import router as chat_router
+from agent.routes import router as agent_router
+from docs.routes import router as docs_router
 
 app = FastAPI(title="AI Service — Face Recognition", version="2.1.0")
 
@@ -18,6 +21,9 @@ app.add_middleware(
 
 # Register routers
 app.include_router(face_router)
+app.include_router(chat_router)
+app.include_router(agent_router)
+app.include_router(docs_router)
 
 
 @app.on_event("startup")

@@ -1,5 +1,5 @@
 import prisma from '@config/database';
-import { NotFoundError } from '@utils/errors';
+import { ConflictError, NotFoundError } from '@utils/errors';
 import { cacheGet, cacheSet, cacheDel, CACHE_KEYS } from '@utils/cache';
 
 export class DepartmentService {
@@ -74,6 +74,15 @@ export class DepartmentService {
 
     if (!department) {
       throw new NotFoundError('Department not found');
+    }
+
+    const [subDeptCount, employeeCount, ruleCount] = await Promise.all([
+      prisma.subDepartment.count({ where: { departmentId: id } }),
+      prisma.employee.count({ where: { subDepartment: { departmentId: id } } }),
+      prisma.rule.count({ where: { departmentId: id } }),
+    ]);
+    if (subDeptCount + employeeCount + ruleCount > 0) {
+      throw new ConflictError('Phòng ban còn dữ liệu liên quan (bộ phận/nhân viên/quy tắc), không thể xóa');
     }
 
     await prisma.department.delete({ where: { id } });

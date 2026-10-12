@@ -185,14 +185,6 @@ def init_rag():
             hash_file = CHROMA_DIR / "docs_hash.txt"
             stored_hash = hash_file.read_text().strip() if hash_file.exists() else ""
 
-            if "erp_docs" in chroma_client.list_collections():
-                chroma_client.delete_collection("erp_docs")
-                logger.info("  Dropped old collection")
-            chroma_collection = chroma_client.create_collection(
-                name="erp_docs",
-                metadata={"hnsw:space": "cosine"}
-            )
-
             doc_files = sorted(DOCS_DIR.glob("*.md"))
             if not doc_files:
                 logger.warning(f"No docs found in {DOCS_DIR}")
@@ -216,6 +208,14 @@ def init_rag():
 
             if stored_hash == current_hash:
                 logger.info("Docs unchanged — reusing existing ChromaDB index")
+                # Ensure chroma_collection points to existing collection
+                try:
+                    chroma_collection = chroma_client.get_collection("erp_docs")
+                except Exception:
+                    chroma_collection = chroma_client.create_collection(
+                        name="erp_docs",
+                        metadata={"hnsw:space": "cosine"}
+                    )
                 rag_ready = True
                 return
 

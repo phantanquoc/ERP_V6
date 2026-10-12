@@ -1222,10 +1222,10 @@ export class EmployeeEvaluationService {
       }
 
       if (notifyEmpIds.length > 0) {
-        await notificationService.notify(NotificationEvent.EVALUATION_COMPLETED, {
+        await notificationService.notify(NotificationEvent.EVALUATION_APPEAL_SUBMITTED, {
           targetEmployeeIds: notifyEmpIds,
           entityId: evaluationId,
-          metadata: { evaluationId, eventType: 'APPEAL_SUBMITTED' },
+          metadata: { evaluationId },
         });
       }
     } catch (err) {
@@ -1289,10 +1289,10 @@ export class EmployeeEvaluationService {
     // Notify subject employee (never bubble)
     try {
       if (evaluation.employee.id) {
-        await notificationService.notify(NotificationEvent.EVALUATION_COMPLETED, {
+        await notificationService.notify(NotificationEvent.EVALUATION_APPEAL_REPLIED, {
           targetEmployeeIds: [evaluation.employee.id],
           entityId: evaluationId,
-          metadata: { evaluationId, eventType: 'APPEAL_REPLIED' },
+          metadata: { evaluationId },
         });
       }
     } catch (err) {

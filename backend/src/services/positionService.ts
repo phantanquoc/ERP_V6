@@ -1,5 +1,5 @@
 import prisma from '@config/database';
-import { NotFoundError, ValidationError } from '@utils/errors';
+import { ConflictError, NotFoundError, ValidationError } from '@utils/errors';
 import ExcelJS from 'exceljs';
 
 const VALID_POSITION_CATEGORIES = ['PRODUCTION', 'OFFICE', 'MANAGEMENT'] as const;
@@ -95,12 +95,17 @@ export class PositionService {
   }
 
   async deletePosition(id: string): Promise<void> {
-    const position = await prisma.position.findUnique({ where: { id } });
-
-    if (!position) {
-      throw new NotFoundError('Position not found');
+    const position = await prisma.position.findUnique({
+      where: { id },
+      include: { _count: { select: { employees: true, levels: true, responsibilities: true } } },
+    });
+    if (!position) throw new NotFoundError('Position not found');
+    const c = (position as unknown as { _count: { employees: number; levels: number; responsibilities: number } })._count;
+    if (c.employees + c.levels + c.responsibilities > 0) {
+      throw new ConflictError(
+        `Vị trí còn dữ liệu liên quan (nhân viên:${c.employees} cấp bậc:${c.levels} trách nhiệm:${c.responsibilities}), không thể xóa`,
+      );
     }
-
     await prisma.position.delete({ where: { id } });
   }
 
