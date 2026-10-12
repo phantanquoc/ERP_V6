@@ -1,3 +1,8 @@
+jest.mock('@config/database', () => ({
+  __esModule: true,
+  default: { user: { findUnique: jest.fn().mockResolvedValue({ isActive: true }) } },
+}));
+
 import jwt from 'jsonwebtoken';
 import {
   hashPassword,
@@ -109,22 +114,22 @@ describe('authenticate middleware', () => {
     mockNext.mockClear();
   });
 
-  it('should call next() with valid token', () => {
+  it('should call next() with valid token', async () => {
     const token = generateAccessToken(testPayload);
     const req = mockRequest({ headers: { authorization: `Bearer ${token}` } });
     const res = mockResponse();
 
-    authenticate(req, res, mockNext);
+    await authenticate(req, res, mockNext);
 
     expect(mockNext).toHaveBeenCalled();
   });
 
-  it('should set req.user with decoded payload', () => {
+  it('should set req.user with decoded payload', async () => {
     const token = generateAccessToken(testPayload);
     const req = mockRequest({ headers: { authorization: `Bearer ${token}` } });
     const res = mockResponse();
 
-    authenticate(req, res, mockNext);
+    await authenticate(req, res, mockNext);
 
     expect(req.user).toBeDefined();
     expect(req.user.id).toBe(testPayload.id);
@@ -132,11 +137,11 @@ describe('authenticate middleware', () => {
     expect(req.user.role).toBe(testPayload.role);
   });
 
-  it('should return 401 when no authorization header', () => {
+  it('should return 401 when no authorization header', async () => {
     const req = mockRequest();
     const res = mockResponse();
 
-    authenticate(req, res, mockNext);
+    await authenticate(req, res, mockNext);
 
     expect(res.status).toHaveBeenCalledWith(401);
     expect(res.json).toHaveBeenCalledWith({
@@ -146,11 +151,11 @@ describe('authenticate middleware', () => {
     expect(mockNext).not.toHaveBeenCalled();
   });
 
-  it('should return 401 when token is invalid', () => {
+  it('should return 401 when token is invalid', async () => {
     const req = mockRequest({ headers: { authorization: 'Bearer invalidtoken' } });
     const res = mockResponse();
 
-    authenticate(req, res, mockNext);
+    await authenticate(req, res, mockNext);
 
     expect(res.status).toHaveBeenCalledWith(401);
     expect(res.json).toHaveBeenCalledWith({
@@ -159,12 +164,12 @@ describe('authenticate middleware', () => {
     });
   });
 
-  it('should return 401 when token format is wrong (no Bearer prefix)', () => {
+  it('should return 401 when token format is wrong (no Bearer prefix)', async () => {
     const token = generateAccessToken(testPayload);
     const req = mockRequest({ headers: { authorization: token } });
     const res = mockResponse();
 
-    authenticate(req, res, mockNext);
+    await authenticate(req, res, mockNext);
 
     expect(res.status).toHaveBeenCalledWith(401);
     expect(mockNext).not.toHaveBeenCalled();

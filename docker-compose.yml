@@ -108,14 +108,14 @@ services:
       NODE_ENV: production
       PORT: 5000
       DATABASE_URL: postgresql://${POSTGRES_USER:-erp_user}:${POSTGRES_PASSWORD:-erp_password_change_me}@postgres:5432/${POSTGRES_DB:-erp_database}?schema=public&connection_limit=30
-      JWT_SECRET: ${JWT_SECRET:-your_super_secret_jwt_key_change_me}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       JWT_EXPIRE: ${JWT_EXPIRE:-7d}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your_super_secret_refresh_key_change_me}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET is required}
       JWT_REFRESH_EXPIRE: ${JWT_REFRESH_EXPIRE:-30d}
       CORS_ORIGIN: ${CORS_ORIGIN:-https://anbinhfoods.net,https://www.anbinhfoods.net}
       API_URL: ${API_URL:-https://anbinhfoods.net/api}
       LOG_LEVEL: warn
-      FACE_DATA_SECRET: ${FACE_DATA_SECRET:-change_me_face_data_secret}
+      FACE_DATA_SECRET: ${FACE_DATA_SECRET:?FACE_DATA_SECRET is required}
       AI_SERVICE_URL: http://erp_ai:8001
       # Password comes from .env; the URL form keeps ioredis config unchanged.
       REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import authController from '@controllers/authController';
 import { validate } from '@middlewares/validation';
-import { authenticate } from '@middlewares/auth';
+import { authenticate, authorize } from '@middlewares/auth';
 import { authLimiter } from '@middlewares/rateLimiter';
 
 const router = Router();
@@ -25,7 +25,7 @@ const router = Router();
  *                 format: email
  *               password:
  *                 type: string
- *                 minLength: 6
+ *                 minLength: 8
  *               firstName:
  *                 type: string
  *               lastName:
@@ -38,10 +38,12 @@ const router = Router();
  */
 router.post(
   '/register',
+  authenticate,
+  authorize('ADMIN'),
   authLimiter,
   validate([
     { field: 'email', required: true, type: 'email' },
-    { field: 'password', required: true, type: 'string', minLength: 6 },
+    { field: 'password', required: true, type: 'string', minLength: 8 },
     { field: 'firstName', required: true, type: 'string' },
     { field: 'lastName', required: true, type: 'string' },
   ]),
@@ -128,11 +130,8 @@ router.get('/me', authenticate, (req, res, next) => authController.getMe(req, re
 router.post(
   '/forgot-password',
   authLimiter,
-  validate([
-    { field: 'identifier', required: true, type: 'string' },
-  ]),
+  validate([{ field: 'identifier', required: true, type: 'string' }]),
   (req, res, next) => authController.forgotPassword(req, res, next)
 );
 
 export default router;
-

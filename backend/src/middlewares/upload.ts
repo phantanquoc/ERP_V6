@@ -5,7 +5,53 @@ import logger from '@config/logger';
 
 // Allowed file types for upload
 const ALLOWED_TYPES = /jpeg|jpg|png|gif|pdf|doc|docx|xls|xlsx|txt|zip|rar/;
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+const BLOCKED_EXTENSIONS = new Set([
+  '.php',
+  '.phtml',
+  '.php5',
+  '.html',
+  '.htm',
+  '.js',
+  '.svg',
+  '.exe',
+  '.sh',
+  '.bat',
+]);
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB hard cap
+const MAX_FILE_SIZE = Math.min(
+  (process.env.MAX_FILE_SIZE ? parseInt(process.env.MAX_FILE_SIZE, 10) : NaN) ||
+    MAX_FILE_SIZE_BYTES,
+  MAX_FILE_SIZE_BYTES
+);
+
+const UPLOADS_ROOT = path.resolve(process.cwd(), 'uploads');
+
+function assertInsideUploads(resolvedPath: string): void {
+  if (resolvedPath !== UPLOADS_ROOT && !resolvedPath.startsWith(UPLOADS_ROOT + path.sep)) {
+    throw new Error('Path traversal detected: path escapes uploads directory');
+  }
+}
+
+function isAllowedFile(file: Express.Multer.File): boolean {
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (BLOCKED_EXTENSIONS.has(ext)) return false;
+  const extOk = ALLOWED_TYPES.test(ext);
+  const mimeOk = ALLOWED_TYPES.test(file.mimetype);
+  return extOk && mimeOk;
+}
+
+function buildFileFilter(
+  _req: Express.Request,
+  file: Express.Multer.File,
+  cb: multer.FileFilterCallback
+): void {
+  if (isAllowedFile(file)) return cb(null, true);
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (BLOCKED_EXTENSIONS.has(ext)) {
+    return cb(new Error(`Loại file bị chặn vì lý do bảo mật: ${ext}`));
+  }
+  cb(new Error('Chỉ chấp nhận file: JPG, PNG, GIF, PDF, DOC, DOCX, XLS, XLSX, TXT, ZIP, RAR'));
+}
 
 /**
  * Create multer upload middleware for a specific folder
@@ -15,7 +61,7 @@ const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 export const createUploadMiddleware = (folderName: string, maxFiles: number = 5) => {
   const uploadDir = path.join(__dirname, '../../uploads', folderName);
 
-  // Create upload directory if it doesn't exist
+  // ponytail: sync mkdir kept — one-time dir ensure; async would complicate multer's sync destination callback for no gain
   if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
   }
@@ -27,37 +73,15 @@ export const createUploadMiddleware = (folderName: string, maxFiles: number = 5)
     filename: (_req, file, cb) => {
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
       const ext = path.extname(file.originalname);
-      const nameWithoutExt = path.basename(file.originalname, ext)
-        .replace(/[^a-zA-Z0-9_-]/g, '_'); // Sanitize filename
+      const nameWithoutExt = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '_'); // Sanitize filename
       cb(null, `${nameWithoutExt}-${uniqueSuffix}${ext}`);
     },
   });
 
-  const fileFilter = (
-    _req: Express.Request,
-    file: Express.Multer.File,
-    cb: multer.FileFilterCallback
-  ) => {
-    const extname = ALLOWED_TYPES.test(
-      path.extname(file.originalname).toLowerCase()
-    );
-    const mimetype = ALLOWED_TYPES.test(file.mimetype);
-
-    if (mimetype || extname) {
-      return cb(null, true);
-    } else {
-      cb(
-        new Error(
-          'Chỉ chấp nhận file: JPG, PNG, GIF, PDF, DOC, DOCX, XLS, XLSX, TXT, ZIP, RAR'
-        )
-      );
-    }
-  };
-
   return multer({
     storage,
     limits: { fileSize: MAX_FILE_SIZE },
-    fileFilter,
+    fileFilter: buildFileFilter,
   }).array('files', maxFiles);
 };
 
@@ -69,6 +93,7 @@ export const createSingleUploadMiddleware = (folderName: string) => {
   const uploadDir = path.join(__dirname, '../../uploads', folderName);
 
   // Create upload directory if it doesn't exist
+  // ponytail: sync mkdir kept — runs once at startup inside request handler first-call; async adds complexity for no measurable gain
   if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
   }
@@ -80,37 +105,15 @@ export const createSingleUploadMiddleware = (folderName: string) => {
     filename: (_req, file, cb) => {
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
       const ext = path.extname(file.originalname);
-      const nameWithoutExt = path.basename(file.originalname, ext)
-        .replace(/[^a-zA-Z0-9_-]/g, '_'); // Sanitize filename
+      const nameWithoutExt = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '_'); // Sanitize filename
       cb(null, `${nameWithoutExt}-${uniqueSuffix}${ext}`);
     },
   });
 
-  const fileFilter = (
-    _req: Express.Request,
-    file: Express.Multer.File,
-    cb: multer.FileFilterCallback
-  ) => {
-    const extname = ALLOWED_TYPES.test(
-      path.extname(file.originalname).toLowerCase()
-    );
-    const mimetype = ALLOWED_TYPES.test(file.mimetype);
-
-    if (mimetype || extname) {
-      return cb(null, true);
-    } else {
-      cb(
-        new Error(
-          'Chỉ chấp nhận file: JPG, PNG, GIF, PDF, DOC, DOCX, XLS, XLSX, TXT, ZIP, RAR'
-        )
-      );
-    }
-  };
-
   return multer({
     storage,
     limits: { fileSize: MAX_FILE_SIZE },
-    fileFilter,
+    fileFilter: buildFileFilter,
   }).single('file');
 };
 
@@ -136,11 +139,12 @@ export const getFileUrl = (folderName: string, filename: string): string => {
  * @param urls - Current `/uploads/...` URLs to rename
  * @param startIndex - First sequence number to try (default 1)
  */
+// ponytail: sync exists/rename kept — callers are sync service methods; async would require awaiting in 4 services for no measurable gain
 export const renameAttachmentsByCode = (
   folderName: string,
   code?: string | null,
   urls: string[] = [],
-  startIndex: number = 1,
+  startIndex: number = 1
 ): string[] => {
   if (!code || urls.length === 0) return urls;
   const uploadDir = path.join(__dirname, '../../uploads', folderName);
@@ -178,18 +182,25 @@ export const renameAttachmentsByCode = (
  */
 export const resolveUploadPath = (urlPath: string): string => {
   if (!urlPath.startsWith('/uploads/')) return urlPath;
-  // `path.join('/a/b', '/uploads/x')` would discard the prefix on POSIX, so strip leading slash first.
   const relative = urlPath.replace(/^\/+/, '');
-  return path.resolve(process.cwd(), relative);
+  const resolved = path.resolve(process.cwd(), relative);
+  assertInsideUploads(resolved);
+  return resolved;
 };
 
 /**
  * Delete uploaded file
  * @param filePath - Full path or URL of the file
  */
+// ponytail: sync unlink kept — delete is off hot path and callers expect void return; async would require awaiting in service callers
 export const deleteUploadedFile = (filePath: string): void => {
   try {
     const fullPath = filePath.startsWith('/uploads/') ? resolveUploadPath(filePath) : filePath;
+    // For raw paths (not /uploads/ URLs), still enforce uploads boundary before deleting
+    if (!filePath.startsWith('/uploads/')) {
+      const resolved = path.resolve(fullPath);
+      assertInsideUploads(resolved);
+    }
     if (fs.existsSync(fullPath)) {
       fs.unlinkSync(fullPath);
     }
@@ -206,33 +217,49 @@ export const deleteUploadedFile = (filePath: string): void => {
  */
 export const createCompatUploadMiddleware = (folderName: string, maxFiles: number = 4) => {
   const uploadDir = path.join(__dirname, '../../uploads', folderName);
+  // ponytail: sync mkdir kept — same rationale as above
   if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
   const storage = multer.diskStorage({
-    destination: (_req: Express.Request, _file: Express.Multer.File, cb: (e: Error | null, dest: string) => void) => cb(null, uploadDir),
-    filename: (_req: Express.Request, file: Express.Multer.File, cb: (e: Error | null, name: string) => void) => {
+    destination: (
+      _req: Express.Request,
+      _file: Express.Multer.File,
+      cb: (e: Error | null, dest: string) => void
+    ) => cb(null, uploadDir),
+    filename: (
+      _req: Express.Request,
+      file: Express.Multer.File,
+      cb: (e: Error | null, name: string) => void
+    ) => {
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
       const ext = path.extname(file.originalname);
       const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
       cb(null, `${base}-${uniqueSuffix}${ext}`);
     },
   });
-  const fileFilter = (_req: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-    const extOk = ALLOWED_TYPES.test(path.extname(file.originalname).toLowerCase());
-    const mimeOk = ALLOWED_TYPES.test(file.mimetype);
-    if (extOk || mimeOk) return cb(null, true);
-    cb(new Error('Chỉ chấp nhận file: JPG, PNG, GIF, PDF, DOC, DOCX, XLS, XLSX, TXT, ZIP, RAR'));
+  const fileFilter = (
+    _req: Express.Request,
+    file: Express.Multer.File,
+    cb: multer.FileFilterCallback
+  ) => {
+    return buildFileFilter(_req, file, cb);
   };
-  const fieldsHandler = multer({ storage, limits: { fileSize: MAX_FILE_SIZE }, fileFilter }).fields([
-    { name: 'files', maxCount: maxFiles },
-    { name: 'file', maxCount: 1 },
-  ]);
+  const fieldsHandler = multer({ storage, limits: { fileSize: MAX_FILE_SIZE }, fileFilter }).fields(
+    [
+      { name: 'files', maxCount: maxFiles },
+      { name: 'file', maxCount: 1 },
+    ]
+  );
   return (req: any, res: any, next: any) => {
     fieldsHandler(req as unknown as any, res, (err: unknown) => {
       if (err) return next(err);
-      const byField = (req as unknown as { files?: Record<string, Express.Multer.File[]> }).files as unknown;
+      const byField = (req as unknown as { files?: Record<string, Express.Multer.File[]> })
+        .files as unknown;
       if (byField && typeof byField === 'object' && !Array.isArray(byField)) {
         const map = byField as Record<string, Express.Multer.File[]>;
-        const flat: Express.Multer.File[] = [...(map['files'] ?? []), ...(map['file'] ?? [])].slice(0, maxFiles);
+        const flat: Express.Multer.File[] = [...(map['files'] ?? []), ...(map['file'] ?? [])].slice(
+          0,
+          maxFiles
+        );
         (req as unknown as { files: Express.Multer.File[] }).files = flat;
         if (flat.length) (req as unknown as { file: Express.Multer.File }).file = flat[0];
       }
@@ -248,4 +275,3 @@ export default {
   renameAttachmentsByCode,
   deleteUploadedFile,
 };
-

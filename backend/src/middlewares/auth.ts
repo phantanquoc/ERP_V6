@@ -4,7 +4,11 @@ import { AuthenticationError } from '@utils/errors';
 import type { AuthenticatedRequest } from '@types';
 import prisma from '@config/database';
 
-export const authenticate = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+export const authenticate = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
 
@@ -14,6 +18,16 @@ export const authenticate = (req: AuthenticatedRequest, res: Response, next: Nex
 
     const decoded = verifyAccessToken(token);
     req.user = decoded;
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: { isActive: true },
+    });
+    if (!user || !user.isActive) {
+      res.status(401).json({ success: false, message: 'Tài khoản đã bị vô hiệu hóa' });
+      return;
+    }
+
     next();
   } catch (error) {
     if (error instanceof AuthenticationError) {
@@ -75,7 +89,7 @@ export const authorize = (...allowedRoles: string[]) => {
 
     // Check secondary department roles — a user may have a higher role in a secondary dept
     const hasSecondaryRole =
-      req.user.secondaryDepartments?.some(s => roles.includes(s.role)) ?? false;
+      req.user.secondaryDepartments?.some((s) => roles.includes(s.role)) ?? false;
 
     if (hasSecondaryRole) {
       next();
@@ -85,4 +99,3 @@ export const authorize = (...allowedRoles: string[]) => {
     res.status(403).json({ success: false, message: 'Truy cập bị từ chối' });
   };
 };
-

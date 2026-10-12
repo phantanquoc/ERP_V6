@@ -1,3 +1,4 @@
+import { createHash, randomInt } from 'crypto';
 import prisma from '@config/database';
 import logger from '@config/logger';
 import {
@@ -7,51 +8,63 @@ import {
   generateRefreshToken,
   verifyRefreshToken,
 } from '@utils/helpers';
-import {
-  AuthenticationError,
-  ConflictError,
-  ValidationError,
-} from '@utils/errors';
+import { AuthenticationError, ConflictError, ValidationError } from '@utils/errors';
 import type { JwtPayload, AuthResponse } from '@types';
 import { NotificationEvent } from '@types';
 import loginHistoryService from './loginHistoryService';
 import notificationService from './notificationService';
 
 // ─── Helper: build secondaryDepartments array from DB ────────────────────────
-async function buildSecondaryDepartments(userId: string): Promise<Array<{
-  departmentId: string;
-  subDepartmentId: string | null;
-  role: string;
-  departmentName: string | null;
-  departmentCode: string | null;
-  subDepartmentName: string | null;
-  subDepartmentCode: string | null;
-}>> {
+async function buildSecondaryDepartments(userId: string): Promise<
+  Array<{
+    departmentId: string;
+    subDepartmentId: string | null;
+    role: string;
+    departmentName: string | null;
+    departmentCode: string | null;
+    subDepartmentName: string | null;
+    subDepartmentCode: string | null;
+  }>
+> {
   const rows = await prisma.userSecondaryDepartment.findMany({
     where: { userId },
     orderBy: { createdAt: 'asc' },
   });
 
-  return Promise.all(rows.map(async (row) => {
-    const [dept, subDept] = await Promise.all([
-      prisma.department.findUnique({ where: { id: row.departmentId }, select: { name: true, code: true } }),
-      row.subDepartmentId
-        ? prisma.subDepartment.findUnique({ where: { id: row.subDepartmentId }, select: { name: true, code: true } })
-        : null,
-    ]);
-    return {
-      departmentId: row.departmentId,
-      subDepartmentId: row.subDepartmentId ?? null,
-      role: row.role as string,
-      departmentName: dept?.name ?? null,
-      departmentCode: dept?.code ?? null,
-      subDepartmentName: subDept?.name ?? null,
-      subDepartmentCode: subDept?.code ?? null,
-    };
-  }));
+  return Promise.all(
+    rows.map(async (row) => {
+      const [dept, subDept] = await Promise.all([
+        prisma.department.findUnique({
+          where: { id: row.departmentId },
+          select: { name: true, code: true },
+        }),
+        row.subDepartmentId
+          ? prisma.subDepartment.findUnique({
+              where: { id: row.subDepartmentId },
+              select: { name: true, code: true },
+            })
+          : null,
+      ]);
+      return {
+        departmentId: row.departmentId,
+        subDepartmentId: row.subDepartmentId ?? null,
+        role: row.role as string,
+        departmentName: dept?.name ?? null,
+        departmentCode: dept?.code ?? null,
+        subDepartmentName: subDept?.name ?? null,
+        subDepartmentCode: subDept?.code ?? null,
+      };
+    })
+  );
 }
 
 // IP rate limiter: track failed login attempts per IP
+// ponytail: in-memory Map — single-instance only. Multi-instance deploy needs
+// Redis with TTL (e.g. SET ip:lock:<ip> EX 180 NX + INCR). Migrate when scaling
+// beyond one backend replica; express-rate-limit already uses RedisStore for
+// global/auth/kiosk limiters — reuse that pattern here.
+// TODO: replace Map with Redis (redis.incr + expire) so locks survive restarts
+// and are shared across instances. See backend/src/middlewares/rateLimiter.ts.
 interface IpRateLimitEntry {
   count: number;
   lockedUntil: Date | null;
@@ -82,8 +95,17 @@ export class SessionReplacedError extends AuthenticationError {
   }
 }
 
+export function hashRefreshToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
+
 export class AuthService {
-  async register(email: string, password: string, firstName: string, lastName: string): Promise<AuthResponse> {
+  async register(
+    email: string,
+    password: string,
+    firstName: string,
+    lastName: string
+  ): Promise<AuthResponse> {
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
       where: { email },
@@ -94,8 +116,8 @@ export class AuthService {
     }
 
     // Validate password
-    if (password.length < 6) {
-      throw new ValidationError('Password must be at least 6 characters');
+    if (password.length < 8) {
+      throw new ValidationError('Password must be at least 8 characters');
     }
 
     // Hash password
@@ -125,10 +147,10 @@ export class AuthService {
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken(payload);
 
-    // Save refresh token
+    // Save refresh token (hashed)
     await prisma.refreshToken.create({
       data: {
-        token: refreshToken,
+        token: hashRefreshToken(refreshToken),
         userId: user.id,
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
       },
@@ -234,16 +256,18 @@ export class AuthService {
       // Log failed login attempt
       if (userId && metadata) {
         const { device, browser } = this.parseUserAgent(metadata.userAgent || '');
-        await loginHistoryService.createLoginHistory({
-          userId,
-          ipAddress: metadata.ipAddress,
-          userAgent: metadata.userAgent,
-          device,
-          browser,
-          status: 'failed',
-        }).catch(err => {
-          logger.error('Failed to log failed login history:', err);
-        });
+        await loginHistoryService
+          .createLoginHistory({
+            userId,
+            ipAddress: metadata.ipAddress,
+            userAgent: metadata.userAgent,
+            device,
+            browser,
+            status: 'failed',
+          })
+          .catch((err) => {
+            logger.error('Failed to log failed login history:', err);
+          });
       }
       throw error;
     }
@@ -321,7 +345,7 @@ export class AuthService {
       name: `${user.firstName} ${user.lastName}`.trim(),
       departmentId: user.departmentId,
       subDepartmentId: user.subDepartmentId,
-      secondaryDepartments: secondaryDepartments.map(s => ({
+      secondaryDepartments: secondaryDepartments.map((s) => ({
         departmentId: s.departmentId,
         subDepartmentId: s.subDepartmentId,
         role: s.role,
@@ -336,10 +360,10 @@ export class AuthService {
       where: { userId: user.id },
     });
 
-    // Save refresh token
+    // Save refresh token (hashed)
     await prisma.refreshToken.create({
       data: {
-        token: refreshToken,
+        token: hashRefreshToken(refreshToken),
         userId: user.id,
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       },
@@ -348,16 +372,18 @@ export class AuthService {
     // Log successful login history
     if (metadata) {
       const { device, browser } = this.parseUserAgent(metadata.userAgent || '');
-      await loginHistoryService.createLoginHistory({
-        userId: user.id,
-        ipAddress: metadata.ipAddress,
-        userAgent: metadata.userAgent,
-        device,
-        browser,
-        status: 'success',
-      }).catch(err => {
-        logger.error('Failed to log login history:', err);
-      });
+      await loginHistoryService
+        .createLoginHistory({
+          userId: user.id,
+          ipAddress: metadata.ipAddress,
+          userAgent: metadata.userAgent,
+          device,
+          browser,
+          status: 'success',
+        })
+        .catch((err) => {
+          logger.error('Failed to log login history:', err);
+        });
     }
 
     return {
@@ -377,37 +403,39 @@ export class AuthService {
         subDepartmentCode,
         secondaryDepartments,
       },
-      employee: employee ? {
-        id: employee.id,
-        employeeCode: employee.employeeCode,
-        gender: employee.gender,
-        dateOfBirth: employee.dateOfBirth,
-        phoneNumber: employee.phoneNumber,
-        address: employee.address,
-        positionId: employee.positionId,
-        position: employee.position,
-        positionLevelId: employee.positionLevelId,
-        positionLevel: employee.positionLevel,
-        subDepartmentId: user.subDepartmentId,
-        status: employee.status,
-        hireDate: employee.hireDate,
-        contractType: employee.contractType,
-        educationLevel: employee.educationLevel,
-        specialization: employee.specialization,
-        specialSkills: employee.specialSkills,
-        baseSalary: employee.baseSalary,
-        kpiLevel: employee.kpiLevel,
-        responsibilityCode: employee.responsibilityCode,
-        weight: employee.weight,
-        height: employee.height,
-        shirtSize: employee.shirtSize,
-        pantSize: employee.pantSize,
-        shoeSize: employee.shoeSize,
-        bankAccount: employee.bankAccount,
-        lockerNumber: employee.lockerNumber,
-        notes: employee.notes,
-        evaluationScore,
-      } : undefined,
+      employee: employee
+        ? {
+            id: employee.id,
+            employeeCode: employee.employeeCode,
+            gender: employee.gender,
+            dateOfBirth: employee.dateOfBirth,
+            phoneNumber: employee.phoneNumber,
+            address: employee.address,
+            positionId: employee.positionId,
+            position: employee.position,
+            positionLevelId: employee.positionLevelId,
+            positionLevel: employee.positionLevel,
+            subDepartmentId: user.subDepartmentId,
+            status: employee.status,
+            hireDate: employee.hireDate,
+            contractType: employee.contractType,
+            educationLevel: employee.educationLevel,
+            specialization: employee.specialization,
+            specialSkills: employee.specialSkills,
+            baseSalary: employee.baseSalary,
+            kpiLevel: employee.kpiLevel,
+            responsibilityCode: employee.responsibilityCode,
+            weight: employee.weight,
+            height: employee.height,
+            shirtSize: employee.shirtSize,
+            pantSize: employee.pantSize,
+            shoeSize: employee.shoeSize,
+            bankAccount: employee.bankAccount,
+            lockerNumber: employee.lockerNumber,
+            notes: employee.notes,
+            evaluationScore,
+          }
+        : undefined,
     };
   }
 
@@ -438,9 +466,13 @@ export class AuthService {
     if (!user || !employee) {
       return;
     }
+    // Normalize employee (array vs single) for logging
+    const empForLog: { employeeCode?: string } | undefined = Array.isArray(employee)
+      ? (employee[0] as { employeeCode?: string } | undefined)
+      : (employee as { employeeCode?: string });
 
-    // Generate random 6-digit password
-    const newPassword = Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate random 6-digit password (CSPRNG)
+    const newPassword = randomInt(100000, 1000000).toString();
 
     // Hash and update password
     const hashedPassword = await hashPassword(newPassword);
@@ -449,33 +481,48 @@ export class AuthService {
       data: { password: hashedPassword },
     });
 
-    // Notify admins about password reset
-    await notificationService.notify(NotificationEvent.PASSWORD_RESET_REQUESTED, {
-      actorUserId: user.id,
-      metadata: {
-        employeeName: `${user.lastName} ${user.firstName} (${employee.employeeCode})`,
-        targetUserId: user.id,
-      },
-    }).catch(() => {});
+    // Revoke all existing sessions
+    await prisma.refreshToken.deleteMany({ where: { userId: user.id } });
 
-    logger.info(`Password reset for user ${user.email} (${employee.employeeCode})`);
+    // Notify admins about password reset
+    await notificationService
+      .notify(NotificationEvent.PASSWORD_RESET_REQUESTED, {
+        actorUserId: user.id,
+        metadata: {
+          employeeName: `${user.lastName} ${user.firstName} (${empForLog?.employeeCode ?? ''})`,
+          targetUserId: user.id,
+        },
+      })
+      .catch(() => {});
+
+    logger.info(`Password reset for user ${user.id}`);
   }
 
-  async refreshAccessToken(refreshToken: string): Promise<{ accessToken: string }> {
-    // Verify refresh token
+  async refreshAccessToken(
+    refreshToken: string
+  ): Promise<{ accessToken: string; refreshToken: string }> {
+    // Verify JWT first
     const decoded = verifyRefreshToken(refreshToken);
+    const hashed = hashRefreshToken(refreshToken);
 
     // Check if refresh token exists in database
     const tokenRecord = await prisma.refreshToken.findUnique({
-      where: { token: refreshToken },
+      where: { token: hashed },
     });
 
     if (!tokenRecord) {
-      // Token not found in DB means it was deleted by a new login on another device
+      // Reuse detection: JWT valid but hash not in DB => token was rotated or revoked
+      // Revoke all tokens for this user to contain theft
+      try {
+        await prisma.refreshToken.deleteMany({ where: { userId: decoded.id } });
+      } catch {
+        /* ignore */
+      }
       throw new SessionReplacedError();
     }
 
     if (tokenRecord.expiresAt < new Date()) {
+      await prisma.refreshToken.delete({ where: { token: hashed } }).catch(() => {});
       throw new AuthenticationError('Token làm mới không hợp lệ hoặc đã hết hạn');
     }
 
@@ -488,7 +535,7 @@ export class AuthService {
       throw new AuthenticationError('Không tìm thấy người dùng hoặc tài khoản đã bị vô hiệu hóa');
     }
 
-    // Generate new access token with fresh secondary departments
+    // Rotation: issue new pair, revoke old (single-device semantics preserved)
     const secondaryDepts = await buildSecondaryDepartments(user.id);
     const payload: JwtPayload = {
       id: user.id,
@@ -497,16 +544,26 @@ export class AuthService {
       name: `${user.firstName} ${user.lastName}`.trim(),
       departmentId: user.departmentId,
       subDepartmentId: user.subDepartmentId,
-      secondaryDepartments: secondaryDepts.map(s => ({
+      secondaryDepartments: secondaryDepts.map((s) => ({
         departmentId: s.departmentId,
         subDepartmentId: s.subDepartmentId,
         role: s.role,
       })),
     };
 
-    const accessToken = generateAccessToken(payload);
+    const newAccessToken = generateAccessToken(payload);
+    const newRefreshToken = generateRefreshToken(payload);
 
-    return { accessToken };
+    await prisma.refreshToken.delete({ where: { token: hashed } });
+    await prisma.refreshToken.create({
+      data: {
+        token: hashRefreshToken(newRefreshToken),
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      },
+    });
+
+    return { accessToken: newAccessToken, refreshToken: newRefreshToken };
   }
 
   async getMe(userId: string): Promise<Omit<AuthResponse, 'accessToken' | 'refreshToken'>> {
@@ -576,46 +633,50 @@ export class AuthService {
         subDepartmentCode,
         secondaryDepartments,
       },
-      employee: employee ? {
-        id: employee.id,
-        employeeCode: employee.employeeCode,
-        gender: employee.gender,
-        dateOfBirth: employee.dateOfBirth,
-        phoneNumber: employee.phoneNumber,
-        address: employee.address,
-        positionId: employee.positionId,
-        position: employee.position,
-        positionLevelId: employee.positionLevelId,
-        positionLevel: employee.positionLevel,
-        subDepartmentId: user.subDepartmentId,
-        status: employee.status,
-        hireDate: employee.hireDate,
-        contractType: employee.contractType,
-        educationLevel: employee.educationLevel,
-        specialization: employee.specialization,
-        specialSkills: employee.specialSkills,
-        baseSalary: employee.baseSalary,
-        kpiLevel: employee.kpiLevel,
-        responsibilityCode: employee.responsibilityCode,
-        weight: employee.weight,
-        height: employee.height,
-        shirtSize: employee.shirtSize,
-        pantSize: employee.pantSize,
-        shoeSize: employee.shoeSize,
-        bankAccount: employee.bankAccount,
-        lockerNumber: employee.lockerNumber,
-        notes: employee.notes,
-        evaluationScore,
-      } : undefined,
+      employee: employee
+        ? {
+            id: employee.id,
+            employeeCode: employee.employeeCode,
+            gender: employee.gender,
+            dateOfBirth: employee.dateOfBirth,
+            phoneNumber: employee.phoneNumber,
+            address: employee.address,
+            positionId: employee.positionId,
+            position: employee.position,
+            positionLevelId: employee.positionLevelId,
+            positionLevel: employee.positionLevel,
+            subDepartmentId: user.subDepartmentId,
+            status: employee.status,
+            hireDate: employee.hireDate,
+            contractType: employee.contractType,
+            educationLevel: employee.educationLevel,
+            specialization: employee.specialization,
+            specialSkills: employee.specialSkills,
+            baseSalary: employee.baseSalary,
+            kpiLevel: employee.kpiLevel,
+            responsibilityCode: employee.responsibilityCode,
+            weight: employee.weight,
+            height: employee.height,
+            shirtSize: employee.shirtSize,
+            pantSize: employee.pantSize,
+            shoeSize: employee.shoeSize,
+            bankAccount: employee.bankAccount,
+            lockerNumber: employee.lockerNumber,
+            notes: employee.notes,
+            evaluationScore,
+          }
+        : undefined,
     };
   }
 
   async logout(refreshToken: string): Promise<void> {
-    await prisma.refreshToken.delete({
-      where: { token: refreshToken },
-    }).catch(() => {
-      // Token might not exist, that's okay
-    });
+    await prisma.refreshToken
+      .delete({
+        where: { token: hashRefreshToken(refreshToken) },
+      })
+      .catch(() => {
+        // Token might not exist, that's okay
+      });
   }
 
   /**
@@ -662,4 +723,3 @@ export class AuthService {
 }
 
 export default new AuthService();
-

@@ -94,9 +94,7 @@ class MachineSystemService {
       select: { maHeThong: true },
     });
     if (all.length === 0) return `${prefix}-001`;
-    const maxNum = Math.max(
-      ...all.map((s) => parseInt(s.maHeThong.split('-')[1] ?? '0', 10)),
-    );
+    const maxNum = Math.max(...all.map((s) => parseInt(s.maHeThong.split('-')[1] ?? '0', 10)));
     const nextNum = (isNaN(maxNum) ? 0 : maxNum) + 1;
     return `${prefix}-${String(nextNum).padStart(3, '0')}`;
   }
@@ -110,12 +108,16 @@ class MachineSystemService {
     if (!allowed.includes(field)) throw new ValidationError('Field không hợp lệ');
     const col = field === 'khuVuc' ? '"khuVuc"' : '"viTri"';
     const results = await prisma.$queryRawUnsafe<{ value: string }[]>(
-      `SELECT DISTINCT ${col} as value FROM "business"."machine_systems" WHERE ${col} IS NOT NULL AND ${col} != '' ORDER BY value ASC`,
+      `SELECT DISTINCT ${col} as value FROM "business"."machine_systems" WHERE ${col} IS NOT NULL AND ${col} != '' ORDER BY value ASC`
     );
     return results.map((r) => r.value).filter((v) => v.length > 0);
   }
 
-  async getAllMachineSystems(page: number = 1, limit: number = 10, filters: MachineSystemFilters = {}) {
+  async getAllMachineSystems(
+    page: number = 1,
+    limit: number = 10,
+    filters: MachineSystemFilters = {}
+  ) {
     const { skip, limit: limitNum } = getPaginationParams(page, limit);
 
     const where: Prisma.MachineSystemWhereInput = {};
@@ -134,7 +136,13 @@ class MachineSystemService {
     if (filters.loaiHeThong) where.loaiHeThong = filters.loaiHeThong;
     if (filters.maHeThongPrefix) where.maHeThong = { startsWith: filters.maHeThongPrefix };
 
-    const orderBy = { [filters.sortBy ?? 'createdAt']: filters.sortOrder ?? 'desc' } as Prisma.MachineSystemOrderByWithRelationInput;
+    const ALLOWED_SORT = ['maHeThong', 'tenHeThong', 'createdAt', 'updatedAt'] as const;
+    const sortBy = (ALLOWED_SORT as readonly string[]).includes(filters.sortBy ?? '')
+      ? filters.sortBy!
+      : 'createdAt';
+    const orderBy = {
+      [sortBy]: filters.sortOrder ?? 'desc',
+    } as Prisma.MachineSystemOrderByWithRelationInput;
 
     const [data, total] = await Promise.all([
       prisma.machineSystem.findMany({
@@ -188,7 +196,11 @@ class MachineSystemService {
     }
   }
 
-  async updateMachineSystem(id: string, data: UpdateMachineSystemData, audit?: { nguoiCapNhat: string; nguoiCapNhatId?: string }) {
+  async updateMachineSystem(
+    id: string,
+    data: UpdateMachineSystemData,
+    audit?: { nguoiCapNhat: string; nguoiCapNhatId?: string }
+  ) {
     const before = await this.getMachineSystemById(id);
     if (data.maHeThong !== undefined && !data.maHeThong.trim()) {
       throw new ValidationError('Mã hệ thống không được để trống');
@@ -232,9 +244,19 @@ class MachineSystemService {
   async deleteMachineSystem(id: string) {
     await this.getMachineSystemById(id);
     const [
-      faultCount, repairItemCount, planCount, faultTemplateCount, maintenanceRecordCount,
-      statusLogCount, systemOperationCount, finishedProductCount, qualityEvalCount,
-      handoverItemCount, planItemCount, detailCount, cloneCount,
+      faultCount,
+      repairItemCount,
+      planCount,
+      faultTemplateCount,
+      maintenanceRecordCount,
+      statusLogCount,
+      systemOperationCount,
+      finishedProductCount,
+      qualityEvalCount,
+      handoverItemCount,
+      planItemCount,
+      detailCount,
+      cloneCount,
     ] = await Promise.all([
       prisma.faultRecord.count({ where: { machineSystemId: id } }),
       prisma.repairRequestItem.count({ where: { machineSystemId: id } }),
@@ -251,9 +273,20 @@ class MachineSystemService {
       prisma.machineSystemDetail.count({ where: { machineSystemId: id } }),
       prisma.machineSystem.count({ where: { parentSystemId: id } }),
     ]);
-    const total = faultCount + repairItemCount + planCount + faultTemplateCount + maintenanceRecordCount
-      + statusLogCount + systemOperationCount + finishedProductCount + qualityEvalCount
-      + handoverItemCount + planItemCount + detailCount + cloneCount;
+    const total =
+      faultCount +
+      repairItemCount +
+      planCount +
+      faultTemplateCount +
+      maintenanceRecordCount +
+      statusLogCount +
+      systemOperationCount +
+      finishedProductCount +
+      qualityEvalCount +
+      handoverItemCount +
+      planItemCount +
+      detailCount +
+      cloneCount;
     if (total > 0) {
       throw new ConflictError('Không thể xóa hệ thống đang được sử dụng');
     }
@@ -279,151 +312,155 @@ class MachineSystemService {
 
     try {
       return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      // Pre-check inside transaction to prevent concurrent duplicate
-      const existing = await tx.machineSystem.findUnique({
-        where: { maHeThong: overrides.maHeThong },
+        // Pre-check inside transaction to prevent concurrent duplicate
+        const existing = await tx.machineSystem.findUnique({
+          where: { maHeThong: overrides.maHeThong },
+        });
+        if (existing) {
+          throw new ConflictError(
+            `Mã hệ thống "${overrides.maHeThong}" đã tồn tại, vui lòng chọn mã khác`
+          );
+        }
+        // Create the new machine system
+        const newSystem = await tx.machineSystem.create({
+          data: {
+            khuVuc: overrides.khuVuc ?? source.khuVuc,
+            viTri: overrides.viTri ?? source.viTri,
+            maHeThong: overrides.maHeThong,
+            tenHeThong: overrides.tenHeThong,
+            chucNang: source.chucNang,
+            loaiHeThong: source.loaiHeThong,
+            maThietBi: source.maThietBi,
+            tenThietBi: source.tenThietBi,
+            nhiemVu: source.nhiemVu,
+            maNguoiThucHien: source.maNguoiThucHien,
+            nguoiThucHien: source.nguoiThucHien,
+            hoatDong: source.hoatDong,
+            trangThai: MachineStatus.HOAT_DONG,
+            parentSystemId: sourceId,
+          },
+        });
+
+        if (source.details.length === 0) {
+          if (!overrides.includeFaultTemplates) return newSystem;
+          // No details but may have detail-less templates — handle after BFS section
+        }
+
+        // BFS: process details level by level
+        // oldId → newId map, used to remap parentDetailId
+        const oldToNew = new Map<string, string>();
+
+        // Separate root details (no parent) from child details
+        const rootDetails = source.details.filter((d) => d.parentDetailId === null);
+        let queue = [...rootDetails];
+
+        while (queue.length > 0) {
+          const nextQueue: typeof queue = [];
+
+          for (const detail of queue) {
+            // Generate unique maChiTiet by prefixing destination system code
+            const newMaChiTiet = `${overrides.maHeThong}-${detail.maChiTiet}`;
+
+            // Check for collision
+            const collision = await tx.machineSystemDetail.findUnique({
+              where: { maChiTiet: newMaChiTiet },
+            });
+            if (collision) {
+              throw new ConflictError(
+                `Mã chi tiết "${newMaChiTiet}" đã tồn tại. Không thể nhân bản hệ thống máy.`
+              );
+            }
+
+            const newParentDetailId = detail.parentDetailId
+              ? (oldToNew.get(detail.parentDetailId) ?? null)
+              : null;
+
+            const created = await tx.machineSystemDetail.create({
+              data: {
+                machineSystemId: newSystem.id,
+                parentDetailId: newParentDetailId,
+                loaiChiTiet: detail.loaiChiTiet,
+                maChiTiet: newMaChiTiet,
+                tenChiTiet: detail.tenChiTiet,
+                viTri: detail.viTri,
+                moTa: detail.moTa,
+                fileDinhKem: detail.fileDinhKem,
+                maNguoiPhuTrach: detail.maNguoiPhuTrach,
+                nguoiPhuTrach: detail.nguoiPhuTrach,
+                thuTu: detail.thuTu,
+                hoatDong: detail.hoatDong,
+                trangThai: detail.trangThai,
+              },
+            });
+
+            oldToNew.set(detail.id, created.id);
+
+            // Queue children of this detail
+            const children = source.details.filter((d) => d.parentDetailId === detail.id);
+            nextQueue.push(...children);
+          }
+
+          queue = nextQueue;
+        }
+
+        if (overrides.includeFaultTemplates) {
+          const year = new Date().getFullYear();
+          const templates = await tx.faultTemplate.findMany({
+            where: { machineSystemId: sourceId },
+            include: { repairSteps: true },
+          });
+          for (const tpl of templates) {
+            const last = await tx.faultTemplate.findFirst({
+              where: { maMauLoi: { startsWith: `ML-${year}-` } },
+              orderBy: { maMauLoi: 'desc' },
+              select: { maMauLoi: true },
+            });
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const maMauLoi = nextYearlyCode(last?.maMauLoi ?? null, 'ML', year);
+            const newDetailId = tpl.machineSystemDetailId
+              ? (oldToNew.get(tpl.machineSystemDetailId) ?? null)
+              : null;
+            const created = await tx.faultTemplate.create({
+              data: {
+                maMauLoi,
+                tenMauLoi: tpl.tenMauLoi,
+                moTa: tpl.moTa,
+                mucDo: tpl.mucDo,
+                machineSystemId: newSystem.id,
+                machineSystemDetailId: newDetailId,
+                tenDetailGoiY: tpl.tenDetailGoiY,
+                loaiDetailGoiY: tpl.loaiDetailGoiY,
+                hoatDong: tpl.hoatDong,
+                trangThai: tpl.trangThai,
+                ghiChu: tpl.ghiChu,
+                fileDinhKem: tpl.fileDinhKem,
+              },
+            });
+            if (tpl.repairSteps.length) {
+              await tx.repairStep.createMany({
+                data: tpl.repairSteps.map((s) => ({
+                  faultTemplateId: created.id,
+                  stepNumber: s.stepNumber,
+                  moTa: s.moTa,
+                  thoiGianUocTinh: s.thoiGianUocTinh,
+                  dungCu: s.dungCu,
+                  ghiChu: s.ghiChu,
+                })),
+              });
+            }
+          }
+        }
+
+        return tx.machineSystem.findUnique({
+          where: { id: newSystem.id },
+          include: { details: { orderBy: { thuTu: 'asc' } } },
+        });
       });
-      if (existing) {
+    } catch (e: unknown) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
         throw new ConflictError(
           `Mã hệ thống "${overrides.maHeThong}" đã tồn tại, vui lòng chọn mã khác`
         );
-      }
-      // Create the new machine system
-      const newSystem = await tx.machineSystem.create({
-        data: {
-          khuVuc: overrides.khuVuc ?? source.khuVuc,
-          viTri: overrides.viTri ?? source.viTri,
-          maHeThong: overrides.maHeThong,
-          tenHeThong: overrides.tenHeThong,
-          chucNang: source.chucNang,
-          loaiHeThong: source.loaiHeThong,
-          maThietBi: source.maThietBi,
-          tenThietBi: source.tenThietBi,
-          nhiemVu: source.nhiemVu,
-          maNguoiThucHien: source.maNguoiThucHien,
-          nguoiThucHien: source.nguoiThucHien,
-          hoatDong: source.hoatDong,
-          trangThai: MachineStatus.HOAT_DONG,
-          parentSystemId: sourceId,
-        },
-      });
-
-      if (source.details.length === 0) {
-        if (!overrides.includeFaultTemplates) return newSystem;
-        // No details but may have detail-less templates — handle after BFS section
-      }
-
-      // BFS: process details level by level
-      // oldId → newId map, used to remap parentDetailId
-      const oldToNew = new Map<string, string>();
-
-      // Separate root details (no parent) from child details
-      const rootDetails = source.details.filter((d) => d.parentDetailId === null);
-      let queue = [...rootDetails];
-
-      while (queue.length > 0) {
-        const nextQueue: typeof queue = [];
-
-        for (const detail of queue) {
-          // Generate unique maChiTiet by prefixing destination system code
-          const newMaChiTiet = `${overrides.maHeThong}-${detail.maChiTiet}`;
-
-          // Check for collision
-          const collision = await tx.machineSystemDetail.findUnique({
-            where: { maChiTiet: newMaChiTiet },
-          });
-          if (collision) {
-            throw new ConflictError(
-              `Mã chi tiết "${newMaChiTiet}" đã tồn tại. Không thể nhân bản hệ thống máy.`
-            );
-          }
-
-          const newParentDetailId = detail.parentDetailId
-            ? (oldToNew.get(detail.parentDetailId) ?? null)
-            : null;
-
-          const created = await tx.machineSystemDetail.create({
-            data: {
-              machineSystemId: newSystem.id,
-              parentDetailId: newParentDetailId,
-              loaiChiTiet: detail.loaiChiTiet,
-              maChiTiet: newMaChiTiet,
-              tenChiTiet: detail.tenChiTiet,
-              viTri: detail.viTri,
-              moTa: detail.moTa,
-              fileDinhKem: detail.fileDinhKem,
-              maNguoiPhuTrach: detail.maNguoiPhuTrach,
-              nguoiPhuTrach: detail.nguoiPhuTrach,
-              thuTu: detail.thuTu,
-              hoatDong: detail.hoatDong,
-              trangThai: detail.trangThai,
-            },
-          });
-
-          oldToNew.set(detail.id, created.id);
-
-          // Queue children of this detail
-          const children = source.details.filter((d) => d.parentDetailId === detail.id);
-          nextQueue.push(...children);
-        }
-
-        queue = nextQueue;
-      }
-
-      if (overrides.includeFaultTemplates) {
-        const year = new Date().getFullYear();
-        const templates = await tx.faultTemplate.findMany({
-          where: { machineSystemId: sourceId },
-          include: { repairSteps: true },
-        });
-        for (const tpl of templates) {
-          const last = await tx.faultTemplate.findFirst({
-            where: { maMauLoi: { startsWith: `ML-${year}-` } },
-            orderBy: { maMauLoi: 'desc' },
-            select: { maMauLoi: true },
-          });
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const maMauLoi = nextYearlyCode(last?.maMauLoi ?? null, 'ML', year);
-          const newDetailId = tpl.machineSystemDetailId ? (oldToNew.get(tpl.machineSystemDetailId) ?? null) : null;
-          const created = await tx.faultTemplate.create({
-            data: {
-              maMauLoi,
-              tenMauLoi: tpl.tenMauLoi,
-              moTa: tpl.moTa,
-              mucDo: tpl.mucDo,
-              machineSystemId: newSystem.id,
-              machineSystemDetailId: newDetailId,
-              tenDetailGoiY: tpl.tenDetailGoiY,
-              loaiDetailGoiY: tpl.loaiDetailGoiY,
-              hoatDong: tpl.hoatDong,
-              trangThai: tpl.trangThai,
-              ghiChu: tpl.ghiChu,
-              fileDinhKem: tpl.fileDinhKem,
-            },
-          });
-          if (tpl.repairSteps.length) {
-            await tx.repairStep.createMany({
-              data: tpl.repairSteps.map((s) => ({
-                faultTemplateId: created.id,
-                stepNumber: s.stepNumber,
-                moTa: s.moTa,
-                thoiGianUocTinh: s.thoiGianUocTinh,
-                dungCu: s.dungCu,
-                ghiChu: s.ghiChu,
-              })),
-            });
-          }
-        }
-      }
-
-      return tx.machineSystem.findUnique({
-        where: { id: newSystem.id },
-        include: { details: { orderBy: { thuTu: 'asc' } } },
-      });
-    });
-    } catch (e: unknown) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-        throw new ConflictError(`Mã hệ thống "${overrides.maHeThong}" đã tồn tại, vui lòng chọn mã khác`);
       }
       throw e;
     }
@@ -457,7 +494,14 @@ class MachineSystemService {
         where: { machineSystemId: systemId },
         orderBy: { createdAt: 'desc' },
         take: faultLimit,
-        select: { id: true, maLoi: true, tenLoi: true, mucDo: true, trangThai: true, ngayPhatHien: true },
+        select: {
+          id: true,
+          maLoi: true,
+          tenLoi: true,
+          mucDo: true,
+          trangThai: true,
+          ngayPhatHien: true,
+        },
       }),
       prisma.repairRequestItem.findMany({
         where: { machineSystemId: systemId },
@@ -482,14 +526,22 @@ class MachineSystemService {
           tinhTrangTruocSuaChua: true,
           tinhTrangSauSuaChua: true,
           createdAt: true,
-          acceptanceHandover: { select: { id: true, maNghiemThu: true, ngayNghiemThu: true, createdAt: true } },
+          acceptanceHandover: {
+            select: { id: true, maNghiemThu: true, ngayNghiemThu: true, createdAt: true },
+          },
         },
       }),
       prisma.systemOperation.findMany({
         where: { machineSystemId: systemId },
         orderBy: { createdAt: 'desc' },
         take: opLimit,
-        select: { id: true, maChien: true, thoiGianChien: true, trangThai: true, nguoiThucHien: true },
+        select: {
+          id: true,
+          maChien: true,
+          thoiGianChien: true,
+          trangThai: true,
+          nguoiThucHien: true,
+        },
       }),
       prisma.maintenanceRecord.findMany({
         where: { machineSystemId: systemId },
@@ -521,7 +573,14 @@ class MachineSystemService {
         where: { machineSystemId: systemId },
         orderBy: { nam: 'desc' },
         take: maintenancePlanLimit,
-        select: { id: true, maKeHoach: true, nam: true, nguoiLap: true, trangThai: true, ngayLap: true },
+        select: {
+          id: true,
+          maKeHoach: true,
+          nam: true,
+          nguoiLap: true,
+          trangThai: true,
+          ngayLap: true,
+        },
       }),
     ]);
 
@@ -552,7 +611,7 @@ class MachineSystemService {
     nguyenNhan: string,
     nguoiCapNhat: string,
     ghiChu?: string,
-    nguoiCapNhatId?: string,
+    nguoiCapNhatId?: string
   ) {
     const system = await this.getMachineSystemById(systemId);
 

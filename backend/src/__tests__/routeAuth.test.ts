@@ -14,6 +14,7 @@ const mockPrisma: any = {
   delegation: { findMany: jest.fn() },
   employee: { findUnique: jest.fn() },
   position: { findUnique: jest.fn() },
+  user: { findUnique: jest.fn().mockResolvedValue({ isActive: true }) },
   userSecondaryDepartment: { findMany: jest.fn() },
   customerFeedback: { findUnique: jest.fn() },
   invoice: { findUnique: jest.fn() },
@@ -110,19 +111,19 @@ describe('Route auth enforcement', () => {
   beforeEach(() => mockNext.mockClear());
 
   describe('authenticate middleware', () => {
-    it('blocks request without token (401)', () => {
+    it('blocks request without token (401)', async () => {
       const req = mockRequest();
       const res = mockResponse();
-      authenticate(req, res, mockNext);
+      await authenticate(req, res, mockNext);
       expect(res.status).toHaveBeenCalledWith(401);
       expect(mockNext).not.toHaveBeenCalled();
     });
 
-    it('passes request with valid token', () => {
+    it('passes request with valid token', async () => {
       const token = generateAccessToken(ADMIN_PAYLOAD);
       const req = mockRequest({ headers: { authorization: `Bearer ${token}` } });
       const res = mockResponse();
-      authenticate(req, res, mockNext);
+      await authenticate(req, res, mockNext);
       expect(mockNext).toHaveBeenCalled();
       expect(req.user).toBeDefined();
     });

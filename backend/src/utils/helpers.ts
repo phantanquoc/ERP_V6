@@ -4,7 +4,7 @@ import { env } from '@config/env';
 import type { JwtPayload } from '@types';
 
 export const hashPassword = async (password: string): Promise<string> => {
-  const salt = await bcrypt.genSalt(10);
+  const salt = await bcrypt.genSalt(12);
   return bcrypt.hash(password, salt);
 };
 
@@ -79,4 +79,3 @@ export const getCursorPaginationParams = (
     return { cursorPayload: null, take };
   }
 };
-

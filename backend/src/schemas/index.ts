@@ -2,36 +2,24 @@ import { z } from 'zod';
 
 // ==================== AUTH SCHEMAS ====================
 export const loginSchema = z.object({
-  email: z.string()
-    .min(1, 'Email là bắt buộc')
-    .email('Email không hợp lệ'),
-  password: z.string()
-    .min(1, 'Mật khẩu là bắt buộc')
-    .min(6, 'Mật khẩu phải có ít nhất 6 ký tự'),
+  email: z.string().min(1, 'Email là bắt buộc').email('Email không hợp lệ'),
+  password: z.string().min(1, 'Mật khẩu là bắt buộc').min(6, 'Mật khẩu phải có ít nhất 6 ký tự'),
 });
 
 export const registerSchema = z.object({
-  email: z.string()
-    .min(1, 'Email là bắt buộc')
-    .email('Email không hợp lệ'),
-  password: z.string()
-    .min(1, 'Mật khẩu là bắt buộc')
-    .min(6, 'Mật khẩu phải có ít nhất 6 ký tự'),
+  email: z.string().min(1, 'Email là bắt buộc').email('Email không hợp lệ'),
+  password: z.string().min(1, 'Mật khẩu là bắt buộc').min(6, 'Mật khẩu phải có ít nhất 6 ký tự'),
   firstName: z.string().min(1, 'Họ là bắt buộc'),
   lastName: z.string().min(1, 'Tên là bắt buộc'),
 });
 
 export const forgotPasswordSchema = z.object({
-  email: z.string()
-    .min(1, 'Email là bắt buộc')
-    .email('Email không hợp lệ'),
+  email: z.string().min(1, 'Email là bắt buộc').email('Email không hợp lệ'),
 });
 
 export const resetPasswordSchema = z.object({
   token: z.string().min(1, 'Token là bắt buộc'),
-  password: z.string()
-    .min(1, 'Mật khẩu là bắt buộc')
-    .min(6, 'Mật khẩu phải có ít nhất 6 ký tự'),
+  password: z.string().min(1, 'Mật khẩu là bắt buộc').min(6, 'Mật khẩu phải có ít nhất 6 ký tự'),
 });
 
 // ==================== CUSTOMER SCHEMAS ====================
@@ -39,30 +27,32 @@ export const resetPasswordSchema = z.object({
 const optionalString = z.string().optional().nullable();
 const optionalNumber = z.union([z.number(), z.string()]).optional().nullable();
 
-export const createCustomerSchema = z.object({
-  tenCongTy: z.string().min(1, 'Tên công ty là bắt buộc'),
-  nguoiLienHe: z.string().min(1, 'Người liên hệ là bắt buộc'),
-  loaiKhachHang: z.string().min(1, 'Loại khách hàng là bắt buộc'),
-  quocGia: optionalString,
-  thanhPho: optionalString,
-  tinhThanh: optionalString,
-  quanHuyen: optionalString,
-  maSoThue: optionalString,
-  email: z.string().email('Email không hợp lệ').optional().nullable().or(z.literal('')),
-  soDienThoai: optionalString,
-  diaChi: optionalString,
-  website: optionalString,
-  maKhachHang: optionalString,
-  trangThai: optionalString,
-  ngayHopTac: optionalString,
-  doanhThuNam: optionalNumber,
-  soLuongDonHang: optionalNumber,
-  sanPhamChinh: optionalString,
-  ghiChu: optionalString,
-}).refine(
-  (data) => data.quocGia || data.tinhThanh,
-  { message: 'Phải có Quốc gia (khách quốc tế) hoặc Tỉnh/Thành (khách nội địa)', path: ['quocGia'] }
-);
+export const createCustomerSchema = z
+  .object({
+    tenCongTy: z.string().min(1, 'Tên công ty là bắt buộc'),
+    nguoiLienHe: z.string().min(1, 'Người liên hệ là bắt buộc'),
+    loaiKhachHang: z.string().min(1, 'Loại khách hàng là bắt buộc'),
+    quocGia: optionalString,
+    thanhPho: optionalString,
+    tinhThanh: optionalString,
+    quanHuyen: optionalString,
+    maSoThue: optionalString,
+    email: z.string().email('Email không hợp lệ').optional().nullable().or(z.literal('')),
+    soDienThoai: optionalString,
+    diaChi: optionalString,
+    website: optionalString,
+    maKhachHang: optionalString,
+    trangThai: optionalString,
+    ngayHopTac: optionalString,
+    doanhThuNam: optionalNumber,
+    soLuongDonHang: optionalNumber,
+    sanPhamChinh: optionalString,
+    ghiChu: optionalString,
+  })
+  .refine((data) => data.quocGia || data.tinhThanh, {
+    message: 'Phải có Quốc gia (khách quốc tế) hoặc Tỉnh/Thành (khách nội địa)',
+    path: ['quocGia'],
+  });
 
 export const updateCustomerSchema = z.object({
   tenCongTy: z.string().min(1, 'Tên công ty là bắt buộc').optional(),
@@ -132,11 +122,15 @@ export const createQuotationSchema = z.object({
   nguyenLieuCanNhapThem: z.number().optional(),
   tinhTrang: z.string().optional(),
   ghiChu: z.string().optional(),
-  items: z.array(z.object({
-    tenThanhPham: z.string(),
-    tiLe: z.number(),
-    khoiLuongTuongUng: z.number().optional(),
-  })).optional(),
+  items: z
+    .array(
+      z.object({
+        tenThanhPham: z.string(),
+        tiLe: z.number(),
+        khoiLuongTuongUng: z.number().optional(),
+      })
+    )
+    .optional(),
 });
 
 export const updateQuotationSchema = z.object({
@@ -179,19 +173,75 @@ export const createSystemOperationSchema = z.object({
   thoiGianChien: z.string().min(1, 'Thời gian chiên là bắt buộc'),
   tenMay: z.string().optional(),
   machineId: z.string().optional(),
-  khoiLuongDauVao: z.number().min(0, 'Khối lượng đầu vào phải từ 0 đến 200000 kg').max(200000, 'Khối lượng đầu vào phải từ 0 đến 200000 kg').optional(),
-  giaiDoan1ThoiGian: z.number().int('GĐ1 Thời gian phải là số nguyên').min(0, 'GĐ1 Thời gian phải từ 0 đến 2880 phút').max(2880, 'GĐ1 Thời gian phải từ 0 đến 2880 phút').optional(),
-  giaiDoan1NhietDo: z.number().min(0, 'GĐ1 Nhiệt độ phải từ 0 đến 400°C').max(400, 'GĐ1 Nhiệt độ phải từ 0 đến 400°C').optional(),
-  giaiDoan1ApSuat: z.number().min(0, 'GĐ1 Áp suất phải từ 0 đến 20 bar').max(20, 'GĐ1 Áp suất phải từ 0 đến 20 bar').optional(),
-  giaiDoan2ThoiGian: z.number().int('GĐ2 Thời gian phải là số nguyên').min(0, 'GĐ2 Thời gian phải từ 0 đến 2880 phút').max(2880, 'GĐ2 Thời gian phải từ 0 đến 2880 phút').optional(),
-  giaiDoan2NhietDo: z.number().min(0, 'GĐ2 Nhiệt độ phải từ 0 đến 400°C').max(400, 'GĐ2 Nhiệt độ phải từ 0 đến 400°C').optional(),
-  giaiDoan2ApSuat: z.number().min(0, 'GĐ2 Áp suất phải từ 0 đến 20 bar').max(20, 'GĐ2 Áp suất phải từ 0 đến 20 bar').optional(),
-  giaiDoan3ThoiGian: z.number().int('GĐ3 Thời gian phải là số nguyên').min(0, 'GĐ3 Thời gian phải từ 0 đến 2880 phút').max(2880, 'GĐ3 Thời gian phải từ 0 đến 2880 phút').optional(),
-  giaiDoan3NhietDo: z.number().min(0, 'GĐ3 Nhiệt độ phải từ 0 đến 400°C').max(400, 'GĐ3 Nhiệt độ phải từ 0 đến 400°C').optional(),
-  giaiDoan3ApSuat: z.number().min(0, 'GĐ3 Áp suất phải từ 0 đến 20 bar').max(20, 'GĐ3 Áp suất phải từ 0 đến 20 bar').optional(),
-  giaiDoan4ThoiGian: z.number().int('GĐ4 Thời gian phải là số nguyên').min(0, 'GĐ4 Thời gian phải từ 0 đến 2880 phút').max(2880, 'GĐ4 Thời gian phải từ 0 đến 2880 phút').optional(),
-  giaiDoan4NhietDo: z.number().min(0, 'GĐ4 Nhiệt độ phải từ 0 đến 400°C').max(400, 'GĐ4 Nhiệt độ phải từ 0 đến 400°C').optional(),
-  giaiDoan4ApSuat: z.number().min(0, 'GĐ4 Áp suất phải từ 0 đến 20 bar').max(20, 'GĐ4 Áp suất phải từ 0 đến 20 bar').optional(),
+  khoiLuongDauVao: z
+    .number()
+    .min(0, 'Khối lượng đầu vào phải từ 0 đến 200000 kg')
+    .max(200000, 'Khối lượng đầu vào phải từ 0 đến 200000 kg')
+    .optional(),
+  giaiDoan1ThoiGian: z
+    .number()
+    .int('GĐ1 Thời gian phải là số nguyên')
+    .min(0, 'GĐ1 Thời gian phải từ 0 đến 2880 phút')
+    .max(2880, 'GĐ1 Thời gian phải từ 0 đến 2880 phút')
+    .optional(),
+  giaiDoan1NhietDo: z
+    .number()
+    .min(0, 'GĐ1 Nhiệt độ phải từ 0 đến 400°C')
+    .max(400, 'GĐ1 Nhiệt độ phải từ 0 đến 400°C')
+    .optional(),
+  giaiDoan1ApSuat: z
+    .number()
+    .min(0, 'GĐ1 Áp suất phải từ 0 đến 20 bar')
+    .max(20, 'GĐ1 Áp suất phải từ 0 đến 20 bar')
+    .optional(),
+  giaiDoan2ThoiGian: z
+    .number()
+    .int('GĐ2 Thời gian phải là số nguyên')
+    .min(0, 'GĐ2 Thời gian phải từ 0 đến 2880 phút')
+    .max(2880, 'GĐ2 Thời gian phải từ 0 đến 2880 phút')
+    .optional(),
+  giaiDoan2NhietDo: z
+    .number()
+    .min(0, 'GĐ2 Nhiệt độ phải từ 0 đến 400°C')
+    .max(400, 'GĐ2 Nhiệt độ phải từ 0 đến 400°C')
+    .optional(),
+  giaiDoan2ApSuat: z
+    .number()
+    .min(0, 'GĐ2 Áp suất phải từ 0 đến 20 bar')
+    .max(20, 'GĐ2 Áp suất phải từ 0 đến 20 bar')
+    .optional(),
+  giaiDoan3ThoiGian: z
+    .number()
+    .int('GĐ3 Thời gian phải là số nguyên')
+    .min(0, 'GĐ3 Thời gian phải từ 0 đến 2880 phút')
+    .max(2880, 'GĐ3 Thời gian phải từ 0 đến 2880 phút')
+    .optional(),
+  giaiDoan3NhietDo: z
+    .number()
+    .min(0, 'GĐ3 Nhiệt độ phải từ 0 đến 400°C')
+    .max(400, 'GĐ3 Nhiệt độ phải từ 0 đến 400°C')
+    .optional(),
+  giaiDoan3ApSuat: z
+    .number()
+    .min(0, 'GĐ3 Áp suất phải từ 0 đến 20 bar')
+    .max(20, 'GĐ3 Áp suất phải từ 0 đến 20 bar')
+    .optional(),
+  giaiDoan4ThoiGian: z
+    .number()
+    .int('GĐ4 Thời gian phải là số nguyên')
+    .min(0, 'GĐ4 Thời gian phải từ 0 đến 2880 phút')
+    .max(2880, 'GĐ4 Thời gian phải từ 0 đến 2880 phút')
+    .optional(),
+  giaiDoan4NhietDo: z
+    .number()
+    .min(0, 'GĐ4 Nhiệt độ phải từ 0 đến 400°C')
+    .max(400, 'GĐ4 Nhiệt độ phải từ 0 đến 400°C')
+    .optional(),
+  giaiDoan4ApSuat: z
+    .number()
+    .min(0, 'GĐ4 Áp suất phải từ 0 đến 20 bar')
+    .max(20, 'GĐ4 Áp suất phải từ 0 đến 20 bar')
+    .optional(),
   ghiChu: z.string().optional(),
   nguoiThucHien: z.string().optional(),
   materialEvaluationId: z.string().optional(),
@@ -203,77 +253,172 @@ export const createBulkSystemOperationSchema = z.object({
 });
 
 export const updateSystemOperationSchema = z.object({
-  khoiLuongDauVao: z.number().min(0, 'Khối lượng đầu vào phải từ 0 đến 200000 kg').max(200000, 'Khối lượng đầu vào phải từ 0 đến 200000 kg').optional(),
-  giaiDoan1ThoiGian: z.number().int('GĐ1 Thời gian phải là số nguyên').min(0, 'GĐ1 Thời gian phải từ 0 đến 2880 phút').max(2880, 'GĐ1 Thời gian phải từ 0 đến 2880 phút').optional(),
-  giaiDoan1NhietDo: z.number().min(0, 'GĐ1 Nhiệt độ phải từ 0 đến 400°C').max(400, 'GĐ1 Nhiệt độ phải từ 0 đến 400°C').optional(),
-  giaiDoan1ApSuat: z.number().min(0, 'GĐ1 Áp suất phải từ 0 đến 20 bar').max(20, 'GĐ1 Áp suất phải từ 0 đến 20 bar').optional(),
-  giaiDoan2ThoiGian: z.number().int('GĐ2 Thời gian phải là số nguyên').min(0, 'GĐ2 Thời gian phải từ 0 đến 2880 phút').max(2880, 'GĐ2 Thời gian phải từ 0 đến 2880 phút').optional(),
-  giaiDoan2NhietDo: z.number().min(0, 'GĐ2 Nhiệt độ phải từ 0 đến 400°C').max(400, 'GĐ2 Nhiệt độ phải từ 0 đến 400°C').optional(),
-  giaiDoan2ApSuat: z.number().min(0, 'GĐ2 Áp suất phải từ 0 đến 20 bar').max(20, 'GĐ2 Áp suất phải từ 0 đến 20 bar').optional(),
-  giaiDoan3ThoiGian: z.number().int('GĐ3 Thời gian phải là số nguyên').min(0, 'GĐ3 Thời gian phải từ 0 đến 2880 phút').max(2880, 'GĐ3 Thời gian phải từ 0 đến 2880 phút').optional(),
-  giaiDoan3NhietDo: z.number().min(0, 'GĐ3 Nhiệt độ phải từ 0 đến 400°C').max(400, 'GĐ3 Nhiệt độ phải từ 0 đến 400°C').optional(),
-  giaiDoan3ApSuat: z.number().min(0, 'GĐ3 Áp suất phải từ 0 đến 20 bar').max(20, 'GĐ3 Áp suất phải từ 0 đến 20 bar').optional(),
-  giaiDoan4ThoiGian: z.number().int('GĐ4 Thời gian phải là số nguyên').min(0, 'GĐ4 Thời gian phải từ 0 đến 2880 phút').max(2880, 'GĐ4 Thời gian phải từ 0 đến 2880 phút').optional(),
-  giaiDoan4NhietDo: z.number().min(0, 'GĐ4 Nhiệt độ phải từ 0 đến 400°C').max(400, 'GĐ4 Nhiệt độ phải từ 0 đến 400°C').optional(),
-  giaiDoan4ApSuat: z.number().min(0, 'GĐ4 Áp suất phải từ 0 đến 20 bar').max(20, 'GĐ4 Áp suất phải từ 0 đến 20 bar').optional(),
-  tongThoiGianSay: z.number().int('Tổng thời gian sấy phải là số nguyên').min(0, 'Tổng thời gian sấy phải từ 0 đến 11520 phút').max(11520, 'Tổng thời gian sấy phải từ 0 đến 11520 phút').optional(),
+  khoiLuongDauVao: z
+    .number()
+    .min(0, 'Khối lượng đầu vào phải từ 0 đến 200000 kg')
+    .max(200000, 'Khối lượng đầu vào phải từ 0 đến 200000 kg')
+    .optional(),
+  giaiDoan1ThoiGian: z
+    .number()
+    .int('GĐ1 Thời gian phải là số nguyên')
+    .min(0, 'GĐ1 Thời gian phải từ 0 đến 2880 phút')
+    .max(2880, 'GĐ1 Thời gian phải từ 0 đến 2880 phút')
+    .optional(),
+  giaiDoan1NhietDo: z
+    .number()
+    .min(0, 'GĐ1 Nhiệt độ phải từ 0 đến 400°C')
+    .max(400, 'GĐ1 Nhiệt độ phải từ 0 đến 400°C')
+    .optional(),
+  giaiDoan1ApSuat: z
+    .number()
+    .min(0, 'GĐ1 Áp suất phải từ 0 đến 20 bar')
+    .max(20, 'GĐ1 Áp suất phải từ 0 đến 20 bar')
+    .optional(),
+  giaiDoan2ThoiGian: z
+    .number()
+    .int('GĐ2 Thời gian phải là số nguyên')
+    .min(0, 'GĐ2 Thời gian phải từ 0 đến 2880 phút')
+    .max(2880, 'GĐ2 Thời gian phải từ 0 đến 2880 phút')
+    .optional(),
+  giaiDoan2NhietDo: z
+    .number()
+    .min(0, 'GĐ2 Nhiệt độ phải từ 0 đến 400°C')
+    .max(400, 'GĐ2 Nhiệt độ phải từ 0 đến 400°C')
+    .optional(),
+  giaiDoan2ApSuat: z
+    .number()
+    .min(0, 'GĐ2 Áp suất phải từ 0 đến 20 bar')
+    .max(20, 'GĐ2 Áp suất phải từ 0 đến 20 bar')
+    .optional(),
+  giaiDoan3ThoiGian: z
+    .number()
+    .int('GĐ3 Thời gian phải là số nguyên')
+    .min(0, 'GĐ3 Thời gian phải từ 0 đến 2880 phút')
+    .max(2880, 'GĐ3 Thời gian phải từ 0 đến 2880 phút')
+    .optional(),
+  giaiDoan3NhietDo: z
+    .number()
+    .min(0, 'GĐ3 Nhiệt độ phải từ 0 đến 400°C')
+    .max(400, 'GĐ3 Nhiệt độ phải từ 0 đến 400°C')
+    .optional(),
+  giaiDoan3ApSuat: z
+    .number()
+    .min(0, 'GĐ3 Áp suất phải từ 0 đến 20 bar')
+    .max(20, 'GĐ3 Áp suất phải từ 0 đến 20 bar')
+    .optional(),
+  giaiDoan4ThoiGian: z
+    .number()
+    .int('GĐ4 Thời gian phải là số nguyên')
+    .min(0, 'GĐ4 Thời gian phải từ 0 đến 2880 phút')
+    .max(2880, 'GĐ4 Thời gian phải từ 0 đến 2880 phút')
+    .optional(),
+  giaiDoan4NhietDo: z
+    .number()
+    .min(0, 'GĐ4 Nhiệt độ phải từ 0 đến 400°C')
+    .max(400, 'GĐ4 Nhiệt độ phải từ 0 đến 400°C')
+    .optional(),
+  giaiDoan4ApSuat: z
+    .number()
+    .min(0, 'GĐ4 Áp suất phải từ 0 đến 20 bar')
+    .max(20, 'GĐ4 Áp suất phải từ 0 đến 20 bar')
+    .optional(),
+  tongThoiGianSay: z
+    .number()
+    .int('Tổng thời gian sấy phải là số nguyên')
+    .min(0, 'Tổng thời gian sấy phải từ 0 đến 11520 phút')
+    .max(11520, 'Tổng thời gian sấy phải từ 0 đến 11520 phút')
+    .optional(),
   ghiChu: z.string().optional(),
   nguoiThucHien: z.string().optional(),
 });
 
 // ==================== MATERIAL EVALUATION SCHEMAS ====================
 // Uses z.coerce because multipart/form-data sends numbers as strings
-export const createMaterialEvaluationSchema = z.object({
-  maChien: z.string().regex(/^MC-\d{2}$/, 'Mã chiên phải có dạng MC-01 đến MC-16'),
-  productId: z.string().optional(),
-  lotId: z.string().optional(),
-  lotProductId: z.string().optional(),
-  tenHangHoa: z.string().optional(),
-  maSanPham: z.string().optional(),
-  soLoKien: z.string().optional(),
-  ca: z.coerce.number().optional(),
-  khoiLuong: z.coerce.number().min(0, 'Khối lượng phải từ 0 đến 200000 kg').max(200000, 'Khối lượng phải từ 0 đến 200000 kg').optional(),
-  nhietDoNuocTruocNgam: z.coerce.number().min(0, 'Nhiệt độ nước trước ngâm phải từ 0 đến 200°C').max(200, 'Nhiệt độ nước trước ngâm phải từ 0 đến 200°C').optional(),
-  nhietDoNuocSauVot: z.coerce.number().min(0, 'Nhiệt độ nước sau vớt phải từ 0 đến 200°C').max(200, 'Nhiệt độ nước sau vớt phải từ 0 đến 200°C').optional(),
-  brixNuocNgam: z.coerce.number().min(0, 'Brix nước ngâm phải từ 0 đến 100').max(100, 'Brix nước ngâm phải từ 0 đến 100').optional(),
-  thoiGianNgam: z.coerce.number().int('Thời gian ngâm phải là số nguyên').min(0, 'Thời gian ngâm phải từ 0 đến 2880 phút').max(2880, 'Thời gian ngâm phải từ 0 đến 2880 phút').optional(),
-  soLanNgam: z.coerce.number().int('Số lần ngâm phải là số nguyên').min(0, 'Số lần ngâm phải từ 0 đến 40').max(40, 'Số lần ngâm phải từ 0 đến 40').optional(),
-  thoiGianChien: z.string().optional(),
-  danhGiaTruocNgam: z.string().optional(),
-  danhGiaSauNgam: z.string().optional(),
-  nguoiThucHien: z.string().optional(),
-  ghiChu: z.string().optional(),
-}).passthrough();
+export const createMaterialEvaluationSchema = z
+  .object({
+    maChien: z.string().regex(/^MC-\d{2}$/, 'Mã chiên phải có dạng MC-01 đến MC-16'),
+    productId: z.string().optional(),
+    lotId: z.string().optional(),
+    lotProductId: z.string().optional(),
+    tenHangHoa: z.string().optional(),
+    maSanPham: z.string().optional(),
+    soLoKien: z.string().optional(),
+    ca: z.coerce.number().optional(),
+    khoiLuong: z.coerce
+      .number()
+      .min(0, 'Khối lượng phải từ 0 đến 200000 kg')
+      .max(200000, 'Khối lượng phải từ 0 đến 200000 kg')
+      .optional(),
+    nhietDoNuocTruocNgam: z.coerce
+      .number()
+      .min(0, 'Nhiệt độ nước trước ngâm phải từ 0 đến 200°C')
+      .max(200, 'Nhiệt độ nước trước ngâm phải từ 0 đến 200°C')
+      .optional(),
+    nhietDoNuocSauVot: z.coerce
+      .number()
+      .min(0, 'Nhiệt độ nước sau vớt phải từ 0 đến 200°C')
+      .max(200, 'Nhiệt độ nước sau vớt phải từ 0 đến 200°C')
+      .optional(),
+    brixNuocNgam: z.coerce
+      .number()
+      .min(0, 'Brix nước ngâm phải từ 0 đến 100')
+      .max(100, 'Brix nước ngâm phải từ 0 đến 100')
+      .optional(),
+    thoiGianNgam: z.coerce
+      .number()
+      .int('Thời gian ngâm phải là số nguyên')
+      .min(0, 'Thời gian ngâm phải từ 0 đến 2880 phút')
+      .max(2880, 'Thời gian ngâm phải từ 0 đến 2880 phút')
+      .optional(),
+    soLanNgam: z.coerce
+      .number()
+      .int('Số lần ngâm phải là số nguyên')
+      .min(0, 'Số lần ngâm phải từ 0 đến 40')
+      .max(40, 'Số lần ngâm phải từ 0 đến 40')
+      .optional(),
+    thoiGianChien: z.string().optional(),
+    danhGiaTruocNgam: z.string().optional(),
+    danhGiaSauNgam: z.string().optional(),
+    nguoiThucHien: z.string().optional(),
+    ghiChu: z.string().optional(),
+  })
+  .strip();
 
 // ==================== FINISHED PRODUCT SCHEMAS ====================
 // Uses z.coerce for PATCH (multipart/form-data sends numbers as strings)
 const finishedProductWeightField = (label: string) =>
-  z.coerce.number().min(0, `${label} phải từ 0 đến 200000 kg`).max(200000, `${label} phải từ 0 đến 200000 kg`).optional();
+  z.coerce
+    .number()
+    .min(0, `${label} phải từ 0 đến 200000 kg`)
+    .max(200000, `${label} phải từ 0 đến 200000 kg`)
+    .optional();
 
-export const updateFinishedProductSchema = z.object({
-  aKhoiLuong: finishedProductWeightField('Loại A'),
-  bKhoiLuong: finishedProductWeightField('Loại B'),
-  bDauKhoiLuong: finishedProductWeightField('B Dầu'),
-  cKhoiLuong: finishedProductWeightField('Loại C'),
-  vunLonKhoiLuong: finishedProductWeightField('Vụn lớn'),
-  vunNhoKhoiLuong: finishedProductWeightField('Vụn nhỏ'),
-  phePhamKhoiLuong: finishedProductWeightField('Phế phẩm'),
-  uotKhoiLuong: finishedProductWeightField('Ướt'),
-  tongKhoiLuong: finishedProductWeightField('Tổng khối lượng'),
-  khoiLuong: finishedProductWeightField('Khối lượng'),
-  nguoiThucHien: z.string().optional(),
-  ghiChu: z.string().optional(),
-  fileDinhKem: z.string().optional(),
-  // tiLe fields (computed, pass-through)
-  aTiLe: z.coerce.number().optional(),
-  bTiLe: z.coerce.number().optional(),
-  bDauTiLe: z.coerce.number().optional(),
-  cTiLe: z.coerce.number().optional(),
-  vunLonTiLe: z.coerce.number().optional(),
-  vunNhoTiLe: z.coerce.number().optional(),
-  phePhamTiLe: z.coerce.number().optional(),
-  uotTiLe: z.coerce.number().optional(),
-}).passthrough();
+export const updateFinishedProductSchema = z
+  .object({
+    aKhoiLuong: finishedProductWeightField('Loại A'),
+    bKhoiLuong: finishedProductWeightField('Loại B'),
+    bDauKhoiLuong: finishedProductWeightField('B Dầu'),
+    cKhoiLuong: finishedProductWeightField('Loại C'),
+    vunLonKhoiLuong: finishedProductWeightField('Vụn lớn'),
+    vunNhoKhoiLuong: finishedProductWeightField('Vụn nhỏ'),
+    phePhamKhoiLuong: finishedProductWeightField('Phế phẩm'),
+    uotKhoiLuong: finishedProductWeightField('Ướt'),
+    tongKhoiLuong: finishedProductWeightField('Tổng khối lượng'),
+    khoiLuong: finishedProductWeightField('Khối lượng'),
+    nguoiThucHien: z.string().optional(),
+    ghiChu: z.string().optional(),
+    fileDinhKem: z.string().optional(),
+    // tiLe fields (computed, pass-through)
+    aTiLe: z.coerce.number().optional(),
+    bTiLe: z.coerce.number().optional(),
+    bDauTiLe: z.coerce.number().optional(),
+    cTiLe: z.coerce.number().optional(),
+    vunLonTiLe: z.coerce.number().optional(),
+    vunNhoTiLe: z.coerce.number().optional(),
+    phePhamTiLe: z.coerce.number().optional(),
+    uotTiLe: z.coerce.number().optional(),
+  })
+  .strip();
 
 export const upsertFinishedProductByBatchMachineSchema = z.object({
   maChien: z.string().min(1, 'Mã chiên là bắt buộc'),
@@ -281,7 +426,11 @@ export const upsertFinishedProductByBatchMachineSchema = z.object({
   thoiGianChien: z.string().optional(),
   tenHangHoa: z.string().optional(),
   maSanPham: z.string().optional(),
-  khoiLuong: z.number().min(0, 'Khối lượng phải từ 0 đến 200000 kg').max(200000, 'Khối lượng phải từ 0 đến 200000 kg').optional(),
+  khoiLuong: z
+    .number()
+    .min(0, 'Khối lượng phải từ 0 đến 200000 kg')
+    .max(200000, 'Khối lượng phải từ 0 đến 200000 kg')
+    .optional(),
   aKhoiLuong: finishedProductWeightField('Loại A'),
   bKhoiLuong: finishedProductWeightField('Loại B'),
   bDauKhoiLuong: finishedProductWeightField('B Dầu'),
@@ -325,13 +474,15 @@ export const toggleNotApplicableSchema = z.object({
 });
 
 export const submitAppealSchema = z.object({
-  appealComment: z.string()
+  appealComment: z
+    .string()
     .min(1, 'Nội dung khiếu nại là bắt buộc')
     .max(4000, 'Nội dung khiếu nại không được quá 4000 ký tự'),
 });
 
 export const replyAppealSchema = z.object({
-  appealResponse: z.string()
+  appealResponse: z
+    .string()
     .min(1, 'Nội dung phản hồi là bắt buộc')
     .max(4000, 'Nội dung phản hồi không được quá 4000 ký tự'),
 });
@@ -386,8 +537,14 @@ export type SubmitPeerFeedbackInput = z.infer<typeof submitPeerFeedbackSchema>;
 const warehouseLineBM = {
   soLoKeHoach: optionalString,
   soLoThucTe: optionalString,
-  soKienKeHoach: z.union([z.array(z.string()), z.string()]).optional().nullable(),
-  soKienThucTe: z.union([z.array(z.string()), z.string()]).optional().nullable(),
+  soKienKeHoach: z
+    .union([z.array(z.string()), z.string()])
+    .optional()
+    .nullable(),
+  soKienThucTe: z
+    .union([z.array(z.string()), z.string()])
+    .optional()
+    .nullable(),
   tinhTrang: optionalString,
   quyCach: optionalString,
 };
@@ -414,7 +571,10 @@ const warehouseLineBase = {
   tenKho: optionalString,
   lotId: z.string().min(1, 'Thiếu lô hàng'),
   tenLo: optionalString,
-  soLuongThucTe: z.union([z.number(), z.string()]).transform(Number).pipe(z.number().positive('Số lượng phải lớn hơn 0')),
+  soLuongThucTe: z
+    .union([z.number(), z.string()])
+    .transform(Number)
+    .pipe(z.number().positive('Số lượng phải lớn hơn 0')),
   // Kế hoạch (soLuongYeuCau) phải dương khi được gửi; empty/null = không gửi
   // (service sẽ default về soLuongThucTe). Chặn plan 0/âm làm méo báo cáo lệch.
   soLuongYeuCau: z.preprocess(
@@ -426,54 +586,66 @@ const warehouseLineBase = {
   ...warehouseLineBM,
 };
 
-export const createReceiptSchema = z.object({
-  maPhieuNhap: optionalString,
-  employeeId: z.string().min(1, 'Thiếu mã nhân viên'),
-  maNhanVien: optionalString,
-  tenNhanVien: optionalString,
-  ngayNhap: optionalString,
-  mucDich: optionalString,
-  ghiChu: optionalString,
-  supplyRequestId: optionalString,
-  purchaseRequestId: optionalString,
-  inboundPlanId: optionalString,
-  lyDoChenhLech: z.string().nullable().optional(),
-  nguoiDeNghi: optionalString,
-  maNguoiDeNghi: optionalString,
-  boPhan: optionalString,
-  boPhanId: optionalString,
-  items: z.array(z.object(warehouseLineBase)).min(1, 'Phiếu phải có ít nhất một dòng'),
-}).superRefine((data, ctx) => {
-  const hasDiff = data.items.some((it: any) => {
-    const kh = it.soLuongYeuCau;
-    if (kh == null) return false;
-    return Math.abs(Number(kh) - Number(it.soLuongThucTe)) > 1e-9;
+export const createReceiptSchema = z
+  .object({
+    maPhieuNhap: optionalString,
+    employeeId: z.string().min(1, 'Thiếu mã nhân viên'),
+    maNhanVien: optionalString,
+    tenNhanVien: optionalString,
+    ngayNhap: optionalString,
+    mucDich: optionalString,
+    ghiChu: optionalString,
+    supplyRequestId: optionalString,
+    purchaseRequestId: optionalString,
+    inboundPlanId: optionalString,
+    lyDoChenhLech: z.string().nullable().optional(),
+    nguoiDeNghi: optionalString,
+    maNguoiDeNghi: optionalString,
+    boPhan: optionalString,
+    boPhanId: optionalString,
+    items: z.array(z.object(warehouseLineBase)).min(1, 'Phiếu phải có ít nhất một dòng'),
+  })
+  .superRefine((data, ctx) => {
+    const hasDiff = data.items.some((it: any) => {
+      const kh = it.soLuongYeuCau;
+      if (kh == null) return false;
+      return Math.abs(Number(kh) - Number(it.soLuongThucTe)) > 1e-9;
+    });
+    if (hasDiff && !(data.lyDoChenhLech && String(data.lyDoChenhLech).trim())) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['lyDoChenhLech'],
+        message: 'Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.',
+      });
+    }
   });
-  if (hasDiff && !(data.lyDoChenhLech && String(data.lyDoChenhLech).trim())) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['lyDoChenhLech'], message: 'Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.' });
-  }
-});
 
-export const updateReceiptSchema = z.object({
-  ngayNhap: optionalString,
-  mucDich: optionalString,
-  ghiChu: optionalString,
-  lyDoChenhLech: z.string().nullable().optional(),
-  nguoiDeNghi: optionalString,
-  maNguoiDeNghi: optionalString,
-  boPhan: optionalString,
-  boPhanId: optionalString,
-  items: z.array(z.object(warehouseLineBase)).min(1, 'Phiếu phải có ít nhất một dòng'),
-}).superRefine((data, ctx) => {
-  const hasDiff = data.items.some((it: any) => {
-    const kh = it.soLuongYeuCau;
-    if (kh == null) return false;
-    return Math.abs(Number(kh) - Number(it.soLuongThucTe)) > 1e-9;
+export const updateReceiptSchema = z
+  .object({
+    ngayNhap: optionalString,
+    mucDich: optionalString,
+    ghiChu: optionalString,
+    lyDoChenhLech: z.string().nullable().optional(),
+    nguoiDeNghi: optionalString,
+    maNguoiDeNghi: optionalString,
+    boPhan: optionalString,
+    boPhanId: optionalString,
+    items: z.array(z.object(warehouseLineBase)).min(1, 'Phiếu phải có ít nhất một dòng'),
+  })
+  .superRefine((data, ctx) => {
+    const hasDiff = data.items.some((it: any) => {
+      const kh = it.soLuongYeuCau;
+      if (kh == null) return false;
+      return Math.abs(Number(kh) - Number(it.soLuongThucTe)) > 1e-9;
+    });
+    if (hasDiff && !(data.lyDoChenhLech && String(data.lyDoChenhLech).trim())) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['lyDoChenhLech'],
+        message: 'Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.',
+      });
+    }
   });
-  if (hasDiff && !(data.lyDoChenhLech && String(data.lyDoChenhLech).trim())) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['lyDoChenhLech'], message: 'Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.' });
-  }
-});
 
 const issueLineBase = {
   lotProductId: z.string().min(1, 'Thiếu kiện hàng'),
@@ -483,7 +655,10 @@ const issueLineBase = {
   tenKho: optionalString,
   lotId: z.string().min(1, 'Thiếu lô hàng'),
   tenLo: optionalString,
-  soLuongThucTe: z.union([z.number(), z.string()]).transform(Number).pipe(z.number().positive('Số lượng phải lớn hơn 0')),
+  soLuongThucTe: z
+    .union([z.number(), z.string()])
+    .transform(Number)
+    .pipe(z.number().positive('Số lượng phải lớn hơn 0')),
   // Kế hoạch (soLuongYeuCau) phải dương khi được gửi; empty/null = không gửi
   // (service sẽ default về soLuongThucTe). Chặn plan 0/âm làm méo báo cáo lệch.
   soLuongYeuCau: z.preprocess(
@@ -494,66 +669,82 @@ const issueLineBase = {
   ...warehouseLineBM,
 };
 
-export const createIssueSchema = z.object({
-  maPhieuXuat: optionalString,
-  employeeId: z.string().min(1, 'Thiếu mã nhân viên'),
-  maNhanVien: optionalString,
-  tenNhanVien: optionalString,
-  ngayXuat: optionalString,
-  ghiChu: optionalString,
-  supplyRequestId: optionalString,
-  outboundPlanId: optionalString,
-  nguoiDeNghi: optionalString,
-  maNguoiDeNghi: optionalString,
-  boPhan: optionalString,
-  boPhanId: optionalString,
-  lyDoXuatKho: optionalString,
-  lyDoChenhLech: z.string().nullable().optional(),
-  items: z.array(z.object(issueLineBase)).min(1, 'Phiếu phải có ít nhất một dòng'),
-}).superRefine((data, ctx) => {
-  const hasDiff = data.items.some((it: any) => {
-    const kh = it.soLuongYeuCau;
-    if (kh == null) return false;
-    return Math.abs(Number(kh) - Number(it.soLuongThucTe)) > 1e-9;
+export const createIssueSchema = z
+  .object({
+    maPhieuXuat: optionalString,
+    employeeId: z.string().min(1, 'Thiếu mã nhân viên'),
+    maNhanVien: optionalString,
+    tenNhanVien: optionalString,
+    ngayXuat: optionalString,
+    ghiChu: optionalString,
+    supplyRequestId: optionalString,
+    outboundPlanId: optionalString,
+    nguoiDeNghi: optionalString,
+    maNguoiDeNghi: optionalString,
+    boPhan: optionalString,
+    boPhanId: optionalString,
+    lyDoXuatKho: optionalString,
+    lyDoChenhLech: z.string().nullable().optional(),
+    items: z.array(z.object(issueLineBase)).min(1, 'Phiếu phải có ít nhất một dòng'),
+  })
+  .superRefine((data, ctx) => {
+    const hasDiff = data.items.some((it: any) => {
+      const kh = it.soLuongYeuCau;
+      if (kh == null) return false;
+      return Math.abs(Number(kh) - Number(it.soLuongThucTe)) > 1e-9;
+    });
+    if (hasDiff && !(data.lyDoChenhLech && String(data.lyDoChenhLech).trim())) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['lyDoChenhLech'],
+        message: 'Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.',
+      });
+    }
   });
-  if (hasDiff && !(data.lyDoChenhLech && String(data.lyDoChenhLech).trim())) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['lyDoChenhLech'], message: 'Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.' });
-  }
-});
 
-export const updateIssueSchema = z.object({
-  ngayXuat: optionalString,
-  ghiChu: optionalString,
-  lyDoChenhLech: z.string().nullable().optional(),
-  nguoiDeNghi: optionalString,
-  maNguoiDeNghi: optionalString,
-  boPhan: optionalString,
-  boPhanId: optionalString,
-  lyDoXuatKho: optionalString,
-  items: z.array(z.object(issueLineBase)).min(1, 'Phiếu phải có ít nhất một dòng'),
-}).superRefine((data, ctx) => {
-  const hasDiff = data.items.some((it: any) => {
-    const kh = it.soLuongYeuCau;
-    if (kh == null) return false;
-    return Math.abs(Number(kh) - Number(it.soLuongThucTe)) > 1e-9;
+export const updateIssueSchema = z
+  .object({
+    ngayXuat: optionalString,
+    ghiChu: optionalString,
+    lyDoChenhLech: z.string().nullable().optional(),
+    nguoiDeNghi: optionalString,
+    maNguoiDeNghi: optionalString,
+    boPhan: optionalString,
+    boPhanId: optionalString,
+    lyDoXuatKho: optionalString,
+    items: z.array(z.object(issueLineBase)).min(1, 'Phiếu phải có ít nhất một dòng'),
+  })
+  .superRefine((data, ctx) => {
+    const hasDiff = data.items.some((it: any) => {
+      const kh = it.soLuongYeuCau;
+      if (kh == null) return false;
+      return Math.abs(Number(kh) - Number(it.soLuongThucTe)) > 1e-9;
+    });
+    if (hasDiff && !(data.lyDoChenhLech && String(data.lyDoChenhLech).trim())) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['lyDoChenhLech'],
+        message: 'Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.',
+      });
+    }
   });
-  if (hasDiff && !(data.lyDoChenhLech && String(data.lyDoChenhLech).trim())) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['lyDoChenhLech'], message: 'Vui lòng nhập lý do chênh lệch khi thực tế khác kế hoạch.' });
-  }
-});
 
 export const batchFulfillSchema = z.object({
-  lines: z.array(z.object({
-    itemId: z.string().min(1, 'Thiếu mã dòng'),
-    fulfilledQty: z.union([z.number(), z.string()]).transform(Number).pipe(z.number().min(0)),
-    reason: optionalString,
-    decidedByEmployeeId: z.string().min(1, 'Thiếu mã người quyết định'),
-    routeShortageToPurchase: z.boolean().optional(),
-    lotProductId: optionalString,
-    warehouseId: optionalString,
-    lotId: optionalString,
-    autoCreateProduct: z.boolean().optional(),
-  })).min(1, 'Danh sách cấp phát không được để trống'),
+  lines: z
+    .array(
+      z.object({
+        itemId: z.string().min(1, 'Thiếu mã dòng'),
+        fulfilledQty: z.union([z.number(), z.string()]).transform(Number).pipe(z.number().min(0)),
+        reason: optionalString,
+        decidedByEmployeeId: z.string().min(1, 'Thiếu mã người quyết định'),
+        routeShortageToPurchase: z.boolean().optional(),
+        lotProductId: optionalString,
+        warehouseId: optionalString,
+        lotId: optionalString,
+        autoCreateProduct: z.boolean().optional(),
+      })
+    )
+    .min(1, 'Danh sách cấp phát không được để trống'),
 });
 
 export type CreateReceiptInput = z.infer<typeof createReceiptSchema>;
@@ -566,34 +757,73 @@ export type BatchFulfillInput = z.infer<typeof batchFulfillSchema>;
 // Phone: Vietnamese carriers 02x/03x/05x/07x/08x/09x + landline, 9-11 digits after 0
 const phoneRegex = /^0[235789]\d{8,9}$/;
 const supplierBase = {
-  tenNhaCungCap: z.string().min(1, 'Tên nhà cung cấp là bắt buộc').max(200, 'Tên quá dài (tối đa 200 ký tự)').trim(),
-  loaiCungCap: z.string().min(1, 'Loại cung cấp là bắt buộc').max(100, 'Loại cung cấp quá dài (tối đa 100 ký tự)').trim(),
-  quocGia: z.string().optional().nullable().transform((v) => (v && String(v).trim() ? String(v).trim() : 'Việt Nam')),
+  tenNhaCungCap: z
+    .string()
+    .min(1, 'Tên nhà cung cấp là bắt buộc')
+    .max(200, 'Tên quá dài (tối đa 200 ký tự)')
+    .trim(),
+  loaiCungCap: z
+    .string()
+    .min(1, 'Loại cung cấp là bắt buộc')
+    .max(100, 'Loại cung cấp quá dài (tối đa 100 ký tự)')
+    .trim(),
+  quocGia: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (v && String(v).trim() ? String(v).trim() : 'Việt Nam')),
   website: z
     .string()
     .optional()
     .nullable()
     .transform((v) => (v && String(v).trim() ? String(v).trim() : null))
     .refine((v) => !v || /^https?:\/\//.test(v), 'Website phải bắt đầu bằng http:// hoặc https://'),
-  nguoiLienHe: z.string().min(1, 'Người liên hệ là bắt buộc').max(100, 'Tên liên hệ quá dài (tối đa 100 ký tự)').trim(),
+  nguoiLienHe: z
+    .string()
+    .min(1, 'Người liên hệ là bắt buộc')
+    .max(100, 'Tên liên hệ quá dài (tối đa 100 ký tự)')
+    .trim(),
   soDienThoai: z
     .string()
     .min(1, 'Số điện thoại là bắt buộc')
-    .transform((v) => String(v).replace(/[\s\-]/g, '').trim())
-    .refine((v) => phoneRegex.test(v), 'Số điện thoại không hợp lệ (ví dụ: 0901234567, 02838221234)'),
+    .transform((v) =>
+      String(v)
+        .replace(/[\s\-]/g, '')
+        .trim()
+    )
+    .refine(
+      (v) => phoneRegex.test(v),
+      'Số điện thoại không hợp lệ (ví dụ: 0901234567, 02838221234)'
+    ),
   emailLienHe: z
     .string()
     .optional()
     .nullable()
     .transform((v) => (v && String(v).trim() ? String(v).trim() : null))
-    .refine((v) => !v || z.string().email('Email không hợp lệ').safeParse(v).success, 'Email không hợp lệ'),
-  diaChi: z.string().min(1, 'Địa chỉ là bắt buộc').max(500, 'Địa chỉ quá dài (tối đa 500 ký tự)').trim(),
-  khaNang: z.string().optional().nullable().transform((v) => (v && String(v).trim() ? String(v).trim() : null)),
-  loaiHinh: z.enum(['Sản xuất', 'Thương mại'], { message: 'Loại hình phải là Sản xuất hoặc Thương mại' }),
+    .refine(
+      (v) => !v || z.string().email('Email không hợp lệ').safeParse(v).success,
+      'Email không hợp lệ'
+    ),
+  diaChi: z
+    .string()
+    .min(1, 'Địa chỉ là bắt buộc')
+    .max(500, 'Địa chỉ quá dài (tối đa 500 ký tự)')
+    .trim(),
+  khaNang: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (v && String(v).trim() ? String(v).trim() : null)),
+  loaiHinh: z.enum(['Sản xuất', 'Thương mại'], {
+    message: 'Loại hình phải là Sản xuất hoặc Thương mại',
+  }),
   trangThai: z.enum(['Đang cung cấp', 'Ngừng cung cấp']).optional(),
   phanLoaiNCC: z.string().optional().nullable(),
   // doanhChi is derived (sum of effective spend for Đã duyệt/Hoàn thành) — never accepted from client
-  doanhChi: z.any().optional().transform(() => undefined) as unknown as z.ZodOptional<z.ZodNumber>,
+  doanhChi: z
+    .any()
+    .optional()
+    .transform(() => undefined) as unknown as z.ZodOptional<z.ZodNumber>,
   employeeId: z.string().min(1, 'Thiếu thông tin người tạo').optional(),
 };
 
@@ -602,21 +832,32 @@ export const createSupplierSchema = z.object({
   ...supplierBase,
 });
 
-export const updateSupplierSchema = z.object({
-  maNhaCungCap: z.string().optional(),
-  ...supplierBase,
-  employeeId: z.string().optional(),
-}).partial().refine((v) => Object.keys(v).length > 0, 'Không có dữ liệu cập nhật');
+export const updateSupplierSchema = z
+  .object({
+    maNhaCungCap: z.string().optional(),
+    ...supplierBase,
+    employeeId: z.string().optional(),
+  })
+  .partial()
+  .refine((v) => Object.keys(v).length > 0, 'Không có dữ liệu cập nhật');
 
 export type CreateSupplierInput = z.infer<typeof createSupplierSchema>;
 export type UpdateSupplierInput = z.infer<typeof updateSupplierSchema>;
 
 // ==================== WAREHOUSE VOID SCHEMAS ====================
 export const voidReceiptSchema = z.object({
-  voidReason: z.string().trim().min(1, 'Lý do vô hiệu là bắt buộc').max(500, 'Lý do tối đa 500 ký tự'),
+  voidReason: z
+    .string()
+    .trim()
+    .min(1, 'Lý do vô hiệu là bắt buộc')
+    .max(500, 'Lý do tối đa 500 ký tự'),
 });
 export const voidIssueSchema = z.object({
-  voidReason: z.string().trim().min(1, 'Lý do vô hiệu là bắt buộc').max(500, 'Lý do tối đa 500 ký tự'),
+  voidReason: z
+    .string()
+    .trim()
+    .min(1, 'Lý do vô hiệu là bắt buộc')
+    .max(500, 'Lý do tối đa 500 ký tự'),
 });
 export type VoidReceiptInput = z.infer<typeof voidReceiptSchema>;
 export type VoidIssueInput = z.infer<typeof voidIssueSchema>;
@@ -652,33 +893,41 @@ const warehouseListBaseFields = {
   outboundPlanId: z.string().optional(),
 };
 
-export const warehouseReceiptListQuerySchema = z.object({
-  ...warehouseListBaseFields,
-  sortBy: z.enum(['ngayNhap', 'maPhieuNhap', 'createdAt']).optional().or(z.string().optional()),
-  sortOrder: z.enum(['asc', 'desc']).optional(),
-}).passthrough();
+export const warehouseReceiptListQuerySchema = z
+  .object({
+    ...warehouseListBaseFields,
+    sortBy: z.enum(['ngayNhap', 'maPhieuNhap', 'createdAt']).optional().or(z.string().optional()),
+    sortOrder: z.enum(['asc', 'desc']).optional(),
+  })
+  .passthrough();
 
-export const warehouseIssueListQuerySchema = z.object({
-  ...warehouseListBaseFields,
-  sortBy: z.enum(['ngayXuat', 'maPhieuXuat', 'createdAt']).optional().or(z.string().optional()),
-  sortOrder: z.enum(['asc', 'desc']).optional(),
-}).passthrough();
+export const warehouseIssueListQuerySchema = z
+  .object({
+    ...warehouseListBaseFields,
+    sortBy: z.enum(['ngayXuat', 'maPhieuXuat', 'createdAt']).optional().or(z.string().optional()),
+    sortOrder: z.enum(['asc', 'desc']).optional(),
+  })
+  .passthrough();
 
 // Back-compat alias used in task description
 export const warehouseListQuerySchema = warehouseReceiptListQuerySchema;
 
-export const inventoryOverviewQuerySchema = z.object({
-  search: z.string().trim().max(100).optional(),
-  loaiSanPham: z.string().trim().max(100).optional(),
-  warehouseId: z.string().optional(),
-  donViTinh: z.string().trim().max(100).optional(),
-  hasStock: z.enum(['true', 'false']).optional().or(z.boolean().optional()),
-  stockStatus: z.enum(['all', 'low', 'normal']).optional(),
-  sortBy: z.enum(['maSanPham', 'tenSanPham', 'loaiSanPham', 'tongTonKho', 'giaThanhTB', 'giaTriTon']).optional(),
-  sortOrder: z.enum(['asc', 'desc']).optional(),
-  page: z.coerce.number().int().min(1).max(1000).optional(),
-  limit: z.coerce.number().int().min(1).max(100).optional(),
-}).passthrough();
+export const inventoryOverviewQuerySchema = z
+  .object({
+    search: z.string().trim().max(100).optional(),
+    loaiSanPham: z.string().trim().max(100).optional(),
+    warehouseId: z.string().optional(),
+    donViTinh: z.string().trim().max(100).optional(),
+    hasStock: z.enum(['true', 'false']).optional().or(z.boolean().optional()),
+    stockStatus: z.enum(['all', 'low', 'normal']).optional(),
+    sortBy: z
+      .enum(['maSanPham', 'tenSanPham', 'loaiSanPham', 'tongTonKho', 'giaThanhTB', 'giaTriTon'])
+      .optional(),
+    sortOrder: z.enum(['asc', 'desc']).optional(),
+    page: z.coerce.number().int().min(1).max(1000).optional(),
+    limit: z.coerce.number().int().min(1).max(100).optional(),
+  })
+  .passthrough();
 
 export type WarehouseReceiptListQuery = z.infer<typeof warehouseReceiptListQuerySchema>;
 export type WarehouseIssueListQuery = z.infer<typeof warehouseIssueListQuerySchema>;
@@ -695,8 +944,14 @@ const debtBase = {
   cungCap: z.string().optional().nullable(),
   noiDungChiCho: z.string().optional().nullable(),
   loaiHinh: z.string().optional().nullable(),
-  soTienPhaiTra: z.union([z.number(), z.string().transform(Number)]).pipe(z.number().nonnegative()).optional(),
-  soTienDaThanhToan: z.union([z.number(), z.string().transform(Number)]).pipe(z.number().nonnegative()).optional(),
+  soTienPhaiTra: z
+    .union([z.number(), z.string().transform(Number)])
+    .pipe(z.number().nonnegative())
+    .optional(),
+  soTienDaThanhToan: z
+    .union([z.number(), z.string().transform(Number)])
+    .pipe(z.number().nonnegative())
+    .optional(),
   ngayHoachToan: z.string().optional().nullable(),
   ngayDenHan: z.string().optional().nullable(),
   soTaiKhoan: z.string().optional().nullable(),
@@ -712,9 +967,18 @@ const invoiceBase = {
   loaiHoaDon: z.string().optional().nullable(),
   boPhanSuDung: z.string().optional().nullable(),
   mucDichSuDung: z.string().optional().nullable(),
-  tongTien: z.union([z.number(), z.string().transform(Number)]).pipe(z.number().nonnegative()).optional(),
-  thueVAT: z.union([z.number(), z.string().transform(Number)]).pipe(z.number().min(0).max(100)).optional(),
-  thanhTien: z.union([z.number(), z.string().transform(Number)]).pipe(z.number().nonnegative()).optional(),
+  tongTien: z
+    .union([z.number(), z.string().transform(Number)])
+    .pipe(z.number().nonnegative())
+    .optional(),
+  thueVAT: z
+    .union([z.number(), z.string().transform(Number)])
+    .pipe(z.number().min(0).max(100))
+    .optional(),
+  thanhTien: z
+    .union([z.number(), z.string().transform(Number)])
+    .pipe(z.number().nonnegative())
+    .optional(),
   trangThai: z.string().optional().nullable(),
   phuongThucThanhToan: z.string().optional().nullable(),
   ngayLap: z.string().optional().nullable(),
@@ -724,22 +988,35 @@ const invoiceBase = {
   soHoaDon: z.string().optional(),
 };
 export const createInvoiceSchema = z.object(invoiceBase);
-export const updateInvoiceSchema = z.object(invoiceBase).partial().refine((v) => Object.keys(v).length > 0, 'Không có dữ liệu cập nhật');
+export const updateInvoiceSchema = z
+  .object(invoiceBase)
+  .partial()
+  .refine((v) => Object.keys(v).length > 0, 'Không có dữ liệu cập nhật');
 
 const costBase = {
   tenChiPhi: z.string().min(1, 'Tên chi phí là bắt buộc').max(200),
   loaiChiPhi: z.string().min(1, 'Loại chi phí là bắt buộc').max(100),
   noiDung: z.string().optional().nullable(),
   donViTinh: z.string().optional().nullable(),
-  giaThanhNgay: z.union([z.number(), z.string().transform(Number)]).pipe(z.number().nonnegative()).optional().nullable(),
+  giaThanhNgay: z
+    .union([z.number(), z.string().transform(Number)])
+    .pipe(z.number().nonnegative())
+    .optional()
+    .nullable(),
   donViTien: z.string().optional().nullable(),
   msnv: z.string().optional().nullable(),
   tenNhanVien: z.string().optional().nullable(),
 };
 export const createGeneralCostSchema = z.object(costBase);
-export const updateGeneralCostSchema = z.object(costBase).partial().refine((v) => Object.keys(v).length > 0, 'Không có dữ liệu cập nhật');
+export const updateGeneralCostSchema = z
+  .object(costBase)
+  .partial()
+  .refine((v) => Object.keys(v).length > 0, 'Không có dữ liệu cập nhật');
 export const createExportCostSchema = z.object(costBase);
-export const updateExportCostSchema = z.object(costBase).partial().refine((v) => Object.keys(v).length > 0, 'Không có dữ liệu cập nhật');
+export const updateExportCostSchema = z
+  .object(costBase)
+  .partial()
+  .refine((v) => Object.keys(v).length > 0, 'Không có dữ liệu cập nhật');
 
 // InternalInspection: file has no zod at all; mirror prisma fields loosely
 const inspectionBase = {
@@ -760,8 +1037,14 @@ const inspectionBase = {
   status: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
 };
-export const createInternalInspectionSchema = z.object({ inspectionDate: inspectionBase.inspectionDate, ...Object.fromEntries(Object.entries(inspectionBase).filter(([k])=>k!=='inspectionDate')) });
-export const updateInternalInspectionSchema = z.object(inspectionBase).partial().refine((v) => Object.keys(v).length > 0, 'Không có dữ liệu cập nhật');
+export const createInternalInspectionSchema = z.object({
+  inspectionDate: inspectionBase.inspectionDate,
+  ...Object.fromEntries(Object.entries(inspectionBase).filter(([k]) => k !== 'inspectionDate')),
+});
+export const updateInternalInspectionSchema = z
+  .object(inspectionBase)
+  .partial()
+  .refine((v) => Object.keys(v).length > 0, 'Không có dữ liệu cập nhật');
 
 const feedbackBase = {
   customerId: z.string().min(1, 'Khách hàng là bắt buộc'),
@@ -774,20 +1057,23 @@ const feedbackBase = {
   ghiChu: z.string().optional().nullable(),
 };
 export const createCustomerFeedbackSchema = z.object(feedbackBase);
-export const updateCustomerFeedbackSchema = z.object({
-  loaiPhanHoi: z.string().optional().nullable(),
-  mucDoNghiemTrong: z.string().optional().nullable(),
-  noiDungPhanHoi: z.string().optional().nullable(),
-  sanPhamLienQuan: z.string().optional().nullable(),
-  donHangLienQuan: z.string().optional().nullable(),
-  nguoiTiepNhan: z.string().optional().nullable(),
-  trangThaiXuLy: z.string().optional().nullable(),
-  bienPhapXuLy: z.string().optional().nullable(),
-  ketQuaXuLy: z.string().optional().nullable(),
-  ngayXuLyXong: z.string().optional().nullable(),
-  mucDoHaiLong: z.string().optional().nullable(),
-  ghiChu: z.string().optional().nullable(),
-}).partial().refine((v) => Object.keys(v).length > 0, 'Không có dữ liệu cập nhật');
+export const updateCustomerFeedbackSchema = z
+  .object({
+    loaiPhanHoi: z.string().optional().nullable(),
+    mucDoNghiemTrong: z.string().optional().nullable(),
+    noiDungPhanHoi: z.string().optional().nullable(),
+    sanPhamLienQuan: z.string().optional().nullable(),
+    donHangLienQuan: z.string().optional().nullable(),
+    nguoiTiepNhan: z.string().optional().nullable(),
+    trangThaiXuLy: z.string().optional().nullable(),
+    bienPhapXuLy: z.string().optional().nullable(),
+    ketQuaXuLy: z.string().optional().nullable(),
+    ngayXuLyXong: z.string().optional().nullable(),
+    mucDoHaiLong: z.string().optional().nullable(),
+    ghiChu: z.string().optional().nullable(),
+  })
+  .partial()
+  .refine((v) => Object.keys(v).length > 0, 'Không có dữ liệu cập nhật');
 
 // ==================== REPAIR REQUEST SCHEMAS ====================
 
@@ -807,68 +1093,88 @@ const repairItemSchema = z.object({
   phuongAnSua: z.string().optional().nullable(),
 });
 
-export const createRepairRequestSchema = z.object({
-  requestType: requestTypeEnum.optional().default('SUA_CHUA'),
-  sourceInspectionRequestId: z.string().optional().nullable(),
-  ngayThang: z.coerce.date().optional(),
-  maYeuCau: z.string().min(1, 'Mã yêu cầu là bắt buộc').optional(),
-  mucDoUuTien: z.string().min(1, 'Mức độ ưu tiên là bắt buộc'),
-  ghiChu: z.string().optional().nullable(),
-  fileDinhKem: z.string().optional().nullable(),
-  ngayHoanThienDuKien: z.coerce.date().optional().nullable(),
-  ngayBatDauKeHoach: z.coerce.date().optional().nullable(),
-  keHoachChiTiet: z.string().optional().nullable(),
-  phuongAn: z.string().optional().nullable(),
-  bienPhapAnToan: z.string().optional().nullable(),
-  chiPhiDuKien: z.coerce.number().min(0, 'Chi phí dự kiến phải >= 0').optional().nullable(),
-  canNgungMay: z.coerce.boolean().optional(),
-  phongBanId: z.string().optional().nullable(),
-  tenHeThong: z.string().optional().nullable(),
-  tinhTrangThietBi: z.string().optional().nullable(),
-  loaiLoi: z.string().optional().nullable(),
-  noiDungLoi: z.string().optional().nullable(),
-  items: z.array(repairItemSchema).optional(),
-}).superRefine((data, ctx) => {
-  if (data.requestType === 'KIEM_TRA' && data.sourceInspectionRequestId) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['sourceInspectionRequestId'], message: 'Phiếu kiểm tra không được liên kết với phiếu kiểm tra nguồn' });
-  }
-  if (data.ngayHoanThienDuKien && data.ngayBatDauKeHoach) {
-    if (new Date(data.ngayHoanThienDuKien).getTime() <= new Date(data.ngayBatDauKeHoach).getTime()) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['ngayHoanThienDuKien'], message: 'Ngày hoàn thiện dự kiến phải sau ngày bắt đầu kế hoạch' });
+export const createRepairRequestSchema = z
+  .object({
+    requestType: requestTypeEnum.optional().default('SUA_CHUA'),
+    sourceInspectionRequestId: z.string().optional().nullable(),
+    ngayThang: z.coerce.date().optional(),
+    maYeuCau: z.string().min(1, 'Mã yêu cầu là bắt buộc').optional(),
+    mucDoUuTien: z.string().min(1, 'Mức độ ưu tiên là bắt buộc'),
+    ghiChu: z.string().optional().nullable(),
+    fileDinhKem: z.string().optional().nullable(),
+    ngayHoanThienDuKien: z.coerce.date().optional().nullable(),
+    ngayBatDauKeHoach: z.coerce.date().optional().nullable(),
+    keHoachChiTiet: z.string().optional().nullable(),
+    phuongAn: z.string().optional().nullable(),
+    bienPhapAnToan: z.string().optional().nullable(),
+    chiPhiDuKien: z.coerce.number().min(0, 'Chi phí dự kiến phải >= 0').optional().nullable(),
+    canNgungMay: z.coerce.boolean().optional(),
+    phongBanId: z.string().optional().nullable(),
+    tenHeThong: z.string().optional().nullable(),
+    tinhTrangThietBi: z.string().optional().nullable(),
+    loaiLoi: z.string().optional().nullable(),
+    noiDungLoi: z.string().optional().nullable(),
+    items: z.array(repairItemSchema).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.requestType === 'KIEM_TRA' && data.sourceInspectionRequestId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['sourceInspectionRequestId'],
+        message: 'Phiếu kiểm tra không được liên kết với phiếu kiểm tra nguồn',
+      });
     }
-  }
-});
+    if (data.ngayHoanThienDuKien && data.ngayBatDauKeHoach) {
+      if (
+        new Date(data.ngayHoanThienDuKien).getTime() <= new Date(data.ngayBatDauKeHoach).getTime()
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['ngayHoanThienDuKien'],
+          message: 'Ngày hoàn thiện dự kiến phải sau ngày bắt đầu kế hoạch',
+        });
+      }
+    }
+  });
 
-export const updateRepairRequestSchema = z.object({
-  mucDoUuTien: z.string().optional(),
-  ghiChu: z.string().optional().nullable(),
-  ngayThang: z.coerce.date().optional(),
-  fileDinhKem: z.string().optional().nullable(),
-  ngayHoanThienDuKien: z.coerce.date().optional().nullable(),
-  ngayBatDauKeHoach: z.coerce.date().optional().nullable(),
-  keHoachChiTiet: z.string().optional().nullable(),
-  phuongAn: z.string().optional().nullable(),
-  bienPhapAnToan: z.string().optional().nullable(),
-  chiPhiDuKien: z.coerce.number().min(0, 'Chi phí dự kiến phải >= 0').optional().nullable(),
-  chiPhiThucTe: z.coerce.number().min(0).optional().nullable(),
-  noiDungThucHien: z.string().optional().nullable(),
-  gioCongThucTe: z.coerce.number().min(0).optional().nullable(),
-  canNgungMay: z.coerce.boolean().optional(),
-  phongBanId: z.string().optional().nullable(),
-  ketQuaNghiemThu: nghiemThuKetQuaEnum.optional().nullable(),
-  ngayHoanThanhThucTe: z.coerce.date().optional().nullable(),
-  tenHeThong: z.string().optional().nullable(),
-  tinhTrangThietBi: z.string().optional().nullable(),
-  loaiLoi: z.string().optional().nullable(),
-  noiDungLoi: z.string().optional().nullable(),
-  items: z.array(repairItemSchema).optional(),
-}).superRefine((data, ctx) => {
-  if (data.ngayHoanThienDuKien && data.ngayBatDauKeHoach) {
-    if (new Date(data.ngayHoanThienDuKien).getTime() <= new Date(data.ngayBatDauKeHoach).getTime()) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['ngayHoanThienDuKien'], message: 'Ngày hoàn thiện dự kiến phải sau ngày bắt đầu kế hoạch' });
+export const updateRepairRequestSchema = z
+  .object({
+    mucDoUuTien: z.string().optional(),
+    ghiChu: z.string().optional().nullable(),
+    ngayThang: z.coerce.date().optional(),
+    fileDinhKem: z.string().optional().nullable(),
+    ngayHoanThienDuKien: z.coerce.date().optional().nullable(),
+    ngayBatDauKeHoach: z.coerce.date().optional().nullable(),
+    keHoachChiTiet: z.string().optional().nullable(),
+    phuongAn: z.string().optional().nullable(),
+    bienPhapAnToan: z.string().optional().nullable(),
+    chiPhiDuKien: z.coerce.number().min(0, 'Chi phí dự kiến phải >= 0').optional().nullable(),
+    chiPhiThucTe: z.coerce.number().min(0).optional().nullable(),
+    noiDungThucHien: z.string().optional().nullable(),
+    gioCongThucTe: z.coerce.number().min(0).optional().nullable(),
+    canNgungMay: z.coerce.boolean().optional(),
+    phongBanId: z.string().optional().nullable(),
+    ketQuaNghiemThu: nghiemThuKetQuaEnum.optional().nullable(),
+    ngayHoanThanhThucTe: z.coerce.date().optional().nullable(),
+    tenHeThong: z.string().optional().nullable(),
+    tinhTrangThietBi: z.string().optional().nullable(),
+    loaiLoi: z.string().optional().nullable(),
+    noiDungLoi: z.string().optional().nullable(),
+    items: z.array(repairItemSchema).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.ngayHoanThienDuKien && data.ngayBatDauKeHoach) {
+      if (
+        new Date(data.ngayHoanThienDuKien).getTime() <= new Date(data.ngayBatDauKeHoach).getTime()
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['ngayHoanThienDuKien'],
+          message: 'Ngày hoàn thiện dự kiến phải sau ngày bắt đầu kế hoạch',
+        });
+      }
     }
-  }
-});
+  });
 
 export const repairAssigneeSchema = z.object({
   userId: z.string().optional().nullable(),
@@ -904,37 +1210,49 @@ export const repairSupplyLinkCreateSchema = z.object({
   ghiChu: z.string().optional().nullable(),
 });
 
-export const repairPlanSchema = z.object({
-  keHoachChiTiet: z.string().optional().nullable(),
-  phuongAn: z.string().optional().nullable(),
-  bienPhapAnToan: z.string().optional().nullable(),
-  ngayHoanThienDuKien: z.coerce.date().optional().nullable(),
-  ngayBatDauKeHoach: z.coerce.date().optional().nullable(),
-  chiPhiDuKien: z.coerce.number().min(0, 'Chi phí dự kiến phải >= 0').optional().nullable(),
-  canNgungMay: z.coerce.boolean().optional(),
-  phongBanId: z.string().optional().nullable(),
-}).superRefine((data, ctx) => {
-  if (data.ngayHoanThienDuKien && data.ngayBatDauKeHoach) {
-    if (new Date(data.ngayHoanThienDuKien).getTime() <= new Date(data.ngayBatDauKeHoach).getTime()) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['ngayHoanThienDuKien'], message: 'Ngày hoàn thiện dự kiến phải sau ngày bắt đầu kế hoạch' });
+export const repairPlanSchema = z
+  .object({
+    keHoachChiTiet: z.string().optional().nullable(),
+    phuongAn: z.string().optional().nullable(),
+    bienPhapAnToan: z.string().optional().nullable(),
+    ngayHoanThienDuKien: z.coerce.date().optional().nullable(),
+    ngayBatDauKeHoach: z.coerce.date().optional().nullable(),
+    chiPhiDuKien: z.coerce.number().min(0, 'Chi phí dự kiến phải >= 0').optional().nullable(),
+    canNgungMay: z.coerce.boolean().optional(),
+    phongBanId: z.string().optional().nullable(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.ngayHoanThienDuKien && data.ngayBatDauKeHoach) {
+      if (
+        new Date(data.ngayHoanThienDuKien).getTime() <= new Date(data.ngayBatDauKeHoach).getTime()
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['ngayHoanThienDuKien'],
+          message: 'Ngày hoàn thiện dự kiến phải sau ngày bắt đầu kế hoạch',
+        });
+      }
     }
-  }
-});
+  });
 
 export const confirmAcceptanceSchema = z.object({
   ketQua: nghiemThuKetQuaEnum,
   chiPhiThucTe: z.coerce.number().min(0).optional().nullable(),
 });
 
-export const rejectRepairSchema = z.object({
-  reason: z.string().min(1, 'Lý do là bắt buộc').optional(),
-  lyDo: z.string().optional(),
-}).passthrough();
+export const rejectRepairSchema = z
+  .object({
+    reason: z.string().min(1, 'Lý do là bắt buộc').optional(),
+    lyDo: z.string().optional(),
+  })
+  .strip();
 
-export const cancelRepairSchema = z.object({
-  reason: z.string().optional(),
-  lyDo: z.string().optional(),
-}).passthrough();
+export const cancelRepairSchema = z
+  .object({
+    reason: z.string().optional(),
+    lyDo: z.string().optional(),
+  })
+  .strip();
 
 export type CreateRepairRequestInput = z.infer<typeof createRepairRequestSchema>;
 export type UpdateRepairRequestInput = z.infer<typeof updateRepairRequestSchema>;
@@ -943,37 +1261,43 @@ export type RepairMaterialNeedCreateInput = z.infer<typeof repairMaterialNeedCre
 export type RepairSupplyLinkCreateInput = z.infer<typeof repairSupplyLinkCreateSchema>;
 
 // Actual execution fields — only when DA_NGHIEM_THU / HOAN_THANH (service enforces status)
-export const repairActualFieldsSchema = z.object({
-  gioCongThucTe: z.coerce.number().min(0, 'Giờ công thực tế phải >= 0').optional().nullable(),
-  noiDungThucHien: z.string().optional().nullable(),
-  chiPhiThucTe: z.coerce.number().min(0, 'Chi phí thực tế phải >= 0').optional().nullable(),
-  ketQuaNghiemThu: nghiemThuKetQuaEnum.optional().nullable(),
-  ngayHoanThanhThucTe: z.coerce.date().optional().nullable(),
-}).refine((v) => Object.keys(v).some((k) => (v as Record<string, unknown>)[k] !== undefined), {
-  message: 'Không có dữ liệu thực tế để cập nhật',
-});
+export const repairActualFieldsSchema = z
+  .object({
+    gioCongThucTe: z.coerce.number().min(0, 'Giờ công thực tế phải >= 0').optional().nullable(),
+    noiDungThucHien: z.string().optional().nullable(),
+    chiPhiThucTe: z.coerce.number().min(0, 'Chi phí thực tế phải >= 0').optional().nullable(),
+    ketQuaNghiemThu: nghiemThuKetQuaEnum.optional().nullable(),
+    ngayHoanThanhThucTe: z.coerce.date().optional().nullable(),
+  })
+  .refine((v) => Object.keys(v).some((k) => (v as Record<string, unknown>)[k] !== undefined), {
+    message: 'Không có dữ liệu thực tế để cập nhật',
+  });
 export type RepairActualFieldsInput = z.infer<typeof repairActualFieldsSchema>;
 
 // ==================== INSPECTION REQUEST SCHEMAS (KIEM_TRA) ====================
 // Thin wrappers over repair schemas with InspectionRequest naming alias; reuse same validation.
-export const inspectionRequestCreateSchema = z.object({
-  requestType: z.literal('KIEM_TRA').optional().default('KIEM_TRA'),
-  mucDoUuTien: z.string().min(1, 'Mức độ ưu tiên là bắt buộc'),
-  ghiChu: z.string().optional().nullable(),
-  phongBanId: z.string().optional().nullable(),
-  ngayThang: z.coerce.date().optional(),
-  fileDinhKem: z.string().optional().nullable(),
-  items: z.array(repairItemSchema).optional(),
-}).passthrough();
+export const inspectionRequestCreateSchema = z
+  .object({
+    requestType: z.literal('KIEM_TRA').optional().default('KIEM_TRA'),
+    mucDoUuTien: z.string().min(1, 'Mức độ ưu tiên là bắt buộc'),
+    ghiChu: z.string().optional().nullable(),
+    phongBanId: z.string().optional().nullable(),
+    ngayThang: z.coerce.date().optional(),
+    fileDinhKem: z.string().optional().nullable(),
+    items: z.array(repairItemSchema).optional(),
+  })
+  .strip();
 
-export const inspectionRequestUpdateSchema = z.object({
-  mucDoUuTien: z.string().optional(),
-  ghiChu: z.string().optional().nullable(),
-  phongBanId: z.string().optional().nullable(),
-  ngayThang: z.coerce.date().optional(),
-  fileDinhKem: z.string().optional().nullable(),
-  items: z.array(repairItemSchema).optional(),
-}).passthrough();
+export const inspectionRequestUpdateSchema = z
+  .object({
+    mucDoUuTien: z.string().optional(),
+    ghiChu: z.string().optional().nullable(),
+    phongBanId: z.string().optional().nullable(),
+    ngayThang: z.coerce.date().optional(),
+    fileDinhKem: z.string().optional().nullable(),
+    items: z.array(repairItemSchema).optional(),
+  })
+  .strip();
 
 // Back-compat aliases
 export const inspectionRequestCreateSchemaAlias = inspectionRequestCreateSchema;
@@ -993,4 +1317,3 @@ export type InspectionDetailsInput = z.infer<typeof inspectionDetailsSchema>;
 
 export type InspectionRequestCreateInput = z.infer<typeof inspectionRequestCreateSchema>;
 export type InspectionRequestUpdateInput = z.infer<typeof inspectionRequestUpdateSchema>;
-
