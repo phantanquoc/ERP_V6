@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { ModalForm, ModalFooter, FormField, inputCls, selectCls, textareaCls } from './ModalForm';
 import { useCreateMaintenanceRecord, useUpdateMaintenanceRecord, useGeneratedRecordCode } from '../hooks/useMaintenanceRecords';
 import { useMachineSystemDetails } from '../hooks/useMachineSystemDetails';
+import { useMaintenancePlans } from '../hooks/useMaintenancePlans';
 import { useEmployeesForAssignment } from '../hooks/useEmployeesForAssignment';
 import { MaintenanceRecord } from '../services/maintenanceRecordService';
 import EmployeeCombobox from './common/EmployeeCombobox';
@@ -45,6 +46,30 @@ const MaintenanceRecordForm = ({ mode, record, systems, onClose, lockedMachineSy
   });
   const { data: employees = [] } = useEmployeesForAssignment();
 
+  const year = useMemo(() => new Date(ngayThucHien).getFullYear() || new Date().getFullYear(), [ngayThucHien]);
+  const { data: plansResponse } = useMaintenancePlans(!isView && !isEdit && machineSystemId && machineSystemDetailId && noiDung.trim() ? { machineSystemId, nam: year, limit: 50 } as any : { machineSystemId: '__none__' } as any);
+  const normalize = (s: string) => s.trim().normalize('NFC').toLowerCase();
+  const matchedItem = useMemo(() => {
+    if (isView || isEdit || !machineSystemId || !machineSystemDetailId || !noiDung.trim()) return null;
+    const plans = (plansResponse as any)?.data ?? [];
+    const candidates: { planId: string; maKeHoach: string; itemId: string }[] = [];
+    for (const p of plans) {
+      for (const it of (p.items ?? [])) {
+        if (it.machineSystemDetailId === machineSystemDetailId && normalize(it.noiDung) === normalize(noiDung)) {
+          candidates.push({ planId: p.id, maKeHoach: p.maKeHoach, itemId: it.id });
+        }
+      }
+    }
+    return candidates.length === 1 ? candidates[0] : null;
+  }, [isView, isEdit, machineSystemId, machineSystemDetailId, noiDung, plansResponse]);
+
+  const [linkTick, setLinkTick] = useState(false);
+  const [linkThang, setLinkThang] = useState<number>(() => new Date().getMonth() + 1);
+  const [linkLanThu, setLinkLanThu] = useState(1);
+
+  // default thang from ngayThucHien when date changes and checkbox not yet touched
+  const defaultThang = useMemo(() => { const d = new Date(ngayThucHien); const m = d.getMonth() + 1; return m >= 1 && m <= 12 ? m : new Date().getMonth() + 1; }, [ngayThucHien]);
+
   const createRecord = useCreateMaintenanceRecord();
   const updateRecord = useUpdateMaintenanceRecord();
 
@@ -56,7 +81,7 @@ const MaintenanceRecordForm = ({ mode, record, systems, onClose, lockedMachineSy
       toast.error('Vui lòng điền đầy đủ thông tin bắt buộc');
       return;
     }
-    const payload = {
+    const payload: any = {
       machineSystemId,
       machineSystemDetailId,
       loai,
@@ -68,6 +93,7 @@ const MaintenanceRecordForm = ({ mode, record, systems, onClose, lockedMachineSy
       ngayThucHien,
       nguoiThucHien,
       nguoiPhu,
+      ...(linkTick && matchedItem ? { linkPlan: { planId: matchedItem.planId, itemId: matchedItem.itemId, thang: linkThang, lanThu: linkLanThu } } : {}),
     };
 
     try {
@@ -75,8 +101,13 @@ const MaintenanceRecordForm = ({ mode, record, systems, onClose, lockedMachineSy
         await updateRecord.mutateAsync({ id: record.id, data: payload, file });
         toast.success('Cập nhật biên bản thành công');
       } else {
-        await createRecord.mutateAsync({ data: payload, file });
-        toast.success('Tạo biên bản thành công');
+        const res: any = await createRecord.mutateAsync({ data: payload, file });
+        const warning = res?.warning ?? res?.data?.warning;
+        if (warning?.code === 'DUPLICATE_PLAN_LOG') {
+          toast.success(`${warning.message}`, { duration: 6000 });
+        } else {
+          toast.success('Tạo biên bản thành công');
+        }
       }
       onClose();
     } catch (err) {
@@ -212,6 +243,22 @@ const MaintenanceRecordForm = ({ mode, record, systems, onClose, lockedMachineSy
             />
           )}
         </FormField>
+        {!isView && !isEdit && matchedItem && (
+          <div className="border border-amber-200 bg-amber-50 rounded-lg p-3 space-y-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={linkTick} onChange={(e) => { setLinkTick(e.target.checked); if (e.target.checked) setLinkThang(defaultThang); }} />
+              Đồng thời tick hoàn thành cho {matchedItem.maKeHoach} tháng {linkThang}
+            </label>
+            {linkTick && (
+              <div className="flex items-center gap-2">
+                <select value={linkThang} onChange={(e) => setLinkThang(parseInt(e.target.value, 10))} className={selectCls()}>
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={m}>Tháng {m}</option>)}
+                </select>
+                <input type="number" min={1} value={linkLanThu} onChange={(e) => setLinkLanThu(Math.max(1, parseInt(e.target.value, 10) || 1))} className={inputCls() + ' w-20'} placeholder="Lần" title="Lần thứ" />
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </ModalForm>
   );

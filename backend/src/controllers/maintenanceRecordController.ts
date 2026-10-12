@@ -8,9 +8,19 @@ import { ValidationError } from '@utils/errors';
 import logger from '@config/logger';
 
 const ALLOWED_FIELDS = [
-  'maBienBan', 'maintenancePlanId', 'machineSystemId', 'machineSystemDetailId',
-  'loai', 'noiDung', 'tinhTrangTruoc', 'tinhTrangSau', 'deXuat', 'thoiGianThucHien',
-  'ngayThucHien', 'nguoiThucHien', 'nguoiPhu',
+  'maBienBan',
+  'maintenancePlanId',
+  'machineSystemId',
+  'machineSystemDetailId',
+  'loai',
+  'noiDung',
+  'tinhTrangTruoc',
+  'tinhTrangSau',
+  'deXuat',
+  'thoiGianThucHien',
+  'ngayThucHien',
+  'nguoiThucHien',
+  'nguoiPhu',
 ] as const;
 
 function pickAllowed(body: Record<string, unknown>, _isAdmin: boolean): Record<string, unknown> {
@@ -25,7 +35,11 @@ function pickAllowed(body: Record<string, unknown>, _isAdmin: boolean): Record<s
 
 function safeParseJson(value: unknown, field: string): unknown {
   if (typeof value !== 'string') return value;
-  try { return JSON.parse(value); } catch { throw new ValidationError(`${field} không hợp lệ (JSON parse thất bại)`); }
+  try {
+    return JSON.parse(value);
+  } catch {
+    throw new ValidationError(`${field} không hợp lệ (JSON parse thất bại)`);
+  }
 }
 
 function parseNguoiPhu(raw: unknown): string[] | undefined {
@@ -82,25 +96,86 @@ class MaintenanceRecordController {
     try {
       const isAdmin = (req as unknown as { user?: { role?: string } }).user?.role === 'ADMIN';
       const picked = pickAllowed(req.body as Record<string, unknown>, isAdmin);
-      const nguoiPhu = parseNguoiPhu((picked as Record<string, unknown>).nguoiPhu ?? (req.body as Record<string, unknown>).nguoiPhu);
+      const nguoiPhu = parseNguoiPhu(
+        (picked as Record<string, unknown>).nguoiPhu ??
+          (req.body as Record<string, unknown>).nguoiPhu
+      );
       const rawNgay = (picked as Record<string, unknown>).ngayThucHien;
-      const record = await maintenanceRecordService.create({
+      const rawLink = (req.body as Record<string, unknown>).linkPlan;
+      let linkPlan: { planId: string; itemId: string; thang: number; lanThu: number } | null = null;
+      if (rawLink !== undefined && rawLink !== null && rawLink !== '') {
+        const parsed =
+          typeof rawLink === 'string'
+            ? (safeParseJson(rawLink, 'linkPlan') as Record<string, unknown>)
+            : (rawLink as Record<string, unknown>);
+        const p = parsed as Record<string, unknown>;
+        if (p.planId && p.itemId && p.thang !== undefined) {
+          linkPlan = {
+            planId: String(p.planId),
+            itemId: String(p.itemId),
+            thang: parseInt(String(p.thang), 10),
+            lanThu: p.lanThu !== undefined ? parseInt(String(p.lanThu), 10) : 1,
+          };
+          if (isNaN(linkPlan.thang) || isNaN(linkPlan.lanThu))
+            throw new ValidationError('linkPlan.thang/lanThu phải là số');
+        }
+      }
+      const createData = {
         ...(picked as Record<string, unknown>),
         nguoiPhu,
         ngayThucHien: rawNgay ? new Date(rawNgay as string) : new Date(),
         fileDinhKem: req.file ? getFileUrl('maintenance-records', req.file.filename) : undefined,
         userId: req.user?.id,
-      } as Parameters<typeof maintenanceRecordService.create>[0]);
+      } as Parameters<typeof maintenanceRecordService.create>[0];
+      const record = linkPlan
+        ? await maintenanceRecordService.createWithOptionalPlanLink(createData, linkPlan)
+        : await maintenanceRecordService.create(createData);
+      let warning: unknown = undefined;
+      if (!linkPlan) {
+        try {
+          const r = record as unknown as {
+            machineSystemId: string;
+            machineSystemDetailId: string;
+            noiDung: string;
+            ngayThucHien: Date | string;
+          };
+          const year = new Date(r.ngayThucHien).getFullYear();
+          if (!isNaN(year) && r.machineSystemId && r.machineSystemDetailId && r.noiDung) {
+            const match = await maintenanceRecordService.findCompletedPlanMatch({
+              machineSystemId: r.machineSystemId,
+              machineSystemDetailId: r.machineSystemDetailId,
+              noiDung: r.noiDung,
+              year,
+            });
+            if (match)
+              warning = {
+                code: 'DUPLICATE_PLAN_LOG',
+                message: `Nội dung này đã có tick hoàn thành trong kế hoạch ${match.maKeHoach}`,
+                planId: match.planId,
+                maKeHoach: match.maKeHoach,
+              };
+          }
+        } catch (_) {
+          /* warning must not fail create */
+        }
+      }
       if (record?.id) {
         try {
           await notificationService.notify(NotificationEvent.MAINTENANCE_RECORD_CREATED, {
             actorUserId: req.user?.id,
             entityId: record.id,
-            metadata: { maBienBan: (record as any)?.maBienBan },
+            metadata: { maBienBan: (record as unknown as { maBienBan?: string })?.maBienBan },
           });
-        } catch (e) { logger.warn('[MaintenanceRecordController] notify MAINTENANCE_RECORD_CREATED failed', e); }
+        } catch (e) {
+          logger.warn('[MaintenanceRecordController] notify MAINTENANCE_RECORD_CREATED failed', e);
+        }
       }
-      res.status(201).json({ success: true, data: record, message: 'Tạo biên bản thành công' });
+      res.status(201).json({
+        success: true,
+        data: record,
+        ...(warning ? { warning } : {}),
+        message: 'Tạo biên bản thành công',
+      });
     } catch (error) {
       next(error);
     }
@@ -117,14 +192,19 @@ class MaintenanceRecordController {
       if (picked.ngayThucHien) payload.ngayThucHien = new Date(picked.ngayThucHien as string);
       else delete payload.ngayThucHien;
       if (req.file) payload.fileDinhKem = getFileUrl('maintenance-records', req.file.filename);
-      const record = await maintenanceRecordService.update(req.params.id, payload as Parameters<typeof maintenanceRecordService.update>[1]);
+      const record = await maintenanceRecordService.update(
+        req.params.id,
+        payload as Parameters<typeof maintenanceRecordService.update>[1]
+      );
       try {
         await notificationService.notify(NotificationEvent.MAINTENANCE_RECORD_UPDATED, {
           actorUserId: req.user?.id,
           entityId: req.params.id,
           metadata: { maBienBan: (record as any)?.maBienBan },
         });
-      } catch (e) { logger.warn('[MaintenanceRecordController] notify MAINTENANCE_RECORD_UPDATED failed', e); }
+      } catch (e) {
+        logger.warn('[MaintenanceRecordController] notify MAINTENANCE_RECORD_UPDATED failed', e);
+      }
       res.json({ success: true, data: record, message: 'Cập nhật biên bản thành công' });
     } catch (error) {
       next(error);
@@ -134,7 +214,12 @@ class MaintenanceRecordController {
   async remove(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       let maBienBan: string | undefined;
-      try { const r = await maintenanceRecordService.getById(req.params.id); maBienBan = (r as any)?.maBienBan; } catch (_) { /* ignore */ }
+      try {
+        const r = await maintenanceRecordService.getById(req.params.id);
+        maBienBan = (r as any)?.maBienBan;
+      } catch (_) {
+        /* ignore */
+      }
       await maintenanceRecordService.delete(req.params.id);
       try {
         await notificationService.notify(NotificationEvent.MAINTENANCE_RECORD_DELETED, {
@@ -142,7 +227,9 @@ class MaintenanceRecordController {
           entityId: req.params.id,
           metadata: { maBienBan },
         });
-      } catch (e) { logger.warn('[MaintenanceRecordController] notify MAINTENANCE_RECORD_DELETED failed', e); }
+      } catch (e) {
+        logger.warn('[MaintenanceRecordController] notify MAINTENANCE_RECORD_DELETED failed', e);
+      }
       res.json({ success: true, message: 'Xóa biên bản thành công' });
     } catch (error) {
       next(error);
@@ -157,7 +244,10 @@ class MaintenanceRecordController {
         startDate: req.query.startDate as string | undefined,
         endDate: req.query.endDate as string | undefined,
       });
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
       res.setHeader('Content-Disposition', 'attachment; filename=bien-ban-bao-duong.xlsx');
       await wb.xlsx.write(res);
       res.end();

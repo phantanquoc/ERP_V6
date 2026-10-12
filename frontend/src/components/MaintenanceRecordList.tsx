@@ -154,7 +154,13 @@ const MaintenanceRecordList = ({ lockedMachineSystemId }: MaintenanceRecordListP
     if (!pendingDelete) return;
     deleteRecord.mutate(pendingDelete.id, {
       onSuccess: () => { toast.success('Đã xóa biên bản'); setPendingDelete(null); },
-      onError: (err) => toast.error(err instanceof Error ? err.message : 'Xóa biên bản thất bại'),
+      onError: (err: any) => {
+        const status = err?.statusCode ?? (err as any)?.status;
+        const msg = err instanceof Error ? err.message : 'Xóa biên bản thất bại';
+        if (status === 400 && msg.includes('tự sinh')) {
+          toast.error('Biên bản tự sinh chỉ được xóa bằng cách bỏ tick trong kế hoạch', { duration: 5000 });
+        } else toast.error(msg);
+      },
     });
   };
 

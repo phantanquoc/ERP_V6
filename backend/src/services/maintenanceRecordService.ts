@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
-import { NotFoundError, ValidationError } from '@utils/errors';
+import { NotFoundError, ValidationError, ConflictError } from '@utils/errors';
 import { nextYearlyCode, yearlyCodeWhere } from '@utils/codeGenerator';
 import ExcelJS from 'exceljs';
 
@@ -76,7 +76,7 @@ class MaintenanceRecordService {
       const nguoiPhuRows = await prisma.$queryRaw<Array<{ id: string }>>(
         Prisma.sql`SELECT id FROM "business"."maintenance_records" WHERE EXISTS (SELECT 1 FROM unnest("nguoiPhu") AS np WHERE np ILIKE ${term})`
       );
-      const nguoiPhuMatchIds = nguoiPhuRows.map(r => r.id);
+      const nguoiPhuMatchIds = nguoiPhuRows.map((r) => r.id);
 
       where.OR = [
         { maBienBan: { contains: filters.search, mode: 'insensitive' } },
@@ -88,7 +88,13 @@ class MaintenanceRecordService {
     }
 
     const [data, total] = await Promise.all([
-      prisma.maintenanceRecord.findMany({ where, skip, take: limit, orderBy: { ngayThucHien: 'desc' }, include: recordInclude }),
+      prisma.maintenanceRecord.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { ngayThucHien: 'desc' },
+        include: recordInclude,
+      }),
       prisma.maintenanceRecord.count({ where }),
     ]);
 
@@ -96,7 +102,10 @@ class MaintenanceRecordService {
   }
 
   async getById(id: string) {
-    const record = await prisma.maintenanceRecord.findUnique({ where: { id }, include: recordInclude });
+    const record = await prisma.maintenanceRecord.findUnique({
+      where: { id },
+      include: recordInclude,
+    });
     if (!record) throw new NotFoundError('Không tìm thấy biên bản bảo dưỡng');
     return record;
   }
@@ -105,7 +114,7 @@ class MaintenanceRecordService {
     if (!['Bảo dưỡng', 'Sửa chữa'].includes(data.loai)) {
       throw new ValidationError('Loại phải là "Bảo dưỡng" hoặc "Sửa chữa"');
     }
-    const maBienBan = data.maBienBan ?? await this.generateCode();
+    const maBienBan = data.maBienBan ?? (await this.generateCode());
 
     return prisma.maintenanceRecord.create({
       data: {
@@ -157,8 +166,179 @@ class MaintenanceRecordService {
   }
 
   async delete(id: string) {
-    await this.getById(id);
+    const rec = await this.getById(id);
+    if ((rec as unknown as { sourceLogId: string | null }).sourceLogId != null) {
+      throw new ValidationError('Biên bản tự sinh chỉ được xóa bằng cách bỏ tick trong kế hoạch');
+    }
     return prisma.maintenanceRecord.delete({ where: { id } });
+  }
+
+  // Normalize noiDung for matching (trim + NFC + case-insensitive)
+  private normalizeNoiDung(s: string): string {
+    return s.trim().normalize('NFC').toLowerCase();
+  }
+
+  // P1: find plan item with completed log matching record's device + noiDung in same year
+  async findCompletedPlanMatch(data: {
+    machineSystemId: string;
+    machineSystemDetailId: string;
+    noiDung: string;
+    year: number;
+  }): Promise<{ planId: string; maKeHoach: string } | null> {
+    const normalized = this.normalizeNoiDung(data.noiDung);
+    if (!normalized) return null;
+    const plans = await prisma.maintenancePlan.findMany({
+      where: { machineSystemId: data.machineSystemId, nam: data.year },
+      select: {
+        id: true,
+        maKeHoach: true,
+        items: {
+          select: {
+            id: true,
+            machineSystemDetailId: true,
+            noiDung: true,
+            logs: { where: { hoanThanh: true }, select: { id: true } },
+          },
+        },
+      },
+    });
+    for (const plan of plans) {
+      for (const item of plan.items) {
+        if (item.machineSystemDetailId !== data.machineSystemDetailId) continue;
+        if (this.normalizeNoiDung(item.noiDung) !== normalized) continue;
+        if (item.logs.length > 0) return { planId: plan.id, maKeHoach: plan.maKeHoach };
+      }
+    }
+    return null;
+  }
+
+  // P2: transactional create with optional plan link
+  async createWithOptionalPlanLink(
+    data: CreateMaintenanceRecordData,
+    linkPlan: { planId: string; itemId: string; thang: number; lanThu: number } | null
+  ) {
+    if (!linkPlan) return this.create(data);
+    if (!['Bảo dưỡng', 'Sửa chữa'].includes(data.loai)) {
+      throw new ValidationError('Loại phải là "Bảo dưỡng" hoặc "Sửa chữa"');
+    }
+    return prisma.$transaction(async (tx) => {
+      // Cycle guard (reuse same logic as toggleMonth)
+      const item = await tx.maintenancePlanItem.findFirst({
+        where: { id: linkPlan.itemId, maintenancePlanId: linkPlan.planId },
+      });
+      if (!item) throw new ValidationError('Mục bảo dưỡng không thuộc kế hoạch này');
+      const freqTimes: Record<string, number> = {
+        HANG_NGAY: 22,
+        HANG_TUAN: 4,
+        HANG_THANG: 1,
+        HAI_THANG: 1,
+        BA_THANG: 1,
+        SAU_THANG: 1,
+        HANG_NAM: 1,
+        KHONG_CO_DINH: 0,
+      };
+      const maxLan = freqTimes[item.tanSuat as string] ?? 1;
+      if (maxLan === 0)
+        throw new ValidationError('Tần suất KHÔNG CỐ ĐỊNH không cho phép tick hoàn thành');
+      if (linkPlan.lanThu > maxLan)
+        throw new ValidationError(
+          `Tần suất ${item.tanSuat} chỉ cho phép tối đa ${maxLan} lần/tháng`
+        );
+      const applicable = this.getApplicableMonths(item.tanSuat as string, item.thangBatDau ?? 1);
+      if (!applicable.includes(linkPlan.thang))
+        throw new ValidationError(`Tháng ${linkPlan.thang} không thuộc chu kỳ ${item.tanSuat}`);
+      const existing = await tx.maintenancePlanItemLog.findUnique({
+        where: {
+          maintenancePlanItemId_thang_lanThu: {
+            maintenancePlanItemId: linkPlan.itemId,
+            thang: linkPlan.thang,
+            lanThu: linkPlan.lanThu,
+          },
+        },
+      });
+      if (existing?.hoanThanh) throw new ConflictError('Ô kế hoạch này đã hoàn thành');
+      let logId: string;
+      if (existing) {
+        const updated = await tx.maintenancePlanItemLog.update({
+          where: { id: existing.id },
+          data: {
+            hoanThanh: true,
+            ngayThucHien: data.ngayThucHien ?? new Date(),
+            nguoiThucHien: data.nguoiThucHien ?? null,
+            nguoiPhu: data.nguoiPhu ?? [],
+          },
+        });
+        logId = updated.id;
+      } else {
+        const created = await tx.maintenancePlanItemLog.create({
+          data: {
+            maintenancePlanItemId: linkPlan.itemId,
+            thang: linkPlan.thang,
+            lanThu: linkPlan.lanThu,
+            hoanThanh: true,
+            ngayThucHien: data.ngayThucHien ?? new Date(),
+            nguoiThucHien: data.nguoiThucHien ?? null,
+            nguoiPhu: data.nguoiPhu ?? [],
+          },
+        });
+        logId = created.id;
+      }
+      const year = new Date().getFullYear();
+      const last = await tx.maintenanceRecord.findFirst({
+        where: { maBienBan: yearlyCodeWhere('BBBD', year) },
+        orderBy: { maBienBan: 'desc' },
+        select: { maBienBan: true },
+      });
+      const maBienBan = data.maBienBan ?? nextYearlyCode(last?.maBienBan ?? null, 'BBBD', year);
+      const record = await tx.maintenanceRecord.create({
+        data: {
+          maBienBan,
+          maintenancePlanId: linkPlan.planId,
+          machineSystemId: data.machineSystemId,
+          machineSystemDetailId: data.machineSystemDetailId,
+          loai: data.loai,
+          noiDung: data.noiDung,
+          tinhTrangTruoc: data.tinhTrangTruoc,
+          tinhTrangSau: data.tinhTrangSau,
+          deXuat: data.deXuat,
+          thoiGianThucHien: data.thoiGianThucHien,
+          ngayThucHien: new Date(data.ngayThucHien),
+          nguoiThucHien: data.nguoiThucHien,
+          nguoiPhu: data.nguoiPhu ?? [],
+          fileDinhKem: data.fileDinhKem,
+          createdById: data.userId ?? null,
+          sourceLogId: logId,
+        },
+        include: recordInclude,
+      });
+      return record;
+    });
+  }
+
+  private getApplicableMonths(frequency: string, thangBatDau: number): number[] {
+    switch (frequency) {
+      case 'HAI_THANG': {
+        const m: number[] = [];
+        for (let i = thangBatDau; i <= 12; i += 2) m.push(i);
+        return m;
+      }
+      case 'BA_THANG': {
+        const m: number[] = [];
+        for (let i = thangBatDau; i <= 12; i += 3) m.push(i);
+        return m;
+      }
+      case 'SAU_THANG': {
+        const m: number[] = [];
+        for (let i = thangBatDau; i <= 12; i += 6) m.push(i);
+        return m;
+      }
+      case 'HANG_NAM':
+        return [thangBatDau];
+      case 'KHONG_CO_DINH':
+        return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+      default:
+        return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    }
   }
 
   async exportExcel(filters: MaintenanceRecordFilters = {}) {
@@ -203,4 +383,3 @@ class MaintenanceRecordService {
 }
 
 export default new MaintenanceRecordService();
-

@@ -70,10 +70,21 @@ export interface MaintenancePlanFilters {
 }
 
 const planInclude = {
-  machineSystem: { select: { id: true, maHeThong: true, tenHeThong: true, khuVuc: true, viTri: true } },
+  machineSystem: {
+    select: { id: true, maHeThong: true, tenHeThong: true, khuVuc: true, viTri: true },
+  },
   items: {
     include: {
-      machineSystemDetail: { select: { id: true, maChiTiet: true, tenChiTiet: true, hoatDong: true, parentDetailId: true, loaiChiTiet: true } },
+      machineSystemDetail: {
+        select: {
+          id: true,
+          maChiTiet: true,
+          tenChiTiet: true,
+          hoatDong: true,
+          parentDetailId: true,
+          loaiChiTiet: true,
+        },
+      },
       maintenanceTemplate: { select: { id: true, noiDung: true } },
       logs: { orderBy: [{ thang: 'asc' as const }, { lanThu: 'asc' as const }] },
     },
@@ -110,7 +121,13 @@ class MaintenancePlanService {
     }
 
     const [data, total] = await Promise.all([
-      prisma.maintenancePlan.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' }, include: planInclude }),
+      prisma.maintenancePlan.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: planInclude,
+      }),
       prisma.maintenancePlan.count({ where }),
     ]);
 
@@ -148,7 +165,7 @@ class MaintenancePlanService {
       resolvedItems = data.items;
     }
 
-    const maKeHoach = data.maKeHoach ?? await this.generateCode();
+    const maKeHoach = data.maKeHoach ?? (await this.generateCode());
 
     return prisma.$transaction(async (tx) => {
       const plan = await tx.maintenancePlan.create({
@@ -207,40 +224,62 @@ class MaintenancePlanService {
         if (data.items.length === 0) {
           // Skip item diffing — only header fields were updated above
         } else {
-        // DIFF-BASED update: intentionally diverging from delete-then-recreate convention
-        // because each item carries child state (logs + auto-generated MaintenanceRecords)
-        // that must be preserved for unchanged/updated items.
-        const existingItems = await tx.maintenancePlanItem.findMany({
-          where: { maintenancePlanId: id },
-          select: { id: true, logs: { select: { id: true } } },
-        });
-        const existingIds = new Set(existingItems.map((e) => e.id));
-        const incomingIds = new Set(data.items.filter((i) => i.id).map((i) => i.id!));
-
-        // --- Validate: reject items with IDs not belonging to this plan ---
-        const foreignIds = data.items.filter((i) => i.id && !existingIds.has(i.id));
-        if (foreignIds.length > 0) {
-          throw new ValidationError('Dữ liệu mục bảo dưỡng không hợp lệ (ID không thuộc kế hoạch này)');
-        }
-
-        // --- Delete items no longer present ---
-        const deletedItems = existingItems.filter((e) => !incomingIds.has(e.id));
-        if (deletedItems.length > 0) {
-          const orphanLogIds = deletedItems.flatMap((e) => e.logs.map((l) => l.id));
-          if (orphanLogIds.length > 0) {
-            await tx.maintenanceRecord.deleteMany({ where: { sourceLogId: { in: orphanLogIds } } });
-          }
-          await tx.maintenancePlanItem.deleteMany({
-            where: { id: { in: deletedItems.map((e) => e.id) } },
+          // DIFF-BASED update: intentionally diverging from delete-then-recreate convention
+          // because each item carries child state (logs + auto-generated MaintenanceRecords)
+          // that must be preserved for unchanged/updated items.
+          const existingItems = await tx.maintenancePlanItem.findMany({
+            where: { maintenancePlanId: id },
+            select: { id: true, logs: { select: { id: true } } },
           });
-        }
+          const existingIds = new Set(existingItems.map((e) => e.id));
+          const incomingIds = new Set(data.items.filter((i) => i.id).map((i) => i.id!));
 
-        // --- Update existing items ---
-        for (const item of data.items) {
-          if (item.id && existingIds.has(item.id)) {
-            await tx.maintenancePlanItem.update({
-              where: { id: item.id },
-              data: {
+          // --- Validate: reject items with IDs not belonging to this plan ---
+          const foreignIds = data.items.filter((i) => i.id && !existingIds.has(i.id));
+          if (foreignIds.length > 0) {
+            throw new ValidationError(
+              'Dữ liệu mục bảo dưỡng không hợp lệ (ID không thuộc kế hoạch này)'
+            );
+          }
+
+          // --- Delete items no longer present ---
+          const deletedItems = existingItems.filter((e) => !incomingIds.has(e.id));
+          if (deletedItems.length > 0) {
+            const orphanLogIds = deletedItems.flatMap((e) => e.logs.map((l) => l.id));
+            if (orphanLogIds.length > 0) {
+              await tx.maintenanceRecord.deleteMany({
+                where: { sourceLogId: { in: orphanLogIds } },
+              });
+            }
+            await tx.maintenancePlanItem.deleteMany({
+              where: { id: { in: deletedItems.map((e) => e.id) } },
+            });
+          }
+
+          // --- Update existing items ---
+          for (const item of data.items) {
+            if (item.id && existingIds.has(item.id)) {
+              await tx.maintenancePlanItem.update({
+                where: { id: item.id },
+                data: {
+                  machineSystemDetailId: item.machineSystemDetailId,
+                  maintenanceTemplateId: item.maintenanceTemplateId || null,
+                  noiDung: item.noiDung,
+                  tanSuat: (item.tanSuat as any) || 'BA_THANG',
+                  toThucHien: (item.toThucHien as any) || 'CO_KHI',
+                  soLuong: item.soLuong ?? 1,
+                  thangBatDau: item.thangBatDau ?? 1,
+                },
+              });
+            }
+          }
+
+          // --- Create new items (no id provided) ---
+          const newItems = data.items.filter((i) => !i.id);
+          if (newItems.length > 0) {
+            await tx.maintenancePlanItem.createMany({
+              data: newItems.map((item) => ({
+                maintenancePlanId: id,
                 machineSystemDetailId: item.machineSystemDetailId,
                 maintenanceTemplateId: item.maintenanceTemplateId || null,
                 noiDung: item.noiDung,
@@ -248,27 +287,9 @@ class MaintenancePlanService {
                 toThucHien: (item.toThucHien as any) || 'CO_KHI',
                 soLuong: item.soLuong ?? 1,
                 thangBatDau: item.thangBatDau ?? 1,
-              },
+              })),
             });
           }
-        }
-
-        // --- Create new items (no id provided) ---
-        const newItems = data.items.filter((i) => !i.id);
-        if (newItems.length > 0) {
-          await tx.maintenancePlanItem.createMany({
-            data: newItems.map((item) => ({
-              maintenancePlanId: id,
-              machineSystemDetailId: item.machineSystemDetailId,
-              maintenanceTemplateId: item.maintenanceTemplateId || null,
-              noiDung: item.noiDung,
-              tanSuat: (item.tanSuat as any) || 'BA_THANG',
-              toThucHien: (item.toThucHien as any) || 'CO_KHI',
-              soLuong: item.soLuong ?? 1,
-              thangBatDau: item.thangBatDau ?? 1,
-            })),
-          });
-        }
         } // end else (non-empty items)
       }
     });
@@ -279,12 +300,29 @@ class MaintenancePlanService {
     return this.getById(id);
   }
 
-  async toggleMonth(planId: string, itemId: string, month: number, lanThu: number = 1, ghiChu?: string, nguoiThucHien?: string, nguoiPhu?: string[], ngayThucHien?: string, recordData?: { tinhTrangTruoc?: string; tinhTrangSau?: string; deXuat?: string; thoiGianThucHien?: string; noiDung?: string }) {
+  async toggleMonth(
+    planId: string,
+    itemId: string,
+    month: number,
+    lanThu: number = 1,
+    ghiChu?: string,
+    nguoiThucHien?: string,
+    nguoiPhu?: string[],
+    ngayThucHien?: string,
+    recordData?: {
+      tinhTrangTruoc?: string;
+      tinhTrangSau?: string;
+      deXuat?: string;
+      thoiGianThucHien?: string;
+      noiDung?: string;
+    }
+  ) {
     if (month < 1 || month > 12) throw new ValidationError('Tháng phải từ 1-12');
     if (lanThu < 1) throw new ValidationError('Lần thứ phải từ 1 trở lên');
 
     const parsedNgay = ngayThucHien ? new Date(ngayThucHien) : undefined;
-    if (ngayThucHien && parsedNgay && Number.isNaN(parsedNgay.getTime())) throw new ValidationError('ngayThucHien không hợp lệ');
+    if (ngayThucHien && parsedNgay && Number.isNaN(parsedNgay.getTime()))
+      throw new ValidationError('ngayThucHien không hợp lệ');
 
     const log = await prisma.$transaction(async (tx) => {
       const item = await tx.maintenancePlanItem.findFirst({
@@ -292,9 +330,26 @@ class MaintenancePlanService {
         include: { maintenancePlan: { select: { machineSystemId: true } } },
       });
       if (!item) throw new NotFoundError('Không tìm thấy mục bảo dưỡng');
+      // P3 cycle guard
+      const maxLan = FREQUENCY_TIMES[item.tanSuat as string] ?? 1;
+      if (maxLan === 0)
+        throw new ValidationError('Tần suất KHÔNG CỐ ĐỊNH không cho phép tick hoàn thành');
+      if (lanThu > maxLan)
+        throw new ValidationError(
+          `Tần suất ${item.tanSuat} chỉ cho phép tối đa ${maxLan} lần/tháng`
+        );
+      const applicable = this.getApplicableMonths(item.tanSuat as string, item.thangBatDau ?? 1);
+      if (!applicable.includes(month))
+        throw new ValidationError(`Tháng ${month} không thuộc chu kỳ ${item.tanSuat}`);
 
       const existing = await tx.maintenancePlanItemLog.findUnique({
-        where: { maintenancePlanItemId_thang_lanThu: { maintenancePlanItemId: itemId, thang: month, lanThu } },
+        where: {
+          maintenancePlanItemId_thang_lanThu: {
+            maintenancePlanItemId: itemId,
+            thang: month,
+            lanThu,
+          },
+        },
       });
 
       let currentLog;
@@ -379,20 +434,52 @@ class MaintenancePlanService {
 
   private getApplicableMonths(frequency: string, thangBatDau: number): number[] {
     switch (frequency) {
-      case 'HAI_THANG': { const m: number[] = []; for (let i = thangBatDau; i <= 12; i += 2) m.push(i); return m; }
-      case 'BA_THANG': { const m: number[] = []; for (let i = thangBatDau; i <= 12; i += 3) m.push(i); return m; }
-      case 'SAU_THANG': { const m: number[] = []; for (let i = thangBatDau; i <= 12; i += 6) m.push(i); return m; }
-      case 'HANG_NAM': return [thangBatDau];
-      case 'KHONG_CO_DINH': return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-      default: return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+      case 'HAI_THANG': {
+        const m: number[] = [];
+        for (let i = thangBatDau; i <= 12; i += 2) m.push(i);
+        return m;
+      }
+      case 'BA_THANG': {
+        const m: number[] = [];
+        for (let i = thangBatDau; i <= 12; i += 3) m.push(i);
+        return m;
+      }
+      case 'SAU_THANG': {
+        const m: number[] = [];
+        for (let i = thangBatDau; i <= 12; i += 6) m.push(i);
+        return m;
+      }
+      case 'HANG_NAM':
+        return [thangBatDau];
+      case 'KHONG_CO_DINH':
+        return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+      default:
+        return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
     }
   }
 
   private async createAutoRecordTx(
     tx: Prisma.TransactionClient,
-    item: { id: string; maintenancePlanId: string; machineSystemDetailId: string; noiDung: string; maintenancePlan: { machineSystemId: string } },
-    log: { id: string; nguoiThucHien: string | null; ngayThucHien: Date | null; nguoiPhu?: string[] },
-    recordData?: { tinhTrangTruoc?: string; tinhTrangSau?: string; deXuat?: string; thoiGianThucHien?: string; noiDung?: string },
+    item: {
+      id: string;
+      maintenancePlanId: string;
+      machineSystemDetailId: string;
+      noiDung: string;
+      maintenancePlan: { machineSystemId: string };
+    },
+    log: {
+      id: string;
+      nguoiThucHien: string | null;
+      ngayThucHien: Date | null;
+      nguoiPhu?: string[];
+    },
+    recordData?: {
+      tinhTrangTruoc?: string;
+      tinhTrangSau?: string;
+      deXuat?: string;
+      thoiGianThucHien?: string;
+      noiDung?: string;
+    }
   ) {
     const year = new Date().getFullYear();
     const last = await tx.maintenanceRecord.findFirst({
@@ -421,7 +508,22 @@ class MaintenancePlanService {
     });
   }
 
-  async updateLogNote(logId: string, data: { ghiChu?: string; nguoiThucHien?: string; nguoiPhu?: string[]; ngayThucHien?: string; recordData?: { tinhTrangTruoc?: string; tinhTrangSau?: string; deXuat?: string; thoiGianThucHien?: string; noiDung?: string } }) {
+  async updateLogNote(
+    logId: string,
+    data: {
+      ghiChu?: string;
+      nguoiThucHien?: string;
+      nguoiPhu?: string[];
+      ngayThucHien?: string;
+      recordData?: {
+        tinhTrangTruoc?: string;
+        tinhTrangSau?: string;
+        deXuat?: string;
+        thoiGianThucHien?: string;
+        noiDung?: string;
+      };
+    }
+  ) {
     const log = await prisma.maintenancePlanItemLog.findUnique({ where: { id: logId } });
     if (!log) throw new NotFoundError('Không tìm thấy log bảo dưỡng');
     const updateData: Record<string, any> = {};
@@ -441,14 +543,18 @@ class MaintenancePlanService {
     // Sync to linked MaintenanceRecord (if any) — personnel + date + record fields
     try {
       const recordUpdate: Record<string, any> = {};
-      if (data.nguoiThucHien !== undefined) recordUpdate.nguoiThucHien = data.nguoiThucHien || 'Chưa xác định';
+      if (data.nguoiThucHien !== undefined)
+        recordUpdate.nguoiThucHien = data.nguoiThucHien || 'Chưa xác định';
       if (data.nguoiPhu !== undefined) recordUpdate.nguoiPhu = data.nguoiPhu;
       if (data.ngayThucHien !== undefined) recordUpdate.ngayThucHien = updateData.ngayThucHien;
       if (data.recordData) {
-        if (data.recordData.tinhTrangTruoc !== undefined) recordUpdate.tinhTrangTruoc = data.recordData.tinhTrangTruoc;
-        if (data.recordData.tinhTrangSau !== undefined) recordUpdate.tinhTrangSau = data.recordData.tinhTrangSau;
+        if (data.recordData.tinhTrangTruoc !== undefined)
+          recordUpdate.tinhTrangTruoc = data.recordData.tinhTrangTruoc;
+        if (data.recordData.tinhTrangSau !== undefined)
+          recordUpdate.tinhTrangSau = data.recordData.tinhTrangSau;
         if (data.recordData.deXuat !== undefined) recordUpdate.deXuat = data.recordData.deXuat;
-        if (data.recordData.thoiGianThucHien !== undefined) recordUpdate.thoiGianThucHien = data.recordData.thoiGianThucHien;
+        if (data.recordData.thoiGianThucHien !== undefined)
+          recordUpdate.thoiGianThucHien = data.recordData.thoiGianThucHien;
         if (data.recordData.noiDung !== undefined) recordUpdate.noiDung = data.recordData.noiDung;
       }
       if (Object.keys(recordUpdate).length > 0) {
@@ -475,7 +581,7 @@ class MaintenancePlanService {
 
     // Get existing item detail IDs
     const existingDetailIds = new Set(
-      (plan.items ?? []).map((item: any) => item.machineSystemDetailId),
+      (plan.items ?? []).map((item: any) => item.machineSystemDetailId)
     );
 
     // Find missing details
@@ -506,4 +612,3 @@ class MaintenancePlanService {
 }
 
 export default new MaintenancePlanService();
-

@@ -24,6 +24,7 @@ export interface MaintenanceRecord {
   maintenancePlan?: { id: string; maKeHoach: string } | null;
 }
 
+export interface DuplicatePlanWarning { code: string; message: string; planId: string; maKeHoach: string; }
 export interface CreateMaintenanceRecordRequest {
   maintenancePlanId?: string;
   machineSystemId: string;
@@ -37,6 +38,7 @@ export interface CreateMaintenanceRecordRequest {
   ngayThucHien: string;
   nguoiThucHien: string;
   nguoiPhu?: string[];
+  linkPlan?: { planId: string; itemId: string; thang: number; lanThu: number };
 }
 
 export type UpdateMaintenanceRecordRequest = Partial<CreateMaintenanceRecordRequest>;
@@ -71,10 +73,11 @@ class MaintenanceRecordService {
     if (file) {
       const formData = new FormData();
       Object.entries(data).forEach(([key, value]) => {
-        if (key === 'nguoiPhu') return; // handled separately
+        if (key === 'nguoiPhu' || key === 'linkPlan') return;
         if (value !== undefined && value !== null) formData.append(key, String(value));
       });
       formData.append('nguoiPhu', JSON.stringify(data.nguoiPhu ?? []));
+      if (data.linkPlan) formData.append('linkPlan', JSON.stringify(data.linkPlan));
       formData.append('file', file);
       return apiClient.post<MaintenanceRecord>('/maintenance-records', formData);
     }
