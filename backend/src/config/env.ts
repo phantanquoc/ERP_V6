@@ -10,7 +10,6 @@ const WEAK_SECRETS = [
   'dev_jwt_refresh_secret',
   'your_super_secret_jwt_key_change_me',
   'your_super_secret_refresh_key_change_me',
-  'change_me_face_data_secret',
   'dev_face_data_secret_change_me',
   'erp_password_change_me',
 ];
