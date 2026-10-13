@@ -3,6 +3,8 @@ import prisma from '@config/database';
 interface CreateDebtInput {
   ngayPhatSinh: string;
   loaiChiPhi?: string;
+  purchaseRequestId?: string | null;
+  invoiceId?: string | null;
   supplierId: string;
   maNhaCungCap: string;
   tenNhaCungCap: string;
@@ -20,7 +22,7 @@ interface CreateDebtInput {
 }
 
 class DebtService {
-  async getAll(month?: number, year?: number, page = 1, limit = 20) {
+  async getAll(month?: number, year?: number, page = 1, limit = 20, purchaseRequestId?: string) {
     const take = Math.min(Math.max(limit, 1), 500);
     const skip = (Math.max(page, 1) - 1) * take;
     const where: any = {};
@@ -29,6 +31,7 @@ class DebtService {
       const end = new Date(year, month, 1);
       where.ngayPhatSinh = { gte: start, lt: end };
     }
+    if (purchaseRequestId) where.purchaseRequestId = purchaseRequestId;
     const [data, total] = await Promise.all([
       prisma.debt.findMany({ where, orderBy: { ngayPhatSinh: 'desc' }, skip, take }),
       prisma.debt.count({ where }),
@@ -41,10 +44,20 @@ class DebtService {
   }
 
   async create(input: CreateDebtInput) {
+    if (input.purchaseRequestId) {
+      const pr = await prisma.purchaseRequest.findUnique({ where: { id: String(input.purchaseRequestId) }, select: { id: true } });
+      if (!pr) throw new Error('Yêu cầu mua hàng không tồn tại');
+    }
+    if (input.invoiceId) {
+      const inv = await prisma.invoice.findUnique({ where: { id: String(input.invoiceId) }, select: { id: true } });
+      if (!inv) throw new Error('Hóa đơn không tồn tại');
+    }
     return prisma.debt.create({
       data: {
         ngayPhatSinh: new Date(input.ngayPhatSinh),
         loaiChiPhi: input.loaiChiPhi,
+        purchaseRequestId: input.purchaseRequestId || null,
+        invoiceId: input.invoiceId || null,
         supplierId: input.supplierId,
         maNhaCungCap: input.maNhaCungCap,
         tenNhaCungCap: input.tenNhaCungCap,
@@ -64,6 +77,18 @@ class DebtService {
   }
 
   async update(id: string, updateData: Record<string, any>) {
+    if (updateData.purchaseRequestId !== undefined) {
+      if (updateData.purchaseRequestId) {
+        const pr = await prisma.purchaseRequest.findUnique({ where: { id: String(updateData.purchaseRequestId) }, select: { id: true } });
+        if (!pr) throw new Error('Yêu cầu mua hàng không tồn tại');
+      } else updateData.purchaseRequestId = null;
+    }
+    if (updateData.invoiceId !== undefined) {
+      if (updateData.invoiceId) {
+        const inv = await prisma.invoice.findUnique({ where: { id: String(updateData.invoiceId) }, select: { id: true } });
+        if (!inv) throw new Error('Hóa đơn không tồn tại');
+      } else updateData.invoiceId = null;
+    }
     if (updateData.ngayPhatSinh) updateData.ngayPhatSinh = new Date(updateData.ngayPhatSinh);
     if (updateData.ngayHoachToan) updateData.ngayHoachToan = new Date(updateData.ngayHoachToan);
     if (updateData.ngayDenHan) updateData.ngayDenHan = new Date(updateData.ngayDenHan);
@@ -84,6 +109,7 @@ class DebtService {
       const end = new Date(year, month, 1);
       where.ngayPhatSinh = { gte: start, lt: end };
     }
+    if (purchaseRequestId) where.purchaseRequestId = purchaseRequestId;
     const [aggPhaiTra, aggDaTra, soLuongCongNo, chuaThanhToan] = await Promise.all([
       prisma.debt.aggregate({ where, _sum: { soTienPhaiTra: true } }),
       prisma.debt.aggregate({ where, _sum: { soTienDaThanhToan: true } }),

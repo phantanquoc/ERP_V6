@@ -2,8 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import invoiceService from '@services/invoiceService';
 import type { AuthenticatedRequest, ApiResponse } from '@types';
 
-const ALLOWED_INVOICE_FIELDS = ['customerId','maSoThue','loaiHoaDon','boPhanSuDung','mucDichSuDung','tongTien','thueVAT','thanhTien','trangThai','phuongThucThanhToan','ngayLap','ngayThanhToan','nhanVienLap','ghiChu','soHoaDon','files'] as const;
-const ALLOWED_INVOICE_UPDATE_FIELDS = ['customerId','maSoThue','loaiHoaDon','boPhanSuDung','mucDichSuDung','tongTien','thueVAT','thanhTien','trangThai','phuongThucThanhToan','ngayLap','ngayThanhToan','ghiChu'] as const;
+const ALLOWED_INVOICE_FIELDS = ['customerId','purchaseRequestId','supplierId','maSoThue','loaiHoaDon','boPhanSuDung','mucDichSuDung','tongTien','thueVAT','thanhTien','trangThai','phuongThucThanhToan','ngayLap','ngayThanhToan','nhanVienLap','ghiChu','soHoaDon','files'] as const;
+const ALLOWED_INVOICE_UPDATE_FIELDS = ['customerId','purchaseRequestId','supplierId','maSoThue','loaiHoaDon','boPhanSuDung','mucDichSuDung','tongTien','thueVAT','thanhTien','trangThai','phuongThucThanhToan','ngayLap','ngayThanhToan','ghiChu'] as const;
 function pickAllowedInvoice(body: Record<string, unknown>, isCreate: boolean): Record<string, unknown> {
   const allow = isCreate ? ALLOWED_INVOICE_FIELDS : ALLOWED_INVOICE_UPDATE_FIELDS;
   const out: Record<string, unknown> = {};
@@ -19,8 +19,9 @@ export class InvoiceController {
       const search = req.query.search as string;
       const month = req.query.month ? parseInt(req.query.month as string) : undefined;
       const year = req.query.year ? parseInt(req.query.year as string) : undefined;
+      const purchaseRequestId = req.query.purchaseRequestId as string | undefined;
 
-      const result = await invoiceService.getAllInvoices(page, limit, search, month, year);
+      const result = await invoiceService.getAllInvoices(page, limit, search, month, year, purchaseRequestId);
 
       res.json({
         success: true,

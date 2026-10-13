@@ -241,7 +241,21 @@ class PurchaseRequestService {
     ]);
 
     const chainMap = await batchPurchaseChainAttachments(data as unknown as Array<{ id: string; maYeuCau?: string; tepDinhKem?: string[] | null; fileKemTheo?: string | null; supplyRequestId?: string | null }>);
-    const enriched = (data as unknown as Array<Record<string, unknown>>).map((r) => ({ ...r, aggregatedAttachments: chainMap.get(r.id as string) ?? { own: normalizeAttachments(r as never), ybs: null, yccc: [], all: normalizeAttachments(r as never) } }));
+    // Batch fetch linked invoices/debts for accounting traceability
+    let invoiceMap = new Map<string, any[]>();
+    let debtMap = new Map<string, any[]>();
+    try {
+      const prIds = (data as any[]).map((r: any) => r.id);
+      if (prIds.length) {
+        const [invs, debts] = await Promise.all([
+          prisma.invoice.findMany({ where: { purchaseRequestId: { in: prIds } }, select: { id: true, soHoaDon: true, trangThai: true, thanhTien: true, purchaseRequestId: true } }),
+          prisma.debt.findMany({ where: { purchaseRequestId: { in: prIds } }, select: { id: true, soTienPhaiTra: true, soTienDaThanhToan: true, purchaseRequestId: true } }),
+        ]);
+        for (const inv of invs) { const k = (inv as any).purchaseRequestId as string; if (!invoiceMap.has(k)) invoiceMap.set(k, []); invoiceMap.get(k)!.push(inv); }
+        for (const d of debts) { const k = (d as any).purchaseRequestId as string; if (!debtMap.has(k)) debtMap.set(k, []); debtMap.get(k)!.push(d); }
+      }
+    } catch {}
+    const enriched = (data as unknown as Array<Record<string, unknown>>).map((r) => ({ ...r, aggregatedAttachments: chainMap.get(r.id as string) ?? { own: normalizeAttachments(r as never), ybs: null, yccc: [], all: normalizeAttachments(r as never) }, linkedInvoices: invoiceMap.get(r.id as string) ?? [], linkedDebts: debtMap.get(r.id as string) ?? [] }));
     return {
       data: enriched,
       pagination: {
@@ -278,7 +292,15 @@ class PurchaseRequestService {
     }
 
     const aggregatedAttachments = await resolvePurchaseChainAttachments(request as unknown as { id: string; maYeuCau?: string; tepDinhKem?: string[] | null; fileKemTheo?: string | null; supplyRequestId?: string | null });
-    return { ...request, aggregatedAttachments } as unknown as typeof request & { aggregatedAttachments: { own: string[]; ybs: string[] | null; yccc: string[]; all: string[] } };
+    let linkedInvoices: any[] = [];
+    let linkedDebts: any[] = [];
+    try {
+      [linkedInvoices, linkedDebts] = await Promise.all([
+        prisma.invoice.findMany({ where: { purchaseRequestId: id }, select: { id: true, soHoaDon: true, trangThai: true, thanhTien: true, tongTien: true, thueVAT: true, ngayLap: true } }),
+        prisma.debt.findMany({ where: { purchaseRequestId: id }, select: { id: true, soTienPhaiTra: true, soTienDaThanhToan: true, ngayPhatSinh: true } }),
+      ]);
+    } catch {}
+    return { ...request, aggregatedAttachments, linkedInvoices, linkedDebts } as unknown as typeof request & { aggregatedAttachments: { own: string[]; ybs: string[] | null; yccc: string[]; all: string[] }; linkedInvoices: any[]; linkedDebts: any[] };
   }
 
   async createPurchaseRequest(data: CreatePurchaseRequestRequest) {

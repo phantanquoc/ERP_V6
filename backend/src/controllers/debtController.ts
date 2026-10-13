@@ -9,7 +9,7 @@ interface RequestWithFile extends Request {
   file?: Express.Multer.File;
 }
 
-const ALLOWED_DEBT_FIELDS = ['ngayPhatSinh','loaiChiPhi','supplierId','maNhaCungCap','tenNhaCungCap','loaiCungCap','cungCap','noiDungChiCho','loaiHinh','soTienPhaiTra','soTienDaThanhToan','ngayHoachToan','ngayDenHan','soTaiKhoan','ghiChu','files'] as const;
+const ALLOWED_DEBT_FIELDS = ['ngayPhatSinh','loaiChiPhi','purchaseRequestId','invoiceId','supplierId','maNhaCungCap','tenNhaCungCap','loaiCungCap','cungCap','noiDungChiCho','loaiHinh','soTienPhaiTra','soTienDaThanhToan','ngayHoachToan','ngayDenHan','soTaiKhoan','ghiChu','files'] as const;
 function pickAllowedDebt(body: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const k of ALLOWED_DEBT_FIELDS) if (k in body) out[k]=body[k];
@@ -23,7 +23,8 @@ export class DebtController {
       const year = req.query.year ? parseInt(req.query.year as string) : undefined;
       const page = parseInt(req.query.page as string) || 1;
       const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 20, 1), 500);
-      const result = await debtService.getAll(month, year, page, limit);
+      const purchaseRequestId = req.query.purchaseRequestId as string | undefined;
+      const result = await debtService.getAll(month, year, page, limit, purchaseRequestId);
       // Back-compat: if frontend expects array, unwrap; otherwise return paginated shape
       if (req.query.page || req.query.limit) {
         res.json({ success: true, data: result.data, pagination: { page: result.page, limit: result.limit, total: result.total, totalPages: result.totalPages } });
@@ -50,7 +51,7 @@ export class DebtController {
 
   async createDebt(req: RequestWithFile, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { ngayPhatSinh, loaiChiPhi, supplierId, maNhaCungCap, tenNhaCungCap, loaiCungCap, cungCap, noiDungChiCho, loaiHinh, soTienPhaiTra, soTienDaThanhToan, ngayHoachToan, ngayDenHan, soTaiKhoan, ghiChu } = req.body;
+      const { ngayPhatSinh, loaiChiPhi, purchaseRequestId, invoiceId, supplierId, maNhaCungCap, tenNhaCungCap, loaiCungCap, cungCap, noiDungChiCho, loaiHinh, soTienPhaiTra, soTienDaThanhToan, ngayHoachToan, ngayDenHan, soTaiKhoan, ghiChu } = req.body;
 
       if (!supplierId || !maNhaCungCap || !tenNhaCungCap || !ngayPhatSinh) {
         res.status(400).json({ success: false, message: 'Supplier ID, mã nhà cung cấp, tên nhà cung cấp và ngày phát sinh là bắt buộc' });
@@ -63,7 +64,7 @@ export class DebtController {
       }
 
       const debt = await debtService.create({
-        ngayPhatSinh, loaiChiPhi, supplierId, maNhaCungCap, tenNhaCungCap, loaiCungCap, cungCap,
+        ngayPhatSinh, loaiChiPhi, purchaseRequestId: purchaseRequestId || null, invoiceId: invoiceId || null, supplierId, maNhaCungCap, tenNhaCungCap, loaiCungCap, cungCap,
         noiDungChiCho, loaiHinh, soTienPhaiTra: parseFloat(soTienPhaiTra) || 0,
         soTienDaThanhToan: parseFloat(soTienDaThanhToan) || 0,
         ngayHoachToan, ngayDenHan, soTaiKhoan, ghiChu, files,

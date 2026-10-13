@@ -229,6 +229,8 @@ model PurchaseRequest {
   replenishmentRequest ReplenishmentRequest?   @relation("ReplenishmentToPurchase")
   warehouseReceipts    WarehouseReceipt[]
   inboundPlan          InboundPlan?
+  invoices             Invoice[]
+  debts                Debt[]
 
   @@index([employeeId])
   @@index([supplyRequestId])
@@ -294,6 +296,7 @@ model Supplier {
   purchaseRequestItems      PurchaseRequestItem[]      @relation("PurchaseRequestItemSupplier")
   replenishmentRequestItems ReplenishmentRequestItem[] @relation("ReplenishmentRequestItemSupplier")
   debts                     Debt[]
+  invoices                  Invoice[]                  @relation("InvoiceSupplier")
   createdAt                 DateTime                   @default(now())
   updatedAt                 DateTime                   @updatedAt
 

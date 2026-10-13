@@ -9,6 +9,8 @@ import { z } from 'zod';
 import ExcelJS from 'exceljs';
 
 const createInvoiceSchema = z.object({
+  purchaseRequestId: z.string().optional(),
+  supplierId: z.string().optional(),
   customerId: z.string().min(1),
   maSoThue: z.string().optional(),
   loaiHoaDon: z.string().optional(),
@@ -22,6 +24,8 @@ const createInvoiceSchema = z.object({
 }).passthrough();
 
 const updateInvoiceSchema = z.object({
+  purchaseRequestId: z.string().nullable().optional(),
+  supplierId: z.string().nullable().optional(),
   tongTien: z.coerce.number().min(0).optional(),
   thueVAT: z.coerce.number().min(0).max(100).optional(),
   thanhTien: z.coerce.number().min(0).optional(),
@@ -42,13 +46,14 @@ export class InvoiceService {
   }
   async generateInvoiceNumber(): Promise<string> { return this.generateInvoiceNumberTx(prisma as any); }
 
-  async getAllInvoices(page: number = 1, limit: number = 10, search?: string, month?: number, year?: number): Promise<PaginatedResponse<any>> {
+  async getAllInvoices(page: number = 1, limit: number = 10, search?: string, month?: number, year?: number, purchaseRequestId?: string): Promise<PaginatedResponse<any>> {
     const { skip } = getPaginationParams(page, limit);
     const take = Math.min(Math.max(limit, 1), 500);
     const where: any = {};
     if (search) where.OR = [{ soHoaDon: { contains: search, mode: 'insensitive' as const } },{ maSoThue: { contains: search, mode: 'insensitive' as const } },{ loaiHoaDon: { contains: search, mode: 'insensitive' as const } }];
     if (month && year) { const start = new Date(year, month - 1, 1); const end = new Date(year, month, 1); where.ngayLap = { gte: start, lt: end }; }
-    const [invoices, total] = await Promise.all([prisma.invoice.findMany({ where, skip, take, orderBy: { createdAt: 'desc' }, include: { customer: { select: { id: true, tenCongTy: true, quocGia: true, tinhThanh: true } } } }), prisma.invoice.count({ where })]);
+    if (purchaseRequestId) where.purchaseRequestId = purchaseRequestId;
+    const [invoices, total] = await Promise.all([prisma.invoice.findMany({ where, skip, take, orderBy: { createdAt: 'desc' }, include: { customer: { select: { id: true, tenCongTy: true, quocGia: true, tinhThanh: true } }, purchaseRequest: { select: { id: true, maYeuCau: true, trangThai: true } }, supplier: { select: { id: true, tenNhaCungCap: true, maNhaCungCap: true } } } }), prisma.invoice.count({ where })]);
     return { data: invoices, total, page, limit: take, totalPages: calculateTotalPages(total, take) };
   }
 
@@ -61,7 +66,19 @@ export class InvoiceService {
   async createInvoice(raw: unknown): Promise<any> {
     const parsed = createInvoiceSchema.parse(raw);
     const data: any = { ...parsed };
-    if (!data.customerId) throw new ValidationError('Missing required field: customerId');
+    // Customer required only for non-purchase invoices; Mua hàng can use supplierId + purchaseRequestId
+    const isPurchase = String(data.loaiHoaDon || '').toLowerCase().includes('mua');
+    if (!data.customerId && !isPurchase) throw new ValidationError('Missing required field: customerId');
+    if (!data.customerId) delete data.customerId;
+    // Validate FKs if provided
+    if (data.purchaseRequestId) {
+      const pr = await prisma.purchaseRequest.findUnique({ where: { id: String(data.purchaseRequestId) }, select: { id: true } });
+      if (!pr) throw new ValidationError('Yêu cầu mua hàng không tồn tại');
+    }
+    if (data.supplierId) {
+      const sup = await prisma.supplier.findUnique({ where: { id: String(data.supplierId) }, select: { id: true } });
+      if (!sup) throw new ValidationError('Nhà cung cấp không tồn tại');
+    }
     if (data.ngayLap) data.ngayLap = new Date(data.ngayLap); else data.ngayLap = new Date();
     if (data.ngayThanhToan) data.ngayThanhToan = new Date(data.ngayThanhToan);
     const tongTien = data.tongTien !== undefined ? Number(data.tongTien) : 0;
@@ -90,6 +107,18 @@ export class InvoiceService {
     const existing = await this.getInvoiceById(id);
     const parsed = updateInvoiceSchema.parse(raw ?? {});
     const data: any = { ...parsed };
+    if (data.purchaseRequestId !== undefined) {
+      if (data.purchaseRequestId) {
+        const pr = await prisma.purchaseRequest.findUnique({ where: { id: String(data.purchaseRequestId) }, select: { id: true } });
+        if (!pr) throw new ValidationError('Yêu cầu mua hàng không tồn tại');
+      } else data.purchaseRequestId = null;
+    }
+    if (data.supplierId !== undefined) {
+      if (data.supplierId) {
+        const sup = await prisma.supplier.findUnique({ where: { id: String(data.supplierId) }, select: { id: true } });
+        if (!sup) throw new ValidationError('Nhà cung cấp không tồn tại');
+      } else data.supplierId = null;
+    }
     if (data.ngayLap) data.ngayLap = new Date(data.ngayLap);
     if (data.ngayThanhToan) data.ngayThanhToan = new Date(data.ngayThanhToan);
     const hasTong = data.tongTien !== undefined;

@@ -7,12 +7,14 @@ import {
   Package,
   AlertCircle,
   TrendingUp,
+  ShoppingCart,
 } from 'lucide-react';
 import PageHeader from '../../design-system/PageHeader';
 import OrderManagement from '../../components/OrderManagement';
 import DebtManagement from '../../components/DebtManagement';
 import AssetManagement from '../../components/AssetManagement';
 import InvoiceManagement from '../../components/InvoiceManagement';
+import AccountingPurchaseList from '../../components/accounting/AccountingPurchaseList';
 import warehouseService from '../../services/warehouseService';
 import debtService from '../../services/debtService';
 import invoiceService, { Invoice } from '../../services/invoiceService';
@@ -47,7 +49,7 @@ interface OrderOverview {
 }
 
 
-const VALID_TABS = ['invoices', 'assets', 'orders', 'debts'] as const;
+const VALID_TABS = ['invoices', 'assets', 'orders', 'debts', 'purchases'] as const;
 type TabType = typeof VALID_TABS[number];
 /**
  * Detail params OWNED by each tab — dropped on tab switch by useUrlTab so
@@ -62,6 +64,7 @@ const TAB_SCOPED_PARAMS: Record<TabType, readonly string[]> = {
   assets: [],
   debts: ['debtId'],
   orders: ['orderId'],
+  purchases: ['purchaseRequestId'],
 };
 
 const AccountingAdmin = () => {
@@ -72,9 +75,9 @@ const AccountingAdmin = () => {
     TAB_SCOPED_PARAMS,
   );
 
-  // Month/Year filter state
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  // Month/Year filter — default "Tất cả" (undefined = no filter) để không gây hiểu nhầm thiếu dữ liệu
+  const [selectedMonth, setSelectedMonth] = useState<number | undefined>(undefined);
+  const [selectedYear, setSelectedYear] = useState<number | undefined>(undefined);
 
   // Overview states
   const [assetOverview, setAssetOverview] = useState<AssetOverview>({
@@ -183,7 +186,8 @@ const AccountingAdmin = () => {
     { id: 'invoices', name: 'Hóa đơn', icon: <Receipt className="w-4 h-4" /> },
     { id: 'assets', name: 'Quản lý tài sản', icon: <Building className="w-4 h-4" /> },
     { id: 'debts', name: 'Danh sách công nợ', icon: <AlertCircle className="w-4 h-4" /> },
-    { id: 'orders', name: 'Danh sách đơn hàng', icon: <Package className="w-4 h-4" /> }
+    { id: 'orders', name: 'Danh sách đơn hàng', icon: <Package className="w-4 h-4" /> },
+    { id: 'purchases', name: 'Danh sách mua hàng', icon: <ShoppingCart className="w-4 h-4" /> }
   ];
 
   const formatCompact = (value: number) =>
@@ -202,19 +206,21 @@ const AccountingAdmin = () => {
           actions={
             <>
               <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                value={selectedMonth ?? ''}
+                onChange={(e) => setSelectedMonth(e.target.value ? Number(e.target.value) : undefined)}
                 className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500"
               >
+                <option value="">Tất cả</option>
                 {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
                   <option key={m} value={m}>Tháng {m}</option>
                 ))}
               </select>
               <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                value={selectedYear ?? ''}
+                onChange={(e) => setSelectedYear(e.target.value ? Number(e.target.value) : undefined)}
                 className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-500"
               >
+                <option value="">Tất cả</option>
                 {[2023, 2024, 2025, 2026].map(y => (
                   <option key={y} value={y}>{y}</option>
                 ))}
@@ -420,6 +426,11 @@ const AccountingAdmin = () => {
           {activeTab === 'orders' && (
             <div className="p-6">
               <OrderManagement hideHeader={true} />
+            </div>
+          )}
+          {activeTab === 'purchases' && (
+            <div className="p-6">
+              <AccountingPurchaseList month={selectedMonth} year={selectedYear} />
             </div>
           )}
         </div>

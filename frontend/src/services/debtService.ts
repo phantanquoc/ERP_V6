@@ -4,6 +4,8 @@ import { API_BASE_URL } from '../config/api';
 
 export interface Debt {
   id: string;
+  purchaseRequestId?: string | null;
+  invoiceId?: string | null;
   ngayPhatSinh: string;
   loaiChiPhi?: string;
   maNhaCungCap: string;
@@ -24,6 +26,8 @@ export interface Debt {
 }
 
 export interface CreateDebtData {
+  purchaseRequestId?: string | null;
+  invoiceId?: string | null;
   ngayPhatSinh: string;
   loaiChiPhi?: string;
   supplierId: string;
@@ -43,6 +47,8 @@ export interface CreateDebtData {
 }
 
 export interface UpdateDebtData {
+  purchaseRequestId?: string | null;
+  invoiceId?: string | null;
   ngayPhatSinh?: string;
   loaiChiPhi?: string;
   maNhaCungCap?: string;
@@ -84,10 +90,11 @@ const buildFormData = (data: Record<string, any>, file?: File): FormData => {
 
 const debtService = {
   // Get all debts
-  getAllDebts: (month?: number, year?: number) => {
+  getAllDebts: (month?: number, year?: number, purchaseRequestId?: string) => {
     const params: any = {};
     if (month) params.month = month;
     if (year) params.year = year;
+    if (purchaseRequestId) (params as any).purchaseRequestId = purchaseRequestId;
     return apiClient.get('/debts', { params });
   },
 

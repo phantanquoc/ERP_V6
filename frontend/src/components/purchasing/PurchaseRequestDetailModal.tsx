@@ -321,6 +321,42 @@ export default function PurchaseRequestDetailModal({
               <label className="block text-sm font-medium text-gray-500 mb-1">Ngày duyệt</label>
               <p className="text-sm text-gray-900">{pr.ngayDuyet ? formatDate(pr.ngayDuyet) : <span className="text-gray-400 italic">Chưa duyệt</span>}</p>
             </div>
+            {((pr as any).linkedInvoices?.length > 0 || (pr as any).linkedDebts?.length > 0) && (
+              <div className="bg-white border border-gray-200 rounded-lg p-4 col-span-1 sm:col-span-2">
+                <h4 className="text-sm font-semibold text-gray-700 mb-2">Hóa đơn & Công nợ liên quan</h4>
+                {(pr as any).linkedInvoices?.length > 0 && (
+                  <div className="mb-3">
+                    <p className="text-xs text-gray-500 mb-1">Hóa đơn</p>
+                    <div className="space-y-1">
+                      {(pr as any).linkedInvoices.map((inv: any) => (
+                        <div key={inv.id} className="flex items-center justify-between bg-blue-50 border border-blue-100 rounded px-3 py-1.5 text-xs">
+                          <span className="font-medium text-blue-700">{inv.soHoaDon}</span>
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${inv.trangThai === 'Đã thanh toán' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{inv.trangThai}</span>
+                          <span className="text-gray-600">{inv.thanhTien != null ? Number(inv.thanhTien).toLocaleString('vi-VN') + 'đ' : ''}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(pr as any).linkedDebts?.length > 0 && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Công nợ</p>
+                    <div className="space-y-1">
+                      {(pr as any).linkedDebts.map((d: any) => {
+                        const conNo = (Number(d.soTienPhaiTra)||0) - (Number(d.soTienDaThanhToan)||0);
+                        return (
+                          <div key={d.id} className="flex items-center justify-between bg-amber-50 border border-amber-100 rounded px-3 py-1.5 text-xs">
+                            <span className="text-gray-600">{new Date(d.ngayPhatSinh).toLocaleDateString('vi-VN')}</span>
+                            <span className="text-gray-700">Phải trả: {Number(d.soTienPhaiTra||0).toLocaleString('vi-VN')}đ</span>
+                            <span className={conNo > 0 ? 'text-red-600 font-medium' : 'text-green-600'}>Còn nợ: {conNo.toLocaleString('vi-VN')}đ</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="bg-gray-50 p-4 rounded-lg col-span-1 sm:col-span-2">
               <AttachmentList
                 label="Tệp đính kèm (tong hop YCCB→YCBS→YCMH)"

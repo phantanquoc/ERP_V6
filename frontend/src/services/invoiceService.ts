@@ -5,6 +5,10 @@ export interface Invoice {
   id: string;
   soHoaDon: string;
   ngayLap: string;
+  purchaseRequestId?: string | null;
+  purchaseRequest?: { id: string; maYeuCau: string; trangThai: string } | null;
+  supplierId?: string | null;
+  supplier?: { id: string; tenNhaCungCap: string; maNhaCungCap: string } | null;
   customerId?: string;
   customer?: { id: string; tenCongTy: string; quocGia?: string; tinhThanh?: string };
   maSoThue?: string;
@@ -33,12 +37,13 @@ interface PaginatedResponse<T> {
 }
 
 class InvoiceService {
-  async getAllInvoices(page: number = 1, limit: number = 10, search?: string, month?: number, year?: number): Promise<PaginatedResponse<Invoice>> {
+  async getAllInvoices(page: number = 1, limit: number = 10, search?: string, month?: number, year?: number, purchaseRequestId?: string): Promise<PaginatedResponse<Invoice>> {
     try {
       const params: any = { page, limit };
       if (search) params.search = search;
       if (month) params.month = month;
       if (year) params.year = year;
+      if (purchaseRequestId) (params as any).purchaseRequestId = purchaseRequestId;
       const response = await apiClient.get('/invoices', { params });
       return response as unknown as PaginatedResponse<Invoice>;
     } catch (error) {

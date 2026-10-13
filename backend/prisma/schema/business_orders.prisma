@@ -584,8 +584,17 @@ model Invoice {
   createdAt           DateTime               @default(now())
   updatedAt           DateTime               @updatedAt
   customer            InternationalCustomer? @relation(fields: [customerId], references: [id])
+  // Link to purchase request (YCMH) — nullable for backward compat, set when loaiHoaDon = 'Mua hàng'
+  purchaseRequestId   String?
+  purchaseRequest     PurchaseRequest?       @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
+  // Supplier for purchase invoices — nullable, used when loaiHoaDon = 'Mua hàng'
+  supplierId          String?
+  supplier            Supplier?              @relation("InvoiceSupplier", fields: [supplierId], references: [id], onDelete: SetNull)
+  debts               Debt[]                 @relation("DebtInvoice")
 
   @@index([customerId])
+  @@index([purchaseRequestId])
+  @@index([supplierId])
   @@index([ngayLap])
   @@index([trangThai])
   @@map("invoices")
@@ -593,7 +602,7 @@ model Invoice {
 }
 
 model Debt {
-  id                String    @id @default(cuid())
+  id                String           @id @default(cuid())
   ngayPhatSinh      DateTime
   loaiChiPhi        String? // "Đơn hàng", "Sửa chữa", "Đầu tư", "Văn phòng phẩm", "Khác"
   supplierId        String
@@ -604,17 +613,25 @@ model Debt {
   noiDungChiCho     String?
   loaiHinh          String? // "Tổ chức", "Hộ gia đình", "Cá nhân"
   soTienPhaiTra     Float?
-  soTienDaThanhToan Float?    @default(0)
+  soTienDaThanhToan Float?           @default(0)
   ngayHoachToan     DateTime?
   ngayDenHan        DateTime?
   soTaiKhoan        String?
   ghiChu            String?
-  files             String[]  @default([])
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  supplier          Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  files             String[]         @default([])
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  supplier          Supplier         @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  // Link to purchase request (YCMH) — nullable, set when debt originates from a purchase
+  purchaseRequestId String?
+  purchaseRequest   PurchaseRequest? @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
+  // Link to invoice — nullable, when debt is tied to a specific invoice
+  invoiceId         String?
+  invoice           Invoice?         @relation("DebtInvoice", fields: [invoiceId], references: [id], onDelete: SetNull)
 
   @@index([supplierId])
+  @@index([purchaseRequestId])
+  @@index([invoiceId])
   @@index([ngayPhatSinh])
   @@index([ngayDenHan])
   @@map("debts")

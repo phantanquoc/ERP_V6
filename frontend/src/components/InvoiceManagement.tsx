@@ -10,6 +10,8 @@ import internationalCustomerService from '../services/internationalCustomerServi
 import { parseNumberInputStr } from '../utils/numberInput';
 import { SERVER_BASE_URL } from '../config/api';
 import { getApiErrorMessage } from '../utils/getApiError';
+import purchaseRequestService from '../services/purchaseRequestService';
+import { supplierService } from '../services/supplierService';
 
 interface Customer {
   id: string;
@@ -39,6 +41,8 @@ const InvoiceManagement: React.FC<InvoiceManagementProps> = ({ month, year }) =>
   const { user } = useAuth();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [prOptions, setPrOptions] = useState<any[]>([]);
+  const [supplierOptions, setSupplierOptions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [invoiceFiles, setInvoiceFiles] = useState<string[]>([]);
@@ -73,6 +77,8 @@ const InvoiceManagement: React.FC<InvoiceManagementProps> = ({ month, year }) =>
     ghiChu: '',
     boPhanSuDung: '',
     mucDichSuDung: '',
+    purchaseRequestId: '',
+    supplierId: '',
   });
 
   const filterFields: FilterField[] = [
@@ -128,6 +134,19 @@ const InvoiceManagement: React.FC<InvoiceManagementProps> = ({ month, year }) =>
     }
   };
 
+  const fetchPrOptions = async () => {
+    try {
+      const res: any = await purchaseRequestService.getAllPurchaseRequests(1, 100, undefined, undefined, undefined, { trangThai: 'Đã duyệt,Hoàn thành' } as any);
+      setPrOptions(res.data || []);
+    } catch {}
+  };
+  const fetchSupplierOptions = async () => {
+    try {
+      const res: any = await supplierService.getAllSuppliers(1, 200);
+      setSupplierOptions(res.data || []);
+    } catch {}
+  };
+
   // Generate next invoice number
   const generateInvoiceNumber = async (): Promise<string> => {
     try {
@@ -149,6 +168,8 @@ const InvoiceManagement: React.FC<InvoiceManagementProps> = ({ month, year }) =>
   useEffect(() => {
     fetchInvoices();
     fetchCustomers();
+    fetchPrOptions();
+    fetchSupplierOptions();
   }, [month, year]);
 
   const formatCurrency = (value: number) => {
@@ -229,6 +250,8 @@ const InvoiceManagement: React.FC<InvoiceManagementProps> = ({ month, year }) =>
       ghiChu: '',
       boPhanSuDung: '',
       mucDichSuDung: '',
+      purchaseRequestId: '',
+      supplierId: '',
     });
     setInvoiceFiles([]);
     setIsAddModalOpen(true);
@@ -254,6 +277,8 @@ const InvoiceManagement: React.FC<InvoiceManagementProps> = ({ month, year }) =>
       ghiChu: '',
       boPhanSuDung: user?.department || '',
       mucDichSuDung: '',
+      purchaseRequestId: '',
+      supplierId: '',
     });
     setInvoiceFiles([]);
     setIsAddModalOpen(true);
@@ -277,6 +302,8 @@ const InvoiceManagement: React.FC<InvoiceManagementProps> = ({ month, year }) =>
       ghiChu: invoice.ghiChu || '',
       boPhanSuDung: invoice.boPhanSuDung || '',
       mucDichSuDung: invoice.mucDichSuDung || '',
+      purchaseRequestId: (invoice as any).purchaseRequestId || '',
+      supplierId: (invoice as any).supplierId || '',
     });
     setInvoiceFiles(invoice.files || []);
     setIsEditModalOpen(true);
@@ -608,6 +635,25 @@ const InvoiceManagement: React.FC<InvoiceManagementProps> = ({ month, year }) =>
                     <option value="Dịch vụ">Dịch vụ</option>
                   </select>
                 </div>
+                {formData.loaiHoaDon === 'Mua hàng' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Yêu cầu mua hàng (YCMH)</label>
+                      <select value={(formData as any).purchaseRequestId || ''} onChange={(e) => setFormData({ ...formData, ...( { purchaseRequestId: e.target.value } as any) })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500">
+                        <option value="">-- Không gắn YCMH --</option>
+                        {prOptions.map((pr: any) => (<option key={pr.id} value={pr.id}>{pr.maYeuCau} — {pr.trangThai} — {pr.tenNhanVien}</option>))}
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">Gắn hóa đơn với YCMH để truy vết thu chi</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Nhà cung cấp</label>
+                      <select value={(formData as any).supplierId || ''} onChange={(e) => setFormData({ ...formData, ...( { supplierId: e.target.value } as any) })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500">
+                        <option value="">-- Chọn NCC --</option>
+                        {supplierOptions.map((s: any) => (<option key={s.id} value={s.id}>{s.tenNhaCungCap} ({s.maNhaCungCap})</option>))}
+                      </select>
+                    </div>
+                  </>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Bộ phận sử dụng</label>
                   <input type="text" value={formData.boPhanSuDung} onChange={(e) => setFormData({ ...formData, boPhanSuDung: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" placeholder="VD: Phòng sản xuất, Phòng kinh doanh..." />
@@ -767,6 +813,24 @@ const InvoiceManagement: React.FC<InvoiceManagementProps> = ({ month, year }) =>
                     <option value="Dịch vụ">Dịch vụ</option>
                   </select>
                 </div>
+                {formData.loaiHoaDon === 'Mua hàng' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Yêu cầu mua hàng (YCMH)</label>
+                      <select value={(formData as any).purchaseRequestId || ''} onChange={(e) => setFormData({ ...formData, ...( { purchaseRequestId: e.target.value } as any) })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500">
+                        <option value="">-- Không gắn YCMH --</option>
+                        {prOptions.map((pr: any) => (<option key={pr.id} value={pr.id}>{pr.maYeuCau} — {pr.trangThai} — {pr.tenNhanVien}</option>))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Nhà cung cấp</label>
+                      <select value={(formData as any).supplierId || ''} onChange={(e) => setFormData({ ...formData, ...( { supplierId: e.target.value } as any) })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500">
+                        <option value="">-- Chọn NCC --</option>
+                        {supplierOptions.map((s: any) => (<option key={s.id} value={s.id}>{s.tenNhaCungCap} ({s.maNhaCungCap})</option>))}
+                      </select>
+                    </div>
+                  </>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Bộ phận sử dụng</label>
                   <input type="text" value={formData.boPhanSuDung} onChange={(e) => setFormData({ ...formData, boPhanSuDung: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500" placeholder="VD: Phòng sản xuất, Phòng kinh doanh..." />
