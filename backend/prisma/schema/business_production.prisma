@@ -48,6 +48,7 @@ model SupplyRequest {
   warehouseReceipts     WarehouseReceipt[]
   warehouseIssues       WarehouseIssue[]
   outboundPlans         OutboundPlan[]
+  repairSupplyLinks     RepairSupplyLink[]
 
   @@index([employeeId])
   @@index([trangThai])
@@ -126,7 +127,7 @@ model ReplenishmentRequest {
   mucDoUuTien                String
   ghiChu                     String?
   fileKemTheo                String?
-  tepDinhKem                 String[]                  @default([]) @map("tep_dinh_kem")
+  tepDinhKem                 String[]                   @default([]) @map("tep_dinh_kem")
   // "Chờ báo giá" → "Đã chuyển mua hàng" (and "Đã hủy" via cancel)
   trangThai                  String                     @default("Chờ báo giá")
   // Cancel audit — set by cancelReplenishmentRequest (lyDoHuy required)
@@ -194,7 +195,7 @@ model PurchaseRequest {
   mucDoUuTien          String
   ghiChu               String?
   fileKemTheo          String?
-  tepDinhKem           String[]                  @default([]) @map("tep_dinh_kem")
+  tepDinhKem           String[]                @default([]) @map("tep_dinh_kem")
   trangThai            String                  @default("Chờ duyệt")
   nguoiDuyet           String?
   ngayDuyet            DateTime?
@@ -580,58 +581,59 @@ model WarehouseReceiptItem {
 }
 
 model WarehouseIssue {
-  id                 String               @id @default(cuid())
-  maPhieuXuat        String               @unique
-  ngayXuat           DateTime             @default(now())
-  employeeId         String
-  maNhanVien         String
-  tenNhanVien        String
+  id                  String               @id @default(cuid())
+  maPhieuXuat         String               @unique
+  ngayXuat            DateTime             @default(now())
+  employeeId          String
+  maNhanVien          String
+  tenNhanVien         String
   // @deprecated — item-level column, kept for backward compatibility; use items relation instead
-  warehouseId        String?
+  warehouseId         String?
   // @deprecated — item-level column, kept for backward compatibility; use items relation instead
-  tenKho             String?
+  tenKho              String?
   // @deprecated — item-level column, kept for backward compatibility; use items relation instead
-  lotId              String?
+  lotId               String?
   // @deprecated — item-level column, kept for backward compatibility; use items relation instead
-  tenLo              String?
+  tenLo               String?
   // @deprecated — item-level column, kept for backward compatibility; use items relation instead
-  lotProductId       String?
+  lotProductId        String?
   // @deprecated — item-level column, kept for backward compatibility; use items relation instead
-  tenSanPham         String?
+  tenSanPham          String?
   // @deprecated — item-level column, kept for backward compatibility; use items relation instead
-  soLuongTruoc       Float?               @default(0) // Số lượng tồn kho trước khi xuất
+  soLuongTruoc        Float?               @default(0) // Số lượng tồn kho trước khi xuất
   // @deprecated — item-level column, kept for backward compatibility; use items relation instead
-  soLuongXuat        Float?
+  soLuongXuat         Float?
   // @deprecated — item-level column, kept for backward compatibility; use items relation instead
-  soLuongSau         Float?               @default(0) // Số lượng tồn kho sau khi xuất
+  soLuongSau          Float?               @default(0) // Số lượng tồn kho sau khi xuất
   // @deprecated — item-level column, kept for backward compatibility; use items relation instead
-  donViTinh          String?
-  ghiChu             String?
-  lyDoChenhLech      String?
-  supplyRequestId    String?
-  supplyRequest      SupplyRequest?       @relation(fields: [supplyRequestId], references: [id])
-  outboundPlanId     String?
-  outboundPlan       OutboundPlan?        @relation(fields: [outboundPlanId], references: [id], onDelete: SetNull)
-  materialEvaluation MaterialEvaluation?
+  donViTinh           String?
+  ghiChu              String?
+  lyDoChenhLech       String?
+  supplyRequestId     String?
+  supplyRequest       SupplyRequest?       @relation(fields: [supplyRequestId], references: [id])
+  outboundPlanId      String?
+  outboundPlan        OutboundPlan?        @relation(fields: [outboundPlanId], references: [id], onDelete: SetNull)
+  materialEvaluation  MaterialEvaluation?
   // Derived totals across items — recomputed inside the same transaction as any item mutation
-  tongSoLuongThucTe  Float                @default(0)
-  soDongHang         Int                  @default(0)
-  items              WarehouseIssueItem[]
+  tongSoLuongThucTe   Float                @default(0)
+  soDongHang          Int                  @default(0)
+  items               WarehouseIssueItem[]
+  acceptanceHandovers AcceptanceHandover[]
   // BM03 fields
-  nguoiDeNghi        String?
-  maNguoiDeNghi      String?
-  boPhan             String?
-  boPhanId           String?
-  lyDoXuatKho        String?
-  daIn               Boolean              @default(false)
-  inLanDauAt         DateTime?
+  nguoiDeNghi         String?
+  maNguoiDeNghi       String?
+  boPhan              String?
+  boPhanId            String?
+  lyDoXuatKho         String?
+  daIn                Boolean              @default(false)
+  inLanDauAt          DateTime?
   // Soft-void (warehouse-void-soft) — keeps record for audit, reverses stock
-  isVoided           Boolean              @default(false)
-  voidReason         String?
-  voidedAt           DateTime?            @db.Timestamptz(6)
-  voidedBy           String?
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
+  isVoided            Boolean              @default(false)
+  voidReason          String?
+  voidedAt            DateTime?            @db.Timestamptz(6)
+  voidedBy            String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 
   @@index([supplyRequestId])
   @@index([isVoided])

@@ -22,6 +22,7 @@ model SubDepartment {
   employees    Employee[]
   department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
 
+  @@index([departmentId])
   @@map("sub_departments")
   @@schema("common")
 }
@@ -146,6 +147,9 @@ model Employee {
   timesheetCells            TimesheetCell[]
   monthlyTimesheetOverrides MonthlyTimesheetOverride[]
 
+  @@index([positionId])
+  @@index([subDepartmentId])
+  @@index([status])
   @@map("employees")
   @@schema("common")
 }
@@ -1005,26 +1009,26 @@ enum InspectionRequestStatus {
 }
 
 model InspectionRequest {
-  id             Int                     @id @default(autoincrement())
-  ngayThang      DateTime                @default(now()) @map("ngay_thang")
-  maYeuCau       String                  @unique @map("ma_yeu_cau")
-  mucDoUuTien    String                  @map("muc_do_uu_tien")
-  ghiChu         String?                 @map("ghi_chu") @db.Text
-  trangThai      InspectionRequestStatus @default(CHO_XU_LY) @map("trang_thai")
-  phongBanId     String?                 @map("phong_ban_id") @db.VarChar(30)
-  fileDinhKem    String?                 @map("file_dinh_kem") // legacy single file — kept for old rows
-  tepDinhKem     String[]                @default([]) @map("tep_dinh_kem")
-  createdById    String?                 @map("created_by_id") // soft ref to auth.User.id
-  createdByName  String?                 @map("created_by_name")
-  ketQuaKiemTra  String?                 @map("ket_qua_kiem_tra") @db.Text
-  mucDoHuHong    String?                 @map("muc_do_hu_hong")
-  deXuatXuLy     String?                 @map("de_xuat_xu_ly") @db.Text
-  thoiGianKiemTra DateTime?              @map("thoi_gian_kiem_tra") @db.Timestamptz
-  nguoiKiemTra   String?                 @map("nguoi_kiem_tra")
-  ketLuan        String?                 @map("ket_luan")
-  anhKiemTra     String?                 @map("anh_kiem_tra")
-  createdAt      DateTime                @default(now()) @map("created_at")
-  updatedAt      DateTime                @updatedAt @map("updated_at")
+  id              Int                     @id @default(autoincrement())
+  ngayThang       DateTime                @default(now()) @map("ngay_thang")
+  maYeuCau        String                  @unique @map("ma_yeu_cau")
+  mucDoUuTien     String                  @map("muc_do_uu_tien")
+  ghiChu          String?                 @map("ghi_chu") @db.Text
+  trangThai       InspectionRequestStatus @default(CHO_XU_LY) @map("trang_thai")
+  phongBanId      String?                 @map("phong_ban_id") @db.VarChar(30)
+  fileDinhKem     String?                 @map("file_dinh_kem") // legacy single file — kept for old rows
+  tepDinhKem      String[]                @default([]) @map("tep_dinh_kem")
+  createdById     String?                 @map("created_by_id") // soft ref to auth.User.id
+  createdByName   String?                 @map("created_by_name")
+  ketQuaKiemTra   String?                 @map("ket_qua_kiem_tra") @db.Text
+  mucDoHuHong     String?                 @map("muc_do_hu_hong")
+  deXuatXuLy      String?                 @map("de_xuat_xu_ly") @db.Text
+  thoiGianKiemTra DateTime?               @map("thoi_gian_kiem_tra") @db.Timestamptz
+  nguoiKiemTra    String?                 @map("nguoi_kiem_tra")
+  ketLuan         String?                 @map("ket_luan")
+  anhKiemTra      String?                 @map("anh_kiem_tra")
+  createdAt       DateTime                @default(now()) @map("created_at")
+  updatedAt       DateTime                @updatedAt @map("updated_at")
 
   items               InspectionRequestItem[]
   statusLogs          InspectionRequestStatusLog[]
@@ -1225,6 +1229,7 @@ model AcceptanceHandover {
   fileDinhKem           String? // File đính kèm
   ghiChu                String?          @db.Text
   warehouseIssueId      String?          @map("warehouse_issue_id") @db.VarChar(30)
+  warehouseIssue        WarehouseIssue?  @relation(fields: [warehouseIssueId], references: [id], onDelete: SetNull)
   chiPhiThucTe          Decimal?         @map("chi_phi_thuc_te") @db.Decimal(15, 2)
   ketQua                NghiemThuKetQua? @map("ket_qua")
   nguoiXacNhanId        String?          @map("nguoi_xac_nhan_id") // auth.User.id người phải xác nhận (người tạo yêu cầu)
@@ -1821,6 +1826,7 @@ model RepairSupplyLink {
   repairRequestItemId String?            @map("repair_request_item_id")
   repairRequestItem   RepairRequestItem? @relation(fields: [repairRequestItemId], references: [id], onDelete: SetNull)
   supplyRequestId     String             @map("supply_request_id") @db.VarChar(30)
+  supplyRequest       SupplyRequest      @relation(fields: [supplyRequestId], references: [id], onDelete: Cascade)
   supplyRequestItemId String?            @map("supply_request_item_id") @db.VarChar(30)
   soLuong             Decimal?           @db.Decimal(12, 3)
   ghiChu              String?            @map("ghi_chu") @db.Text
@@ -1828,6 +1834,7 @@ model RepairSupplyLink {
   createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz
 
   @@unique([repairRequestItemId, supplyRequestId])
+  @@unique([repairRequestId, supplyRequestId])
   @@index([repairRequestId])
   @@index([repairRequestItemId])
   @@index([supplyRequestId])
