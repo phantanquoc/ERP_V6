@@ -16,9 +16,8 @@ ALTER TABLE "common"."acceptance_handovers"
 -- Unique: one supply_request at most once per repair_request
 ALTER TABLE "common"."repair_supply_links"
   ADD CONSTRAINT "repair_supply_links_repair_request_supply_unique"
-  UNIQUE ("repair_request_id", "supply_request_id") NOT VALID;
+  UNIQUE ("repair_request_id", "supply_request_id");
 
 -- Post-deploy on prod (manual, outside Prisma migrate):
 --   ALTER TABLE "common"."repair_supply_links" VALIDATE CONSTRAINT "repair_supply_links_supply_request_id_fkey";
 --   ALTER TABLE "common"."acceptance_handovers" VALIDATE CONSTRAINT "acceptance_handovers_warehouse_issue_id_fkey";
---   ALTER TABLE "common"."repair_supply_links" VALIDATE CONSTRAINT "repair_supply_links_repair_request_supply_unique";
