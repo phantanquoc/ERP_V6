@@ -3,7 +3,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { Plus, Trash2, Target } from 'lucide-react';
+import { Plus, Trash2, Target, Loader2 } from 'lucide-react';
 import { EvaluationGoal } from '../services/employeeEvaluationService';
 import { useCreateGoal, useUpdateGoal, useDeleteGoal } from '../hooks/useEmployeeEvaluation';
 
@@ -164,8 +164,9 @@ const GoalsForm: React.FC<GoalsFormProps> = ({ evaluationId, existingGoals, read
             <button
               type="submit"
               disabled={!isDirty || isSaving}
-              className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
+              className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium inline-flex items-center gap-2"
             >
+              {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
               {isSaving ? 'Đang lưu...' : 'Lưu mục tiêu'}
             </button>
           </div>

@@ -386,7 +386,7 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
     setAcceptanceTarget(record);
   };
   const handleConfirmSubmitAcceptance = async () => {
-    if (!acceptanceTarget) return;
+    if (!acceptanceTarget || submitAcceptance.isPending) return;
     if (acceptanceForm.warehouseIssueId.trim()) {
       try {
         await apiClient.post('/acceptance-handovers', {
@@ -411,7 +411,7 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
     setConfirmTarget(record);
   };
   const handleConfirmAcceptanceSubmit = async () => {
-    if (!confirmTarget) return;
+    if (!confirmTarget || confirmAcceptance.isPending) return;
     if (!confirmForm.ketQua) { toast.error('Vui lòng chọn kết quả'); return; }
     if (confirmForm.ketQua === 'KHONG_DAT' && !confirmForm.lyDo.trim()) { toast.error('Vui lòng nhập lý do không đạt'); return; }
     try {
@@ -648,7 +648,7 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
               </label>
               <div className="flex justify-end gap-2 pt-1">
                 <button type="button" onClick={() => setCancelTarget(null)} className="rounded-md border border-gray-300 px-4 py-2">Không</button>
-                <button type="button" onClick={handleConfirmCancel} className="rounded-md bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-700">Xác nhận hủy</button>
+                <button type="button" onClick={handleConfirmCancel} disabled={cancelRepair.isPending} className="rounded-md bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed">{cancelRepair.isPending ? "Đang xử lý..." : "Xác nhận hủy"}</button>
               </div>
             </div>
           </div>
@@ -710,7 +710,7 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
               <label className="block space-y-1"><span className="font-medium text-gray-700">Chi phí thực tế — tùy chọn</span><input type="number" min={0} value={acceptanceForm.chiPhiThucTe} onChange={(e) => setAcceptanceForm((f) => ({ ...f, chiPhiThucTe: e.target.value }))} className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
               <div className="flex justify-end gap-2 pt-2">
                 <button type="button" onClick={() => setAcceptanceTarget(null)} className="rounded-md border border-gray-300 px-4 py-2">Hủy</button>
-                <button type="button" onClick={handleConfirmSubmitAcceptance} className="rounded-md bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700">Đề nghị nghiệm thu</button>
+                <button type="button" onClick={handleConfirmSubmitAcceptance} disabled={submitAcceptance.isPending} className="rounded-md bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">{submitAcceptance.isPending ? 'Đang gửi...' : 'Đề nghị nghiệm thu'}</button>
               </div>
             </div>
           </div>
@@ -734,7 +734,7 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
               <label className="block space-y-1"><span className="font-medium text-gray-700">Lý do {confirmForm.ketQua === 'KHONG_DAT' ? <span className="text-red-500">*</span> : <span className="text-gray-400">(tuỳ chọn)</span>}</span><textarea rows={3} value={confirmForm.lyDo} onChange={(e) => setConfirmForm((f) => ({ ...f, lyDo: e.target.value }))} placeholder="Nhập lý do / ghi chú nghiệm thu" className="w-full rounded-md border border-gray-300 px-3 py-2" /></label>
               <div className="flex justify-end gap-2 pt-2">
                 <button type="button" onClick={() => setConfirmTarget(null)} className="rounded-md border border-gray-300 px-4 py-2">Hủy</button>
-                <button type="button" onClick={handleConfirmAcceptanceSubmit} className={`rounded-md px-4 py-2 font-medium text-white ${confirmForm.ketQua === 'KHONG_DAT' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}>Xác nhận</button>
+                <button type="button" onClick={handleConfirmAcceptanceSubmit} disabled={confirmAcceptance.isPending} className={`rounded-md px-4 py-2 font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed ${confirmForm.ketQua === 'KHONG_DAT' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}>{confirmAcceptance.isPending ? 'Đang xử lý...' : 'Xác nhận'}</button>
               </div>
             </div>
           </div>

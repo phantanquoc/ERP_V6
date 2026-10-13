@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Ban, CheckCheck, CheckCircle, Edit, History, Plus, Search, Trash2, X } from 'lucide-react';
+import { Ban, CheckCheck, CheckCircle, Edit, History, Loader2, Plus, Search, Trash2, X } from 'lucide-react';
 import Modal from './Modal';
 import RepairRequestFormModal, { StatusTimeline, type StatusHistoryEntry } from './RepairRequestFormModal';
 import ResponsiveRowActions, { type RowAction } from './ResponsiveRowActions';
@@ -223,6 +223,7 @@ export default function InspectionRequestList({ lockedMachineSystemId }: { locke
   }, [inspectionIdParam, createParam]);
 
   const remove = async (r: InspectionRequest) => {
+    if (delMut.isPending) return;
     if (!confirm(`Xóa phiếu ${r.maYeuCau}?`)) return;
     try { await delMut.mutateAsync(r.id); toast.success('Đã xóa'); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không xóa được'); }
   };
@@ -319,14 +320,14 @@ export default function InspectionRequestList({ lockedMachineSystemId }: { locke
                   const stickyBg = 'bg-white group-hover:bg-cyan-50';
                   const actions: RowAction[] = [];
                   // No separate "Xem" button: row click and the focusable Mã button open the detail (same as Repairs)
-                  if (s === 'CHO_XU_LY' && isTechnical) actions.push({ key: 'accept', label: 'Tiếp nhận', icon: <CheckCircle size={14} />, tone: 'primary', onClick: () => acceptMut.mutate(r.id, { onSuccess: () => toast.success('Đã tiếp nhận'), onError: (e) => toast.error(e instanceof Error ? e.message : 'Lỗi') }) });
+                  if (s === 'CHO_XU_LY' && isTechnical) actions.push({ key: 'accept', label: acceptMut.isPending ? 'Đang xử lý...' : 'Tiếp nhận', icon: acceptMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />, tone: 'primary', disabled: acceptMut.isPending, onClick: () => { if (acceptMut.isPending) return; acceptMut.mutate(r.id, { onSuccess: () => toast.success('Đã tiếp nhận'), onError: (e) => toast.error(e instanceof Error ? e.message : 'Lỗi') }); } });
                   // Confirmation belongs to the slip's designated confirmer (YCKT creator) or ADMIN — opens the detail with evidence
                   if (canConfirm) actions.push({ key: 'confirm', label: 'Xác nhận nghiệm thu', icon: <CheckCircle size={14} />, tone: 'success', onClick: () => openModal('view', r) });
-                  if (s === 'DA_KIEM_TRA' && isTechnical && activeRepairs(r.repairRequests).length > 0) actions.push({ key: 'complete', label: 'Hoàn thành kiểm tra', icon: <CheckCheck size={14} />, tone: 'success', onClick: () => completeMut.mutate(r.id, { onSuccess: () => toast.success('Đã hoàn thành'), onError: (e) => toast.error(e instanceof Error ? e.message : 'Lỗi') }) });
+                  if (s === 'DA_KIEM_TRA' && isTechnical && activeRepairs(r.repairRequests).length > 0) actions.push({ key: 'complete', label: completeMut.isPending ? 'Đang xử lý...' : 'Hoàn thành kiểm tra', icon: completeMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <CheckCheck size={14} />, tone: 'success', disabled: completeMut.isPending, onClick: () => { if (completeMut.isPending) return; completeMut.mutate(r.id, { onSuccess: () => toast.success('Đã hoàn thành'), onError: (e) => toast.error(e instanceof Error ? e.message : 'Lỗi') }); } });
                   if (canEdit) actions.push({ key: 'edit', label: 'Sửa', icon: <Edit size={14} />, tone: 'primary', onClick: () => openModal('edit', r) });
                   actions.push({ key: 'history', label: 'Lịch sử', icon: <History size={14} />, onClick: () => setHistoryId(r.id) });
                   if (canCancel) actions.push({ key: 'cancel', label: 'Hủy phiếu', icon: <Ban size={14} />, tone: 'warning', onClick: () => { setCancelTarget(r); setCancelReason(''); } });
-                  if (canDeleteRequest(s, canDelete)) actions.push({ key: 'delete', label: 'Xóa', icon: <Trash2 size={14} />, tone: 'danger', onClick: () => remove(r) });
+                  if (canDeleteRequest(s, canDelete)) actions.push({ key: 'delete', label: delMut.isPending ? 'Đang xử lý...' : 'Xóa', icon: delMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />, tone: 'danger', disabled: delMut.isPending, onClick: () => remove(r) });
                   return (
                     <tr key={r.id} onClick={() => openModal('view', r)} className="group cursor-pointer transition-colors hover:bg-cyan-50">
                       <td className={`${TD} ${STICKY_LEFT} ${stickyBg} whitespace-nowrap`}>
@@ -405,7 +406,7 @@ export default function InspectionRequestList({ lockedMachineSystemId }: { locke
             <textarea rows={3} value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} placeholder="Lý do..." aria-label="Lý do hủy" className="w-full rounded border px-3 py-2 text-sm" />
             <div className="mt-3 flex justify-end gap-2">
               <button type="button" onClick={() => setCancelTarget(null)} className="rounded border px-3 py-1 text-sm">Không</button>
-              <button type="button" onClick={handleCancel} className="rounded bg-red-600 px-3 py-1 text-sm text-white">Xác nhận hủy</button>
+              <button type="button" onClick={handleCancel} disabled={cancelMut.isPending} className="rounded bg-red-600 px-3 py-1 text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed">{cancelMut.isPending ? "Đang xử lý..." : "Xác nhận hủy"}</button>
             </div>
           </div>
         </Modal>

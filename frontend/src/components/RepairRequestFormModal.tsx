@@ -502,6 +502,7 @@ const RepairRequestFormModal = ({
   const [viewConfirmOpen, setViewConfirmOpen] = useState(false);
   const [viewConfirmForm, setViewConfirmForm] = useState<{ ketQua: 'DAT' | 'KHONG_DAT'; lyDo: string }>({ ketQua: 'DAT', lyDo: '' });
   const [viewConfirmSubmitting, setViewConfirmSubmitting] = useState(false);
+  const [viewActionPending, setViewActionPending] = useState(false);
   const [viewCreateRepairOpen, setViewCreateRepairOpen] = useState(false);
   const [viewCreateRepairInitial, setViewCreateRepairInitial] = useState<InitialRepairData | null>(null);
   // YCSC footer modals (copy pattern from RepairDetailPanel)
@@ -672,7 +673,9 @@ const RepairRequestFormModal = ({
       const showHistoryYCSC = () => setViewHistoryOpen(true);
       const openCancelYCSC = (mode: 'cancel'|'reject') => { setViewCancelMode(mode); setViewCancelReason(''); setViewCancelOpen(true); };
       const doAcceptYCSC = async () => {
-        try { await repairRequestService.accept(repairId as never); toast.success('Đã tiếp nhận'); queryClient.invalidateQueries({ queryKey: repairRequestKeys.all }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không tiếp nhận được'); }
+        if (viewActionPending) return;
+        setViewActionPending(true);
+        try { await repairRequestService.accept(repairId as never); toast.success('Đã tiếp nhận'); queryClient.invalidateQueries({ queryKey: repairRequestKeys.all }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không tiếp nhận được'); } finally { setViewActionPending(false); }
       };
       const doPlanYCSC = () => {
         const rAny = record as unknown as Record<string, unknown>;
@@ -689,7 +692,9 @@ const RepairRequestFormModal = ({
         setYcscPlanOpen(true);
       };
       const doStartYCSC = async () => {
-        try { await repairRequestService.start(repairId as never); toast.success('Đã bắt đầu sửa chữa'); queryClient.invalidateQueries({ queryKey: repairRequestKeys.all }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không bắt đầu được'); }
+        if (viewActionPending) return;
+        setViewActionPending(true);
+        try { await repairRequestService.start(repairId as never); toast.success('Đã bắt đầu sửa chữa'); queryClient.invalidateQueries({ queryKey: repairRequestKeys.all }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không bắt đầu được'); } finally { setViewActionPending(false); }
       };
       const doSubmitYCSC = () => {
         const rItems = ((record as unknown as { items?: { id: string; tenHeThong: string; tinhTrangThietBi: string; noiDungLoi: string }[] })?.items ?? []) as { id: string; tinhTrangThietBi: string; noiDungLoi: string }[];
@@ -702,8 +707,10 @@ const RepairRequestFormModal = ({
         setYcscSubmitOpen(true);
       };
       const doCompleteYCSC = async () => {
+        if (viewActionPending) return;
+        setViewActionPending(true);
         // useCompleteRepair also refreshes fault records (closed by complete) and the source YCKT
-        try { await completeRepairMut.mutateAsync(repairId); toast.success('Đã hoàn thành'); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không hoàn thành được'); }
+        try { await completeRepairMut.mutateAsync(repairId); toast.success('Đã hoàn thành'); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không hoàn thành được'); } finally { setViewActionPending(false); }
       };
       const leftYCSC = (
         <div className="flex items-center gap-2 flex-wrap">
@@ -722,18 +729,18 @@ const RepairRequestFormModal = ({
       } else if (!isToBTView) {
         // Requester only gets Hủy (left group) — no technician CTA
       } else if (s === 'CHO_XU_LY') {
-        rightYCSC = <button type="button" onClick={doAcceptYCSC} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 min-h-[44px]"><CheckCircle className="h-4 w-4" /> Tiếp nhận</button>;
+        rightYCSC = <button type="button" onClick={doAcceptYCSC} disabled={viewActionPending} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"><CheckCircle className="h-4 w-4" /> {viewActionPending ? 'Đang xử lý...' : 'Tiếp nhận'}</button>;
       } else if (s === 'DA_TIEP_NHAN') {
-        rightYCSC = <button type="button" onClick={doPlanYCSC} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 min-h-[44px]"><Wrench className="h-4 w-4" /> Lên kế hoạch</button>;
+        rightYCSC = <button type="button" onClick={doPlanYCSC} disabled={viewActionPending} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"><Wrench className="h-4 w-4" /> Lên kế hoạch</button>;
       } else if (s === 'LEN_KE_HOACH') {
-        rightYCSC = <button type="button" onClick={doStartYCSC} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 min-h-[44px]"><Play className="h-4 w-4" /> Bắt đầu</button>;
+        rightYCSC = <button type="button" onClick={doStartYCSC} disabled={viewActionPending} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"><Play className="h-4 w-4" /> {viewActionPending ? 'Đang xử lý...' : 'Bắt đầu'}</button>;
       } else if (s === 'DANG_SUA_CHUA') {
-        rightYCSC = <button type="button" onClick={doSubmitYCSC} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 min-h-[44px]"><Send className="h-4 w-4" /> Đề nghị nghiệm thu</button>;
+        rightYCSC = <button type="button" onClick={doSubmitYCSC} disabled={viewActionPending} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"><Send className="h-4 w-4" /> Đề nghị nghiệm thu</button>;
       } else if (s === 'DA_NGHIEM_THU') {
         const cs2 = (ycscCostQ.data as unknown as { data?: { itemsWithNullPrice: { tenGoi: string }[] } })?.data;
         const hasNull2 = (cs2?.itemsWithNullPrice?.length ?? 0) > 0;
         const tip = hasNull2 ? 'Có món chưa có giá thành — cập nhật giá trước khi hoàn thành' : undefined;
-        rightYCSC = <span title={tip}><button type="button" onClick={doCompleteYCSC} disabled={hasNull2} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed"><CheckCheck className="h-4 w-4" /> Hoàn thành</button></span>;
+        rightYCSC = <span title={tip}><button type="button" onClick={doCompleteYCSC} disabled={hasNull2 || viewActionPending} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed"><CheckCheck className="h-4 w-4" /> {viewActionPending ? 'Đang xử lý...' : 'Hoàn thành'}</button></span>;
 
       }
       const showEditYCSC = !!onEdit && !isTerminal && canEditRepair(s, gateActor);
@@ -753,24 +760,33 @@ const RepairRequestFormModal = ({
     const canShowCancel = canCancelInspection(s, gateActor);
     const canShowDelete = canDeleteRequest(s, canDeleteView);
     const doAccept = async () => {
+      if (viewActionPending) return;
+      setViewActionPending(true);
       const id = (record as unknown as { id: number }).id;
       // YCKT and YCSC are separate tables with overlapping Int ids — never fall back to the repair endpoint
-      try { await inspectionRequestService.accept(id); toast.success('Đã tiếp nhận'); queryClient.invalidateQueries({ queryKey: inspectionKeys.all }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không tiếp nhận được'); }
+      try { await inspectionRequestService.accept(id); toast.success('Đã tiếp nhận'); queryClient.invalidateQueries({ queryKey: inspectionKeys.all }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không tiếp nhận được'); } finally { setViewActionPending(false); }
     };
     const doStart = async () => {
+      if (viewActionPending) return;
+      setViewActionPending(true);
       const id = (record as unknown as { id: number }).id;
-      try { await inspectionRequestService.startInspection(id); toast.success('Đã bắt đầu kiểm tra'); queryClient.invalidateQueries({ queryKey: inspectionKeys.all }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không bắt đầu được'); }
+      try { await inspectionRequestService.startInspection(id); toast.success('Đã bắt đầu kiểm tra'); queryClient.invalidateQueries({ queryKey: inspectionKeys.all }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không bắt đầu được'); } finally { setViewActionPending(false); }
     };
     const doSaveDraft = async () => {
+      if (viewActionPending) return;
+      setViewActionPending(true);
       const id = (record as unknown as { id: number }).id;
-      try { await inspectionRequestService.updateDetails(id, { ketQuaKiemTra: viewInspectForm.ketQuaKiemTra || null, mucDoHuHong: viewInspectForm.mucDoHuHong || null, deXuatXuLy: viewInspectForm.deXuatXuLy || null, ketLuan: viewInspectForm.ketLuan || null }); toast.success('Đã lưu nháp'); queryClient.invalidateQueries({ queryKey: inspectionKeys.all }); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không lưu được'); }
+      try { await inspectionRequestService.updateDetails(id, { ketQuaKiemTra: viewInspectForm.ketQuaKiemTra || null, mucDoHuHong: viewInspectForm.mucDoHuHong || null, deXuatXuLy: viewInspectForm.deXuatXuLy || null, ketLuan: viewInspectForm.ketLuan || null }); toast.success('Đã lưu nháp'); queryClient.invalidateQueries({ queryKey: inspectionKeys.all }); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không lưu được'); } finally { setViewActionPending(false); }
     };
     const doSubmit = async () => {
+      if (viewActionPending) return;
+      setViewActionPending(true);
       const id = (record as unknown as { id: number }).id;
       const isFixed = viewInspectForm.ketLuan === 'DA_KHAC_PHUC';
       if (!viewInspectForm.ketQuaKiemTra.trim() || !viewInspectForm.ketLuan.trim() || (isFixed && (!viewFixForm.tinhTrangSau.trim() || !viewFixFile))) {
         setViewInspectTouched(true);
         toast.error('Vui lòng điền đủ các trường bắt buộc được tô đỏ');
+        setViewActionPending(false);
         return;
       }
       try {
@@ -780,12 +796,14 @@ const RepairRequestFormModal = ({
         queryClient.invalidateQueries({ queryKey: inspectionKeys.all });
         queryClient.invalidateQueries({ queryKey: ['acceptanceHandovers'] });
         onSaved?.(); onClose();
-      } catch (e) { toast.error(e instanceof Error ? e.message : 'Không gửi được — kiểm tra Kết quả/Kết luận'); }
+      } catch (e) { toast.error(e instanceof Error ? e.message : 'Không gửi được — kiểm tra Kết quả/Kết luận'); } finally { setViewActionPending(false); }
     };
     const openInspectionConfirm = (ketQua: 'DAT' | 'KHONG_DAT') => { setViewConfirmForm({ ketQua, lyDo: '' }); setViewConfirmOpen(true); };
     const doComplete = async () => {
+      if (viewActionPending) return;
+      setViewActionPending(true);
       const id = (record as unknown as { id: number }).id;
-      try { await inspectionRequestService.complete(id); toast.success('Đã hoàn thành kiểm tra'); queryClient.invalidateQueries({ queryKey: inspectionKeys.all }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không hoàn thành được'); }
+      try { await inspectionRequestService.complete(id); toast.success('Đã hoàn thành kiểm tra'); queryClient.invalidateQueries({ queryKey: inspectionKeys.all }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không hoàn thành được'); } finally { setViewActionPending(false); }
     };
     const doCreateRepair = () => {
       type SrcItem = { id: string; tenHeThong: string; tinhTrangThietBi: string; loaiLoi: string; noiDungLoi: string; machineSystemId?: string | null; machineSystemDetailId?: string | null; faultRecordId?: string | null; faultRecord?: { maLoi: string; tenLoi: string } | null };
@@ -823,11 +841,11 @@ const RepairRequestFormModal = ({
     let rightCta: React.ReactNode = null;
     // Owner without technician rights only gets Hủy (left group); technician CTAs require isToBTView
     if (!isToBTView) { /* nhân viên thường / người tạo */ } else if (s === 'CHO_XU_LY') {
-      rightCta = (<div className="flex items-center gap-2"><button type="button" onClick={() => openCancel('reject')} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px]"><XCircle className="h-4 w-4" /> Từ chối</button><button type="button" onClick={doAccept} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 min-h-[44px]"><CheckCircle className="h-4 w-4" /> Tiếp nhận</button></div>);
+      rightCta = (<div className="flex items-center gap-2"><button type="button" onClick={() => openCancel('reject')} disabled={viewActionPending} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"><XCircle className="h-4 w-4" /> Từ chối</button><button type="button" onClick={doAccept} disabled={viewActionPending} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"><CheckCircle className="h-4 w-4" /> {viewActionPending ? 'Đang xử lý...' : 'Tiếp nhận'}</button></div>);
     } else if (s === 'DA_TIEP_NHAN') {
-      rightCta = (<div className="flex items-center gap-2"><button type="button" onClick={() => openCancel('reject')} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px]"><XCircle className="h-4 w-4" /> Từ chối</button><button type="button" onClick={doStart} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 min-h-[44px]"><Play className="h-4 w-4" /> Bắt đầu kiểm tra</button></div>);
+      rightCta = (<div className="flex items-center gap-2"><button type="button" onClick={() => openCancel('reject')} disabled={viewActionPending} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"><XCircle className="h-4 w-4" /> Từ chối</button><button type="button" onClick={doStart} disabled={viewActionPending} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"><Play className="h-4 w-4" /> {viewActionPending ? 'Đang xử lý...' : 'Bắt đầu kiểm tra'}</button></div>);
     } else if (s === 'DANG_KIEM_TRA') {
-      rightCta = (<div className="flex items-center gap-2"><button type="button" onClick={doSaveDraft} title="Lưu nháp kết quả kiểm tra" className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px]"><Save className="h-4 w-4" /> Lưu nháp</button><span title={!viewCanSubmit ? 'Cần nhập Kết quả kiểm tra và Kết luận trước khi gửi' : 'Gửi kết quả kiểm tra'}><button type="button" onClick={doSubmit} disabled={!viewCanSubmit} aria-disabled={!viewCanSubmit} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"><Send className="h-4 w-4" /> Gửi kết quả</button></span></div>);
+      rightCta = (<div className="flex items-center gap-2"><button type="button" onClick={doSaveDraft} disabled={viewActionPending} title="Lưu nháp kết quả kiểm tra" className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"><Save className="h-4 w-4" /> {viewActionPending ? 'Đang lưu...' : 'Lưu nháp'}</button><span title={!viewCanSubmit ? 'Cần nhập Kết quả kiểm tra và Kết luận trước khi gửi' : 'Gửi kết quả kiểm tra'}><button type="button" onClick={doSubmit} disabled={!viewCanSubmit || viewActionPending} aria-disabled={!viewCanSubmit || viewActionPending} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"><Send className="h-4 w-4" /> {viewActionPending ? 'Đang gửi...' : 'Gửi kết quả'}</button></span></div>);
     } else if (s === 'DA_KIEM_TRA') {
       if (existingRepair) {
         rightCta = (<button type="button" onClick={() => goToRepair(existingRepair.id)} className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 min-h-[44px]">Đã tạo {existingRepair.maYeuCau} [Xem] <ArrowRight className="h-4 w-4" /></button>);
@@ -845,7 +863,7 @@ const RepairRequestFormModal = ({
     }
     // CAN_SUA_CHUA + YCSC đã tạo → kỹ thuật đóng YCKT
     if (s === 'DA_KIEM_TRA' && existingRepair && isToBTView) {
-      rightCta = (<div className="flex items-center gap-2">{rightCta}<button type="button" onClick={doComplete} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 min-h-[44px]"><CheckCheck className="h-4 w-4" /> Hoàn thành kiểm tra</button></div>);
+      rightCta = (<div className="flex items-center gap-2">{rightCta}<button type="button" onClick={doComplete} disabled={viewActionPending} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"><CheckCheck className="h-4 w-4" /> {viewActionPending ? 'Đang xử lý...' : 'Hoàn thành kiểm tra'}</button></div>);
     }
     return (
       <div className="flex w-full items-center justify-between gap-2 flex-wrap">
@@ -1928,7 +1946,7 @@ const RepairRequestFormModal = ({
                                     <td className="px-1.5 py-1"><input inputMode="numeric" value={incEdit.soTien ? formatNum(incEdit.soTien) : ''} onChange={e=>{ const v=e.target.value.replace(/[^\d]/g,''); setIncEdit(s=>({...s, soTien: v})); }} className={vndInputCls} /></td>
                                     <td className="px-1.5 py-1"><input value={incEdit.lyDo} onChange={e=>setIncEdit(s=>({...s, lyDo:e.target.value}))} className="w-full rounded border px-2 py-1 text-sm" /></td>
                                     <td className="px-1.5 py-1"><div className="flex items-center gap-1">{incEdit.filePending ? <span className="truncate text-xs text-gray-700 max-w-[90px]" title={incEdit.filePending.name}>{incEdit.filePending.name}</span> : row.fileMinhChung ? <a href={getFileUrl(String(row.fileMinhChung))} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline truncate max-w-[90px]">Xem</a> : <span className="text-xs text-gray-400">—</span>}<label className="shrink-0 inline-flex items-center justify-center h-6 w-6 rounded border bg-white hover:bg-gray-50 cursor-pointer" title="Chọn file"><input type="file" className="hidden" onChange={e=>{ const f=e.target.files?.[0] ?? null; setIncEdit(s=>({...s, filePending: f})); e.target.value=''; }} /><span className="text-[11px]">📎</span></label>{incEdit.filePending && <button type="button" onClick={()=>setIncEdit(s=>({...s, filePending: null}))} className="text-[11px] text-gray-400">✕</button>}</div></td>
-                                    <td className="px-1 py-1 flex gap-1"><button onClick={async()=>{ if(!ycscIdForChain) return; const soTien=Number(incEdit.soTien); if(!Number.isFinite(soTien)||soTien<0){ toast.error('Số tiền phải >=0'); return; } if(!incEdit.lyDo.trim()){ toast.error('Lý do bắt buộc'); return; } try{ const fd=new FormData(); fd.append('tenKhoan', incEdit.tenKhoan.trim()||row.tenKhoan); fd.append('soTien', String(soTien)); fd.append('lyDo', incEdit.lyDo.trim()); if(incEdit.filePending) fd.append('file', incEdit.filePending); await updateIncidental.mutateAsync({ id: ycscIdForChain, costId: row.id, payload: fd as never }); toast.success('Đã cập nhật'); setIncEditId(null); setIncEdit({ tenKhoan:'', soTien:'', lyDo:'', filePending: null });}catch(e){ toast.error(e instanceof Error?e.message:'Lỗi cập nhật'); } }} className="text-blue-600 text-xs">Lưu</button><button onClick={()=>setIncEditId(null)} className="text-gray-500 text-xs">Hủy</button></td>
+                                    <td className="px-1 py-1 flex gap-1"><button disabled={updateIncidental.isPending} onClick={async()=>{ if(updateIncidental.isPending) return; if(!ycscIdForChain) return; const soTien=Number(incEdit.soTien); if(!Number.isFinite(soTien)||soTien<0){ toast.error('Số tiền phải >=0'); return; } if(!incEdit.lyDo.trim()){ toast.error('Lý do bắt buộc'); return; } try{ const fd=new FormData(); fd.append('tenKhoan', incEdit.tenKhoan.trim()||row.tenKhoan); fd.append('soTien', String(soTien)); fd.append('lyDo', incEdit.lyDo.trim()); if(incEdit.filePending) fd.append('file', incEdit.filePending); await updateIncidental.mutateAsync({ id: ycscIdForChain, costId: row.id, payload: fd as never }); toast.success('Đã cập nhật'); setIncEditId(null); setIncEdit({ tenKhoan:'', soTien:'', lyDo:'', filePending: null });}catch(e){ toast.error(e instanceof Error?e.message:'Lỗi cập nhật'); } }} className="text-blue-600 text-xs disabled:opacity-40">{updateIncidental.isPending ? 'Đang lưu...' : 'Lưu'}</button><button onClick={()=>setIncEditId(null)} className="text-gray-500 text-xs">Hủy</button></td>
                                   </>
                                 ) : (
                                   <>
@@ -1936,7 +1954,7 @@ const RepairRequestFormModal = ({
                                     <td className="px-2 py-1.5 text-right">{formatVND(Number(row.soTien))}</td>
                                     <td className="px-2 py-1.5 text-xs">{row.lyDo}</td>
                                     <td className="px-2 py-1.5 text-xs truncate max-w-[120px]">{row.fileMinhChung ? <a href={String(row.fileMinhChung).startsWith('http') ? String(row.fileMinhChung) : getFileUrl(String(row.fileMinhChung))} target="_blank" rel="noreferrer" className="text-blue-600 underline">Xem</a> : '—'}</td>
-                                    <td className="px-1 py-1 text-right flex gap-1 justify-end"><button onClick={()=>{ setIncEditId(row.id); setIncEdit({ tenKhoan: row.tenKhoan, soTien: String(row.soTien), lyDo: row.lyDo, filePending: null }); }} className="text-blue-600 text-xs">Sửa</button><button onClick={async()=>{ if(!confirm('Xóa khoản này?')) return; try{ await deleteIncidental.mutateAsync({ id: ycscIdForChain as string, costId: row.id }); toast.success('Đã xóa'); }catch(e){ toast.error(e instanceof Error?e.message:'Lỗi xóa'); } }} className="text-red-500 text-xs">Xóa</button></td>
+                                    <td className="px-1 py-1 text-right flex gap-1 justify-end"><button onClick={()=>{ setIncEditId(row.id); setIncEdit({ tenKhoan: row.tenKhoan, soTien: String(row.soTien), lyDo: row.lyDo, filePending: null }); }} className="text-blue-600 text-xs">Sửa</button><button disabled={deleteIncidental.isPending} onClick={async()=>{ if(deleteIncidental.isPending) return; if(!confirm('Xóa khoản này?')) return; try{ await deleteIncidental.mutateAsync({ id: ycscIdForChain as string, costId: row.id }); toast.success('Đã xóa'); }catch(e){ toast.error(e instanceof Error?e.message:'Lỗi xóa'); } }} className="text-red-500 text-xs disabled:opacity-40">Xóa</button></td>
                                   </>
                                 )}
                               </tr>
@@ -1946,7 +1964,7 @@ const RepairRequestFormModal = ({
                               <td className="px-1.5 py-1"><input inputMode="numeric" placeholder="0" value={incForm.soTien ? formatNum(incForm.soTien) : ''} onChange={e=>{ const v=e.target.value.replace(/[^\d]/g,''); setIncForm(s=>({...s, soTien: v})); }} className={vndInputCls + ' py-1.5'} /></td>
                               <td className="px-1.5 py-1"><input placeholder="Lý do *" value={incForm.lyDo} onChange={e=>setIncForm(s=>({...s, lyDo:e.target.value}))} className="w-full rounded border px-2 py-1.5 text-sm" /></td>
                               <td className="px-1.5 py-1"><div className="flex items-center gap-1">{incForm.filePending ? <span className="truncate text-xs text-gray-700 max-w-[90px]" title={incForm.filePending.name}>{incForm.filePending.name}</span> : <span className="text-xs text-gray-400">—</span>}<label className="shrink-0 inline-flex items-center justify-center h-6 w-6 rounded border bg-white hover:bg-gray-50 cursor-pointer" title="Chọn file"><input type="file" className="hidden" onChange={e=>{ const f=e.target.files?.[0] ?? null; setIncForm(s=>({...s, filePending: f})); e.target.value=''; }} /><span className="text-[11px]">📎</span></label>{incForm.filePending && <button type="button" onClick={()=>setIncForm(s=>({...s, filePending: null}))} className="text-[11px] text-gray-400">✕</button>}</div></td>
-                              <td className="px-1 py-1"><button onClick={async()=>{ if(!ycscIdForChain) return; const soTien=Number(incForm.soTien); if(!incForm.tenKhoan.trim()){ toast.error('Tên khoản bắt buộc'); return; } if(!Number.isFinite(soTien)||soTien<0){ toast.error('Số tiền phải >=0'); return; } if(!incForm.lyDo.trim()){ toast.error('Lý do bắt buộc'); return; } try{ const fd=new FormData(); fd.append('tenKhoan', incForm.tenKhoan.trim()); fd.append('soTien', String(soTien)); fd.append('lyDo', incForm.lyDo.trim()); if(incForm.filePending) fd.append('file', incForm.filePending); await createIncidental.mutateAsync({ id: ycscIdForChain, payload: fd as never }); toast.success('Đã thêm'); setIncForm({ tenKhoan:'', soTien:'', lyDo:'', filePending: null }); }catch(e){ toast.error(e instanceof Error?e.message:'Lỗi thêm'); } }} className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white">Thêm</button></td>
+                              <td className="px-1 py-1"><button disabled={createIncidental.isPending} onClick={async()=>{ if(createIncidental.isPending) return; if(!ycscIdForChain) return; const soTien=Number(incForm.soTien); if(!incForm.tenKhoan.trim()){ toast.error('Tên khoản bắt buộc'); return; } if(!Number.isFinite(soTien)||soTien<0){ toast.error('Số tiền phải >=0'); return; } if(!incForm.lyDo.trim()){ toast.error('Lý do bắt buộc'); return; } try{ const fd=new FormData(); fd.append('tenKhoan', incForm.tenKhoan.trim()); fd.append('soTien', String(soTien)); fd.append('lyDo', incForm.lyDo.trim()); if(incForm.filePending) fd.append('file', incForm.filePending); await createIncidental.mutateAsync({ id: ycscIdForChain, payload: fd as never }); toast.success('Đã thêm'); setIncForm({ tenKhoan:'', soTien:'', lyDo:'', filePending: null }); }catch(e){ toast.error(e instanceof Error?e.message:'Lỗi thêm'); } }} className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed">{createIncidental.isPending ? 'Đang thêm...' : 'Thêm'}</button></td>
                             </tr>
                           </tbody>
                         </table>
@@ -2272,7 +2290,7 @@ const RepairRequestFormModal = ({
           <div className="bg-white rounded-lg w-full max-w-md p-4 space-y-3" onClick={e=>e.stopPropagation()}>
             <h4 className="font-semibold text-sm text-red-600">Xóa phiếu?</h4>
             <p className="text-sm text-gray-600">Hành động này không thể hoàn tác.</p>
-            <div className="flex justify-end gap-2"><button onClick={()=>setViewDeleteOpen(false)} className="rounded border px-4 py-2 text-sm hover:bg-gray-50">Hủy</button><button onClick={async()=>{ const id=(record as unknown as {id:number|string}).id; const isInspection = effectiveIsKiemTra; try{ if(isInspection) await inspectionRequestService.delete(id); else await repairRequestService.delete(id as never); toast.success('Đã xóa'); setViewDeleteOpen(false); queryClient.invalidateQueries({ queryKey: inspectionKeys.all }); queryClient.invalidateQueries({ queryKey: repairRequestKeys.all }); onClose(); }catch(e){ toast.error(e instanceof Error?e.message:'Không xóa được'); } }} className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">Xóa</button></div>
+            <div className="flex justify-end gap-2"><button onClick={()=>setViewDeleteOpen(false)} className="rounded border px-4 py-2 text-sm hover:bg-gray-50">Hủy</button><button disabled={viewActionPending} onClick={async()=>{ if(viewActionPending) return; setViewActionPending(true); const id=(record as unknown as {id:number|string}).id; const isInspection = effectiveIsKiemTra; try{ if(isInspection) await inspectionRequestService.delete(id); else await repairRequestService.delete(id as never); toast.success('Đã xóa'); setViewDeleteOpen(false); queryClient.invalidateQueries({ queryKey: inspectionKeys.all }); queryClient.invalidateQueries({ queryKey: repairRequestKeys.all }); onClose(); }catch(e){ toast.error(e instanceof Error?e.message:'Không xóa được'); } finally { setViewActionPending(false); } }} className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed">Xóa</button></div>
           </div>
         </Modal>
       )}
@@ -2542,7 +2560,7 @@ const RepairRequestFormModal = ({
               <label className="block space-y-1"><span className="font-medium text-gray-700">Kết quả <span className="text-red-500">*</span></span><select value={ycscConfirmForm.ketQua} onChange={e=>setYcscConfirmForm(f=>({...f, ketQua:e.target.value as never}))} className="w-full rounded border px-2 py-1.5"><option value="">-- Chọn --</option><option value="DAT">ĐẠT</option><option value="KHONG_DAT">KHÔNG ĐẠT</option></select></label>
               <label className="block space-y-1"><span className="font-medium text-gray-700">Lý do {ycscConfirmForm.ketQua === 'KHONG_DAT' ? <span className="text-red-500">*</span> : <span className="text-gray-400">(tuỳ chọn)</span>}</span><textarea rows={3} value={ycscConfirmForm.lyDo} onChange={e=>setYcscConfirmForm(f=>({...f, lyDo:e.target.value}))} className="w-full rounded border px-2 py-1.5" /></label>
             </div>
-            <div className="flex justify-end gap-2"><button onClick={()=>setYcscConfirmOpen(false)} className="rounded border px-4 py-2 text-sm hover:bg-gray-50">Hủy</button><button onClick={async()=>{ const rid=(record as unknown as {id:number|string}).id; if(!ycscConfirmForm.ketQua){ toast.error('Vui lòng chọn kết quả'); return; } if(ycscConfirmForm.ketQua==='KHONG_DAT' && !ycscConfirmForm.lyDo.trim()){ toast.error('Vui lòng nhập lý do không đạt'); return; } try{ await confirmRepairMut.mutateAsync({ id: rid, payload: { ketQua: ycscConfirmForm.ketQua as 'DAT' | 'KHONG_DAT', lyDo: ycscConfirmForm.lyDo.trim() || undefined } }); toast.success(ycscConfirmForm.ketQua==='DAT'?'Đã xác nhận nghiệm thu ĐẠT':'Đã xác nhận KHÔNG ĐẠT — chuyển lại kỹ thuật'); setYcscConfirmOpen(false); onSaved?.(); onClose(); }catch(e){ toast.error(e instanceof Error?e.message:'Lỗi nghiệm thu'); } }} className={`rounded px-4 py-2 text-sm font-medium text-white ${ycscConfirmForm.ketQua==='KHONG_DAT'?'bg-red-600 hover:bg-red-700':'bg-green-600 hover:bg-green-700'}`}>Xác nhận</button></div>
+            <div className="flex justify-end gap-2"><button onClick={()=>setYcscConfirmOpen(false)} className="rounded border px-4 py-2 text-sm hover:bg-gray-50">Hủy</button><button disabled={confirmRepairMut.isPending} onClick={async()=>{ if(confirmRepairMut.isPending) return; const rid=(record as unknown as {id:number|string}).id; if(!ycscConfirmForm.ketQua){ toast.error('Vui lòng chọn kết quả'); return; } if(ycscConfirmForm.ketQua==='KHONG_DAT' && !ycscConfirmForm.lyDo.trim()){ toast.error('Vui lòng nhập lý do không đạt'); return; } try{ await confirmRepairMut.mutateAsync({ id: rid, payload: { ketQua: ycscConfirmForm.ketQua as 'DAT' | 'KHONG_DAT', lyDo: ycscConfirmForm.lyDo.trim() || undefined } }); toast.success(ycscConfirmForm.ketQua==='DAT'?'Đã xác nhận nghiệm thu ĐẠT':'Đã xác nhận KHÔNG ĐẠT — chuyển lại kỹ thuật'); setYcscConfirmOpen(false); onSaved?.(); onClose(); }catch(e){ toast.error(e instanceof Error?e.message:'Lỗi nghiệm thu'); } }} className={`rounded px-4 py-2 text-sm font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed ${ycscConfirmForm.ketQua==='KHONG_DAT'?'bg-red-600 hover:bg-red-700':'bg-green-600 hover:bg-green-700'}`}>{confirmRepairMut.isPending ? 'Đang xử lý...' : 'Xác nhận'}</button></div>
           </div>
         </Modal>
       )}

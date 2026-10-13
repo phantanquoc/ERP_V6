@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react';
 import toast from 'react-hot-toast';
-import { AlertTriangle, Edit, Plus, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Edit, Loader2, Plus, Trash2, X } from 'lucide-react';
 import {
   useAddProjectCost,
   useDeleteProjectCost,
@@ -94,8 +94,11 @@ const ProjectCosts = ({ projectId, phases, canWrite, focusedCostId, onSelectCost
     }
   };
 
+  const isSavingCost = addCost.isPending || editCost.isPending;
+
   const save = async (e: FormEvent) => {
     e.preventDefault();
+    if (isSavingCost) return;
     const payload = {
       ...form,
       projectPhaseId: form.projectPhaseId || null,
@@ -106,6 +109,7 @@ const ProjectCosts = ({ projectId, phases, canWrite, focusedCostId, onSelectCost
       } else {
         await addCost.mutateAsync({ projectId, data: payload });
       }
+      toast.success(modal?.cost ? 'Đã cập nhật chi phí' : 'Đã thêm chi phí');
       setModal(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không lưu được chi phí');
@@ -113,6 +117,7 @@ const ProjectCosts = ({ projectId, phases, canWrite, focusedCostId, onSelectCost
   };
 
   const remove = async (cost: ProjectCost) => {
+    if (removeCost.isPending) return;
     if (!confirm(`Xóa chi phí "${cost.tenChiPhi || cost.loaiChiPhi}"?`)) return;
     try {
       await removeCost.mutateAsync({ projectId, costId: cost.id });
@@ -255,16 +260,18 @@ const ProjectCosts = ({ projectId, phases, canWrite, focusedCostId, onSelectCost
                           <button
                             onClick={() => openModal('edit', cost)}
                             title="Sửa"
-                            className="rounded p-1.5 text-gray-400 hover:bg-green-50 hover:text-green-600"
+                            disabled={removeCost.isPending}
+                            className="rounded p-1.5 text-gray-400 hover:bg-green-50 hover:text-green-600 disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             <Edit className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => remove(cost)}
                             title="Xóa"
-                            className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600"
+                            disabled={removeCost.isPending}
+                            className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-40 disabled:cursor-not-allowed"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            {removeCost.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                           </button>
                         </div>
                       </td>
@@ -417,15 +424,17 @@ const ProjectCosts = ({ projectId, phases, canWrite, focusedCostId, onSelectCost
                 <button
                   type="button"
                   onClick={() => setModal(null)}
-                  className="rounded-md border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50"
+                  disabled={isSavingCost}
+                  className="rounded-md border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  className="rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700"
+                  disabled={isSavingCost}
+                  className="rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
                 >
-                  Lưu
+                  {isSavingCost ? <><Loader2 className="h-4 w-4 animate-spin" /> Đang lưu...</> : 'Lưu'}
                 </button>
               </div>
             </form>

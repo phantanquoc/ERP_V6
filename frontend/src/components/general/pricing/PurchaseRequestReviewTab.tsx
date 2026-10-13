@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Eye, Check, XCircle } from 'lucide-react';
+import { Eye, Check, XCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { isPricingApproverSync, can } from '../../../utils/permissions';
 import purchaseRequestService from '../../../services/purchaseRequestService';
@@ -220,6 +220,13 @@ const PurchaseRequestReviewTab: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['pricingOverview'] });
     } catch (err: any) { toast.error(err?.response?.data?.message ?? err.message ?? 'Từ chối thất bại'); }
   };
+  const approveMut = useMutation({
+    mutationFn: doApprove,
+  });
+  const rejectMut = useMutation({
+    mutationFn: ({ id, lyDo }: { id: string; lyDo?: string }) => doReject(id, lyDo),
+  });
+  const isMutating = approveMut.isPending || rejectMut.isPending;
 
   return (
     <div className="space-y-4">
@@ -327,19 +334,21 @@ const PurchaseRequestReviewTab: React.FC = () => {
                           <>
                             <button
                               onClick={() => setApproveId(r.id)}
+                              disabled={isMutating}
                               title="Duyệt"
                               aria-label="Duyệt"
                               className="p-1.5 rounded-md text-green-600 hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                              <Check size={16} />
+                              {approveMut.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                             </button>
                             <button
                               onClick={() => setRejectId(r.id)}
+                              disabled={isMutating}
                               title="Từ chối"
                               aria-label="Từ chối"
                               className="p-1.5 rounded-md text-red-600 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                              <XCircle size={16} />
+                              {rejectMut.isPending ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
                             </button>
                           </>
                         ) : (
@@ -480,8 +489,8 @@ const PurchaseRequestReviewTab: React.FC = () => {
                 if (!canPricingUpdate) return <span className="text-xs text-gray-400 self-center" title={pricingGateTooltip}>Bạn không có quyền duyệt — cần thuộc Phòng giá thành hoặc Phòng chi phí</span>;
                 return (
                   <>
-                    <button onClick={() => { setDetailId(null); setRejectId(row.id); }} className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 text-sm">Từ chối</button>
-                    <button onClick={() => { setDetailId(null); setApproveId(row.id); }} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">Duyệt ngay</button>
+                    <button onClick={() => { setDetailId(null); setRejectId(row.id); }} disabled={isMutating} className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 text-sm disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2">{rejectMut.isPending ? <><Loader2 size={14} className="animate-spin" /> Đang xử lý...</> : 'Từ chối'}</button>
+                    <button onClick={() => { setDetailId(null); setApproveId(row.id); }} disabled={isMutating} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2">{approveMut.isPending ? <><Loader2 size={14} className="animate-spin" /> Đang xử lý...</> : 'Duyệt ngay'}</button>
                   </>
                 );
               })()}
@@ -494,12 +503,13 @@ const PurchaseRequestReviewTab: React.FC = () => {
       <ConfirmDialog
         isOpen={!!rejectId}
         onClose={() => { setRejectId(null); setRejectReason(''); }}
-        onConfirm={() => { if (rejectId) doReject(rejectId, rejectReason || undefined); setRejectId(null); setRejectReason(''); }}
+        onConfirm={() => { if (rejectId) rejectMut.mutate({ id: rejectId, lyDo: rejectReason || undefined }); setRejectId(null); setRejectReason(''); }}
         title="Từ chối yêu cầu"
         message="Nhập lý do từ chối:"
-        confirmText="Xác nhận từ chối"
+        confirmText={rejectMut.isPending ? 'Đang xử lý...' : 'Xác nhận từ chối'}
         cancelText="Hủy"
         variant="danger"
+        loading={rejectMut.isPending}
       >
         <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} rows={3} placeholder="Lý do từ chối..." className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mt-3 focus:ring-2 focus:ring-red-500 focus:border-red-500" />
       </ConfirmDialog>
@@ -507,12 +517,13 @@ const PurchaseRequestReviewTab: React.FC = () => {
       <ConfirmDialog
         isOpen={!!approveId}
         onClose={() => setApproveId(null)}
-        onConfirm={() => { if (approveId) doApprove(approveId); setApproveId(null); }}
+        onConfirm={() => { if (approveId) approveMut.mutate(approveId); setApproveId(null); }}
         title="Xác nhận duyệt yêu cầu"
         message="Bạn có chắc muốn duyệt yêu cầu này?"
-        confirmText="Xác nhận"
+        confirmText={approveMut.isPending ? 'Đang xử lý...' : 'Xác nhận'}
         cancelText="Hủy"
         variant="primary"
+        loading={approveMut.isPending}
       >
         {(() => {
           const approveRow: any = allRows.find((x: any) => x.id === approveId);

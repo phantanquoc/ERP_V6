@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { AlertTriangle, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ClipboardCheck, Edit, Eye, FileText, History, Info, LayoutGrid, Plus, Power, RefreshCw, Trash2, Wrench, X } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ClipboardCheck, Edit, Eye, FileText, History, Info, LayoutGrid, Loader2, Plus, Power, RefreshCw, Trash2, Wrench, X } from 'lucide-react';
 import Portal from './Portal';
 import { useDeactivateMachineSystemDetail, useDeleteMachineSystemDetail, useDetailTree, useMachineSystemDetail, useMachineSystemSummary, useMachineSystems } from '../hooks/useMachineSystemDetails';
 import { useTemplateCountsBySystem, faultTemplateKeys } from '../hooks/useFaultTemplates';
@@ -378,6 +378,7 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
   }, [detailIdParam]);
 
   const removeDetail = async (record: MachineSystemDetail) => {
+    if (deleteDetail.isPending || deactivateDetail.isPending) return;
     if (!confirm(`Xóa chi tiết ${record.maChiTiet}? Nếu đã phát sinh dữ liệu, hãy dừng hoạt động thay vì xóa.`)) return;
     try {
       await deleteDetail.mutateAsync(record.id);
@@ -747,11 +748,12 @@ const MachineSummaryDrawer = ({ machineSystemId, onClose }: MachineSummaryDrawer
                                 ) : !treeData || treeData.length === 0 ? (
                                   <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Chưa có chi tiết/cây linh kiện.</td></tr>
                                 ) : treeData.map((node) => {
+                                  const isMutating = deleteDetail.isPending || deactivateDetail.isPending;
                                   const actions: RowAction[] = [
                                     { key: 'view', label: 'Xem chi tiết', icon: <Eye className="h-4 w-4" />, onClick: () => openDetailModal('view', node), tone: 'primary' },
                                     { key: 'edit', label: 'Sửa chi tiết', icon: <Edit className="h-4 w-4" />, onClick: () => openDetailModal('edit', node), tone: 'success' },
-                                    ...(node.hoatDong ? [{ key: 'deactivate', label: 'Dừng hoạt động', icon: <Power className="h-4 w-4" />, onClick: () => deactivateDetailRow(node), tone: 'warning' } satisfies RowAction] : []),
-                                    { key: 'delete', label: 'Xóa chi tiết', icon: <Trash2 className="h-4 w-4" />, onClick: () => removeDetail(node), tone: 'danger' },
+                                    ...(node.hoatDong ? [{ key: 'deactivate', label: deactivateDetail.isPending ? 'Đang xử lý...' : 'Dừng hoạt động', icon: deactivateDetail.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Power className="h-4 w-4" />, onClick: () => deactivateDetailRow(node), tone: 'warning', disabled: isMutating } satisfies RowAction] : []),
+                                    { key: 'delete', label: deleteDetail.isPending ? 'Đang xóa...' : 'Xóa chi tiết', icon: deleteDetail.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />, onClick: () => removeDetail(node), tone: 'danger', disabled: isMutating },
                                   ];
                                   return (
                                     <tr key={node.id} className="hover:bg-gray-50">

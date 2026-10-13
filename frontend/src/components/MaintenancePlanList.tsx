@@ -367,6 +367,7 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
 
   const handleToggle = (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string, nguoiPhu?: string[], ngayThucHien?: string, recordData?: { tinhTrangTruoc?: string; tinhTrangSau?: string; deXuat?: string; thoiGianThucHien?: string; noiDung?: string }) => {
     toggleMonth.mutate({ planId, itemId, month, lanThu, nguoiThucHien, nguoiPhu, ngayThucHien, recordData } as any, {
+      onSuccess: () => toast.success('Đã cập nhật trạng thái tháng'),
       onError: (err) => toast.error(err instanceof Error ? err.message : 'Cập nhật tháng thất bại'),
     });
   };
@@ -676,6 +677,8 @@ const MaintenancePlanList = ({ lockedMachineSystemId }: MaintenancePlanListProps
           noiDung={logModal.noiDung}
           tenThietBi={logModal.tenThietBi}
           nguoiLap={logModal.nguoiLap}
+          isToggling={toggleMonth.isPending}
+          isSavingNote={updateLogNote.isPending}
           onToggle={handleToggle}
           onUpdateNote={handleUpdateNote}
         />

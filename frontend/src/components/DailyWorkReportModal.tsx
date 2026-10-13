@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   X,
   Save,
+  Loader2,
   FileText,
   Award,
   AlertCircle,
@@ -308,7 +309,7 @@ const DailyWorkReportModal: React.FC<DailyWorkReportModalProps> = ({
                   className="flex-1 px-4 py-2.5 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-lg hover:from-green-700 hover:to-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
                   disabled={isSubmitting}
                 >
-                  <Save className="w-4 h-4" />
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   <span>{isSubmitting ? 'Đang lưu...' : report ? 'Cập nhật' : 'Gửi báo cáo'}</span>
                 </button>
               </div>

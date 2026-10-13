@@ -107,6 +107,7 @@ const MyNotificationsDetailModal: React.FC<MyNotificationsDetailModalProps> = ({
     if (isOpen && item && !item.isRead && !hasMarkedRef.current) {
       hasMarkedRef.current = true;
       markAsRead.mutate(item.id, {
+        onSuccess: () => toast.success('Đã đánh dấu đã đọc'),
         onError: (err) => toast.error(err instanceof Error ? err.message : 'Không thể đánh dấu đã đọc'),
       });
     }

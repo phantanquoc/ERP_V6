@@ -1,5 +1,5 @@
 import React, { useId } from 'react';
-import { X, Upload } from 'lucide-react';
+import { X, Upload, Loader2 } from 'lucide-react';
 import Modal from './Modal';
 
 // ─── ModalForm ────────────────────────────────────────────────────────────────
@@ -118,7 +118,7 @@ export const ModalFooter: React.FC<ModalFooterProps> = ({
         disabled={submitDisabled || isLoading}
         className="px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
-        {isLoading ? 'Đang xử lý...' : submitLabel}
+        {isLoading ? <><Loader2 className="w-4 h-4 animate-spin inline mr-1.5 -ml-1" />Đang xử lý...</> : submitLabel}
       </button>
     )}
   </div>

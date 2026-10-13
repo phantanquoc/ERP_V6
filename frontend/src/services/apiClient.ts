@@ -53,6 +53,22 @@ interface RequestOptions extends RequestInit {
   skipKioskExpiry?: boolean;
 }
 
+// ── Anti-spam: in-flight dedup + per-endpoint cooldown ───────────────
+// Prevents double-submit when user double-clicks or spams Enter.
+// - In-flight: identical POST/PUT/PATCH to same endpoint is dropped (409 locally)
+// - Cooldown: same endpoint blocked for 400ms after a write (covers race before isPending flips)
+const inflightKeys = new Set<string>();
+const cooldownUntil = new Map<string, number>();
+const COOLDOWN_MS = 400;
+
+function writeKey(method: string, endpoint: string): string {
+  return `${method}:${endpoint.split('?')[0]}`;
+}
+
+function genIdempotencyKey(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -111,6 +127,21 @@ class ApiClient {
   ): Promise<ApiResponse<T>> {
     const url = this.buildUrl(endpoint, options.params);
 
+    // ── anti-spam guard for write methods ──────────────────────
+    const method = (options.method ?? 'GET').toUpperCase();
+    const isWrite = method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
+    const wKey = writeKey(method, endpoint);
+    if (isWrite) {
+      const until = cooldownUntil.get(wKey);
+      if (until && Date.now() < until) {
+        throw new ApiError(429, 'Thao tác quá nhanh, vui lòng thử lại sau giây lát');
+      }
+      if (inflightKeys.has(wKey)) {
+        throw new ApiError(429, 'Yêu cầu đang xử lý, vui lòng đợi');
+      }
+      inflightKeys.add(wKey);
+    }
+
     const isFormData = options.body instanceof FormData;
 
     const headers: Record<string, string> = {
@@ -118,6 +149,11 @@ class ApiClient {
       ...this.getAuthHeader(),
       ...options.headers,
     };
+
+    // Idempotency-Key for POST so backend can dedup even when frontend guard is bypassed
+    if (isWrite && method === 'POST' && !headers['Idempotency-Key'] && !headers['idempotency-key']) {
+      headers['Idempotency-Key'] = genIdempotencyKey();
+    }
 
     try {
       let response = await fetch(url, {
@@ -185,6 +221,15 @@ class ApiClient {
       if (isExpected404) throw error;
       console.error(`API Error [${endpoint}]:`, error);
       throw error;
+    } finally {
+      if (isWrite) {
+        inflightKeys.delete(wKey);
+        cooldownUntil.set(wKey, Date.now() + COOLDOWN_MS);
+        setTimeout(() => {
+          const u = cooldownUntil.get(wKey);
+          if (u && Date.now() >= u) cooldownUntil.delete(wKey);
+        }, COOLDOWN_MS + 50);
+      }
     }
   }
 

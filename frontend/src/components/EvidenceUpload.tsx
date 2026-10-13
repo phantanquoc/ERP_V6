@@ -106,10 +106,10 @@ const EvidenceUpload: React.FC<EvidenceUploadProps> = ({
               {!readOnly && (
                 <button
                   onClick={() => handleDelete(ev.id)}
-                  disabled={isDeleting}
+                  disabled={isDeleting || isUploading}
                   className="text-red-400 hover:text-red-600 disabled:opacity-50 shrink-0"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
                 </button>
               )}
             </div>
@@ -130,8 +130,10 @@ const EvidenceUpload: React.FC<EvidenceUploadProps> = ({
           onDragOver={e => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
-          onClick={() => inputRef.current?.click()}
-          className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
+          onClick={() => { if (!isUploading) inputRef.current?.click(); }}
+          className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+            isUploading ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+          } ${
             dragOver
               ? 'border-blue-400 bg-blue-50'
               : 'border-gray-300 hover:border-blue-300 hover:bg-gray-50'

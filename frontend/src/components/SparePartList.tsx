@@ -216,6 +216,7 @@ const SparePartList = () => {
   const createMutation = useCreateSparePart();
   const updateMutation = useUpdateSparePart();
   const deleteMutation = useDeleteSparePart();
+  const isSaving = createMutation.isPending || updateMutation.isPending;
 
   const resetForm = () => setFormData({ tenLinhKien: '', loai: 'CK', donVi: 'Cái', soLuongTon: '0', giaNhap: '', nhaCungCap: '', trangThai: 'Chưa sử dụng', ngayMua: '' });
 
@@ -263,6 +264,7 @@ const SparePartList = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     try {
       const data = {
         tenLinhKien: formData.tenLinhKien,
@@ -288,6 +290,7 @@ const SparePartList = () => {
   };
 
   const handleDelete = async (id: string) => {
+    if (deleteMutation.isPending) return;
     if (!confirm('Bạn có chắc chắn muốn xóa linh kiện này?')) return;
     try {
       await deleteMutation.mutateAsync(id);
@@ -489,7 +492,7 @@ const SparePartList = () => {
                     <ResponsiveRowActions
                       actions={[
                         ...(canWrite ? [{ key: 'edit', label: 'Sửa linh kiện', icon: <Edit size={14} />, onClick: () => openEditModal(part), tone: 'success' } satisfies RowAction] : []),
-                        ...(canDelete ? [{ key: 'delete', label: 'Xóa linh kiện', icon: <Trash2 size={14} />, onClick: () => handleDelete(part.id), tone: 'danger' } satisfies RowAction] : []),
+                        ...(canDelete ? [{ key: 'delete', label: deleteMutation.isPending ? 'Đang xóa…' : 'Xóa linh kiện', icon: <Trash2 size={14} />, onClick: () => handleDelete(part.id), tone: 'danger', disabled: deleteMutation.isPending } satisfies RowAction] : []),
                       ]}
                     />
                   </td>
@@ -611,8 +614,9 @@ const SparePartList = () => {
                   />
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
-                  <button type="button" onClick={closeModal} className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Hủy</button>
-                  <button type="submit" className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700">{editingPart ? 'Cập nhật' : 'Thêm mới'}</button>
+                  <button type="button" onClick={closeModal} disabled={isSaving} className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-60 disabled:cursor-not-allowed">Hủy</button>
+                  <button type="submit" disabled={isSaving} className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-1.5">
+                    {isSaving && <RefreshCw size={14} className="animate-spin" aria-hidden="true" />}{editingPart ? (isSaving ? 'Đang lưu…' : 'Cập nhật') : (isSaving ? 'Đang thêm…' : 'Thêm mới')}</button>
                 </div>
               </form>
             )}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Clock, FileText, FileImage, FileSpreadsheet, FileCode, Eye, Check, XCircle, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
+import { Clock, FileText, FileImage, FileSpreadsheet, FileCode, Eye, Check, XCircle, ArrowUpDown, ChevronUp, ChevronDown, Loader2 } from 'lucide-react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -311,11 +311,11 @@ const OvertimePlanReviewTab: React.FC = () => {
                       {isPending ? (
                         canApprove ? (
                           <>
-                            <button onClick={() => setApproveId(r.id)} title="Duyệt" aria-label="Duyệt" className="p-1.5 rounded-md text-green-600 hover:bg-green-100">
-                              <Check size={16} />
+                            <button onClick={() => setApproveId(r.id)} disabled={approveMut.isPending || rejectMut.isPending} title="Duyệt" aria-label="Duyệt" className="p-1.5 rounded-md text-green-600 hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                              {approveMut.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                             </button>
-                            <button onClick={() => setRejectId(r.id)} title="Từ chối" aria-label="Từ chối" className="p-1.5 rounded-md text-red-600 hover:bg-red-100">
-                              <XCircle size={16} />
+                            <button onClick={() => setRejectId(r.id)} disabled={approveMut.isPending || rejectMut.isPending} title="Từ chối" aria-label="Từ chối" className="p-1.5 rounded-md text-red-600 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                              {rejectMut.isPending ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
                             </button>
                           </>
                         ) : (
@@ -496,10 +496,11 @@ const OvertimePlanReviewTab: React.FC = () => {
                 const row = (detailQuery.data as any) ?? allRows.find((x: any) => x.id === detailId);
                 if (!row || getTrangThai(row) !== 'CHO_DUYET') return null;
                 if (!canApprove) return <span className="text-xs text-gray-400 self-center" title={pricingGateTooltip}>Bạn không có quyền duyệt — cần thuộc Phòng giá thành hoặc Phòng chi phí</span>;
+                const busy = approveMut.isPending || rejectMut.isPending;
                 return (
                   <>
-                    <button onClick={() => { setDetailId(null); setRejectId(row.id); }} className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 text-sm">Từ chối</button>
-                    <button onClick={() => { setDetailId(null); setApproveId(row.id); }} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">Duyệt ngay</button>
+                    <button onClick={() => { setDetailId(null); setRejectId(row.id); }} disabled={busy} className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 text-sm disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2">{rejectMut.isPending ? <><Loader2 size={14} className="animate-spin" /> Đang xử lý...</> : 'Từ chối'}</button>
+                    <button onClick={() => { setDetailId(null); setApproveId(row.id); }} disabled={busy} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2">{approveMut.isPending ? <><Loader2 size={14} className="animate-spin" /> Đang xử lý...</> : 'Duyệt ngay'}</button>
                   </>
                 );
               })()}
@@ -515,8 +516,8 @@ const OvertimePlanReviewTab: React.FC = () => {
           <p className="text-sm text-gray-600">Nhập lý do từ chối:</p>
           <textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} rows={3} placeholder="Lý do từ chối..." className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500" />
           <div className="flex justify-end gap-2">
-            <button onClick={() => { setRejectId(null); setRejectReason(''); }} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Hủy</button>
-            <button onClick={() => { if (rejectId) rejectMut.mutate({ id: rejectId, lyDoTuChoi: rejectReason || undefined }); setRejectId(null); setRejectReason(''); }} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700">Xác nhận từ chối</button>
+            <button onClick={() => { setRejectId(null); setRejectReason(''); }} disabled={rejectMut.isPending} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Hủy</button>
+            <button onClick={() => { if (rejectId) rejectMut.mutate({ id: rejectId, lyDoTuChoi: rejectReason || undefined }); setRejectId(null); setRejectReason(''); }} disabled={rejectMut.isPending} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2">{rejectMut.isPending ? <><Loader2 size={14} className="animate-spin" /> Đang xử lý...</> : 'Xác nhận từ chối'}</button>
           </div>
         </div>
       </Modal>
@@ -527,9 +528,10 @@ const OvertimePlanReviewTab: React.FC = () => {
         onConfirm={() => { if (approveId) approveMut.mutate(approveId); setApproveId(null); }}
         title="Xác nhận duyệt kế hoạch"
         message="Bạn có chắc muốn duyệt kế hoạch tăng ca này?"
-        confirmText="Xác nhận"
+        confirmText={approveMut.isPending ? 'Đang xử lý...' : 'Xác nhận'}
         cancelText="Hủy"
         variant="primary"
+        loading={approveMut.isPending}
       >
         {(() => {
           const approveRow: any = allRows.find((x: any) => x.id === approveId) ?? (detailQuery.data as any);

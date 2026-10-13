@@ -94,3 +94,27 @@ export const sensitiveRouteLimiter = rateLimit({
   message: { success: false, message: 'Quá nhiều request, vui lòng thử lại sau' },
   keyGenerator: resolveClientIp,
 });
+
+export const aiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: isDev ? 60 : 20,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  store: createStore('ai'),
+  message: { success: false, message: 'Quá nhiều yêu cầu AI, vui lòng thử lại sau 1 phút' },
+  keyGenerator: (req) => {
+    const user = (req as unknown as { user?: { id?: string } }).user;
+    if (user?.id) return `ai-user:${user.id}`;
+    return resolveClientIp(req as unknown as import('express').Request);
+  },
+});
+
+export const writeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: isDev ? 500 : 200,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  store: createStore('write'),
+  message: { success: false, message: 'Quá nhiều thao tác ghi, vui lòng thử lại sau' },
+  keyGenerator: resolveClientIp,
+});

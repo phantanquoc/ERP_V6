@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Check, MessageSquare } from 'lucide-react';
+import { Check, Loader2, MessageSquare } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { ModalForm, inputCls, textareaCls } from './ModalForm';
 import { MaintenancePlanItemLog } from '../services/maintenancePlanService';
 import maintenanceRecordService, { MaintenanceRecord } from '../services/maintenanceRecordService';
@@ -20,13 +21,15 @@ interface Props {
   noiDung: string;
   tenThietBi: string;
   nguoiLap: string;
+  isToggling?: boolean;
+  isSavingNote?: boolean;
   onToggle: (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string, nguoiPhu?: string[], ngayThucHien?: string, recordData?: { tinhTrangTruoc?: string; tinhTrangSau?: string; deXuat?: string; thoiGianThucHien?: string; noiDung?: string }) => void;
   onUpdateNote: (logId: string, data: { ghiChu?: string; nguoiThucHien?: string; nguoiPhu?: string[]; ngayThucHien?: string; recordData?: { tinhTrangTruoc?: string; tinhTrangSau?: string; deXuat?: string; thoiGianThucHien?: string; noiDung?: string } }) => void;
 }
 
 const MaintenanceLogModal = ({
   isOpen, onClose, planId, itemId, month, timesPerMonth,
-  logs, noiDung, tenThietBi, nguoiLap, onToggle, onUpdateNote,
+  logs, noiDung, tenThietBi, nguoiLap, isToggling, isSavingNote, onToggle, onUpdateNote,
 }: Props) => {
   const occurrences = Array.from({ length: timesPerMonth }, (_, i) => i + 1);
 
@@ -67,6 +70,8 @@ const MaintenanceLogModal = ({
               showLabel={timesPerMonth > 1}
               log={log}
               defaultNoiDung={noiDung}
+              isToggling={isToggling}
+              isSavingNote={isSavingNote}
               onToggle={onToggle}
               onUpdateNote={onUpdateNote}
             />
@@ -86,11 +91,13 @@ interface OccurrenceRowProps {
   showLabel: boolean;
   log: MaintenancePlanItemLog | undefined;
   defaultNoiDung: string;
+  isToggling?: boolean;
+  isSavingNote?: boolean;
   onToggle: (planId: string, itemId: string, month: number, lanThu: number, nguoiThucHien?: string, nguoiPhu?: string[], ngayThucHien?: string, recordData?: { tinhTrangTruoc?: string; tinhTrangSau?: string; deXuat?: string; thoiGianThucHien?: string; noiDung?: string }) => void;
   onUpdateNote: (logId: string, data: { ghiChu?: string; nguoiThucHien?: string; nguoiPhu?: string[]; ngayThucHien?: string; recordData?: { tinhTrangTruoc?: string; tinhTrangSau?: string; deXuat?: string; thoiGianThucHien?: string; noiDung?: string } }) => void;
 }
 
-const OccurrenceRow = ({ planId, itemId, month, lanThu, showLabel, log, defaultNoiDung, onToggle, onUpdateNote }: OccurrenceRowProps) => {
+const OccurrenceRow = ({ planId, itemId, month, lanThu, showLabel, log, defaultNoiDung, isToggling, isSavingNote, onToggle, onUpdateNote }: OccurrenceRowProps) => {
   const checked = log?.hoanThanh ?? false;
   const queryClient = useQueryClient();
   const { data: employees = [] } = useEmployeesForAssignment();
@@ -215,8 +222,8 @@ const OccurrenceRow = ({ planId, itemId, month, lanThu, showLabel, log, defaultN
       <div className="flex items-center gap-3">
         <button
           onClick={handleToggle}
-          disabled={!canToggle}
-          className={`w-6 h-6 rounded border flex items-center justify-center transition-colors flex-shrink-0 ${
+          disabled={!canToggle || !!isToggling}
+          className={`w-6 h-6 rounded border flex items-center justify-center transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
             checked
               ? 'bg-green-500 border-green-500 text-white'
               : canToggle
@@ -224,7 +231,7 @@ const OccurrenceRow = ({ planId, itemId, month, lanThu, showLabel, log, defaultN
               : 'border-gray-200 bg-gray-100 cursor-not-allowed'
           }`}
         >
-          {checked && <Check className="w-3.5 h-3.5" />}
+          {isToggling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : checked && <Check className="w-3.5 h-3.5" />}
         </button>
         <span className="text-sm font-medium text-gray-700">
           {showLabel ? `Lần ${lanThu}` : 'Hoàn thành'}
@@ -323,8 +330,10 @@ const OccurrenceRow = ({ planId, itemId, month, lanThu, showLabel, log, defaultN
       {log && (
         <button
           onClick={handleSave}
-          className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700"
+          disabled={!!isSavingNote}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
+          {isSavingNote && <Loader2 className="w-3 h-3 animate-spin" />}
           Lưu thay đổi
         </button>
       )}

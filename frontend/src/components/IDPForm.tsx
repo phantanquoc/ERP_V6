@@ -3,7 +3,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
-import { Plus, Trash2, BookOpen } from 'lucide-react';
+import { Plus, Trash2, BookOpen, Loader2 } from 'lucide-react';
 import { EvaluationIdpItem } from '../services/employeeEvaluationService';
 import { useCreateIdpItem, useUpdateIdpItem, useDeleteIdpItem } from '../hooks/useEmployeeEvaluation';
 
@@ -168,8 +168,9 @@ const IDPForm: React.FC<IDPFormProps> = ({ evaluationId, existingItems, readOnly
             <button
               type="submit"
               disabled={!isDirty || isSaving}
-              className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
+              className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium inline-flex items-center gap-2"
             >
+              {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
               {isSaving ? 'Đang lưu...' : 'Lưu kế hoạch'}
             </button>
           </div>

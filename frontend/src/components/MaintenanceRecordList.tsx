@@ -330,9 +330,10 @@ const MaintenanceRecordList = ({ lockedMachineSystemId }: MaintenanceRecordListP
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); setPendingDelete(r); }}
+                            disabled={deleteRecord.isPending}
                             title="Xóa biên bản"
                             aria-label={`Xóa biên bản ${r.maBienBan}`}
-                            className="inline-flex items-center justify-center h-7 w-7 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                            className="inline-flex items-center justify-center h-7 w-7 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                           >
                             <Trash2 className="w-4 h-4" aria-hidden="true" />
                             <span className="sr-only">Xóa</span>

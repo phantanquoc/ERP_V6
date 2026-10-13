@@ -4,7 +4,7 @@ import { useMonthlyTimesheet, useUpsertTimesheetCell, useUpsertTimesheetOverride
 import { useAttendanceCodes } from '../hooks/useAttendanceCodes';
 import { useDepartments } from '../hooks/useDepartments';
 import { TimesheetRow, TimesheetSummary, TimesheetSettings, TimesheetCell } from '../services/timesheetService';
-import { ChevronLeft, ChevronRight, ChevronDown, Search, Download, Upload, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, Loader2, Search, Download, Upload, X } from 'lucide-react';
 import attendanceService from '../services/attendanceService';
 import HoverTooltip from './HoverTooltip';
 import { COLUMN_TOOLTIPS, OVERTIME_COLUMN_TOOLTIPS, ColumnTooltip } from './timesheetColumnTooltips';
@@ -236,14 +236,15 @@ const MonthlyTimesheetGrid: React.FC = () => {
 
   const handleCellSave = useCallback(async () => {
     if (!editingCell) return;
+    if (upsertCell.isPending) return;
     const { empId, date, code, note } = editingCell;
 
     setEditingCell(null);
     try {
-      // Allow empty code to delete the cell (backend will handle it)
       await upsertCell.mutateAsync({ employeeId: empId, date, code: code || '', note: note || undefined });
+      toast.success('Đã lưu ô chấm công');
     } catch (err) {
-      console.error('Error upserting cell:', err);
+      toast.error(err instanceof Error ? err.message : 'Không lưu được ô chấm công');
     }
   }, [editingCell, upsertCell]);
 
@@ -617,6 +618,7 @@ const MonthlyTimesheetGrid: React.FC = () => {
           onSave={handleCellSave}
           onCancel={() => setEditingCell(null)}
           onChange={setEditingCell}
+          isSaving={upsertCell.isPending}
         />
       )}
     </div>
@@ -630,6 +632,7 @@ interface CellEditorModalProps {
   onSave: () => void;
   onCancel: () => void;
   onChange: (s: CellEditorState) => void;
+  isSaving?: boolean;
 }
 
 /* ---------- Custom attendance-code dropdown (mã - tên, not native <select>) ---------- */
@@ -697,7 +700,7 @@ const CodeSelect: React.FC<CodeSelectProps> = ({ value, options, onChange }) => 
   );
 };
 
-const CellEditorModal: React.FC<CellEditorModalProps> = ({ editingCell, activeCodes, onSave, onCancel, onChange }) => {
+const CellEditorModal: React.FC<CellEditorModalProps> = ({ editingCell, activeCodes, onSave, onCancel, onChange, isSaving }) => {
   // Position above keyboard on small screens: anchor to top + safe area so the
   // field the user tapped stays visible. p-4 wrapper padding already handled.
   return (
@@ -726,8 +729,10 @@ const CellEditorModal: React.FC<CellEditorModalProps> = ({ editingCell, activeCo
         />
       </div>
       <div className="flex justify-end gap-2">
-        <button onClick={onCancel} className="min-h-[44px] px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded">Hủy</button>
-        <button onClick={onSave} className="min-h-[44px] px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">Lưu</button>
+        <button onClick={onCancel} disabled={!!isSaving} className="min-h-[44px] px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed">Hủy</button>
+        <button onClick={onSave} disabled={!!isSaving} className="min-h-[44px] px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5">
+          {isSaving ? <><Loader2 className="h-4 w-4 animate-spin" /> Đang lưu...</> : 'Lưu'}
+        </button>
       </div>
     </div>
   </div>

@@ -280,7 +280,8 @@ const MaintenancePlanForm = ({ onClose, systems, year, plan, viewOnly, lockedMac
               <button
                 type="button"
                 onClick={applyBulk}
-                className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 whitespace-nowrap"
+                disabled={createPlan.isPending || updatePlan.isPending}
+                className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Áp dụng tất cả
               </button>
@@ -381,7 +382,8 @@ const MaintenancePlanForm = ({ onClose, systems, year, plan, viewOnly, lockedMac
                           <button
                             type="button"
                             onClick={() => handleRemoveItem(idx)}
-                            className="p-1 text-gray-400 hover:text-red-600 rounded"
+                            disabled={createPlan.isPending || updatePlan.isPending}
+                            className="p-1 text-gray-400 hover:text-red-600 rounded disabled:opacity-40 disabled:cursor-not-allowed"
                             title="Xóa dòng"
                           >
                             <Trash2 className="w-3.5 h-3.5" />

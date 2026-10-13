@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import userController from '@controllers/userController';
 import { authenticate } from '@middlewares/auth';
+import { sensitiveRouteLimiter } from '@middlewares/rateLimiter';
 import { requireRule } from '@middlewares/requireRule';
 import { validate } from '@middlewares/validation';
 const router = Router();
@@ -46,7 +47,7 @@ router.get('/profile', authenticate, (req, res, next) => userController.getProfi
  *       400:
  *         description: Mật khẩu hiện tại không đúng
  */
-router.post('/change-password', authenticate, (req, res, next) => userController.changePassword(req, res, next));
+router.post('/change-password', authenticate, sensitiveRouteLimiter, (req, res, next) => userController.changePassword(req, res, next));
 
 /**
  * @swagger
@@ -226,6 +227,7 @@ router.post(
 router.post(
   '/:id/reset-password',
   authenticate,
+  sensitiveRouteLimiter,
   requireRule('users', 'CREATE'),
   (req, res, next) => userController.adminResetPassword(req, res, next)
 );

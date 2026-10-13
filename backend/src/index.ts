@@ -8,7 +8,8 @@ import { env, isProduction } from '@config/env';
 import logger from '@config/logger';
 import { swaggerSpec } from '@config/swagger';
 import { errorHandler, notFoundHandler } from '@middlewares/errorHandler';
-import { globalLimiter } from '@middlewares/rateLimiter';
+import { globalLimiter, writeLimiter } from '@middlewares/rateLimiter';
+import { idempotency } from '@middlewares/idempotency';
 import { registerRoutes } from '@routes/index';
 import { startSnapshotCleanup } from '@utils/snapshotCleanup';
 import { initEvaluationCron } from '@cron/evaluationCron';
@@ -49,6 +50,14 @@ app.use(
 
 // Global rate limiter — 300 requests / 15 min per IP
 app.use('/api', globalLimiter);
+// Anti-spam: tighter limit + dedup for all write operations (POST/PUT/PATCH/DELETE)
+// Read (GET) stays under globalLimiter only. This single middleware covers the
+// ~75 route files that previously relied solely on globalLimiter.
+app.use('/api', (req, _res, next) => {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+  return writeLimiter(req, _res as never, next as never);
+});
+app.use('/api', idempotency);
 
 // Request logging middleware
 app.use((req: Request, res: Response, next: NextFunction) => {

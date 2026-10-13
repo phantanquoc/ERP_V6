@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Edit, Plus, Trash2, X } from 'lucide-react';
+import { Edit, Loader2, Plus, Trash2, X } from 'lucide-react';
 import {
   useAddProjectUpdate,
   useDeleteProjectUpdate,
@@ -58,8 +58,11 @@ const ProjectUpdates = ({ projectId, phases, canWrite }: ProjectUpdatesProps) =>
     } : emptyForm(userName));
   };
 
+  const isSavingUpdate = addUpdate.isPending || editUpdate.isPending;
+
   const save = async (e: FormEvent) => {
     e.preventDefault();
+    if (isSavingUpdate) return;
     const payload = {
       ...form,
       tienDoHienTai: Math.max(0, Math.min(100, Number(form.tienDoHienTai) || 0)),
@@ -71,6 +74,7 @@ const ProjectUpdates = ({ projectId, phases, canWrite }: ProjectUpdatesProps) =>
       } else {
         await addUpdate.mutateAsync({ projectId, data: payload });
       }
+      toast.success(modal?.update ? 'Đã cập nhật' : 'Đã thêm cập nhật');
       setModal(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không lưu được cập nhật');
@@ -137,17 +141,19 @@ const ProjectUpdates = ({ projectId, phases, canWrite }: ProjectUpdatesProps) =>
                   <div className="flex gap-1 shrink-0">
                     <button
                       onClick={() => openModal('edit', update)}
-                      className="rounded p-1.5 text-gray-400 hover:bg-green-50 hover:text-green-600"
+                      disabled={removeUpdate.isPending}
+                      className="rounded p-1.5 text-gray-400 hover:bg-green-50 hover:text-green-600 disabled:opacity-40 disabled:cursor-not-allowed"
                       title="Sửa"
                     >
                       <Edit className="h-4 w-4" />
                     </button>
                     <button
                       onClick={() => remove(update)}
-                      className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600"
+                      disabled={removeUpdate.isPending}
+                      className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-40 disabled:cursor-not-allowed"
                       title="Xóa"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      {removeUpdate.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                     </button>
                   </div>
                 )}
@@ -162,8 +168,10 @@ const ProjectUpdates = ({ projectId, phases, canWrite }: ProjectUpdatesProps) =>
           <div className="bg-white rounded-lg p-6 shadow-xl max-w-sm w-full mx-4">
             <p className="text-sm text-gray-800 mb-4">Xóa cập nhật &ldquo;<strong>{confirmDelete.tieuDe}</strong>&rdquo;?</p>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setConfirmDelete(null)} className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-100">Hủy</button>
-              <button onClick={confirmRemove} className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700">Xóa</button>
+              <button onClick={() => setConfirmDelete(null)} disabled={removeUpdate.isPending} className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">Hủy</button>
+              <button onClick={confirmRemove} disabled={removeUpdate.isPending} className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2">
+                {removeUpdate.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Đang xóa...</> : 'Xóa'}
+              </button>
             </div>
           </div>
         </div>
@@ -257,15 +265,17 @@ const ProjectUpdates = ({ projectId, phases, canWrite }: ProjectUpdatesProps) =>
                 <button
                   type="button"
                   onClick={() => setModal(null)}
-                  className="rounded-md border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50"
+                  disabled={isSavingUpdate}
+                  className="rounded-md border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  className="rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700"
+                  disabled={isSavingUpdate}
+                  className="rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
                 >
-                  Lưu
+                  {isSavingUpdate ? <><Loader2 className="h-4 w-4 animate-spin" /> Đang lưu...</> : 'Lưu'}
                 </button>
               </div>
             </form>

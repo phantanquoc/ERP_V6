@@ -670,9 +670,10 @@ const LookupManager: React.FC = () => {
                   </button>
                   <button
                     onClick={handleConfirmCascade}
-                    className="px-4 py-1.5 bg-amber-600 text-white rounded-md hover:bg-amber-700 text-sm"
+                    disabled={cascadeRunning || updateMutation.isPending}
+                    className="px-4 py-1.5 bg-amber-600 text-white rounded-md hover:bg-amber-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Xác nhận cập nhật
+                    {cascadeRunning || updateMutation.isPending ? "Đang xử lý..." : "Xác nhận cập nhật"}
                   </button>
                 </div>
               </>
@@ -705,9 +706,10 @@ const LookupManager: React.FC = () => {
               </button>
               <button
                 onClick={handleConfirmDelete}
-                className="px-4 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
+                disabled={deleteMutation.isPending}
+                className="px-4 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Ẩn giá trị
+                {deleteMutation.isPending ? "Đang xử lý..." : "Ẩn giá trị"}
               </button>
             </div>
           </div>
