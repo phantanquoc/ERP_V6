@@ -761,9 +761,9 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 px-1">
                 <span>Tạo lúc: <span className="font-medium text-gray-700">{new Date(selectedReceipt.createdAt).toLocaleString('vi-VN')}</span></span>
               </div>
-            </div>
-            </>
+              </>
           )}
+          </div>
           <div className="flex flex-wrap justify-end gap-2 p-6 pt-4 border-t border-gray-100 bg-white shrink-0">
               {(selectedReceipt as any).isVoided ? (
                 <button
