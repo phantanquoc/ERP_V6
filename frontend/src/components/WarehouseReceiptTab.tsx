@@ -21,38 +21,6 @@ import { UserRole } from '../types/auth';
 import { useUrlDetailId, useUrlFilters } from '../hooks/useUrlState';
 import { getApiErrorMessage } from '../utils/getApiError';
 
-type SectionTone = 'slate' | 'blue' | 'amber' | 'emerald' | 'violet' | 'orange' | 'green' | 'red';
-const toneMap: Record<SectionTone, { wrap: string; head: string }> = {
-  slate: { wrap: 'bg-slate-50/50 border-slate-200', head: 'bg-slate-100/70 border-slate-200 text-slate-700' },
-  blue: { wrap: 'bg-blue-50/30 border-blue-100', head: 'bg-blue-50 border-blue-100 text-blue-700' },
-  amber: { wrap: 'bg-amber-50/30 border-amber-100', head: 'bg-amber-50 border-amber-100 text-amber-700' },
-  emerald: { wrap: 'bg-emerald-50/30 border-emerald-100', head: 'bg-emerald-50 border-emerald-100 text-emerald-700' },
-  violet: { wrap: 'bg-violet-50/30 border-violet-100', head: 'bg-violet-50 border-violet-100 text-violet-700' },
-  orange: { wrap: 'bg-orange-50/30 border-orange-100', head: 'bg-orange-50 border-orange-100 text-orange-700' },
-  green: { wrap: 'bg-green-50/30 border-green-100', head: 'bg-green-50 border-green-100 text-green-700' },
-  red: { wrap: 'bg-red-50/30 border-red-200', head: 'bg-red-50 border-red-200 text-red-700' },
-};
-function Section({ title, tone = 'slate', children }: { title: string; tone?: SectionTone; children: React.ReactNode }) {
-  const c = toneMap[tone];
-  return (
-    <div className={`border rounded-lg overflow-hidden ${c.wrap}`}>
-      <div className={`px-3 py-1.5 border-b ${c.head}`}>
-        <span className="text-xs font-semibold tracking-wide">{title}</span>
-      </div>
-      <div className="bg-white/70">{children}</div>
-    </div>
-  );
-}
-function Cell({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="px-3 py-2">
-      <div className="text-[11px] font-medium text-gray-500 leading-none mb-1">{label}</div>
-      <div className="text-sm text-gray-800 leading-tight">{children}</div>
-    </div>
-  );
-}
-
-
 interface WarehouseReceiptTabProps {
   month?: number;
   year?: number;
@@ -617,43 +585,86 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                 </svg>
               </button>
             </div>
-                    <div className="overflow-y-auto flex-1 p-5 py-3 space-y-3">
+          <div className="overflow-y-auto flex-1 p-6">
             {selectedReceipt && (<>
+
             {(selectedReceipt as any).isVoided && (
-              <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="mb-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
                 <div className="font-semibold">Đã vô hiệu</div>
                 <div>Lý do: {(selectedReceipt as any).voidReason || '—'}</div>
                 <div className="text-xs text-red-600">{(selectedReceipt as any).voidedAt ? new Date((selectedReceipt as any).voidedAt).toLocaleString('vi-VN') : ''} {(selectedReceipt as any).voidedByName ? `· ${(selectedReceipt as any).voidedByName}` : (selectedReceipt as any).voidedBy ? `· ${(selectedReceipt as any).voidedBy}` : ''}</div>
               </div>
             )}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex items-center gap-2 text-blue-800 font-semibold">
-              <FileText className="h-5 w-5" />
-              {selectedReceipt.maPhieuNhap}{(selectedReceipt as any).isVoided && <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700">Đã vô hiệu</span>}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <div className="flex items-center gap-2 text-blue-800 font-semibold text-lg">
+                <FileText className="h-5 w-5" />
+                {selectedReceipt.maPhieuNhap}{(selectedReceipt as any).isVoided && <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700">Đã vô hiệu</span>}
+              </div>
             </div>
 
-            <Section title="Thông tin chung" tone="blue">
-              <div className="grid grid-cols-2 sm:grid-cols-3 divide-x divide-gray-100 divide-y divide-gray-100">
-                <Cell label="Ngày nhập">{new Date(selectedReceipt.ngayNhap).toLocaleDateString('vi-VN', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</Cell>
-                <Cell label="Nhân viên thực hiện"><span className="font-medium">{selectedReceipt.tenNhanVien}</span> <span className="text-xs text-gray-500">{selectedReceipt.maNhanVien}</span></Cell>
-                <Cell label="Người đề nghị">{(selectedReceipt as any).nguoiDeNghi || '—'}</Cell>
-                <Cell label="Bộ phận">{(selectedReceipt as any).boPhan || '—'}</Cell>
-                <Cell label="Kho">{[...new Set(selectedReceiptLines.map((item: any) => (item.maKho || item.tenKho)).filter(Boolean))].join(', ') || '-'}</Cell>
-                <Cell label="Lô hàng">{[...new Set(selectedReceiptLines.map((item) => item.tenLo).filter(Boolean))].join(', ') || '-'}</Cell>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <label className="text-xs text-gray-500 uppercase font-medium">Ngày nhập</label>
+                  <p className="text-sm font-semibold text-gray-900 mt-1">
+                    {new Date(selectedReceipt.ngayNhap).toLocaleDateString('vi-VN', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </p>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <label className="text-xs text-gray-500 uppercase font-medium">Nhân viên thực hiện</label>
+                  <p className="text-sm font-semibold text-gray-900 mt-1">{selectedReceipt.tenNhanVien}</p>
+                  <p className="text-xs text-gray-500">{selectedReceipt.maNhanVien}</p>
+                </div>
               </div>
-              <div className="px-3 py-2 border-t border-gray-100">
-                <div className="text-[11px] font-medium text-gray-500 mb-1">Mục đích</div>
-                <div className="text-sm text-gray-800">{(selectedReceipt as any).mucDich || '—'}</div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <label className="text-xs text-gray-500 uppercase font-medium">Người đề nghị</label>
+                  <p className="text-sm font-semibold text-gray-900 mt-1">{(selectedReceipt as any).nguoiDeNghi || '—'}</p>
+                  {(selectedReceipt as any).boPhan && <p className="text-xs text-gray-500">{(selectedReceipt as any).boPhan}</p>}
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <label className="text-xs text-gray-500 uppercase font-medium">Bộ phận</label>
+                  <p className="text-sm font-semibold text-gray-900 mt-1">{(selectedReceipt as any).boPhan || '—'}</p>
+                </div>
               </div>
-            </Section>
-{selectedReceiptLines.length > 0 ? (
-              <Section title={`Chi tiết hàng hóa · {selectedReceiptLines.length} dòng · 14 cột BM01`} tone="emerald">
-                <div className="p-2">
-                  <label className="sr-only">Chi tiết hàng hóa ({selectedReceiptLines.length} dòng) — 14 cột BM01
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <label className="text-xs text-gray-500 uppercase font-medium">Kho</label>
+                  <p className="text-sm font-semibold text-gray-900 mt-1">
+                    {[...new Set(selectedReceiptLines.map((item: any) => (item.maKho || item.tenKho)).filter(Boolean))].join(', ') || '-'}
+                  </p>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <label className="text-xs text-gray-500 uppercase font-medium">Lô hàng</label>
+                  <p className="text-sm font-semibold text-gray-900 mt-1">
+                    {[...new Set(selectedReceiptLines.map((item) => item.tenLo).filter(Boolean))].join(', ') || '-'}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-4">
+                <div className="bg-purple-50 border border-purple-200 p-3 rounded-lg">
+                  <label className="text-xs text-purple-600 uppercase font-medium">Mục đích</label>
+                  <p className="text-sm text-gray-700 mt-1">{(selectedReceipt as any).mucDich || '—'}</p>
+                </div>
+              </div>
+
+                    {selectedReceiptLines.length > 0 ? (
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <label className="text-xs text-gray-500 uppercase font-medium mb-2 block">
+                    Chi tiết hàng hóa ({selectedReceiptLines.length} dòng) — 14 cột BM01
                   </label>
                   <div className="hidden md:block overflow-x-auto">
                     <table className="w-full min-w-[1100px] text-sm border-collapse">
                       <thead>
-                        <tr className="bg-gray-50 sticky top-0">
+                        <tr className="bg-gray-100">
                           <th scope="col" className="px-2 py-1.5 text-center text-xs font-medium text-gray-600 border">TT</th>
                           <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Mã hàng</th>
                           <th scope="col" className="px-2 py-1.5 text-left text-xs font-medium text-gray-600 border">Loại Kho</th>
@@ -752,45 +763,47 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                     <div className="rounded-lg bg-gray-100 px-3 py-2 text-right text-sm font-semibold text-green-700">Tổng cộng (SL TT): {formatActualTotalByUnit(selectedReceiptLines)}</div>
                   </div>
                 </div>
-              </Section>
               ) : (
-              <Section title="Hàng hóa" tone="slate">
-                <div className="px-3 py-3">
-                  <label className="sr-only">Hàng hóa</label>
-                  <p className="text-sm text-gray-800">{selectedReceipt.tenSanPham ?? 'N/A'}</p>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <label className="text-xs text-gray-500 uppercase font-medium">Hàng hóa</label>
+                  <p className="text-sm font-semibold text-gray-900 mt-1">{selectedReceipt.tenSanPham ?? 'N/A'}</p>
                 </div>
-              </Section>
               )}
-            {selectedReceipt.ghiChu && (
-              <Section title="Ghi chú" tone="amber">
-                <div className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{selectedReceipt.ghiChu}</div>
-              </Section>
-            )}
-            {((selectedReceipt as any).lyDoChenhLech ?? selectedReceipt.inboundPlan?.lyDoChenhLech) && String(((selectedReceipt as any).lyDoChenhLech ?? selectedReceipt.inboundPlan?.lyDoChenhLech) ?? '').trim() ? (
-              <div className="p-3 rounded-lg border bg-amber-50 border-amber-300">
-                <div className="text-xs uppercase font-medium text-amber-700">Lý do chênh lệch</div>
-                <p className="text-sm mt-1 text-gray-800 whitespace-pre-wrap">{String((selectedReceipt as any).lyDoChenhLech ?? selectedReceipt.inboundPlan?.lyDoChenhLech)}</p>
-              </div>
-            ) : null}
-            {!(((selectedReceipt as any).lyDoChenhLech ?? selectedReceipt.inboundPlan?.lyDoChenhLech) && String(((selectedReceipt as any).lyDoChenhLech ?? selectedReceipt.inboundPlan?.lyDoChenhLech) ?? '').trim()) && ((selectedReceipt.items ?? []) as any[]).some((it: any) => it.soLuongYeuCau != null && String(it.soLuongYeuCau).trim() !== '' && Math.abs(Number(it.soLuongYeuCau) - Number(it.soLuongThucTe)) > 1e-9) ? (
-              <div className="p-3 rounded-lg border bg-red-50 border-red-200">
-                <div className="text-xs uppercase font-medium text-red-600">Lý do chênh lệch (thực tế khác kế hoạch)</div>
-                <p className="text-sm mt-1 text-red-700 italic">Chưa ghi lý do — thực tế khác kế hoạch nhưng không có lý do chênh lệch.</p>
-              </div>
-            ) : null}
-            {(selectedReceipt as any).daIn && (
-              <Section title="Trạng thái in" tone="green">
-                <div className="px-3 py-2 flex flex-wrap items-center gap-4 text-sm">
+
+              {selectedReceipt.ghiChu && (
+                <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg">
+                  <label className="text-xs text-yellow-600 uppercase font-medium">Ghi chú phiếu</label>
+                  <p className="text-sm text-gray-700 mt-1">{selectedReceipt.ghiChu}</p>
+                </div>
+              )}
+
+              {(() => {
+                const lyDo = (selectedReceipt as any).lyDoChenhLech ?? selectedReceipt.inboundPlan?.lyDoChenhLech ?? null;
+                const hasLyDo = !!(lyDo && String(lyDo).trim());
+                const hasDiff = (selectedReceipt.items ?? []).some((it: any) => it.soLuongYeuCau != null && Math.abs(Number(it.soLuongYeuCau) - Number(it.soLuongThucTe)) > 1e-9);
+                if (!hasLyDo && !hasDiff) return null;
+                return (
+                  <div className={`p-3 rounded-lg border ${hasLyDo ? 'bg-amber-50 border-amber-300' : 'bg-red-50 border-red-200'}`}>
+                    <label className={`text-xs uppercase font-medium ${hasLyDo ? 'text-amber-700' : 'text-red-600'}`}>Lý do chênh lệch {hasDiff ? '(thực tế khác kế hoạch)' : ''}</label>
+                    <p className={`text-sm mt-1 ${hasLyDo ? 'text-gray-800' : 'text-red-700 italic'}`}>{hasLyDo ? String(lyDo) : 'Chưa ghi lý do — thực tế khác kế hoạch nhưng không có lý do chênh lệch.'}</p>
+                  </div>
+                );
+              })()}
+
+              {(selectedReceipt as any).daIn && (
+                <div className="bg-green-50 border border-green-200 p-3 rounded-lg flex flex-wrap items-center gap-4 text-sm">
                   <span><span className="text-xs text-gray-500 uppercase font-medium">Người lập phiếu:</span> <span className="font-semibold text-gray-900 ml-1">{selectedReceipt.tenNhanVien}</span></span>
                   <span><span className="text-xs text-gray-500 uppercase font-medium">Ngày in (in lần đầu):</span> <span className="font-semibold text-gray-900 ml-1">{(selectedReceipt as any).inLanDauAt ? new Date((selectedReceipt as any).inLanDauAt).toLocaleString('vi-VN') : '—'}</span></span>
                   <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Đã in</span>
                 </div>
-              </Section>
-            )}
-            <div className="text-xs text-gray-400 text-right px-1">Tạo lúc: {new Date(selectedReceipt.createdAt).toLocaleString('vi-VN')}</div>
-            </>)}
-          </div>
-          <div className="flex flex-wrap justify-end gap-2 px-6 py-4 border-t border-gray-100 bg-white shrink-0">
+              )}
+
+              <div className="text-xs text-gray-400 text-right">
+                Tạo lúc: {new Date(selectedReceipt.createdAt).toLocaleString('vi-VN')}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap justify-end gap-2 mt-6">
               {(selectedReceipt as any).isVoided ? (
                 <button
                   onClick={() => { if (selectedReceipt) handleUnvoid(selectedReceipt.id); }}
@@ -944,3 +957,4 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
 };
 
 export default WarehouseReceiptTab;
+
