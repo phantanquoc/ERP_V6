@@ -734,18 +734,17 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                 </div>
               )}
 
-              {(() => {
-                const lyDo = (selectedReceipt as any).lyDoChenhLech ?? selectedReceipt.inboundPlan?.lyDoChenhLech ?? null;
-                const hasLyDo = !!(lyDo && String(lyDo).trim());
-                const hasDiff = (selectedReceipt.items ?? []).some((it: any) => it.soLuongYeuCau != null && Math.abs(Number(it.soLuongYeuCau) - Number(it.soLuongThucTe)) > 1e-9);
-                if (!hasLyDo && !hasDiff) return null;
-                return (
-                  <div className={`p-3 rounded-lg border ${hasLyDo ? 'bg-amber-50 border-amber-300' : 'bg-red-50 border-red-200'}`}>
-                    <label className={`text-xs uppercase font-medium ${hasLyDo ? 'text-amber-700' : 'text-red-600'}`}>Lý do chênh lệch {hasDiff ? '(thực tế khác kế hoạch)' : ''}</label>
-                    <p className={`text-sm mt-1 ${hasLyDo ? 'text-gray-800' : 'text-red-700 italic'}`}>{hasLyDo ? String(lyDo) : 'Chưa ghi lý do — thực tế khác kế hoạch nhưng không có lý do chênh lệch.'}</p>
-                  </div>
-                );
-              })()}
+              {((selectedReceipt as any).lyDoChenhLech || selectedReceipt.inboundPlan?.lyDoChenhLech) ? (
+                <div className="p-3 rounded-lg border bg-amber-50 border-amber-300">
+                  <label className="text-xs uppercase font-medium text-amber-700">Lý do chênh lệch</label>
+                  <p className="text-sm mt-1 text-gray-800">{String((selectedReceipt as any).lyDoChenhLech ?? selectedReceipt.inboundPlan?.lyDoChenhLech)}</p>
+                </div>
+              ) : (selectedReceipt.items ?? []).some((it: any) => it.soLuongYeuCau != null && Math.abs(Number(it.soLuongYeuCau) - Number(it.soLuongThucTe)) > 1e-9) ? (
+                <div className="p-3 rounded-lg border bg-red-50 border-red-200">
+                  <label className="text-xs uppercase font-medium text-red-600">Lý do chênh lệch (thực tế khác kế hoạch)</label>
+                  <p className="text-sm mt-1 text-red-700 italic">Chưa ghi lý do — thực tế khác kế hoạch nhưng không có lý do chênh lệch.</p>
+                </div>
+              ) : null}
 
               {(selectedReceipt as any).daIn && (
                 <div className="border border-green-100 bg-green-50/30 rounded-lg overflow-hidden">
