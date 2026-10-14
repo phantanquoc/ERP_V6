@@ -586,7 +586,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
               </button>
             </div>
           <div className="overflow-y-auto flex-1 p-5 py-3 space-y-3">
-            {selectedReceipt && (<>
+            {selectedReceipt && (
 
             {(selectedReceipt as any).isVoided && (
               <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2.5 text-sm text-red-700">
@@ -739,12 +739,12 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                   <label className="text-xs uppercase font-medium text-amber-700">Lý do chênh lệch</label>
                   <p className="text-sm mt-1 text-gray-800">{String((selectedReceipt as any).lyDoChenhLech ?? selectedReceipt.inboundPlan?.lyDoChenhLech)}</p>
                 </div>
-              ) : (selectedReceipt.items ?? []).some((it: any) => it.soLuongYeuCau != null && Math.abs(Number(it.soLuongYeuCau) - Number(it.soLuongThucTe)) > 1e-9) ? (
+              ) : ((selectedReceipt.items ?? []).some((it: any) => it.soLuongYeuCau != null && Math.abs(Number(it.soLuongYeuCau) - Number(it.soLuongThucTe)) > 1e-9) ? (
                 <div className="p-3 rounded-lg border bg-red-50 border-red-200">
                   <label className="text-xs uppercase font-medium text-red-600">Lý do chênh lệch (thực tế khác kế hoạch)</label>
                   <p className="text-sm mt-1 text-red-700 italic">Chưa ghi lý do — thực tế khác kế hoạch nhưng không có lý do chênh lệch.</p>
                 </div>
-              ) : null}
+              ) : null))}
 
               {(selectedReceipt as any).daIn && (
                 <div className="border border-green-100 bg-green-50/30 rounded-lg overflow-hidden">
@@ -762,7 +762,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
               </div>
             </div>
 
-            <div className="flex flex-wrap justify-end gap-2 mt-6">
+          <div className="flex flex-wrap justify-end gap-2 p-6 pt-4 border-t border-gray-100 bg-white shrink-0">
               {(selectedReceipt as any).isVoided ? (
                 <button
                   onClick={() => { if (selectedReceipt) handleUnvoid(selectedReceipt.id); }}
