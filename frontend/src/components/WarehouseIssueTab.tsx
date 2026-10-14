@@ -705,7 +705,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                   <p className="text-sm mt-1 text-gray-800">{String((selectedIssue as any).lyDoChenhLech ?? (selectedIssue as any).outboundPlan?.lyDoChenhLech)}</p>
                 </div>
               ) : null}
-              {!((selectedIssue as any).lyDoChenhLech || (selectedIssue as any).outboundPlan?.lyDoChenhLech)) && (selectedIssue.items ?? []).some((it: any) => it.soLuongYeuCau != null && Math.abs(Number(it.soLuongYeuCau) - Number(it.soLuongThucTe)) > 1e-9) && (
+              {!((selectedIssue as any).lyDoChenhLech || (selectedIssue as any).outboundPlan?.lyDoChenhLech) && ((selectedIssue.items ?? []) as any[]).some((it: any) => it.soLuongYeuCau != null && Math.abs(Number(it.soLuongYeuCau) - Number(it.soLuongThucTe)) > 1e-9) && (
                 <div className="p-3 rounded-lg border bg-red-50 border-red-200">
                   <label className="text-xs uppercase font-medium text-red-600">Lý do chênh lệch (thực tế khác kế hoạch)</label>
                   <p className="text-sm mt-1 text-red-700 italic">Chưa ghi lý do — thực tế khác kế hoạch nhưng không có lý do chênh lệch.</p>
