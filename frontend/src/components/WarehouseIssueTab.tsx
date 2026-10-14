@@ -728,7 +728,6 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
               </div>
             </div>
           )}
-
           <div className="flex flex-wrap justify-end gap-2 px-6 py-4 border-t border-gray-200 shrink-0">
             {(selectedIssue as any)?.isVoided ? (
               <button
