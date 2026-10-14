@@ -27,19 +27,35 @@ function styleDataCell(cell: ExcelJS.Cell, opts?: { bold?: boolean }) {
 
 function parseKienJson(v: string | null | undefined): string[] {
   if (!v) return [];
-  try { const a = JSON.parse(v); if (Array.isArray(a)) return a.map(String); } catch {}
-  return v.split(',').map(s => s.trim()).filter(Boolean);
+  try {
+    const a = JSON.parse(v);
+    if (Array.isArray(a)) return a.map(String);
+  } catch {}
+  return v
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 function toHeaderDate(d: Date | string): string {
   const dt = new Date(d as any);
-  const dd = String(dt.getDate()).padStart(2,'0');
-  const mm = String(dt.getMonth()+1).padStart(2,'0');
-  const yy = String(dt.getFullYear());
+  // ponytail: explicit Asia/Ho_Chi_Minh via toLocaleDateString — avoids UTC getDate() offset bug
+  const parts = new Intl.DateTimeFormat('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).formatToParts(dt);
+  const dd = parts.find((p) => p.type === 'day')!.value;
+  const mm = parts.find((p) => p.type === 'month')!.value;
+  const yy = parts.find((p) => p.type === 'year')!.value;
   return `${dd}/${mm}/${yy}`;
 }
 
-async function buildWorkbook(type: SlipType, id: string): Promise<{ wb: ExcelJS.Workbook; ws: ExcelJS.Worksheet; fileName: string; slip: any }> {
+async function buildWorkbook(
+  type: SlipType,
+  id: string
+): Promise<{ wb: ExcelJS.Workbook; ws: ExcelJS.Worksheet; fileName: string; slip: any }> {
   const isReceipt = type === 'receipt';
   const slipItemInclude = {
     orderBy: { stt: 'asc' as const },
@@ -54,9 +70,15 @@ async function buildWorkbook(type: SlipType, id: string): Promise<{ wb: ExcelJS.
   };
   let slip: any;
   if (isReceipt) {
-    slip = await (prisma as any).warehouseReceipt.findUnique({ where: { id }, include: { items: slipItemInclude } });
+    slip = await (prisma as any).warehouseReceipt.findUnique({
+      where: { id },
+      include: { items: slipItemInclude },
+    });
   } else {
-    slip = await (prisma as any).warehouseIssue.findUnique({ where: { id }, include: { items: slipItemInclude } });
+    slip = await (prisma as any).warehouseIssue.findUnique({
+      where: { id },
+      include: { items: slipItemInclude },
+    });
   }
   if (!slip) throw new Error('Không tìm thấy phiếu');
   // Flatten master refs onto the slip items so the grid columns read plain strings.
@@ -74,7 +96,14 @@ async function buildWorkbook(type: SlipType, id: string): Promise<{ wb: ExcelJS.
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet(isReceipt ? 'PhieuNhap' : 'PhieuXuat', {
-    pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 as unknown as number, horizontalCentered: true },
+    pageSetup: {
+      orientation: 'landscape',
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      paperSize: 9 as unknown as number,
+      horizontalCentered: true,
+    },
   });
   ws.properties.defaultRowHeight = 15;
   ws.pageSetup.margins = { left: 0.2, right: 0.2, top: 0.2, bottom: 0.2, header: 0.2, footer: 0.2 };
@@ -87,49 +116,105 @@ async function buildWorkbook(type: SlipType, id: string): Promise<{ wb: ExcelJS.
   const bmCode = isReceipt ? BM_CODES.receipt : BM_CODES.issue;
 
   // Company header rows (1-3)
-  ws.mergeCells('A1:N1'); ws.getCell('A1').value = COMPANY_HEADER.name;
+  ws.mergeCells('A1:N1');
+  ws.getCell('A1').value = COMPANY_HEADER.name;
   ws.getCell('A1').font = { name: 'Times New Roman', size: 10, bold: true };
   ws.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
-  ws.mergeCells('A2:N2'); ws.getCell('A2').value = `${COMPANY_HEADER.address}  ĐT: ${COMPANY_HEADER.phone}  Email: ${COMPANY_HEADER.email}  Website: ${COMPANY_HEADER.website}`;
+  ws.mergeCells('A2:N2');
+  ws.getCell('A2').value =
+    `${COMPANY_HEADER.address}  ĐT: ${COMPANY_HEADER.phone}  Email: ${COMPANY_HEADER.email}  Website: ${COMPANY_HEADER.website}`;
   ws.getCell('A2').font = { name: 'Times New Roman', size: 8 };
   ws.getCell('A2').alignment = { horizontal: 'center' };
-  ws.mergeCells('A3:N3'); ws.getCell('A3').value = title;
+  ws.mergeCells('A3:N3');
+  ws.getCell('A3').value = title;
   ws.getCell('A3').font = { name: 'Times New Roman', size: 14, bold: true };
   ws.getCell('A3').alignment = { horizontal: 'center', vertical: 'middle' };
   ws.getRow(3).height = 22;
 
-  // Requester / department / reason / date row (4-6)
+  // Header meta rows (4-7) — match print view: Ma phieu + Nhan vien + date/reason
   const dateStr = toHeaderDate(slip.ngayNhap ?? slip.ngayXuat ?? new Date());
+  const maPhieu = slip.maPhieuNhap ?? slip.maPhieuXuat ?? id;
   const nguoiDeNghi = slip.nguoiDeNghi ?? slip.tenNhanVien ?? '';
   const boPhan = slip.boPhan ?? '';
   const reason = isReceipt ? (slip.mucDich ?? '') : (slip.lyDoXuatKho ?? slip.ghiChu ?? '');
-  ws.mergeCells('A4:G4'); ws.getCell('A4').value = `Người đề nghị: ${nguoiDeNghi}`;
-  ws.mergeCells('H4:N4'); ws.getCell('H4').value = `Ngày: ${dateStr}`;
-  ws.mergeCells('A5:G5'); ws.getCell('A5').value = `Bộ phận: ${boPhan}`;
-  ws.mergeCells('A6:N6'); ws.getCell('A6').value = `${isReceipt ? 'Mục đích' : 'Lý do xuất'}: ${reason}`;
-  for (const r of [4,5,6]) { ws.getRow(r).font = { name: 'Times New Roman', size: 9 }; }
+  ws.mergeCells('A4:G4');
+  ws.getCell('A4').value = `Mã phiếu: ${maPhieu}`;
+  ws.mergeCells('H4:N4');
+  ws.getCell('H4').value = `Ngày: ${dateStr}`;
+  ws.mergeCells('A5:G5');
+  ws.getCell('A5').value = `Người đề nghị: ${nguoiDeNghi}`;
+  ws.mergeCells('H5:N5');
+  ws.getCell('H5').value = `Nhân viên: ${slip.tenNhanVien ?? nguoiDeNghi}`;
+  ws.mergeCells('A6:G6');
+  ws.getCell('A6').value = `Bộ phận: ${boPhan}`;
+  ws.mergeCells('A7:N7');
+  ws.getCell('A7').value = `${isReceipt ? 'Mục đích' : 'Lý do xuất'}: ${reason}`;
+  for (const r of [4, 5, 6, 7]) {
+    ws.getRow(r).font = { name: 'Times New Roman', size: 9 };
+  }
+  const isVoided = !!slip.isVoided;
 
-  // Header rows 8-9: 14 cols, first row merged groups
-  const headerRow = 8;
-  const subRow = 9;
+  // Void indicator row (8) — red watermark row when slip voided
+  if (isVoided) {
+    ws.mergeCells('A8:N8');
+    const vc = ws.getCell('A8');
+    vc.value = `ĐÃ VÔ HIỆU${slip.voidReason ? ` — Lý do: ${slip.voidReason}` : ''}`;
+    vc.font = { name: 'Times New Roman', size: 11, bold: true, color: { argb: 'FFFF0000' } };
+    vc.alignment = { horizontal: 'center', vertical: 'middle' };
+    vc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE0E0' } } as any;
+    vc.border = thinBorder();
+    ws.getRow(8).height = 20;
+  }
+
+  // Header rows (shift by 1 when void row occupies row 8)
+  const headerRow = isVoided ? 9 : 8;
+  const subRow = headerRow + 1;
   // Build row 8: for split groups, put group name merged across KH/TT
   // Layout: A TT, B Ma hang, C Loai Kho, D Ten hang, E-F So lo (KH/TT), G-H So kien (KH/TT), I Tinh trang, J Quy cach, K Don vi, L-M So luong (KH/TT), N Ghi chu
-  const setH = (col: string, v: string) => { const c = ws.getCell(`${col}${headerRow}`); c.value = v; styleHeaderCell(c); };
-  const setSub = (col: string, v: string) => { const c = ws.getCell(`${col}${subRow}`); c.value = v; styleHeaderCell(c); };
-  setH('A','TT'); setH('B','Mã hàng hóa'); setH('C','Loại Kho'); setH('D','Tên hàng hóa');
+  const setH = (col: string, v: string) => {
+    const c = ws.getCell(`${col}${headerRow}`);
+    c.value = v;
+    styleHeaderCell(c);
+  };
+  const setSub = (col: string, v: string) => {
+    const c = ws.getCell(`${col}${subRow}`);
+    c.value = v;
+    styleHeaderCell(c);
+  };
+  setH('A', 'TT');
+  setH('B', 'Mã hàng hóa');
+  setH('C', 'Loại Kho');
+  setH('D', 'Tên hàng hóa');
   // So lo group
-  ws.mergeCells(`E${headerRow}:F${headerRow}`); setH('E','Số lô');
-  ws.mergeCells(`G${headerRow}:H${headerRow}`); setH('G','Số kiện');
-  setH('I','Tình trạng'); setH('J','Quy cách'); setH('K','Đơn vị');
-  ws.mergeCells(`L${headerRow}:M${headerRow}`); setH('L','Số lượng');
-  setH('N','Ghi chú');
+  ws.mergeCells(`E${headerRow}:F${headerRow}`);
+  setH('E', 'Số lô');
+  ws.mergeCells(`G${headerRow}:H${headerRow}`);
+  setH('G', 'Số kiện');
+  setH('I', 'Tình trạng');
+  setH('J', 'Quy cách');
+  setH('K', 'Đơn vị');
+  ws.mergeCells(`L${headerRow}:M${headerRow}`);
+  setH('L', 'Số lượng');
+  setH('N', 'Ghi chú');
   // Sub-row 9: KH/TT for split groups, empty for singles (keep border)
-  const blankSub = (col: string) => { const c = ws.getCell(`${col}${subRow}`); c.value = ''; styleHeaderCell(c); };
-  blankSub('A'); blankSub('B'); blankSub('C'); blankSub('D');
-  setSub('E','Kế hoạch'); setSub('F','Thực tế');
-  setSub('G','Kế hoạch'); setSub('H','Thực tế');
-  blankSub('I'); blankSub('J'); blankSub('K');
-  setSub('L','Kế hoạch'); setSub('M','Thực tế');
+  const blankSub = (col: string) => {
+    const c = ws.getCell(`${col}${subRow}`);
+    c.value = '';
+    styleHeaderCell(c);
+  };
+  blankSub('A');
+  blankSub('B');
+  blankSub('C');
+  blankSub('D');
+  setSub('E', 'Kế hoạch');
+  setSub('F', 'Thực tế');
+  setSub('G', 'Kế hoạch');
+  setSub('H', 'Thực tế');
+  blankSub('I');
+  blankSub('J');
+  blankSub('K');
+  setSub('L', 'Kế hoạch');
+  setSub('M', 'Thực tế');
   blankSub('N');
   ws.getRow(headerRow).height = 18;
   ws.getRow(subRow).height = 16;
@@ -146,9 +231,12 @@ async function buildWorkbook(type: SlipType, id: string): Promise<{ wb: ExcelJS.
     const soLuongKH = it.soLuongYeuCau ?? it.soLuongThucTe;
     const soLuongTT = it.soLuongThucTe;
     const cols: Array<{ col: string; val: any; align?: string }> = [
-      { col: 'A', val: it.stt ?? (i+1), align: 'center' },
+      { col: 'A', val: it.stt ?? i + 1, align: 'center' },
       // B "Mã hàng hóa" is the catalog code, not the package code — see warehouseSlipEnrichment.
-      { col: 'B', val: it.lotProductId ? (it.maSanPham ?? it.maKien ?? it.lotProductId.slice(-6)) : '' },
+      {
+        col: 'B',
+        val: it.lotProductId ? (it.maSanPham ?? it.maKien ?? it.lotProductId.slice(-6)) : '',
+      },
       // C "Loại Kho" is the warehouse code (KHONL/HD1/…), not the display label.
       { col: 'C', val: it.maKho ?? it.tenKho ?? '' },
       { col: 'D', val: it.tenSanPham ?? '' },
@@ -173,37 +261,97 @@ async function buildWorkbook(type: SlipType, id: string): Promise<{ wb: ExcelJS.
     rIdx++;
   }
   if (items.length === 0) {
-    ws.mergeCells(`A${rIdx}:N${rIdx}`); const c = ws.getCell(`A${rIdx}`); c.value = 'Không có dòng hàng'; c.alignment = { horizontal: 'center' }; styleDataCell(c); rIdx++;
+    ws.mergeCells(`A${rIdx}:N${rIdx}`);
+    const c = ws.getCell(`A${rIdx}`);
+    c.value = 'Không có dòng hàng';
+    c.alignment = { horizontal: 'center' };
+    styleDataCell(c);
+    rIdx++;
   }
 
-  // Totals row
-  const totalActual = items.reduce((s: number, it: any) => s + Number(it.soLuongThucTe || 0), 0);
-  const totalPlan = items.reduce((s: number, it: any) => s + Number(it.soLuongYeuCau ?? it.soLuongThucTe ?? 0), 0);
-  ws.mergeCells(`A${rIdx}:K${rIdx}`); ws.getCell(`A${rIdx}`).value = 'Tổng cộng'; ws.getCell(`A${rIdx}`).alignment = { horizontal: 'right' }; styleDataCell(ws.getCell(`A${rIdx}`), { bold: true });
-  ws.getCell(`L${rIdx}`).value = totalPlan; styleDataCell(ws.getCell(`L${rIdx}`), { bold: true });
-  ws.getCell(`M${rIdx}`).value = totalActual; styleDataCell(ws.getCell(`M${rIdx}`), { bold: true });
-  styleDataCell(ws.getCell(`N${rIdx}`)); rIdx++;
+  // Totals: per-unit grouping (parity with print view totalsByUnit), avoids cross-unit sums
+  const totalsMap = new Map<string, { plan: number; actual: number }>();
+  for (const it of items as any[]) {
+    const unit: string = (it.donViTinh ?? '') as string;
+    const cur = totalsMap.get(unit) ?? { plan: 0, actual: 0 };
+    cur.plan += Number(it.soLuongYeuCau ?? it.soLuongThucTe ?? 0);
+    cur.actual += Number(it.soLuongThucTe || 0);
+    totalsMap.set(unit, cur);
+  }
+  const unitEntries = [...totalsMap.entries()];
+  if (unitEntries.length <= 1) {
+    const t = unitEntries[0]?.[1] ?? { plan: 0, actual: 0 };
+    const unit = unitEntries[0]?.[0] ?? '';
+    ws.mergeCells(`A${rIdx}:K${rIdx}`);
+    ws.getCell(`A${rIdx}`).value = `Tổng cộng${unit ? ` (${unit})` : ''}`;
+    ws.getCell(`A${rIdx}`).alignment = { horizontal: 'right' };
+    styleDataCell(ws.getCell(`A${rIdx}`), { bold: true });
+    ws.getCell(`L${rIdx}`).value = t.plan;
+    styleDataCell(ws.getCell(`L${rIdx}`), { bold: true });
+    ws.getCell(`M${rIdx}`).value = t.actual;
+    styleDataCell(ws.getCell(`M${rIdx}`), { bold: true });
+    styleDataCell(ws.getCell(`N${rIdx}`));
+    rIdx++;
+  } else {
+    for (const [unit, t] of unitEntries) {
+      ws.mergeCells(`A${rIdx}:K${rIdx}`);
+      ws.getCell(`A${rIdx}`).value = `Tổng cộng${unit ? ` (${unit})` : ''}`;
+      ws.getCell(`A${rIdx}`).alignment = { horizontal: 'right' };
+      styleDataCell(ws.getCell(`A${rIdx}`), { bold: true });
+      ws.getCell(`L${rIdx}`).value = t.plan;
+      styleDataCell(ws.getCell(`L${rIdx}`), { bold: true });
+      ws.getCell(`M${rIdx}`).value = t.actual;
+      styleDataCell(ws.getCell(`M${rIdx}`), { bold: true });
+      styleDataCell(ws.getCell(`N${rIdx}`));
+      rIdx++;
+    }
+  }
 
   // Signatures
   rIdx += 1;
   if (isReceipt) {
-    ws.mergeCells(`A${rIdx}:G${rIdx}`); ws.getCell(`A${rIdx}`).value = 'Người nhập kho\n(Ký, ghi rõ họ tên)'; ws.getCell(`A${rIdx}`).alignment = { horizontal: 'center', wrapText: true }; ws.getCell(`A${rIdx}`).font = { name: 'Times New Roman', size: 9, bold: true };
-    ws.mergeCells(`H${rIdx}:N${rIdx}`); ws.getCell(`H${rIdx}`).value = 'Quản lý kho\n(Ký, ghi rõ họ tên)'; ws.getCell(`H${rIdx}`).alignment = { horizontal: 'center', wrapText: true }; ws.getCell(`H${rIdx}`).font = { name: 'Times New Roman', size: 9, bold: true };
+    ws.mergeCells(`A${rIdx}:G${rIdx}`);
+    ws.getCell(`A${rIdx}`).value = 'Người nhập kho\n(Ký, ghi rõ họ tên)';
+    ws.getCell(`A${rIdx}`).alignment = { horizontal: 'center', wrapText: true };
+    ws.getCell(`A${rIdx}`).font = { name: 'Times New Roman', size: 9, bold: true };
+    ws.mergeCells(`H${rIdx}:N${rIdx}`);
+    ws.getCell(`H${rIdx}`).value = 'Quản lý kho\n(Ký, ghi rõ họ tên)';
+    ws.getCell(`H${rIdx}`).alignment = { horizontal: 'center', wrapText: true };
+    ws.getCell(`H${rIdx}`).font = { name: 'Times New Roman', size: 9, bold: true };
   } else {
-    ws.mergeCells(`A${rIdx}:E${rIdx}`); ws.getCell(`A${rIdx}`).value = 'Người xuất kho\n(Ký, ghi rõ họ tên)'; ws.getCell(`A${rIdx}`).alignment = { horizontal: 'center', wrapText: true }; ws.getCell(`A${rIdx}`).font = { name: 'Times New Roman', size: 9, bold: true };
-    ws.mergeCells(`F${rIdx}:J${rIdx}`); ws.getCell(`F${rIdx}`).value = 'Người nhận\n(Ký, ghi rõ họ tên)'; ws.getCell(`F${rIdx}`).alignment = { horizontal: 'center', wrapText: true }; ws.getCell(`F${rIdx}`).font = { name: 'Times New Roman', size: 9, bold: true };
-    ws.mergeCells(`K${rIdx}:N${rIdx}`); ws.getCell(`K${rIdx}`).value = 'Quản lý kho\n(Ký, ghi rõ họ tên)'; ws.getCell(`K${rIdx}`).alignment = { horizontal: 'center', wrapText: true }; ws.getCell(`K${rIdx}`).font = { name: 'Times New Roman', size: 9, bold: true };
+    ws.mergeCells(`A${rIdx}:E${rIdx}`);
+    ws.getCell(`A${rIdx}`).value = 'Người xuất kho\n(Ký, ghi rõ họ tên)';
+    ws.getCell(`A${rIdx}`).alignment = { horizontal: 'center', wrapText: true };
+    ws.getCell(`A${rIdx}`).font = { name: 'Times New Roman', size: 9, bold: true };
+    ws.mergeCells(`F${rIdx}:J${rIdx}`);
+    ws.getCell(`F${rIdx}`).value = 'Người nhận\n(Ký, ghi rõ họ tên)';
+    ws.getCell(`F${rIdx}`).alignment = { horizontal: 'center', wrapText: true };
+    ws.getCell(`F${rIdx}`).font = { name: 'Times New Roman', size: 9, bold: true };
+    ws.mergeCells(`K${rIdx}:N${rIdx}`);
+    ws.getCell(`K${rIdx}`).value = 'Quản lý kho\n(Ký, ghi rõ họ tên)';
+    ws.getCell(`K${rIdx}`).alignment = { horizontal: 'center', wrapText: true };
+    ws.getCell(`K${rIdx}`).font = { name: 'Times New Roman', size: 9, bold: true };
   }
   rIdx += 1;
 
   // BM footer + kien note
-  ws.mergeCells(`A${rIdx}:N${rIdx}`); ws.getCell(`A${rIdx}`).value = `${bmCode}   ${BM_CODES.version}   ${BM_CODES.kienNote}`;
-  ws.getCell(`A${rIdx}`).font = { name: 'Times New Roman', size: 7, italic: true, color: { argb: 'FF666666' } };
+  ws.mergeCells(`A${rIdx}:N${rIdx}`);
+  ws.getCell(`A${rIdx}`).value = `${bmCode}   ${BM_CODES.version}   ${BM_CODES.kienNote}`;
+  ws.getCell(`A${rIdx}`).font = {
+    name: 'Times New Roman',
+    size: 7,
+    italic: true,
+    color: { argb: 'FF666666' },
+  };
   ws.getCell(`A${rIdx}`).alignment = { horizontal: 'center' };
 
-  // Logo (best-effort)
+  // Logo — backend/public is primary (Docker + local), frontend/public fallback
+  let logoAdded = false;
   try {
     const candidates = [
+      path.resolve(process.cwd(), 'public/abf-logo.png'),
+      path.resolve(process.cwd(), 'backend/public/abf-logo.png'),
+      path.resolve(__dirname, '../../public/abf-logo.png'),
       path.resolve(process.cwd(), 'frontend/public/abf-logo.png'),
       path.resolve(__dirname, '../../../frontend/public/abf-logo.png'),
       path.resolve(__dirname, '../../frontend/public/abf-logo.png'),
@@ -212,28 +360,46 @@ async function buildWorkbook(type: SlipType, id: string): Promise<{ wb: ExcelJS.
       if (fs.existsSync(p)) {
         const ext = path.extname(p).slice(1).toLowerCase() as 'png' | 'jpg' | 'jpeg';
         const imgId = wb.addImage({ filename: p, extension: ext === 'jpg' ? 'jpeg' : ext } as any);
-        // Top-left, small
         ws.addImage(imgId, { tl: { col: 0, row: 0 }, ext: { width: 70, height: 28 } } as any);
+        logoAdded = true;
         break;
       }
     }
-  } catch {}
+    if (!logoAdded) console.warn('[warehouseSlipExport] logo not found, checked:', candidates);
+  } catch (e) {
+    console.warn('[warehouseSlipExport] logo add failed:', e);
+  }
 
-  const fileName = isReceipt ? `phieu-nhap-${slip.maPhieuNhap ?? id}.xlsx` : `phieu-xuat-${slip.maPhieuXuat ?? id}.xlsx`;
+  const fileName = isReceipt
+    ? `phieu-nhap-${slip.maPhieuNhap ?? id}.xlsx`
+    : `phieu-xuat-${slip.maPhieuXuat ?? id}.xlsx`;
   return { wb, ws, fileName, slip };
+}
+
+function contentDisposition(fileName: string): string {
+  const enc = encodeURIComponent(fileName);
+  return `attachment; filename="${fileName}"; filename*=UTF-8''${enc}`;
 }
 
 export async function exportReceiptXlsx(id: string, res: Response): Promise<void> {
   const { wb, fileName } = await buildWorkbook('receipt', id);
-  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+  res.setHeader(
+    'Content-Type',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  );
+  res.setHeader('Content-Disposition', contentDisposition(fileName));
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
   await wb.xlsx.write(res);
 }
 
 export async function exportIssueXlsx(id: string, res: Response): Promise<void> {
   const { wb, fileName } = await buildWorkbook('issue', id);
-  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+  res.setHeader(
+    'Content-Type',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  );
+  res.setHeader('Content-Disposition', contentDisposition(fileName));
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
   await wb.xlsx.write(res);
 }
 

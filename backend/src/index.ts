@@ -30,21 +30,24 @@ app.set('trust proxy', 1);
 const allowedOrigins = env.CORS_ORIGIN.split(',').map((o) => o.trim());
 
 // Middleware
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-      'frame-ancestors': ["'self'", ...allowedOrigins],
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+        'frame-ancestors': ["'self'", ...allowedOrigins],
+      },
     },
-  },
-  crossOriginResourcePolicy: { policy: 'cross-origin' },
-}));
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ limit: '1mb', extended: true }));
 app.use(
   cors({
     origin: allowedOrigins.length === 1 ? allowedOrigins[0] : allowedOrigins,
     credentials: true,
+    exposedHeaders: ['Content-Disposition'],
   })
 );
 
@@ -81,10 +84,14 @@ app.get('/health', (_req, res) => {
 
 // Swagger API Documentation (chỉ bật ở development)
 if (!isProduction) {
-  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-    customCss: '.swagger-ui .topbar { display: none }',
-    customSiteTitle: 'ERP System - API Documentation',
-  }));
+  app.use(
+    '/api-docs',
+    swaggerUi.serve,
+    swaggerUi.setup(swaggerSpec, {
+      customCss: '.swagger-ui .topbar { display: none }',
+      customSiteTitle: 'ERP System - API Documentation',
+    })
+  );
   app.get('/api-docs.json', (_req, res) => {
     res.setHeader('Content-Type', 'application/json');
     res.send(swaggerSpec);
@@ -129,7 +136,8 @@ server.on('error', (error) => {
 // local embedding caches within notification delivery latency.
 const listenClient = new pg.Client({ connectionString: env.DATABASE_URL });
 
-listenClient.connect()
+listenClient
+  .connect()
   .then(async () => {
     await listenClient.query('LISTEN face_profile_changed');
     logger.info('LISTEN registered on channel face_profile_changed');
@@ -141,7 +149,9 @@ listenClient.connect()
 
     listenClient.on('notification', (msg: { channel: string; payload?: string }) => {
       if (msg.channel === 'face_profile_changed') {
-        logger.debug('Received face_profile_changed notification — resetting local embedding cache');
+        logger.debug(
+          'Received face_profile_changed notification — resetting local embedding cache'
+        );
         resetLocalEmbeddingCache();
       }
     });
@@ -170,4 +180,3 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 export default app;
-

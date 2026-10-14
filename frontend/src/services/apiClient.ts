@@ -298,8 +298,9 @@ class ApiClient {
   /**
    * Download a file with authentication. Fetches the endpoint with the auth header,
    * converts the response to a blob, and triggers a browser download.
+   * If filename is omitted, it is parsed from the Content-Disposition header.
    */
-  async download(endpoint: string, filename: string): Promise<void> {
+  async download(endpoint: string, fallbackFilename?: string): Promise<void> {
     const url = `${this.baseUrl}${endpoint}`;
     const headers: Record<string, string> = {
       ...this.getAuthHeader(),
@@ -324,7 +325,30 @@ class ApiClient {
     }
 
     if (!response.ok) {
-      throw new ApiError(response.status, `Download failed: HTTP ${response.status}`);
+      let message = `Download failed: HTTP ${response.status}`;
+      let body: unknown;
+      try {
+        body = await response.clone().json();
+        if (body && typeof body === 'object' && 'message' in body && typeof (body as any).message === 'string') {
+          message = (body as any).message;
+        }
+      } catch {
+        try {
+          const text = await response.clone().text();
+          if (text) message = text;
+        } catch {}
+      }
+      throw new ApiError(response.status, message, body);
+    }
+
+    // Prefer server-provided filename from Content-Disposition, fallback to caller-provided name
+    let filename = fallbackFilename || 'download.xlsx';
+    const cd = response.headers.get('Content-Disposition') || '';
+    if (cd) {
+      const mStar = cd.match(/filename\*=UTF-8''([^;]+)/i);
+      const mPlain = cd.match(/filename="?([^";]+)"?/i);
+      const raw = mStar ? decodeURIComponent(mStar[1]) : (mPlain ? mPlain[1] : '');
+      if (raw) filename = raw;
     }
 
     const blob = await response.blob();

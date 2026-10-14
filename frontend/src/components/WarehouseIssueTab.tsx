@@ -89,6 +89,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
   const setSortDir = (d: 'asc' | 'desc') => setUrlF2({ sortOrder: d });
   const [showBulkConfirm, setShowBulkConfirm] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0 });
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -291,6 +292,8 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
     return issues;
   }, [issues, month, year]);
   const displayIssues = refinedIssues;
+  const exportableIssues = useMemo(() => displayIssues.filter((r: any) => !(r as any).isVoided), [displayIssues]);
+  const bulkAllVoided2 = displayIssues.length > 0 && exportableIssues.length === 0;
 
   // Sync selected detail when list refreshes
   useEffect(() => {
@@ -333,7 +336,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
 
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <span className="text-xs text-gray-400">{total} phiếu — bấm tiêu đề Mã phiếu / Ngày xuất để sắp xếp</span>
-        <button type="button" onClick={() => setShowBulkConfirm(true)} disabled={displayIssues.length===0} className="ml-auto px-3 py-1.5 min-h-[32px] text-xs border border-blue-300 text-blue-700 rounded hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed">Xuất tổng hợp (trang hiện tại)</button>
+        <button type="button" onClick={() => setShowBulkConfirm(true)} disabled={displayIssues.length===0 || bulkAllVoided2 || bulkExporting} title={bulkAllVoided2 ? 'Tất cả phiếu trang này đã vô hiệu' : undefined} className="ml-auto px-3 py-1.5 min-h-[32px] text-xs border border-blue-300 text-blue-700 rounded hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed">Xuất trang hiện tại ({exportableIssues.length} phiếu)</button>
       </div>
 
       {loadError && (
@@ -881,20 +884,24 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
         description="Hành động này sẽ xóa phiếu và hoàn tác số tồn liên quan. Không thể hoàn tác."
         loading={deleting}
       />
-      <Modal isOpen={showBulkConfirm} onClose={()=>setShowBulkConfirm(false)} ariaLabel="Xác nhận xuất tổng hợp">
+      <Modal isOpen={showBulkConfirm} onClose={()=>{ if(!bulkExporting) setShowBulkConfirm(false); }} ariaLabel="Xác nhận xuất trang hiện tại">
         <div className="bg-white rounded-lg shadow-xl w-[calc(100vw-1rem)] max-w-md p-6" onClick={e=>e.stopPropagation()}>
-          <h3 className="font-semibold text-gray-900 mb-2">Xuất tổng hợp {displayIssues.length} phiếu?</h3>
-          <p className="text-sm text-gray-600 mb-4">Tải Excel cho từng phiếu đang hiển thị (trang hiện tại).</p>
+          <h3 className="font-semibold text-gray-900 mb-2">Xuất trang hiện tại ({exportableIssues.length} phiếu)?</h3>
+          <p className="text-sm text-gray-600 mb-1">Tải Excel lần lượt cho từng phiếu hợp lệ trên trang hiện tại.</p>
+          {exportableIssues.length !== displayIssues.length && <p className="text-xs text-amber-600 mb-3">{exportableIssues.length}/{displayIssues.length} hợp lệ — {displayIssues.length - exportableIssues.length} phiếu vô hiệu sẽ bỏ qua.</p>}
+          {bulkExporting && <p className="text-xs text-blue-600 mb-3">Đang xuất {bulkProgress.done}/{bulkProgress.total}...</p>}
           <div className="flex justify-end gap-2">
-            <button onClick={()=>setShowBulkConfirm(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm">Hủy</button>
-            <button disabled={bulkExporting} onClick={async()=>{
-              setBulkExporting(true);
+            <button onClick={()=>setShowBulkConfirm(false)} disabled={bulkExporting} className="px-4 py-2 border border-gray-300 rounded-lg text-sm disabled:opacity-50">Hủy</button>
+            <button disabled={bulkExporting || exportableIssues.length===0} onClick={async()=>{
+              const toExport = exportableIssues;
+              if(toExport.length===0){ toast.error('Không có phiếu hợp lệ để xuất'); return; }
+              setBulkExporting(true); setBulkProgress({ done: 0, total: toExport.length });
               let ok=0,fail=0;
-              for(const r of displayIssues){ try{ await warehouseIssueService.exportXlsx((r as any).id); ok++; } catch{ fail++; } }
+              for(let i=0;i<toExport.length;i++){ const r = toExport[i] as any; try{ await warehouseIssueService.exportXlsx(r.id); ok++; } catch{ fail++; } setBulkProgress({ done: i+1, total: toExport.length }); if(i < toExport.length - 1) await new Promise(res=>setTimeout(res, 500)); }
               setBulkExporting(false); setShowBulkConfirm(false);
-              if(fail>0) toast.error(`Xuất xong ${ok}/${displayIssues.length} phiếu, ${fail} lỗi`);
+              if(fail>0) toast.error(`Xuất xong ${ok}/${toExport.length} phiếu, ${fail} lỗi`);
               else toast.success(`Đã xuất ${ok} phiếu`);
-            }} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">{bulkExporting?'Đang xuất...':'Xác nhận'}</button>
+            }} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">{bulkExporting?`Đang xuất ${bulkProgress.done}/${bulkProgress.total}...`:'Xác nhận'}</button>
           </div>
         </div>
       </Modal>

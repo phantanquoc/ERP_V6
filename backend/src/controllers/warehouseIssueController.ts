@@ -6,7 +6,11 @@ import { exportIssueXlsx } from '@services/warehouseSlipExportService';
 import { NotificationEvent } from '@types';
 import { ValidationError, ConflictError, NotFoundError } from '@utils/errors';
 
-export const generateIssueCode = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const generateIssueCode = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const maPhieuXuat = await warehouseIssueService.generateCode();
     res.status(200).json({ success: true, data: { maPhieuXuat } });
@@ -15,37 +19,84 @@ export const generateIssueCode = async (_req: Request, res: Response, next: Next
   }
 };
 
-export const createWarehouseIssue = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const createWarehouseIssue = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
-    const { maPhieuXuat, employeeId, maNhanVien, tenNhanVien, ngayXuat, ghiChu, supplyRequestId, outboundPlanId, lyDoChenhLech, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, lyDoXuatKho, items } = req.body;
+    const {
+      maPhieuXuat,
+      employeeId,
+      maNhanVien,
+      tenNhanVien,
+      ngayXuat,
+      ghiChu,
+      supplyRequestId,
+      outboundPlanId,
+      lyDoChenhLech,
+      nguoiDeNghi,
+      maNguoiDeNghi,
+      boPhan,
+      boPhanId,
+      lyDoXuatKho,
+      items,
+    } = req.body;
 
     if (!employeeId) {
       res.status(400).json({ success: false, message: 'Thiếu mã nhân viên' });
       return;
     }
     if (!items || !Array.isArray(items) || items.length === 0) {
-      res.status(400).json({ success: false, message: 'Phiếu xuất kho phải có ít nhất một mặt hàng' });
+      res
+        .status(400)
+        .json({ success: false, message: 'Phiếu xuất kho phải có ít nhất một mặt hàng' });
       return;
     }
 
     const warehouseIssue = await warehouseIssueService.create({
-      maPhieuXuat, employeeId, maNhanVien, tenNhanVien, ngayXuat, ghiChu, supplyRequestId, outboundPlanId, lyDoChenhLech, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, lyDoXuatKho, items,
+      maPhieuXuat,
+      employeeId,
+      maNhanVien,
+      tenNhanVien,
+      ngayXuat,
+      ghiChu,
+      supplyRequestId,
+      outboundPlanId,
+      lyDoChenhLech,
+      nguoiDeNghi,
+      maNguoiDeNghi,
+      boPhan,
+      boPhanId,
+      lyDoXuatKho,
+      items,
     });
 
-    res.status(201).json({ success: true, message: 'Tạo phiếu xuất kho thành công', data: warehouseIssue });
+    res
+      .status(201)
+      .json({ success: true, message: 'Tạo phiếu xuất kho thành công', data: warehouseIssue });
 
     try {
-      const totalQty = items.reduce((sum: number, line: any) => sum + Number(line.soLuongThucTe || 0), 0);
+      const totalQty = items.reduce(
+        (sum: number, line: any) => sum + Number(line.soLuongThucTe || 0),
+        0
+      );
       await notificationService.notify(NotificationEvent.WAREHOUSE_ISSUE_CREATED, {
         actorUserId: (req as any).user?.id,
         entityId: warehouseIssue.id,
-        metadata: { maPhieuXuat: warehouseIssue.maPhieuXuat, soLuongXuat: totalQty, donViTinh: items[0]?.donViTinh, tenSanPham: `${items.length} mặt hàng` },
+        metadata: {
+          maPhieuXuat: warehouseIssue.maPhieuXuat,
+          soLuongXuat: totalQty,
+          donViTinh: items[0]?.donViTinh,
+          tenSanPham: `${items.length} mặt hàng`,
+        },
       });
     } catch {}
 
     if (supplyRequestId) {
-      supplyRequestService.onWarehouseIssueCreated(supplyRequestId)
-        .catch(err => console.error('Error in onWarehouseIssueCreated:', err));
+      supplyRequestService
+        .onWarehouseIssueCreated(supplyRequestId)
+        .catch((err) => console.error('Error in onWarehouseIssueCreated:', err));
     }
   } catch (error: any) {
     if (error instanceof ValidationError) {
@@ -60,18 +111,26 @@ export const createWarehouseIssue = async (req: Request, res: Response, next: Ne
   }
 };
 
-export const getAllWarehouseIssues = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getAllWarehouseIssues = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const result = await warehouseIssueService.getAll({
       page: req.query.page as string | undefined,
       limit: req.query.limit as string | undefined,
       search: req.query.search as string | undefined,
-      warehouseId: (req.query.warehouseId as string | undefined) || (req.query.warehouse as string | undefined),
+      warehouseId:
+        (req.query.warehouseId as string | undefined) ||
+        (req.query.warehouse as string | undefined),
       fromNgay: req.query.fromNgay as string | undefined,
       toNgay: req.query.toNgay as string | undefined,
       sortBy: (req.query.sortBy as string | undefined) || (req.query.sortKey as string | undefined),
-      sortOrder: (req.query.sortOrder as string | undefined) || (req.query.sortDir as string | undefined),
-      maPhieu: (req.query.maPhieu as string | undefined) || (req.query.maPhieuXuat as string | undefined),
+      sortOrder:
+        (req.query.sortOrder as string | undefined) || (req.query.sortDir as string | undefined),
+      maPhieu:
+        (req.query.maPhieu as string | undefined) || (req.query.maPhieuXuat as string | undefined),
       tenNhanVien: req.query.tenNhanVien as string | undefined,
       nguoiDeNghi: req.query.nguoiDeNghi as string | undefined,
       boPhan: req.query.boPhan as string | undefined,
@@ -82,14 +141,27 @@ export const getAllWarehouseIssues = async (req: Request, res: Response, next: N
     } as any);
     const hasSearch = !!(req.query.search && String(req.query.search).trim());
     const truthy = (v: unknown) => v !== undefined && v !== null && String(v).trim() !== '';
-    const hasPaging = hasSearch
-      || truthy(req.query.page) || truthy(req.query.limit)
-      || truthy(req.query.warehouseId) || truthy(req.query.fromNgay) || truthy(req.query.toNgay)
-      || truthy(req.query.sortBy) || truthy(req.query.sortOrder)
-      || truthy(req.query.warehouse) || truthy(req.query.sortKey) || truthy(req.query.sortDir)
-      || truthy(req.query.maPhieu) || truthy(req.query.maPhieuXuat)
-      || truthy(req.query.tenNhanVien) || truthy(req.query.nguoiDeNghi) || truthy(req.query.boPhan)
-      || truthy(req.query.tinhTrang) || truthy(req.query.daIn) || truthy(req.query.isVoided) || truthy(req.query.includeVoided);
+    const hasPaging =
+      hasSearch ||
+      truthy(req.query.page) ||
+      truthy(req.query.limit) ||
+      truthy(req.query.warehouseId) ||
+      truthy(req.query.fromNgay) ||
+      truthy(req.query.toNgay) ||
+      truthy(req.query.sortBy) ||
+      truthy(req.query.sortOrder) ||
+      truthy(req.query.warehouse) ||
+      truthy(req.query.sortKey) ||
+      truthy(req.query.sortDir) ||
+      truthy(req.query.maPhieu) ||
+      truthy(req.query.maPhieuXuat) ||
+      truthy(req.query.tenNhanVien) ||
+      truthy(req.query.nguoiDeNghi) ||
+      truthy(req.query.boPhan) ||
+      truthy(req.query.tinhTrang) ||
+      truthy(req.query.daIn) ||
+      truthy(req.query.isVoided) ||
+      truthy(req.query.includeVoided);
     if (!hasPaging) {
       res.status(200).json({ success: true, data: result.data });
       return;
@@ -100,7 +172,11 @@ export const getAllWarehouseIssues = async (req: Request, res: Response, next: N
   }
 };
 
-export const getWarehouseIssueById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getWarehouseIssueById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const issue = await warehouseIssueService.getById(req.params.id);
     res.status(200).json({ success: true, data: issue });
@@ -113,14 +189,40 @@ export const getWarehouseIssueById = async (req: Request, res: Response, next: N
   }
 };
 
-export const updateWarehouseIssue = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const updateWarehouseIssue = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const { id } = req.params;
-    const { ngayXuat, ghiChu, lyDoChenhLech, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, lyDoXuatKho, items } = req.body;
+    const {
+      ngayXuat,
+      ghiChu,
+      lyDoChenhLech,
+      nguoiDeNghi,
+      maNguoiDeNghi,
+      boPhan,
+      boPhanId,
+      lyDoXuatKho,
+      items,
+    } = req.body;
 
-    const issue = await warehouseIssueService.update(id, { ngayXuat, ghiChu, lyDoChenhLech, nguoiDeNghi, maNguoiDeNghi, boPhan, boPhanId, lyDoXuatKho, items });
+    const issue = await warehouseIssueService.update(id, {
+      ngayXuat,
+      ghiChu,
+      lyDoChenhLech,
+      nguoiDeNghi,
+      maNguoiDeNghi,
+      boPhan,
+      boPhanId,
+      lyDoXuatKho,
+      items,
+    });
 
-    res.status(200).json({ success: true, message: 'Cập nhật phiếu xuất kho thành công', data: issue });
+    res
+      .status(200)
+      .json({ success: true, message: 'Cập nhật phiếu xuất kho thành công', data: issue });
   } catch (error: any) {
     if (error instanceof ValidationError) {
       res.status(400).json({ success: false, message: error.message });
@@ -138,7 +240,11 @@ export const updateWarehouseIssue = async (req: Request, res: Response, next: Ne
   }
 };
 
-export const deleteWarehouseIssue = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const deleteWarehouseIssue = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const { id } = req.params;
     const result = await warehouseIssueService.delete(id);
@@ -160,7 +266,11 @@ export const deleteWarehouseIssue = async (req: Request, res: Response, next: Ne
   }
 };
 
-export const markIssuePrinted = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const markIssuePrinted = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const result = await warehouseIssueService.markPrinted(req.params.id);
     res.status(200).json({ success: true, data: result });
@@ -173,39 +283,84 @@ export const markIssuePrinted = async (req: Request, res: Response, next: NextFu
   }
 };
 
-export const voidWarehouseIssue = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const voidWarehouseIssue = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const { id } = req.params;
     const { voidReason } = req.body as { voidReason: string };
     const user = (req as any).user as { id: string; role: string } | undefined;
-    const result = await warehouseIssueService.void(id, { voidReason, userId: user?.id, userRole: user?.role });
+    const result = await warehouseIssueService.void(id, {
+      voidReason,
+      userId: user?.id,
+      userRole: user?.role,
+    });
     res.status(200).json({ success: true, message: 'Vô hiệu phiếu xuất thành công', data: result });
   } catch (error: any) {
-    if (error instanceof ValidationError) { res.status(400).json({ success: false, message: error.message }); return; }
-    if (error instanceof NotFoundError) { res.status(404).json({ success: false, message: error.message }); return; }
-    if (error instanceof ConflictError) { res.status(409).json({ success: false, message: error.message }); return; }
+    if (error instanceof ValidationError) {
+      res.status(400).json({ success: false, message: error.message });
+      return;
+    }
+    if (error instanceof NotFoundError) {
+      res.status(404).json({ success: false, message: error.message });
+      return;
+    }
+    if (error instanceof ConflictError) {
+      res.status(409).json({ success: false, message: error.message });
+      return;
+    }
     next(error);
   }
 };
 
-export const unvoidWarehouseIssue = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const unvoidWarehouseIssue = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const { id } = req.params;
     const user = (req as any).user as { id: string; role: string } | undefined;
-    const result = await warehouseIssueService.unvoid(id, { userId: user?.id, userRole: user?.role });
-    res.status(200).json({ success: true, message: 'Khôi phục phiếu xuất thành công', data: result });
+    const result = await warehouseIssueService.unvoid(id, {
+      userId: user?.id,
+      userRole: user?.role,
+    });
+    res
+      .status(200)
+      .json({ success: true, message: 'Khôi phục phiếu xuất thành công', data: result });
   } catch (error: any) {
-    if (error instanceof ValidationError) { res.status(400).json({ success: false, message: error.message }); return; }
-    if (error instanceof NotFoundError) { res.status(404).json({ success: false, message: error.message }); return; }
-    if (error instanceof ConflictError) { res.status(409).json({ success: false, message: error.message }); return; }
+    if (error instanceof ValidationError) {
+      res.status(400).json({ success: false, message: error.message });
+      return;
+    }
+    if (error instanceof NotFoundError) {
+      res.status(404).json({ success: false, message: error.message });
+      return;
+    }
+    if (error instanceof ConflictError) {
+      res.status(409).json({ success: false, message: error.message });
+      return;
+    }
     next(error);
   }
 };
 
-export const exportIssueXlsxHandler = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const exportIssueXlsxHandler = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     await exportIssueXlsx(req.params.id, res);
-    try { await warehouseIssueService.markPrinted(req.params.id); } catch {}
+    // ponytail: wb.xlsx.write(res) pipes to res and ends it — markPrinted is
+    // fire-and-forget and must not affect the export response. Only mark when
+    // the response actually finished (client didn't abort). Frontend should
+    // prefer POST /:id/mark-printed on afterprint/successful-download instead.
+    if (res.writableFinished) {
+      warehouseIssueService.markPrinted(req.params.id).catch(() => {});
+    }
   } catch (error) {
     next(error);
   }

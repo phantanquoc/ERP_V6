@@ -46,6 +46,8 @@ RUN npx prisma generate
 
 # Copy built files from builder stage
 COPY --from=builder /app/dist ./dist
+# Warehouse slip Excel logo (used by warehouseSlipExportService)
+COPY public ./public
 
 # Create uploads and logs directories
 RUN mkdir -p uploads logs && chown -R nodejs:nodejs uploads logs
