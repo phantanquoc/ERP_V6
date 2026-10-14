@@ -715,7 +715,6 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                     <div className="rounded-lg bg-gray-100 px-3 py-2 text-right text-sm font-semibold text-red-700">Tổng cộng (SL TT): {formatActualTotalByUnit(selectedIssueLines)}</div>
                   </div>
                 </div>
-                </div>
               </Section>
               ) : (
               <Section title="Hàng hóa" tone="slate">
