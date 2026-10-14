@@ -52,7 +52,7 @@ class DebtService {
       const inv = await prisma.invoice.findUnique({ where: { id: String(input.invoiceId) }, select: { id: true } });
       if (!inv) throw new Error('Hóa đơn không tồn tại');
     }
-    return prisma.debt.create({
+    return (prisma.debt.create as any)({
       data: {
         ngayPhatSinh: new Date(input.ngayPhatSinh),
         loaiChiPhi: input.loaiChiPhi,
@@ -95,7 +95,7 @@ class DebtService {
     if (updateData.soTienPhaiTra) updateData.soTienPhaiTra = parseFloat(updateData.soTienPhaiTra);
     if (updateData.soTienDaThanhToan) updateData.soTienDaThanhToan = parseFloat(updateData.soTienDaThanhToan);
 
-    return prisma.debt.update({ where: { id }, data: updateData });
+    return (prisma.debt.update as any)({ where: { id }, data: updateData });
   }
 
   async delete(id: string) {
@@ -109,7 +109,6 @@ class DebtService {
       const end = new Date(year, month, 1);
       where.ngayPhatSinh = { gte: start, lt: end };
     }
-    if (purchaseRequestId) where.purchaseRequestId = purchaseRequestId;
     const [aggPhaiTra, aggDaTra, soLuongCongNo, chuaThanhToan] = await Promise.all([
       prisma.debt.aggregate({ where, _sum: { soTienPhaiTra: true } }),
       prisma.debt.aggregate({ where, _sum: { soTienDaThanhToan: true } }),
