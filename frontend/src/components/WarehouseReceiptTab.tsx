@@ -587,7 +587,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
             </div>
           <div className="overflow-y-auto flex-1 p-5 py-3 space-y-3">
             {selectedReceipt && (
-
+            <>
             {(selectedReceipt as any).isVoided && (
               <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2.5 text-sm text-red-700">
                 <div className="font-semibold text-xs">Đã vô hiệu</div>
@@ -762,7 +762,8 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
                 <span>Tạo lúc: <span className="font-medium text-gray-700">{new Date(selectedReceipt.createdAt).toLocaleString('vi-VN')}</span></span>
               </div>
             </div>
-
+            </>
+          )}
           <div className="flex flex-wrap justify-end gap-2 p-6 pt-4 border-t border-gray-100 bg-white shrink-0">
               {(selectedReceipt as any).isVoided ? (
                 <button
