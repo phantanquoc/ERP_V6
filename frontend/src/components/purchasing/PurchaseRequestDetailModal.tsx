@@ -41,13 +41,23 @@ function arrivalBadge(ngayDuKienNhap?: string | null): { label: string; cls: str
   if (diffDays <= 3) return { label: 'Sắp đến hạn', cls: 'bg-amber-100 text-amber-700 border-amber-200' };
   return null;
 }
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+type SectionTone = 'slate' | 'blue' | 'amber' | 'emerald' | 'violet' | 'orange';
+const toneMap: Record<SectionTone, { wrap: string; head: string }> = {
+  slate:   { wrap: 'bg-slate-50/50 border-slate-200', head: 'bg-slate-100/70 border-slate-200 text-slate-700' },
+  blue:    { wrap: 'bg-blue-50/30 border-blue-100',   head: 'bg-blue-50 border-blue-100 text-blue-700' },
+  amber:   { wrap: 'bg-amber-50/30 border-amber-100',  head: 'bg-amber-50 border-amber-100 text-amber-700' },
+  emerald: { wrap: 'bg-emerald-50/30 border-emerald-100', head: 'bg-emerald-50 border-emerald-100 text-emerald-700' },
+  violet:  { wrap: 'bg-violet-50/30 border-violet-100', head: 'bg-violet-50 border-violet-100 text-violet-700' },
+  orange:  { wrap: 'bg-orange-50/30 border-orange-100', head: 'bg-orange-50 border-orange-100 text-orange-700' },
+};
+function Section({ title, tone = 'slate', children }: { title: string; tone?: SectionTone; children: React.ReactNode }) {
+  const c = toneMap[tone];
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
-      <div className="bg-gray-50 px-3 py-1.5 border-b border-gray-200">
-        <span className="text-xs font-semibold text-gray-600 tracking-wide">{title}</span>
+    <div className={`border rounded-lg overflow-hidden ${c.wrap}`}>
+      <div className={`px-3 py-1.5 border-b ${c.head}`}>
+        <span className="text-xs font-semibold tracking-wide">{title}</span>
       </div>
-      <div className="bg-white">{children}</div>
+      <div className="bg-white/70">{children}</div>
     </div>
   );
 }
@@ -112,7 +122,7 @@ export default function PurchaseRequestDetailModal({
 
         <div className="overflow-y-auto flex-1 min-h-0 px-5 py-3 space-y-3">
           {(pr.supplyRequest || pr.replenishmentRequest || (pr.warehouseReceipts && pr.warehouseReceipts.length > 0)) && (
-            <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg flex flex-wrap gap-2 text-xs">
+            <div className="px-3 py-2 bg-blue-50/40 border border-blue-100 rounded-lg flex flex-wrap gap-2 text-xs">
               {pr.supplyRequest && (
                 <span className="inline-flex items-center gap-1">
                   <span className="text-gray-500">YCCB:</span>
@@ -148,7 +158,7 @@ export default function PurchaseRequestDetailModal({
             </div>
           )}
 
-          <Section title="Thông tin chung">
+          <Section title="Thông tin chung" tone="blue">
             <div className="grid grid-cols-2 sm:grid-cols-3 divide-y divide-gray-100 sm:divide-y-0">
               <div className="grid grid-cols-2 sm:grid-cols-3 col-span-2 sm:col-span-3 divide-x divide-gray-100 border-b border-gray-100">
                 <Cell label="Mã yêu cầu"><span className="font-semibold text-blue-600">{pr.maYeuCau}</span></Cell>
@@ -173,7 +183,7 @@ export default function PurchaseRequestDetailModal({
           </Section>
 
           {hasShipping && (
-            <Section title="Vận chuyển & Nhập kho">
+            <Section title="Vận chuyển & Nhập kho" tone="amber">
               <div className="grid grid-cols-2 sm:grid-cols-3 divide-x divide-gray-100">
                 <Cell label="Ngày DK hàng về">{pr.ngayDuKienNhap ? (<span className="inline-flex items-center gap-1.5 font-medium">{formatDate(pr.ngayDuKienNhap)}{badge && <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${badge.cls}`}>{badge.label}</span>}</span>) : <span className="text-gray-400">Chưa có</span>}</Cell>
                 <Cell label="Kho DK nhập">{tenKho ? <span className="font-medium">{tenKho}</span> : <span className="text-gray-400">Chưa chọn</span>}</Cell>
@@ -192,7 +202,7 @@ export default function PurchaseRequestDetailModal({
           )}
 
           {pr.items && pr.items.length > 0 && (
-            <Section title={`Danh sách hàng hóa · ${pr.items.length} dòng`}>
+            <Section tone="slate" title={`Danh sách hàng hóa · ${pr.items.length} dòng`}>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[820px] text-sm">
                   <thead className="bg-gray-50 sticky top-0">
@@ -239,7 +249,7 @@ export default function PurchaseRequestDetailModal({
             </Section>
           )}
 
-          <Section title="Ghi chú & Trạng thái">
+          <Section title="Ghi chú & Trạng thái" tone="orange">
             <div className="divide-y divide-gray-100">
               <div className="px-3 py-2 grid grid-cols-1 gap-1"><span className="text-[11px] font-medium text-gray-500">Mục đích yêu cầu</span><span className="text-sm text-gray-800">{pr.mucDichYeuCau}</span></div>
               {pr.ghiChu && (<div className="px-3 py-2"><div className="text-[11px] font-medium text-gray-500 mb-1">Ghi chú người yêu cầu</div><p className="text-sm text-gray-800 whitespace-pre-wrap">{pr.ghiChu}</p></div>)}
@@ -250,7 +260,7 @@ export default function PurchaseRequestDetailModal({
           </Section>
 
           {((pr as any).linkedInvoices?.length > 0 || (pr as any).linkedDebts?.length > 0) && (
-            <Section title="Hóa đơn & Công nợ liên quan">
+            <Section title="Hóa đơn & Công nợ liên quan" tone="emerald">
               <div className="p-3 space-y-3">
                 {(pr as any).linkedInvoices?.length > 0 && (<div><p className="text-[11px] font-medium text-gray-500 mb-1.5">Hóa đơn</p><div className="space-y-1">{(pr as any).linkedInvoices.map((inv: any) => (<div key={inv.id} className="flex items-center justify-between bg-blue-50 border border-blue-100 rounded px-3 py-1.5 text-xs"><span className="font-medium text-blue-700">{inv.soHoaDon}</span><span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${inv.trangThai === 'Đã thanh toán' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{inv.trangThai}</span><span className="text-gray-600">{inv.thanhTien != null ? Number(inv.thanhTien).toLocaleString('vi-VN') + 'đ' : ''}</span></div>))}</div></div>)}
                 {(pr as any).linkedDebts?.length > 0 && (<div><p className="text-[11px] font-medium text-gray-500 mb-1.5">Công nợ</p><div className="space-y-1">{(pr as any).linkedDebts.map((d: any) => { const conNo = (Number(d.soTienPhaiTra) || 0) - (Number(d.soTienDaThanhToan) || 0); return (<div key={d.id} className="flex items-center justify-between bg-amber-50 border border-amber-100 rounded px-3 py-1.5 text-xs"><span className="text-gray-600">{new Date(d.ngayPhatSinh).toLocaleDateString('vi-VN')}</span><span className="text-gray-700">Phải trả: {Number(d.soTienPhaiTra || 0).toLocaleString('vi-VN')}đ</span><span className={conNo > 0 ? 'text-red-600 font-medium' : 'text-green-600'}>Còn nợ: {conNo.toLocaleString('vi-VN')}đ</span></div>); })}</div></div>)}
@@ -258,7 +268,7 @@ export default function PurchaseRequestDetailModal({
             </Section>
           )}
 
-          <Section title="Tệp đính kèm">
+          <Section title="Tệp đính kèm" tone="violet">
             <div className="p-3">
               <AttachmentList label="" urls={(pr as unknown as { aggregatedAttachments?: { all: string[] } }).aggregatedAttachments?.all ?? collectAttachments(pr as unknown as { tepDinhKem?: string[] | null; fileKemTheo?: string | null }, pr.supplyRequest as unknown as { tepDinhKem?: string[] | null; fileKemTheo?: string | null } | null)} emptyText="Không có file đính kèm" />
             </div>

@@ -550,14 +550,14 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
           </div>
 
           {selectedIssue && (
-            <div className="overflow-y-auto flex-1 p-6">
+            <div className="overflow-y-auto flex-1 p-5 py-3 space-y-3">
             {(selectedIssue as any).isVoided && (
-              <div className="mb-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700"><div className="font-semibold">Đã vô hiệu</div><div>Lý do: {(selectedIssue as any).voidReason || '—'}</div><div className="text-xs text-red-600">{(selectedIssue as any).voidedAt ? new Date((selectedIssue as any).voidedAt).toLocaleString('vi-VN') : ''} {(selectedIssue as any).voidedByName ? `· ${(selectedIssue as any).voidedByName}` : (selectedIssue as any).voidedBy ? `· ${(selectedIssue as any).voidedBy}` : ''}</div></div>
+              <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2.5 text-sm text-red-700"><div className="font-semibold text-xs">Đã vô hiệu</div><div className="text-sm">Lý do: {(selectedIssue as any).voidReason || '—'}</div><div className="text-xs text-red-600">{(selectedIssue as any).voidedAt ? new Date((selectedIssue as any).voidedAt).toLocaleString('vi-VN') : ''} {(selectedIssue as any).voidedByName ? `· ${(selectedIssue as any).voidedByName}` : (selectedIssue as any).voidedBy ? `· ${(selectedIssue as any).voidedBy}` : ''}</div></div>
             )}
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-              <div className="flex items-center gap-2 text-red-800 font-semibold text-lg">
-                <FileText className="h-5 w-5" />
-                {selectedIssue.maPhieuXuat}
+            <div className="px-3 py-2.5 bg-red-50/50 border border-red-100 rounded-lg">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-red-700" />
+                <span className="font-semibold text-red-800 text-sm">{selectedIssue.maPhieuXuat}</span>
                 {selectedIssue.isLocked && (
                   <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700" title={selectedIssue.supplyRequestId ? 'Phiếu liên kết yêu cầu cấp vật tư' : 'Phiếu đã khóa bởi quy trình kho'}>
                     Đã khóa — chỉ xem/in
@@ -566,60 +566,23 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
               </div>
             </div>
 
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="text-xs text-gray-500 uppercase font-medium">Ngày xuất</label>
-                  <p className="text-sm font-semibold text-gray-900 mt-1">
-                    {new Date(selectedIssue.ngayXuat).toLocaleDateString('vi-VN', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </p>
-                </div>
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="text-xs text-gray-500 uppercase font-medium">Nhân viên thực hiện</label>
-                  <p className="text-sm font-semibold text-gray-900 mt-1">{selectedIssue.tenNhanVien}</p>
-                  <p className="text-xs text-gray-500">{selectedIssue.maNhanVien}</p>
-                </div>
+            <div className="border border-blue-100 bg-blue-50/30 rounded-lg overflow-hidden">
+              <div className="bg-blue-50 border-b border-blue-100 px-3 py-1.5"><span className="text-xs font-semibold tracking-wide text-blue-700">Thông tin chung</span></div>
+              <div className="bg-white/70 grid grid-cols-2 sm:grid-cols-3 divide-x divide-gray-100 divide-y divide-gray-100">
+                <div className="px-3 py-2"><div className="text-[11px] font-medium text-gray-500 leading-none mb-1">Ngày xuất</div><div className="text-sm font-medium text-gray-800 leading-tight">{new Date(selectedIssue.ngayXuat).toLocaleDateString('vi-VN', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div></div>
+                <div className="px-3 py-2"><div className="text-[11px] font-medium text-gray-500 leading-none mb-1">Nhân viên thực hiện</div><div className="text-sm font-medium text-gray-800 leading-tight">{selectedIssue.tenNhanVien}</div><div className="text-xs text-gray-500">{selectedIssue.maNhanVien}</div></div>
+                <div className="px-3 py-2"><div className="text-[11px] font-medium text-gray-500 leading-none mb-1">Người đề nghị</div><div className="text-sm text-gray-800 leading-tight">{(selectedIssue as any).nguoiDeNghi || '—'}</div>{(selectedIssue as any).boPhan && <div className="text-xs text-gray-500">{(selectedIssue as any).boPhan}</div>}</div>
+                <div className="px-3 py-2"><div className="text-[11px] font-medium text-gray-500 leading-none mb-1">Bộ phận</div><div className="text-sm text-gray-800 leading-tight">{(selectedIssue as any).boPhan || '—'}</div></div>
+                <div className="px-3 py-2"><div className="text-[11px] font-medium text-gray-500 leading-none mb-1">Kho</div><div className="text-sm font-medium text-gray-800 leading-tight">{[...new Set(selectedIssueLines.map((item: any) => (item.maKho || item.tenKho)).filter(Boolean))].join(', ') || '-'}</div></div>
+                <div className="px-3 py-2"><div className="text-[11px] font-medium text-gray-500 leading-none mb-1">Lô hàng</div><div className="text-sm text-gray-800 leading-tight">{getUniqueSlipField(selectedIssueLines, 'tenLo')}</div></div>
+                <div className="px-3 py-2 col-span-2 sm:col-span-3"><div className="text-[11px] font-medium text-gray-500 leading-none mb-1">Lý do xuất</div><div className="text-sm text-gray-800 leading-tight">{(selectedIssue as any).lyDoXuatKho || '—'}</div></div>
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="text-xs text-gray-500 uppercase font-medium">Người đề nghị</label>
-                  <p className="text-sm font-semibold text-gray-900 mt-1">{(selectedIssue as any).nguoiDeNghi || '—'}</p>
-                  {(selectedIssue as any).boPhan && <p className="text-xs text-gray-500">{(selectedIssue as any).boPhan}</p>}
-                </div>
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="text-xs text-gray-500 uppercase font-medium">Bộ phận</label>
-                  <p className="text-sm font-semibold text-gray-900 mt-1">{(selectedIssue as any).boPhan || '—'}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="text-xs text-gray-500 uppercase font-medium">Kho</label>
-                  <p className="text-sm font-semibold text-gray-900 mt-1">{[...new Set(selectedIssueLines.map((item: any) => (item.maKho || item.tenKho)).filter(Boolean))].join(', ') || '-'}</p>
-                </div>
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="text-xs text-gray-500 uppercase font-medium">Lô hàng</label>
-                  <p className="text-sm font-semibold text-gray-900 mt-1">{getUniqueSlipField(selectedIssueLines, 'tenLo')}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 gap-4">
-                <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg">
-                  <label className="text-xs text-orange-600 uppercase font-medium">Lý do xuất</label>
-                  <p className="text-sm text-gray-700 mt-1">{(selectedIssue as any).lyDoXuatKho || '—'}</p>
-                </div>
-              </div>
+            </div>
 
               {selectedIssueLines.length > 0 ? (
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="text-xs text-gray-500 uppercase font-medium mb-2 block">
-                    Chi tiết hàng hóa ({selectedIssueLines.length} dòng) — 14 cột BM03
-                  </label>
+                <div className="border border-emerald-100 bg-emerald-50/30 rounded-lg overflow-hidden">
+                  <div className="bg-emerald-50 border-b border-emerald-100 px-3 py-1.5"><span className="text-xs font-semibold tracking-wide text-emerald-700">Chi tiết hàng hóa · {selectedIssueLines.length} dòng · 14 cột BM03</span></div>
+                  <div className="bg-white/70 p-2">
                   <div className="hidden md:block overflow-x-auto">
                     <table className="w-full min-w-[1100px] text-sm border-collapse">
                       <thead>
@@ -723,16 +686,16 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                   </div>
                 </div>
               ) : (
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="text-xs text-gray-500 uppercase font-medium">Hàng hóa</label>
-                  <p className="text-sm font-semibold text-gray-900 mt-1">{selectedIssue.tenSanPham ?? 'N/A'}</p>
+                <div className="border border-emerald-100 bg-emerald-50/30 rounded-lg overflow-hidden">
+                  <div className="bg-emerald-50 border-b border-emerald-100 px-3 py-1.5"><span className="text-xs font-semibold tracking-wide text-emerald-700">Hàng hóa</span></div>
+                  <div className="bg-white/70 px-3 py-2 text-sm font-medium text-gray-800">{selectedIssue.tenSanPham ?? 'N/A'}</div>
                 </div>
               )}
 
               {selectedIssue.ghiChu && (
-                <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg">
-                  <label className="text-xs text-yellow-600 uppercase font-medium">Ghi chú phiếu</label>
-                  <p className="text-sm text-gray-700 mt-1">{selectedIssue.ghiChu}</p>
+                <div className="border border-amber-100 bg-amber-50/30 rounded-lg overflow-hidden">
+                  <div className="bg-amber-50 border-b border-amber-100 px-3 py-1.5"><span className="text-xs font-semibold tracking-wide text-amber-700">Ghi chú phiếu</span></div>
+                  <div className="bg-white/70 px-3 py-2 text-sm text-gray-800 whitespace-pre-wrap">{selectedIssue.ghiChu}</div>
                 </div>
               )}
 
@@ -750,17 +713,19 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
               })()}
 
               {(selectedIssue as any).daIn && (
-                <div className="bg-green-50 border border-green-200 p-3 rounded-lg flex flex-wrap items-center gap-4 text-sm">
-                  <span><span className="text-xs text-gray-500 uppercase font-medium">Người lập phiếu:</span> <span className="font-semibold text-gray-900 ml-1">{selectedIssue.tenNhanVien}</span></span>
-                  <span><span className="text-xs text-gray-500 uppercase font-medium">Ngày in (in lần đầu):</span> <span className="font-semibold text-gray-900 ml-1">{(selectedIssue as any).inLanDauAt ? new Date((selectedIssue as any).inLanDauAt).toLocaleString('vi-VN') : '—'}</span></span>
-                  <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Đã in</span>
+                <div className="border border-green-100 bg-green-50/30 rounded-lg overflow-hidden">
+                  <div className="bg-green-50 border-b border-green-100 px-3 py-1.5"><span className="text-xs font-semibold tracking-wide text-green-700">Trạng thái in</span></div>
+                  <div className="bg-white/70 px-3 py-2 flex flex-wrap items-center gap-4 text-sm">
+                    <span className="text-xs text-gray-500">Người lập: <span className="font-medium text-gray-800">{selectedIssue.tenNhanVien}</span></span>
+                    <span className="text-xs text-gray-500">Ngày in: <span className="font-medium text-gray-800">{(selectedIssue as any).inLanDauAt ? new Date((selectedIssue as any).inLanDauAt).toLocaleString('vi-VN') : '—'}</span></span>
+                    <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Đã in</span>
+                  </div>
                 </div>
               )}
 
-              <div className="text-xs text-gray-400 text-right">
-                Tạo lúc: {new Date(selectedIssue.createdAt).toLocaleString('vi-VN')}
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 px-1">
+                <span>Tạo lúc: <span className="font-medium text-gray-700">{new Date(selectedIssue.createdAt).toLocaleString('vi-VN')}</span></span>
               </div>
-            </div>
             </div>
           )}
 
