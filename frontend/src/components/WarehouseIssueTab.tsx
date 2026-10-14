@@ -19,6 +19,34 @@ import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types/auth';
 import { useUrlDetailId, useUrlFilters } from '../hooks/useUrlState';
 import { getApiErrorMessage } from '../utils/getApiError';
+type SectionTone = 'blue' | 'amber' | 'emerald' | 'green' | 'slate';
+const toneMap: Record<SectionTone, { wrap: string; head: string }> = {
+  blue:    { wrap: 'bg-blue-50/30 border-blue-100', head: 'bg-blue-50 border-blue-100 text-blue-700' },
+  amber:   { wrap: 'bg-amber-50/30 border-amber-100', head: 'bg-amber-50 border-amber-100 text-amber-700' },
+  emerald: { wrap: 'bg-emerald-50/30 border-emerald-100', head: 'bg-emerald-50 border-emerald-100 text-emerald-700' },
+  green:   { wrap: 'bg-green-50/30 border-green-100', head: 'bg-green-50 border-green-100 text-green-700' },
+  slate:   { wrap: 'bg-slate-50/50 border-slate-200', head: 'bg-slate-100/70 border-slate-200 text-slate-700' },
+};
+function Section({ title, tone = 'slate', children }: { title: string; tone?: SectionTone; children: React.ReactNode }) {
+  const c = toneMap[tone];
+  return (
+    <div className={"border rounded-lg overflow-hidden " + c.wrap}>
+      <div className={"px-3 py-1.5 border-b " + c.head}>
+        <span className="text-xs font-semibold tracking-wide">{title}</span>
+      </div>
+      <div className="bg-white/70">{children}</div>
+    </div>
+  );
+}
+function Cell({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="px-3 py-2">
+      <div className="text-[11px] font-medium text-gray-500 leading-none mb-1">{label}</div>
+      <div className="text-sm text-gray-800 leading-tight">{children}</div>
+    </div>
+  );
+}
+
 
 interface WarehouseIssueTabProps {
   month?: number;
@@ -549,12 +577,11 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
             </button>
           </div>
 
-          {selectedIssue && (
-            <div className="overflow-y-auto flex-1 p-6">
+          <div className="overflow-y-auto flex-1 p-5 py-3 space-y-3">{selectedIssue && (<>
             {(selectedIssue as any).isVoided && (
-              <div className="mb-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700"><div className="font-semibold">Đã vô hiệu</div><div>Lý do: {(selectedIssue as any).voidReason || '—'}</div><div className="text-xs text-red-600">{(selectedIssue as any).voidedAt ? new Date((selectedIssue as any).voidedAt).toLocaleString('vi-VN') : ''} {(selectedIssue as any).voidedByName ? `· ${(selectedIssue as any).voidedByName}` : (selectedIssue as any).voidedBy ? `· ${(selectedIssue as any).voidedBy}` : ''}</div></div>
+              <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700"><div className="font-semibold">Đã vô hiệu</div><div>Lý do: {(selectedIssue as any).voidReason || '—'}</div><div className="text-xs text-red-600">{(selectedIssue as any).voidedAt ? new Date((selectedIssue as any).voidedAt).toLocaleString('vi-VN') : ''} {(selectedIssue as any).voidedByName ? `\u00b7 ${(selectedIssue as any).voidedByName}` : (selectedIssue as any).voidedBy ? `\u00b7 ${(selectedIssue as any).voidedBy}` : ''}</div></div>
             )}
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
               <div className="flex items-center gap-2 text-red-800 font-semibold text-lg">
                 <FileText className="h-5 w-5" />
                 {selectedIssue.maPhieuXuat}
@@ -566,60 +593,27 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
               </div>
             </div>
 
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="text-xs text-gray-500 uppercase font-medium">Ngày xuất</label>
-                  <p className="text-sm font-semibold text-gray-900 mt-1">
-                    {new Date(selectedIssue.ngayXuat).toLocaleDateString('vi-VN', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </p>
+            <Section title="Thông tin chung" tone="blue">
+              <div className="grid grid-cols-2 sm:grid-cols-3 divide-y divide-gray-100 sm:divide-y-0">
+                <div className="grid grid-cols-2 sm:grid-cols-3 col-span-2 sm:col-span-3 divide-x divide-gray-100 border-b border-gray-100">
+                  <Cell label="Ngày xuất">{new Date(selectedIssue.ngayXuat).toLocaleDateString('vi-VN', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</Cell>
+                  <Cell label="Nhân viên">{selectedIssue.tenNhanVien}<span className="text-xs text-gray-500 ml-1">{selectedIssue.maNhanVien}</span></Cell>
+                  <Cell label="Người đề nghị">{(selectedIssue as any).nguoiDeNghi || '—'}</Cell>
                 </div>
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="text-xs text-gray-500 uppercase font-medium">Nhân viên thực hiện</label>
-                  <p className="text-sm font-semibold text-gray-900 mt-1">{selectedIssue.tenNhanVien}</p>
-                  <p className="text-xs text-gray-500">{selectedIssue.maNhanVien}</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 col-span-2 sm:col-span-3 divide-x divide-gray-100 border-b border-gray-100">
+                  <Cell label="Bộ phận">{(selectedIssue as any).boPhan || '—'}</Cell>
+                  <Cell label="Kho">{[...new Set(selectedIssueLines.map((item: any) => (item.maKho || item.tenKho)).filter(Boolean))].join(', ') || '-'}</Cell>
+                  <Cell label="Lô hàng">{getUniqueSlipField(selectedIssueLines, 'tenLo')}</Cell>
+                </div>
+                <div className="grid grid-cols-1 col-span-2 sm:col-span-3">
+                  <Cell label="Lý do xuất">{(selectedIssue as any).lyDoXuatKho || '—'}</Cell>
                 </div>
               </div>
+            </Section>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="text-xs text-gray-500 uppercase font-medium">Người đề nghị</label>
-                  <p className="text-sm font-semibold text-gray-900 mt-1">{(selectedIssue as any).nguoiDeNghi || '—'}</p>
-                  {(selectedIssue as any).boPhan && <p className="text-xs text-gray-500">{(selectedIssue as any).boPhan}</p>}
-                </div>
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="text-xs text-gray-500 uppercase font-medium">Bộ phận</label>
-                  <p className="text-sm font-semibold text-gray-900 mt-1">{(selectedIssue as any).boPhan || '—'}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="text-xs text-gray-500 uppercase font-medium">Kho</label>
-                  <p className="text-sm font-semibold text-gray-900 mt-1">{[...new Set(selectedIssueLines.map((item: any) => (item.maKho || item.tenKho)).filter(Boolean))].join(', ') || '-'}</p>
-                </div>
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="text-xs text-gray-500 uppercase font-medium">Lô hàng</label>
-                  <p className="text-sm font-semibold text-gray-900 mt-1">{getUniqueSlipField(selectedIssueLines, 'tenLo')}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 gap-4">
-                <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg">
-                  <label className="text-xs text-orange-600 uppercase font-medium">Lý do xuất</label>
-                  <p className="text-sm text-gray-700 mt-1">{(selectedIssue as any).lyDoXuatKho || '—'}</p>
-                </div>
-              </div>
-
+            <Section title={"Chi tiết hàng hóa \u00b7 " + selectedIssueLines.length + " dòng \u00b7 14 cột BM03"} tone="emerald">
               {selectedIssueLines.length > 0 ? (
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="text-xs text-gray-500 uppercase font-medium mb-2 block">
-                    Chi tiết hàng hóa ({selectedIssueLines.length} dòng) — 14 cột BM03
-                  </label>
+                <>
                   <div className="hidden md:block overflow-x-auto">
                     <table className="w-full min-w-[1100px] text-sm border-collapse">
                       <thead>
@@ -660,14 +654,14 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                             <td className="px-2 py-1.5 border">{displayLoaiKho(item)}</td>
                             <td className="px-2 py-1.5 border">{item.tenSanPham || '-'}</td>
                             <td className="px-2 py-1.5 border text-center">{item.soLoKeHoach ?? '-'}</td>
-                            <td className={`px-2 py-1.5 border text-center ${isLoDiff ? 'bg-amber-100 font-semibold text-amber-800' : ''}`}>{item.soLoThucTe ?? item.tenLo ?? '-'}{isLoDiff && <span className="ml-1 inline-flex px-1 py-0 rounded bg-amber-100 text-amber-700 border border-amber-200 text-[10px]">Lệch Lô</span>}</td>
+                            <td className={"px-2 py-1.5 border text-center " + (isLoDiff ? 'bg-amber-100 font-semibold text-amber-800' : '')}>{item.soLoThucTe ?? item.tenLo ?? '-'}{isLoDiff && <span className="ml-1 inline-flex px-1 py-0 rounded bg-amber-100 text-amber-700 border border-amber-200 text-[10px]">Lệch Lô</span>}</td>
                             <td className="px-2 py-1.5 border font-mono text-xs">{(() => { try { const a = JSON.parse(item.soKienKeHoach); if (Array.isArray(a)) return a.join(', '); } catch { void 0; } return item.soKienKeHoach ?? '-'; })()}</td>
-                            <td className={`px-2 py-1.5 border font-mono text-xs ${isKienDiff ? 'bg-amber-100 font-semibold text-amber-800' : ''}`}>{(() => { try { const a = JSON.parse(item.soKienThucTe); if (Array.isArray(a)) return a.join(', '); } catch { void 0; } return item.soKienThucTe ?? item.maKien ?? '-'; })()}{isKienDiff && <span className="ml-1 inline-flex px-1 py-0 rounded bg-amber-100 text-amber-700 border border-amber-200 text-[10px]">Lệch Kiện</span>}</td>
+                            <td className={"px-2 py-1.5 border font-mono text-xs " + (isKienDiff ? 'bg-amber-100 font-semibold text-amber-800' : '')}>{(() => { try { const a = JSON.parse(item.soKienThucTe); if (Array.isArray(a)) return a.join(', '); } catch { void 0; } return item.soKienThucTe ?? item.maKien ?? '-'; })()}{isKienDiff && <span className="ml-1 inline-flex px-1 py-0 rounded bg-amber-100 text-amber-700 border border-amber-200 text-[10px]">Lệch Kiện</span>}</td>
                             <td className="px-2 py-1.5 border">{item.tinhTrang ?? '-'}</td>
                             <td className="px-2 py-1.5 border">{item.quyCach ?? '-'}</td>
                             <td className="px-2 py-1.5 border text-center">{item.donViTinh || '-'}</td>
                             <td className="px-2 py-1.5 border text-right">{item.soLuongYeuCau ?? item.soLuongThucTe}</td>
-                            <td className={`px-2 py-1.5 border text-right font-semibold ${isSlDiff ? 'text-amber-700 bg-amber-50' : 'text-red-600'}`}>{item.soLuongThucTe} {item.donViTinh || ''}</td>
+                            <td className={"px-2 py-1.5 border text-right font-semibold " + (isSlDiff ? 'text-amber-700 bg-amber-50' : 'text-red-600')}>{item.soLuongThucTe} {item.donViTinh || ''}</td>
                             <td className="px-2 py-1.5 border">{item.ghiChu || '-'}</td>
                             <td className="px-2 py-1.5 border text-right">{item.soLuongTruoc ?? '-'}</td>
                             <td className="px-2 py-1.5 border text-right">{item.soLuongSau ?? '-'}</td>
@@ -677,16 +671,13 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                       <tfoot>
                         <tr className="bg-gray-100 font-semibold">
                           <td colSpan={12} className="px-2 py-1.5 border text-right">Tổng cộng (SL TT):</td>
-                          <td className="px-2 py-1.5 border text-right text-red-700">
-                            {formatActualTotalByUnit(selectedIssueLines)}
-                          </td>
+                          <td className="px-2 py-1.5 border text-right text-red-700">{formatActualTotalByUnit(selectedIssueLines)}</td>
                           <td colSpan={3} className="px-2 py-1.5 border"></td>
                         </tr>
                       </tfoot>
                     </table>
                   </div>
-                  {/* Mobile: card per line — 16-column table is unreadable on phones */}
-                  <div className="md:hidden mt-3 space-y-3">
+                  <div className="md:hidden mt-3 space-y-3 px-3 py-2">
                     {selectedIssueLines.map((item: any, idx) => {
                       const normKien = (v: any) => { try { const a = JSON.parse(v); if (Array.isArray(a)) return a.join(',').trim(); } catch {} return String(v ?? '').trim(); };
                       const loTT = String(item.soLoThucTe ?? item.tenLo ?? '').trim();
@@ -696,7 +687,7 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                       const isLoDiff = loKH !== '' && loKH !== loTT;
                       const isKienDiff = kienKH !== '' && kienKH !== kienTT;
                       return (
-                      <div key={item.id || idx} className={`rounded-lg border p-3 text-sm ${isLoDiff || isKienDiff ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white'}`}>
+                      <div key={item.id || idx} className={"rounded-lg border p-3 text-sm " + (isLoDiff || isKienDiff ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white')}>
                         <div className="flex items-start justify-between gap-2">
                           <span className="font-mono text-xs font-semibold text-blue-700">{displayMaHang(item)}</span>
                           <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{displayLoaiKho(item)}</span>
@@ -704,9 +695,9 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                         <div className="mt-1 font-medium text-gray-900">{item.tenSanPham || '-'}</div>
                         <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                           <dt className="text-gray-500">Số lô KH</dt><dd className="text-right">{item.soLoKeHoach ?? '-'}</dd>
-                          <dt className="text-gray-500">Số lô TT</dt><dd className={`text-right ${isLoDiff ? 'font-semibold text-amber-700 bg-amber-100 rounded px-1' : ''}`}>{item.soLoThucTe ?? item.tenLo ?? '-'}{isLoDiff && <span className="ml-1 text-[10px] px-1 py-0 rounded bg-amber-100 text-amber-700 border border-amber-200">Lệch Lô</span>}</dd>
+                          <dt className="text-gray-500">Số lô TT</dt><dd className={"text-right " + (isLoDiff ? 'font-semibold text-amber-700 bg-amber-100 rounded px-1' : '')}>{item.soLoThucTe ?? item.tenLo ?? '-'}{isLoDiff && <span className="ml-1 text-[10px] px-1 py-0 rounded bg-amber-100 text-amber-700 border border-amber-200">Lệch Lô</span>}</dd>
                           <dt className="text-gray-500">Số kiện KH</dt><dd className="text-right font-mono text-xs">{(() => { try { const a = JSON.parse(item.soKienKeHoach); if (Array.isArray(a)) return a.join(', '); } catch { void 0; } return item.soKienKeHoach ?? '-'; })()}</dd>
-                          <dt className="text-gray-500">Số kiện TT</dt><dd className={`text-right font-mono text-xs ${isKienDiff ? 'font-semibold text-amber-700 bg-amber-100 rounded px-1' : ''}`}>{(() => { try { const a = JSON.parse(item.soKienThucTe); if (Array.isArray(a)) return a.join(', '); } catch { void 0; } return item.soKienThucTe ?? item.maKien ?? '-'; })()}{isKienDiff && <span className="ml-1 text-[10px] px-1 py-0 rounded bg-amber-100 text-amber-700 border border-amber-200">Lệch Kiện</span>}</dd>
+                          <dt className="text-gray-500">Số kiện TT</dt><dd className={"text-right font-mono text-xs " + (isKienDiff ? 'font-semibold text-amber-700 bg-amber-100 rounded px-1' : '')}>{(() => { try { const a = JSON.parse(item.soKienThucTe); if (Array.isArray(a)) return a.join(', '); } catch { void 0; } return item.soKienThucTe ?? item.maKien ?? '-'; })()}{isKienDiff && <span className="ml-1 text-[10px] px-1 py-0 rounded bg-amber-100 text-amber-700 border border-amber-200">Lệch Kiện</span>}</dd>
                           <dt className="text-gray-500">Tình trạng</dt><dd className="text-right">{item.tinhTrang ?? '-'}</dd>
                           <dt className="text-gray-500">Quy cách</dt><dd className="text-right">{item.quyCach ?? '-'}</dd>
                           <dt className="text-gray-500">ĐV</dt><dd className="text-right">{item.donViTinh || '-'}</dd>
@@ -721,48 +712,44 @@ const WarehouseIssueTab: React.FC<WarehouseIssueTabProps> = ({ month, year }) =>
                     })}
                     <div className="rounded-lg bg-gray-100 px-3 py-2 text-right text-sm font-semibold text-red-700">Tổng cộng (SL TT): {formatActualTotalByUnit(selectedIssueLines)}</div>
                   </div>
-                </div>
+                </>
               ) : (
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="text-xs text-gray-500 uppercase font-medium">Hàng hóa</label>
-                  <p className="text-sm font-semibold text-gray-900 mt-1">{selectedIssue.tenSanPham ?? 'N/A'}</p>
-                </div>
+                <div className="px-3 py-2 text-sm text-gray-500">Chưa có chi tiết hàng hóa</div>
               )}
+            </Section>
 
-              {selectedIssue.ghiChu && (
-                <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg">
-                  <label className="text-xs text-yellow-600 uppercase font-medium">Ghi chú phiếu</label>
-                  <p className="text-sm text-gray-700 mt-1">{selectedIssue.ghiChu}</p>
-                </div>
-              )}
+            {selectedIssue.ghiChu && (
+              <Section title="Ghi chú" tone="amber">
+                <div className="px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">{selectedIssue.ghiChu}</div>
+              </Section>
+            )}
 
-              {(() => {
-                const lyDo = (selectedIssue as any).lyDoChenhLech ?? (selectedIssue as any).outboundPlan?.lyDoChenhLech ?? null;
-                const hasLyDo = !!(lyDo && String(lyDo).trim());
-                const hasDiff = (selectedIssue.items ?? []).some((it: any) => it.soLuongYeuCau != null && Math.abs(Number(it.soLuongYeuCau) - Number(it.soLuongThucTe)) > 1e-9);
-                if (!hasLyDo && !hasDiff) return null;
-                return (
-                  <div className={`p-3 rounded-lg border ${hasLyDo ? 'bg-amber-50 border-amber-300' : 'bg-red-50 border-red-200'}`}>
-                    <label className={`text-xs uppercase font-medium ${hasLyDo ? 'text-amber-700' : 'text-red-600'}`}>Lý do chênh lệch {hasDiff ? '(thực tế khác kế hoạch)' : ''}</label>
-                    <p className={`text-sm mt-1 ${hasLyDo ? 'text-gray-800' : 'text-red-700 italic'}`}>{hasLyDo ? String(lyDo) : 'Chưa ghi lý do — thực tế khác kế hoạch nhưng không có lý do chênh lệch.'}</p>
-                  </div>
-                );
-              })()}
+            {((selectedIssue as any).lyDoChenhLech || (selectedIssue as any).outboundPlan?.lyDoChenhLech) ? (
+              <div className="p-3 rounded-lg border bg-amber-50 border-amber-300">
+                <div className="text-xs uppercase font-medium text-amber-700">Lý do chênh lệch</div>
+                <p className="text-sm mt-1 text-gray-800 whitespace-pre-wrap">{String((selectedIssue as any).lyDoChenhLech || (selectedIssue as any).outboundPlan?.lyDoChenhLech)}</p>
+              </div>
+            ) : null}
+            {!((selectedIssue as any).lyDoChenhLech || (selectedIssue as any).outboundPlan?.lyDoChenhLech) && (selectedIssueLines || []).some((it: any) => it.soLuongYeuCau != null && String(it.soLuongYeuCau).trim() !== '' && Math.abs(Number(it.soLuongYeuCau) - Number(it.soLuongThucTe)) > 1e-9) && (
+              <div className="p-3 rounded-lg border bg-red-50 border-red-200">
+                <div className="text-xs uppercase font-medium text-red-600">Lý do chênh lệch (thực tế khác kế hoạch)</div>
+                <p className="text-sm mt-1 text-red-700 italic">Chưa ghi lý do — thực tế khác kế hoạch nhưng không có lý do chênh lệch.</p>
+              </div>
+            )}
 
-              {(selectedIssue as any).daIn && (
-                <div className="bg-green-50 border border-green-200 p-3 rounded-lg flex flex-wrap items-center gap-4 text-sm">
+            {(selectedIssue as any).daIn && (
+              <Section title="Trạng thái in" tone="green">
+                <div className="px-3 py-2 flex flex-wrap items-center gap-4 text-sm">
                   <span><span className="text-xs text-gray-500 uppercase font-medium">Người lập phiếu:</span> <span className="font-semibold text-gray-900 ml-1">{selectedIssue.tenNhanVien}</span></span>
                   <span><span className="text-xs text-gray-500 uppercase font-medium">Ngày in (in lần đầu):</span> <span className="font-semibold text-gray-900 ml-1">{(selectedIssue as any).inLanDauAt ? new Date((selectedIssue as any).inLanDauAt).toLocaleString('vi-VN') : '—'}</span></span>
                   <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Đã in</span>
                 </div>
-              )}
+              </Section>
+            )}
 
-              <div className="text-xs text-gray-400 text-right">
-                Tạo lúc: {new Date(selectedIssue.createdAt).toLocaleString('vi-VN')}
-              </div>
-            </div>
-            </div>
-          )}
+            <div className="text-xs text-gray-400 text-right">Tạo lúc: {new Date(selectedIssue.createdAt).toLocaleString('vi-VN')}</div>
+          </>)}
+          </div>
 
           <div className="flex flex-wrap justify-end gap-2 px-6 py-4 border-t border-gray-200 shrink-0">
             {(selectedIssue as any)?.isVoided ? (
