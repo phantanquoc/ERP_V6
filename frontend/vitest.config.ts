@@ -16,6 +16,19 @@ export default defineConfig({
     css: false,
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
     exclude: ['e2e/**', 'node_modules/**'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json-summary'],
+      reportsDirectory: './coverage',
+      // ponytail: thresholds just below 2026-10-15 floor (lines ~38, stmts ~36,
+      // funcs ~33, branches ~29) to gate regressions, not existing debt.
+      thresholds: {
+        lines: 35,
+        statements: 33,
+        functions: 30,
+        branches: 26,
+      },
+    },
   },
   resolve: {
     alias: {

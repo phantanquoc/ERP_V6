@@ -19,12 +19,18 @@ const config: Config = {
     '^@schemas/(.*)$': '<rootDir>/src/schemas/$1',
     '^@cron/(.*)$': '<rootDir>/src/cron/$1',
   },
-  collectCoverageFrom: [
-    'src/**/*.ts',
-    '!src/**/*.d.ts',
-    '!src/index.ts',
-  ],
+  collectCoverageFrom: ['src/**/*.ts', '!src/**/*.d.ts', '!src/index.ts'],
   coverageDirectory: 'coverage',
+  // ponytail: thresholds just below 2026-10-15 floor (stmts ~23, funcs ~20,
+  // branches ~19) to gate regressions, not existing debt.
+  coverageThreshold: {
+    global: {
+      statements: 22,
+      branches: 18,
+      functions: 19,
+      lines: 22,
+    },
+  },
 };
 
 export default config;
