@@ -790,7 +790,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
           </>)}
           </div>
 
-          <div className="flex flex-wrap justify-end gap-2 px-6 py-4 border-t border-gray-200 shrink-0">
+          {selectedReceipt && (<div className="flex flex-wrap justify-end gap-2 px-6 py-4 border-t border-gray-200 shrink-0">
               {(selectedReceipt as any).isVoided ? (
                 <button
                   onClick={() => { if (selectedReceipt) handleUnvoid(selectedReceipt.id); }}
@@ -847,7 +847,7 @@ const WarehouseReceiptTab: React.FC<WarehouseReceiptTabProps> = ({ month, year }
               >
                 Đóng
               </button>
-            </div>
+            </div>)}
         </div>
       </Modal>
 
