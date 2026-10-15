@@ -213,6 +213,8 @@ const InvoiceManagement: React.FC<InvoiceManagementProps> = ({ month, year }) =>
       soHoaDon: '',
       ngayLap: '',
       customerId: '',
+      purchaseRequestId: '',
+      supplierId: '',
       maSoThue: '',
       tongTien: '',
       thueVAT: '',
