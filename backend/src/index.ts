@@ -14,6 +14,7 @@ import { registerRoutes } from '@routes/index';
 import { startSnapshotCleanup } from '@utils/snapshotCleanup';
 import { initEvaluationCron } from '@cron/evaluationCron';
 import { setPgNotifier, resetLocalEmbeddingCache } from '@services/faceAttendanceService';
+import { checkHealth, defaultHealthDeps } from '@utils/healthChecks';
 import { initWebSocket, shutdownWebSocket } from '@services/wsManager';
 
 const app: Express = express();
@@ -77,9 +78,15 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 const uploadsPath = path.resolve(process.cwd(), 'uploads');
 app.use('/uploads', express.static(uploadsPath));
 
-// Health check
-app.get('/health', (_req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+// Health check — shallow path kept for docker-compose healthchecks;
+// ?deep=1 verifies DB (SELECT 1), Redis PING, and AI-service /health.
+app.get('/health', async (_req, res) => {
+  if (_req.query.deep !== '1') {
+    res.json({ status: 'OK', timestamp: new Date().toISOString() });
+    return;
+  }
+  const report = await checkHealth(defaultHealthDeps);
+  res.status(report.status === 'OK' ? 200 : 503).json(report);
 });
 
 // Swagger API Documentation (chỉ bật ở development)
