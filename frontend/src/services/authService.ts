@@ -170,13 +170,41 @@ export class IpLockedError extends Error {
 }
 
 class AuthService {
+  // ponytail: in-memory token cache is best-effort XSS hardening only — both
+  // tokens are still mirrored to localStorage because backend login/refresh
+  // require the refreshToken in the JSON body (no httpOnly cookie support) and
+  // ~20 files outside this module read localStorage directly. True fix needs a
+  // backend change: set refreshToken as httpOnly cookie, then drop the mirror.
+  private static memoryAccessToken: string | null = null;
+  private static memoryRefreshToken: string | null = null;
+
+  private static readToken(key: 'accessToken' | 'refreshToken'): string | null {
+    const mem = key === 'accessToken' ? this.memoryAccessToken : this.memoryRefreshToken;
+    if (mem) return mem;
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      if (key === 'accessToken') this.memoryAccessToken = stored;
+      else this.memoryRefreshToken = stored;
+    }
+    return stored;
+  }
+
+  private static writeTokens(accessToken: string | null, refreshToken?: string | null): void {
+    this.memoryAccessToken = accessToken;
+    if (accessToken) localStorage.setItem('accessToken', accessToken);
+    else localStorage.removeItem('accessToken');
+    if (refreshToken !== undefined) {
+      this.memoryRefreshToken = refreshToken;
+      if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
+      else localStorage.removeItem('refreshToken');
+    }
+  }
+
   static async login(credentials: LoginRequest): Promise<AuthResponse> {
     try {
-      console.log('Attempting login with:', credentials.identifier);
-      console.log('API URL:', `${API_BASE_URL}/auth/login`);
-
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
+        credentials: 'include', // no-op today; picks up httpOnly cookie once backend sets one
         headers: {
           'Content-Type': 'application/json',
         },
@@ -185,8 +213,6 @@ class AuthService {
           password: credentials.password,
         }),
       });
-
-      console.log('Response status:', response.status);
 
       if (!response.ok) {
         let errorMessage = 'Đăng nhập thất bại';
@@ -205,7 +231,6 @@ class AuthService {
       }
 
       const data = await response.json();
-      console.log('Response data:', data);
 
       if (!data.success || !data.data) {
         throw new Error(data.message || 'Đăng nhập thất bại');
@@ -217,15 +242,13 @@ class AuthService {
         refreshToken: data.data.refreshToken,
       };
 
-      // Store in localStorage
-      localStorage.setItem('accessToken', authResponse.accessToken);
-      localStorage.setItem('refreshToken', authResponse.refreshToken);
+      // User profile is non-sensitive; access/refresh tokens are mirrored to
+      // localStorage (see memory-cache note above) for cross-tab + reload UX.
+      this.writeTokens(authResponse.accessToken, authResponse.refreshToken);
       localStorage.setItem('user', JSON.stringify(authResponse.user));
 
-      console.log('Login successful for:', authResponse.user.email);
       return authResponse;
     } catch (error) {
-      console.error('Login error:', error);
       if (error instanceof IpLockedError) throw error;
       if (error instanceof TypeError && error.message === 'Failed to fetch') {
         throw new Error(`Không thể kết nối đến server. Vui lòng kiểm tra backend đang chạy tại ${API_BASE_URL}`);
@@ -240,7 +263,7 @@ class AuthService {
 
   static async fetchMe(): Promise<User | null> {
     try {
-      const token = localStorage.getItem('accessToken');
+      const token = this.readToken('accessToken');
       if (!token) return null;
 
       const { default: apiClient } = await import('./apiClient');
@@ -275,24 +298,22 @@ class AuthService {
 
   static async logout(): Promise<void> {
     try {
-      const refreshToken = localStorage.getItem('refreshToken');
+      const refreshToken = this.readToken('refreshToken');
 
       if (refreshToken) {
         await fetch(`${API_BASE_URL}/auth/logout`, {
           method: 'POST',
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ refreshToken }),
         });
       }
-
-      console.log('Logout successful');
-    } catch (error) {
-      console.error('Logout error:', error);
+    } catch {
+      // non-fatal: still clear local state below
     } finally {
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
+      this.writeTokens(null, null);
       localStorage.removeItem('user');
     }
   }
@@ -307,11 +328,12 @@ class AuthService {
 
     this.refreshPromise = (async () => {
       try {
-        const refreshToken = localStorage.getItem('refreshToken');
+        const refreshToken = this.readToken('refreshToken');
         if (!refreshToken) return null;
 
         const response = await fetch(`${API_BASE_URL}/auth/refresh-token`, {
           method: 'POST',
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
           },
@@ -324,8 +346,7 @@ class AuthService {
             const errorData = await response.json();
             if (errorData.code === 'SESSION_REPLACED') {
               localStorage.setItem('session_replaced', 'true');
-              localStorage.removeItem('accessToken');
-              localStorage.removeItem('refreshToken');
+              this.writeTokens(null, null);
               localStorage.removeItem('user');
               window.location.href = '/login';
               return null;
@@ -343,11 +364,12 @@ class AuthService {
         }
 
         const newAccessToken = data.data.accessToken;
-        localStorage.setItem('accessToken', newAccessToken);
+        this.writeTokens(newAccessToken);
+        // Backend rotates refresh token: persist it when present
+        if (data.data.refreshToken) this.writeTokens(newAccessToken, data.data.refreshToken);
 
         return newAccessToken;
-      } catch (error) {
-        console.error('Token refresh error:', error);
+      } catch {
         this.logout();
         return null;
       } finally {
@@ -373,7 +395,7 @@ class AuthService {
   }
 
   static getAccessToken(): string | null {
-    return localStorage.getItem('accessToken');
+    return this.readToken('accessToken');
   }
 
   static isAuthenticated(): boolean {

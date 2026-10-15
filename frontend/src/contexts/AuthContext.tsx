@@ -44,6 +44,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       wsRef.current.close();
     }
 
+    // NOTE: token stays in ?token= query — backend wsManager.ts accepts JWT only
+    // via query param (no Sec-WebSocket-Protocol / post-open auth message support),
+    // and browsers offer no header/auth alternative for WebSocket. Changing the
+    // transport requires a backend change first; reconnect/backoff untouched.
     const ws = new WebSocket(`${WS_BASE_URL}/ws?token=${encodeURIComponent(token)}`);
     wsRef.current = ws;
 
@@ -175,8 +179,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             if (fresh) setUser(fresh);
           }).catch(() => {});
         }
-      } catch (error) {
-        console.error('Auth check error:', error);
+      } catch {
+        // silent — auth restore failure just leaves user logged out
       } finally {
         setIsLoading(false);
       }
@@ -212,7 +216,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       queryClient.invalidateQueries({ queryKey: ruleKeys.myPermissions() });
       setUser(authResponse.user);
     } catch (error) {
-      console.error('Login error:', error);
       throw error;
     } finally {
       setIsLoading(false);
@@ -225,7 +228,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const authResponse = await AuthService.register(userData);
       setUser(authResponse.user);
     } catch (error) {
-      console.error('Register error:', error);
       throw error;
     } finally {
       setIsLoading(false);
@@ -240,8 +242,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(null);
       clearCachedPermissions();
       queryClient.clear();
-    } catch (error) {
-      console.error('Logout error:', error);
+    } catch {
     } finally {
       setIsLoading(false);
     }
