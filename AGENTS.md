@@ -276,6 +276,36 @@ Với regression: `git bisect` để tìm commit gây lỗi trước khi đoán.
 
 ---
 
+## Debt Prevention Gates — Code mới không được thêm nợ (từ kiểm định 2026-10-14)
+
+Nguồn đầy đủ: `/Users/vunam/Downloads/koola/BAO_CAO_KIEM_DINH_ERP_V6_2026-10-14.md` (~78 findings, điểm 5,9/10).
+Nợ cũ được trả dần — nhưng **code mới phải sạch ngay từ đầu**. Mọi gate dưới đây áp dụng cho code mới
+(AI sinh hoặc người viết), không viện cớ "file xung quanh đã thế":
+
+| # | Gate cho code mới | Thay vì (nợ đã ghi nhận) |
+|---|-------------------|--------------------------|
+| 1 | Không `any` / `as any` mới — type đầy đủ, `tx` dùng `Prisma.TransactionClient` | 708+763 `any`, `noExplicitAny: warn` |
+| 2 | Không `console.*` mới — backend dùng `logger`, frontend xóa log trước commit | 98 `console.error/warn` bypass Winston; 328 `console.*` frontend |
+| 3 | Không `res.status()` trực tiếp mới — throw typed error từ `@utils/errors` (có `code` enum) | 458 chỗ bypass `errorHandler` |
+| 4 | Không query N+1 / `findMany` unbounded mới — batch `IN`, pagination bắt buộc, export stream | heatmap 12 queries tuần tự, `exportToExcel` OOM risk |
+| 5 | Không gọi `apiClient` trực tiếp từ component mới — qua hook TanStack Query (key factory + invalidate) | ~15 components bypass |
+| 6 | Không URL-state thủ công mới — dùng hook URL-sync chuẩn duy nhất | 3 hệ thống `useUrlState`/`useUrlFilters`/`useDeepLink` trùng lặp |
+| 7 | Không form mới không validate — `react-hook-form` + `zod` resolver | lib đã cài nhưng không dùng |
+| 8 | Không `localStorage` cho token/secret mới; không JWT trên URL/WS query | `accessToken` localStorage, WS `?token=` |
+| 9 | Mọi `GET /:id` mới phải có ownership check, không chỉ `UPDATE`/`DELETE` | IDOR READ ở `requireRule.ts` |
+| 10 | Không `$queryRawUnsafe` mới — dùng `$queryRaw` parameterize | pattern `Unsafe` dễ regress injection |
+| 11 | Không file mới >800 dòng — tách theo domain/feature ngay từ đầu | 6 god files >1,3k dòng |
+| 12 | Test kèm code mới: service mới cần spec, flow mới cần E2E nếu thuộc critical path | backend 23% file có test, frontend 3% |
+
+Tự kiểm trước khi báo xong (thêm vào Pre-commit Checklist):
+```bash
+git diff --unified=0 | grep -cE "^\+\s*.*\bany\b"   # kỳ vọng 0 (loại trừ comment)
+git diff --unified=0 | grep -cE "^\+\s*console\."   # kỳ vọng 0
+git diff --unified=0 | grep -cE "^\+\s*res\.status\(" # kỳ vọng 0
+```
+
+---
+
 ## Never Do
 
 - **Never** gọi Prisma trực tiếp từ controller — phải qua service
