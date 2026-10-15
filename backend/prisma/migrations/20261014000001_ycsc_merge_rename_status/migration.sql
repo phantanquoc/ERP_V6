@@ -5,6 +5,12 @@ ALTER TYPE "common"."RepairRequestStatus" RENAME TO "RepairRequestStatus_old";
 
 CREATE TYPE "common"."RepairRequestStatus" AS ENUM ('CHO_XU_LY', 'DANG_SUA_CHUA', 'DA_SUA_CHUA', 'DA_NGHIEM_THU', 'HOAN_THANH', 'DA_HUY', 'TU_CHOI');
 
+-- Drop old defaults first: Postgres cannot auto-cast a DEFAULT of the old
+-- enum type during ALTER COLUMN ... TYPE (error E42804 on prod 2026-10-15).
+ALTER TABLE "common"."repair_requests" ALTER COLUMN "trangThai" DROP DEFAULT;
+ALTER TABLE "common"."repair_request_status_logs" ALTER COLUMN "oldStatus" DROP DEFAULT;
+ALTER TABLE "common"."repair_request_status_logs" ALTER COLUMN "newStatus" DROP DEFAULT;
+
 ALTER TABLE "common"."repair_requests" ALTER COLUMN "trangThai" TYPE "common"."RepairRequestStatus" USING (
   CASE "trangThai"::text
     WHEN 'DA_TIEP_NHAN' THEN 'CHO_XU_LY'::common."RepairRequestStatus"
