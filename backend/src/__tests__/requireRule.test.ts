@@ -19,6 +19,10 @@ const mockPrisma: any = {
   // owner-scope delegates
   supplyRequest: { findUnique: jest.fn() },
   customerFeedback: { findUnique: jest.fn() },
+  invoice: { findUnique: jest.fn() },
+  task: { findUnique: jest.fn() },
+  repairRequest: { findUnique: jest.fn() },
+  repairRequestAssignee: { findFirst: jest.fn() },
 };
 
 jest.mock('@config/database', () => ({ __esModule: true, default: mockPrisma }));
@@ -48,7 +52,9 @@ function mockRes() {
   return res;
 }
 
-function makeUser(overrides: Partial<import('@types').JwtPayload> = {}): import('@types').JwtPayload {
+function makeUser(
+  overrides: Partial<import('@types').JwtPayload> = {}
+): import('@types').JwtPayload {
   return {
     id: 'user-1',
     email: 'test@example.com',
@@ -59,7 +65,10 @@ function makeUser(overrides: Partial<import('@types').JwtPayload> = {}): import(
   } as import('@types').JwtPayload;
 }
 
-function makeReq(user: import('@types').JwtPayload | undefined, params: Record<string, string> = {}) {
+function makeReq(
+  user: import('@types').JwtPayload | undefined,
+  params: Record<string, string> = {}
+) {
   return { user, headers: {}, params } as any;
 }
 
@@ -74,7 +83,9 @@ const empState = {
   byEmployeeId: null as { userId: string | null } | null,
 };
 
-function setEmployeeByUserId(row: { positionId: string | null; subDepartmentId: string | null } | null) {
+function setEmployeeByUserId(
+  row: { positionId: string | null; subDepartmentId: string | null } | null
+) {
   empState.byUserId = row;
 }
 
@@ -98,8 +109,8 @@ function seedDelegations(rows: Array<Record<string, unknown>>) {
           r.action === where.action &&
           r.isActive === true &&
           (r.from as Date) <= now &&
-          (r.to as Date) >= now,
-      ),
+          (r.to as Date) >= now
+      )
     );
   });
 }
@@ -139,6 +150,10 @@ beforeEach(() => {
   mockPrisma.rule.findMany.mockResolvedValue([]);
   mockPrisma.supplyRequest.findUnique.mockResolvedValue(null);
   mockPrisma.customerFeedback.findUnique.mockResolvedValue(null);
+  mockPrisma.invoice.findUnique.mockResolvedValue(null);
+  mockPrisma.task.findUnique.mockResolvedValue(null);
+  mockPrisma.repairRequest.findUnique.mockResolvedValue(null);
+  mockPrisma.repairRequestAssignee.findFirst.mockResolvedValue(null);
 });
 
 // ─── 1. authentication ─────────────────────────────────────────────────────
@@ -177,7 +192,9 @@ describe('requireRule — ADMIN bypass', () => {
   });
 
   it('bypasses even when a DENY rule exists for the same resource', async () => {
-    mockPrisma.rule.findMany.mockResolvedValue([ruleRow({ resourceCode: 'invoices', action: 'DELETE', allow: false })]);
+    mockPrisma.rule.findMany.mockResolvedValue([
+      ruleRow({ resourceCode: 'invoices', action: 'DELETE', allow: false }),
+    ]);
     const req = makeReq(makeUser({ role: 'ADMIN' }));
     const res = mockRes();
     const next = jest.fn();
@@ -226,7 +243,7 @@ describe('requireRule — effectiveRole (position may only RAISE, never lower)',
     await requireRule('invoices', 'READ')(makeReq(makeUser()), mockRes(), jest.fn());
 
     expect(mockPrisma.employee.findUnique).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { userId: 'user-1' } }),
+      expect.objectContaining({ where: { userId: 'user-1' } })
     );
     expect(mockPrisma.position.findUnique).not.toHaveBeenCalled();
   });
@@ -279,8 +296,13 @@ describe('requireRule — delegation', () => {
     const t = Date.now();
     seedDelegations([
       {
-        resourceCode: 'invoices', action: 'DELETE', departmentId: null, subDepartmentId: null,
-        isActive: true, from: new Date(t - 86_400_000), to: new Date(t + 86_400_000),
+        resourceCode: 'invoices',
+        action: 'DELETE',
+        departmentId: null,
+        subDepartmentId: null,
+        isActive: true,
+        from: new Date(t - 86_400_000),
+        to: new Date(t + 86_400_000),
       },
     ]);
     const req = makeReq(makeUser({ role: 'EMPLOYEE' }));
@@ -311,8 +333,13 @@ describe('requireRule — delegation', () => {
     const t = Date.now();
     seedDelegations([
       {
-        resourceCode: 'invoices', action: 'DELETE', departmentId: null, subDepartmentId: null,
-        isActive: true, from: new Date(t - 2 * 86_400_000), to: new Date(t - 86_400_000),
+        resourceCode: 'invoices',
+        action: 'DELETE',
+        departmentId: null,
+        subDepartmentId: null,
+        isActive: true,
+        from: new Date(t - 2 * 86_400_000),
+        to: new Date(t - 86_400_000),
       },
     ]);
     const req = makeReq(makeUser({ role: 'EMPLOYEE' }));
@@ -329,8 +356,13 @@ describe('requireRule — delegation', () => {
     const t = Date.now();
     seedDelegations([
       {
-        resourceCode: 'invoices', action: 'DELETE', departmentId: null, subDepartmentId: null,
-        isActive: false, from: new Date(t - 86_400_000), to: new Date(t + 86_400_000),
+        resourceCode: 'invoices',
+        action: 'DELETE',
+        departmentId: null,
+        subDepartmentId: null,
+        isActive: false,
+        from: new Date(t - 86_400_000),
+        to: new Date(t + 86_400_000),
       },
     ]);
     const res = mockRes();
@@ -344,12 +376,21 @@ describe('requireRule — delegation', () => {
 
   it('a delegation scoped to another department does not grant', async () => {
     mockPrisma.delegation.findMany.mockResolvedValue([
-      { resourceCode: 'invoices', action: 'DELETE', departmentId: 'dept-OTHER', subDepartmentId: null },
+      {
+        resourceCode: 'invoices',
+        action: 'DELETE',
+        departmentId: 'dept-OTHER',
+        subDepartmentId: null,
+      },
     ]);
     const res = mockRes();
     const next = jest.fn();
 
-    await requireRule('invoices', 'DELETE')(makeReq(makeUser({ departmentId: 'dept-1' })), res, next);
+    await requireRule('invoices', 'DELETE')(
+      makeReq(makeUser({ departmentId: 'dept-1' })),
+      res,
+      next
+    );
 
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(403);
@@ -360,7 +401,11 @@ describe('requireRule — delegation', () => {
       { resourceCode: 'invoices', action: 'READ', departmentId: null, subDepartmentId: 'sub-9' },
     ]);
     const res = mockRes();
-    await requireRule('invoices', 'READ')(makeReq(makeUser({ subDepartmentId: 'sub-1' })), res, jest.fn());
+    await requireRule('invoices', 'READ')(
+      makeReq(makeUser({ subDepartmentId: 'sub-1' })),
+      res,
+      jest.fn()
+    );
 
     expect(res.status).not.toHaveBeenCalled(); // READ passes later via baseline, not via delegation
     const nonMatching = mockPrisma.delegation.findMany;
@@ -380,7 +425,9 @@ describe('requireRule — explicit Rule', () => {
   });
 
   it('an allow rule calls next and skips the baseline', async () => {
-    mockPrisma.rule.findMany.mockResolvedValue([ruleRow({ resourceCode: 'invoices', action: 'DELETE', allow: true })]);
+    mockPrisma.rule.findMany.mockResolvedValue([
+      ruleRow({ resourceCode: 'invoices', action: 'DELETE', allow: true }),
+    ]);
     const res = mockRes();
     const next = jest.fn();
 
@@ -397,11 +444,18 @@ describe('requireRule — explicit Rule', () => {
     const res = mockRes();
     const next = jest.fn();
 
-    await requireRule('invoices', 'READ')(makeReq(makeUser({ role: 'DEPARTMENT_HEAD' })), res, next);
+    await requireRule('invoices', 'READ')(
+      makeReq(makeUser({ role: 'DEPARTMENT_HEAD' })),
+      res,
+      next
+    );
 
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith({ success: false, message: 'Truy cập bị từ chối: Không đủ quyền' });
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      message: 'Truy cập bị từ chối: Không đủ quyền',
+    });
     expect(baselineAllow).not.toHaveBeenCalled();
   });
 
@@ -411,11 +465,17 @@ describe('requireRule — explicit Rule', () => {
     ]);
     mockPrisma.rule.findMany.mockResolvedValue([
       ruleRow({
-        resourceCode: 'invoices', action: 'DELETE', scope: 'SUB_DEPARTMENT',
-        role: 'EMPLOYEE', subDepartmentId: 'sub-2', allow: true,
+        resourceCode: 'invoices',
+        action: 'DELETE',
+        scope: 'SUB_DEPARTMENT',
+        role: 'EMPLOYEE',
+        subDepartmentId: 'sub-2',
+        allow: true,
       }),
     ]);
-    const req = makeReq(makeUser({ departmentId: 'dept-1', subDepartmentId: 'sub-1', role: 'EMPLOYEE' }));
+    const req = makeReq(
+      makeUser({ departmentId: 'dept-1', subDepartmentId: 'sub-1', role: 'EMPLOYEE' })
+    );
     const res = mockRes();
     const next = jest.fn();
 
@@ -429,14 +489,22 @@ describe('requireRule — explicit Rule', () => {
   it('a rule scoped to a sub-department the caller is not in does not match', async () => {
     mockPrisma.rule.findMany.mockResolvedValue([
       ruleRow({
-        resourceCode: 'invoices', action: 'DELETE', scope: 'SUB_DEPARTMENT',
-        role: 'EMPLOYEE', subDepartmentId: 'sub-ELSEWHERE', allow: true,
+        resourceCode: 'invoices',
+        action: 'DELETE',
+        scope: 'SUB_DEPARTMENT',
+        role: 'EMPLOYEE',
+        subDepartmentId: 'sub-ELSEWHERE',
+        allow: true,
       }),
     ]);
     const res = mockRes();
     const next = jest.fn();
 
-    await requireRule('invoices', 'DELETE')(makeReq(makeUser({ subDepartmentId: 'sub-1', role: 'EMPLOYEE' })), res, next);
+    await requireRule('invoices', 'DELETE')(
+      makeReq(makeUser({ subDepartmentId: 'sub-1', role: 'EMPLOYEE' })),
+      res,
+      next
+    );
 
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(403);
@@ -448,7 +516,9 @@ describe('requireRule — explicit Rule', () => {
 describe('requireRule — self-attendance READ bypass (no-department users)', () => {
   it('allows reading ones own attendance record', async () => {
     setSelfEmployeeId('emp-mine');
-    const req = makeReq(makeUser({ departmentId: null, subDepartmentId: null }), { employeeId: 'emp-mine' });
+    const req = makeReq(makeUser({ departmentId: null, subDepartmentId: null }), {
+      employeeId: 'emp-mine',
+    });
     const res = mockRes();
     const next = jest.fn();
 
@@ -460,7 +530,9 @@ describe('requireRule — self-attendance READ bypass (no-department users)', ()
 
   it('denies reading someone else attendance record', async () => {
     setSelfEmployeeId('emp-mine');
-    const req = makeReq(makeUser({ departmentId: null, subDepartmentId: null }), { employeeId: 'emp-OTHER' });
+    const req = makeReq(makeUser({ departmentId: null, subDepartmentId: null }), {
+      employeeId: 'emp-OTHER',
+    });
     const res = mockRes();
     const next = jest.fn();
 
@@ -472,7 +544,9 @@ describe('requireRule — self-attendance READ bypass (no-department users)', ()
 
   it('fails closed when the caller has no employee record at all', async () => {
     setSelfEmployeeId(null);
-    const req = makeReq(makeUser({ departmentId: null, subDepartmentId: null }), { employeeId: 'emp-mine' });
+    const req = makeReq(makeUser({ departmentId: null, subDepartmentId: null }), {
+      employeeId: 'emp-mine',
+    });
     const res = mockRes();
 
     await requireRule('attendances', 'READ')(req, res, jest.fn());
@@ -494,7 +568,9 @@ describe('requireRule — self-attendance READ bypass (no-department users)', ()
 
   it('does not widen to any other action than READ', async () => {
     setSelfEmployeeId('emp-mine');
-    const req = makeReq(makeUser({ departmentId: null, subDepartmentId: null }), { employeeId: 'emp-mine' });
+    const req = makeReq(makeUser({ departmentId: null, subDepartmentId: null }), {
+      employeeId: 'emp-mine',
+    });
     const res = mockRes();
 
     await requireRule('attendances', 'UPDATE')(req, res, jest.fn());
@@ -531,7 +607,10 @@ describe('requireRule — no-department Chung access', () => {
 
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith({ success: false, message: 'Truy cập bị từ chối: Không thuộc phòng ban nào' });
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      message: 'Truy cập bị từ chối: Không thuộc phòng ban nào',
+    });
     expect(mockPrisma.supplyRequest.findUnique).not.toHaveBeenCalled();
   });
 
@@ -543,7 +622,10 @@ describe('requireRule — no-department Chung access', () => {
 
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith({ success: false, message: 'Truy cập bị từ chối: Không thuộc phòng ban nào' });
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      message: 'Truy cập bị từ chối: Không thuộc phòng ban nào',
+    });
   });
 
   it('denies READ on a transactional resource outside the Chung list', async () => {
@@ -585,7 +667,11 @@ describe('requireRule — baseline fallback (in-department)', () => {
     const res = mockRes();
     const next = jest.fn();
 
-    await requireRule('invoices', 'DELETE')(makeReq(makeUser({ role: 'DEPARTMENT_HEAD' })), res, next);
+    await requireRule('invoices', 'DELETE')(
+      makeReq(makeUser({ role: 'DEPARTMENT_HEAD' })),
+      res,
+      next
+    );
 
     expect(baselineAllow).toHaveBeenCalledWith('DELETE', 'DEPARTMENT_HEAD');
     expect(next).toHaveBeenCalled();
@@ -606,7 +692,11 @@ describe('requireRule — baseline fallback (in-department)', () => {
     const res = mockRes();
     const next = jest.fn();
 
-    await requireRule('supply-requests', 'APPROVE')(makeReq(makeUser({ role: 'EMPLOYEE' }), { id: 'sr-1' }), res, next);
+    await requireRule('supply-requests', 'APPROVE')(
+      makeReq(makeUser({ role: 'EMPLOYEE' }), { id: 'sr-1' }),
+      res,
+      next
+    );
 
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(403);
@@ -645,7 +735,7 @@ describe('requireRule — owner-scope fallback', () => {
     await requireRule('supply-requests', 'DELETE')(req, res, next);
 
     expect(mockPrisma.supplyRequest.findUnique).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'sr-1' }, select: { employeeId: true } }),
+      expect.objectContaining({ where: { id: 'sr-1' }, select: { employeeId: true } })
     );
     expect(next).toHaveBeenCalled();
     expect(res.status).not.toHaveBeenCalled();
@@ -691,7 +781,9 @@ describe('requireRule — owner-scope fallback', () => {
 
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(403);
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('no mapping for resource=orders'));
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('no mapping for resource=orders')
+    );
   });
 
   it('falls back to the first route param when there is no :id', async () => {
@@ -701,7 +793,7 @@ describe('requireRule — owner-scope fallback', () => {
     await requireRule('customer-feedbacks', 'DELETE')(req, res, next);
 
     expect(mockPrisma.customerFeedback.findUnique).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'cf-2' } }),
+      expect.objectContaining({ where: { id: 'cf-2' } })
     );
     expect(next).toHaveBeenCalled();
   });
@@ -722,7 +814,7 @@ describe('requireRule — error handling', () => {
     expect(res.json).toHaveBeenCalledWith({ success: false, message: 'Lỗi máy chủ nội bộ' });
     expect(logger.error).toHaveBeenCalledWith(
       '[requireRule] unexpected error',
-      expect.objectContaining({ resourceCode: 'invoices', action: 'READ' }),
+      expect.objectContaining({ resourceCode: 'invoices', action: 'READ' })
     );
   });
 
@@ -743,11 +835,148 @@ describe('requireRule — error handling', () => {
     const next = jest.fn();
 
     await requireRule('customer-feedbacks', 'DELETE')(
-      makeReq(makeUser({ role: 'EMPLOYEE' }), { id: 'cf-1' }), res, next,
+      makeReq(makeUser({ role: 'EMPLOYEE' }), { id: 'cf-1' }),
+      res,
+      next
     );
 
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(403);
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('owner-scope query failed'));
+  });
+});
+
+// ─── 15. IDOR READ guard ───────────────────────────────────────────────────
+
+describe('requireRule — IDOR READ guard (P0.2)', () => {
+  // Baseline allows READ for every in-dept role, so without the guard an
+  // EMPLOYEE could fetch another user's record via GET /resource/:id.
+  const inDeptEmployeeRead = (params: Record<string, string> = {}) => {
+    const req = makeReq(makeUser({ role: 'EMPLOYEE' }), params);
+    const res = mockRes();
+    const next = jest.fn();
+    return { req, res, next };
+  };
+
+  it('denies cross-user READ of a single record (different owner)', async () => {
+    mockPrisma.invoice.findUnique.mockResolvedValue({ createdById: 'user-SOMEBODY-ELSE' });
+    const { req, res, next } = inDeptEmployeeRead({ id: 'inv-1' });
+
+    await requireRule('invoices', 'READ')(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+  });
+
+  it('allows READ of a single record the caller owns', async () => {
+    mockPrisma.invoice.findUnique.mockResolvedValue({ createdById: 'user-1' });
+    const { req, res, next } = inDeptEmployeeRead({ id: 'inv-1' });
+
+    await requireRule('invoices', 'READ')(req, res, next);
+
+    expect(mockPrisma.invoice.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'inv-1' } })
+    );
+    expect(next).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it('allows list READ (no :id) without an owner lookup', async () => {
+    const { req, res, next } = inDeptEmployeeRead({});
+
+    await requireRule('invoices', 'READ')(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(mockPrisma.invoice.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('TEAM_LEAD+ keep full single-record READ visibility', async () => {
+    mockPrisma.invoice.findUnique.mockResolvedValue({ createdById: 'user-SOMEBODY-ELSE' });
+    const req = makeReq(makeUser({ role: 'TEAM_LEAD' }), { id: 'inv-1' });
+    const res = mockRes();
+    const next = jest.fn();
+
+    await requireRule('invoices', 'READ')(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(mockPrisma.invoice.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('ignores non-:id params (code lookups keep baseline behavior)', async () => {
+    const { req, res, next } = inDeptEmployeeRead({ code: 'QR-001' });
+
+    await requireRule('quotation-requests', 'READ')(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it('unmapped resources keep baseline behavior on READ', async () => {
+    const { req, res, next } = inDeptEmployeeRead({ id: 'xyz-1' });
+
+    await requireRule('orders-unmapped-test', 'READ')(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it('allows a task assignee to READ their assigned task', async () => {
+    mockPrisma.task.findUnique.mockResolvedValue({
+      nguoiGiaoId: 'user-SOMEBODY-ELSE',
+      nguoiNhanIds: ['user-1'],
+    });
+    const { req, res, next } = inDeptEmployeeRead({ id: 'task-1' });
+
+    await requireRule('tasks', 'READ')(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it('denies a non-participant READ of someone else task', async () => {
+    mockPrisma.task.findUnique.mockResolvedValue({
+      nguoiGiaoId: 'user-SOMEBODY-ELSE',
+      nguoiNhanIds: ['user-other'],
+    });
+    const { req, res, next } = inDeptEmployeeRead({ id: 'task-1' });
+
+    await requireRule('tasks', 'READ')(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+  });
+
+  it('coerces Int :id for repair-requests owner READ (legacy autoincrement PK)', async () => {
+    mockPrisma.repairRequest.findUnique.mockResolvedValue({ createdById: 'user-1' });
+    const { req, res, next } = inDeptEmployeeRead({ id: '42' });
+
+    await requireRule('repair-requests', 'READ')(req, res, next);
+
+    expect(mockPrisma.repairRequest.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 42 } })
+    );
+    expect(next).toHaveBeenCalled();
+  });
+
+  it('denies repair-request READ for a non-owner non-assignee', async () => {
+    mockPrisma.repairRequest.findUnique.mockResolvedValue({ createdById: 'user-SOMEBODY-ELSE' });
+    mockPrisma.repairRequestAssignee.findFirst.mockResolvedValue(null);
+    const { req, res, next } = inDeptEmployeeRead({ id: '42' });
+
+    await requireRule('repair-requests', 'READ')(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+  });
+
+  it('allows a repair assignee to READ the assigned ticket', async () => {
+    mockPrisma.repairRequest.findUnique.mockResolvedValue({ createdById: 'user-SOMEBODY-ELSE' });
+    mockPrisma.repairRequestAssignee.findFirst.mockResolvedValue({ id: 'a-1' });
+    const { req, res, next } = inDeptEmployeeRead({ id: '42' });
+
+    await requireRule('repair-requests', 'READ')(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
   });
 });
