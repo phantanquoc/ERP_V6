@@ -170,14 +170,12 @@ export function advanceOrderProductionStatus(
 }
 
 // ─── RepairRequest status chain (forward order) ───────────────────────────────
-// 7-step linear order; TU_CHOI and DA_HUY are terminal branches not in linear order.
+// 5-step linear order; TU_CHOI and DA_HUY are terminal branches not in linear order.
 
 export const REPAIR_STATUS_ORDER: RepairRequestStatus[] = [
   RepairRequestStatus.CHO_XU_LY,
-  RepairRequestStatus.DA_TIEP_NHAN,
-  RepairRequestStatus.LEN_KE_HOACH,
   RepairRequestStatus.DANG_SUA_CHUA,
-  RepairRequestStatus.CHO_NGHIEM_THU,
+  RepairRequestStatus.DA_SUA_CHUA,
   RepairRequestStatus.DA_NGHIEM_THU,
   RepairRequestStatus.HOAN_THANH,
 ];
@@ -202,28 +200,21 @@ const REJECT_TARGET = RepairRequestStatus.TU_CHOI;
 // TU_CHOI allowed only from these statuses
 const TU_CHOI_ALLOWED_FROM = new Set<RepairRequestStatus>([
   RepairRequestStatus.CHO_XU_LY,
-  RepairRequestStatus.DA_TIEP_NHAN,
-  RepairRequestStatus.LEN_KE_HOACH,
 ]);
 
-// DA_HUY allowed from these for normal roles; ADMIN extends to CHO_NGHIEM_THU
+// DA_HUY allowed from these for normal roles; ADMIN extends to DA_SUA_CHUA
 const DA_HUY_ALLOWED_FROM_NORMAL = new Set<RepairRequestStatus>([
   RepairRequestStatus.CHO_XU_LY,
-  RepairRequestStatus.DA_TIEP_NHAN,
-  RepairRequestStatus.LEN_KE_HOACH,
 ]);
 const DA_HUY_ALLOWED_FROM_ADMIN = new Set<RepairRequestStatus>([
   RepairRequestStatus.CHO_XU_LY,
-  RepairRequestStatus.DA_TIEP_NHAN,
-  RepairRequestStatus.LEN_KE_HOACH,
   RepairRequestStatus.DANG_SUA_CHUA,
-  RepairRequestStatus.CHO_NGHIEM_THU,
+  RepairRequestStatus.DA_SUA_CHUA,
 ]);
 
-// KIEM_TRA short path: CHO_XU_LY -> DA_TIEP_NHAN -> HOAN_THANH
+// KIEM_TRA legacy short path: CHO_XU_LY -> HOAN_THANH (DA_TIEP_NHAN removed)
 const KIEM_TRA_ORDER: RepairRequestStatus[] = [
   RepairRequestStatus.CHO_XU_LY,
-  RepairRequestStatus.DA_TIEP_NHAN,
   RepairRequestStatus.HOAN_THANH,
 ];
 
@@ -246,7 +237,7 @@ function resolveAdvanceArgs(
 
 // ADMIN may skip forward only up to this step; acceptance (DA_NGHIEM_THU) and completion
 // (HOAN_THANH) are always reached one step at a time through confirmAcceptance / complete.
-const ADMIN_SKIP_LIMIT_INDEX = REPAIR_STATUS_ORDER.indexOf(RepairRequestStatus.CHO_NGHIEM_THU);
+const ADMIN_SKIP_LIMIT_INDEX = REPAIR_STATUS_ORDER.indexOf(RepairRequestStatus.DA_SUA_CHUA);
 
 /**
  * Validate and return the next RepairRequest status.
@@ -258,12 +249,12 @@ const ADMIN_SKIP_LIMIT_INDEX = REPAIR_STATUS_ORDER.indexOf(RepairRequestStatus.C
  * Rules (ADMIN bypass included — nobody leaves a terminal state or goes backward):
  *  1. next === current → no-op
  *  2. current is terminal → reject (also for ADMIN)
- *  3. TU_CHOI only from CHO_XU_LY | DA_TIEP_NHAN | LEN_KE_HOACH
- *  4. DA_HUY: normal before DANG_SUA_CHUA, ADMIN up to CHO_NGHIEM_THU (never after DA_NGHIEM_THU)
+ *  3. TU_CHOI only from CHO_XU_LY
+ *  4. DA_HUY: normal only CHO_XU_LY, ADMIN up to DA_SUA_CHUA (never after DA_NGHIEM_THU)
  *  5. KIEM_TRA (legacy rows) guards: only CHO_XU_LY -> DA_TIEP_NHAN -> HOAN_THANH, one step at a time
  *  6. Forward-only: normal requires the immediate successor; ADMIN may skip forward but only up to
- *     CHO_NGHIEM_THU. DA_NGHIEM_THU / HOAN_THANH require the immediate predecessor for everyone.
- *  The KHÔNG ĐẠT loop (CHO_NGHIEM_THU → DANG_SUA_CHUA) is written only by confirmAcceptance.
+ *     DA_SUA_CHUA. DA_NGHIEM_THU / HOAN_THANH require the immediate predecessor for everyone.
+ *  The KHÔNG ĐẠT loop (DA_SUA_CHUA → DANG_SUA_CHUA) is written only by confirmAcceptance.
  */
 export function advanceRepairRequestStatus(
   current: RepairRequestStatus,
@@ -298,7 +289,7 @@ export function advanceRepairRequestStatus(
     if (!allowed.has(current)) {
       throw new ValidationError(
         bypass
-          ? `Không thể hủy yêu cầu ở trạng thái ${current} (ADMIN chỉ được hủy tới CHO_NGHIEM_THU)`
+          ? `Không thể hủy yêu cầu ở trạng thái ${current} (ADMIN chỉ được hủy tới DA_SUA_CHUA)`
           : `Không thể hủy yêu cầu ở trạng thái ${current} (chỉ được hủy trước DANG_SUA_CHUA)`
       );
     }
@@ -309,9 +300,8 @@ export function advanceRepairRequestStatus(
   if (rt === 'KIEM_TRA') {
     // Block SUA_CHUA-only statuses for KIEM_TRA
     const suaChuaOnly: RepairRequestStatus[] = [
-      RepairRequestStatus.LEN_KE_HOACH,
       RepairRequestStatus.DANG_SUA_CHUA,
-      RepairRequestStatus.CHO_NGHIEM_THU,
+      RepairRequestStatus.DA_SUA_CHUA,
       RepairRequestStatus.DA_NGHIEM_THU,
     ];
     if ((suaChuaOnly as string[]).includes(next as string)) {

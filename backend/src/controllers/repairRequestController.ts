@@ -6,12 +6,21 @@ import { RepairRequestStatus, RequestType } from '@prisma/client';
 import logger from '@config/logger';
 
 class RepairRequestController {
-  async getAllRepairRequests(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async getAllRepairRequests(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
 
-      const filters: { search?: string; trangThai?: RepairRequestStatus; requestType?: RequestType; sourceInspectionRequestId?: string } = {};
+      const filters: {
+        search?: string;
+        trangThai?: RepairRequestStatus;
+        requestType?: RequestType;
+        sourceInspectionRequestId?: string;
+      } = {};
       if (req.query.search) filters.search = req.query.search as string;
       if (req.query.trangThai) {
         const raw = req.query.trangThai as string;
@@ -41,7 +50,11 @@ class RepairRequestController {
     }
   }
 
-  async getRepairRequestById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async getRepairRequestById(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
       const request = await repairRequestService.getRepairRequestById(id);
@@ -55,13 +68,15 @@ class RepairRequestController {
     }
   }
 
-  async createRepairRequest(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async createRepairRequest(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       let items: any[] | undefined;
       if (req.body.items !== undefined) {
-        items = typeof req.body.items === 'string'
-          ? JSON.parse(req.body.items)
-          : req.body.items;
+        items = typeof req.body.items === 'string' ? JSON.parse(req.body.items) : req.body.items;
       }
 
       const data: Record<string, unknown> = {
@@ -73,24 +88,40 @@ class RepairRequestController {
         mucDoUuTien: req.body.mucDoUuTien,
         noiDungLoi: req.body.noiDungLoi,
         ghiChu: req.body.ghiChu,
-        fileDinhKem: req.file ? getFileUrl('repair-requests', req.file.filename) : req.body.fileDinhKem ?? undefined,
+        fileDinhKem: req.file
+          ? getFileUrl('repair-requests', req.file.filename)
+          : (req.body.fileDinhKem ?? undefined),
         ...(items !== undefined && { items }),
         userId: req.user?.id,
         actorRole: req.user?.role,
         ...(req.body.requestType !== undefined && { requestType: req.body.requestType }),
-        ...(req.body.sourceInspectionRequestId !== undefined && { sourceInspectionRequestId: req.body.sourceInspectionRequestId }),
-        ...(req.body.ngayHoanThienDuKien !== undefined && { ngayHoanThienDuKien: req.body.ngayHoanThienDuKien ? new Date(req.body.ngayHoanThienDuKien) : null }),
-        ...(req.body.ngayBatDauKeHoach !== undefined && { ngayBatDauKeHoach: req.body.ngayBatDauKeHoach ? new Date(req.body.ngayBatDauKeHoach) : null }),
+        ...(req.body.sourceInspectionRequestId !== undefined && {
+          sourceInspectionRequestId: req.body.sourceInspectionRequestId,
+        }),
+        ...(req.body.ngayHoanThienDuKien !== undefined && {
+          ngayHoanThienDuKien: req.body.ngayHoanThienDuKien
+            ? new Date(req.body.ngayHoanThienDuKien)
+            : null,
+        }),
+        ...(req.body.ngayBatDauKeHoach !== undefined && {
+          ngayBatDauKeHoach: req.body.ngayBatDauKeHoach
+            ? new Date(req.body.ngayBatDauKeHoach)
+            : null,
+        }),
         ...(req.body.keHoachChiTiet !== undefined && { keHoachChiTiet: req.body.keHoachChiTiet }),
         ...(req.body.phuongAn !== undefined && { phuongAn: req.body.phuongAn }),
         ...(req.body.bienPhapAnToan !== undefined && { bienPhapAnToan: req.body.bienPhapAnToan }),
-        ...(req.body.chiPhiDuKien !== undefined && { chiPhiDuKien: req.body.chiPhiDuKien != null ? Number(req.body.chiPhiDuKien) : null }),
+        ...(req.body.chiPhiDuKien !== undefined && {
+          chiPhiDuKien: req.body.chiPhiDuKien != null ? Number(req.body.chiPhiDuKien) : null,
+        }),
         ...(req.body.canNgungMay !== undefined && { canNgungMay: Boolean(req.body.canNgungMay) }),
         ...(req.body.phongBanId !== undefined && { phongBanId: req.body.phongBanId }),
       };
 
       if (req.body.trangThai !== undefined) {
-        logger.warn(`Controller: ignoring client-supplied trangThai on create (user=${req.user?.id})`);
+        logger.warn(
+          `Controller: ignoring client-supplied trangThai on create (user=${req.user?.id})`
+        );
       }
 
       const request = await repairRequestService.createRepairRequest(data as never);
@@ -105,15 +136,17 @@ class RepairRequestController {
     }
   }
 
-  async updateRepairRequest(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async updateRepairRequest(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
 
       let items: any[] | undefined;
       if (req.body.items !== undefined) {
-        items = typeof req.body.items === 'string'
-          ? JSON.parse(req.body.items)
-          : req.body.items;
+        items = typeof req.body.items === 'string' ? JSON.parse(req.body.items) : req.body.items;
       }
 
       const data: Record<string, unknown> = {
@@ -127,25 +160,31 @@ class RepairRequestController {
       };
 
       if (req.body.trangThai !== undefined) {
-        logger.warn(`Controller: ignoring client-supplied trangThai on update (id=${id}, user=${req.user?.id})`);
+        logger.warn(
+          `Controller: ignoring client-supplied trangThai on update (id=${id}, user=${req.user?.id})`
+        );
       }
       if (req.body.requestType !== undefined) {
         logger.warn(`Controller: ignoring client-supplied requestType on update (id=${id})`);
       }
 
       if (req.body.ngayThang) data.ngayThang = new Date(req.body.ngayThang);
-      if (req.body.ngayHoanThienDuKien !== undefined) data.ngayHoanThienDuKien = req.body.ngayHoanThienDuKien ? new Date(req.body.ngayHoanThienDuKien) : null;
-      if (req.body.ngayBatDauKeHoach !== undefined) data.ngayBatDauKeHoach = req.body.ngayBatDauKeHoach ? new Date(req.body.ngayBatDauKeHoach) : null;
+      if (req.body.ngayHoanThienDuKien !== undefined)
+        data.ngayHoanThienDuKien = req.body.ngayHoanThienDuKien
+          ? new Date(req.body.ngayHoanThienDuKien)
+          : null;
+      if (req.body.ngayBatDauKeHoach !== undefined)
+        data.ngayBatDauKeHoach = req.body.ngayBatDauKeHoach
+          ? new Date(req.body.ngayBatDauKeHoach)
+          : null;
       if (req.body.keHoachChiTiet !== undefined) data.keHoachChiTiet = req.body.keHoachChiTiet;
       if (req.body.phuongAn !== undefined) data.phuongAn = req.body.phuongAn;
       if (req.body.bienPhapAnToan !== undefined) data.bienPhapAnToan = req.body.bienPhapAnToan;
-      if (req.body.chiPhiDuKien !== undefined) data.chiPhiDuKien = req.body.chiPhiDuKien != null ? Number(req.body.chiPhiDuKien) : null;
-      if (req.body.chiPhiThucTe !== undefined) data.chiPhiThucTe = req.body.chiPhiThucTe != null ? Number(req.body.chiPhiThucTe) : null;
-      if (req.body.noiDungThucHien !== undefined) data.noiDungThucHien = req.body.noiDungThucHien;
-      if (req.body.gioCongThucTe !== undefined) data.gioCongThucTe = req.body.gioCongThucTe != null ? Number(req.body.gioCongThucTe) : null;
+      if (req.body.chiPhiDuKien !== undefined)
+        data.chiPhiDuKien = req.body.chiPhiDuKien != null ? Number(req.body.chiPhiDuKien) : null;
       if (req.body.canNgungMay !== undefined) data.canNgungMay = Boolean(req.body.canNgungMay);
       if (req.body.phongBanId !== undefined) data.phongBanId = req.body.phongBanId;
-      // ketQuaNghiemThu is never accepted here — it is written only by confirm-acceptance.
+      // chiPhiThucTe/gioCongThucTe/noiDungThucHien/ketQuaNghiemThu are never accepted via general update — use updateActualFields or confirmAcceptance.
 
       if (req.file) {
         data.fileDinhKem = getFileUrl('repair-requests', req.file.filename);
@@ -164,7 +203,11 @@ class RepairRequestController {
     }
   }
 
-  async deleteRepairRequest(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async deleteRepairRequest(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
       await repairRequestService.deleteRepairRequest(id);
@@ -180,7 +223,11 @@ class RepairRequestController {
 
   async exportToExcel(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const filters: { search?: string; trangThai?: RepairRequestStatus; requestType?: RequestType } = {};
+      const filters: {
+        search?: string;
+        trangThai?: RepairRequestStatus;
+        requestType?: RequestType;
+      } = {};
       if (req.query.search) filters.search = req.query.search as string;
       if (req.query.trangThai) {
         const raw = req.query.trangThai as string;
@@ -190,11 +237,18 @@ class RepairRequestController {
       }
       if (req.query.requestType) {
         const raw = req.query.requestType as string;
-        if (Object.values(RequestType).includes(raw as RequestType)) filters.requestType = raw as RequestType;
+        if (Object.values(RequestType).includes(raw as RequestType))
+          filters.requestType = raw as RequestType;
       }
       const buffer = await repairRequestService.exportToExcel(filters);
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename=danh-sach-yeu-cau-sua-chua-${Date.now()}.xlsx`);
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename=danh-sach-yeu-cau-sua-chua-${Date.now()}.xlsx`
+      );
       res.send(buffer);
     } catch (error) {
       next(error);
@@ -221,7 +275,9 @@ class RepairRequestController {
       const actor = { actorId: req.user?.id, actorRole: req.user?.role };
       const result = await repairRequestService.accept(id, actor);
       res.json({ success: true, data: result, message: 'Tiếp nhận yêu cầu thành công' });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 
   async plan(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -260,8 +316,14 @@ class RepairRequestController {
         if (d1 !== undefined) normalized.ngayBatDauKeHoach = d1;
         const d2 = parseDate(raw.ngayHoanThienDuKien, 'Ngày hoàn thiện dự kiến');
         if (d2 !== undefined) normalized.ngayHoanThienDuKien = d2;
-      } catch (e) { throw e; }
-      if (raw.chiPhiDuKien !== undefined && raw.chiPhiDuKien !== null && String(raw.chiPhiDuKien).trim() !== '') {
+      } catch (e) {
+        throw e;
+      }
+      if (
+        raw.chiPhiDuKien !== undefined &&
+        raw.chiPhiDuKien !== null &&
+        String(raw.chiPhiDuKien).trim() !== ''
+      ) {
         const n = Number(raw.chiPhiDuKien);
         if (!Number.isFinite(n) || n < 0) {
           const { ValidationError: VE2 } = await import('@utils/errors');
@@ -273,7 +335,9 @@ class RepairRequestController {
       const result = await repairRequestService.plan(id, actor, normalized);
       res.json({ success: true, data: result, message: 'Lập kế hoạch thành công' });
     } catch (error) {
-      logger.error(`plan controller error id=${req.params.id}: ${(error as Error).message}`, { stack: (error as Error).stack });
+      logger.error(`plan controller error id=${req.params.id}: ${(error as Error).message}`, {
+        stack: (error as Error).stack,
+      });
       next(error);
     }
   }
@@ -284,19 +348,31 @@ class RepairRequestController {
       const actor = { actorId: req.user?.id, actorRole: req.user?.role };
       const result = await repairRequestService.startRepair(id, actor);
       res.json({ success: true, data: result, message: 'Bắt đầu sửa chữa thành công' });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 
-  async submitAcceptance(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async submitAcceptance(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
       const actor = { actorId: req.user?.id, actorRole: req.user?.role };
       const result = await repairRequestService.submitForAcceptance(id, actor);
       res.json({ success: true, data: result, message: 'Đề nghị nghiệm thu thành công' });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 
-  async confirmAcceptance(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async confirmAcceptance(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
       const actor = { actorId: req.user?.id, actorRole: req.user?.role };
@@ -304,8 +380,14 @@ class RepairRequestController {
       // chiPhiThucTe from the confirmer is ignored — actual cost is set by technicians.
       const lyDo = (req.body.lyDo ?? req.body.reason) as string | undefined;
       const result = await repairRequestService.confirmAcceptance(id, actor, ketQua as never, lyDo);
-      res.json({ success: true, data: result, message: ketQua === 'DAT' ? 'Nghiệm thu đạt' : 'Nghiệm thu không đạt — quay lại sửa chữa' });
-    } catch (error) { next(error); }
+      res.json({
+        success: true,
+        data: result,
+        message: ketQua === 'DAT' ? 'Nghiệm thu đạt' : 'Nghiệm thu không đạt — quay lại sửa chữa',
+      });
+    } catch (error) {
+      next(error);
+    }
   }
 
   async reject(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -315,7 +397,9 @@ class RepairRequestController {
       const reason = (req.body.reason ?? req.body.lyDo ?? req.body.ghiChu) as string | undefined;
       const result = await repairRequestService.reject(id, actor, reason);
       res.json({ success: true, data: result, message: 'Đã từ chối yêu cầu' });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 
   async cancel(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -325,7 +409,9 @@ class RepairRequestController {
       const reason = (req.body.reason ?? req.body.lyDo) as string | undefined;
       const result = await repairRequestService.cancel(id, actor, { reason });
       res.json({ success: true, data: result, message: 'Hủy yêu cầu sửa chữa thành công' });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 
   async complete(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -334,25 +420,39 @@ class RepairRequestController {
       const actor = { actorId: req.user?.id, actorRole: req.user?.role };
       const result = await repairRequestService.complete(id, actor);
       res.json({ success: true, data: result, message: 'Hoàn thành yêu cầu thành công' });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 
   /** Technician-only actual execution fields (cost, hours, content) after acceptance. Body validated by repairActualFieldsSchema. */
-  async updateActualFields(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async updateActualFields(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
       const actor = { actorId: req.user?.id, actorRole: req.user?.role };
       const result = await repairRequestService.updateActualFields(id, req.body as never, actor);
       res.json({ success: true, data: result, message: 'Đã cập nhật thông tin thực tế' });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 
-  async getStatusHistory(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async getStatusHistory(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
       const logs = await repairRequestService.getStatusHistory(id);
       res.json({ success: true, data: logs });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 
   /** GET /repair-requests/stats — phongBanId = requesting department (createdById -> User.departmentId), not the planning field RepairRequest.phongBanId (kept for planning only). */
@@ -378,14 +478,19 @@ class RepairRequestController {
       const machineSystemId = req.query.machineSystemId as string | undefined;
       const phongBanId = (req.query.phongBanId as string | undefined)?.trim() || undefined;
       const requestTypeRaw = req.query.requestType as string | undefined;
-      const requestType = requestTypeRaw && Object.values(RequestType).includes(requestTypeRaw as RequestType) ? (requestTypeRaw as RequestType) : undefined;
+      const requestType =
+        requestTypeRaw && Object.values(RequestType).includes(requestTypeRaw as RequestType)
+          ? (requestTypeRaw as RequestType)
+          : undefined;
       const data = await repairRequestService.getStats(
         dateFrom || dateTo || machineSystemId || year !== undefined || phongBanId || requestType
           ? { dateFrom, dateTo, machineSystemId, year, phongBanId, requestType }
           : undefined
       );
       res.json({ success: true, data });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 
   // ── Assignees ─────────────────────────────────────────────────────────
@@ -395,7 +500,9 @@ class RepairRequestController {
       const id = parseInt(req.params.id as string, 10);
       const data = await repairRequestService.listAssignees(id);
       res.json({ success: true, data });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 
   async addAssignee(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -404,62 +511,100 @@ class RepairRequestController {
       const actor = { actorId: req.user?.id, actorRole: req.user?.role };
       const data = await repairRequestService.assignUser(id, req.body as never, actor);
       res.status(201).json({ success: true, data, message: 'Đã phân công' });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 
-  async removeAssignee(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async removeAssignee(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
       const assigneeId = req.params.assigneeId as string;
       const data = await repairRequestService.unassignUser(id, assigneeId);
       res.json({ success: true, data, message: 'Đã gỡ phân công' });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 
   // ── Material needs ────────────────────────────────────────────────────
 
-  async listMaterialNeeds(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async listMaterialNeeds(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
       const data = await repairRequestService.listMaterialNeeds(id);
       res.json({ success: true, data });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 
-  async addMaterialNeed(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async addMaterialNeed(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
       const data = await repairRequestService.upsertMaterialNeed(id, req.body as never);
       res.status(201).json({ success: true, data, message: 'Đã thêm vật tư' });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 
-  async updateMaterialNeed(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async updateMaterialNeed(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
       const needId = req.params.needId as string;
       const data = await repairRequestService.upsertMaterialNeed(id, needId, req.body as never);
       res.json({ success: true, data, message: 'Đã cập nhật vật tư' });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 
-  async removeMaterialNeed(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async removeMaterialNeed(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
       const needId = req.params.needId as string;
       const data = await repairRequestService.removeMaterialNeed(id, needId);
       res.json({ success: true, data });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 
   // ── Supply links ──────────────────────────────────────────────────────
 
-  async listSupplyLinks(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async listSupplyLinks(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
       const data = await repairRequestService.listSupplyLinks(id);
       res.json({ success: true, data });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 
   async addSupplyLink(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -468,79 +613,132 @@ class RepairRequestController {
       const actor = { actorId: req.user?.id, actorRole: req.user?.role };
       const data = await repairRequestService.linkSupplyRequest(id, req.body as never, actor);
       res.status(201).json({ success: true, data, message: 'Đã liên kết yêu cầu vật tư' });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 
-  async removeSupplyLink(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async removeSupplyLink(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
       const linkId = req.params.linkId as string;
       const data = await repairRequestService.unlinkSupplyRequest(id, linkId);
       res.json({ success: true, data });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 
   // ── Supply chain ──────────────────────────────────────────────────────
 
-  async getSupplyChain(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async getSupplyChain(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
       const data = await repairRequestService.getSupplyChain(id);
       res.json({ success: true, data });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 
   // ── Cost summary ────────────────────────────────────────────────────
 
-  async getCostSummary(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async getCostSummary(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
       const data = await repairRequestService.getCostSummary(id);
       res.json({ success: true, data });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 
   // ── Incidental costs ────────────────────────────────────────────────
 
-  async listIncidentalCosts(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async listIncidentalCosts(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
       const data = await repairRequestService.listIncidentalCosts(id);
       res.json({ success: true, data });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 
-  async createIncidentalCost(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async createIncidentalCost(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
       const fileMinhChung = (req as unknown as { file?: Express.Multer.File }).file
-        ? getFileUrl('repair-incidental-costs', (req as unknown as { file: Express.Multer.File }).file.filename)
+        ? getFileUrl(
+            'repair-incidental-costs',
+            (req as unknown as { file: Express.Multer.File }).file.filename
+          )
         : req.body.fileMinhChung;
-      const data = await repairRequestService.createIncidentalCost(id, { ...req.body, fileMinhChung } as never);
+      const data = await repairRequestService.createIncidentalCost(id, {
+        ...req.body,
+        fileMinhChung,
+      } as never);
       res.status(201).json({ success: true, data, message: 'Đã thêm chi phí phát sinh' });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 
-  async updateIncidentalCost(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async updateIncidentalCost(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
       const costId = req.params.costId as string;
       const fileMinhChung = (req as unknown as { file?: Express.Multer.File }).file
-        ? getFileUrl('repair-incidental-costs', (req as unknown as { file: Express.Multer.File }).file.filename)
+        ? getFileUrl(
+            'repair-incidental-costs',
+            (req as unknown as { file: Express.Multer.File }).file.filename
+          )
         : req.body.fileMinhChung;
       const body = fileMinhChung !== undefined ? { ...req.body, fileMinhChung } : req.body;
       const data = await repairRequestService.updateIncidentalCost(id, costId, body as never);
       res.json({ success: true, data, message: 'Đã cập nhật chi phí phát sinh' });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 
-  async deleteIncidentalCost(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async deleteIncidentalCost(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const id = parseInt(req.params.id as string, 10);
       const costId = req.params.costId as string;
       const data = await repairRequestService.deleteIncidentalCost(id, costId);
       res.json({ success: true, data });
-    } catch (error) { next(error); }
+    } catch (error) {
+      next(error);
+    }
   }
 }
 

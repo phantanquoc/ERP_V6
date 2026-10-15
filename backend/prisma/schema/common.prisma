@@ -997,8 +997,7 @@ enum HalfDayPeriod {
 
 enum InspectionRequestStatus {
   CHO_XU_LY // Chờ xử lý
-  DA_TIEP_NHAN // Đã tiếp nhận
-  DANG_KIEM_TRA // Đang kiểm tra
+  DA_TIEP_NHAN // Đã tiếp nhận / Đang kiểm tra
   DA_KIEM_TRA // Đã kiểm tra
   CHO_NGHIEM_THU // Chờ người yêu cầu xác nhận nghiệm thu (kết luận Đã khắc phục)
   HOAN_THANH // Hoàn thành
@@ -1165,11 +1164,9 @@ enum NghiemThuKetQua {
 }
 
 enum RepairRequestStatus {
-  CHO_XU_LY // Chờ xử lý
-  DA_TIEP_NHAN // Đã tiếp nhận
-  LEN_KE_HOACH // Lên kế hoạch
+  CHO_XU_LY // Chờ xử lý (merged DA_TIEP_NHAN + LEN_KE_HOACH)
   DANG_SUA_CHUA // Đang sửa chữa
-  CHO_NGHIEM_THU // Chờ nghiệm thu
+  DA_SUA_CHUA // Đã sửa chữa — chờ nghiệm thu (renamed from CHO_NGHIEM_THU)
   DA_NGHIEM_THU // Đã nghiệm thu
   HOAN_THANH // Hoàn thành
   DA_HUY // Đã hủy

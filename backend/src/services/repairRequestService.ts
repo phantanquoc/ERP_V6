@@ -1,4 +1,11 @@
-import { Prisma, RepairRequestStatus, FaultRecordStatus, RequestType, NghiemThuKetQua, InspectionRequestStatus } from '@prisma/client';
+import {
+  Prisma,
+  RepairRequestStatus,
+  FaultRecordStatus,
+  RequestType,
+  NghiemThuKetQua,
+  InspectionRequestStatus,
+} from '@prisma/client';
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
 import { AuthorizationError, ConflictError, NotFoundError, ValidationError } from '@utils/errors';
@@ -15,13 +22,11 @@ import logger from '@config/logger';
 export const STALE_ROW_MESSAGE = 'Phiếu đã được cập nhật bởi người khác, vui lòng tải lại';
 export const ITEM_IN_USE_MESSAGE = 'Không thể xóa hạng mục đã có nghiệm thu/vật tư/liên kết';
 
-// Technician / ADMIN may edit a YCSC up to Chờ nghiệm thu (B: allow edit at CHO_NGHIEM_THU).
+// Technician / ADMIN may edit a YCSC up to Chờ nghiệm thu (B: allow edit at DA_SUA_CHUA).
 const YCSC_TECH_EDITABLE: ReadonlySet<RepairRequestStatus> = new Set<RepairRequestStatus>([
   RepairRequestStatus.CHO_XU_LY,
-  RepairRequestStatus.DA_TIEP_NHAN,
-  RepairRequestStatus.LEN_KE_HOACH,
   RepairRequestStatus.DANG_SUA_CHUA,
-  RepairRequestStatus.CHO_NGHIEM_THU,
+  RepairRequestStatus.DA_SUA_CHUA,
 ]);
 const YCSC_DELETABLE: ReadonlySet<RepairRequestStatus> = new Set<RepairRequestStatus>([
   RepairRequestStatus.CHO_XU_LY,
@@ -37,10 +42,8 @@ const CLOSED_SUPPLY_ITEM_STATUSES: ReadonlySet<string> = new Set(['Đã hủy', 
 
 const REPAIR_STATUS_LABELS: Record<string, string> = {
   CHO_XU_LY: 'Chờ xử lý',
-  DA_TIEP_NHAN: 'Đã tiếp nhận',
-  LEN_KE_HOACH: 'Lên kế hoạch',
   DANG_SUA_CHUA: 'Đang sửa chữa',
-  CHO_NGHIEM_THU: 'Chờ nghiệm thu',
+  DA_SUA_CHUA: 'Đã sửa chữa — chờ nghiệm thu',
   DA_NGHIEM_THU: 'Đã nghiệm thu',
   HOAN_THANH: 'Hoàn thành',
   DA_HUY: 'Đã hủy',
@@ -85,9 +88,6 @@ interface CreateRepairRequestData {
   phuongAn?: string | null;
   bienPhapAnToan?: string | null;
   chiPhiDuKien?: number | null;
-  chiPhiThucTe?: number | null;
-  noiDungThucHien?: string | null;
-  gioCongThucTe?: number | null;
   canNgungMay?: boolean;
   phongBanId?: string | null;
 }
@@ -110,9 +110,6 @@ interface UpdateRepairRequestData {
   phuongAn?: string | null;
   bienPhapAnToan?: string | null;
   chiPhiDuKien?: number | null;
-  chiPhiThucTe?: number | null;
-  noiDungThucHien?: string | null;
-  gioCongThucTe?: number | null;
   canNgungMay?: boolean;
   phongBanId?: string | null;
 }
@@ -177,12 +174,25 @@ const repairRequestInclude = {
   incidentalCosts: true,
 } satisfies Prisma.RepairRequestInclude;
 
-type PlanCostItem = { supplyRequestItemId: string; tenGoi: string; soLuong: number; price: number | null };
-type ActualCostItem = { supplyRequestItemId: string; tenGoi: string; qty: number; price: number | null };
+type PlanCostItem = {
+  supplyRequestItemId: string;
+  tenGoi: string;
+  soLuong: number;
+  price: number | null;
+};
+type ActualCostItem = {
+  supplyRequestItemId: string;
+  tenGoi: string;
+  qty: number;
+  price: number | null;
+};
 
 // faultRecordId / sourceInspectionItemId / phuongAnSua stay `undefined` when the client omitted them,
 // so an in-place item update keeps the stored value instead of clearing it.
-type ResolvedRepairRequestItemData = Omit<RepairRequestItemData, 'machineSystemId' | 'machineSystemDetailId'> & {
+type ResolvedRepairRequestItemData = Omit<
+  RepairRequestItemData,
+  'machineSystemId' | 'machineSystemDetailId'
+> & {
   machineSystemId: string | null;
   machineSystemDetailId: string | null;
   faultRecordId?: string | null;
@@ -204,8 +214,12 @@ class RepairRequestService {
   async generateRepairRequestCode(tx?: Prisma.TransactionClient): Promise<string> {
     const year = new Date().getFullYear();
     const client: { findMany: (a: unknown) => Promise<{ maYeuCau: string }[]> } =
-      (tx?.repairRequest as unknown as { findMany: (a: unknown) => Promise<{ maYeuCau: string }[]> }) ??
-      (prisma.repairRequest as unknown as { findMany: (a: unknown) => Promise<{ maYeuCau: string }[]> });
+      (tx?.repairRequest as unknown as {
+        findMany: (a: unknown) => Promise<{ maYeuCau: string }[]>;
+      }) ??
+      (prisma.repairRequest as unknown as {
+        findMany: (a: unknown) => Promise<{ maYeuCau: string }[]>;
+      });
     return nextYearlyCodeTx(client, 'YC-SC', year);
   }
 
@@ -278,15 +292,23 @@ class RepairRequestService {
    *  - non-technical user: only their own request and only while CHO_XU_LY
    *  - technician / ADMIN: while the request is before acceptance (≤ DANG_SUA_CHUA)
    */
-  private assertCanEdit(row: { trangThai: RepairRequestStatus; createdById: string | null }, actor: ActorContext, privileged: boolean): void {
+  private assertCanEdit(
+    row: { trangThai: RepairRequestStatus; createdById: string | null },
+    actor: ActorContext,
+    privileged: boolean
+  ): void {
     if (privileged) {
       if (!YCSC_TECH_EDITABLE.has(row.trangThai)) {
-        throw new ValidationError('Không thể chỉnh sửa yêu cầu sửa chữa từ bước Chờ nghiệm thu trở đi');
+        throw new ValidationError(
+          'Không thể chỉnh sửa yêu cầu sửa chữa từ bước Đã nghiệm thu trở đi'
+        );
       }
       return;
     }
     if (!actor.actorId || row.createdById !== actor.actorId) {
-      throw new AuthorizationError('Chỉ người tạo phiếu hoặc bộ phận Kỹ thuật mới được sửa yêu cầu này');
+      throw new AuthorizationError(
+        'Chỉ người tạo phiếu hoặc bộ phận Kỹ thuật mới được sửa yêu cầu này'
+      );
     }
     if (row.trangThai !== RepairRequestStatus.CHO_XU_LY) {
       throw new ValidationError('Chỉ được sửa yêu cầu của mình khi phiếu còn Chờ xử lý');
@@ -294,11 +316,16 @@ class RepairRequestService {
   }
 
   /** sourceInspectionItemId must belong to the YCSC's source YCKT (and requires a source). */
-  private async assertSourceInspectionItems(sourceInspectionRequestId: number | null, items: Array<{ sourceInspectionItemId?: string | null }>): Promise<void> {
+  private async assertSourceInspectionItems(
+    sourceInspectionRequestId: number | null,
+    items: Array<{ sourceInspectionItemId?: string | null }>
+  ): Promise<void> {
     const srcItemIds = items.map((it) => it.sourceInspectionItemId).filter((v): v is string => !!v);
     if (srcItemIds.length === 0) return;
     if (!sourceInspectionRequestId) {
-      throw new ValidationError('Hạng mục chỉ được liên kết phiếu kiểm tra khi yêu cầu sửa chữa được tạo từ phiếu kiểm tra');
+      throw new ValidationError(
+        'Hạng mục chỉ được liên kết phiếu kiểm tra khi yêu cầu sửa chữa được tạo từ phiếu kiểm tra'
+      );
     }
     const srcItems = await prisma.inspectionRequestItem.findMany({
       where: { id: { in: srcItemIds }, inspectionRequestId: sourceInspectionRequestId },
@@ -307,7 +334,9 @@ class RepairRequestService {
     const foundIds = new Set(srcItems.map((s) => s.id));
     for (const sid of srcItemIds) {
       if (!foundIds.has(sid)) {
-        throw new ValidationError(`sourceInspectionItemId không thuộc phiếu kiểm tra nguồn: ${sid}`);
+        throw new ValidationError(
+          `sourceInspectionItemId không thuộc phiếu kiểm tra nguồn: ${sid}`
+        );
       }
     }
   }
@@ -319,13 +348,21 @@ class RepairRequestService {
    * entries with an id are updated in place, entries without id are created, missing ones are deleted
    * unless something still references them.
    */
-  private async syncRepairItems(tx: Prisma.TransactionClient, repairRequestId: number, items: ResolvedRepairRequestItemData[]): Promise<void> {
-    const existing = await tx.repairRequestItem.findMany({ where: { repairRequestId }, select: { id: true } });
+  private async syncRepairItems(
+    tx: Prisma.TransactionClient,
+    repairRequestId: number,
+    items: ResolvedRepairRequestItemData[]
+  ): Promise<void> {
+    const existing = await tx.repairRequestItem.findMany({
+      where: { repairRequestId },
+      select: { id: true },
+    });
     const existingIds = new Set(existing.map((e) => e.id));
     const keepIds = new Set<string>();
     for (const it of items) {
       if (!it.id) continue;
-      if (!existingIds.has(it.id)) throw new ValidationError('Hạng mục không thuộc yêu cầu sửa chữa này');
+      if (!existingIds.has(it.id))
+        throw new ValidationError('Hạng mục không thuộc yêu cầu sửa chữa này');
       if (keepIds.has(it.id)) throw new ValidationError('Hạng mục bị trùng trong danh sách');
       keepIds.add(it.id);
     }
@@ -352,7 +389,9 @@ class RepairRequestService {
           loaiLoi: it.loaiLoi,
           noiDungLoi: it.noiDungLoi,
           ...(it.faultRecordId !== undefined && { faultRecordId: it.faultRecordId }),
-          ...(it.sourceInspectionItemId !== undefined && { sourceInspectionItemId: it.sourceInspectionItemId }),
+          ...(it.sourceInspectionItemId !== undefined && {
+            sourceInspectionItemId: it.sourceInspectionItemId,
+          }),
           ...(it.phuongAnSua !== undefined && { phuongAnSua: it.phuongAnSua }),
         },
       });
@@ -382,11 +421,18 @@ class RepairRequestService {
    * from a YCKT item inherits that item's fault link even when the fault record is no longer
    * DANG_THEO_DOI / TAI_PHAT (the YCKT already decided the link).
    */
-  private async inheritedFaultBySourceItem(sourceInspectionRequestId: number | null, items: RepairRequestItemData[] = []): Promise<Map<string, string>> {
+  private async inheritedFaultBySourceItem(
+    sourceInspectionRequestId: number | null,
+    items: RepairRequestItemData[] = []
+  ): Promise<Map<string, string>> {
     const srcItemIds = items.map((it) => it.sourceInspectionItemId).filter((v): v is string => !!v);
     if (!sourceInspectionRequestId || srcItemIds.length === 0) return new Map();
     const rows = await prisma.inspectionRequestItem.findMany({
-      where: { id: { in: srcItemIds }, inspectionRequestId: sourceInspectionRequestId, faultRecordId: { not: null } },
+      where: {
+        id: { in: srcItemIds },
+        inspectionRequestId: sourceInspectionRequestId,
+        faultRecordId: { not: null },
+      },
       select: { id: true, faultRecordId: true },
     });
     return new Map(rows.map((r) => [r.id, r.faultRecordId as string]));
@@ -401,70 +447,85 @@ class RepairRequestService {
   private async resolveRepairItems(
     items: RepairRequestItemData[] = [],
     keepFaultIds: ReadonlySet<string> = new Set(),
-    inheritedFaults: ReadonlyMap<string, string> = new Map(),
+    inheritedFaults: ReadonlyMap<string, string> = new Map()
   ): Promise<ResolvedRepairRequestItemData[]> {
-    return Promise.all(items.map(async (item) => {
-      let machineSystem = item.machineSystemId
-        ? await prisma.machineSystem.findUnique({ where: { id: item.machineSystemId } })
-        : null;
+    return Promise.all(
+      items.map(async (item) => {
+        let machineSystem = item.machineSystemId
+          ? await prisma.machineSystem.findUnique({ where: { id: item.machineSystemId } })
+          : null;
 
-      let machineSystemDetail = item.machineSystemDetailId
-        ? await prisma.machineSystemDetail.findUnique({
-            where: { id: item.machineSystemDetailId },
-            include: { machineSystem: true },
-          })
-        : null;
+        let machineSystemDetail = item.machineSystemDetailId
+          ? await prisma.machineSystemDetail.findUnique({
+              where: { id: item.machineSystemDetailId },
+              include: { machineSystem: true },
+            })
+          : null;
 
-      if (item.machineSystemId && !machineSystem) {
-        throw new ValidationError('Hệ thống máy không hợp lệ');
-      }
-
-      if (item.machineSystemDetailId && !machineSystemDetail) {
-        throw new ValidationError('Chi tiết hệ thống máy không hợp lệ');
-      }
-
-      if (machineSystemDetail) {
-        if (machineSystem && machineSystem.id !== machineSystemDetail.machineSystemId) {
-          throw new ValidationError('Chi tiết máy không thuộc hệ thống máy đã chọn');
+        if (item.machineSystemId && !machineSystem) {
+          throw new ValidationError('Hệ thống máy không hợp lệ');
         }
-        machineSystem = machineSystemDetail.machineSystem;
-      }
 
-      let resolvedFaultRecordId: string | null = null;
-      if (item.faultRecordId) {
-        const fr = await prisma.faultRecord.findUnique({
-          where: { id: item.faultRecordId },
-          select: { id: true, trangThai: true },
-        });
-        if (!fr) {
-          throw new ValidationError(`Bản ghi lỗi không tồn tại: ${item.faultRecordId}`);
+        if (item.machineSystemDetailId && !machineSystemDetail) {
+          throw new ValidationError('Chi tiết hệ thống máy không hợp lệ');
         }
-        const allowedStatuses: FaultRecordStatus[] = [FaultRecordStatus.DANG_THEO_DOI, FaultRecordStatus.TAI_PHAT];
-        const inherited = !!item.sourceInspectionItemId && inheritedFaults.get(item.sourceInspectionItemId) === fr.id;
-        if (!keepFaultIds.has(fr.id) && !inherited && !allowedStatuses.includes(fr.trangThai)) {
-          throw new ValidationError(`Bản ghi lỗi phải ở trạng thái Đang theo dõi hoặc Tái phát để liên kết`);
-        }
-        resolvedFaultRecordId = fr.id;
-      }
 
-      return {
-        ...item,
-        machineSystemId: machineSystem?.id ?? null,
-        machineSystemDetailId: machineSystemDetail?.id ?? null,
-        tenHeThong: machineSystem ? machineSystem.tenHeThong : item.tenHeThong,
-        tinhTrangThietBi: machineSystemDetail && !item.tinhTrangThietBi
-          ? machineSystemDetail.tenChiTiet
-          : item.tinhTrangThietBi,
-        faultRecordId: item.faultRecordId === undefined ? undefined : resolvedFaultRecordId,
-        sourceInspectionItemId: item.sourceInspectionItemId === undefined ? undefined : (item.sourceInspectionItemId || null),
-        phuongAnSua: item.phuongAnSua === undefined ? undefined : (item.phuongAnSua ?? null),
-      };
-    }));
+        if (machineSystemDetail) {
+          if (machineSystem && machineSystem.id !== machineSystemDetail.machineSystemId) {
+            throw new ValidationError('Chi tiết máy không thuộc hệ thống máy đã chọn');
+          }
+          machineSystem = machineSystemDetail.machineSystem;
+        }
+
+        let resolvedFaultRecordId: string | null = null;
+        if (item.faultRecordId) {
+          const fr = await prisma.faultRecord.findUnique({
+            where: { id: item.faultRecordId },
+            select: { id: true, trangThai: true },
+          });
+          if (!fr) {
+            throw new ValidationError(`Bản ghi lỗi không tồn tại: ${item.faultRecordId}`);
+          }
+          const allowedStatuses: FaultRecordStatus[] = [
+            FaultRecordStatus.DANG_THEO_DOI,
+            FaultRecordStatus.TAI_PHAT,
+          ];
+          const inherited =
+            !!item.sourceInspectionItemId &&
+            inheritedFaults.get(item.sourceInspectionItemId) === fr.id;
+          if (!keepFaultIds.has(fr.id) && !inherited && !allowedStatuses.includes(fr.trangThai)) {
+            throw new ValidationError(
+              `Bản ghi lỗi phải ở trạng thái Đang theo dõi hoặc Tái phát để liên kết`
+            );
+          }
+          resolvedFaultRecordId = fr.id;
+        }
+
+        return {
+          ...item,
+          machineSystemId: machineSystem?.id ?? null,
+          machineSystemDetailId: machineSystemDetail?.id ?? null,
+          tenHeThong: machineSystem ? machineSystem.tenHeThong : item.tenHeThong,
+          tinhTrangThietBi:
+            machineSystemDetail && !item.tinhTrangThietBi
+              ? machineSystemDetail.tenChiTiet
+              : item.tinhTrangThietBi,
+          faultRecordId: item.faultRecordId === undefined ? undefined : resolvedFaultRecordId,
+          sourceInspectionItemId:
+            item.sourceInspectionItemId === undefined
+              ? undefined
+              : item.sourceInspectionItemId || null,
+          phuongAnSua: item.phuongAnSua === undefined ? undefined : (item.phuongAnSua ?? null),
+        };
+      })
+    );
   }
 
   async createRepairRequest(data: CreateRepairRequestData) {
     if (data.trangThai !== undefined) {
-      logger.warn(`Ignored client-supplied trangThai on repair-request create (maYeuCau: ${data.maYeuCau})`);
+      logger.warn(
+        `Ignored client-supplied trangThai on repair-request create (maYeuCau: ${data.maYeuCau})`
+      );
     }
 
     if ((data.requestType as string) === RequestType.KIEM_TRA) {
@@ -472,25 +533,43 @@ class RepairRequestService {
     }
     const requestType: RequestType = RequestType.SUA_CHUA;
 
-    let sourceInspectionRequestId: string | null = data.sourceInspectionRequestId ? String(data.sourceInspectionRequestId) : null;
+    let sourceInspectionRequestId: string | null = data.sourceInspectionRequestId
+      ? String(data.sourceInspectionRequestId)
+      : null;
     if (sourceInspectionRequestId) {
       const sid = Number(sourceInspectionRequestId);
-      if (Number.isNaN(sid)) throw new ValidationError(`Phiếu kiểm tra nguồn không hợp lệ: ${sourceInspectionRequestId}`);
+      if (Number.isNaN(sid))
+        throw new ValidationError(
+          `Phiếu kiểm tra nguồn không hợp lệ: ${sourceInspectionRequestId}`
+        );
       // Creating a YCSC from a YCKT is a technician step (it also decides who confirms acceptance).
       if (!(await this.isPrivileged({ actorId: data.userId, actorRole: data.actorRole }))) {
-        throw new AuthorizationError('Chỉ nhân viên bộ phận Kỹ thuật mới được tạo yêu cầu sửa chữa từ phiếu kiểm tra');
+        throw new AuthorizationError(
+          'Chỉ nhân viên bộ phận Kỹ thuật mới được tạo yêu cầu sửa chữa từ phiếu kiểm tra'
+        );
       }
       const src = await prisma.inspectionRequest.findUnique({
         where: { id: sid },
         select: { id: true, trangThai: true, ketLuan: true },
       });
-      if (!src) throw new ValidationError(`Phiếu kiểm tra nguồn không tồn tại: ${sourceInspectionRequestId}`);
-      if (src.trangThai !== InspectionRequestStatus.DA_KIEM_TRA || src.ketLuan !== SOURCE_KET_LUAN_CAN_SUA_CHUA) {
-        throw new ValidationError('Chỉ tạo yêu cầu sửa chữa từ phiếu kiểm tra đã kiểm tra với kết luận Cần sửa chữa');
+      if (!src)
+        throw new ValidationError(
+          `Phiếu kiểm tra nguồn không tồn tại: ${sourceInspectionRequestId}`
+        );
+      if (
+        src.trangThai !== InspectionRequestStatus.DA_KIEM_TRA ||
+        src.ketLuan !== SOURCE_KET_LUAN_CAN_SUA_CHUA
+      ) {
+        throw new ValidationError(
+          'Chỉ tạo yêu cầu sửa chữa từ phiếu kiểm tra đã kiểm tra với kết luận Cần sửa chữa'
+        );
       }
       // Prevent duplicate active YCSC from the same YCKT
       const existingActive = await prisma.repairRequest.count({
-        where: { sourceInspectionRequestId: sid, trangThai: { notIn: ['DA_HUY', 'TU_CHOI'] as any } },
+        where: {
+          sourceInspectionRequestId: sid,
+          trangThai: { notIn: ['DA_HUY', 'TU_CHOI'] as any },
+        },
       });
       if (existingActive > 0) {
         throw new ValidationError('Phiếu kiểm tra này đã có yêu cầu sửa chữa đang xử lý');
@@ -520,15 +599,16 @@ class RepairRequestService {
     // Build planning data — only persist for SUA_CHUA
     const planningData: Record<string, unknown> = {};
     if (requestType === RequestType.SUA_CHUA) {
-      if (data.ngayHoanThienDuKien !== undefined) planningData.ngayHoanThienDuKien = data.ngayHoanThienDuKien ?? null;
-      if (data.ngayBatDauKeHoach !== undefined) planningData.ngayBatDauKeHoach = data.ngayBatDauKeHoach ?? null;
-      if (data.keHoachChiTiet !== undefined) planningData.keHoachChiTiet = data.keHoachChiTiet ?? null;
+      if (data.ngayHoanThienDuKien !== undefined)
+        planningData.ngayHoanThienDuKien = data.ngayHoanThienDuKien ?? null;
+      if (data.ngayBatDauKeHoach !== undefined)
+        planningData.ngayBatDauKeHoach = data.ngayBatDauKeHoach ?? null;
+      if (data.keHoachChiTiet !== undefined)
+        planningData.keHoachChiTiet = data.keHoachChiTiet ?? null;
       if (data.phuongAn !== undefined) planningData.phuongAn = data.phuongAn ?? null;
-      if (data.bienPhapAnToan !== undefined) planningData.bienPhapAnToan = data.bienPhapAnToan ?? null;
+      if (data.bienPhapAnToan !== undefined)
+        planningData.bienPhapAnToan = data.bienPhapAnToan ?? null;
       if (data.chiPhiDuKien !== undefined) planningData.chiPhiDuKien = data.chiPhiDuKien ?? null;
-      if (data.chiPhiThucTe !== undefined) planningData.chiPhiThucTe = data.chiPhiThucTe ?? null;
-      if (data.noiDungThucHien !== undefined) planningData.noiDungThucHien = data.noiDungThucHien ?? null;
-      if (data.gioCongThucTe !== undefined) planningData.gioCongThucTe = data.gioCongThucTe ?? null;
       if (data.canNgungMay !== undefined) planningData.canNgungMay = data.canNgungMay;
       if (data.phongBanId !== undefined) planningData.phongBanId = data.phongBanId ?? null;
     }
@@ -537,22 +617,28 @@ class RepairRequestService {
       const maYeuCau =
         data.maYeuCau ??
         (await nextYearlyCodeTx(
-          tx.repairRequest as unknown as { findMany: (a: unknown) => Promise<Array<{ maYeuCau: string }>> },
-          'YC-SC',
+          tx.repairRequest as unknown as {
+            findMany: (a: unknown) => Promise<Array<{ maYeuCau: string }>>;
+          },
+          'YC-SC'
         ));
       const created = await tx.repairRequest.create({
         data: {
           ngayThang: data.ngayThang,
           maYeuCau,
           tenHeThong: firstItem ? firstItem.tenHeThong : (data.tenHeThong ?? null),
-          tinhTrangThietBi: firstItem ? firstItem.tinhTrangThietBi : (data.tinhTrangThietBi ?? null),
+          tinhTrangThietBi: firstItem
+            ? firstItem.tinhTrangThietBi
+            : (data.tinhTrangThietBi ?? null),
           loaiLoi: firstItem ? firstItem.loaiLoi : (data.loaiLoi ?? null),
           noiDungLoi: firstItem ? firstItem.noiDungLoi : (data.noiDungLoi ?? null),
           mucDoUuTien: data.mucDoUuTien,
           ghiChu: data.ghiChu,
           trangThai: RepairRequestStatus.CHO_XU_LY,
           requestType,
-          sourceInspectionRequestId: sourceInspectionRequestId ? Number(sourceInspectionRequestId) : null,
+          sourceInspectionRequestId: sourceInspectionRequestId
+            ? Number(sourceInspectionRequestId)
+            : null,
           fileDinhKem: data.fileDinhKem,
           createdById: data.userId ?? null,
           createdByName,
@@ -596,13 +682,15 @@ class RepairRequestService {
       });
     });
 
-    notificationService.notify(NotificationEvent.REPAIR_REQUEST_CREATED, {
-      entityId: String(request!.id),
-      metadata: {
-        maYeuCau: request!.maYeuCau,
-        tenHeThong: request!.tenHeThong,
-      },
-    }).catch(() => {});
+    notificationService
+      .notify(NotificationEvent.REPAIR_REQUEST_CREATED, {
+        entityId: String(request!.id),
+        metadata: {
+          maYeuCau: request!.maYeuCau,
+          tenHeThong: request!.tenHeThong,
+        },
+      })
+      .catch(() => {});
 
     return request;
   }
@@ -615,14 +703,25 @@ class RepairRequestService {
     if ('trangThai' in data && data.trangThai !== undefined) {
       logger.warn(`Ignored client-supplied trangThai on repair-request update (id: ${id})`);
     }
-    if ('requestType' in data && data.requestType !== undefined && data.requestType !== existing.requestType) {
+    if (
+      'requestType' in data &&
+      data.requestType !== undefined &&
+      data.requestType !== existing.requestType
+    ) {
       throw new ValidationError('Không thể đổi loại phiếu sau khi tạo');
     }
 
-    const { items, trangThai: _dropped, requestType: _rt, ...scalarData } = data as UpdateRepairRequestData & { trangThai?: string; requestType?: string };
+    const {
+      items,
+      trangThai: _dropped,
+      requestType: _rt,
+      ...scalarData
+    } = data as UpdateRepairRequestData & { trangThai?: string; requestType?: string };
     const scalar = scalarData as Record<string, unknown>;
-    // Acceptance result is written only by confirmAcceptance.
+    // Acceptance result is written only by confirmAcceptance; completion date is
+    // system-set at complete(). Neither is accepted via general update.
     delete scalar.ketQuaNghiemThu;
+    delete scalar.ngayHoanThanhThucTe;
     if (!privileged) {
       for (const f of EXECUTION_FIELDS) delete scalar[f];
     }
@@ -635,12 +734,19 @@ class RepairRequestService {
         }
       }
     }
-    const linkedFaultIds = new Set(existing.items.map((it) => it.faultRecordId).filter((v): v is string => !!v));
-    const inheritedFaults = items !== undefined
-      ? await this.inheritedFaultBySourceItem(existing.sourceInspectionRequestId, items)
-      : new Map<string, string>();
-    const resolvedItems = items !== undefined ? await this.resolveRepairItems(items, linkedFaultIds, inheritedFaults) : undefined;
-    if (resolvedItems) await this.assertSourceInspectionItems(existing.sourceInspectionRequestId, resolvedItems);
+    const linkedFaultIds = new Set(
+      existing.items.map((it) => it.faultRecordId).filter((v): v is string => !!v)
+    );
+    const inheritedFaults =
+      items !== undefined
+        ? await this.inheritedFaultBySourceItem(existing.sourceInspectionRequestId, items)
+        : new Map<string, string>();
+    const resolvedItems =
+      items !== undefined
+        ? await this.resolveRepairItems(items, linkedFaultIds, inheritedFaults)
+        : undefined;
+    if (resolvedItems)
+      await this.assertSourceInspectionItems(existing.sourceInspectionRequestId, resolvedItems);
 
     const updated = await prisma.$transaction(async (tx) => {
       // Optimistic guard: the row must still be in the status the permission check saw.
@@ -668,14 +774,16 @@ class RepairRequestService {
       });
     });
 
-    notificationService.notify(NotificationEvent.REPAIR_REQUEST_UPDATED, {
-      entityId: String(updated.id),
-      metadata: {
-        maYeuCau: updated.maYeuCau,
-        tenHeThong: updated.tenHeThong,
-        status: updated.trangThai,
-      },
-    }).catch(() => {});
+    notificationService
+      .notify(NotificationEvent.REPAIR_REQUEST_UPDATED, {
+        entityId: String(updated.id),
+        metadata: {
+          maYeuCau: updated.maYeuCau,
+          tenHeThong: updated.tenHeThong,
+          status: updated.trangThai,
+        },
+      })
+      .catch(() => {});
 
     return updated;
   }
@@ -692,7 +800,7 @@ class RepairRequestService {
     nextStatus: RepairRequestStatus,
     actor: ActorContext,
     reason: string,
-    opts: TransitionOptions = {},
+    opts: TransitionOptions = {}
   ) {
     const { extraData, precheck, afterUpdate } = opts;
     const result = await prisma.$transaction(async (tx) => {
@@ -704,11 +812,10 @@ class RepairRequestService {
 
       if (precheck) await precheck(request, tx);
 
-      const validated = advanceRepairRequestStatus(
-        request.trangThai,
-        nextStatus,
-        { bypass: actor.actorRole === 'ADMIN', requestType: request.requestType as string }
-      );
+      const validated = advanceRepairRequestStatus(request.trangThai, nextStatus, {
+        bypass: actor.actorRole === 'ADMIN',
+        requestType: request.requestType as string,
+      });
 
       if (validated === request.trangThai) {
         return tx.repairRequest.findUnique({ where: { id }, include: repairRequestInclude });
@@ -736,71 +843,44 @@ class RepairRequestService {
       return tx.repairRequest.findUnique({ where: { id }, include: repairRequestInclude });
     });
 
-    notificationService.notify(NotificationEvent.REPAIR_REQUEST_UPDATED, {
-      entityId: String(id),
-      metadata: { maYeuCau: result?.maYeuCau, status: result?.trangThai },
-    }).catch(() => {});
+    notificationService
+      .notify(NotificationEvent.REPAIR_REQUEST_UPDATED, {
+        entityId: String(id),
+        metadata: { maYeuCau: result?.maYeuCau, status: result?.trangThai },
+      })
+      .catch(() => {});
 
     return result;
   }
 
-  async accept(id: number, actor: ActorContext) {
-    return this.transition(id, RepairRequestStatus.DA_TIEP_NHAN, actor, 'accept');
+  async accept(_id: number, _actor: ActorContext) {
+    void _id;
+    throw new ValidationError(
+      'Trạng thái Đã tiếp nhận đã gộp vào Chờ xử lý — không cần tiếp nhận riêng'
+    );
   }
 
-  async plan(id: number, actor: ActorContext, keHoachData?: Record<string, unknown>) {
-    if (!Number.isFinite(id)) throw new ValidationError('ID không hợp lệ');
-    const req = await prisma.repairRequest.findUnique({ where: { id }, select: { requestType: true } });
-    if (!req) throw new NotFoundError('Không tìm thấy yêu cầu sửa chữa');
-    if (req.requestType === RequestType.KIEM_TRA) {
-      throw new ValidationError('Phiếu kiểm tra không đi qua trạng thái này');
-    }
-    const extra: Prisma.RepairRequestUpdateManyMutationInput = {};
-    if (keHoachData) {
-      if (keHoachData.keHoachChiTiet !== undefined) extra.keHoachChiTiet = keHoachData.keHoachChiTiet as string;
-      if (keHoachData.phuongAn !== undefined) extra.phuongAn = keHoachData.phuongAn as string;
-      if (keHoachData.bienPhapAnToan !== undefined) extra.bienPhapAnToan = keHoachData.bienPhapAnToan as string;
-      if (keHoachData.ngayHoanThienDuKien !== undefined) {
-        const v = keHoachData.ngayHoanThienDuKien as unknown as string | Date | null;
-        extra.ngayHoanThienDuKien = v ? (v instanceof Date ? v : new Date(v as string)) as never : null as never;
-      }
-      if (keHoachData.ngayBatDauKeHoach !== undefined) {
-        const v = keHoachData.ngayBatDauKeHoach as unknown as string | Date | null;
-        extra.ngayBatDauKeHoach = v ? (v instanceof Date ? v : new Date(v as string)) as never : null as never;
-      }
-      if (keHoachData.chiPhiDuKien !== undefined) extra.chiPhiDuKien = keHoachData.chiPhiDuKien as number;
-      if (keHoachData.canNgungMay !== undefined) extra.canNgungMay = keHoachData.canNgungMay as boolean;
-      if (keHoachData.phongBanId !== undefined) {
-        const s = String(keHoachData.phongBanId ?? '').trim();
-        if (s) extra.phongBanId = s;
-      }
-      const dStart = extra.ngayBatDauKeHoach as unknown as Date | undefined;
-      const dEnd = extra.ngayHoanThienDuKien as unknown as Date | undefined;
-      if (dStart instanceof Date && Number.isNaN(dStart.getTime())) throw new ValidationError('Ngày bắt đầu kế hoạch không hợp lệ');
-      if (dEnd instanceof Date && Number.isNaN(dEnd.getTime())) throw new ValidationError('Ngày hoàn thiện dự kiến không hợp lệ');
-      if (dStart instanceof Date && dEnd instanceof Date && dEnd.getTime() <= dStart.getTime()) {
-        throw new ValidationError('Ngày hoàn thiện dự kiến phải sau ngày bắt đầu kế hoạch');
-      }
-    }
-    try {
-      return await this.transition(id, RepairRequestStatus.LEN_KE_HOACH, actor, 'plan', { extraData: extra });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      const code = (e as { code?: string })?.code;
-      if (e instanceof ValidationError || e instanceof NotFoundError || e instanceof ConflictError) throw e;
-      if (code === 'P2003' || /Foreign key constraint|Invalid.*Date/i.test(msg)) {
-        logger.error(`plan: Prisma error id=${id}: ${msg}`);
-        throw new ValidationError(msg.includes('phongBanId') || msg.includes('phong_ban') ? 'Phòng ban không hợp lệ' : 'Dữ liệu kế hoạch không hợp lệ');
-      }
-      throw e;
-    }
+  // Removed: LEN_KE_HOACH merged into CHO_XU_LY. Planning fields are updated
+  // directly via updateRepairRequest while the ticket is still CHO_XU_LY.
+  // Kept as a stub so old clients get a clear message instead of 404.
+  async plan(_id: number, _actor: ActorContext, _keHoachData?: Record<string, unknown>) {
+    void _id;
+    void _actor;
+    void _keHoachData;
+    throw new ValidationError(
+      'Trạng thái Lên kế hoạch đã gộp vào Chờ xử lý — cập nhật kế hoạch trực tiếp khi phiếu còn Chờ xử lý'
+    );
   }
 
   async startRepair(id: number, actor: ActorContext) {
     // YCCC optional — warn-mode R4: only warn if links exist but no WarehouseIssue
     const req = await prisma.repairRequest.findUnique({
       where: { id },
-      select: { requestType: true, trangThai: true, supplyLinks: { select: { id: true, supplyRequestId: true } } },
+      select: {
+        requestType: true,
+        trangThai: true,
+        supplyLinks: { select: { id: true, supplyRequestId: true } },
+      },
     });
     if (req?.requestType === RequestType.KIEM_TRA) {
       throw new ValidationError('Phiếu kiểm tra không đi qua trạng thái này');
@@ -818,41 +898,56 @@ class RepairRequestService {
     return this.transition(id, RepairRequestStatus.DANG_SUA_CHUA, actor, 'start_repair', {
       // Repair starts only after planning — also for ADMIN, and never re-opens an accepted request.
       precheck: (row) => {
-        if (row.trangThai !== RepairRequestStatus.LEN_KE_HOACH) {
-          throw new ValidationError('Chỉ bắt đầu sửa chữa khi phiếu đang Lên kế hoạch');
+        if (row.trangThai !== RepairRequestStatus.CHO_XU_LY) {
+          throw new ValidationError('Chỉ bắt đầu sửa chữa khi phiếu đang Chờ xử lý');
         }
       },
     });
   }
 
   async submitForAcceptance(id: number, actor: ActorContext) {
-    const req = await prisma.repairRequest.findUnique({ where: { id }, select: { requestType: true } });
+    const req = await prisma.repairRequest.findUnique({
+      where: { id },
+      select: { requestType: true },
+    });
     if (req?.requestType === RequestType.KIEM_TRA) {
       throw new ValidationError('Phiếu kiểm tra không đi qua trạng thái này');
     }
-    const found: { slip: Awaited<ReturnType<typeof acceptanceHandoverService.findActivePendingRepairSlip>> } = { slip: null };
-    const result = await this.transition(id, RepairRequestStatus.CHO_NGHIEM_THU, actor, 'submit_acceptance', {
-      // A pending slip is mandatory for every role (ADMIN included) — otherwise the requester has
-      // nothing to confirm. After a KHÔNG ĐẠT the slip must be a new one, created after that decision.
-      precheck: async (row, tx) => {
-        if (row.trangThai !== RepairRequestStatus.DANG_SUA_CHUA) {
-          throw new ValidationError('Chỉ đề nghị nghiệm thu khi phiếu đang Đang sửa chữa');
-        }
-        found.slip = await acceptanceHandoverService.findActivePendingRepairSlip(tx, id);
-        if (!found.slip) {
-          throw new ValidationError('Vui lòng lập phiếu nghiệm thu trước khi đề nghị nghiệm thu');
-        }
-      },
-    });
+    const found: {
+      slip: Awaited<ReturnType<typeof acceptanceHandoverService.findActivePendingRepairSlip>>;
+    } = { slip: null };
+    const result = await this.transition(
+      id,
+      RepairRequestStatus.DA_SUA_CHUA,
+      actor,
+      'submit_acceptance',
+      {
+        // A pending slip is mandatory for every role (ADMIN included) — otherwise the requester has
+        // nothing to confirm. After a KHÔNG ĐẠT the slip must be a new one, created after that decision.
+        precheck: async (row, tx) => {
+          if (row.trangThai !== RepairRequestStatus.DANG_SUA_CHUA) {
+            throw new ValidationError('Chỉ đề nghị nghiệm thu khi phiếu đang Đang sửa chữa');
+          }
+          found.slip = await acceptanceHandoverService.findActivePendingRepairSlip(tx, id);
+          if (!found.slip) {
+            throw new ValidationError('Vui lòng lập phiếu nghiệm thu trước khi đề nghị nghiệm thu');
+          }
+        },
+      }
+    );
     // Ask the requester to confirm only now that the YCSC is really waiting (best-effort, never throws).
     if (found.slip) {
-      await acceptanceHandoverService.notifyConfirmer(found.slip, found.slip.nguoiXacNhanId, found.slip.nguoiBanGiao);
+      await acceptanceHandoverService.notifyConfirmer(
+        found.slip,
+        found.slip.nguoiXacNhanId,
+        found.slip.nguoiBanGiao
+      );
     }
     return result;
   }
 
   /**
-   * Requester confirms the acceptance slip (CHO_NGHIEM_THU only).
+   * Requester confirms the acceptance slip (DA_SUA_CHUA only).
    * Confirmer = creator of the source YCKT if any, else creator of this YCSC (ADMIN may act on behalf).
    * ĐẠT → DA_NGHIEM_THU (technician then completes); KHÔNG ĐẠT (lý do bắt buộc) → back to DANG_SUA_CHUA.
    */
@@ -862,15 +957,25 @@ class RepairRequestService {
     }
     const isAdmin = actor.actorRole === 'ADMIN';
     const result = await prisma.$transaction(async (tx) => {
-      const r = await tx.repairRequest.findUnique({ where: { id }, select: { id: true, trangThai: true, maYeuCau: true, requestType: true } });
+      const r = await tx.repairRequest.findUnique({
+        where: { id },
+        select: { id: true, trangThai: true, maYeuCau: true, requestType: true },
+      });
       if (!r) throw new NotFoundError('Không tìm thấy yêu cầu sửa chữa');
-      if (r.requestType === RequestType.KIEM_TRA) throw new ValidationError('Phiếu kiểm tra không đi qua trạng thái này');
-      if (r.trangThai !== RepairRequestStatus.CHO_NGHIEM_THU) {
-        throw new ValidationError('Chỉ xác nhận nghiệm thu khi phiếu đang Chờ nghiệm thu');
+      if (r.requestType === RequestType.KIEM_TRA)
+        throw new ValidationError('Phiếu kiểm tra không đi qua trạng thái này');
+      if (r.trangThai !== RepairRequestStatus.DA_SUA_CHUA) {
+        throw new ValidationError('Chỉ xác nhận nghiệm thu khi phiếu đang Đã sửa chữa');
       }
-      const next = ketQua === NghiemThuKetQua.DAT ? RepairRequestStatus.DA_NGHIEM_THU : RepairRequestStatus.DANG_SUA_CHUA;
-      // KHÔNG ĐẠT goes CHO_NGHIEM_THU → DANG_SUA_CHUA directly; validate the forward step it replaces.
-      advanceRepairRequestStatus(r.trangThai, RepairRequestStatus.DA_NGHIEM_THU, { bypass: isAdmin, requestType: r.requestType as string });
+      const next =
+        ketQua === NghiemThuKetQua.DAT
+          ? RepairRequestStatus.DA_NGHIEM_THU
+          : RepairRequestStatus.DANG_SUA_CHUA;
+      // KHÔNG ĐẠT goes DA_SUA_CHUA → DANG_SUA_CHUA directly; validate the forward step it replaces.
+      advanceRepairRequestStatus(r.trangThai, RepairRequestStatus.DA_NGHIEM_THU, {
+        bypass: isAdmin,
+        requestType: r.requestType as string,
+      });
       // Claim the row first so a concurrent double-confirm fails before touching the slip.
       // Actual cost is never taken from the confirmer (technicians set it). On KHÔNG ĐẠT the stored
       // result is cleared — the request is back in re-work and the slip keeps the decision + reason.
@@ -879,7 +984,13 @@ class RepairRequestService {
         data: { trangThai: next, ketQuaNghiemThu: ketQua === NghiemThuKetQua.DAT ? ketQua : null },
       });
       if (guard.count === 0) throw new ConflictError(STALE_ROW_MESSAGE);
-      await acceptanceHandoverService.recordConfirmationTx(tx, { repairRequestId: id }, actor, ketQua, lyDo);
+      await acceptanceHandoverService.recordConfirmationTx(
+        tx,
+        { repairRequestId: id },
+        actor,
+        ketQua,
+        lyDo
+      );
       await tx.repairRequestStatusLog.create({
         data: {
           repairRequestId: id,
@@ -887,29 +998,42 @@ class RepairRequestService {
           newStatus: next,
           actorId: actor.actorId ?? null,
           actorRole: actor.actorRole ?? null,
-          reason: ketQua === NghiemThuKetQua.DAT ? 'acceptance_dat' : `acceptance_khong_dat: ${String(lyDo ?? '').trim()}`,
+          reason:
+            ketQua === NghiemThuKetQua.DAT
+              ? 'acceptance_dat'
+              : `acceptance_khong_dat: ${String(lyDo ?? '').trim()}`,
         },
       });
       return tx.repairRequest.findUnique({ where: { id }, include: repairRequestInclude });
     });
     const reasonText = String(lyDo ?? '').trim();
-    const statusText = ketQua === NghiemThuKetQua.DAT
-      ? 'Đã nghiệm thu (ĐẠT)'
-      : `Không đạt nghiệm thu — quay lại sửa chữa${reasonText ? ` (lý do: ${reasonText})` : ''}`;
-    notificationService.notify(NotificationEvent.REPAIR_REQUEST_UPDATED, {
-      entityId: String(id),
-      metadata: { maYeuCau: result?.maYeuCau, status: statusText },
-    }).catch(() => {});
+    const statusText =
+      ketQua === NghiemThuKetQua.DAT
+        ? 'Đã nghiệm thu (ĐẠT)'
+        : `Không đạt nghiệm thu — quay lại sửa chữa${reasonText ? ` (lý do: ${reasonText})` : ''}`;
+    notificationService
+      .notify(NotificationEvent.REPAIR_REQUEST_UPDATED, {
+        entityId: String(id),
+        metadata: { maYeuCau: result?.maYeuCau, status: statusText },
+      })
+      .catch(() => {});
     return result;
   }
 
   async reject(id: number, actor: ActorContext, reason?: string) {
-    const result = await this.transition(id, RepairRequestStatus.TU_CHOI, actor, reason ?? 'reject');
-    notificationService.notify(NotificationEvent.REPAIR_REQUEST_REJECTED, {
-      entityId: String(id),
-      targetEmployeeIds: result?.createdById ? [result.createdById] : [],
-      metadata: { maYeuCau: result?.maYeuCau, reason: reason ?? 'reject' },
-    }).catch(() => {});
+    const result = await this.transition(
+      id,
+      RepairRequestStatus.TU_CHOI,
+      actor,
+      reason ?? 'reject'
+    );
+    notificationService
+      .notify(NotificationEvent.REPAIR_REQUEST_REJECTED, {
+        entityId: String(id),
+        targetEmployeeIds: result?.createdById ? [result.createdById] : [],
+        metadata: { maYeuCau: result?.maYeuCau, reason: reason ?? 'reject' },
+      })
+      .catch(() => {});
     return result;
   }
 
@@ -924,18 +1048,22 @@ class RepairRequestService {
       precheck: (row) => {
         if (privileged) return;
         if (!actor.actorId || row.createdById !== actor.actorId) {
-          throw new AuthorizationError('Chỉ người tạo phiếu hoặc bộ phận Kỹ thuật mới được hủy yêu cầu này');
+          throw new AuthorizationError(
+            'Chỉ người tạo phiếu hoặc bộ phận Kỹ thuật mới được hủy yêu cầu này'
+          );
         }
         if (row.trangThai !== RepairRequestStatus.CHO_XU_LY) {
           throw new ValidationError('Chỉ được hủy yêu cầu của mình khi phiếu còn Chờ xử lý');
         }
       },
     });
-    notificationService.notify(NotificationEvent.REPAIR_REQUEST_CANCELLED, {
-      entityId: String(id),
-      targetEmployeeIds: (result as any)?.createdById ? [(result as any).createdById] : [],
-      metadata: { maYeuCau: (result as any)?.maYeuCau, reason },
-    }).catch(() => {});
+    notificationService
+      .notify(NotificationEvent.REPAIR_REQUEST_CANCELLED, {
+        entityId: String(id),
+        targetEmployeeIds: (result as any)?.createdById ? [(result as any).createdById] : [],
+        metadata: { maYeuCau: (result as any)?.maYeuCau, reason },
+      })
+      .catch(() => {});
     return result as never;
   }
 
@@ -946,7 +1074,8 @@ class RepairRequestService {
       where: { tenSanPham: { equals: tenGoi, mode: 'insensitive' } },
       select: { giaThanh: true },
     });
-    if (product && product.giaThanh != null && Number(product.giaThanh) > 0) return Number(product.giaThanh);
+    if (product && product.giaThanh != null && Number(product.giaThanh) > 0)
+      return Number(product.giaThanh);
     // Fallback: LotProduct giaThanh (average or first lot with this product name)
     const lot = await (prisma as any).lotProduct?.findFirst?.({
       where: { internationalProduct: { tenSanPham: { equals: tenGoi, mode: 'insensitive' } } },
@@ -955,14 +1084,18 @@ class RepairRequestService {
     });
     if (lot && lot.giaThanh != null && Number(lot.giaThanh) > 0) return Number(lot.giaThanh);
     // Direct lotProduct by tenSanPham text match (when internationalProductId not linked)
-    const lot2 = await prisma.$queryRawUnsafe(
-      `SELECT "giaThanh" FROM business.lot_products lp JOIN business.lots l ON l.id=lp."lotId" LIMIT 1`
-    ).catch(() => null);
+    const lot2 = await prisma
+      .$queryRawUnsafe(
+        `SELECT "giaThanh" FROM business.lot_products lp JOIN business.lots l ON l.id=lp."lotId" LIMIT 1`
+      )
+      .catch(() => null);
     void lot2;
     return null;
   }
 
-  async calcPlanCost(repairRequestId: number): Promise<{ total: number; items: PlanCostItem[]; itemsWithNullPrice: PlanCostItem[] }> {
+  async calcPlanCost(
+    repairRequestId: number
+  ): Promise<{ total: number; items: PlanCostItem[]; itemsWithNullPrice: PlanCostItem[] }> {
     const firstLink = await prisma.repairSupplyLink.findFirst({
       where: { repairRequestId },
       orderBy: { createdAt: 'asc' },
@@ -998,9 +1131,10 @@ class RepairRequestService {
 
     const links = await prisma.repairSupplyLink.findMany({ where: { repairRequestId } });
     const supplyIds = [...new Set(links.map((l) => l.supplyRequestId))];
-    const srItems = supplyIds.length > 0
-      ? await prisma.supplyRequestItem.findMany({ where: { supplyRequestId: { in: supplyIds } } })
-      : [];
+    const srItems =
+      supplyIds.length > 0
+        ? await prisma.supplyRequestItem.findMany({ where: { supplyRequestId: { in: supplyIds } } })
+        : [];
 
     const items: ActualCostItem[] = [];
     let actual = 0;
@@ -1010,13 +1144,15 @@ class RepairRequestService {
       // else the requested qty; a cancelled / not-issued ('Không cấp') line costs only what was issued.
       const fulfilled = Number(it.fulfilledQty ?? 0);
       const closed = CLOSED_SUPPLY_ITEM_STATUSES.has(String(it.fulfillmentStatus ?? ''));
-      const qty = closed ? fulfilled : (fulfilled > 0 ? fulfilled : Number(it.soLuong ?? 0));
+      const qty = closed ? fulfilled : fulfilled > 0 ? fulfilled : Number(it.soLuong ?? 0);
       const price = qty > 0 ? await this.resolveGiaThanh(it.tenGoi) : null;
       items.push({ supplyRequestItemId: it.id, tenGoi: it.tenGoi, qty, price });
       if (price != null) actual += price * qty;
     }
 
-    const incidentalCosts = await prisma.repairIncidentalCost.findMany({ where: { repairRequestId } });
+    const incidentalCosts = await prisma.repairIncidentalCost.findMany({
+      where: { repairRequestId },
+    });
     let incidentalTotal = 0;
     for (const ic of incidentalCosts) incidentalTotal += Number(ic.soTien ?? 0);
     actual += incidentalTotal;
@@ -1027,43 +1163,56 @@ class RepairRequestService {
   }
 
   async complete(id: number, actor: ActorContext) {
-    const { itemsWithNullPrice } = await this.calcActualCost(id);
+    const { actual, itemsWithNullPrice } = await this.calcActualCost(id);
     if (itemsWithNullPrice.length > 0) {
       const names = itemsWithNullPrice.map((i) => i.tenGoi).join(', ');
-      throw new ValidationError(`Không thể hoàn thành: món [${names}] chưa có giá thành. Vui lòng cập nhật giá trước.`);
+      throw new ValidationError(
+        `Không thể hoàn thành: món [${names}] chưa có giá thành. Vui lòng cập nhật giá trước.`
+      );
     }
-    const incidentalCosts = await prisma.repairIncidentalCost.findMany({ where: { repairRequestId: id } });
+    const incidentalCosts = await prisma.repairIncidentalCost.findMany({
+      where: { repairRequestId: id },
+    });
     for (const ic of incidentalCosts) {
       if (Number(ic.soTien) > 0 && !String(ic.lyDo ?? '').trim()) {
-        throw new ValidationError('Không thể hoàn thành: chi phí phát sinh có số tiền > 0 nhưng thiếu lý do');
+        throw new ValidationError(
+          'Không thể hoàn thành: chi phí phát sinh có số tiền > 0 nhưng thiếu lý do'
+        );
       }
     }
     const result = await this.transition(id, RepairRequestStatus.HOAN_THANH, actor, 'complete', {
-      extraData: { ngayHoanThanhThucTe: new Date() },
+      // Single source of truth: snapshot the computed actual cost so dashboards read
+      // the same number the gate validated (no manual chiPhiThucTe input anywhere).
+      extraData: { ngayHoanThanhThucTe: new Date(), chiPhiThucTe: actual as never },
       // Checked on the row read inside the transaction — ADMIN included (no completion without ĐẠT).
       precheck: (row) => {
-        if (row.requestType !== RequestType.KIEM_TRA && row.trangThai !== RepairRequestStatus.DA_NGHIEM_THU) {
+        if (
+          row.requestType !== RequestType.KIEM_TRA &&
+          row.trangThai !== RepairRequestStatus.DA_NGHIEM_THU
+        ) {
           throw new ValidationError('Chỉ hoàn thành khi người yêu cầu đã xác nhận nghiệm thu ĐẠT');
         }
       },
-      afterUpdate: (tx, maYeuCau) => closeLinkedFaultRecords(tx, id, maYeuCau, actor.actorId ?? null),
+      afterUpdate: (tx, maYeuCau) =>
+        closeLinkedFaultRecords(tx, id, maYeuCau, actor.actorId ?? null),
     });
-    notificationService.notify(NotificationEvent.REPAIR_REQUEST_COMPLETED, {
-      entityId: String(id),
-      metadata: { maYeuCau: result?.maYeuCau },
-    }).catch(() => {});
+    notificationService
+      .notify(NotificationEvent.REPAIR_REQUEST_COMPLETED, {
+        entityId: String(id),
+        metadata: { maYeuCau: result?.maYeuCau },
+      })
+      .catch(() => {});
     return result;
   }
 
   // ── Actual execution fields (only when DA_NGHIEM_THU or HOAN_THANH) ───────
+  // chiPhiThucTe is snapshotted from calcActualCost() at complete() — never an input.
+  // ngayHoanThanhThucTe is system-set at complete() — never an input.
   async updateActualFields(
     id: number,
     data: {
       gioCongThucTe?: number | null;
       noiDungThucHien?: string | null;
-      chiPhiThucTe?: number | null;
-      ketQuaNghiemThu?: NghiemThuKetQua | string | null;
-      ngayHoanThanhThucTe?: Date | null;
     },
     actor?: ActorContext
   ) {
@@ -1074,20 +1223,19 @@ class RepairRequestService {
     ];
     const bypass = actor?.actorRole === 'ADMIN';
     if (!bypass && !allowedStatuses.includes(existing.trangThai as RepairRequestStatus)) {
-      throw new ValidationError('Chỉ được cập nhật thực tế khi phiếu ở trạng thái Đã nghiệm thu hoặc Hoàn thành');
+      throw new ValidationError(
+        'Chỉ được cập nhật thực tế khi phiếu ở trạng thái Đã nghiệm thu hoặc Hoàn thành'
+      );
     }
-    // ketQuaNghiemThu is written only by confirmAcceptance — never through this endpoint.
-    if (data.ketQuaNghiemThu !== undefined) {
-      logger.warn(`Ignored ketQuaNghiemThu on actual-fields update (id: ${id})`);
-    }
-    if (data.chiPhiThucTe != null && (!Number.isFinite(Number(data.chiPhiThucTe)) || Number(data.chiPhiThucTe) < 0)) {
-      throw new ValidationError('Chi phí thực tế phải >= 0');
+    const extra = data as Record<string, unknown>;
+    for (const k of ['ketQuaNghiemThu', 'chiPhiThucTe', 'ngayHoanThanhThucTe']) {
+      if (extra[k] !== undefined) {
+        logger.warn(`Ignored ${k} on actual-fields update (id: ${id}) — system-managed`);
+      }
     }
     const updateData: Prisma.RepairRequestUpdateInput = {};
     if (data.gioCongThucTe !== undefined) updateData.gioCongThucTe = data.gioCongThucTe;
     if (data.noiDungThucHien !== undefined) updateData.noiDungThucHien = data.noiDungThucHien;
-    if (data.chiPhiThucTe !== undefined) updateData.chiPhiThucTe = data.chiPhiThucTe;
-    if (data.ngayHoanThanhThucTe !== undefined) updateData.ngayHoanThanhThucTe = data.ngayHoanThanhThucTe;
 
     return prisma.repairRequest.update({
       where: { id },
@@ -1100,12 +1248,20 @@ class RepairRequestService {
 
   async listAssignees(id: number) {
     await this.getRepairRequestById(id);
-    return prisma.repairRequestAssignee.findMany({ where: { repairRequestId: id }, orderBy: { assignedAt: 'asc' } });
+    return prisma.repairRequestAssignee.findMany({
+      where: { repairRequestId: id },
+      orderBy: { assignedAt: 'asc' },
+    });
   }
 
-  async assignUser(id: number, data: { userId?: string; userName?: string; vaiTro?: string; isLead?: boolean }, actor: ActorContext) {
+  async assignUser(
+    id: number,
+    data: { userId?: string; userName?: string; vaiTro?: string; isLead?: boolean },
+    actor: ActorContext
+  ) {
     const req = await this.getRepairRequestById(id);
-    if ((req as any).requestType === RequestType.KIEM_TRA) throw new ValidationError('Phiếu kiểm tra không phân công người thực hiện');
+    if ((req as any).requestType === RequestType.KIEM_TRA)
+      throw new ValidationError('Phiếu kiểm tra không phân công người thực hiện');
     return prisma.$transaction(async (tx) => {
       if (data.isLead) {
         await tx.repairRequestAssignee.updateMany({
@@ -1141,7 +1297,10 @@ class RepairRequestService {
 
   async listMaterialNeeds(id: number) {
     await this.getRepairRequestById(id);
-    return prisma.repairMaterialNeed.findMany({ where: { repairRequestId: id }, orderBy: { createdAt: 'asc' } });
+    return prisma.repairMaterialNeed.findMany({
+      where: { repairRequestId: id },
+      orderBy: { createdAt: 'asc' },
+    });
   }
 
   async upsertMaterialNeed(
@@ -1171,6 +1330,7 @@ class RepairRequestService {
     });
     if (!item) throw new ValidationError('RepairRequestItem không thuộc phiếu này');
 
+    // soLuongThucTe is derived from SupplyRequestItem.fulfilledQty — ignore manual input
     if (needId) {
       return prisma.repairMaterialNeed.update({
         where: { id: needId },
@@ -1179,7 +1339,6 @@ class RepairRequestService {
           maVatTu: (data.maVatTu as string) ?? null,
           donVi: (data.donVi as string) ?? null,
           soLuongDuKien: data.soLuongDuKien as never,
-          soLuongThucTe: (data.soLuongThucTe as never) ?? undefined,
           ghiChu: (data.ghiChu as string) ?? null,
         },
       });
@@ -1192,7 +1351,6 @@ class RepairRequestService {
           maVatTu: (data.maVatTu as string) ?? null,
           donVi: (data.donVi as string) ?? null,
           soLuongDuKien: data.soLuongDuKien as never,
-          soLuongThucTe: (data.soLuongThucTe as never) ?? null,
           ghiChu: (data.ghiChu as string) ?? null,
         },
       });
@@ -1201,7 +1359,9 @@ class RepairRequestService {
 
   async removeMaterialNeed(id: number, needId: string) {
     await this.getRepairRequestById(id);
-    const need = await prisma.repairMaterialNeed.findFirst({ where: { id: needId, repairRequestId: id } });
+    const need = await prisma.repairMaterialNeed.findFirst({
+      where: { id: needId, repairRequestId: id },
+    });
     if (!need) throw new NotFoundError('Không tìm thấy vật tư');
     await prisma.repairMaterialNeed.delete({ where: { id: needId } });
     return { message: 'Đã xóa vật tư' };
@@ -1211,12 +1371,20 @@ class RepairRequestService {
 
   async listSupplyLinks(id: number) {
     await this.getRepairRequestById(id);
-    return prisma.repairSupplyLink.findMany({ where: { repairRequestId: id }, orderBy: { createdAt: 'asc' } });
+    return prisma.repairSupplyLink.findMany({
+      where: { repairRequestId: id },
+      orderBy: { createdAt: 'asc' },
+    });
   }
 
   async linkSupplyRequest(
     id: number,
-    data: { supplyRequestId: string; repairRequestItemId?: string | null; supplyRequestItemId?: string | null; soLuong?: number; ghiChu?: string },
+    data: {
+      supplyRequestId: string;
+      repairRequestItemId?: string | null;
+      supplyRequestItemId?: string | null;
+      ghiChu?: string;
+    },
     actor: ActorContext
   ) {
     const req = await this.getRepairRequestById(id);
@@ -1240,7 +1408,6 @@ class RepairRequestService {
         repairRequestItemId: data.repairRequestItemId ?? null,
         supplyRequestId: data.supplyRequestId,
         supplyRequestItemId: data.supplyRequestItemId ?? null,
-        soLuong: data.soLuong as never ?? null,
         ghiChu: data.ghiChu ?? null,
         createdById: actor.actorId ?? null,
       },
@@ -1248,15 +1415,23 @@ class RepairRequestService {
 
     // Auto-calc and snapshot plan cost if chiPhiDuKien is null (first YCCC link)
     try {
-      const repair = await prisma.repairRequest.findUnique({ where: { id }, select: { chiPhiDuKien: true } });
+      const repair = await prisma.repairRequest.findUnique({
+        where: { id },
+        select: { chiPhiDuKien: true },
+      });
       if (repair && repair.chiPhiDuKien == null) {
         const { total } = await this.calcPlanCost(id);
         if (total > 0) {
-          await prisma.repairRequest.update({ where: { id }, data: { chiPhiDuKien: total as unknown as never } });
+          await prisma.repairRequest.update({
+            where: { id },
+            data: { chiPhiDuKien: total as unknown as never },
+          });
         }
       }
     } catch (e) {
-      logger.warn(`linkSupplyRequest auto calcPlanCost failed for repair ${id}: ${e instanceof Error ? e.message : String(e)}`);
+      logger.warn(
+        `linkSupplyRequest auto calcPlanCost failed for repair ${id}: ${e instanceof Error ? e.message : String(e)}`
+      );
     }
 
     return created;
@@ -1264,7 +1439,9 @@ class RepairRequestService {
 
   async unlinkSupplyRequest(id: number, linkId: string) {
     await this.getRepairRequestById(id);
-    const link = await prisma.repairSupplyLink.findFirst({ where: { id: linkId, repairRequestId: id } });
+    const link = await prisma.repairSupplyLink.findFirst({
+      where: { id: linkId, repairRequestId: id },
+    });
     if (!link) throw new NotFoundError('Không tìm thấy liên kết vật tư');
     await prisma.repairSupplyLink.delete({ where: { id: linkId } });
     return { message: 'Đã gỡ liên kết' };
@@ -1273,13 +1450,21 @@ class RepairRequestService {
   // ── Incidental Costs CRUD ────────────────────────────────────────────
   async listIncidentalCosts(id: number) {
     await this.getRepairRequestById(id);
-    return (prisma as any).repairIncidentalCost.findMany({ where: { repairRequestId: id }, orderBy: { createdAt: 'asc' } });
+    return (prisma as any).repairIncidentalCost.findMany({
+      where: { repairRequestId: id },
+      orderBy: { createdAt: 'asc' },
+    });
   }
 
-  async createIncidentalCost(id: number, data: { tenKhoan: string; soTien: number; lyDo: string; fileMinhChung?: string | null }) {
+  async createIncidentalCost(
+    id: number,
+    data: { tenKhoan: string; soTien: number; lyDo: string; fileMinhChung?: string | null }
+  ) {
     await this.getRepairRequestById(id);
-    if (data.soTien == null || Number(data.soTien) < 0) throw new ValidationError('soTien phải >= 0');
-    if (Number(data.soTien) > 0 && !String(data.lyDo ?? '').trim()) throw new ValidationError('lyDo là bắt buộc khi soTien > 0');
+    if (data.soTien == null || Number(data.soTien) < 0)
+      throw new ValidationError('soTien phải >= 0');
+    if (Number(data.soTien) > 0 && !String(data.lyDo ?? '').trim())
+      throw new ValidationError('lyDo là bắt buộc khi soTien > 0');
     if (!String(data.tenKhoan ?? '').trim()) throw new ValidationError('tenKhoan là bắt buộc');
     return (prisma as any).repairIncidentalCost.create({
       data: {
@@ -1292,14 +1477,21 @@ class RepairRequestService {
     });
   }
 
-  async updateIncidentalCost(id: number, costId: string, data: { tenKhoan?: string; soTien?: number; lyDo?: string; fileMinhChung?: string | null }) {
+  async updateIncidentalCost(
+    id: number,
+    costId: string,
+    data: { tenKhoan?: string; soTien?: number; lyDo?: string; fileMinhChung?: string | null }
+  ) {
     await this.getRepairRequestById(id);
-    const existing = await (prisma as any).repairIncidentalCost.findFirst({ where: { id: costId, repairRequestId: id } });
+    const existing = await (prisma as any).repairIncidentalCost.findFirst({
+      where: { id: costId, repairRequestId: id },
+    });
     if (!existing) throw new NotFoundError('Không tìm thấy chi phí phát sinh');
     const nextSoTien = data.soTien !== undefined ? Number(data.soTien) : Number(existing.soTien);
     if (nextSoTien < 0) throw new ValidationError('soTien phải >= 0');
     const nextLyDo = data.lyDo !== undefined ? String(data.lyDo) : String(existing.lyDo ?? '');
-    if (nextSoTien > 0 && !nextLyDo.trim()) throw new ValidationError('lyDo là bắt buộc khi soTien > 0');
+    if (nextSoTien > 0 && !nextLyDo.trim())
+      throw new ValidationError('lyDo là bắt buộc khi soTien > 0');
     return (prisma as any).repairIncidentalCost.update({
       where: { id: costId },
       data: {
@@ -1313,7 +1505,9 @@ class RepairRequestService {
 
   async deleteIncidentalCost(id: number, costId: string) {
     await this.getRepairRequestById(id);
-    const existing = await (prisma as any).repairIncidentalCost.findFirst({ where: { id: costId, repairRequestId: id } });
+    const existing = await (prisma as any).repairIncidentalCost.findFirst({
+      where: { id: costId, repairRequestId: id },
+    });
     if (!existing) throw new NotFoundError('Không tìm thấy chi phí phát sinh');
     await (prisma as any).repairIncidentalCost.delete({ where: { id: costId } });
     return { message: 'Đã xóa chi phí phát sinh' };
@@ -1321,12 +1515,16 @@ class RepairRequestService {
 
   async getCostSummary(id: number) {
     await this.getRepairRequestById(id);
-    const { actual, planSnapshot, incidentalTotal, itemsWithNullPrice, items } = await this.calcActualCost(id);
+    const { actual, planSnapshot, incidentalTotal, itemsWithNullPrice, items } =
+      await this.calcActualCost(id);
     const planFromSnapshot = planSnapshot;
     // Also compute plan total from first YCCC for display if snapshot null
     let planFallback: number | null = null;
     if (planFromSnapshot == null) {
-      try { const p = await this.calcPlanCost(id); planFallback = p.total > 0 ? p.total : null; } catch {}
+      try {
+        const p = await this.calcPlanCost(id);
+        planFallback = p.total > 0 ? p.total : null;
+      } catch {}
     }
     const duKien = planFromSnapshot ?? planFallback;
     const thucTe = actual;
@@ -1365,19 +1563,31 @@ class RepairRequestService {
     }));
   }
 
-  async getStats(filters?: { dateFrom?: Date; dateTo?: Date; machineSystemId?: string; requestType?: RequestType; year?: number; phongBanId?: string }) {
+  async getStats(filters?: {
+    dateFrom?: Date;
+    dateTo?: Date;
+    machineSystemId?: string;
+    requestType?: RequestType;
+    year?: number;
+    phongBanId?: string;
+  }) {
     // year → Jan1-Dec31 of that year; dateFrom/dateTo takes precedence; default = current year
     let yearWindow: { from: Date; to: Date } | null = null;
     if (filters?.year !== undefined && !filters?.dateFrom && !filters?.dateTo) {
       const y = filters.year;
-      yearWindow = { from: new Date(y, 0, 1, 0, 0, 0, 0), to: new Date(y, 11, 31, 23, 59, 59, 999) };
+      yearWindow = {
+        from: new Date(y, 0, 1, 0, 0, 0, 0),
+        to: new Date(y, 11, 31, 23, 59, 59, 999),
+      };
     }
     const now = new Date();
     let dateFrom: Date;
     let dateTo: Date;
     if (filters?.dateFrom || filters?.dateTo) {
       dateTo = filters?.dateTo ?? now;
-      const windowMs = filters?.dateFrom ? dateTo.getTime() - filters.dateFrom.getTime() : 90 * 24 * 60 * 60 * 1000;
+      const windowMs = filters?.dateFrom
+        ? dateTo.getTime() - filters.dateFrom.getTime()
+        : 90 * 24 * 60 * 60 * 1000;
       dateFrom = filters?.dateFrom ?? new Date(dateTo.getTime() - windowMs);
     } else if (yearWindow) {
       dateFrom = yearWindow.from;
@@ -1395,7 +1605,12 @@ class RepairRequestService {
 
     // phongBanId filter now means requester's department (User.departmentId), not RepairRequest.phongBanId planning field
     const deptFilterUserIds: string[] | null = filters?.phongBanId
-      ? (await prisma.user.findMany({ where: { departmentId: filters.phongBanId }, select: { id: true } })).map((u) => u.id)
+      ? (
+          await prisma.user.findMany({
+            where: { departmentId: filters.phongBanId },
+            select: { id: true },
+          })
+        ).map((u) => u.id)
       : null;
     // Sentinel for dept with no users -> match nothing
     const deptNoUsers = deptFilterUserIds !== null && deptFilterUserIds.length === 0;
@@ -1411,7 +1626,8 @@ class RepairRequestService {
         where.requestType = filters.requestType;
       }
       if (filters?.phongBanId) {
-        if (deptNoUsers) where.id = -1 as unknown as number; // impossible
+        if (deptNoUsers)
+          where.id = -1 as unknown as number; // impossible
         else where.createdById = { in: deptFilterUserIds! };
       }
       return where;
@@ -1428,10 +1644,8 @@ class RepairRequestService {
       });
       const counts: Record<string, number> = {
         CHO_XU_LY: 0,
-        DA_TIEP_NHAN: 0,
-        LEN_KE_HOACH: 0,
         DANG_SUA_CHUA: 0,
-        CHO_NGHIEM_THU: 0,
+        DA_SUA_CHUA: 0,
         DA_NGHIEM_THU: 0,
         HOAN_THANH: 0,
         DA_HUY: 0,
@@ -1454,7 +1668,9 @@ class RepairRequestService {
       return counts;
     };
 
-    const avgCompletionHours = async (where: Prisma.RepairRequestWhereInput): Promise<number | null> => {
+    const avgCompletionHours = async (
+      where: Prisma.RepairRequestWhereInput
+    ): Promise<number | null> => {
       const completedLogs = await prisma.repairRequestStatusLog.findMany({
         where: {
           newStatus: RepairRequestStatus.HOAN_THANH,
@@ -1477,7 +1693,16 @@ class RepairRequestService {
       return totalHours / completedLogs.length;
     };
 
-    const [total, byStatus, byRequestType, avgHours, prevByStatus, prevByRequestType, prevAvgHours, prevTotal] = await Promise.all([
+    const [
+      total,
+      byStatus,
+      byRequestType,
+      avgHours,
+      prevByStatus,
+      prevByRequestType,
+      prevAvgHours,
+      prevTotal,
+    ] = await Promise.all([
       prisma.repairRequest.count({ where: currentWhere }),
       countByStatus(currentWhere),
       countByRequestType(currentWhere),
@@ -1492,10 +1717,8 @@ class RepairRequestService {
       total: total - prevTotal,
       byStatus: {
         CHO_XU_LY: byStatus.CHO_XU_LY - prevByStatus.CHO_XU_LY,
-        DA_TIEP_NHAN: byStatus.DA_TIEP_NHAN - prevByStatus.DA_TIEP_NHAN,
-        LEN_KE_HOACH: byStatus.LEN_KE_HOACH - prevByStatus.LEN_KE_HOACH,
         DANG_SUA_CHUA: byStatus.DANG_SUA_CHUA - prevByStatus.DANG_SUA_CHUA,
-        CHO_NGHIEM_THU: byStatus.CHO_NGHIEM_THU - prevByStatus.CHO_NGHIEM_THU,
+        DA_SUA_CHUA: byStatus.DA_SUA_CHUA - prevByStatus.DA_SUA_CHUA,
         DA_NGHIEM_THU: byStatus.DA_NGHIEM_THU - prevByStatus.DA_NGHIEM_THU,
         HOAN_THANH: byStatus.HOAN_THANH - prevByStatus.HOAN_THANH,
         DA_HUY: byStatus.DA_HUY - prevByStatus.DA_HUY,
@@ -1505,9 +1728,8 @@ class RepairRequestService {
         KIEM_TRA: byRequestType.KIEM_TRA - prevByRequestType.KIEM_TRA,
         SUA_CHUA: byRequestType.SUA_CHUA - prevByRequestType.SUA_CHUA,
       },
-      avgCompletionHours: avgHours !== null && prevAvgHours !== null
-        ? avgHours - prevAvgHours
-        : null,
+      avgCompletionHours:
+        avgHours !== null && prevAvgHours !== null ? avgHours - prevAvgHours : null,
     };
 
     const topMachinesRaw = await prisma.repairRequestItem.groupBy({
@@ -1535,12 +1757,18 @@ class RepairRequestService {
 
     const topMachines = topMachinesRaw.map((r) => ({
       machineSystemId: r.machineSystemId,
-      tenHeThong: r.machineSystemId ? (machineSystemsMap.get(r.machineSystemId!)?.tenHeThong ?? null) : null,
-      khuVuc: r.machineSystemId ? (machineSystemsMap.get(r.machineSystemId!)?.khuVuc ?? null) : null,
+      tenHeThong: r.machineSystemId
+        ? (machineSystemsMap.get(r.machineSystemId!)?.tenHeThong ?? null)
+        : null,
+      khuVuc: r.machineSystemId
+        ? (machineSystemsMap.get(r.machineSystemId!)?.khuVuc ?? null)
+        : null,
       count: r._count._all,
     }));
 
-    const deptFilterWhere = (base: Prisma.RepairRequestWhereInput): Prisma.RepairRequestWhereInput => {
+    const deptFilterWhere = (
+      base: Prisma.RepairRequestWhereInput
+    ): Prisma.RepairRequestWhereInput => {
       if (!filters?.phongBanId) return base;
       if (deptNoUsers) return { ...base, id: -1 as unknown as number };
       return { ...base, createdById: { in: deptFilterUserIds! } };
@@ -1550,7 +1778,9 @@ class RepairRequestService {
       where: {
         repairRequest: deptFilterWhere({
           createdAt: { gte: dateFrom, lte: dateTo },
-          ...(filters?.machineSystemId ? { items: { some: { machineSystemId: filters.machineSystemId } } } : {}),
+          ...(filters?.machineSystemId
+            ? { items: { some: { machineSystemId: filters.machineSystemId } } }
+            : {}),
           ...(filters?.requestType ? { requestType: filters.requestType } : {}),
         }),
         machineSystemDetailId: { not: null },
@@ -1585,7 +1815,9 @@ class RepairRequestService {
         });
         return {
           machineSystemDetailId: r.machineSystemDetailId,
-          tenChiTiet: r.machineSystemDetailId ? (machineDetailMap.get(r.machineSystemDetailId) ?? null) : null,
+          tenChiTiet: r.machineSystemDetailId
+            ? (machineDetailMap.get(r.machineSystemDetailId) ?? null)
+            : null,
           count: r._count.repairRequestId,
           latestMaYeuCau: latest?.maYeuCau ?? null,
         };
@@ -1608,13 +1840,17 @@ class RepairRequestService {
       const monthKey = `${bucketStart.getFullYear()}-${String(bucketStart.getMonth() + 1).padStart(2, '0')}`;
       const bucketWhere: Prisma.RepairRequestWhereInput = deptFilterWhere({
         createdAt: { gte: bucketStart, lte: bucketEnd },
-        ...(filters?.machineSystemId ? { items: { some: { machineSystemId: filters.machineSystemId } } } : {}),
+        ...(filters?.machineSystemId
+          ? { items: { some: { machineSystemId: filters.machineSystemId } } }
+          : {}),
         ...(filters?.requestType ? { requestType: filters.requestType } : {}),
       });
 
       const [bucketTotal, bucketHoanThanh] = await Promise.all([
         prisma.repairRequest.count({ where: bucketWhere }),
-        prisma.repairRequest.count({ where: { ...bucketWhere, trangThai: RepairRequestStatus.HOAN_THANH } }),
+        prisma.repairRequest.count({
+          where: { ...bucketWhere, trangThai: RepairRequestStatus.HOAN_THANH },
+        }),
       ]);
 
       monthlyTrend.push({ month: monthKey, total: bucketTotal, hoanThanh: bucketHoanThanh });
@@ -1624,7 +1860,9 @@ class RepairRequestService {
       where: deptFilterWhere({
         createdAt: { gte: dateFrom, lte: dateTo },
         trangThai: { in: [RepairRequestStatus.CHO_XU_LY, RepairRequestStatus.DANG_SUA_CHUA] },
-        ...(filters?.machineSystemId ? { items: { some: { machineSystemId: filters.machineSystemId } } } : {}),
+        ...(filters?.machineSystemId
+          ? { items: { some: { machineSystemId: filters.machineSystemId } } }
+          : {}),
         ...(filters?.requestType ? { requestType: filters.requestType } : {}),
       }),
       orderBy: { createdAt: 'desc' },
@@ -1651,25 +1889,45 @@ class RepairRequestService {
     // ── Enriched aggregations — dept = requesting dept (createdById -> User.departmentId) ──
     const windowRows = await prisma.repairRequest.findMany({
       where: currentWhere,
-      select: { id: true, maYeuCau: true, createdById: true, chiPhiDuKien: true, chiPhiThucTe: true, createdAt: true, ngayThang: true },
+      select: {
+        id: true,
+        maYeuCau: true,
+        createdById: true,
+        chiPhiDuKien: true,
+        chiPhiThucTe: true,
+        createdAt: true,
+        ngayThang: true,
+      },
     });
     // Resolve requesting dept: User.departmentId -> Department.name
-    const userIds = [...new Set(windowRows.map((r) => r.createdById).filter((v): v is string => !!v) as string[])];
+    const userIds = [
+      ...new Set(windowRows.map((r) => r.createdById).filter((v): v is string => !!v) as string[]),
+    ];
     const userDept = new Map<string, string | null>();
     if (userIds.length > 0) {
-      const users = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, departmentId: true } });
+      const users = await prisma.user.findMany({
+        where: { id: { in: userIds } },
+        select: { id: true, departmentId: true },
+      });
       for (const u of users) userDept.set(u.id, (u as any).departmentId ?? null);
     }
-    const deptIdForRow = (r: typeof windowRows[number]) => r.createdById ? (userDept.get(r.createdById) ?? null) : null;
-    const deptIds = [...new Set(windowRows.map(deptIdForRow).filter((v): v is string => !!v) as string[])];
+    const deptIdForRow = (r: (typeof windowRows)[number]) =>
+      r.createdById ? (userDept.get(r.createdById) ?? null) : null;
+    const deptIds = [
+      ...new Set(windowRows.map(deptIdForRow).filter((v): v is string => !!v) as string[]),
+    ];
     let deptNameMap = new Map<string, string>();
     if (deptIds.length > 0) {
-      const depts = await (prisma as any).department.findMany({ where: { id: { in: deptIds } }, select: { id: true, name: true } }).catch(() => []);
+      const depts = await (prisma as any).department
+        .findMany({ where: { id: { in: deptIds } }, select: { id: true, name: true } })
+        .catch(() => []);
       for (const d of depts) deptNameMap.set(d.id, d.name);
     }
     // Also include deptFilter dept name when it isn't in windowRows
     if (filters?.phongBanId && !deptNameMap.has(filters.phongBanId)) {
-      const dep = await (prisma as any).department.findUnique({ where: { id: filters.phongBanId }, select: { name: true } }).catch(() => null);
+      const dep = await (prisma as any).department
+        .findUnique({ where: { id: filters.phongBanId }, select: { name: true } })
+        .catch(() => null);
       if (dep?.name) deptNameMap.set(filters.phongBanId, dep.name);
     }
     // Departments list = Departments that actually appear as requester dept + Chưa phân bổ sentinel
@@ -1678,16 +1936,21 @@ class RepairRequestService {
     if (hasUnassigned && !departments.some((d) => d.id === '_unassigned')) {
       // sentinel for UI; filtered by null but keep discoverable via "Chưa phân bổ" entry if desired
     }
-    const deptDisplayName = (id: string | null) => id ? (deptNameMap.get(id) ?? id) : 'Chưa phân bổ';
+    const deptDisplayName = (id: string | null) =>
+      id ? (deptNameMap.get(id) ?? id) : 'Chưa phân bổ';
 
-    const monthKeyOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const monthKeyOf = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     const trendMonths: string[] = [];
     if (yearWindow || (!filters?.dateFrom && !filters?.dateTo)) {
       const y = yearWindow ? yearWindow.from.getFullYear() : dateFrom.getFullYear();
       for (let m = 1; m <= 12; m++) trendMonths.push(`${y}-${String(m).padStart(2, '0')}`);
     } else {
       for (let i = 11; i >= 0; i--) {
-        const d = new Date(dateTo); d.setDate(1); d.setMonth(d.getMonth() - i); trendMonths.push(monthKeyOf(d));
+        const d = new Date(dateTo);
+        d.setDate(1);
+        d.setMonth(d.getMonth() - i);
+        trendMonths.push(monthKeyOf(d));
       }
     }
     const deptTotal = new Map<string | null, number>();
@@ -1706,7 +1969,8 @@ class RepairRequestService {
       const departmentsArr: Array<{ deptId: string | null; deptName: string; count: number }> = [];
       let khac = 0;
       for (const [k, cnt] of mMap.entries()) {
-        if (top5Keys.has(k)) departmentsArr.push({ deptId: k, deptName: deptDisplayName(k), count: cnt });
+        if (top5Keys.has(k))
+          departmentsArr.push({ deptId: k, deptName: deptDisplayName(k), count: cnt });
         else khac += cnt;
       }
       if (khac > 0) departmentsArr.push({ deptId: null, deptName: 'Khác', count: khac });
@@ -1730,12 +1994,19 @@ class RepairRequestService {
     });
     let unmappedCount = 0;
     // khuVuc -> { count, viTri breakdown, machines }
-    const areaGroup = new Map<string, { count: number; viTriMap: Map<string, number>; machinesMap: Map<string, number> }>();
+    const areaGroup = new Map<
+      string,
+      { count: number; viTriMap: Map<string, number>; machinesMap: Map<string, number> }
+    >();
     const areaKeyNorm = new Map<string, string>(); // lower -> display (case-insensitive dedup, except UNMAPPED_LABEL)
     for (const it of areaItems) {
       if (!it.machineSystemId || !it.machineSystem) {
         unmappedCount += 1;
-        const g = areaGroup.get(UNMAPPED_LABEL) ?? { count: 0, viTriMap: new Map(), machinesMap: new Map() };
+        const g = areaGroup.get(UNMAPPED_LABEL) ?? {
+          count: 0,
+          viTriMap: new Map(),
+          machinesMap: new Map(),
+        };
         g.count += 1;
         areaGroup.set(UNMAPPED_LABEL, g);
         continue;
@@ -1748,12 +2019,18 @@ class RepairRequestService {
         const norm = khuVuc.toLowerCase();
         if (!areaKeyNorm.has(norm)) areaKeyNorm.set(norm, khuVuc);
       }
-      const displayKhuVuc = khuVuc === UNMAPPED_LABEL ? UNMAPPED_LABEL : areaKeyNorm.get(khuVuc.toLowerCase())!;
+      const displayKhuVuc =
+        khuVuc === UNMAPPED_LABEL ? UNMAPPED_LABEL : areaKeyNorm.get(khuVuc.toLowerCase())!;
       let g = areaGroup.get(displayKhuVuc);
-      if (!g) { g = { count: 0, viTriMap: new Map(), machinesMap: new Map() }; areaGroup.set(displayKhuVuc, g); }
+      if (!g) {
+        g = { count: 0, viTriMap: new Map(), machinesMap: new Map() };
+        areaGroup.set(displayKhuVuc, g);
+      }
       g.count += 1;
       // viTri breakdown: empty viTri -> also "Chưa xác định" within the khuVuc
-      const viTri = (it.machineSystem.viTri ?? '').trim() || (displayKhuVuc === UNMAPPED_LABEL ? 'Thiếu liên kết máy' : 'Chưa rõ vị trí');
+      const viTri =
+        (it.machineSystem.viTri ?? '').trim() ||
+        (displayKhuVuc === UNMAPPED_LABEL ? 'Thiếu liên kết máy' : 'Chưa rõ vị trí');
       g.viTriMap.set(viTri, (g.viTriMap.get(viTri) ?? 0) + 1);
       const tenHeThong = (it.machineSystem.tenHeThong ?? '').trim() || '—';
       g.machinesMap.set(tenHeThong, (g.machinesMap.get(tenHeThong) ?? 0) + 1);
@@ -1763,22 +2040,52 @@ class RepairRequestService {
         khuVuc,
         count: g.count,
         // drill: viTri heatmap + machine list — optional for backward compat
-        viTriBreakdown: [...g.viTriMap.entries()].map(([viTri, count]) => ({ viTri, count })).sort((a, b) => b.count - a.count),
-        machines: [...g.machinesMap.entries()].map(([tenHeThong, count]) => ({ tenHeThong, count })).sort((a, b) => b.count - a.count),
+        viTriBreakdown: [...g.viTriMap.entries()]
+          .map(([viTri, count]) => ({ viTri, count }))
+          .sort((a, b) => b.count - a.count),
+        machines: [...g.machinesMap.entries()]
+          .map(([tenHeThong, count]) => ({ tenHeThong, count }))
+          .sort((a, b) => b.count - a.count),
         // reason only for the unmapped bucket so frontend can show tooltip
-        ...(khuVuc === UNMAPPED_LABEL ? { reason: 'Hạng mục thiếu liên kết MachineSystem hoặc MachineSystem.khuVuc trống' } : {}),
+        ...(khuVuc === UNMAPPED_LABEL
+          ? { reason: 'Hạng mục thiếu liên kết MachineSystem hoặc MachineSystem.khuVuc trống' }
+          : {}),
       }))
       .sort((a, b) => b.count - a.count);
 
     // costByMonth + costDetailByMonth
     const incidentalByRepair = new Map<number, number>();
     if (windowRows.length > 0) {
-      const ics = await (prisma as any).repairIncidentalCost.findMany({ where: { repairRequestId: { in: windowRows.map((r) => r.id) } }, select: { repairRequestId: true, soTien: true } }).catch(() => []);
-      for (const ic of ics) incidentalByRepair.set(ic.repairRequestId, (incidentalByRepair.get(ic.repairRequestId) ?? 0) + Number(ic.soTien ?? 0));
+      const ics = await (prisma as any).repairIncidentalCost
+        .findMany({
+          where: { repairRequestId: { in: windowRows.map((r) => r.id) } },
+          select: { repairRequestId: true, soTien: true },
+        })
+        .catch(() => []);
+      for (const ic of ics)
+        incidentalByRepair.set(
+          ic.repairRequestId,
+          (incidentalByRepair.get(ic.repairRequestId) ?? 0) + Number(ic.soTien ?? 0)
+        );
     }
-    const costByMonth: Array<{ month: string; duKien: number; thucTe: number; incidental: number }> = trendMonths.map((m) => ({ month: m, duKien: 0, thucTe: 0, incidental: 0 }));
+    const costByMonth: Array<{
+      month: string;
+      duKien: number;
+      thucTe: number;
+      incidental: number;
+    }> = trendMonths.map((m) => ({ month: m, duKien: 0, thucTe: 0, incidental: 0 }));
     const costMonthIdx = new Map(trendMonths.map((m, i) => [m, i]));
-    const costDetailByMonth: Record<string, Array<{ id: number; maYeuCau: string; ngayThang: string; duKien: number | null; thucTe: number | null; chenhLech: number | null }>> = {};
+    const costDetailByMonth: Record<
+      string,
+      Array<{
+        id: number;
+        maYeuCau: string;
+        ngayThang: string;
+        duKien: number | null;
+        thucTe: number | null;
+        chenhLech: number | null;
+      }>
+    > = {};
     for (const m of trendMonths) costDetailByMonth[m] = [];
     for (const r of windowRows) {
       const mk = monthKeyOf(r.createdAt);
@@ -1793,48 +2100,99 @@ class RepairRequestService {
       }
       if (costDetailByMonth[mk]) {
         const chenhLech = duKienRaw != null && thucTeRaw != null ? thucTeRaw - duKienRaw : null;
-        costDetailByMonth[mk].push({ id: r.id, maYeuCau: r.maYeuCau, ngayThang: (r.ngayThang ?? r.createdAt).toISOString().slice(0, 10), duKien: duKienRaw, thucTe: thucTeRaw, chenhLech });
+        costDetailByMonth[mk].push({
+          id: r.id,
+          maYeuCau: r.maYeuCau,
+          ngayThang: (r.ngayThang ?? r.createdAt).toISOString().slice(0, 10),
+          duKien: duKienRaw,
+          thucTe: thucTeRaw,
+          chenhLech,
+        });
       }
     }
 
     // MTTR global + by dept (dept = requester's department)
     const mttrLogs = await prisma.repairRequestStatusLog.findMany({
       where: { newStatus: RepairRequestStatus.HOAN_THANH, repairRequest: currentWhere },
-      select: { repairRequestId: true, createdAt: true, repairRequest: { select: { createdAt: true, createdById: true } } },
+      select: {
+        repairRequestId: true,
+        createdAt: true,
+        repairRequest: { select: { createdAt: true, createdById: true } },
+      },
     });
     let mttrHours: number | null = null;
     if (mttrLogs.length > 0) {
-      const totalH = mttrLogs.reduce((s, l) => s + (l.createdAt.getTime() - l.repairRequest.createdAt.getTime()) / 3_600_000, 0);
+      const totalH = mttrLogs.reduce(
+        (s, l) => s + (l.createdAt.getTime() - l.repairRequest.createdAt.getTime()) / 3_600_000,
+        0
+      );
       mttrHours = totalH / mttrLogs.length;
     }
     const mttrByDeptMap = new Map<string | null, number[]>();
     for (const l of mttrLogs) {
-      const k = l.repairRequest.createdById ? (userDept.get(l.repairRequest.createdById) ?? null) : null;
+      const k = l.repairRequest.createdById
+        ? (userDept.get(l.repairRequest.createdById) ?? null)
+        : null;
       const h = (l.createdAt.getTime() - l.repairRequest.createdAt.getTime()) / 3_600_000;
       if (!mttrByDeptMap.has(k)) mttrByDeptMap.set(k, []);
       mttrByDeptMap.get(k)!.push(h);
     }
-    const mttrByDept: Array<{ deptId: string | null; deptName: string; mttrHours: number | null }> = [...mttrByDeptMap.entries()].map(([deptId, arr]) => ({ deptId, deptName: deptDisplayName(deptId), mttrHours: arr.reduce((a, b) => a + b, 0) / arr.length }));
-    for (const id of deptIds) if (!mttrByDeptMap.has(id)) mttrByDept.push({ deptId: id, deptName: deptDisplayName(id), mttrHours: null as number | null });
-    if (deptTotal.has(null) && !mttrByDeptMap.has(null)) mttrByDept.push({ deptId: null, deptName: deptDisplayName(null), mttrHours: null as number | null });
+    const mttrByDept: Array<{ deptId: string | null; deptName: string; mttrHours: number | null }> =
+      [...mttrByDeptMap.entries()].map(([deptId, arr]) => ({
+        deptId,
+        deptName: deptDisplayName(deptId),
+        mttrHours: arr.reduce((a, b) => a + b, 0) / arr.length,
+      }));
+    for (const id of deptIds)
+      if (!mttrByDeptMap.has(id))
+        mttrByDept.push({
+          deptId: id,
+          deptName: deptDisplayName(id),
+          mttrHours: null as number | null,
+        });
+    if (deptTotal.has(null) && !mttrByDeptMap.has(null))
+      mttrByDept.push({
+        deptId: null,
+        deptName: deptDisplayName(null),
+        mttrHours: null as number | null,
+      });
 
-    // khongDatRate: confirmations = status logs where newStatus in {DA_NGHIEM_THU, DANG_SUA_CHUA} after CHO_NGHIEM_THU or reason startsWith acceptance_
+    // khongDatRate: confirmations = status logs where newStatus in {DA_NGHIEM_THU, DANG_SUA_CHUA} after DA_SUA_CHUA or reason startsWith acceptance_
     const confLogs = await prisma.repairRequestStatusLog.findMany({
-      where: { repairRequest: currentWhere, OR: [{ reason: { startsWith: 'acceptance_' } }, { newStatus: { in: [RepairRequestStatus.DA_NGHIEM_THU, RepairRequestStatus.DANG_SUA_CHUA] } }] },
+      where: {
+        repairRequest: currentWhere,
+        OR: [
+          { reason: { startsWith: 'acceptance_' } },
+          {
+            newStatus: {
+              in: [RepairRequestStatus.DA_NGHIEM_THU, RepairRequestStatus.DANG_SUA_CHUA],
+            },
+          },
+        ],
+      },
       select: { newStatus: true, reason: true },
     });
-    // filter to actual confirmations: acceptance_dat or acceptance_khong_dat, or DA_NGHIEM_THU/DANG_SUA_CHUA that came from CHO_NGHIEM_THU (approx by reason prefix)
+    // filter to actual confirmations: acceptance_dat or acceptance_khong_dat, or DA_NGHIEM_THU/DANG_SUA_CHUA that came from DA_SUA_CHUA (approx by reason prefix)
     const confirmations = confLogs.filter((l) => String(l.reason ?? '').startsWith('acceptance_'));
-    const khongDat = confirmations.filter((l) => String(l.reason ?? '').startsWith('acceptance_khong_dat')).length;
+    const khongDat = confirmations.filter((l) =>
+      String(l.reason ?? '').startsWith('acceptance_khong_dat')
+    ).length;
     const totalConfirmations = confirmations.length;
-    const khongDatRate = { totalConfirmations, khongDat, rate: totalConfirmations > 0 ? khongDat / totalConfirmations : null };
+    const khongDatRate = {
+      totalConfirmations,
+      khongDat,
+      rate: totalConfirmations > 0 ? khongDat / totalConfirmations : null,
+    };
 
     // topExpensive Top 10 by thucTe+incidental
-    const topExpensive = windowRows.map((r) => {
-      const thucTe = r.chiPhiThucTe != null ? Number(r.chiPhiThucTe) : 0;
-      const incidental = incidentalByRepair.get(r.id) ?? 0;
-      return { id: r.id, maYeuCau: r.maYeuCau, thucTe, incidental, total: thucTe + incidental };
-    }).sort((a, b) => b.total - a.total).slice(0, 10);
+    const topExpensive = windowRows
+      .map((r) => {
+        const thucTe = r.chiPhiThucTe != null ? Number(r.chiPhiThucTe) : 0;
+        const incidental = incidentalByRepair.get(r.id) ?? 0;
+        return { id: r.id, maYeuCau: r.maYeuCau, thucTe, incidental, total: thucTe + incidental };
+      })
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
 
     return {
       total,
@@ -1874,9 +2232,13 @@ class RepairRequestService {
         throw new ValidationError('Không thể xóa yêu cầu sửa chữa đã có phiếu nghiệm thu');
       }
       if (!YCSC_DELETABLE.has(row.trangThai)) {
-        throw new ValidationError('Chỉ xóa được yêu cầu sửa chữa ở trạng thái Chờ xử lý, Đã hủy hoặc Từ chối');
+        throw new ValidationError(
+          'Chỉ xóa được yêu cầu sửa chữa ở trạng thái Chờ xử lý, Đã hủy hoặc Từ chối'
+        );
       }
-      const deleted = await tx.repairRequest.deleteMany({ where: { id, trangThai: row.trangThai } });
+      const deleted = await tx.repairRequest.deleteMany({
+        where: { id, trangThai: row.trangThai },
+      });
       if (deleted.count === 0) throw new ConflictError(STALE_ROW_MESSAGE);
     });
 
@@ -1945,14 +2307,25 @@ class RepairRequestService {
 
     let rowIndex = 1;
     data.forEach((request: any) => {
-      const ngayThangStr = request.ngayThang ? new Date(request.ngayThang).toLocaleDateString('vi-VN') : '';
+      const ngayThangStr = request.ngayThang
+        ? new Date(request.ngayThang).toLocaleDateString('vi-VN')
+        : '';
       const loaiCode = String(request.requestType ?? 'SUA_CHUA');
       const loaiPhieu = REQUEST_TYPE_LABELS[loaiCode] ?? loaiCode;
-      const nguoiThucHien = (request.assignees ?? []).map((a: any) => a.userName ?? a.userId ?? a.id).join(', ');
+      const nguoiThucHien = (request.assignees ?? [])
+        .map((a: any) => a.userName ?? a.userId ?? a.id)
+        .join(', ');
       const ketQuaCode = request.ketQuaNghiemThu ? String(request.ketQuaNghiemThu) : '';
       const ketQuaNghiemThu = ketQuaCode ? (KET_QUA_LABELS[ketQuaCode] ?? ketQuaCode) : '';
-      const ycVatTuLienKet = (request.supplyLinks ?? []).map((l: any) => l.supplyRequestId).join(', ');
-      const buildVatTu = (item: any) => (item?.materialNeeds ?? []).map((m: any) => `${m.tenVatTu} x${m.soLuongDuKien ?? ''}${m.donVi ? ' ' + m.donVi : ''}`.trim()).join('; ');
+      const ycVatTuLienKet = (request.supplyLinks ?? [])
+        .map((l: any) => l.supplyRequestId)
+        .join(', ');
+      const buildVatTu = (item: any) =>
+        (item?.materialNeeds ?? [])
+          .map((m: any) =>
+            `${m.tenVatTu} x${m.soLuongDuKien ?? ''}${m.donVi ? ' ' + m.donVi : ''}`.trim()
+          )
+          .join('; ');
       const baseRow = {
         ngayThang: ngayThangStr,
         maYeuCau: request.maYeuCau,
@@ -2017,44 +2390,91 @@ class RepairRequestService {
     });
     const itemIds = srItems.map((i) => i.id);
 
-    const decisions = itemIds.length > 0 ? await prisma.supplyRequestDecision.findMany({
-      where: { supplyRequestItemId: { in: itemIds }, triggeredReplenishmentRequestId: { not: null } },
-      orderBy: { decidedAt: 'desc' as const },
-      select: { supplyRequestItemId: true, triggeredReplenishmentRequestId: true, shortageQty: true, reason: true, decidedAt: true },
-    }) : [];
+    const decisions =
+      itemIds.length > 0
+        ? await prisma.supplyRequestDecision.findMany({
+            where: {
+              supplyRequestItemId: { in: itemIds },
+              triggeredReplenishmentRequestId: { not: null },
+            },
+            orderBy: { decidedAt: 'desc' as const },
+            select: {
+              supplyRequestItemId: true,
+              triggeredReplenishmentRequestId: true,
+              shortageQty: true,
+              reason: true,
+              decidedAt: true,
+            },
+          })
+        : [];
 
     // Latest decision per supplyRequestId
     const itemToSr = new Map(srItems.map((i) => [i.id, i.supplyRequestId]));
-    const bySr = new Map<string, typeof decisions[0]>();
+    const bySr = new Map<string, (typeof decisions)[0]>();
     for (const d of decisions) {
       const srId = itemToSr.get(d.supplyRequestItemId);
       if (srId && !bySr.has(srId)) bySr.set(srId, d);
     }
 
-    const replIds = [...new Set(Array.from(bySr.values()).map((d) => d.triggeredReplenishmentRequestId!).filter(Boolean))] as string[];
-    const replenishments = replIds.length > 0 ? await prisma.replenishmentRequest.findMany({
-      where: { id: { in: replIds } },
-      select: { id: true, maYeuCau: true, trangThai: true, phanLoaiGroup: true, createdAt: true, convertedPurchaseRequestId: true },
-    }) : [];
+    const replIds = [
+      ...new Set(
+        Array.from(bySr.values())
+          .map((d) => d.triggeredReplenishmentRequestId!)
+          .filter(Boolean)
+      ),
+    ] as string[];
+    const replenishments =
+      replIds.length > 0
+        ? await prisma.replenishmentRequest.findMany({
+            where: { id: { in: replIds } },
+            select: {
+              id: true,
+              maYeuCau: true,
+              trangThai: true,
+              phanLoaiGroup: true,
+              createdAt: true,
+              convertedPurchaseRequestId: true,
+            },
+          })
+        : [];
     const replMap = new Map(replenishments.map((r) => [r.id, r]));
 
-    const prIds = [...new Set(replenishments.map((r) => r.convertedPurchaseRequestId).filter(Boolean))] as string[];
+    const prIds = [
+      ...new Set(replenishments.map((r) => r.convertedPurchaseRequestId).filter(Boolean)),
+    ] as string[];
     // Legacy fallback: decisions may point directly to PurchaseRequest
-    const legacyPrIds = decisions.map((d) => (d as unknown as { triggeredPurchaseRequestId?: string }).triggeredPurchaseRequestId).filter(Boolean) as string[];
+    const legacyPrIds = decisions
+      .map(
+        (d) => (d as unknown as { triggeredPurchaseRequestId?: string }).triggeredPurchaseRequestId
+      )
+      .filter(Boolean) as string[];
     const allPrIds = [...new Set([...prIds, ...legacyPrIds])];
-    const purchaseRequests = allPrIds.length > 0 ? await prisma.purchaseRequest.findMany({
-      where: { id: { in: allPrIds } },
-      select: { id: true, maYeuCau: true, trangThai: true, sourceType: true, createdAt: true },
-    }) : [];
+    const purchaseRequests =
+      allPrIds.length > 0
+        ? await prisma.purchaseRequest.findMany({
+            where: { id: { in: allPrIds } },
+            select: {
+              id: true,
+              maYeuCau: true,
+              trangThai: true,
+              sourceType: true,
+              createdAt: true,
+            },
+          })
+        : [];
     const prMap = new Map(purchaseRequests.map((p) => [p.id, p]));
 
     const replToPr = new Map<string, string>();
-    for (const r of replenishments) if (r.convertedPurchaseRequestId) replToPr.set(r.id, r.convertedPurchaseRequestId);
+    for (const r of replenishments)
+      if (r.convertedPurchaseRequestId) replToPr.set(r.id, r.convertedPurchaseRequestId);
 
-    const inboundPlans = prIds.length > 0 ? await prisma.inboundPlan.findMany({
-      where: { purchaseRequestId: { in: prIds } },
-      select: { id: true, maKeHoach: true, trangThai: true, purchaseRequestId: true },
-    }) : [];
+    const inboundPlans =
+      prIds.length > 0
+        ? await prisma.inboundPlan.findMany({
+            where: { purchaseRequestId: { in: prIds } },
+            select: { id: true, maKeHoach: true, trangThai: true, purchaseRequestId: true },
+          })
+        : [];
     const prToInbound = new Map(inboundPlans.map((ip) => [ip.purchaseRequestId, ip]));
 
     const warehouseIssues = await prisma.warehouseIssue.findMany({
@@ -2062,13 +2482,21 @@ class RepairRequestService {
       select: { id: true, maPhieuXuat: true, supplyRequestId: true },
     });
     // WarehouseIssue has no trangThai; use existence as indicator
-    const srToIssue = new Map(warehouseIssues.map((wi) => [wi.supplyRequestId, { id: wi.id, maPhieu: wi.maPhieuXuat, trangThai: null }]));
+    const srToIssue = new Map(
+      warehouseIssues.map((wi) => [
+        wi.supplyRequestId,
+        { id: wi.id, maPhieu: wi.maPhieuXuat, trangThai: null },
+      ])
+    );
 
     return links.map((link) => {
       const sr = srMap.get(link.supplyRequestId) ?? null;
       const dec = bySr.get(link.supplyRequestId) ?? null;
       const repl = dec ? (replMap.get(dec.triggeredReplenishmentRequestId!) ?? null) : null;
-      const prId = repl ? (replToPr.get(repl.id) ?? null) : ((dec as unknown as { triggeredPurchaseRequestId?: string })?.triggeredPurchaseRequestId ?? null);
+      const prId = repl
+        ? (replToPr.get(repl.id) ?? null)
+        : ((dec as unknown as { triggeredPurchaseRequestId?: string })
+            ?.triggeredPurchaseRequestId ?? null);
       const pr = prId ? (prMap.get(prId) ?? null) : null;
       const inboundPlan = pr ? (prToInbound.get(pr.id) ?? null) : null;
       const warehouseIssue = srToIssue.get(link.supplyRequestId) ?? null;
@@ -2079,14 +2507,22 @@ class RepairRequestService {
         purchaseRequest: pr,
         inboundPlan,
         warehouseIssue,
-        decisionsMeta: dec ? { shortageQty: dec.shortageQty, reason: dec.reason, decidedAt: dec.decidedAt } : null,
+        decisionsMeta: dec
+          ? { shortageQty: dec.shortageQty, reason: dec.reason, decidedAt: dec.decidedAt }
+          : null,
       };
     });
   }
 
   // ── Reverse lookup helpers (used by other services' controllers) ─────
   static async resolveRepairLinksForSupplyIds(supplyRequestIds: string[]) {
-    if (supplyRequestIds.length === 0) return [] as Array<{ supplyRequestId: string; repairRequestId: number; maYeuCau: string; trangThai: RepairRequestStatus }>;
+    if (supplyRequestIds.length === 0)
+      return [] as Array<{
+        supplyRequestId: string;
+        repairRequestId: number;
+        maYeuCau: string;
+        trangThai: RepairRequestStatus;
+      }>;
     const links = await prisma.repairSupplyLink.findMany({
       where: { supplyRequestId: { in: supplyRequestIds } },
       select: { supplyRequestId: true, repairRequestId: true },
@@ -2100,7 +2536,12 @@ class RepairRequestService {
     const repairMap = new Map(repairs.map((r) => [r.id, r]));
     return links.map((l) => {
       const r = repairMap.get(l.repairRequestId);
-      return { supplyRequestId: l.supplyRequestId, repairRequestId: l.repairRequestId, maYeuCau: r?.maYeuCau ?? '', trangThai: r?.trangThai as RepairRequestStatus };
+      return {
+        supplyRequestId: l.supplyRequestId,
+        repairRequestId: l.repairRequestId,
+        maYeuCau: r?.maYeuCau ?? '',
+        trangThai: r?.trangThai as RepairRequestStatus,
+      };
     });
   }
 
@@ -2111,7 +2552,10 @@ class RepairRequestService {
     });
     if (decisions.length === 0) return [];
     const itemIds = decisions.map((d) => d.supplyRequestItemId);
-    const items = await prisma.supplyRequestItem.findMany({ where: { id: { in: itemIds } }, select: { supplyRequestId: true } });
+    const items = await prisma.supplyRequestItem.findMany({
+      where: { id: { in: itemIds } },
+      select: { supplyRequestId: true },
+    });
     const srIds = [...new Set(items.map((i) => i.supplyRequestId))];
     return RepairRequestService.resolveRepairLinksForSupplyIds(srIds);
   }
@@ -2130,7 +2574,10 @@ class RepairRequestService {
     });
     if (decisions.length === 0) return [];
     const itemIds = decisions.map((d) => d.supplyRequestItemId);
-    const items = await prisma.supplyRequestItem.findMany({ where: { id: { in: itemIds } }, select: { supplyRequestId: true } });
+    const items = await prisma.supplyRequestItem.findMany({
+      where: { id: { in: itemIds } },
+      select: { supplyRequestId: true },
+    });
     const srIds = [...new Set(items.map((i) => i.supplyRequestId))];
     return RepairRequestService.resolveRepairLinksForSupplyIds(srIds);
   }

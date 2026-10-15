@@ -1,4 +1,9 @@
-import { InspectionRequestStatus, NghiemThuKetQua, Prisma, RepairRequestStatus } from '@prisma/client';
+import {
+  InspectionRequestStatus,
+  NghiemThuKetQua,
+  Prisma,
+  RepairRequestStatus,
+} from '@prisma/client';
 import ExcelJS from 'exceljs';
 import prisma from '@config/database';
 import { getPaginationParams } from '@utils/helpers';
@@ -67,24 +72,26 @@ const inspectionInclude = {
 // Inspection conclusion: only two outcomes
 export const KET_LUAN_CAN_SUA_CHUA = 'CAN_SUA_CHUA';
 export const KET_LUAN_DA_KHAC_PHUC = 'DA_KHAC_PHUC';
-const KET_LUAN_VALUES: ReadonlySet<string> = new Set([KET_LUAN_CAN_SUA_CHUA, KET_LUAN_DA_KHAC_PHUC]);
+const KET_LUAN_VALUES: ReadonlySet<string> = new Set([
+  KET_LUAN_CAN_SUA_CHUA,
+  KET_LUAN_DA_KHAC_PHUC,
+]);
 const MUC_DO_VALUES: ReadonlySet<string> = new Set(['nhe', 'trung_binh', 'nang']);
 
 const INSPECTION_ORDER: InspectionRequestStatus[] = [
   InspectionRequestStatus.CHO_XU_LY,
   InspectionRequestStatus.DA_TIEP_NHAN,
-  InspectionRequestStatus.DANG_KIEM_TRA,
   InspectionRequestStatus.DA_KIEM_TRA,
   InspectionRequestStatus.HOAN_THANH,
 ];
 // Branch edges outside the linear order:
-//   DANG_KIEM_TRA → CHO_NGHIEM_THU  (kết luận Đã khắc phục, nộp phiếu nghiệm thu)
+//   DA_TIEP_NHAN → CHO_NGHIEM_THU  (kết luận Đã khắc phục, nộp phiếu nghiệm thu)
 //   CHO_NGHIEM_THU → HOAN_THANH     (người tạo xác nhận ĐẠT)
-//   CHO_NGHIEM_THU → DANG_KIEM_TRA  (người tạo xác nhận KHÔNG ĐẠT — kỹ thuật xử lý lại)
+//   CHO_NGHIEM_THU → DA_TIEP_NHAN  (người tạo xác nhận KHÔNG ĐẠT — kỹ thuật xử lý lại)
 const INSPECTION_BRANCH_EDGES: ReadonlyArray<[InspectionRequestStatus, InspectionRequestStatus]> = [
-  [InspectionRequestStatus.DANG_KIEM_TRA, InspectionRequestStatus.CHO_NGHIEM_THU],
+  [InspectionRequestStatus.DA_TIEP_NHAN, InspectionRequestStatus.CHO_NGHIEM_THU],
   [InspectionRequestStatus.CHO_NGHIEM_THU, InspectionRequestStatus.HOAN_THANH],
-  [InspectionRequestStatus.CHO_NGHIEM_THU, InspectionRequestStatus.DANG_KIEM_TRA],
+  [InspectionRequestStatus.CHO_NGHIEM_THU, InspectionRequestStatus.DA_TIEP_NHAN],
 ];
 const TERMINAL: ReadonlySet<InspectionRequestStatus> = new Set([
   InspectionRequestStatus.HOAN_THANH,
@@ -94,7 +101,6 @@ const TERMINAL: ReadonlySet<InspectionRequestStatus> = new Set([
 const REJECT_ALLOWED_FROM: ReadonlySet<InspectionRequestStatus> = new Set([
   InspectionRequestStatus.CHO_XU_LY,
   InspectionRequestStatus.DA_TIEP_NHAN,
-  InspectionRequestStatus.DANG_KIEM_TRA,
 ]);
 
 // ADMIN may additionally cancel a DA_KIEM_TRA request (e.g. its YCSC was cancelled). Nobody cancels
@@ -103,20 +109,22 @@ const ADMIN_CANCEL_ALLOWED_FROM: ReadonlySet<InspectionRequestStatus> = new Set(
   ...REJECT_ALLOWED_FROM,
   InspectionRequestStatus.DA_KIEM_TRA,
 ]);
-// ADMIN may skip forward but never past DANG_KIEM_TRA (result submission and closing have their own rules).
-const ADMIN_SKIP_LIMIT_INDEX = INSPECTION_ORDER.indexOf(InspectionRequestStatus.DANG_KIEM_TRA);
+// ADMIN may skip forward but never past DA_TIEP_NHAN (result submission and closing have their own rules).
+const ADMIN_SKIP_LIMIT_INDEX = INSPECTION_ORDER.indexOf(InspectionRequestStatus.DA_TIEP_NHAN);
 // Technician / ADMIN may edit only before the result is submitted.
 const YCKT_TECH_EDITABLE: ReadonlySet<InspectionRequestStatus> = new Set([
   InspectionRequestStatus.CHO_XU_LY,
   InspectionRequestStatus.DA_TIEP_NHAN,
-  InspectionRequestStatus.DANG_KIEM_TRA,
 ]);
 const YCKT_DELETABLE: ReadonlySet<InspectionRequestStatus> = new Set([
   InspectionRequestStatus.CHO_XU_LY,
   InspectionRequestStatus.DA_HUY,
   InspectionRequestStatus.TU_CHOI,
 ]);
-const INACTIVE_REPAIR_STATUSES: RepairRequestStatus[] = [RepairRequestStatus.DA_HUY, RepairRequestStatus.TU_CHOI];
+const INACTIVE_REPAIR_STATUSES: RepairRequestStatus[] = [
+  RepairRequestStatus.DA_HUY,
+  RepairRequestStatus.TU_CHOI,
+];
 
 export const STALE_ROW_MESSAGE = 'Phiếu đã được cập nhật bởi người khác, vui lòng tải lại';
 export const ITEM_IN_USE_MESSAGE = 'Không thể xóa hạng mục đã có nghiệm thu/vật tư/liên kết';
@@ -130,11 +138,13 @@ function stripNul<T>(value: T): T {
   return (typeof value === 'string' ? value.replace(/\0/g, '') : value) as T;
 }
 
-const KET_LUAN_LABELS: Record<string, string> = { CAN_SUA_CHUA: 'Cần sửa chữa', DA_KHAC_PHUC: 'Đã khắc phục' };
+const KET_LUAN_LABELS: Record<string, string> = {
+  CAN_SUA_CHUA: 'Cần sửa chữa',
+  DA_KHAC_PHUC: 'Đã khắc phục',
+};
 const INSPECTION_STATUS_LABELS: Record<string, string> = {
   CHO_XU_LY: 'Chờ xử lý',
-  DA_TIEP_NHAN: 'Đã tiếp nhận',
-  DANG_KIEM_TRA: 'Đang kiểm tra',
+  DA_TIEP_NHAN: 'Đã tiếp nhận / Đang kiểm tra',
   DA_KIEM_TRA: 'Đã kiểm tra',
   CHO_NGHIEM_THU: 'Chờ xác nhận nghiệm thu',
   HOAN_THANH: 'Hoàn thành',
@@ -144,17 +154,18 @@ const INSPECTION_STATUS_LABELS: Record<string, string> = {
 
 /**
  * Validate a YCKT status change. No role leaves a terminal state or goes backward.
- * Edges out of CHO_NGHIEM_THU (ĐẠT → HOAN_THANH, KHÔNG ĐẠT → DANG_KIEM_TRA) are allowed only
+ * Edges out of CHO_NGHIEM_THU (ĐẠT → HOAN_THANH, KHÔNG ĐẠT → DA_TIEP_NHAN) are allowed only
  * from confirmAcceptance (`viaConfirmation`); ADMIN cannot close a pending acceptance otherwise.
  */
 export function advanceInspection(
   current: InspectionRequestStatus,
   next: InspectionRequestStatus,
   isAdmin: boolean,
-  opts: { viaConfirmation?: boolean } = {},
+  opts: { viaConfirmation?: boolean } = {}
 ): InspectionRequestStatus {
   if (next === current) return current;
-  const deny = () => new ValidationError(`Không thể chuyển trạng thái phiếu kiểm tra từ ${current} sang ${next}`);
+  const deny = () =>
+    new ValidationError(`Không thể chuyển trạng thái phiếu kiểm tra từ ${current} sang ${next}`);
   if (TERMINAL.has(current)) throw deny();
   if (next === InspectionRequestStatus.TU_CHOI) {
     if (!REJECT_ALLOWED_FROM.has(current)) {
@@ -168,13 +179,17 @@ export function advanceInspection(
       throw new ValidationError(
         current === InspectionRequestStatus.CHO_NGHIEM_THU
           ? 'Phiếu đang chờ xác nhận nghiệm thu — người tạo cần xác nhận KHÔNG ĐẠT trước khi hủy'
-          : `Không thể hủy phiếu ở trạng thái ${current}`,
+          : `Không thể hủy phiếu ở trạng thái ${current}`
       );
     }
     return next;
   }
   if (current === InspectionRequestStatus.CHO_NGHIEM_THU) {
-    if (opts.viaConfirmation && INSPECTION_BRANCH_EDGES.some(([from, to]) => from === current && to === next)) return next;
+    if (
+      opts.viaConfirmation &&
+      INSPECTION_BRANCH_EDGES.some(([from, to]) => from === current && to === next)
+    )
+      return next;
     throw deny();
   }
   if (INSPECTION_BRANCH_EDGES.some(([from, to]) => from === current && to === next)) return next;
@@ -186,7 +201,13 @@ export function advanceInspection(
   throw deny();
 }
 
-type InspectionRow = { id: number; trangThai: InspectionRequestStatus; maYeuCau: string; createdById: string | null; ketLuan: string | null };
+type InspectionRow = {
+  id: number;
+  trangThai: InspectionRequestStatus;
+  maYeuCau: string;
+  createdById: string | null;
+  ketLuan: string | null;
+};
 
 interface InspectionTransitionOptions {
   extraData?: Prisma.InspectionRequestUpdateManyMutationInput;
@@ -198,8 +219,12 @@ class InspectionRequestService {
   async generateInspectionRequestCode(tx?: Prisma.TransactionClient): Promise<string> {
     const year = new Date().getFullYear();
     const client: { findMany: (a: unknown) => Promise<{ maYeuCau: string }[]> } =
-      (tx?.inspectionRequest as unknown as { findMany: (a: unknown) => Promise<{ maYeuCau: string }[]> }) ??
-      (prisma.inspectionRequest as unknown as { findMany: (a: unknown) => Promise<{ maYeuCau: string }[]> });
+      (tx?.inspectionRequest as unknown as {
+        findMany: (a: unknown) => Promise<{ maYeuCau: string }[]>;
+      }) ??
+      (prisma.inspectionRequest as unknown as {
+        findMany: (a: unknown) => Promise<{ maYeuCau: string }[]>;
+      });
     return nextYearlyCodeTx(client, 'YC-KT', year);
   }
 
@@ -223,16 +248,23 @@ class InspectionRequestService {
     const { skip, limit: limitNum } = getPaginationParams(page, limit);
     const where = this.buildListWhere(filters);
     const [data, total] = await Promise.all([
-      (prisma.inspectionRequest as unknown as { findMany: (a: unknown) => Promise<unknown[]> }).findMany({
+      (
+        prisma.inspectionRequest as unknown as { findMany: (a: unknown) => Promise<unknown[]> }
+      ).findMany({
         where: where as never,
         skip,
         take: limitNum,
         orderBy: { createdAt: 'desc' },
         include: inspectionInclude as never,
       }),
-      (prisma.inspectionRequest as unknown as { count: (a: unknown) => Promise<number> }).count({ where: where as never }),
+      (prisma.inspectionRequest as unknown as { count: (a: unknown) => Promise<number> }).count({
+        where: where as never,
+      }),
     ]);
-    return { data, pagination: { page, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) } };
+    return {
+      data,
+      pagination: { page, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) },
+    };
   }
 
   /** Excel export with the same filters and columns as the YCKT list (mirrors repairRequestService.exportToExcel). */
@@ -241,7 +273,10 @@ class InspectionRequestService {
       where: this.buildListWhere(filters),
       orderBy: { createdAt: 'desc' },
       include: {
-        items: { orderBy: { createdAt: 'asc' }, include: { machineSystem: { select: { khuVuc: true } } } },
+        items: {
+          orderBy: { createdAt: 'asc' },
+          include: { machineSystem: { select: { khuVuc: true } } },
+        },
         repairRequests: { select: { maYeuCau: true, trangThai: true } },
       },
     });
@@ -249,7 +284,10 @@ class InspectionRequestService {
     // phongBanId holds either a Department id or a free-text department label (legacy/auto-resolved).
     const deptIds = [...new Set(rows.map((r) => r.phongBanId).filter((v): v is string => !!v))];
     const departments = deptIds.length
-      ? await prisma.department.findMany({ where: { id: { in: deptIds } }, select: { id: true, name: true } })
+      ? await prisma.department.findMany({
+          where: { id: { in: deptIds } },
+          select: { id: true, name: true },
+        })
       : [];
     const deptName = new Map(departments.map((d) => [d.id, d.name]));
 
@@ -273,14 +311,19 @@ class InspectionRequestService {
     worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
 
     rows.forEach((r, index) => {
-      const khuVuc = [...new Set(r.items.map((it) => it.machineSystem?.khuVuc).filter((v): v is string => !!v))].join(', ');
+      const khuVuc = [
+        ...new Set(r.items.map((it) => it.machineSystem?.khuVuc).filter((v): v is string => !!v)),
+      ].join(', ');
       worksheet.addRow({
         stt: index + 1,
         maYeuCau: r.maYeuCau,
         ngayThang: r.ngayThang ? new Date(r.ngayThang).toLocaleDateString('vi-VN') : '',
         nguoiPhatHien: r.createdByName ?? '',
         boPhan: r.phongBanId ? (deptName.get(r.phongBanId) ?? r.phongBanId) : '',
-        thietBi: r.items.map((it) => it.tenHeThong).filter(Boolean).join('; '),
+        thietBi: r.items
+          .map((it) => it.tenHeThong)
+          .filter(Boolean)
+          .join('; '),
         khuVuc,
         trangThai: INSPECTION_STATUS_LABELS[r.trangThai] ?? r.trangThai,
         ketLuan: r.ketLuan ? (KET_LUAN_LABELS[r.ketLuan] ?? r.ketLuan) : '',
@@ -295,7 +338,11 @@ class InspectionRequestService {
   }
 
   async getInspectionRequestById(id: number) {
-    const row = await (prisma.inspectionRequest as unknown as { findUnique: (a: unknown) => Promise<Record<string, unknown> | null> }).findUnique({
+    const row = await (
+      prisma.inspectionRequest as unknown as {
+        findUnique: (a: unknown) => Promise<Record<string, unknown> | null>;
+      }
+    ).findUnique({
       where: { id },
       include: inspectionInclude as never,
     });
@@ -307,16 +354,33 @@ class InspectionRequestService {
     return Promise.all(
       items.map(async (item) => {
         let machineSystem = item.machineSystemId
-          ? await (prisma.machineSystem as unknown as { findUnique: (a: unknown) => Promise<{ id: string; tenHeThong: string } | null> }).findUnique({ where: { id: item.machineSystemId } })
+          ? await (
+              prisma.machineSystem as unknown as {
+                findUnique: (a: unknown) => Promise<{ id: string; tenHeThong: string } | null>;
+              }
+            ).findUnique({ where: { id: item.machineSystemId } })
           : null;
         let machineSystemDetail = item.machineSystemDetailId
-          ? await (prisma.machineSystemDetail as unknown as { findUnique: (a: unknown) => Promise<{ id: string; tenChiTiet: string; machineSystemId: string; machineSystem: { id: string; tenHeThong: string } } | null> }).findUnique({
+          ? await (
+              prisma.machineSystemDetail as unknown as {
+                findUnique: (
+                  a: unknown
+                ) => Promise<{
+                  id: string;
+                  tenChiTiet: string;
+                  machineSystemId: string;
+                  machineSystem: { id: string; tenHeThong: string };
+                } | null>;
+              }
+            ).findUnique({
               where: { id: item.machineSystemDetailId },
               include: { machineSystem: true } as never,
             })
           : null;
-        if (item.machineSystemId && !machineSystem) throw new ValidationError('Hệ thống máy không hợp lệ');
-        if (item.machineSystemDetailId && !machineSystemDetail) throw new ValidationError('Chi tiết hệ thống máy không hợp lệ');
+        if (item.machineSystemId && !machineSystem)
+          throw new ValidationError('Hệ thống máy không hợp lệ');
+        if (item.machineSystemDetailId && !machineSystemDetail)
+          throw new ValidationError('Chi tiết hệ thống máy không hợp lệ');
         if (machineSystemDetail) {
           if (machineSystem && machineSystem.id !== machineSystemDetail.machineSystemId) {
             throw new ValidationError('Chi tiết máy không thuộc hệ thống máy đã chọn');
@@ -324,9 +388,13 @@ class InspectionRequestService {
           machineSystem = machineSystemDetail.machineSystem as unknown as typeof machineSystem;
         }
         // undefined = client omitted the field (keep stored value on in-place update)
-        let faultRecordId: string | null | undefined = item.faultRecordId === undefined ? undefined : null;
+        let faultRecordId: string | null | undefined =
+          item.faultRecordId === undefined ? undefined : null;
         if (item.faultRecordId) {
-          const fr = await prisma.faultRecord.findUnique({ where: { id: item.faultRecordId }, select: { id: true } });
+          const fr = await prisma.faultRecord.findUnique({
+            where: { id: item.faultRecordId },
+            select: { id: true },
+          });
           if (!fr) throw new ValidationError(`Bản ghi lỗi không tồn tại: ${item.faultRecordId}`);
           faultRecordId = fr.id;
         }
@@ -335,23 +403,39 @@ class InspectionRequestService {
           machineSystemId: machineSystem?.id ?? null,
           machineSystemDetailId: machineSystemDetail?.id ?? null,
           tenHeThong: stripNul(machineSystem ? machineSystem.tenHeThong : item.tenHeThong),
-          tinhTrangThietBi: stripNul(machineSystemDetail && !item.tinhTrangThietBi ? machineSystemDetail.tenChiTiet : item.tinhTrangThietBi),
+          tinhTrangThietBi: stripNul(
+            machineSystemDetail && !item.tinhTrangThietBi
+              ? machineSystemDetail.tenChiTiet
+              : item.tinhTrangThietBi
+          ),
           loaiLoi: stripNul(item.loaiLoi),
           noiDungLoi: stripNul(item.noiDungLoi),
           faultRecordId,
         };
-      }),
+      })
     );
   }
 
   private async resolvePhongBanLabelFromUser(userId: string): Promise<string | null> {
     try {
-      const emp = await (prisma.employee as unknown as { findFirst: (a: unknown) => Promise<{ subDepartment?: { name: string; department?: { name: string } | null } | null } | null> }).findFirst({
+      const emp = await (
+        prisma.employee as unknown as {
+          findFirst: (
+            a: unknown
+          ) => Promise<{
+            subDepartment?: { name: string; department?: { name: string } | null } | null;
+          } | null>;
+        }
+      ).findFirst({
         where: { userId },
         include: { subDepartment: { include: { department: true } }, position: true } as never,
       });
       if (!emp) return null;
-      const sub = (emp as unknown as { subDepartment?: { name?: string; department?: { name?: string } | null } | null }).subDepartment;
+      const sub = (
+        emp as unknown as {
+          subDepartment?: { name?: string; department?: { name?: string } | null } | null;
+        }
+      ).subDepartment;
       if (sub?.name) return sub.name;
       if (sub?.department?.name) return sub.department.name;
       return null;
@@ -362,11 +446,18 @@ class InspectionRequestService {
 
   async createInspectionRequest(data: CreateInspectionRequestData) {
     if ((data as unknown as Record<string, unknown>).trangThai !== undefined) {
-      logger.warn(`Ignored client-supplied trangThai on inspection create (maYeuCau: ${data.maYeuCau})`);
+      logger.warn(
+        `Ignored client-supplied trangThai on inspection create (maYeuCau: ${data.maYeuCau})`
+      );
     }
     // Auto-resolve phongBanId -> department name when caller didn't supply it but we have userId
     let resolvedPhongBanId: string | null = data.phongBanId ?? null;
-    if ((resolvedPhongBanId === null || resolvedPhongBanId === undefined || String(resolvedPhongBanId).trim() === '') && data.userId) {
+    if (
+      (resolvedPhongBanId === null ||
+        resolvedPhongBanId === undefined ||
+        String(resolvedPhongBanId).trim() === '') &&
+      data.userId
+    ) {
       const label = await this.resolvePhongBanLabelFromUser(data.userId);
       if (label) resolvedPhongBanId = label;
       else resolvedPhongBanId = null;
@@ -375,19 +466,33 @@ class InspectionRequestService {
     const resolvedItems = await this.resolveItems(data.items);
     let createdByName: string | null = null;
     if (data.userId) {
-      const user = await (prisma.user as unknown as { findUnique: (a: unknown) => Promise<{ firstName: string; lastName: string } | null> }).findUnique({
+      const user = await (
+        prisma.user as unknown as {
+          findUnique: (a: unknown) => Promise<{ firstName: string; lastName: string } | null>;
+        }
+      ).findUnique({
         where: { id: data.userId },
         select: { firstName: true, lastName: true } as never,
       });
-      if (user) createdByName = `${(user as { lastName: string }).lastName} ${(user as { firstName: string }).firstName}`.trim();
+      if (user)
+        createdByName =
+          `${(user as { lastName: string }).lastName} ${(user as { firstName: string }).firstName}`.trim();
     }
-    const row = await (prisma.$transaction as unknown as (fn: (tx: typeof prisma) => Promise<unknown>) => Promise<Record<string, unknown>>)(async (tx: typeof prisma) => {
+    const row = await (
+      prisma.$transaction as unknown as (
+        fn: (tx: typeof prisma) => Promise<unknown>
+      ) => Promise<Record<string, unknown>>
+    )(async (tx: typeof prisma) => {
       const t = tx as unknown as {
-        inspectionRequest: { create: (a: unknown) => Promise<{ id: number }>; findMany: (a: unknown) => Promise<{ maYeuCau: string }[]> };
+        inspectionRequest: {
+          create: (a: unknown) => Promise<{ id: number }>;
+          findMany: (a: unknown) => Promise<{ maYeuCau: string }[]>;
+        };
         inspectionRequestItem: { createMany: (a: unknown) => Promise<unknown> };
         inspectionRequestStatusLog: { create: (a: unknown) => Promise<unknown> };
       };
-      const maYeuCau = data.maYeuCau ?? (await nextYearlyCodeTx(t.inspectionRequest as unknown as never, 'YC-KT'));
+      const maYeuCau =
+        data.maYeuCau ?? (await nextYearlyCodeTx(t.inspectionRequest as unknown as never, 'YC-KT'));
       const created = await t.inspectionRequest.create({
         data: {
           ngayThang: data.ngayThang ?? new Date(),
@@ -405,7 +510,11 @@ class InspectionRequestService {
       if (resolvedItems.length > 0) {
         await t.inspectionRequestItem.createMany({
           // A new request never reuses client-supplied item ids.
-          data: resolvedItems.map(({ id: _ignored, ...it }) => ({ inspectionRequestId: created.id, ...it, faultRecordId: it.faultRecordId ?? null })),
+          data: resolvedItems.map(({ id: _ignored, ...it }) => ({
+            inspectionRequestId: created.id,
+            ...it,
+            faultRecordId: it.faultRecordId ?? null,
+          })),
         });
       }
       await t.inspectionRequestStatusLog.create({
@@ -417,17 +526,23 @@ class InspectionRequestService {
           reason: 'create',
         } as never,
       });
-      return (tx as unknown as { inspectionRequest: { findUnique: (a: unknown) => Promise<Record<string, unknown>> } }).inspectionRequest.findUnique({
+      return (
+        tx as unknown as {
+          inspectionRequest: { findUnique: (a: unknown) => Promise<Record<string, unknown>> };
+        }
+      ).inspectionRequest.findUnique({
         where: { id: created.id },
         include: inspectionInclude as never,
       }) as Promise<Record<string, unknown>>;
     });
     // Notify technical dept — fire-and-forget
-    notificationService.notify(NotificationEvent.INSPECTION_REQUEST_CREATED, {
-      entityId: String((row as { id: number }).id),
-      actorUserId: data.userId ?? undefined,
-      metadata: { maYeuCau: (row as { maYeuCau: string }).maYeuCau },
-    }).catch(() => {});
+    notificationService
+      .notify(NotificationEvent.INSPECTION_REQUEST_CREATED, {
+        entityId: String((row as { id: number }).id),
+        actorUserId: data.userId ?? undefined,
+        metadata: { maYeuCau: (row as { maYeuCau: string }).maYeuCau },
+      })
+      .catch(() => {});
     return row;
   }
 
@@ -441,17 +556,25 @@ class InspectionRequestService {
   /**
    * Edit permission (shared contract with the frontend):
    *  - non-technical user: only their own request and only while CHO_XU_LY
-   *  - technician / ADMIN: while CHO_XU_LY | DA_TIEP_NHAN | DANG_KIEM_TRA
+   *  - technician / ADMIN: while CHO_XU_LY | DA_TIEP_NHAN
    */
-  private assertCanEdit(row: { trangThai: InspectionRequestStatus; createdById: string | null }, actor: ActorContext, privileged: boolean): void {
+  private assertCanEdit(
+    row: { trangThai: InspectionRequestStatus; createdById: string | null },
+    actor: ActorContext,
+    privileged: boolean
+  ): void {
     if (privileged) {
       if (!YCKT_TECH_EDITABLE.has(row.trangThai)) {
-        throw new ValidationError('Không thể chỉnh sửa phiếu kiểm tra sau khi đã gửi kết quả kiểm tra');
+        throw new ValidationError(
+          'Không thể chỉnh sửa phiếu kiểm tra sau khi đã gửi kết quả kiểm tra'
+        );
       }
       return;
     }
     if (!actor.actorId || row.createdById !== actor.actorId) {
-      throw new AuthorizationError('Chỉ người tạo phiếu hoặc bộ phận Kỹ thuật mới được sửa phiếu kiểm tra này');
+      throw new AuthorizationError(
+        'Chỉ người tạo phiếu hoặc bộ phận Kỹ thuật mới được sửa phiếu kiểm tra này'
+      );
     }
     if (row.trangThai !== InspectionRequestStatus.CHO_XU_LY) {
       throw new ValidationError('Chỉ được sửa phiếu kiểm tra của mình khi phiếu còn Chờ xử lý');
@@ -466,22 +589,35 @@ class InspectionRequestService {
   private async syncInspectionItems(
     tx: Prisma.TransactionClient,
     inspectionRequestId: number,
-    items: Array<InspectionRequestItemData & { machineSystemId: string | null; machineSystemDetailId: string | null }>,
+    items: Array<
+      InspectionRequestItemData & {
+        machineSystemId: string | null;
+        machineSystemDetailId: string | null;
+      }
+    >
   ): Promise<void> {
-    const existing = await tx.inspectionRequestItem.findMany({ where: { inspectionRequestId }, select: { id: true } });
+    const existing = await tx.inspectionRequestItem.findMany({
+      where: { inspectionRequestId },
+      select: { id: true },
+    });
     const existingIds = new Set(existing.map((e) => e.id));
     const keepIds = new Set<string>();
     for (const it of items) {
       if (!it.id) continue;
-      if (!existingIds.has(it.id)) throw new ValidationError('Hạng mục không thuộc phiếu kiểm tra này');
+      if (!existingIds.has(it.id))
+        throw new ValidationError('Hạng mục không thuộc phiếu kiểm tra này');
       if (keepIds.has(it.id)) throw new ValidationError('Hạng mục bị trùng trong danh sách');
       keepIds.add(it.id);
     }
     const removeIds = existing.map((e) => e.id).filter((eid) => !keepIds.has(eid));
     if (removeIds.length > 0) {
-      const linked = await tx.repairRequestItem.count({ where: { sourceInspectionItemId: { in: removeIds } } });
+      const linked = await tx.repairRequestItem.count({
+        where: { sourceInspectionItemId: { in: removeIds } },
+      });
       if (linked > 0) throw new ValidationError(ITEM_IN_USE_MESSAGE);
-      await tx.inspectionRequestItem.deleteMany({ where: { id: { in: removeIds }, inspectionRequestId } });
+      await tx.inspectionRequestItem.deleteMany({
+        where: { id: { in: removeIds }, inspectionRequestId },
+      });
     }
     for (const it of items) {
       const { id: itemId, ...fields } = it;
@@ -516,7 +652,11 @@ class InspectionRequestService {
     }
   }
 
-  async updateInspectionRequest(id: number, data: UpdateInspectionRequestData, actor: ActorContext = {}) {
+  async updateInspectionRequest(
+    id: number,
+    data: UpdateInspectionRequestData,
+    actor: ActorContext = {}
+  ) {
     const existing = await prisma.inspectionRequest.findUnique({
       where: { id },
       select: { id: true, trangThai: true, createdById: true },
@@ -526,7 +666,9 @@ class InspectionRequestService {
     if ((data as unknown as Record<string, unknown>).trangThai !== undefined) {
       logger.warn(`Ignored client-supplied trangThai on inspection update (id: ${id})`);
     }
-    const { items, tepDinhKem, ...scalar } = data as UpdateInspectionRequestData & { trangThai?: string };
+    const { items, tepDinhKem, ...scalar } = data as UpdateInspectionRequestData & {
+      trangThai?: string;
+    };
     delete (scalar as Record<string, unknown>).trangThai;
     if (scalar.ghiChu !== undefined) scalar.ghiChu = stripNul(scalar.ghiChu);
     if (scalar.mucDoUuTien !== undefined) scalar.mucDoUuTien = stripNul(scalar.mucDoUuTien);
@@ -534,7 +676,10 @@ class InspectionRequestService {
     // Append-only attachments: merge with existing, cap at MAX_ATTACHMENT_FILES.
     let mergedFiles: string[] | undefined;
     if (tepDinhKem !== undefined) {
-      const current = await prisma.inspectionRequest.findUnique({ where: { id }, select: { tepDinhKem: true } });
+      const current = await prisma.inspectionRequest.findUnique({
+        where: { id },
+        select: { tepDinhKem: true },
+      });
       mergedFiles = [...(current?.tepDinhKem ?? []), ...tepDinhKem].slice(0, MAX_ATTACHMENT_FILES);
       if ((current?.tepDinhKem ?? []).length + tepDinhKem.length > MAX_ATTACHMENT_FILES) {
         throw new ValidationError(`Mỗi phiếu tối đa ${MAX_ATTACHMENT_FILES} tệp đính kèm`);
@@ -544,7 +689,11 @@ class InspectionRequestService {
       // Optimistic guard: the row must still be in the status the permission check saw.
       const guard = await tx.inspectionRequest.updateMany({
         where: { id, trangThai: existing.trangThai },
-        data: { ...(scalar as Prisma.InspectionRequestUpdateManyMutationInput), ...(mergedFiles !== undefined && { tepDinhKem: mergedFiles }), updatedAt: new Date() },
+        data: {
+          ...(scalar as Prisma.InspectionRequestUpdateManyMutationInput),
+          ...(mergedFiles !== undefined && { tepDinhKem: mergedFiles }),
+          updatedAt: new Date(),
+        },
       });
       if (guard.count === 0) throw new ConflictError(STALE_ROW_MESSAGE);
       if (resolvedItems !== undefined) await this.syncInspectionItems(tx, id, resolvedItems);
@@ -567,9 +716,13 @@ class InspectionRequestService {
         throw new ValidationError('Không thể xóa phiếu kiểm tra đã có phiếu nghiệm thu');
       }
       if (!YCKT_DELETABLE.has(row.trangThai)) {
-        throw new ValidationError('Chỉ xóa được phiếu kiểm tra ở trạng thái Chờ xử lý, Đã hủy hoặc Từ chối');
+        throw new ValidationError(
+          'Chỉ xóa được phiếu kiểm tra ở trạng thái Chờ xử lý, Đã hủy hoặc Từ chối'
+        );
       }
-      const deleted = await tx.inspectionRequest.deleteMany({ where: { id, trangThai: row.trangThai } });
+      const deleted = await tx.inspectionRequest.deleteMany({
+        where: { id, trangThai: row.trangThai },
+      });
       if (deleted.count === 0) throw new ConflictError(STALE_ROW_MESSAGE);
     });
     return { message: 'Xóa phiếu kiểm tra thành công' };
@@ -579,7 +732,13 @@ class InspectionRequestService {
    * Single status-change path: reads the row inside the transaction, runs `precheck` on it, then
    * writes with an optimistic guard (where trangThai = current) so concurrent transitions conflict.
    */
-  private async transition(id: number, next: InspectionRequestStatus, actor: ActorContext, reason: string, opts: InspectionTransitionOptions = {}) {
+  private async transition(
+    id: number,
+    next: InspectionRequestStatus,
+    actor: ActorContext,
+    reason: string,
+    opts: InspectionTransitionOptions = {}
+  ) {
     await prisma.$transaction(async (tx) => {
       const row = await tx.inspectionRequest.findUnique({
         where: { id },
@@ -595,7 +754,14 @@ class InspectionRequestService {
       });
       if (guard.count === 0) throw new ConflictError(STALE_ROW_MESSAGE);
       await tx.inspectionRequestStatusLog.create({
-        data: { inspectionRequestId: id, oldStatus: row.trangThai, newStatus: validated, actorId: actor.actorId ?? null, actorRole: actor.actorRole ?? null, reason },
+        data: {
+          inspectionRequestId: id,
+          oldStatus: row.trangThai,
+          newStatus: validated,
+          actorId: actor.actorId ?? null,
+          actorRole: actor.actorRole ?? null,
+          reason,
+        },
       });
     });
     return this.getInspectionRequestById(id);
@@ -603,30 +769,95 @@ class InspectionRequestService {
 
   async accept(id: number, actor: ActorContext) {
     const result = await this.transition(id, InspectionRequestStatus.DA_TIEP_NHAN, actor, 'accept');
-    this.notifyInspection(id, NotificationEvent.INSPECTION_REQUEST_ACCEPTED, actor.actorId).catch(() => {});
+    this.notifyInspection(id, NotificationEvent.INSPECTION_REQUEST_ACCEPTED, actor.actorId).catch(
+      () => {}
+    );
     return result;
   }
+  /**
+   * Legacy entry point kept for route/back-compat: the former DANG_KIEM_TRA was merged into
+   * DA_TIEP_NHAN, so starting inspection is now just ensuring the ticket is
+   * accepted. Records thoiGianKiemTra / nguoiKiemTra when the row is still CHO_XU_LY.
+   */
   async startInspection(id: number, actor: ActorContext) {
-    const row = await (prisma.inspectionRequest as unknown as { findUnique: (a: unknown) => Promise<{ id: number; trangThai: InspectionRequestStatus } | null> }).findUnique({ where: { id }, select: { id: true, trangThai: true } });
+    const row = await (
+      prisma.inspectionRequest as unknown as {
+        findUnique: (
+          a: unknown
+        ) => Promise<{ id: number; trangThai: InspectionRequestStatus } | null>;
+      }
+    ).findUnique({ where: { id }, select: { id: true, trangThai: true } });
     if (!row) throw new NotFoundError('Không tìm thấy phiếu kiểm tra');
     let nguoiKiemTra: string | null = null;
     if (actor.actorId) {
-      const user = await (prisma.user as unknown as { findUnique: (a: unknown) => Promise<{ firstName: string; lastName: string } | null> }).findUnique({ where: { id: actor.actorId }, select: { firstName: true, lastName: true } as never });
-      if (user) nguoiKiemTra = `${(user as { lastName: string }).lastName} ${(user as { firstName: string }).firstName}`.trim();
+      const user = await (
+        prisma.user as unknown as {
+          findUnique: (a: unknown) => Promise<{ firstName: string; lastName: string } | null>;
+        }
+      ).findUnique({
+        where: { id: actor.actorId },
+        select: { firstName: true, lastName: true } as never,
+      });
+      if (user)
+        nguoiKiemTra =
+          `${(user as { lastName: string }).lastName} ${(user as { firstName: string }).firstName}`.trim();
     }
-    // thoiGianKiemTra / nguoiKiemTra are written with the status change (same guarded update).
-    const result = await this.transition(id, InspectionRequestStatus.DANG_KIEM_TRA, actor, 'startInspection', {
-      extraData: { thoiGianKiemTra: new Date(), ...(nguoiKiemTra ? { nguoiKiemTra } : {}) },
-    });
-    this.notifyInspection(id, NotificationEvent.INSPECTION_REQUEST_STARTED, actor.actorId).catch(() => {});
+    if (row.trangThai === InspectionRequestStatus.DA_TIEP_NHAN) {
+      // Already inspecting — just refresh metadata.
+      await (
+        prisma.inspectionRequest as unknown as { update: (a: unknown) => Promise<unknown> }
+      ).update({
+        where: { id },
+        data: { thoiGianKiemTra: new Date(), ...(nguoiKiemTra ? { nguoiKiemTra } : {}) } as never,
+      });
+      return this.getInspectionRequestById(id);
+    }
+    const result = await this.transition(
+      id,
+      InspectionRequestStatus.DA_TIEP_NHAN,
+      actor,
+      'startInspection',
+      {
+        extraData: { thoiGianKiemTra: new Date(), ...(nguoiKiemTra ? { nguoiKiemTra } : {}) },
+      }
+    );
+    this.notifyInspection(id, NotificationEvent.INSPECTION_REQUEST_STARTED, actor.actorId).catch(
+      () => {}
+    );
     return result;
   }
-  async updateInspectionDetails(id: number, data: { ketQuaKiemTra?: string | null; mucDoHuHong?: string | null; deXuatXuLy?: string | null; ketLuan?: string | null; anhKiemTra?: string | null; thoiGianKiemTra?: Date | string | null; nguoiKiemTra?: string | null }, _actor: ActorContext) {
-    const row = await (prisma.inspectionRequest as unknown as { findUnique: (a: unknown) => Promise<{ id: number; trangThai: InspectionRequestStatus; ketLuan: string | null } | null> }).findUnique({ where: { id }, select: { id: true, trangThai: true, ketLuan: true } });
+  async updateInspectionDetails(
+    id: number,
+    data: {
+      ketQuaKiemTra?: string | null;
+      mucDoHuHong?: string | null;
+      deXuatXuLy?: string | null;
+      ketLuan?: string | null;
+      anhKiemTra?: string | null;
+      thoiGianKiemTra?: Date | string | null;
+      nguoiKiemTra?: string | null;
+    },
+    _actor: ActorContext
+  ) {
+    const row = await (
+      prisma.inspectionRequest as unknown as {
+        findUnique: (
+          a: unknown
+        ) => Promise<{
+          id: number;
+          trangThai: InspectionRequestStatus;
+          ketLuan: string | null;
+        } | null>;
+      }
+    ).findUnique({ where: { id }, select: { id: true, trangThai: true, ketLuan: true } });
     if (!row) throw new NotFoundError('Không tìm thấy phiếu kiểm tra');
     // ketLuan is locked once submitted (DA_KIEM_TRA / CHO_NGHIEM_THU / HOAN_THANH) — even for ADMIN
     const isKetLuanChange = 'ketLuan' in data && data.ketLuan !== undefined;
-    const lockedKetLuanStatuses: Set<InspectionRequestStatus> = new Set([InspectionRequestStatus.DA_KIEM_TRA, InspectionRequestStatus.CHO_NGHIEM_THU, InspectionRequestStatus.HOAN_THANH]);
+    const lockedKetLuanStatuses: Set<InspectionRequestStatus> = new Set([
+      InspectionRequestStatus.DA_KIEM_TRA,
+      InspectionRequestStatus.CHO_NGHIEM_THU,
+      InspectionRequestStatus.HOAN_THANH,
+    ]);
     if (isKetLuanChange && lockedKetLuanStatuses.has(row.trangThai)) {
       // Allow no-op (same value) but block actual change
       const incoming = data.ketLuan == null || data.ketLuan === '' ? null : String(data.ketLuan);
@@ -634,30 +865,57 @@ class InspectionRequestService {
         throw new ValidationError('Kết luận đã khóa sau khi gửi kết quả — không thể đổi');
       }
     }
-    if (row.trangThai !== InspectionRequestStatus.DANG_KIEM_TRA && _actor?.actorRole !== 'ADMIN') {
-      throw new ValidationError('Chỉ được cập nhật chi tiết kiểm tra ở trạng thái Đang kiểm tra');
+    if (row.trangThai !== InspectionRequestStatus.DA_TIEP_NHAN && _actor?.actorRole !== 'ADMIN') {
+      throw new ValidationError(
+        'Chỉ được cập nhật chi tiết kiểm tra ở trạng thái Đã tiếp nhận / Đang kiểm tra'
+      );
     }
     const allowed: Record<string, unknown> = {};
-    for (const k of ['ketQuaKiemTra', 'mucDoHuHong', 'deXuatXuLy', 'ketLuan', 'anhKiemTra', 'thoiGianKiemTra', 'nguoiKiemTra'] as const) {
-      if (k in data) (allowed as Record<string, unknown>)[k] = stripNul((data as Record<string, unknown>)[k]);
+    for (const k of [
+      'ketQuaKiemTra',
+      'mucDoHuHong',
+      'deXuatXuLy',
+      'ketLuan',
+      'anhKiemTra',
+      'thoiGianKiemTra',
+      'nguoiKiemTra',
+    ] as const) {
+      if (k in data)
+        (allowed as Record<string, unknown>)[k] = stripNul((data as Record<string, unknown>)[k]);
     }
-    if (allowed.ketLuan != null && allowed.ketLuan !== '' && !KET_LUAN_VALUES.has(String(allowed.ketLuan))) {
+    if (
+      allowed.ketLuan != null &&
+      allowed.ketLuan !== '' &&
+      !KET_LUAN_VALUES.has(String(allowed.ketLuan))
+    ) {
       throw new ValidationError('Kết luận chỉ được là Cần sửa chữa hoặc Đã khắc phục');
     }
-    if (allowed.mucDoHuHong != null && allowed.mucDoHuHong !== '' && !MUC_DO_VALUES.has(String(allowed.mucDoHuHong))) {
+    if (
+      allowed.mucDoHuHong != null &&
+      allowed.mucDoHuHong !== '' &&
+      !MUC_DO_VALUES.has(String(allowed.mucDoHuHong))
+    ) {
       throw new ValidationError('Mức độ hư hỏng không hợp lệ');
     }
     if (allowed.ketLuan === '') allowed.ketLuan = null;
     if (allowed.mucDoHuHong === '') allowed.mucDoHuHong = null;
-    if (allowed.thoiGianKiemTra && typeof allowed.thoiGianKiemTra === 'string') allowed.thoiGianKiemTra = new Date(allowed.thoiGianKiemTra as string);
-    await (prisma.inspectionRequest as unknown as { update: (a: unknown) => Promise<unknown> }).update({ where: { id }, data: allowed as never });
+    if (allowed.thoiGianKiemTra && typeof allowed.thoiGianKiemTra === 'string')
+      allowed.thoiGianKiemTra = new Date(allowed.thoiGianKiemTra as string);
+    await (
+      prisma.inspectionRequest as unknown as { update: (a: unknown) => Promise<unknown> }
+    ).update({ where: { id }, data: allowed as never });
     // audit log: status unchanged (update_details), never break main update on log failure
     try {
       const snapshot: Record<string, unknown> = {};
       if ('ketQuaKiemTra' in allowed) snapshot.ketQuaKiemTra = allowed.ketQuaKiemTra;
       if ('ketLuan' in allowed) snapshot.ketLuan = allowed.ketLuan;
-      const reason = Object.keys(snapshot).length > 0 ? `update_details ${JSON.stringify(snapshot)}` : 'update_details';
-      await (prisma.inspectionRequestStatusLog as unknown as { create: (a: unknown) => Promise<unknown> }).create({
+      const reason =
+        Object.keys(snapshot).length > 0
+          ? `update_details ${JSON.stringify(snapshot)}`
+          : 'update_details';
+      await (
+        prisma.inspectionRequestStatusLog as unknown as { create: (a: unknown) => Promise<unknown> }
+      ).create({
         data: {
           inspectionRequestId: id,
           oldStatus: row.trangThai,
@@ -668,7 +926,9 @@ class InspectionRequestService {
         } as never,
       });
     } catch (e) {
-      logger.warn(`[inspectionRequest] statusLog failed for update_details id=${id}: ${(e as Error).message}`);
+      logger.warn(
+        `[inspectionRequest] statusLog failed for update_details id=${id}: ${(e as Error).message}`
+      );
     }
     return this.getInspectionRequestById(id);
   }
@@ -678,78 +938,116 @@ class InspectionRequestService {
    *  - DA_KHAC_PHUC → acceptance slip (tình trạng sau + tệp đính kèm bắt buộc) → CHO_NGHIEM_THU,
    *    waiting for the YCKT creator to confirm.
    */
-  async submitInspection(id: number, actor: ActorContext, acceptance?: { tinhTrangSau?: string | null; ghiChu?: string | null; fileDinhKem?: string | null }): Promise<Record<string, unknown> | null> {
+  async submitInspection(
+    id: number,
+    actor: ActorContext,
+    acceptance?: {
+      tinhTrangSau?: string | null;
+      ghiChu?: string | null;
+      fileDinhKem?: string | null;
+    }
+  ): Promise<Record<string, unknown> | null> {
     const row = await prisma.inspectionRequest.findUnique({
       where: { id },
       include: { items: { orderBy: { createdAt: 'asc' } } },
     });
     if (!row) throw new NotFoundError('Không tìm thấy phiếu kiểm tra');
-    if (row.trangThai !== InspectionRequestStatus.DANG_KIEM_TRA) {
-      throw new ValidationError('Chỉ được hoàn tất kiểm tra khi đang ở trạng thái Đang kiểm tra');
+    if (row.trangThai !== InspectionRequestStatus.DA_TIEP_NHAN) {
+      throw new ValidationError(
+        'Chỉ được hoàn tất kiểm tra khi đang ở trạng thái Đã tiếp nhận / Đang kiểm tra'
+      );
     }
     if (!row.ketQuaKiemTra) {
       throw new ValidationError('Vui lòng nhập kết quả kiểm tra thực tế trước khi hoàn tất');
     }
     if (!row.ketLuan || !KET_LUAN_VALUES.has(row.ketLuan)) {
-      throw new ValidationError('Vui lòng chọn kết luận kiểm tra (Cần sửa chữa / Đã khắc phục) trước khi hoàn tất');
+      throw new ValidationError(
+        'Vui lòng chọn kết luận kiểm tra (Cần sửa chữa / Đã khắc phục) trước khi hoàn tất'
+      );
     }
     if (row.ketLuan === KET_LUAN_CAN_SUA_CHUA) {
-      const result = await this.transition(id, InspectionRequestStatus.DA_KIEM_TRA, actor, 'submitInspection', {
-        precheck: (fresh) => {
-          if (fresh.trangThai !== InspectionRequestStatus.DANG_KIEM_TRA || fresh.ketLuan !== KET_LUAN_CAN_SUA_CHUA) {
-            throw new ConflictError(STALE_ROW_MESSAGE);
-          }
-        },
-      });
-      this.notifyInspection(id, NotificationEvent.INSPECTION_REQUEST_SUBMITTED, actor.actorId, { maYeuCau: row.maYeuCau, ketLuan: KET_LUAN_CAN_SUA_CHUA }).catch(() => {});
+      const result = await this.transition(
+        id,
+        InspectionRequestStatus.DA_KIEM_TRA,
+        actor,
+        'submitInspection',
+        {
+          precheck: (fresh) => {
+            if (
+              fresh.trangThai !== InspectionRequestStatus.DA_TIEP_NHAN ||
+              fresh.ketLuan !== KET_LUAN_CAN_SUA_CHUA
+            ) {
+              throw new ConflictError(STALE_ROW_MESSAGE);
+            }
+          },
+        }
+      );
+      this.notifyInspection(id, NotificationEvent.INSPECTION_REQUEST_SUBMITTED, actor.actorId, {
+        maYeuCau: row.maYeuCau,
+        ketLuan: KET_LUAN_CAN_SUA_CHUA,
+      }).catch(() => {});
       return result;
     }
 
     // DA_KHAC_PHUC — acceptance data is mandatory
     const tinhTrangSau = stripNul(String(acceptance?.tinhTrangSau ?? '').trim());
-    if (!tinhTrangSau) throw new ValidationError('Vui lòng nhập tình trạng sau khắc phục (dữ liệu nghiệm thu)');
+    if (!tinhTrangSau)
+      throw new ValidationError('Vui lòng nhập tình trạng sau khắc phục (dữ liệu nghiệm thu)');
     if (!acceptance?.fileDinhKem) throw new ValidationError('Vui lòng đính kèm tệp nghiệm thu');
-    if (!row.createdById) throw new ValidationError('Phiếu kiểm tra không có người tạo để xác nhận nghiệm thu');
+    if (!row.createdById)
+      throw new ValidationError('Phiếu kiểm tra không có người tạo để xác nhận nghiệm thu');
 
     const nguoiBanGiao = (await this.userFullName(actor.actorId)) ?? row.nguoiKiemTra ?? '';
     const tenHeThongThietBi = row.items.map((it) => it.tenHeThong).join('; ') || row.maYeuCau;
     const tinhTrangTruoc = row.items.length
-      ? row.items.map((it) => `${it.tenHeThong}: ${it.tinhTrangThietBi} - ${it.noiDungLoi}`).join('; ')
+      ? row.items
+          .map((it) => `${it.tenHeThong}: ${it.tinhTrangThietBi} - ${it.noiDungLoi}`)
+          .join('; ')
       : row.ketQuaKiemTra;
 
-    const handover = await acceptanceHandoverService.withHandoverCodeRetry(() => prisma.$transaction(async (tx) => {
-      advanceInspection(row.trangThai, InspectionRequestStatus.CHO_NGHIEM_THU, actor.actorRole === 'ADMIN');
-      // Claim the row first: a double-submit fails here instead of creating a second slip.
-      const guard = await tx.inspectionRequest.updateMany({
-        where: { id, trangThai: InspectionRequestStatus.DANG_KIEM_TRA, ketLuan: KET_LUAN_DA_KHAC_PHUC },
-        data: { trangThai: InspectionRequestStatus.CHO_NGHIEM_THU },
-      });
-      if (guard.count === 0) throw new ConflictError(STALE_ROW_MESSAGE);
-      const created = await acceptanceHandoverService.createInspectionAcceptanceTx(tx, {
-        inspectionRequestId: id,
-        maYeuCau: row.maYeuCau,
-        tenHeThongThietBi,
-        tinhTrangTruoc,
-        tinhTrangSau,
-        nguoiBanGiao,
-        fileDinhKem: acceptance.fileDinhKem as string,
-        ghiChu: acceptance.ghiChu ?? null,
-        confirmerUserId: row.createdById,
-        confirmerName: row.createdByName,
-        userId: actor.actorId ?? null,
-      });
-      await tx.inspectionRequestStatusLog.create({
-        data: {
+    const handover = await acceptanceHandoverService.withHandoverCodeRetry(() =>
+      prisma.$transaction(async (tx) => {
+        advanceInspection(
+          row.trangThai,
+          InspectionRequestStatus.CHO_NGHIEM_THU,
+          actor.actorRole === 'ADMIN'
+        );
+        // Claim the row first: a double-submit fails here instead of creating a second slip.
+        const guard = await tx.inspectionRequest.updateMany({
+          where: {
+            id,
+            trangThai: InspectionRequestStatus.DA_TIEP_NHAN,
+            ketLuan: KET_LUAN_DA_KHAC_PHUC,
+          },
+          data: { trangThai: InspectionRequestStatus.CHO_NGHIEM_THU },
+        });
+        if (guard.count === 0) throw new ConflictError(STALE_ROW_MESSAGE);
+        const created = await acceptanceHandoverService.createInspectionAcceptanceTx(tx, {
           inspectionRequestId: id,
-          oldStatus: row.trangThai,
-          newStatus: InspectionRequestStatus.CHO_NGHIEM_THU,
-          actorId: actor.actorId ?? null,
-          actorRole: actor.actorRole ?? null,
-          reason: `submit_da_khac_phuc ${created.maNghiemThu}`,
-        },
-      });
-      return created;
-    }));
+          maYeuCau: row.maYeuCau,
+          tenHeThongThietBi,
+          tinhTrangTruoc,
+          tinhTrangSau,
+          nguoiBanGiao,
+          fileDinhKem: acceptance.fileDinhKem as string,
+          ghiChu: acceptance.ghiChu ?? null,
+          confirmerUserId: row.createdById,
+          confirmerName: row.createdByName,
+          userId: actor.actorId ?? null,
+        });
+        await tx.inspectionRequestStatusLog.create({
+          data: {
+            inspectionRequestId: id,
+            oldStatus: row.trangThai,
+            newStatus: InspectionRequestStatus.CHO_NGHIEM_THU,
+            actorId: actor.actorId ?? null,
+            actorRole: actor.actorRole ?? null,
+            reason: `submit_da_khac_phuc ${created.maNghiemThu}`,
+          },
+        });
+        return created;
+      })
+    );
 
     await acceptanceHandoverService.notifyConfirmer(handover, row.createdById, nguoiBanGiao);
     return this.getInspectionRequestById(id);
@@ -757,24 +1055,46 @@ class InspectionRequestService {
 
   /**
    * YCKT creator confirms the "Đã khắc phục" acceptance slip.
-   * ĐẠT → HOAN_THANH; KHÔNG ĐẠT (lý do bắt buộc) → back to DANG_KIEM_TRA for the technician.
+   * ĐẠT → HOAN_THANH; KHÔNG ĐẠT (lý do bắt buộc) → back to DA_TIEP_NHAN for the technician.
    */
-  async confirmAcceptance(id: number, actor: ActorContext, ketQua: string, lyDo?: string | null): Promise<Record<string, unknown>> {
+  async confirmAcceptance(
+    id: number,
+    actor: ActorContext,
+    ketQua: string,
+    lyDo?: string | null
+  ): Promise<Record<string, unknown>> {
     if (ketQua !== NghiemThuKetQua.DAT && ketQua !== NghiemThuKetQua.KHONG_DAT) {
       throw new ValidationError('Kết quả nghiệm thu không hợp lệ');
     }
     await prisma.$transaction(async (tx) => {
-      const row = await tx.inspectionRequest.findUnique({ where: { id }, select: { id: true, trangThai: true } });
+      const row = await tx.inspectionRequest.findUnique({
+        where: { id },
+        select: { id: true, trangThai: true },
+      });
       if (!row) throw new NotFoundError('Không tìm thấy phiếu kiểm tra');
       if (row.trangThai !== InspectionRequestStatus.CHO_NGHIEM_THU) {
         throw new ValidationError('Chỉ xác nhận nghiệm thu khi phiếu đang Chờ nghiệm thu');
       }
-      const next = ketQua === NghiemThuKetQua.DAT ? InspectionRequestStatus.HOAN_THANH : InspectionRequestStatus.DANG_KIEM_TRA;
-      advanceInspection(row.trangThai, next, actor.actorRole === 'ADMIN', { viaConfirmation: true });
+      const next =
+        ketQua === NghiemThuKetQua.DAT
+          ? InspectionRequestStatus.HOAN_THANH
+          : InspectionRequestStatus.DA_TIEP_NHAN;
+      advanceInspection(row.trangThai, next, actor.actorRole === 'ADMIN', {
+        viaConfirmation: true,
+      });
       // Claim the row first so a concurrent double-confirm fails before touching the slip.
-      const guard = await tx.inspectionRequest.updateMany({ where: { id, trangThai: row.trangThai }, data: { trangThai: next } });
+      const guard = await tx.inspectionRequest.updateMany({
+        where: { id, trangThai: row.trangThai },
+        data: { trangThai: next },
+      });
       if (guard.count === 0) throw new ConflictError(STALE_ROW_MESSAGE);
-      await acceptanceHandoverService.recordConfirmationTx(tx, { inspectionRequestId: id }, actor, ketQua as NghiemThuKetQua, lyDo);
+      await acceptanceHandoverService.recordConfirmationTx(
+        tx,
+        { inspectionRequestId: id },
+        actor,
+        ketQua as NghiemThuKetQua,
+        lyDo
+      );
       await tx.inspectionRequestStatusLog.create({
         data: {
           inspectionRequestId: id,
@@ -782,7 +1102,10 @@ class InspectionRequestService {
           newStatus: next,
           actorId: actor.actorId ?? null,
           actorRole: actor.actorRole ?? null,
-          reason: ketQua === NghiemThuKetQua.DAT ? 'acceptance_dat' : `acceptance_khong_dat: ${String(lyDo ?? '').trim()}`,
+          reason:
+            ketQua === NghiemThuKetQua.DAT
+              ? 'acceptance_dat'
+              : `acceptance_khong_dat: ${String(lyDo ?? '').trim()}`,
         },
       });
     });
@@ -798,23 +1121,41 @@ class InspectionRequestService {
     const result = await this.transition(id, InspectionRequestStatus.HOAN_THANH, actor, reason, {
       precheck: async (row, tx) => {
         if (row.ketLuan === KET_LUAN_DA_KHAC_PHUC) {
-          throw new ValidationError('Kết luận Đã khắc phục phải được người tạo yêu cầu xác nhận nghiệm thu');
+          throw new ValidationError(
+            'Kết luận Đã khắc phục phải được người tạo yêu cầu xác nhận nghiệm thu'
+          );
         }
         const activeRepairs = await tx.repairRequest.count({
           where: { sourceInspectionRequestId: id, trangThai: { notIn: INACTIVE_REPAIR_STATUSES } },
         });
-        if (row.trangThai !== InspectionRequestStatus.DA_KIEM_TRA || row.ketLuan !== KET_LUAN_CAN_SUA_CHUA || activeRepairs === 0) {
-          throw new ValidationError('Chỉ hoàn thành khi đã kiểm tra (Cần sửa chữa) và có yêu cầu sửa chữa còn hiệu lực');
+        if (
+          row.trangThai !== InspectionRequestStatus.DA_KIEM_TRA ||
+          row.ketLuan !== KET_LUAN_CAN_SUA_CHUA ||
+          activeRepairs === 0
+        ) {
+          throw new ValidationError(
+            'Chỉ hoàn thành khi đã kiểm tra (Cần sửa chữa) và có yêu cầu sửa chữa còn hiệu lực'
+          );
         }
       },
     });
-    this.notifyInspection(id, NotificationEvent.INSPECTION_REQUEST_COMPLETED, actor.actorId).catch(() => {});
+    this.notifyInspection(id, NotificationEvent.INSPECTION_REQUEST_COMPLETED, actor.actorId).catch(
+      () => {}
+    );
     return result;
   }
 
-  private async notifyInspection(id: number, event: (typeof NotificationEvent)[keyof typeof NotificationEvent], actorUserId?: string, extraMeta: Record<string, unknown> = {}) {
+  private async notifyInspection(
+    id: number,
+    event: (typeof NotificationEvent)[keyof typeof NotificationEvent],
+    actorUserId?: string,
+    extraMeta: Record<string, unknown> = {}
+  ) {
     try {
-      const row = await prisma.inspectionRequest.findUnique({ where: { id }, select: { maYeuCau: true, createdById: true } });
+      const row = await prisma.inspectionRequest.findUnique({
+        where: { id },
+        select: { maYeuCau: true, createdById: true },
+      });
       if (!row) return;
       const empIds = row.createdById ? await this.employeeIdsForUser(row.createdById) : [];
       await notificationService.notify(event as any, {
@@ -823,24 +1164,38 @@ class InspectionRequestService {
         targetEmployeeIds: empIds.length ? empIds : undefined,
         metadata: { maYeuCau: row.maYeuCau, ...extraMeta },
       });
-    } catch { /* best-effort */ }
+    } catch {
+      /* best-effort */
+    }
   }
 
   private async employeeIdsForUser(userId: string): Promise<string[]> {
     try {
       const emp = await prisma.employee.findUnique({ where: { userId }, select: { id: true } });
       return emp ? [emp.id] : [];
-    } catch { return []; }
+    } catch {
+      return [];
+    }
   }
 
   private async userFullName(userId?: string): Promise<string | null> {
     if (!userId) return null;
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { firstName: true, lastName: true } });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { firstName: true, lastName: true },
+    });
     return user ? `${user.lastName} ${user.firstName}`.trim() : null;
   }
   async reject(id: number, actor: ActorContext, reason?: string) {
-    const result = await this.transition(id, InspectionRequestStatus.TU_CHOI, actor, reason ?? 'reject');
-    this.notifyInspection(id, NotificationEvent.INSPECTION_REQUEST_REJECTED, actor.actorId, { reason }).catch(() => {});
+    const result = await this.transition(
+      id,
+      InspectionRequestStatus.TU_CHOI,
+      actor,
+      reason ?? 'reject'
+    );
+    this.notifyInspection(id, NotificationEvent.INSPECTION_REQUEST_REJECTED, actor.actorId, {
+      reason,
+    }).catch(() => {});
     return result;
   }
   /**
@@ -849,67 +1204,118 @@ class InspectionRequestService {
    */
   async cancel(id: number, actor: ActorContext, reason?: string) {
     const privileged = await this.isPrivileged(actor);
-    const result = await this.transition(id, InspectionRequestStatus.DA_HUY, actor, reason ?? (actor.actorRole === 'ADMIN' ? 'admin_override' : 'user_cancel'), {
-      precheck: (row) => {
-        if (privileged) return;
-        if (!actor.actorId || row.createdById !== actor.actorId) {
-          throw new AuthorizationError('Chỉ người tạo phiếu hoặc bộ phận Kỹ thuật mới được hủy phiếu kiểm tra này');
-        }
-        if (row.trangThai !== InspectionRequestStatus.CHO_XU_LY) {
-          throw new ValidationError('Chỉ được hủy phiếu kiểm tra của mình khi phiếu còn Chờ xử lý');
-        }
-      },
-    });
-    this.notifyInspection(id, NotificationEvent.INSPECTION_REQUEST_CANCELLED, actor.actorId, { reason }).catch(() => {});
+    const result = await this.transition(
+      id,
+      InspectionRequestStatus.DA_HUY,
+      actor,
+      reason ?? (actor.actorRole === 'ADMIN' ? 'admin_override' : 'user_cancel'),
+      {
+        precheck: (row) => {
+          if (privileged) return;
+          if (!actor.actorId || row.createdById !== actor.actorId) {
+            throw new AuthorizationError(
+              'Chỉ người tạo phiếu hoặc bộ phận Kỹ thuật mới được hủy phiếu kiểm tra này'
+            );
+          }
+          if (row.trangThai !== InspectionRequestStatus.CHO_XU_LY) {
+            throw new ValidationError(
+              'Chỉ được hủy phiếu kiểm tra của mình khi phiếu còn Chờ xử lý'
+            );
+          }
+        },
+      }
+    );
+    this.notifyInspection(id, NotificationEvent.INSPECTION_REQUEST_CANCELLED, actor.actorId, {
+      reason,
+    }).catch(() => {});
     return result;
   }
 
   async getStats(filters?: { dateFrom?: Date; dateTo?: Date }) {
     const now = new Date();
     const dateTo = filters?.dateTo ?? now;
-    const windowMs = filters?.dateFrom ? dateTo.getTime() - filters.dateFrom.getTime() : 90 * 24 * 60 * 60 * 1000;
+    const windowMs = filters?.dateFrom
+      ? dateTo.getTime() - filters.dateFrom.getTime()
+      : 90 * 24 * 60 * 60 * 1000;
     const dateFrom = filters?.dateFrom ?? new Date(dateTo.getTime() - windowMs);
     const prevDateTo = new Date(dateFrom.getTime() - 1);
     const prevDateFrom = new Date(prevDateTo.getTime() - windowMs);
-    const buildWhere = (from: Date, to: Date): Record<string, unknown> => ({ createdAt: { gte: from, lte: to } });
+    const buildWhere = (from: Date, to: Date): Record<string, unknown> => ({
+      createdAt: { gte: from, lte: to },
+    });
     const currentWhere = buildWhere(dateFrom, dateTo);
     const prevWhere = buildWhere(prevDateFrom, prevDateTo);
     const countByStatus = async (where: Record<string, unknown>) => {
-      const rows = await (prisma.inspectionRequest as unknown as { groupBy: (a: unknown) => Promise<Array<{ trangThai: string; _count: { _all: number } }>> }).groupBy({ by: ['trangThai'], where: where as never, _count: { _all: true } });
-      const counts: Record<string, number> = { CHO_XU_LY: 0, DA_TIEP_NHAN: 0, DANG_KIEM_TRA: 0, DA_KIEM_TRA: 0, CHO_NGHIEM_THU: 0, HOAN_THANH: 0, DA_HUY: 0, TU_CHOI: 0 };
+      const rows = await (
+        prisma.inspectionRequest as unknown as {
+          groupBy: (a: unknown) => Promise<Array<{ trangThai: string; _count: { _all: number } }>>;
+        }
+      ).groupBy({ by: ['trangThai'], where: where as never, _count: { _all: true } });
+      const counts: Record<string, number> = {
+        CHO_XU_LY: 0,
+        DA_TIEP_NHAN: 0,
+        DA_KIEM_TRA: 0,
+        CHO_NGHIEM_THU: 0,
+        HOAN_THANH: 0,
+        DA_HUY: 0,
+        TU_CHOI: 0,
+      };
       for (const r of rows) counts[r.trangThai] = r._count._all;
       return counts;
     };
     const [total, byStatus, prevByStatus, prevTotal] = await Promise.all([
-      (prisma.inspectionRequest as unknown as { count: (a: unknown) => Promise<number> }).count({ where: currentWhere as never }),
+      (prisma.inspectionRequest as unknown as { count: (a: unknown) => Promise<number> }).count({
+        where: currentWhere as never,
+      }),
       countByStatus(currentWhere),
       countByStatus(prevWhere),
-      (prisma.inspectionRequest as unknown as { count: (a: unknown) => Promise<number> }).count({ where: prevWhere as never }),
+      (prisma.inspectionRequest as unknown as { count: (a: unknown) => Promise<number> }).count({
+        where: prevWhere as never,
+      }),
     ]);
     const delta: Record<string, unknown> = {
       total: total - prevTotal,
-      byStatus: Object.fromEntries(Object.keys(byStatus).map((k) => [k, (byStatus[k] ?? 0) - (prevByStatus[k] ?? 0)])),
+      byStatus: Object.fromEntries(
+        Object.keys(byStatus).map((k) => [k, (byStatus[k] ?? 0) - (prevByStatus[k] ?? 0)])
+      ),
     };
     return { total, byStatus, delta, window: { dateFrom, dateTo } };
   }
 
   async getStatusHistory(id: number) {
-    const exists = await (prisma.inspectionRequest as unknown as { findUnique: (a: unknown) => Promise<{ id: number } | null> }).findUnique({ where: { id }, select: { id: true } });
+    const exists = await (
+      prisma.inspectionRequest as unknown as {
+        findUnique: (a: unknown) => Promise<{ id: number } | null>;
+      }
+    ).findUnique({ where: { id }, select: { id: true } });
     if (!exists) throw new NotFoundError('Không tìm thấy phiếu kiểm tra');
-    const logs = await (prisma.inspectionRequestStatusLog as unknown as { findMany: (a: unknown) => Promise<Array<Record<string, unknown>>> }).findMany({
+    const logs = await (
+      prisma.inspectionRequestStatusLog as unknown as {
+        findMany: (a: unknown) => Promise<Array<Record<string, unknown>>>;
+      }
+    ).findMany({
       where: { inspectionRequestId: id },
       orderBy: { createdAt: 'asc' },
     });
     const actorIds = [...new Set(logs.map((l) => l.actorId as string).filter(Boolean))];
     let actorNames = new Map<string, string>();
     if (actorIds.length > 0) {
-      const users = await (prisma.user as unknown as { findMany: (a: unknown) => Promise<Array<{ id: string; firstName: string; lastName: string }>> }).findMany({
+      const users = await (
+        prisma.user as unknown as {
+          findMany: (
+            a: unknown
+          ) => Promise<Array<{ id: string; firstName: string; lastName: string }>>;
+        }
+      ).findMany({
         where: { id: { in: actorIds } },
         select: { id: true, firstName: true, lastName: true } as never,
       });
       users.forEach((u) => actorNames.set(u.id, `${u.lastName} ${u.firstName}`.trim()));
     }
-    return logs.map((l) => ({ ...l, actorName: (l.actorId as string) ? (actorNames.get(l.actorId as string) ?? null) : null }));
+    return logs.map((l) => ({
+      ...l,
+      actorName: (l.actorId as string) ? (actorNames.get(l.actorId as string) ?? null) : null,
+    }));
   }
 }
 

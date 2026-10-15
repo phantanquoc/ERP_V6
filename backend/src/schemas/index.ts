@@ -1149,13 +1149,8 @@ export const updateRepairRequestSchema = z
     phuongAn: z.string().optional().nullable(),
     bienPhapAnToan: z.string().optional().nullable(),
     chiPhiDuKien: z.coerce.number().min(0, 'Chi phí dự kiến phải >= 0').optional().nullable(),
-    chiPhiThucTe: z.coerce.number().min(0).optional().nullable(),
-    noiDungThucHien: z.string().optional().nullable(),
-    gioCongThucTe: z.coerce.number().min(0).optional().nullable(),
     canNgungMay: z.coerce.boolean().optional(),
     phongBanId: z.string().optional().nullable(),
-    ketQuaNghiemThu: nghiemThuKetQuaEnum.optional().nullable(),
-    ngayHoanThanhThucTe: z.coerce.date().optional().nullable(),
     tenHeThong: z.string().optional().nullable(),
     tinhTrangThietBi: z.string().optional().nullable(),
     loaiLoi: z.string().optional().nullable(),
@@ -1189,7 +1184,7 @@ export const repairMaterialNeedCreateSchema = z.object({
   maVatTu: z.string().optional().nullable(),
   donVi: z.string().optional().nullable(),
   soLuongDuKien: z.coerce.number().min(0, 'Số lượng dự kiến phải >= 0'),
-  soLuongThucTe: z.coerce.number().min(0).optional().nullable(),
+  // soLuongThucTe is derived from issued SupplyRequestItem.fulfilledQty — no manual input
   ghiChu: z.string().optional().nullable(),
 });
 
@@ -1198,7 +1193,6 @@ export const repairMaterialNeedUpdateSchema = z.object({
   maVatTu: z.string().optional().nullable(),
   donVi: z.string().optional().nullable(),
   soLuongDuKien: z.coerce.number().min(0).optional(),
-  soLuongThucTe: z.coerce.number().min(0).optional().nullable(),
   ghiChu: z.string().optional().nullable(),
 });
 
@@ -1206,7 +1200,7 @@ export const repairSupplyLinkCreateSchema = z.object({
   supplyRequestId: z.string().min(1, 'Thiếu supplyRequestId'),
   repairRequestItemId: z.string().optional().nullable(),
   supplyRequestItemId: z.string().optional().nullable(),
-  soLuong: z.coerce.number().min(0).optional().nullable(),
+  // soLuong deprecated — actual qty is SupplyRequestItem.fulfilledQty/soLuong, not a per-link override
   ghiChu: z.string().optional().nullable(),
 });
 
@@ -1237,7 +1231,6 @@ export const repairPlanSchema = z
 
 export const confirmAcceptanceSchema = z.object({
   ketQua: nghiemThuKetQuaEnum,
-  chiPhiThucTe: z.coerce.number().min(0).optional().nullable(),
 });
 
 export const rejectRepairSchema = z
@@ -1260,14 +1253,13 @@ export type RepairAssigneeInput = z.infer<typeof repairAssigneeSchema>;
 export type RepairMaterialNeedCreateInput = z.infer<typeof repairMaterialNeedCreateSchema>;
 export type RepairSupplyLinkCreateInput = z.infer<typeof repairSupplyLinkCreateSchema>;
 
-// Actual execution fields — only when DA_NGHIEM_THU / HOAN_THANH (service enforces status)
+// Actual execution fields — only when DA_NGHIEM_THU / HOAN_THANH (service enforces status).
+// chiPhiThucTe is NOT an input: it is snapshotted from calcActualCost() at complete() time.
+// ngayHoanThanhThucTe is system-set at complete() — not an input.
 export const repairActualFieldsSchema = z
   .object({
     gioCongThucTe: z.coerce.number().min(0, 'Giờ công thực tế phải >= 0').optional().nullable(),
     noiDungThucHien: z.string().optional().nullable(),
-    chiPhiThucTe: z.coerce.number().min(0, 'Chi phí thực tế phải >= 0').optional().nullable(),
-    ketQuaNghiemThu: nghiemThuKetQuaEnum.optional().nullable(),
-    ngayHoanThanhThucTe: z.coerce.date().optional().nullable(),
   })
   .refine((v) => Object.keys(v).some((k) => (v as Record<string, unknown>)[k] !== undefined), {
     message: 'Không có dữ liệu thực tế để cập nhật',
