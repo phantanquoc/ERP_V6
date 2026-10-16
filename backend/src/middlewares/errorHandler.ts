@@ -67,6 +67,19 @@ export const errorHandler = (
     return;
   }
 
+  // Handle Zod validation errors (thrown by zod schemas, surface as 400 not 500)
+  if (err.name === 'ZodError') {
+    const zodError = err as Error & { issues?: Array<{ path?: Array<string | number>; message?: string }> };
+    const details = (zodError.issues ?? [])
+      .map((issue) => issue.message)
+      .filter((msg): msg is string => Boolean(msg));
+    res.status(400).json({
+      success: false,
+      message: details.length > 0 ? `Dữ liệu không hợp lệ: ${details.join('; ')}` : 'Dữ liệu không hợp lệ',
+    });
+    return;
+  }
+
   // Default error
   res.status(500).json({
     success: false,

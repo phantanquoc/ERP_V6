@@ -64,12 +64,14 @@ const Combobox = ({
   options,
   placeholder,
   disabled,
+  required,
 }: {
   value: string;
   onChange: (value: string) => void;
   options: string[];
   placeholder?: string;
   disabled?: boolean;
+  required?: boolean;
 }) => {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
@@ -123,6 +125,7 @@ const Combobox = ({
         <input
           ref={inputRef}
           disabled={disabled}
+          required={required}
           value={inputValue}
           onChange={handleInputChange}
           onFocus={() => !disabled && setOpen(true)}
@@ -527,6 +530,14 @@ const MachineSystemList = () => {
   const saveSystem = async (event: FormEvent) => {
     event.preventDefault();
     if (!systemModal) return;
+    if (!systemForm.khuVuc?.trim()) {
+      setError('Vui lòng nhập Khu vực');
+      return;
+    }
+    if (!systemForm.viTri?.trim()) {
+      setError('Vui lòng nhập Vị trí');
+      return;
+    }
     try {
       if (systemModal.record) {
         await updateSystem.mutateAsync({ id: systemModal.record.id, data: systemForm });
@@ -810,23 +821,25 @@ const MachineSystemList = () => {
                 </select>
               </label>
               <label className="space-y-1">
-                <span className="font-medium text-gray-700">Khu vực</span>
+                <span className="font-medium text-gray-700">Khu vực <span className="text-red-500">*</span></span>
                 <Combobox
                   value={systemForm.khuVuc ?? ''}
                   onChange={(val) => setSystemForm((form) => ({ ...form, khuVuc: val }))}
                   options={existingKhuVuc}
                   placeholder="Chọn hoặc nhập khu vực"
                   disabled={systemModal?.mode === 'view'}
+                  required
                 />
               </label>
               <label className="space-y-1">
-                <span className="font-medium text-gray-700">Vị trí</span>
+                <span className="font-medium text-gray-700">Vị trí <span className="text-red-500">*</span></span>
                 <Combobox
                   value={systemForm.viTri ?? ''}
                   onChange={(val) => setSystemForm((form) => ({ ...form, viTri: val }))}
                   options={existingViTri}
                   placeholder="Chọn hoặc nhập vị trí"
                   disabled={systemModal?.mode === 'view'}
+                  required
                 />
               </label>
               <label className="space-y-1 md:col-span-2">
