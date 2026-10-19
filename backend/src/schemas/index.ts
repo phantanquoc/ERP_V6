@@ -1093,6 +1093,19 @@ const repairItemSchema = z.object({
   phuongAnSua: z.string().optional().nullable(),
 });
 
+// Multipart/form-data sends arrays as JSON strings — accept both forms.
+const jsonStringArray = <T extends z.ZodTypeAny>(itemSchema: T) =>
+  z.preprocess((v) => {
+    if (typeof v === 'string') {
+      try {
+        return JSON.parse(v);
+      } catch {
+        return v;
+      }
+    }
+    return v;
+  }, z.array(itemSchema));
+
 export const createRepairRequestSchema = z
   .object({
     requestType: requestTypeEnum.optional().default('SUA_CHUA'),
@@ -1114,7 +1127,7 @@ export const createRepairRequestSchema = z
     tinhTrangThietBi: z.string().optional().nullable(),
     loaiLoi: z.string().optional().nullable(),
     noiDungLoi: z.string().optional().nullable(),
-    items: z.array(repairItemSchema).optional(),
+    items: jsonStringArray(repairItemSchema).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.requestType === 'KIEM_TRA' && data.sourceInspectionRequestId) {
@@ -1155,7 +1168,7 @@ export const updateRepairRequestSchema = z
     tinhTrangThietBi: z.string().optional().nullable(),
     loaiLoi: z.string().optional().nullable(),
     noiDungLoi: z.string().optional().nullable(),
-    items: z.array(repairItemSchema).optional(),
+    items: jsonStringArray(repairItemSchema).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.ngayHoanThienDuKien && data.ngayBatDauKeHoach) {
@@ -1276,7 +1289,7 @@ export const inspectionRequestCreateSchema = z
     phongBanId: z.string().optional().nullable(),
     ngayThang: z.coerce.date().optional(),
     fileDinhKem: z.string().optional().nullable(),
-    items: z.array(repairItemSchema).optional(),
+    items: jsonStringArray(repairItemSchema).optional(),
   })
   .strip();
 
@@ -1287,7 +1300,7 @@ export const inspectionRequestUpdateSchema = z
     phongBanId: z.string().optional().nullable(),
     ngayThang: z.coerce.date().optional(),
     fileDinhKem: z.string().optional().nullable(),
-    items: z.array(repairItemSchema).optional(),
+    items: jsonStringArray(repairItemSchema).optional(),
   })
   .strip();
 
