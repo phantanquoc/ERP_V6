@@ -1235,7 +1235,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                               return (
                                 <div key={rr.id} className="flex flex-col">
                                   <span
-                                    title={cancelled ? `Lý do hủy: ${rr.lyDoHuy || 'không có'}${rr.ngayHuy ? ` · ${new Date(rr.ngayHuy).toLocaleDateString('vi-VN')}` : ''}` : undefined}
+                                    title={cancelled ? `Lý do hủy: ${rr.lyDoHuy || 'không có'}${rr.ngayHuy ? ` · ${new Date(rr.ngayHuy).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}` : undefined}
                                     className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-white border ${cancelled ? 'border-red-200' : 'border-amber-200'}`}
                                   >
                                     <PackageOpen className={`h-3 w-3 ${cancelled ? 'text-red-500' : 'text-amber-600'}`} />
@@ -1248,7 +1248,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                                   {cancelled && (
                                     <div className="text-[11px] text-red-600 mt-0.5">
                                       Lý do: {rr.lyDoHuy || 'không có'}
-                                      {rr.ngayHuy ? ` · ${new Date(rr.ngayHuy).toLocaleDateString('vi-VN')}` : ''}
+                                      {rr.ngayHuy ? ` · ${new Date(rr.ngayHuy).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
                                       {rr.nguoiHuy ? ` · bởi ${rr.nguoiHuy}` : ''}
                                     </div>
                                   )}
@@ -1290,7 +1290,7 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                               return (
                                 <span
                                   key={pr.id}
-                                  title={prCancelled ? `Lý do hủy: ${pr.lyDoHuy || 'không có'}${pr.ngayHuy ? ` · ${new Date(pr.ngayHuy).toLocaleDateString('vi-VN')}` : ''}` : undefined}
+                                  title={prCancelled ? `Lý do hủy: ${pr.lyDoHuy || 'không có'}${pr.ngayHuy ? ` · ${new Date(pr.ngayHuy).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}` : undefined}
                                   className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-white border ${prCancelled ? 'border-red-200' : 'border-gray-200'}`}
                                 >
                                   <ShoppingCart className={`h-3 w-3 ${prCancelled ? 'text-red-500' : 'text-blue-600'}`} />
@@ -1377,14 +1377,14 @@ const SupplyRequestManagement: React.FC<SupplyRequestManagementProps> = () => {
                             {cancelledRR.map((rr) => (
                               <div key={`h-rr-${rr.id}`} className="text-red-700">
                                 YCBS {rr.maYeuCau} — Đã hủy — Lý do: {rr.lyDoHuy || 'không có'}
-                                {rr.ngayHuy ? ` · ${new Date(rr.ngayHuy).toLocaleDateString('vi-VN')}` : ''}
+                                {rr.ngayHuy ? ` · ${new Date(rr.ngayHuy).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
                                 {rr.nguoiHuy ? ` · bởi ${rr.nguoiHuy}` : ''}
                               </div>
                             ))}
                             {cancelledPR.map((pr) => (
                               <div key={`h-pr-${pr.id}`} className="text-red-700">
                                 YCMH {pr.maYeuCau} — Đã hủy — Lý do: {pr.lyDoHuy || 'không có'}
-                                {pr.ngayHuy ? ` · ${new Date(pr.ngayHuy).toLocaleDateString('vi-VN')}` : ''}
+                                {pr.ngayHuy ? ` · ${new Date(pr.ngayHuy).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
                                 {pr.nguoiHuy ? ` · bởi ${pr.nguoiHuy}` : ''}
                               </div>
                             ))}

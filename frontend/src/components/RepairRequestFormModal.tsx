@@ -1412,7 +1412,7 @@ const RepairRequestFormModal = ({
             {record?.maYeuCau && <span className="font-mono text-[11px] font-semibold text-gray-800">{record.maYeuCau}</span>}
             {statusEntry && <StatusBadge label={statusEntry.label} tone={statusEntry.tone as BadgeTone} size="sm" />}
             <StatusBadge label={form.mucDoUuTien} tone={PRIORITY_TONE[form.mucDoUuTien] ?? 'gray'} size="sm" />
-            <span className="text-gray-500 tabular-nums">{formatDateVN((record as unknown as { ngayThang?: string })?.ngayThang || (record as unknown as { createdAt?: string })?.createdAt || form.ngayThang)}</span>
+            <span className="text-gray-500 tabular-nums">{((record as unknown as { ngayThang?: string })?.ngayThang ? formatDateVN((record as unknown as { ngayThang?: string }).ngayThang) : formatDateTimeVN((record as unknown as { createdAt?: string })?.createdAt || form.ngayThang))}</span>
             {record?.createdByName && <span className="text-gray-600">Người yêu cầu: <span className="font-medium text-gray-800">{record.createdByName}</span></span>}
           </div>
         )}
