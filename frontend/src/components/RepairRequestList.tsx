@@ -16,7 +16,6 @@ import {
   canEditRepair,
   buildTechnicalDetailParams,
   dedupeById,
-  formatDateVN,
   formatDateTimeVN,
 } from '../constants/repairRequest';
 import { useAuth } from '../contexts/AuthContext';
@@ -548,7 +547,7 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
                       </td>
                       <td className={`${TD} whitespace-nowrap`}><StatusBadge label={statusEntry?.label ?? request.trangThai} tone={statusEntry?.tone ?? 'gray'} size="sm" /></td>
                       <td className={`${TD} whitespace-nowrap`}><StatusBadge label={request.mucDoUuTien || '—'} tone={PRIORITY_TONE[request.mucDoUuTien] ?? 'gray'} size="sm" /></td>
-                      <td className={`${TD} whitespace-nowrap text-xs text-gray-600 tabular-nums`}>{request.ngayThang ? formatDateVN(request.ngayThang) : formatDateTimeVN(request.createdAt)}</td>
+                      <td className={`${TD} whitespace-nowrap text-xs text-gray-600 tabular-nums`}>{formatDateTimeVN(request.createdAt)}</td>
                       <td className={`${TD} text-xs text-gray-800`}>{deviceLabel ? <p className="max-w-[220px] truncate" title={devices.join('\n')}>{deviceLabel}</p> : <span className="text-gray-400">—</span>}</td>
                       {showRequester && <td className={`${TD} text-xs`}>{request.createdByName ? <p className="max-w-[150px] truncate" title={request.createdByName}>{request.createdByName}</p> : <span className="text-gray-400">—</span>}</td>}
                       {showLead && <td className={`${TD} text-xs`}>{lead ? <p className="max-w-[150px] truncate" title={lead}>{lead}</p> : <span className="text-gray-400">—</span>}</td>}
