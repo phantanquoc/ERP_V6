@@ -172,7 +172,7 @@ function getStartOfWeek(): Date {
 // Single-source pending semantics (mirrors STATUS_LABEL_TO_CODES in myHistoryUtils.ts)
 const PENDING_STATUS_CODES = new Set([
   'CHO_XU_LY', 'CHO_DUYET', 'PENDING', 'MOI_TAO',
-  'DA_TIEP_NHAN', 'DANG_KIEM_TRA', 'DANG_XU_LY', 'IN_PROGRESS',
+  'DA_TIEP_NHAN', 'DANG_XU_LY', 'IN_PROGRESS',
   'DANG_SUA_CHUA', 'LEN_KE_HOACH', 'CHO_NGHIEM_THU',
 ]);
 

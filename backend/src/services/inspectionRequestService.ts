@@ -847,9 +847,14 @@ class InspectionRequestService {
           id: number;
           trangThai: InspectionRequestStatus;
           ketLuan: string | null;
+          thoiGianKiemTra: Date | null;
+          nguoiKiemTra: string | null;
         } | null>;
       }
-    ).findUnique({ where: { id }, select: { id: true, trangThai: true, ketLuan: true } });
+    ).findUnique({
+      where: { id },
+      select: { id: true, trangThai: true, ketLuan: true, thoiGianKiemTra: true, nguoiKiemTra: true },
+    });
     if (!row) throw new NotFoundError('Không tìm thấy phiếu kiểm tra');
     // ketLuan is locked once submitted (DA_KIEM_TRA / CHO_NGHIEM_THU / HOAN_THANH) — even for ADMIN
     const isKetLuanChange = 'ketLuan' in data && data.ketLuan !== undefined;
@@ -899,6 +904,17 @@ class InspectionRequestService {
     }
     if (allowed.ketLuan === '') allowed.ketLuan = null;
     if (allowed.mucDoHuHong === '') allowed.mucDoHuHong = null;
+    // DANG_KIEM_TRA was merged into DA_TIEP_NHAN: first technician write stamps the start
+    // metadata, replacing the old dedicated "Bắt đầu kiểm tra" click.
+    if (row.trangThai === InspectionRequestStatus.DA_TIEP_NHAN) {
+      if (!row.thoiGianKiemTra && allowed.thoiGianKiemTra == null) {
+        allowed.thoiGianKiemTra = new Date();
+      }
+      if (!row.nguoiKiemTra && allowed.nguoiKiemTra == null) {
+        const name = await this.userFullName(_actor.actorId);
+        if (name) allowed.nguoiKiemTra = name;
+      }
+    }
     if (allowed.thoiGianKiemTra && typeof allowed.thoiGianKiemTra === 'string')
       allowed.thoiGianKiemTra = new Date(allowed.thoiGianKiemTra as string);
     await (

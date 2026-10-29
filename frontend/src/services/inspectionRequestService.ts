@@ -7,7 +7,6 @@ import type { MachineSystem, MachineSystemDetail } from './machineSystemService'
 export type InspectionRequestStatus =
   | 'CHO_XU_LY'
   | 'DA_TIEP_NHAN'
-  | 'DANG_KIEM_TRA'
   | 'DA_KIEM_TRA'
   | 'CHO_NGHIEM_THU'
   | 'HOAN_THANH'
@@ -16,8 +15,7 @@ export type InspectionRequestStatus =
 
 export const STATUS_LABELS: Record<InspectionRequestStatus, { label: string; tone: 'gray' | 'blue' | 'green' | 'red' | 'yellow' }> = {
   CHO_XU_LY: { label: 'Chờ xử lý', tone: 'gray' },
-  DA_TIEP_NHAN: { label: 'Đã tiếp nhận', tone: 'blue' },
-  DANG_KIEM_TRA: { label: 'Đang kiểm tra', tone: 'yellow' },
+  DA_TIEP_NHAN: { label: 'Đã tiếp nhận / Đang kiểm tra', tone: 'blue' },
   DA_KIEM_TRA: { label: 'Đã kiểm tra', tone: 'blue' },
   CHO_NGHIEM_THU: { label: 'Chờ xác nhận nghiệm thu', tone: 'yellow' },
   HOAN_THANH: { label: 'Hoàn thành', tone: 'green' },

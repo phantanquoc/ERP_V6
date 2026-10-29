@@ -609,7 +609,7 @@ const RepairRequestFormModal = ({
     if (!isView || !effectiveIsKiemTra) return;
     const a = record as unknown as Record<string, unknown> | null;
     if (!a) return;
-    if (viewStatus === 'DANG_KIEM_TRA' || viewStatus === 'DA_KIEM_TRA' || viewStatus === 'CHO_NGHIEM_THU' || viewStatus === 'HOAN_THANH') {
+    if (viewStatus === 'DA_TIEP_NHAN' || viewStatus === 'DA_KIEM_TRA' || viewStatus === 'CHO_NGHIEM_THU' || viewStatus === 'HOAN_THANH') {
       setViewInspectForm({
         ketQuaKiemTra: String(a.ketQuaKiemTra ?? ''),
         mucDoHuHong: String(a.mucDoHuHong ?? ''),
@@ -766,12 +766,6 @@ const RepairRequestFormModal = ({
       // YCKT and YCSC are separate tables with overlapping Int ids — never fall back to the repair endpoint
       try { await inspectionRequestService.accept(id); toast.success('Đã tiếp nhận'); queryClient.invalidateQueries({ queryKey: inspectionKeys.all }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không tiếp nhận được'); } finally { setViewActionPending(false); }
     };
-    const doStart = async () => {
-      if (viewActionPending) return;
-      setViewActionPending(true);
-      const id = (record as unknown as { id: number }).id;
-      try { await inspectionRequestService.startInspection(id); toast.success('Đã bắt đầu kiểm tra'); queryClient.invalidateQueries({ queryKey: inspectionKeys.all }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không bắt đầu được'); } finally { setViewActionPending(false); }
-    };
     const doSaveDraft = async () => {
       if (viewActionPending) return;
       setViewActionPending(true);
@@ -843,8 +837,11 @@ const RepairRequestFormModal = ({
     if (!isToBTView) { /* nhân viên thường / người tạo */ } else if (s === 'CHO_XU_LY') {
       rightCta = (<div className="flex items-center gap-2"><button type="button" onClick={() => openCancel('reject')} disabled={viewActionPending} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"><XCircle className="h-4 w-4" /> Từ chối</button><button type="button" onClick={doAccept} disabled={viewActionPending} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"><CheckCircle className="h-4 w-4" /> {viewActionPending ? 'Đang xử lý...' : 'Tiếp nhận'}</button></div>);
     } else if (s === 'DA_TIEP_NHAN') {
-      rightCta = (<div className="flex items-center gap-2"><button type="button" onClick={() => openCancel('reject')} disabled={viewActionPending} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"><XCircle className="h-4 w-4" /> Từ chối</button><button type="button" onClick={doStart} disabled={viewActionPending} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"><Play className="h-4 w-4" /> {viewActionPending ? 'Đang xử lý...' : 'Bắt đầu kiểm tra'}</button></div>);
+      // DA_TIEP_NHAN now means "received + inspecting" (DANG_KIEM_TRA was merged in Oct 2026).
+      // Technician enters the result directly here; doStart only refreshes metadata.
+      rightCta = (<div className="flex items-center gap-2"><button type="button" onClick={doSaveDraft} disabled={viewActionPending} title="Lưu nháp kết quả kiểm tra" className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"><Save className="h-4 w-4" /> {viewActionPending ? 'Đang lưu...' : 'Lưu nháp'}</button><span title={!viewCanSubmit ? 'Cần nhập Kết quả kiểm tra và Kết luận trước khi gửi' : 'Gửi kết quả kiểm tra'}><button type="button" onClick={doSubmit} disabled={!viewCanSubmit || viewActionPending} aria-disabled={!viewCanSubmit || viewActionPending} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"><Send className="h-4 w-4" /> {viewActionPending ? 'Đang gửi...' : 'Gửi kết quả'}</button></span></div>);
     } else if (s === 'DANG_KIEM_TRA') {
+      // Legacy status removed from the enum (merged into DA_TIEP_NHAN) — kept so old cached rows still submit.
       rightCta = (<div className="flex items-center gap-2"><button type="button" onClick={doSaveDraft} disabled={viewActionPending} title="Lưu nháp kết quả kiểm tra" className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"><Save className="h-4 w-4" /> {viewActionPending ? 'Đang lưu...' : 'Lưu nháp'}</button><span title={!viewCanSubmit ? 'Cần nhập Kết quả kiểm tra và Kết luận trước khi gửi' : 'Gửi kết quả kiểm tra'}><button type="button" onClick={doSubmit} disabled={!viewCanSubmit || viewActionPending} aria-disabled={!viewCanSubmit || viewActionPending} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"><Send className="h-4 w-4" /> {viewActionPending ? 'Đang gửi...' : 'Gửi kết quả'}</button></span></div>);
     } else if (s === 'DA_KIEM_TRA') {
       if (existingRepair) {
@@ -2043,10 +2040,10 @@ const RepairRequestFormModal = ({
             </FormField>
           </div>
         )}
-        {isView && effectiveIsKiemTra && (viewStatus === 'DANG_KIEM_TRA' || viewStatus === 'DA_KIEM_TRA' || viewStatus === 'CHO_NGHIEM_THU' || (viewStatus === 'HOAN_THANH' && !!viewKetLuanStr)) && (
-          <div className={`rounded-lg border p-3 space-y-3 ${viewStatus === 'DANG_KIEM_TRA' ? 'border-yellow-200 bg-yellow-50' : 'border-green-200 bg-green-50'}`}>
+        {isView && effectiveIsKiemTra && (viewStatus === 'DA_TIEP_NHAN' || viewStatus === 'DA_KIEM_TRA' || viewStatus === 'CHO_NGHIEM_THU' || (viewStatus === 'HOAN_THANH' && !!viewKetLuanStr)) && (
+          <div className={`rounded-lg border p-3 space-y-3 ${viewStatus === 'DA_TIEP_NHAN' ? 'border-yellow-200 bg-yellow-50' : 'border-green-200 bg-green-50'}`}>
             <h4 className="text-sm font-semibold text-gray-800">Kết quả kiểm tra thực tế</h4>
-            {viewStatus === 'DANG_KIEM_TRA' && isToBTView ? (
+            {isToBTView ? (
               <>
                 {(() => {
                   const last = historyEntries.length ? historyEntries[historyEntries.length - 1] : null;

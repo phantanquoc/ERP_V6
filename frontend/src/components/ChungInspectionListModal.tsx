@@ -49,7 +49,7 @@ const ChungInspectionListModal = ({ isOpen, onClose, initialViewId, onViewIdChan
   })();
   const modalRecord = (detailRecord ?? rows.find((r: { id: number }) => r.id === viewId) ?? null) as never;
 
-  const statuses: InspectionRequestStatus[] = ['CHO_XU_LY','DA_TIEP_NHAN','DANG_KIEM_TRA','DA_KIEM_TRA','CHO_NGHIEM_THU','HOAN_THANH','DA_HUY','TU_CHOI'];
+  const statuses: InspectionRequestStatus[] = ['CHO_XU_LY','DA_TIEP_NHAN','DA_KIEM_TRA','CHO_NGHIEM_THU','HOAN_THANH','DA_HUY','TU_CHOI'];
 
   return (
     <>

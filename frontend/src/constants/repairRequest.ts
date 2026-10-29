@@ -142,10 +142,10 @@ export interface GateActor {
   isOwner: boolean;
 }
 
-const INSPECTION_EDITABLE = new Set(['CHO_XU_LY', 'DA_TIEP_NHAN', 'DANG_KIEM_TRA']);
+const INSPECTION_EDITABLE = new Set(['CHO_XU_LY', 'DA_TIEP_NHAN']);
 const REPAIR_EDITABLE = new Set(['CHO_XU_LY', 'DA_TIEP_NHAN', 'LEN_KE_HOACH', 'DANG_SUA_CHUA', 'CHO_NGHIEM_THU']);
 const INSPECTION_TERMINAL = new Set(['HOAN_THANH', 'DA_HUY', 'TU_CHOI']);
-const INSPECTION_CANCEL_FROM = new Set(['CHO_XU_LY', 'DA_TIEP_NHAN', 'DANG_KIEM_TRA']);
+const INSPECTION_CANCEL_FROM = new Set(['CHO_XU_LY', 'DA_TIEP_NHAN']);
 const REPAIR_CANCEL_FROM = new Set(['CHO_XU_LY', 'DA_TIEP_NHAN', 'LEN_KE_HOACH']);
 const REPAIR_CANCEL_FROM_ADMIN = new Set(['CHO_XU_LY', 'DA_TIEP_NHAN', 'LEN_KE_HOACH', 'DANG_SUA_CHUA', 'CHO_NGHIEM_THU']);
 const DELETE_FROM = new Set(['CHO_XU_LY', 'DA_TIEP_NHAN']);
@@ -161,7 +161,7 @@ export function canEditRepair(status: string, a: GateActor): boolean {
   return a.isOwner && status === 'CHO_XU_LY';
 }
 
-/** Mirrors advanceInspection DA_HUY rules: ADMIN any non-terminal, technician CHO_XU_LY/DA_TIEP_NHAN/DANG_KIEM_TRA. */
+/** Mirrors advanceInspection DA_HUY rules: ADMIN any non-terminal, technician CHO_XU_LY/DA_TIEP_NHAN. */
 export function canCancelInspection(status: string, a: GateActor): boolean {
   if (a.isAdmin) return !INSPECTION_TERMINAL.has(status);
   if (a.isTechnical) return INSPECTION_CANCEL_FROM.has(status);
@@ -211,8 +211,7 @@ export function activeRepairs<T extends { trangThai: string }>(repairs: T[] | nu
 export function inspectionStepsFor(status: string, ketLuan: string | null | undefined): { key: string; label: string }[] {
   const head = [
     { key: 'CHO_XU_LY', label: 'Chờ xử lý' },
-    { key: 'DA_TIEP_NHAN', label: 'Đã tiếp nhận' },
-    { key: 'DANG_KIEM_TRA', label: 'Đang kiểm tra' },
+    { key: 'DA_TIEP_NHAN', label: 'Đã tiếp nhận / Đang kiểm tra' },
   ];
   const fixedBranch = status === 'CHO_NGHIEM_THU' || ketLuan === 'DA_KHAC_PHUC';
   return fixedBranch

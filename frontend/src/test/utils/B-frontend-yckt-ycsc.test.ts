@@ -32,7 +32,7 @@ describe('edit gating', () => {
     expect(canEditRepair('CHO_XU_LY', stranger)).toBe(false);
   });
   it('technician edits until acceptance, never at/after CHO_NGHIEM_THU', () => {
-    expect(canEditInspection('DANG_KIEM_TRA', tech)).toBe(true);
+    expect(canEditInspection('DA_TIEP_NHAN', tech)).toBe(true);
     expect(canEditInspection('DA_KIEM_TRA', tech)).toBe(false);
     expect(canEditInspection('CHO_NGHIEM_THU', tech)).toBe(false);
     expect(canEditRepair('DANG_SUA_CHUA', tech)).toBe(true);
@@ -52,7 +52,7 @@ describe('cancel / delete gating', () => {
     expect(canCancelRepair('CHO_XU_LY', stranger)).toBe(false);
   });
   it('YCKT cancel', () => {
-    expect(canCancelInspection('DANG_KIEM_TRA', tech)).toBe(true);
+    expect(canCancelInspection('DA_TIEP_NHAN', tech)).toBe(true);
     expect(canCancelInspection('CHO_NGHIEM_THU', tech)).toBe(false);
     expect(canCancelInspection('CHO_XU_LY', requester)).toBe(true);
     expect(canCancelInspection('DA_TIEP_NHAN', requester)).toBe(false);
@@ -111,7 +111,7 @@ describe('labels', () => {
 describe('inspectionStepsFor', () => {
   it('uses CHO_NGHIEM_THU for the Đã khắc phục branch', () => {
     expect(inspectionStepsFor('CHO_NGHIEM_THU', null).map((s) => s.key)).toContain('CHO_NGHIEM_THU');
-    expect(inspectionStepsFor('DANG_KIEM_TRA', 'DA_KHAC_PHUC').map((s) => s.key)).not.toContain('DA_KIEM_TRA');
+    expect(inspectionStepsFor('DA_TIEP_NHAN', 'DA_KHAC_PHUC').map((s) => s.key)).not.toContain('DA_KIEM_TRA');
     expect(inspectionStepsFor('DA_KIEM_TRA', 'CAN_SUA_CHUA').map((s) => s.key)).toContain('DA_KIEM_TRA');
   });
 });
