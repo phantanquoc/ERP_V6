@@ -31,22 +31,22 @@ describe('edit gating', () => {
     expect(canEditInspection('CHO_XU_LY', stranger)).toBe(false);
     expect(canEditRepair('CHO_XU_LY', stranger)).toBe(false);
   });
-  it('technician edits until acceptance, never at/after CHO_NGHIEM_THU', () => {
+  it('technician edits until acceptance, never at/after DA_SUA_CHUA', () => {
     expect(canEditInspection('DA_TIEP_NHAN', tech)).toBe(true);
     expect(canEditInspection('DA_KIEM_TRA', tech)).toBe(false);
     expect(canEditInspection('CHO_NGHIEM_THU', tech)).toBe(false);
     expect(canEditRepair('DANG_SUA_CHUA', tech)).toBe(true);
-    expect(canEditRepair('CHO_NGHIEM_THU', tech)).toBe(true);
-    expect(canEditRepair('DA_NGHIEM_THU', admin)).toBe(false);
+    expect(canEditRepair('DA_SUA_CHUA', tech)).toBe(true);
+    expect(canEditRepair('DA_NGHIEM_THU', tech)).toBe(false);
     expect(canEditRepair('TU_CHOI', admin)).toBe(false);
   });
 });
 
 describe('cancel / delete gating', () => {
   it('YCSC cancel follows DA_HUY allowed-from table', () => {
-    expect(canCancelRepair('LEN_KE_HOACH', tech)).toBe(true);
+    expect(canCancelRepair('CHO_XU_LY', tech)).toBe(true);
     expect(canCancelRepair('DANG_SUA_CHUA', tech)).toBe(false);
-    expect(canCancelRepair('CHO_NGHIEM_THU', admin)).toBe(true);
+    expect(canCancelRepair('DANG_SUA_CHUA', admin)).toBe(true);
     expect(canCancelRepair('DA_NGHIEM_THU', admin)).toBe(false);
     expect(canCancelRepair('TU_CHOI', admin)).toBe(false);
     expect(canCancelRepair('CHO_XU_LY', stranger)).toBe(false);
@@ -59,7 +59,7 @@ describe('cancel / delete gating', () => {
     expect(canCancelInspection('HOAN_THANH', admin)).toBe(false);
   });
   it('delete only before work starts', () => {
-    expect(canDeleteRequest('DA_TIEP_NHAN', true)).toBe(true);
+    expect(canDeleteRequest('CHO_XU_LY', true)).toBe(true);
     expect(canDeleteRequest('DANG_SUA_CHUA', true)).toBe(false);
     expect(canDeleteRequest('CHO_XU_LY', false)).toBe(false);
   });

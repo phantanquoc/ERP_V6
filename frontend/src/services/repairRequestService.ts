@@ -8,10 +8,8 @@ export type RequestType = 'KIEM_TRA' | 'SUA_CHUA';
 
 export type RepairRequestStatus =
   | 'CHO_XU_LY'
-  | 'DA_TIEP_NHAN'
-  | 'LEN_KE_HOACH'
   | 'DANG_SUA_CHUA'
-  | 'CHO_NGHIEM_THU'
+  | 'DA_SUA_CHUA'
   | 'DA_NGHIEM_THU'
   | 'HOAN_THANH'
   | 'DA_HUY'
@@ -19,10 +17,8 @@ export type RepairRequestStatus =
 
 export const STATUS_LABELS: Record<RepairRequestStatus, { label: string; tone: 'gray' | 'blue' | 'green' | 'red' | 'yellow' }> = {
   CHO_XU_LY: { label: 'Chờ xử lý', tone: 'gray' },
-  DA_TIEP_NHAN: { label: 'Đã tiếp nhận', tone: 'blue' },
-  LEN_KE_HOACH: { label: 'Lên kế hoạch', tone: 'yellow' },
   DANG_SUA_CHUA: { label: 'Đang sửa chữa', tone: 'blue' },
-  CHO_NGHIEM_THU: { label: 'Chờ nghiệm thu', tone: 'yellow' },
+  DA_SUA_CHUA: { label: 'Đã sửa chữa — chờ nghiệm thu', tone: 'yellow' },
   DA_NGHIEM_THU: { label: 'Đã nghiệm thu', tone: 'green' },
   HOAN_THANH: { label: 'Hoàn thành', tone: 'green' },
   DA_HUY: { label: 'Đã hủy', tone: 'red' },

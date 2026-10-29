@@ -62,7 +62,7 @@ const TechnicalQuality = () => {
   // Badge = số phiếu chưa HOÀN_THÀNH trên toàn thời gian (không giới hạn 90 ngày như /stats).
   // Dùng count trực tiếp qua pagination.total (limit=1) cho chính xác, refetch định kỳ.
   const PENDING_INSPECTION = ['CHO_XU_LY','DA_TIEP_NHAN','DA_KIEM_TRA','CHO_NGHIEM_THU'] as const;
-  const PENDING_REPAIR = ['CHO_XU_LY','DA_TIEP_NHAN','LEN_KE_HOACH','DANG_SUA_CHUA','CHO_NGHIEM_THU','DA_NGHIEM_THU'] as const;
+  const PENDING_REPAIR = ['CHO_XU_LY','DANG_SUA_CHUA','DA_SUA_CHUA','DA_NGHIEM_THU'] as const;
   const inspectionPendingQ = useQuery({
     queryKey: ['badge','inspections','pending'] as const,
     queryFn: async () => {

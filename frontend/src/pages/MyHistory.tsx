@@ -173,7 +173,7 @@ function getStartOfWeek(): Date {
 const PENDING_STATUS_CODES = new Set([
   'CHO_XU_LY', 'CHO_DUYET', 'PENDING', 'MOI_TAO',
   'DA_TIEP_NHAN', 'DANG_XU_LY', 'IN_PROGRESS',
-  'DANG_SUA_CHUA', 'LEN_KE_HOACH', 'CHO_NGHIEM_THU',
+  'DANG_SUA_CHUA', 'DA_SUA_CHUA', 'CHO_NGHIEM_THU',
 ]);
 
 function computeStats(items: HistoryItem[], total: number) {

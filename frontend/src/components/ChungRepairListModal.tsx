@@ -47,7 +47,7 @@ const ChungRepairListModal = ({ isOpen, onClose, initialViewId, onViewIdChange }
   })();
   const modalRecord = (detailRecord ?? rows.find((r: { id: number }) => r.id === viewId) ?? null) as never;
 
-  const statuses: RepairRequestStatus[] = ['CHO_XU_LY','DA_TIEP_NHAN','LEN_KE_HOACH','DANG_SUA_CHUA','CHO_NGHIEM_THU','DA_NGHIEM_THU','HOAN_THANH','DA_HUY','TU_CHOI'];
+  const statuses: RepairRequestStatus[] = ['CHO_XU_LY','DANG_SUA_CHUA','DA_SUA_CHUA','DA_NGHIEM_THU','HOAN_THANH','DA_HUY','TU_CHOI'];
 
   return (
     <>

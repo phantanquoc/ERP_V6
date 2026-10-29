@@ -21,8 +21,8 @@ const MACHINE_HEALTH_GOOD = 80;
 const MACHINE_HEALTH_WARN = 60;
 
 const REPAIR_LABEL: Record<string, string> = {
-  CHO_XU_LY: 'Chờ xử lý', DA_TIEP_NHAN: 'Đã tiếp nhận', LEN_KE_HOACH: 'Lên kế hoạch',
-  DANG_SUA_CHUA: 'Đang sửa chữa', CHO_NGHIEM_THU: 'Chờ nghiệm thu', DA_NGHIEM_THU: 'Đã nghiệm thu',
+  CHO_XU_LY: 'Chờ xử lý',
+  DANG_SUA_CHUA: 'Đang sửa chữa', DA_SUA_CHUA: 'Đã sửa chữa — chờ nghiệm thu', DA_NGHIEM_THU: 'Đã nghiệm thu',
   HOAN_THANH: 'Hoàn thành', DA_HUY: 'Đã hủy', TU_CHOI: 'Từ chối',
 };
 const FAULT_LABEL: Record<string, string> = {
@@ -31,12 +31,12 @@ const FAULT_LABEL: Record<string, string> = {
 const friendlyLabel = (raw: string) => REPAIR_LABEL[raw] ?? FAULT_LABEL[raw] ?? raw;
 
 const REPAIR_BG: Record<string, string> = {
-  'Chờ xử lý': 'bg-amber-500', 'Đã tiếp nhận': 'bg-sky-500', 'Lên kế hoạch': 'bg-violet-500',
+  'Chờ xử lý': 'bg-amber-500',
   'Đang sửa chữa': 'bg-blue-500', 'Chờ nghiệm thu': 'bg-amber-400', 'Đã nghiệm thu': 'bg-emerald-500',
   'Hoàn thành': 'bg-emerald-500', 'Đã hủy': 'bg-red-500', 'Từ chối': 'bg-gray-400',
 };
 const REPAIR_HEX: Record<string, string> = {
-  'Chờ xử lý': '#F59E0B', 'Đã tiếp nhận': '#0EA5E9', 'Lên kế hoạch': '#8B5CF6',
+  'Chờ xử lý': '#F59E0B',
   'Đang sửa chữa': '#3B82F6', 'Chờ nghiệm thu': '#FBBF24', 'Đã nghiệm thu': '#10B981',
   'Hoàn thành': '#10B981', 'Đã hủy': '#EF4444', 'Từ chối': '#9CA3AF',
 };

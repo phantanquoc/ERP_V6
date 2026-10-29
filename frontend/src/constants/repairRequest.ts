@@ -143,12 +143,12 @@ export interface GateActor {
 }
 
 const INSPECTION_EDITABLE = new Set(['CHO_XU_LY', 'DA_TIEP_NHAN']);
-const REPAIR_EDITABLE = new Set(['CHO_XU_LY', 'DA_TIEP_NHAN', 'LEN_KE_HOACH', 'DANG_SUA_CHUA', 'CHO_NGHIEM_THU']);
+const REPAIR_EDITABLE = new Set(['CHO_XU_LY', 'DANG_SUA_CHUA', 'DA_SUA_CHUA']);
 const INSPECTION_TERMINAL = new Set(['HOAN_THANH', 'DA_HUY', 'TU_CHOI']);
 const INSPECTION_CANCEL_FROM = new Set(['CHO_XU_LY', 'DA_TIEP_NHAN']);
-const REPAIR_CANCEL_FROM = new Set(['CHO_XU_LY', 'DA_TIEP_NHAN', 'LEN_KE_HOACH']);
-const REPAIR_CANCEL_FROM_ADMIN = new Set(['CHO_XU_LY', 'DA_TIEP_NHAN', 'LEN_KE_HOACH', 'DANG_SUA_CHUA', 'CHO_NGHIEM_THU']);
-const DELETE_FROM = new Set(['CHO_XU_LY', 'DA_TIEP_NHAN']);
+const REPAIR_CANCEL_FROM = new Set(['CHO_XU_LY']);
+const REPAIR_CANCEL_FROM_ADMIN = new Set(['CHO_XU_LY', 'DANG_SUA_CHUA', 'DA_SUA_CHUA']);
+const DELETE_FROM = new Set(['CHO_XU_LY', 'DA_HUY', 'TU_CHOI']);
 
 /** Non-technical creators: only own request while CHO_XU_LY. Technicians/ADMIN: until acceptance starts. */
 export function canEditInspection(status: string, a: GateActor): boolean {
@@ -168,7 +168,7 @@ export function canCancelInspection(status: string, a: GateActor): boolean {
   return a.isOwner && status === 'CHO_XU_LY';
 }
 
-/** Mirrors DA_HUY_ALLOWED_FROM_NORMAL / _ADMIN in backend statusTransitions. */
+/** Mirrors DA_HUY_ALLOWED_FROM_NORMAL / _ADMIN in backend statusTransitions (TU_CHOI only from CHO_XU_LY). */
 export function canCancelRepair(status: string, a: GateActor): boolean {
   if (a.isAdmin) return REPAIR_CANCEL_FROM_ADMIN.has(status);
   if (a.isTechnical) return REPAIR_CANCEL_FROM.has(status);

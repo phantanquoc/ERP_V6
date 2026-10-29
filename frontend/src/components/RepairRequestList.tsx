@@ -23,16 +23,15 @@ import { isTechnicalUser, canDeleteTechnical } from '../utils/permissions';
 import { UserRole } from '../types/auth';
 import { StatusBadge } from './shared';
 import {
-  useAcceptRepair,
   useCancelRepair,
   useCompleteRepair,
   useConfirmAcceptance,
   useDeleteRepairRequest,
-  usePlanRepair,
   useRepairRequests,
   useRepairStatusHistory,
   useStartRepair,
   useSubmitAcceptance,
+  useUpdateRepairRequest,
 } from '../hooks/useRepairRequests';
 import repairRequestService, {
   RepairRequest,
@@ -49,8 +48,8 @@ const STICKY_LEFT = 'sticky left-0 z-10 shadow-[1px_0_0_0_rgb(229_231_235)]';
 const STICKY_RIGHT = 'sticky right-0 z-10 shadow-[-1px_0_0_0_rgb(229_231_235)]';
 
 const SUA_CHUA_STATUSES: RepairRequestStatus[] = Object.keys(STATUS_LABELS) as RepairRequestStatus[];
-// Status chips follow the workflow (incl. Chờ nghiệm thu); rare branches stay in the select
-const FLOW_CHIPS: RepairRequestStatus[] = ['CHO_XU_LY', 'DA_TIEP_NHAN', 'LEN_KE_HOACH', 'DANG_SUA_CHUA', 'CHO_NGHIEM_THU', 'DA_NGHIEM_THU', 'HOAN_THANH'];
+// Status chips follow the 5-step workflow; rare branches stay in the select
+const FLOW_CHIPS: RepairRequestStatus[] = ['CHO_XU_LY', 'DANG_SUA_CHUA', 'DA_SUA_CHUA', 'DA_NGHIEM_THU', 'HOAN_THANH'];
 
 type NeedRow = { id: string; tenVatTu: string; donVi: string | null; soLuongDuKien: number | string; soLuongThucTe: number | string | null };
 
@@ -133,8 +132,7 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
   const deleteRequest = useDeleteRepairRequest();
   const startRepair = useStartRepair();
   const cancelRepair = useCancelRepair();
-  const acceptRepair = useAcceptRepair();
-  const planRepair = usePlanRepair();
+  const updateRepair = useUpdateRepairRequest();
   const submitAcceptance = useSubmitAcceptance();
   const confirmAcceptance = useConfirmAcceptance();
   const completeRepair = useCompleteRepair();
@@ -315,12 +313,7 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
     }
   };
 
-  const handleAccept = async (record: RepairRequest) => {
-    try {
-      await acceptRepair.mutateAsync(record.id);
-      toast.success('Đã tiếp nhận');
-    } catch (err) { toast.error(err instanceof Error ? err.message : 'Không thể tiếp nhận'); }
-  };
+  // acceptRepair removed: DA_TIEP_NHAN was merged into CHO_XU_LY — start directly via handleStartRepair.
 
   // ── Plan / Acceptance / Confirm modals state ──
   const [planTarget, setPlanTarget] = useState<RepairRequest | null>(null);
@@ -375,8 +368,9 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
     }
     payload.canNgungMay = planForm.canNgungMay;
     if (planForm.phongBanId.trim()) payload.phongBanId = planForm.phongBanId.trim();
+    // plan endpoint was removed with LEN_KE_HOACH — planning fields save via general update while CHO_XU_LY
     try {
-      await planRepair.mutateAsync({ id: planTarget.id, payload: payload as never });
+      await updateRepair.mutateAsync({ id: planTarget.id, data: payload as never });
       toast.success('Đã lên kế hoạch');
       setPlanTarget(null);
     } catch (err) { toast.error(err instanceof Error ? err.message : 'Không thể lên kế hoạch'); }
@@ -565,14 +559,15 @@ const RepairRequestList = ({ lockedMachineSystemId }: RepairRequestListProps = {
                           // Row click opens the detail, so no separate "Xem" button. One primary action per state, each with its own icon.
                           const acts: RowAction[] = [];
                           // ĐẠT/KHÔNG ĐẠT belongs to the pending slip's confirmer (or ADMIN), not the technician
-                          if (s === 'CHO_NGHIEM_THU' && canConfirmAcceptance(request.acceptanceHandovers, userId, isAdminRole)) {
+                          if (s === 'DA_SUA_CHUA' && canConfirmAcceptance(request.acceptanceHandovers, userId, isAdminRole)) {
                             acts.push({ key: 'dat', label: 'Xác nhận ĐẠT', icon: <CheckCircle size={14} />, tone: 'success', onClick: () => openConfirmModal(request, 'DAT') });
                             acts.push({ key: 'khongdat', label: 'Xác nhận KHÔNG ĐẠT', icon: <XCircle size={14} />, tone: 'danger', onClick: () => openConfirmModal(request, 'KHONG_DAT') });
                           }
                           if (canUpdateRepair) {
-                            if (s === 'CHO_XU_LY') acts.push({ key: 'accept', label: 'Tiếp nhận', icon: <CheckCircle size={14} />, tone: 'primary', onClick: () => handleAccept(request) });
-                            else if (s === 'DA_TIEP_NHAN') acts.push({ key: 'plan', label: 'Lên kế hoạch', icon: <ClipboardList size={14} />, tone: 'warning', onClick: () => openPlanModal(request) });
-                            else if (s === 'LEN_KE_HOACH') acts.push({ key: 'start', label: 'Bắt đầu sửa chữa', icon: <Play size={14} />, tone: 'primary', onClick: () => handleStartRepair(request) });
+                            if (s === 'CHO_XU_LY') {
+                              acts.push({ key: 'plan', label: 'Lên kế hoạch', icon: <ClipboardList size={14} />, tone: 'warning', onClick: () => openPlanModal(request) });
+                              acts.push({ key: 'start', label: 'Bắt đầu sửa chữa', icon: <Play size={14} />, tone: 'primary', onClick: () => handleStartRepair(request) });
+                            }
                             else if (s === 'DA_NGHIEM_THU') acts.push({ key: 'complete', label: 'Hoàn thành', icon: <CheckCheck size={14} />, tone: 'success', onClick: () => handleComplete(request) });
                             // DANG_SUA_CHUA: the acceptance slip (per-item result + file) is filled in the detail view
                           }

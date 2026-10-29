@@ -672,11 +672,6 @@ const RepairRequestFormModal = ({
       const canShowDeleteYCSC = canDeleteRequest(s, canDeleteView);
       const showHistoryYCSC = () => setViewHistoryOpen(true);
       const openCancelYCSC = (mode: 'cancel'|'reject') => { setViewCancelMode(mode); setViewCancelReason(''); setViewCancelOpen(true); };
-      const doAcceptYCSC = async () => {
-        if (viewActionPending) return;
-        setViewActionPending(true);
-        try { await repairRequestService.accept(repairId as never); toast.success('Đã tiếp nhận'); queryClient.invalidateQueries({ queryKey: repairRequestKeys.all }); onSaved?.(); onClose(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Không tiếp nhận được'); } finally { setViewActionPending(false); }
-      };
       const doPlanYCSC = () => {
         const rAny = record as unknown as Record<string, unknown>;
         setYcscPlanForm({
@@ -720,7 +715,7 @@ const RepairRequestFormModal = ({
         </div>
       );
       let rightYCSC: React.ReactNode = null;
-      if (s === 'CHO_NGHIEM_THU') {
+      if (s === 'DA_SUA_CHUA') {
         // Requester confirms (creator of source YCKT, else creator of this YCSC) — not the technician
         rightYCSC = canConfirmView ? (<div className="flex items-center gap-2">
           <button type="button" onClick={() => { setYcscConfirmForm({ ketQua: 'KHONG_DAT', lyDo: '' }); setYcscConfirmOpen(true); }} className="rounded border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 min-h-[44px]">KHÔNG ĐẠT</button>
@@ -729,11 +724,11 @@ const RepairRequestFormModal = ({
       } else if (!isToBTView) {
         // Requester only gets Hủy (left group) — no technician CTA
       } else if (s === 'CHO_XU_LY') {
-        rightYCSC = <button type="button" onClick={doAcceptYCSC} disabled={viewActionPending} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"><CheckCircle className="h-4 w-4" /> {viewActionPending ? 'Đang xử lý...' : 'Tiếp nhận'}</button>;
-      } else if (s === 'DA_TIEP_NHAN') {
-        rightYCSC = <button type="button" onClick={doPlanYCSC} disabled={viewActionPending} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"><Wrench className="h-4 w-4" /> Lên kế hoạch</button>;
-      } else if (s === 'LEN_KE_HOACH') {
-        rightYCSC = <button type="button" onClick={doStartYCSC} disabled={viewActionPending} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"><Play className="h-4 w-4" /> {viewActionPending ? 'Đang xử lý...' : 'Bắt đầu'}</button>;
+        // 5-step flow: plan fields are edited directly while CHO_XU_LY, then start → DANG_SUA_CHUA
+        rightYCSC = (<div className="flex items-center gap-2">
+          <button type="button" onClick={doPlanYCSC} disabled={viewActionPending} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"><Wrench className="h-4 w-4" /> Lên kế hoạch</button>
+          <button type="button" onClick={doStartYCSC} disabled={viewActionPending} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"><Play className="h-4 w-4" /> {viewActionPending ? 'Đang xử lý...' : 'Bắt đầu'}</button>
+        </div>);
       } else if (s === 'DANG_SUA_CHUA') {
         rightYCSC = <button type="button" onClick={doSubmitYCSC} disabled={viewActionPending} className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"><Send className="h-4 w-4" /> Đề nghị nghiệm thu</button>;
       } else if (s === 'DA_NGHIEM_THU') {
@@ -1003,7 +998,7 @@ const RepairRequestFormModal = ({
   };
 
   // Whether to show SUA_CHUA extra sections (create mode, not KIEM_TRA)
-  // A3: plan block must NOT show on create — only via PATCH /:id/plan after DA_TIEP_NHAN
+  // A3: plan block must NOT show on create — technicians fill planning fields via update while CHO_XU_LY
   const showSuaChuaExtra = !isView && mode === 'create' && lockedRequestType !== 'KIEM_TRA';
   const showAssigneeAndMaterial = showSuaChuaExtra;
   const showPlanOnCreate = false;
@@ -1419,10 +1414,8 @@ const RepairRequestFormModal = ({
           const INSPECTION_STEPS = inspectionStepsFor(viewStatus, viewKetLuanStr);
           const REPAIR_STEPS: { key: string; label: string }[] = [
             { key: 'CHO_XU_LY', label: 'Chờ xử lý' },
-            { key: 'DA_TIEP_NHAN', label: 'Đã tiếp nhận' },
-            { key: 'LEN_KE_HOACH', label: 'Lên kế hoạch' },
             { key: 'DANG_SUA_CHUA', label: 'Đang sửa chữa' },
-            { key: 'CHO_NGHIEM_THU', label: 'Chờ nghiệm thu' },
+            { key: 'DA_SUA_CHUA', label: 'Đã sửa chữa — chờ nghiệm thu' },
             { key: 'DA_NGHIEM_THU', label: 'Đã nghiệm thu' },
             { key: 'HOAN_THANH', label: 'Hoàn thành' },
           ];
@@ -2315,7 +2308,7 @@ const RepairRequestFormModal = ({
                 return <div className="rounded border bg-gray-50 px-2 py-1.5 text-xs"><span className="font-medium text-gray-700">Phòng ban: </span><span className="text-gray-800">{deptLabel}</span>{leadTmp ? <span className="ml-2 text-gray-500">({leadTmp.userName || leadTmp.userId})</span> : <span className="ml-2 text-amber-600">Chưa chọn người phụ trách chính</span>}</div>;
               })()}
             </div>
-            <div className="flex justify-end gap-2"><button onClick={()=>setYcscPlanOpen(false)} className="rounded border px-4 py-2 text-sm hover:bg-gray-50">Hủy</button><button onClick={async()=>{ const rid=(record as unknown as {id:number|string}).id; if(ycscPlanForm.ngayBatDauKeHoach && ycscPlanForm.ngayHoanThienDuKien && new Date(ycscPlanForm.ngayHoanThienDuKien).getTime() <= new Date(ycscPlanForm.ngayBatDauKeHoach).getTime()){ toast.error('Ngày hoàn thiện dự kiến phải sau ngày bắt đầu kế hoạch'); return; } const payload: Record<string,unknown>={}; if(ycscPlanForm.keHoachChiTiet.trim()) payload.keHoachChiTiet=ycscPlanForm.keHoachChiTiet.trim(); if(ycscPlanForm.phuongAn.trim()) payload.phuongAn=ycscPlanForm.phuongAn.trim(); if(ycscPlanForm.bienPhapAnToan.trim()) payload.bienPhapAnToan=ycscPlanForm.bienPhapAnToan.trim(); if(ycscPlanForm.ngayBatDauKeHoach) payload.ngayBatDauKeHoach=ycscPlanForm.ngayBatDauKeHoach; if(ycscPlanForm.ngayHoanThienDuKien) payload.ngayHoanThienDuKien=ycscPlanForm.ngayHoanThienDuKien; if(ycscPlanForm.chiPhiDuKien!==''){ const n=Number(ycscPlanForm.chiPhiDuKien); if(!Number.isFinite(n)||n<0){ toast.error('Chi phí dự kiến phải >= 0'); return; } payload.chiPhiDuKien=n; } payload.canNgungMay=ycscPlanForm.canNgungMay; const __recAssignees = ((record as unknown as { assignees?: { userId?: string; userName?: string | null; isLead?: boolean; vaiTro?: string }[] })?.assignees ?? []) as { userId?: string; userName?: string | null; isLead?: boolean; vaiTro?: string }[]; const __srcAssignees = __recAssignees.length ? __recAssignees.map(a=>({ userId: String(a.userId??''), userName: String(a.userName??''), isLead: !!(a.isLead||a.vaiTro==='CHINH')})) : assignees; const __lead = __srcAssignees.find(a=>a.isLead) || __srcAssignees[0] || null; const __leadEmp = __lead ? employees.find(e=> (__lead.userId && e.id===__lead.userId) || (__lead.userName && e.name===__lead.userName)) as unknown as Record<string,unknown>|null ?? null : null; const __deptId = String(((__leadEmp as unknown as Record<string,unknown>|null)?.departmentId as string) ?? ((__leadEmp as unknown as Record<string,unknown>|null)?.subDepartmentId as string) ?? ((__leadEmp as unknown as Record<string,unknown>|null)?.department as string) ?? '').trim(); if(!__deptId){ toast.error('Vui lòng chọn người phụ trách Chính trước khi lên kế hoạch'); return; } payload.phongBanId=__deptId; try{ await repairRequestService.plan(rid as never, payload as never); toast.success('Đã lên kế hoạch'); setYcscPlanOpen(false); queryClient.invalidateQueries({ queryKey: repairRequestKeys.all }); onSaved?.(); onClose(); }catch(e){ toast.error(e instanceof Error?e.message:'Không lên kế hoạch được'); } }} className="rounded bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700">Xác nhận kế hoạch</button></div>
+            <div className="flex justify-end gap-2"><button onClick={()=>setYcscPlanOpen(false)} className="rounded border px-4 py-2 text-sm hover:bg-gray-50">Hủy</button><button onClick={async()=>{ const rid=(record as unknown as {id:number|string}).id; if(ycscPlanForm.ngayBatDauKeHoach && ycscPlanForm.ngayHoanThienDuKien && new Date(ycscPlanForm.ngayHoanThienDuKien).getTime() <= new Date(ycscPlanForm.ngayBatDauKeHoach).getTime()){ toast.error('Ngày hoàn thiện dự kiến phải sau ngày bắt đầu kế hoạch'); return; } const payload: Record<string,unknown>={}; if(ycscPlanForm.keHoachChiTiet.trim()) payload.keHoachChiTiet=ycscPlanForm.keHoachChiTiet.trim(); if(ycscPlanForm.phuongAn.trim()) payload.phuongAn=ycscPlanForm.phuongAn.trim(); if(ycscPlanForm.bienPhapAnToan.trim()) payload.bienPhapAnToan=ycscPlanForm.bienPhapAnToan.trim(); if(ycscPlanForm.ngayBatDauKeHoach) payload.ngayBatDauKeHoach=ycscPlanForm.ngayBatDauKeHoach; if(ycscPlanForm.ngayHoanThienDuKien) payload.ngayHoanThienDuKien=ycscPlanForm.ngayHoanThienDuKien; if(ycscPlanForm.chiPhiDuKien!==''){ const n=Number(ycscPlanForm.chiPhiDuKien); if(!Number.isFinite(n)||n<0){ toast.error('Chi phí dự kiến phải >= 0'); return; } payload.chiPhiDuKien=n; } payload.canNgungMay=ycscPlanForm.canNgungMay; const __recAssignees = ((record as unknown as { assignees?: { userId?: string; userName?: string | null; isLead?: boolean; vaiTro?: string }[] })?.assignees ?? []) as { userId?: string; userName?: string | null; isLead?: boolean; vaiTro?: string }[]; const __srcAssignees = __recAssignees.length ? __recAssignees.map(a=>({ userId: String(a.userId??''), userName: String(a.userName??''), isLead: !!(a.isLead||a.vaiTro==='CHINH')})) : assignees; const __lead = __srcAssignees.find(a=>a.isLead) || __srcAssignees[0] || null; const __leadEmp = __lead ? employees.find(e=> (__lead.userId && e.id===__lead.userId) || (__lead.userName && e.name===__lead.userName)) as unknown as Record<string,unknown>|null ?? null : null; const __deptId = String(((__leadEmp as unknown as Record<string,unknown>|null)?.departmentId as string) ?? ((__leadEmp as unknown as Record<string,unknown>|null)?.subDepartmentId as string) ?? ((__leadEmp as unknown as Record<string,unknown>|null)?.department as string) ?? '').trim(); if(!__deptId){ toast.error('Vui lòng chọn người phụ trách Chính trước khi lên kế hoạch'); return; } payload.phongBanId=__deptId; try{ await repairRequestService.update(rid as never, payload as never); toast.success('Đã lên kế hoạch'); setYcscPlanOpen(false); queryClient.invalidateQueries({ queryKey: repairRequestKeys.all }); onSaved?.(); onClose(); }catch(e){ toast.error(e instanceof Error?e.message:'Không lên kế hoạch được'); } }} className="rounded bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700">Xác nhận kế hoạch</button></div>
           </div>
         </Modal>
       )}
