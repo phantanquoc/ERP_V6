@@ -1106,6 +1106,22 @@ const jsonStringArray = <T extends z.ZodTypeAny>(itemSchema: T) =>
     return v;
   }, z.array(itemSchema));
 
+/**
+ * Multipart bodies arrive as strings, and Boolean('false') === true — naive coercion
+ * would force `canNgungMay` to true on every form submit. Accept real booleans, the
+ * exact strings "true"/"false", and legacy 1/0; undefined passes through untouched.
+ */
+const formBoolean = z.preprocess(
+  (v) => (v === undefined ? v : v === true || v === 'true' || v === 1 || v === '1'),
+  z.boolean().optional()
+);
+
+/** An empty multipart field means "clear this nullable column" — map '' to null first. */
+const emptyToNull = <T extends z.ZodTypeAny>(
+  inner: T
+): z.ZodType<T['_output'] | null | undefined> =>
+  z.preprocess((v) => (v === '' ? null : v), inner.optional().nullable());
+
 export const createRepairRequestSchema = z
   .object({
     requestType: requestTypeEnum.optional().default('SUA_CHUA'),
@@ -1115,13 +1131,13 @@ export const createRepairRequestSchema = z
     mucDoUuTien: z.string().min(1, 'Mức độ ưu tiên là bắt buộc'),
     ghiChu: z.string().optional().nullable(),
     fileDinhKem: z.string().optional().nullable(),
-    ngayHoanThienDuKien: z.coerce.date().optional().nullable(),
-    ngayBatDauKeHoach: z.coerce.date().optional().nullable(),
+    ngayHoanThienDuKien: emptyToNull(z.coerce.date()),
+    ngayBatDauKeHoach: emptyToNull(z.coerce.date()),
     keHoachChiTiet: z.string().optional().nullable(),
     phuongAn: z.string().optional().nullable(),
     bienPhapAnToan: z.string().optional().nullable(),
-    chiPhiDuKien: z.coerce.number().min(0, 'Chi phí dự kiến phải >= 0').optional().nullable(),
-    canNgungMay: z.coerce.boolean().optional(),
+    chiPhiDuKien: emptyToNull(z.coerce.number().min(0, 'Chi phí dự kiến phải >= 0')),
+    canNgungMay: formBoolean,
     phongBanId: z.string().optional().nullable(),
     tenHeThong: z.string().optional().nullable(),
     tinhTrangThietBi: z.string().optional().nullable(),
@@ -1156,13 +1172,13 @@ export const updateRepairRequestSchema = z
     ghiChu: z.string().optional().nullable(),
     ngayThang: z.coerce.date().optional(),
     fileDinhKem: z.string().optional().nullable(),
-    ngayHoanThienDuKien: z.coerce.date().optional().nullable(),
-    ngayBatDauKeHoach: z.coerce.date().optional().nullable(),
+    ngayHoanThienDuKien: emptyToNull(z.coerce.date()),
+    ngayBatDauKeHoach: emptyToNull(z.coerce.date()),
     keHoachChiTiet: z.string().optional().nullable(),
     phuongAn: z.string().optional().nullable(),
     bienPhapAnToan: z.string().optional().nullable(),
-    chiPhiDuKien: z.coerce.number().min(0, 'Chi phí dự kiến phải >= 0').optional().nullable(),
-    canNgungMay: z.coerce.boolean().optional(),
+    chiPhiDuKien: emptyToNull(z.coerce.number().min(0, 'Chi phí dự kiến phải >= 0')),
+    canNgungMay: formBoolean,
     phongBanId: z.string().optional().nullable(),
     tenHeThong: z.string().optional().nullable(),
     tinhTrangThietBi: z.string().optional().nullable(),
@@ -1222,10 +1238,10 @@ export const repairPlanSchema = z
     keHoachChiTiet: z.string().optional().nullable(),
     phuongAn: z.string().optional().nullable(),
     bienPhapAnToan: z.string().optional().nullable(),
-    ngayHoanThienDuKien: z.coerce.date().optional().nullable(),
-    ngayBatDauKeHoach: z.coerce.date().optional().nullable(),
-    chiPhiDuKien: z.coerce.number().min(0, 'Chi phí dự kiến phải >= 0').optional().nullable(),
-    canNgungMay: z.coerce.boolean().optional(),
+    ngayHoanThienDuKien: emptyToNull(z.coerce.date()),
+    ngayBatDauKeHoach: emptyToNull(z.coerce.date()),
+    chiPhiDuKien: emptyToNull(z.coerce.number().min(0, 'Chi phí dự kiến phải >= 0')),
+    canNgungMay: formBoolean,
     phongBanId: z.string().optional().nullable(),
   })
   .superRefine((data, ctx) => {

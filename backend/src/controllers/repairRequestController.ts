@@ -337,7 +337,11 @@ class RepairRequestController {
         }
         normalized.chiPhiDuKien = n;
       }
-      if (raw.canNgungMay !== undefined) normalized.canNgungMay = Boolean(raw.canNgungMay);
+      // Raw body (this route has no zod pass): Boolean('false') === true would flip the flag.
+      if (raw.canNgungMay !== undefined) {
+        normalized.canNgungMay =
+          raw.canNgungMay === true || raw.canNgungMay === 'true' || raw.canNgungMay === 1 || raw.canNgungMay === '1';
+      }
       const result = await repairRequestService.plan(id, actor, normalized);
       res.json({ success: true, data: result, message: 'Lập kế hoạch thành công' });
     } catch (error) {
