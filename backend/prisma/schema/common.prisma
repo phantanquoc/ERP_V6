@@ -1119,7 +1119,8 @@ model RepairRequest {
   canNgungMay               Boolean             @default(false) @map("can_ngung_may")
   phongBanId                String?             @map("phong_ban_id") @db.VarChar(30)
   ngayHoanThanhThucTe       DateTime?           @map("ngay_hoan_thanh_thuc_te") @db.Timestamptz
-  fileDinhKem               String? // File đính kèm
+  fileDinhKem               String? // File đính kèm (legacy single file — kept for old rows)
+  tepDinhKem                String[]                @default([]) @map("tep_dinh_kem") // multi-file attachments, max 4 enforced in app layer
   createdById               String? // soft ref to auth.User.id — no FK constraint
   createdByName             String? // Tên người yêu cầu
   createdAt                 DateTime            @default(now())

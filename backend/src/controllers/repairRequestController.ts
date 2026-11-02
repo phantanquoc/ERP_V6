@@ -5,6 +5,13 @@ import { getFileUrl } from '@middlewares/upload';
 import { RepairRequestStatus, RequestType } from '@prisma/client';
 import logger from '@config/logger';
 
+export const REPAIR_MAX_FILES = 4;
+
+function mapUploadedFiles(req: AuthenticatedRequest): string[] {
+  const files = req.files as Express.Multer.File[] | undefined;
+  return files?.map((f) => getFileUrl('repair-requests', f.filename)) ?? [];
+}
+
 class RepairRequestController {
   async getAllRepairRequests(
     req: AuthenticatedRequest,
@@ -88,9 +95,8 @@ class RepairRequestController {
         mucDoUuTien: req.body.mucDoUuTien,
         noiDungLoi: req.body.noiDungLoi,
         ghiChu: req.body.ghiChu,
-        fileDinhKem: req.file
-          ? getFileUrl('repair-requests', req.file.filename)
-          : (req.body.fileDinhKem ?? undefined),
+        fileDinhKem: req.body.fileDinhKem ?? undefined,
+        tepDinhKem: mapUploadedFiles(req),
         ...(items !== undefined && { items }),
         userId: req.user?.id,
         actorRole: req.user?.role,
@@ -186,9 +192,9 @@ class RepairRequestController {
       if (req.body.phongBanId !== undefined) data.phongBanId = req.body.phongBanId;
       // chiPhiThucTe/gioCongThucTe/noiDungThucHien/ketQuaNghiemThu are never accepted via general update — use updateActualFields or confirmAcceptance.
 
-      if (req.file) {
-        data.fileDinhKem = getFileUrl('repair-requests', req.file.filename);
-      }
+      // Append-only: new files are merged with existing tepDinhKem inside the service (cap 4).
+      const newFiles = mapUploadedFiles(req);
+      if (newFiles.length > 0) data.tepDinhKem = newFiles;
 
       const actor = { actorId: req.user?.id, actorRole: req.user?.role };
       const updated = await repairRequestService.updateRepairRequest(id, data as never, actor);

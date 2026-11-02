@@ -2,11 +2,12 @@ import { FormEvent, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Ban, CheckCheck, CheckCircle, FileText, History, Link2, Play, Plus, Save, Send, Trash2, Wrench, X, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { getApiErrorMessage } from '../utils/getApiError';
 import { getFileUrl } from '../config/api';
 import acceptanceHandoverService from '../services/acceptanceHandoverService';
 import type { AcceptanceHandoverItemInput } from '../services/acceptanceHandoverService';
 import { useQueryClient } from '@tanstack/react-query';
-import { isTechnicalUser, canDeleteTechnical } from '../utils/permissions';
+import { isTechnicalUser, canDeleteTechnical, can } from '../utils/permissions';
 import { useAuth as useAuthCtx } from '../contexts/AuthContext';
 import FileUpload from './FileUpload';
 import Modal from './Modal';
@@ -58,8 +59,9 @@ import inspectionRequestService, {
   STATUS_LABELS as INSPECTION_STATUS_LABELS,
 } from '../services/inspectionRequestService';
 import repairRequestService from '../services/repairRequestService';
-import supplyRequestService from '../services/supplyRequestService';
+import supplyRequestService, { SUPPLY_MAX_FILES } from '../services/supplyRequestService';
 import { useRepairSupplyChain } from '../hooks/useRepairSupplyLinks';
+import { supplyRequestKeys } from '../hooks/useSupplyRequests';
 import SupplyRequestDetailModal from './purchasing/SupplyRequestDetailModal';
 import type { MachineSystem, MachineSystemDetail } from '../services/machineSystemService';
 
@@ -382,7 +384,154 @@ type CleanedItem = { id?: string; machineSystemId?: string; machineSystemDetailI
 type AssigneeDraft = { userId: string; userName: string; isLead: boolean };
 // YCCC-style: mỗi dòng là 1 hàng hóa (ProductCombobox + soLuong + donViTinh), giống SupplyRequestModal.
 // phanLoai lấy từ InternationalProduct.loaiSanPham; nếu hàng mới (isNewProduct) phanLoai có thể trống hoặc 'Vật tư'.
-type MaterialDraft = { itemIndex: number; internationalProductId: string | null; tenVatTu: string; phanLoai: string; donVi: string; soLuongDuKien: number | string };
+export type MaterialDraft = { itemIndex: number; internationalProductId: string | null; tenVatTu: string; phanLoai: string; donVi: string; soLuongDuKien: number | string };
+
+type GoodsRowsEditorProps = {
+  rows: MaterialDraft[];
+  onChange: (next: MaterialDraft[]) => void;
+  /** Number of device/item rows offered in the "Thiết bị" select. */
+  itemCount: number;
+  products: InternationalProduct[];
+};
+
+/**
+ * Shared YCCC-style goods-rows table (device select + catalog picker + qty + unit).
+ * Used by BOTH the create-time YCCC section and the view-mode "Vật tư phát sinh" block.
+ */
+const GoodsRowsEditor = ({ rows, onChange, itemCount, products }: GoodsRowsEditorProps) => (
+  <div className="overflow-x-auto rounded border border-gray-200">
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="bg-gray-50 text-left text-xs text-gray-500">
+          <th className="px-2 py-1.5 font-medium w-24">Thiết bị</th>
+          <th className="px-2 py-1.5 font-medium">Hàng hóa <span className="text-red-500">*</span></th>
+          <th className="px-2 py-1.5 font-medium w-20">SL <span className="text-red-500">*</span></th>
+          <th className="px-2 py-1.5 font-medium w-24">ĐVT <span className="text-red-500">*</span></th>
+          <th className="px-1 py-1.5 w-8 text-center"> </th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-gray-100">
+        {rows.map((m, idx) => (
+          <tr key={idx} className="align-top">
+            <td className="px-1.5 py-1.5">
+              <select value={m.itemIndex} onChange={(e) => onChange(rows.map((x, i) => i === idx ? { ...x, itemIndex: Number(e.target.value) } : x))} className={`${selectCls()} min-h-[32px] text-sm w-24`}>{Array.from({ length: itemCount }, (_, i) => <option key={i} value={i}>#{i + 1}</option>)}</select>
+            </td>
+            <td className="px-1.5 py-1.5">
+              <div className="min-w-[180px] flex-1">
+                <ProductCombobox
+                  products={products}
+                  value={m.internationalProductId}
+                  onChange={(_pid, product) => {
+                    if (!product) {
+                      onChange(rows.map((x, i) => i === idx ? { ...x, internationalProductId: null, tenVatTu: '', phanLoai: 'Vật tư', donVi: x.donVi || 'cái' } : x));
+                      return;
+                    }
+                    onChange(rows.map((x, i) => i === idx ? { ...x, internationalProductId: product.id, tenVatTu: product.tenSanPham, phanLoai: (product.loaiSanPham || 'Vật tư').trim() || 'Vật tư', donVi: product.donViTinh || x.donVi || 'cái' } : x));
+                  }}
+                  onCreateNew={(name) => onChange(rows.map((x, i) => i === idx ? { ...x, internationalProductId: null, tenVatTu: name, phanLoai: x.phanLoai || 'Vật tư' } : x))}
+                  initialText={m.tenVatTu}
+                  allowCreate
+                  placeholder="Tìm mã/tên/loại..."
+                />
+                {(!m.internationalProductId && m.tenVatTu) || m.phanLoai ? (
+                  <p className="mt-0.5 text-[11px] leading-tight truncate">
+                    {!m.internationalProductId && m.tenVatTu && <span className="text-amber-700">Chưa có trong danh mục</span>}
+                    {!m.internationalProductId && m.tenVatTu && m.phanLoai ? <span className="text-gray-400"> · </span> : null}
+                    {m.phanLoai && <span className="text-gray-500">Phân loại: <span className="font-medium text-gray-700">{m.phanLoai}</span></span>}
+                  </p>
+                ) : null}
+              </div>
+            </td>
+            <td className="px-1.5 py-1.5">
+              <input type="number" min={0} step="0.01" value={String(m.soLuongDuKien)} onChange={(e) => onChange(rows.map((x, i) => i === idx ? { ...x, soLuongDuKien: parseNumberInput(e.target.value) } : x))} className={`${inputCls()} min-h-[32px] text-sm w-20`} placeholder="0" />
+            </td>
+            <td className="px-1.5 py-1.5">
+              <UnitSelect value={m.donVi} onChange={(val) => onChange(rows.map((x, i) => i === idx ? { ...x, donVi: val } : x))} className="w-24 px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+            </td>
+            <td className="px-1 py-1.5 text-center">
+              <button type="button" onClick={() => onChange(rows.filter((_, i) => i !== idx))} className="p-1 text-red-500 hover:bg-red-50 rounded" title="Xóa" aria-label="Xóa hàng hóa"><Trash2 className="h-4 w-4" /></button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
+
+// YCCC requester resolution — extracted verbatim from the create-time auto-YCCC flow
+// (employee match → missing-employee error result → boPhan fallback to 'Kỹ thuật').
+// YCCC requester = the person creating/handling this repair request (current user),
+// NOT the lead assignee. Backend also derives requester identity from the JWT.
+export type YcccRequester = {
+  employeeId: string;
+  maNhanVien: string;
+  tenNhanVien: string;
+  boPhan: string;
+  /** employeeId + tenNhanVien resolved — false means the account has no linked Employee record. */
+  ok: boolean;
+};
+
+type YcccEmployeeOpt = { id: string; userId?: string; name: string; employeeCode: string; department?: string };
+
+export function resolveYcccRequester(viewUser: unknown, employees: readonly unknown[]): YcccRequester {
+  const u = viewUser as Record<string, unknown> | null;
+  const userId = String((u?.id as string) ?? (u?._id as string) ?? '').trim();
+  const userFullName = String((u?.fullName as string) ?? (u?.name as string) ?? ([u?.firstName, u?.lastName].filter(Boolean).join(' ').trim()) ?? '').trim();
+  const catalog = employees as YcccEmployeeOpt[];
+  const viewerEmployeeId = String((u?.employeeId as string) ?? '').trim();
+  const viewerEmp: YcccEmployeeOpt | null = catalog.find((e) => {
+    if (viewerEmployeeId && e.id === viewerEmployeeId) return true;
+    if (userId && e.userId === userId) return true;
+    return false;
+  }) ?? null;
+
+  let employeeId = '';
+  let maNhanVien = '';
+  let tenNhanVien = '';
+  let boPhan = '';
+  if (viewerEmployeeId || viewerEmp) {
+    employeeId = viewerEmployeeId || viewerEmp?.id || '';
+    maNhanVien = String((u?.employeeCode as string) ?? '').trim() || viewerEmp?.employeeCode || employeeId;
+    tenNhanVien = viewerEmp?.name || userFullName;
+    boPhan = (viewerEmp?.department ?? '').trim();
+  } else {
+    // Không tìm thấy hồ sơ Employee khớp — báo lỗi rõ, không fallback User.id làm employeeId
+    employeeId = '';
+    maNhanVien = '';
+    tenNhanVien = '';
+    boPhan = '';
+  }
+  // boPhan rỗng do employee.subDepartment null rất phổ biến — không chặn YCCC, fallback
+  if (!boPhan) {
+    boPhan = String((u?.subDepartmentName as string) ?? (u?.departmentName as string) ?? (u?.department as string) ?? '').trim() || 'Kỹ thuật';
+  }
+  return { employeeId, maNhanVien, tenNhanVien, boPhan, ok: !!employeeId && !!tenNhanVien };
+}
+
+/**
+ * Pure pre-write validation for the "Vật tư phát sinh" YCCC form.
+ * Returns a specific Vietnamese error string, or null when everything passes.
+ * Must pass BEFORE any write happens (YCCC / link / material-need).
+ */
+export function validatePhatSinhYcccRows(
+  rows: MaterialDraft[],
+  itemCount: number,
+  requesterOk: boolean
+): string | null {
+  if (itemCount <= 0) return 'Phiếu chưa có thiết bị/hạng mục để ghi nhu cầu vật tư';
+  if (rows.length === 0) return 'Chưa có hàng hóa nào — hãy thêm ít nhất 1 dòng';
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    if (!String(row.tenVatTu ?? '').trim()) return `Hàng hóa dòng ${i + 1} chưa được chọn`;
+    const qty = row.soLuongDuKien === '' ? 0 : Number(row.soLuongDuKien);
+    if (!Number.isFinite(qty) || qty <= 0) return `Số lượng dòng ${i + 1} phải lớn hơn 0`;
+    if (!Number.isInteger(row.itemIndex) || row.itemIndex < 0 || row.itemIndex >= itemCount) {
+      return `Dòng ${i + 1} chọn thiết bị không hợp lệ`;
+    }
+  }
+  if (!requesterOk) return 'Tài khoản của bạn chưa liên kết hồ sơ nhân viên';
+  return null;
+}
 
 const RepairRequestFormModal = ({
   isOpen,
@@ -431,9 +580,10 @@ const RepairRequestFormModal = ({
 
   const [form, setForm] = useState<CreateRepairRequestRequest>(emptyForm());
   const [items, setItems] = useState<ItemDraft[]>([emptyItem()]);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  // YCKT multi-file attachments (max INSPECTION_MAX_FILES); YCSC keeps single selectedFile
+  // Multi-file attachments (max 4) — shared by YCKT and YCSC
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  // Attachments for the auto-created YCCC at create time (max SUPPLY_MAX_FILES)
+  const [ycccFiles, setYcccFiles] = useState<File[]>([]);
   const [error, setError] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
   // SUA_CHUA extra sections state
@@ -452,6 +602,7 @@ const RepairRequestFormModal = ({
   const formRefSubmit = () => formRef.current?.requestSubmit();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { user: viewUser } = useAuthCtx();
   const roleUpperView = String((viewUser as unknown as { role?: string })?.role ?? '').toUpperCase();
   const isAdminView = roleUpperView === 'ADMIN';
@@ -541,6 +692,109 @@ const RepairRequestFormModal = ({
   const updateIncidental = useUpdateIncidentalCost();
   const deleteIncidental = useDeleteIncidentalCost();
   const [selectedSupplyId, setSelectedSupplyId] = useState<string | null>(null);
+  // ── "Vật tư phát sinh" YCCC — view-mode YCSC only ──────────────────────
+  const [phatSinhRows, setPhatSinhRows] = useState<MaterialDraft[]>([]);
+  const [phatSinhFiles, setPhatSinhFiles] = useState<File[]>([]);
+  const [phatSinhOpen, setPhatSinhOpen] = useState(true);
+  const [phatSinhPending, setPhatSinhPending] = useState(false);
+  const phatSinhRef = useRef<HTMLDivElement | null>(null);
+  // Gate (design 6): view-mode YCSC + not read-only + supply-requests:CREATE + not canceled.
+  // When false the whole block is ABSENT — no placeholder, no disabled inputs.
+  const canShowPhatSinh = !!ycscIdForChain && !readOnly
+    && can('supply-requests', 'CREATE', (viewUser as unknown as { role?: string })?.role)
+    && viewStatus !== 'DA_HUY';
+
+  /** Reveal/focus the phat-sinh form (shortcut from the "Chưa tạo YCCC" warning). */
+  const openPhatSinhBlock = () => {
+    setPhatSinhOpen(true);
+    window.requestAnimationFrame(() => phatSinhRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+  };
+
+  /**
+   * Phat-sinh creation orchestration (design 4): validate EVERYTHING first →
+   * create YCCC → link (warning on failure) → material need per row (warning per failure)
+   * → invalidate queries → open the new YCCC inline. A YCCC failure aborts with nothing written.
+   */
+  const handleCreatePhatSinhYccc = async () => {
+    if (phatSinhPending || !ycscIdForChain) return;
+    const requester = resolveYcccRequester(viewUser, employees);
+    // Real slip items — view mode without items holds a blank draft (no id) that can't take needs
+    const realItems = items.filter((it): it is ItemDraft & { id: string } => !!it.id);
+    const validationError = validatePhatSinhYcccRows(phatSinhRows, realItems.length, requester.ok);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+
+    const maYeuCauYcsc = String((record as unknown as { maYeuCau?: string })?.maYeuCau ?? '').trim();
+    setPhatSinhPending(true);
+    try {
+      // 1) Create the YCCC — failure aborts here with an error toast, nothing else is written
+      const supplyRes = await supplyRequestService.createSupplyRequest({
+        employeeId: requester.employeeId,
+        maNhanVien: requester.maNhanVien || requester.employeeId,
+        tenNhanVien: requester.tenNhanVien,
+        boPhan: requester.boPhan,
+        items: phatSinhRows.map((m) => ({
+          phanLoai: (m.phanLoai || 'Vật tư').trim() || 'Vật tư',
+          tenGoi: String(m.tenVatTu).trim(),
+          soLuong: m.soLuongDuKien === '' ? 0 : Number(m.soLuongDuKien) || 0,
+          donViTinh: (m.donVi || 'cái').trim() || 'cái',
+        })),
+        mucDichYeuCau: `Phát sinh cho ${maYeuCauYcsc}`,
+        ghiChu: `Vật tư phát sinh cho yêu cầu sửa chữa ${maYeuCauYcsc}`,
+        mucDoUuTien: String((record as unknown as { mucDoUuTien?: string })?.mucDoUuTien ?? 'Thấp'),
+      }, phatSinhFiles.length > 0 ? phatSinhFiles : undefined);
+      const supplyId = String(
+        (supplyRes as unknown as { data?: { id?: string; data?: { id?: string } } })?.data?.id ??
+        (supplyRes as unknown as { data?: { data?: { id?: string } } })?.data?.data?.id ??
+        (supplyRes as unknown as { id?: string })?.id ??
+        (supplyRes as unknown as { data?: string })?.data ??
+        ''
+      ).trim();
+      if (!supplyId) throw new Error('Không lấy được YCCC vừa tạo');
+
+      // 2) Link — failure only degrades annotation quality: warning, keep going
+      try {
+        await repairRequestService.linkSupplyRequest(ycscIdForChain, { supplyRequestId: supplyId });
+      } catch {
+        toast('Đã tạo YCCC nhưng liên kết chuỗi YCSC→YCCC thất bại', { icon: '⚠️' });
+      }
+
+      // 3) One material need per row — failures are collected into a single warning
+      const failedNeeds: string[] = [];
+      for (const m of phatSinhRows) {
+        const targetItem = realItems[m.itemIndex];
+        try {
+          await repairRequestService.createMaterialNeed(ycscIdForChain, {
+            repairRequestItemId: targetItem.id,
+            tenVatTu: String(m.tenVatTu).trim(),
+            donVi: m.donVi.trim() || null,
+            soLuongDuKien: m.soLuongDuKien === '' ? 0 : Number(m.soLuongDuKien) || 0,
+            ghiChu: null,
+          });
+        } catch {
+          failedNeeds.push(String(m.tenVatTu).trim());
+        }
+      }
+      if (failedNeeds.length) toast(`Chưa ghi được nhu cầu vật tư: ${failedNeeds.join(', ')}`, { icon: '⚠️' });
+
+      // Refresh slip + supply queries, then open the new YCCC inline (no route navigation)
+      queryClient.invalidateQueries({ queryKey: repairRequestKeys.detail(ycscIdForChain) });
+      queryClient.invalidateQueries({ queryKey: repairRequestKeys.supplyChain(ycscIdForChain) });
+      queryClient.invalidateQueries({ queryKey: repairRequestKeys.costSummary(ycscIdForChain) });
+      queryClient.invalidateQueries({ queryKey: repairRequestKeys.materialNeeds(ycscIdForChain) });
+      await queryClient.invalidateQueries({ queryKey: supplyRequestKeys.all });
+      toast.success(`Đã tạo YCCC phát sinh cho ${maYeuCauYcsc}`);
+      setPhatSinhRows([]);
+      setPhatSinhFiles([]);
+      setSelectedSupplyId(supplyId);
+    } catch (e) {
+      toast.error(getApiErrorMessage(e, 'Tạo YCCC phát sinh thất bại'));
+    } finally {
+      setPhatSinhPending(false);
+    }
+  };
   const [incForm, setIncForm] = useState<{ tenKhoan: string; soTien: string; lyDo: string; filePending: File | null }>({ tenKhoan: '', soTien: '', lyDo: '', filePending: null });
   const [incEditId, setIncEditId] = useState<string | null>(null);
   const [incEdit, setIncEdit] = useState<{ tenKhoan: string; soTien: string; lyDo: string; filePending: File | null }>({ tenKhoan: '', soTien: '', lyDo: '', filePending: null });
@@ -875,8 +1129,13 @@ const RepairRequestFormModal = ({
   useEffect(() => {
     if (!isOpen) return;
     setError('');
-    setSelectedFile(null);
     setSelectedFiles([]);
+    setYcccFiles([]);
+    // "Vật tư phát sinh" draft must not leak from one record to another
+    setPhatSinhRows([]);
+    setPhatSinhFiles([]);
+    setPhatSinhOpen(true);
+    setPhatSinhPending(false);
     // Prefill plan/assignees/materials reset
     setPlan({ keHoachChiTiet: '', phuongAn: '', bienPhapAnToan: '', ngayBatDauKeHoach: '', ngayHoanThienDuKien: '', canNgungMay: false });
     setAssignees([]);
@@ -1079,11 +1338,11 @@ const RepairRequestFormModal = ({
         } else {
           const { requestType: _rt, sourceInspectionRequestId: _src, maYeuCau: _ma, ...updatePayload } = payload;
           void _rt; void _src; void _ma;
-          await updateRequest.mutateAsync({ id: record.id, data: updatePayload, file: selectedFile ?? undefined });
+          await updateRequest.mutateAsync({ id: record.id, data: updatePayload, files: selectedFiles.length > 0 ? selectedFiles : undefined });
           toast.success('Đã cập nhật yêu cầu sửa chữa');
         }
       } else {
-        const res = await createRequest.mutateAsync({ data: payload, file: selectedFile ?? undefined });
+        const res = await createRequest.mutateAsync({ data: payload, files: selectedFiles.length > 0 ? selectedFiles : undefined });
         savedId = (res as unknown as { data?: { id?: number | string } })?.data?.id ?? (res as unknown as { id?: number | string })?.id;
         savedMaYeuCau = (res as unknown as { data?: { maYeuCau?: string } })?.data?.maYeuCau
           ?? (res as unknown as { maYeuCau?: string })?.maYeuCau
@@ -1134,35 +1393,8 @@ const RepairRequestFormModal = ({
         // Tách hoàn toàn khỏi toast YCSC ở trên; YCSC đã toast.success rồi, YCCC có toast riêng.
         const shouldTryAutoSupply = showAssigneeAndMaterial && materials.length > 0 && !!savedMaYeuCau && !!newId;
         if (shouldTryAutoSupply) {
-          const u = viewUser as unknown as Record<string, unknown> | null;
-          const userId = String((u?.id as string) ?? (u?._id as string) ?? '').trim();
-          const userFullName = String((u?.fullName as string) ?? (u?.name as string) ?? ([u?.firstName, u?.lastName].filter(Boolean).join(' ').trim()) ?? '').trim();
-          // YCCC requester = the person creating/handling this repair request (current user),
-          // NOT the lead assignee. Backend also derives requester identity from the JWT.
-          type EmpOpt = { id: string; userId?: string; name: string; employeeCode: string; department?: string };
-          const catalog = employees as EmpOpt[];
-          const viewerEmployeeId = String((u?.employeeId as string) ?? '').trim();
-          const viewerEmp: EmpOpt | null = catalog.find((e) => {
-            if (viewerEmployeeId && e.id === viewerEmployeeId) return true;
-            if (userId && e.userId === userId) return true;
-            return false;
-          }) ?? null;
-          let resolvedEmployeeId: string;
-          let resolvedMaNhanVien: string;
-          let resolvedTenNhanVien: string;
-          let resolvedBoPhan: string;
-          if (viewerEmployeeId || viewerEmp) {
-            resolvedEmployeeId = viewerEmployeeId || viewerEmp?.id || '';
-            resolvedMaNhanVien = String((u?.employeeCode as string) ?? '').trim() || viewerEmp?.employeeCode || resolvedEmployeeId;
-            resolvedTenNhanVien = viewerEmp?.name || userFullName;
-            resolvedBoPhan = (viewerEmp?.department ?? '').trim();
-          } else {
-            // Không tìm thấy hồ sơ Employee khớp — báo lỗi rõ, không fallback User.id làm employeeId
-            resolvedEmployeeId = '';
-            resolvedMaNhanVien = '';
-            resolvedTenNhanVien = '';
-            resolvedBoPhan = '';
-          }
+          // YCCC requester resolved via shared helper (employee match + boPhan fallback)
+          const requester = resolveYcccRequester(viewUser, employees);
 
           // Build supplyItems — filter "" và <=0
           const rawSupplyCandidates = materials.filter((m) => m.tenVatTu.trim());
@@ -1180,31 +1412,24 @@ const RepairRequestFormModal = ({
             })
             .map(({ _rawQty: _omit, ...rest }) => rest);
 
-          // boPhan rỗng do employee.subDepartment null rất phổ biến — không chặn YCCC, fallback
-          if (!resolvedBoPhan) {
-            const fallbackBoPhan = String((viewUser as unknown as Record<string, unknown>)?.subDepartmentName as string ?? (viewUser as unknown as Record<string, unknown>)?.departmentName as string ?? (viewUser as unknown as Record<string, unknown>)?.department as string ?? '').trim() || 'Kỹ thuật';
-            console.warn('auto supply: boPhan empty, fallback to', fallbackBoPhan, { resolvedEmployeeId, resolvedTenNhanVien });
-            resolvedBoPhan = fallbackBoPhan;
-          }
           // 2.a) supplyItems rỗng sau filter → báo rõ, không silent
           if (supplyItems.length === 0) {
             toast('YCSC đã tạo nhưng không có hàng hóa hợp lệ để tạo YCCC — vui lòng kiểm tra số lượng', { icon: '⚠️' });
-          } else if (!resolvedEmployeeId || !resolvedTenNhanVien) {
+          } else if (!requester.ok) {
             toast.error('Không tạo được YCCC: tài khoản của bạn chưa liên kết hồ sơ nhân viên');
-            console.warn('auto supply skipped: missing employee info', { userId, employeesCount: catalog.length });
           } else {
             // 2.c) đủ điều kiện → tạo YCCC
             try {
               const supplyRes = await supplyRequestService.createSupplyRequest({
-                employeeId: resolvedEmployeeId,
-                maNhanVien: resolvedMaNhanVien || resolvedEmployeeId,
-                tenNhanVien: resolvedTenNhanVien,
-                boPhan: resolvedBoPhan,
+                employeeId: requester.employeeId,
+                maNhanVien: requester.maNhanVien || requester.employeeId,
+                tenNhanVien: requester.tenNhanVien,
+                boPhan: requester.boPhan,
                 items: supplyItems,
                 mucDichYeuCau: `Cung cấp cho ${savedMaYeuCau}`,
                 ghiChu: (viewCreateRepairInitial?.ghiChu as string) || `Tự động tạo từ yêu cầu sửa chữa ${savedMaYeuCau}`,
                 mucDoUuTien: form.mucDoUuTien,
-              });
+              }, ycccFiles.length > 0 ? ycccFiles : undefined);
               const supplyId = String(
                 (supplyRes as unknown as { data?: { id?: string; data?: { id?: string } } })?.data?.id ??
                 (supplyRes as unknown as { data?: { data?: { id?: string } } })?.data?.data?.id ??
@@ -1226,8 +1451,8 @@ const RepairRequestFormModal = ({
                 await queryClient.invalidateQueries({ queryKey: ['repairRequests'] });
                 await queryClient.refetchQueries({ queryKey: ['repairRequests'] });
               }
-              await queryClient.invalidateQueries({ queryKey: ['supplyRequests'] });
-              await queryClient.refetchQueries({ queryKey: ['supplyRequests'] });
+              await queryClient.invalidateQueries({ queryKey: supplyRequestKeys.all });
+              await queryClient.refetchQueries({ queryKey: supplyRequestKeys.all });
               toast.success(`Đã tự động tạo YCCC cho ${savedMaYeuCau}`);
             } catch (e: unknown) {
               const axiosMsg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -1713,65 +1938,18 @@ const RepairRequestFormModal = ({
                 <div className="p-2 space-y-1">
                   {materials.length === 0 && <p className="text-xs text-gray-400">Chưa có hàng hóa. Bấm Thêm hàng hóa — picker sẽ gợi ý theo danh mục (phanLoai Vật tư/Thiết bị...), cho phép nhập tên mới như YCCC.</p>}
                   {materials.length > 0 && (
-                    <div className="overflow-x-auto rounded border border-gray-200">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-gray-50 text-left text-xs text-gray-500">
-                            <th className="px-2 py-1.5 font-medium w-24">Thiết bị</th>
-                            <th className="px-2 py-1.5 font-medium">Hàng hóa <span className="text-red-500">*</span></th>
-                            <th className="px-2 py-1.5 font-medium w-20">SL <span className="text-red-500">*</span></th>
-                            <th className="px-2 py-1.5 font-medium w-24">ĐVT <span className="text-red-500">*</span></th>
-                            <th className="px-1 py-1.5 w-8 text-center"> </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {materials.map((m, idx) => (
-                            <tr key={idx} className="align-top">
-                              <td className="px-1.5 py-1.5">
-                                <select value={m.itemIndex} onChange={(e) => setMaterials((prev) => prev.map((x, i) => i === idx ? { ...x, itemIndex: Number(e.target.value) } : x))} className={`${selectCls()} min-h-[32px] text-sm w-24`}>{items.map((_, i) => <option key={i} value={i}>#{i + 1}</option>)}</select>
-                              </td>
-                              <td className="px-1.5 py-1.5">
-                                <div className="min-w-[180px] flex-1">
-                                  <ProductCombobox
-                                    products={products}
-                                    value={m.internationalProductId}
-                                    onChange={(_pid, product) => {
-                                      if (!product) {
-                                        setMaterials((prev) => prev.map((x, i) => i === idx ? { ...x, internationalProductId: null, tenVatTu: '', phanLoai: 'Vật tư', donVi: x.donVi || 'cái' } : x));
-                                        return;
-                                      }
-                                      setMaterials((prev) => prev.map((x, i) => i === idx ? { ...x, internationalProductId: product.id, tenVatTu: product.tenSanPham, phanLoai: (product.loaiSanPham || 'Vật tư').trim() || 'Vật tư', donVi: product.donViTinh || x.donVi || 'cái' } : x));
-                                    }}
-                                    onCreateNew={(name) => setMaterials((prev) => prev.map((x, i) => i === idx ? { ...x, internationalProductId: null, tenVatTu: name, phanLoai: x.phanLoai || 'Vật tư' } : x))}
-                                    initialText={m.tenVatTu}
-                                    allowCreate
-                                    placeholder="Tìm mã/tên/loại..."
-                                  />
-                                  {(!m.internationalProductId && m.tenVatTu) || m.phanLoai ? (
-                                    <p className="mt-0.5 text-[11px] leading-tight truncate">
-                                      {!m.internationalProductId && m.tenVatTu && <span className="text-amber-700">Chưa có trong danh mục</span>}
-                                      {!m.internationalProductId && m.tenVatTu && m.phanLoai ? <span className="text-gray-400"> · </span> : null}
-                                      {m.phanLoai && <span className="text-gray-500">Phân loại: <span className="font-medium text-gray-700">{m.phanLoai}</span></span>}
-                                    </p>
-                                  ) : null}
-                                </div>
-                              </td>
-                              <td className="px-1.5 py-1.5">
-                                <input type="number" min={0} step="0.01" value={String(m.soLuongDuKien)} onChange={(e) => setMaterials((prev) => prev.map((x, i) => i === idx ? { ...x, soLuongDuKien: parseNumberInput(e.target.value) } : x))} className={`${inputCls()} min-h-[32px] text-sm w-20`} placeholder="0" />
-                              </td>
-                              <td className="px-1.5 py-1.5">
-                                <UnitSelect value={m.donVi} onChange={(val) => setMaterials((prev) => prev.map((x, i) => i === idx ? { ...x, donVi: val } : x))} className="w-24 px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
-                              </td>
-                              <td className="px-1 py-1.5 text-center">
-                                <button type="button" onClick={() => setMaterials((prev) => prev.filter((_, i) => i !== idx))} className="p-1 text-red-500 hover:bg-red-50 rounded" title="Xóa" aria-label="Xóa hàng hóa"><Trash2 className="h-4 w-4" /></button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                    <GoodsRowsEditor rows={materials} onChange={setMaterials} itemCount={items.length} products={products} />
                   )}
                   {materials.length > 0 && <p className="text-[11px] text-gray-500">Ghi chú “Cung cấp cho {'{maYeuCau YCSC}'}” sẽ ghi vào <span className="font-mono">YCCC.ghiChu</span>.</p>}
+                  <FileUpload
+                    label={`Tệp đính kèm YCCC (tối đa ${SUPPLY_MAX_FILES} tệp)`}
+                    helpText="PDF, Word, Excel, ảnh, TXT, ZIP/RAR — mỗi tệp tối đa 100MB"
+                    files={ycccFiles}
+                    onChange={(files) => setYcccFiles(files.slice(0, SUPPLY_MAX_FILES))}
+                    multiple
+                    maxFiles={SUPPLY_MAX_FILES}
+                    accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
+                  />
                 </div>
               )}
             </div>
@@ -1790,6 +1968,8 @@ const RepairRequestFormModal = ({
           const assigneesRO = (r?.assignees ?? []) as NonNullable<RepairRequest['assignees']>;
           const materialNeedsRO = (r?.materialNeeds ?? []) as NonNullable<RepairRequest['materialNeeds']>;
           const supplyLinksRO = (r?.supplyLinks ?? []) as NonNullable<RepairRequest['supplyLinks']>;
+          // Real items (with id) offered as material-need targets in the phat-sinh block
+          const phatSinhItemCount = items.filter((it) => !!it.id).length;
           const fmtDate = (v: string | null | undefined) => {
             if (!v) return '—';
             return formatDateVN(v);
@@ -1962,6 +2142,45 @@ const RepairRequestFormModal = ({
                       <p className="text-[11px] text-gray-400">soTien ≥0, lyDo bắt buộc. Tổng được cộng vào Thực tế.</p>
                     </>
                   )}
+                  {canShowPhatSinh && (
+                    <div ref={phatSinhRef} className="rounded-lg border border-blue-200 bg-blue-50/40 p-2.5 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <h4 className="text-sm font-semibold text-gray-800">Vật tư phát sinh</h4>
+                          <p className="text-[11px] text-gray-500">Tạo YCCC cho vật tư phát sinh trong lúc sửa chữa — tự liên kết vào chuỗi YCSC và ghi nhu cầu vật tư.</p>
+                        </div>
+                        <button type="button" onClick={() => setPhatSinhOpen((v) => !v)} aria-expanded={phatSinhOpen} className="shrink-0 text-xs font-medium text-blue-700 hover:underline">
+                          {phatSinhOpen ? 'Thu gọn' : 'Mở rộng'}
+                        </button>
+                      </div>
+                      {phatSinhOpen && (
+                        <>
+                          <div className="flex justify-end">
+                            <button type="button" onClick={() => setPhatSinhRows((prev) => [...prev, { itemIndex: 0, internationalProductId: null, tenVatTu: '', phanLoai: 'Vật tư', donVi: 'cái', soLuongDuKien: 1 }])} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 min-h-[32px]"><Plus className="h-4 w-4" /> Thêm hàng hóa</button>
+                          </div>
+                          {phatSinhRows.length === 0 ? (
+                            <p className="text-xs text-gray-400">Chưa có hàng hóa. Bấm Thêm hàng hóa — picker sẽ gợi ý theo danh mục như YCCC.</p>
+                          ) : (
+                            <GoodsRowsEditor rows={phatSinhRows} onChange={setPhatSinhRows} itemCount={phatSinhItemCount} products={products} />
+                          )}
+                          <FileUpload
+                            label={`Tệp đính kèm (tối đa ${SUPPLY_MAX_FILES} tệp)`}
+                            helpText="PDF, Word, Excel, ảnh, TXT, ZIP/RAR — mỗi tệp tối đa 100MB"
+                            files={phatSinhFiles}
+                            onChange={(files) => setPhatSinhFiles(files.slice(0, SUPPLY_MAX_FILES))}
+                            multiple
+                            maxFiles={SUPPLY_MAX_FILES}
+                            accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
+                          />
+                          <div className="flex justify-end">
+                            <button type="button" onClick={() => void handleCreatePhatSinhYccc()} disabled={phatSinhPending} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 min-h-[36px] disabled:opacity-50 disabled:cursor-not-allowed">
+                              {phatSinhPending ? 'Đang tạo...' : 'Tạo YCCC'}
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1994,7 +2213,16 @@ const RepairRequestFormModal = ({
                       const fallbackChains: YCCCChain[] = !hasChains ? supplyLinksRO.map((link) => ({ link })) : [];
                       const rows = hasChains ? chains! : fallbackChains;
                       if (rows.length === 0) {
-                        return materialNeedsRO.length > 0 ? <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs font-medium text-amber-800">Chưa tạo YCCC</div> : null;
+                        return materialNeedsRO.length > 0 ? (
+                          <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs font-medium text-amber-800">
+                            Chưa tạo YCCC
+                            {canShowPhatSinh && (
+                              <button type="button" onClick={openPhatSinhBlock} className="ml-2 inline-flex items-center rounded border border-blue-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-blue-700 hover:bg-blue-50">
+                                Tạo YCCC ngay
+                              </button>
+                            )}
+                          </div>
+                        ) : null;
                       }
                       return (
                         <div className="space-y-1">

@@ -78,8 +78,8 @@ export const useGeneratedRepairRequestCode = () =>
 export const useCreateRepairRequest = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ data, file }: { data: CreateRepairRequestRequest; file?: File }) =>
-      repairRequestService.create(data, file),
+    mutationFn: ({ data, files }: { data: CreateRepairRequestRequest; files?: File[] }) =>
+      repairRequestService.create(data, files),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: repairRequestKeys.all });
       queryClient.invalidateQueries({ queryKey: repairRequestKeys.generatedCode() });
@@ -90,8 +90,8 @@ export const useCreateRepairRequest = () => {
 export const useUpdateRepairRequest = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data, file }: { id: number | string; data: UpdateRepairRequestRequest; file?: File }) =>
-      repairRequestService.update(id, data, file),
+    mutationFn: ({ id, data, files }: { id: number | string; data: UpdateRepairRequestRequest; files?: File[] }) =>
+      repairRequestService.update(id, data, files),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: repairRequestKeys.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: repairRequestKeys.all });

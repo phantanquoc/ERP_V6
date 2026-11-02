@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import repairRequestController from '@controllers/repairRequestController';
+import repairRequestController, { REPAIR_MAX_FILES } from '@controllers/repairRequestController';
 import { authenticate } from '@middlewares/auth';
 import { requireRule } from '@middlewares/requireRule';
 import { requireTechnical, denyEmployeeDelete } from '@middlewares/technicalAccess';
-import { createSingleUploadMiddleware } from '@middlewares/upload';
+import { createSingleUploadMiddleware, createUploadMiddleware } from '@middlewares/upload';
 import { zodValidate } from '@middlewares/zodValidation';
 import {
   createRepairRequestSchema,
@@ -12,7 +12,7 @@ import {
 } from '@schemas';
 const router = Router();
 
-const uploadRepairRequest = createSingleUploadMiddleware('repair-requests');
+const uploadRepairRequest = createUploadMiddleware('repair-requests', REPAIR_MAX_FILES);
 const uploadIncidental = createSingleUploadMiddleware('repair-incidental-costs');
 
 // Public authenticated routes (read)

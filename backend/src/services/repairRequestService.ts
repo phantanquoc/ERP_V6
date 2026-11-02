@@ -77,6 +77,7 @@ interface CreateRepairRequestData {
   ghiChu?: string;
   trangThai?: string;
   fileDinhKem?: string;
+  tepDinhKem?: string[];
   items?: RepairRequestItemData[];
   userId?: string;
   actorRole?: string;
@@ -102,6 +103,7 @@ interface UpdateRepairRequestData {
   ghiChu?: string;
   trangThai?: string;
   fileDinhKem?: string;
+  tepDinhKem?: string[];
   items?: RepairRequestItemData[];
   requestType?: string;
   ngayHoanThienDuKien?: Date | null;
@@ -209,6 +211,9 @@ const PLANNING_FIELDS = [
   'canNgungMay',
   'phongBanId',
 ] as const;
+
+// Max attachments per repair request — local constant on purpose (do not import across services).
+const MAX_ATTACHMENT_FILES = 4;
 
 class RepairRequestService {
   async generateRepairRequestCode(tx?: Prisma.TransactionClient): Promise<string> {
@@ -640,6 +645,7 @@ class RepairRequestService {
             ? Number(sourceInspectionRequestId)
             : null,
           fileDinhKem: data.fileDinhKem,
+          tepDinhKem: (data.tepDinhKem ?? []).slice(0, MAX_ATTACHMENT_FILES),
           createdById: data.userId ?? null,
           createdByName,
           ...planningData,
@@ -715,6 +721,7 @@ class RepairRequestService {
       items,
       trangThai: _dropped,
       requestType: _rt,
+      tepDinhKem,
       ...scalarData
     } = data as UpdateRepairRequestData & { trangThai?: string; requestType?: string };
     const scalar = scalarData as Record<string, unknown>;
@@ -748,6 +755,21 @@ class RepairRequestService {
     if (resolvedItems)
       await this.assertSourceInspectionItems(existing.sourceInspectionRequestId, resolvedItems);
 
+    // Append-only attachments: merge with existing, cap at MAX_ATTACHMENT_FILES.
+    // Computed BEFORE any write so an over-cap update fails atomically.
+    let mergedFiles: string[] | undefined;
+    if (tepDinhKem !== undefined) {
+      const current = await prisma.repairRequest.findUnique({
+        where: { id },
+        select: { tepDinhKem: true },
+      });
+      const existingFiles = current?.tepDinhKem ?? [];
+      if (existingFiles.length + tepDinhKem.length > MAX_ATTACHMENT_FILES) {
+        throw new ValidationError(`Mỗi phiếu tối đa ${MAX_ATTACHMENT_FILES} tệp đính kèm`);
+      }
+      mergedFiles = [...existingFiles, ...tepDinhKem];
+    }
+
     const updated = await prisma.$transaction(async (tx) => {
       // Optimistic guard: the row must still be in the status the permission check saw.
       const guard = await tx.repairRequest.updateMany({
@@ -769,7 +791,10 @@ class RepairRequestService {
 
       return tx.repairRequest.update({
         where: { id },
-        data: scalar as Prisma.RepairRequestUpdateInput,
+        data: {
+          ...(scalar as Prisma.RepairRequestUpdateInput),
+          ...(mergedFiles !== undefined && { tepDinhKem: mergedFiles }),
+        },
         include: repairRequestInclude,
       });
     });

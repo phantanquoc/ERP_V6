@@ -395,6 +395,13 @@ const appendFormFields = (formData: FormData, data: Record<string, unknown>) => 
   });
 };
 
+/** Max attachments per repair request — mirrors backend REPAIR_MAX_FILES. */
+const REPAIR_MAX_FILES = 4;
+
+const appendFiles = (formData: FormData, files?: File[]) => {
+  (files ?? []).slice(0, REPAIR_MAX_FILES).forEach((f) => formData.append('files', f));
+};
+
 class RepairRequestService {
   async getAll(filters: RepairRequestFilters = {}): Promise<ApiResponse<RepairRequest[]>> {
     return apiClient.get<RepairRequest[]>('/repair-requests', {
@@ -413,20 +420,20 @@ class RepairRequestService {
     return apiClient.get<RepairRequest>(`/repair-requests/${id}`);
   }
 
-  async create(data: CreateRepairRequestRequest, file?: File): Promise<ApiResponse<RepairRequest>> {
+  async create(data: CreateRepairRequestRequest, files?: File[]): Promise<ApiResponse<RepairRequest>> {
     const formData = new FormData();
     appendFormFields(formData, data as unknown as Record<string, unknown>);
-    if (file) formData.append('file', file);
+    appendFiles(formData, files);
     return apiClient.post<RepairRequest>('/repair-requests', formData);
   }
 
-  async update(id: number | string, data: UpdateRepairRequestRequest, file?: File): Promise<ApiResponse<RepairRequest>> {
+  async update(id: number | string, data: UpdateRepairRequestRequest, files?: File[]): Promise<ApiResponse<RepairRequest>> {
     // trangThai is never sent from client — status changes only via transition endpoints
     const { trangThai: _ignored, ...rest } = data as UpdateRepairRequestRequest & { trangThai?: unknown };
     void _ignored;
     const formData = new FormData();
     appendFormFields(formData, rest as unknown as Record<string, unknown>);
-    if (file) formData.append('file', file);
+    appendFiles(formData, files);
     return apiClient.put<RepairRequest>(`/repair-requests/${id}`, formData);
   }
 
