@@ -16,6 +16,7 @@ import { advanceRepairRequestStatus } from '@utils/statusTransitions';
 import { closeLinkedFaultRecords } from '@utils/faultRecordCascade';
 import acceptanceHandoverService from '@services/acceptanceHandoverService';
 import { isTechnicalMember } from '@middlewares/technicalAccess';
+import { renameAttachmentsByCode } from '@middlewares/upload';
 import ExcelJS from 'exceljs';
 import logger from '@config/logger';
 
@@ -688,6 +689,26 @@ class RepairRequestService {
       });
     });
 
+    // Attachments are named after the request code (YC-SC-2026-001-1.pdf), which only
+    // exists once the transaction above generated it — rename on disk, then persist.
+    if (request && (request.tepDinhKem?.length ?? 0) > 0 && request.maYeuCau) {
+      try {
+        const before = request.tepDinhKem ?? [];
+        const renamed = renameAttachmentsByCode('repair-requests', request.maYeuCau, before);
+        if (renamed.some((url, i) => url !== before[i])) {
+          const saved = await prisma.repairRequest.update({
+            where: { id: request.id },
+            data: { tepDinhKem: renamed },
+            select: { tepDinhKem: true },
+          });
+          request.tepDinhKem = saved.tepDinhKem;
+        }
+      } catch (renameError) {
+        // Keep the request: the files are still reachable under their upload names.
+        logger.error('Error renaming repair request attachments:', renameError);
+      }
+    }
+
     notificationService
       .notify(NotificationEvent.REPAIR_REQUEST_CREATED, {
         entityId: String(request!.id),
@@ -767,7 +788,13 @@ class RepairRequestService {
       if (existingFiles.length + tepDinhKem.length > MAX_ATTACHMENT_FILES) {
         throw new ValidationError(`Mỗi phiếu tối đa ${MAX_ATTACHMENT_FILES} tệp đính kèm`);
       }
-      mergedFiles = [...existingFiles, ...tepDinhKem];
+      // Rename newly appended files after the code exists; already-renamed stored
+      // files are skipped (idempotent) and a failed rename keeps the upload name.
+      mergedFiles = renameAttachmentsByCode(
+        'repair-requests',
+        existing.maYeuCau,
+        [...existingFiles, ...tepDinhKem]
+      );
     }
 
     const updated = await prisma.$transaction(async (tx) => {
