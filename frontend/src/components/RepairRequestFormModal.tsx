@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowRight, Ban, CheckCheck, CheckCircle, FileText, History, Link2, Play, Plus, Save, Send, Trash2, Wrench, X, XCircle } from 'lucide-react';
+import { ArrowRight, Ban, CheckCheck, CheckCircle, FileText, History, Link2, Play, Plus, Save, Send, Trash2, Upload, Wrench, X, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getApiErrorMessage } from '../utils/getApiError';
 import { getFileUrl } from '../config/api';
@@ -582,6 +582,9 @@ const RepairRequestFormModal = ({
   const [items, setItems] = useState<ItemDraft[]>([emptyItem()]);
   // Multi-file attachments (max 4) — shared by YCKT and YCSC
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  // Quick upload straight from the view (detail) screen — kept separate from the edit
+  // picker so entering "Chỉnh sửa" never inherits a half-picked view selection.
+  const [viewFiles, setViewFiles] = useState<File[]>([]);
   // Attachments for the auto-created YCCC at create time (max SUPPLY_MAX_FILES)
   const [ycccFiles, setYcccFiles] = useState<File[]>([]);
   const [error, setError] = useState('');
@@ -708,6 +711,30 @@ const RepairRequestFormModal = ({
   const openPhatSinhBlock = () => {
     setPhatSinhOpen(true);
     window.requestAnimationFrame(() => phatSinhRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+  };
+
+  const viewUploadPending = effectiveIsKiemTra ? updateInspection.isPending : updateRequest.isPending;
+  /**
+   * Upload attachments directly from the detail (view) screen. Reuses the existing
+   * update endpoints with files-only payloads — no other field is touched, and the
+   * backend still enforces status/permission (assertCanEdit / inspection guards).
+   */
+  const uploadViewFiles = async () => {
+    if (!hasValidRecordId || viewFiles.length === 0 || viewUploadPending) return;
+    const id = viewRecordId as number | string;
+    try {
+      if (effectiveIsKiemTra) {
+        await updateInspection.mutateAsync({ id, data: {}, files: viewFiles });
+      } else {
+        await updateRequest.mutateAsync({ id, data: {}, files: viewFiles });
+      }
+      setViewFiles([]);
+      toast.success('Đã tải tệp lên');
+    } catch (e: unknown) {
+      const axiosMsg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      const msg = axiosMsg?.trim() || (e instanceof Error ? e.message : '') || 'Tải tệp thất bại';
+      toast.error(msg);
+    }
   };
 
   /**
@@ -1130,6 +1157,7 @@ const RepairRequestFormModal = ({
     if (!isOpen) return;
     setError('');
     setSelectedFiles([]);
+    setViewFiles([]);
     setYcccFiles([]);
     // "Vật tư phát sinh" draft must not leak from one record to another
     setPhatSinhRows([]);
@@ -2363,22 +2391,82 @@ const RepairRequestFormModal = ({
           </div>
         )}
         {isView && (() => {
-          const urls = ((record as unknown as { tepDinhKem?: string[] })?.tepDinhKem ?? [])
-            .concat((record as unknown as { fileDinhKem?: string | null })?.fileDinhKem ? [String((record as unknown as { fileDinhKem?: string })?.fileDinhKem)] : []);
-          if (urls.length === 0) return null;
+          const rec = record as unknown as {
+            tepDinhKem?: string[];
+            fileDinhKem?: string | null;
+            inspectionRequest?: { maYeuCau: string; tepDinhKem?: string[]; fileDinhKem?: string | null } | null;
+          } | null;
+          const urls = (rec?.tepDinhKem ?? [])
+            .concat(rec?.fileDinhKem ? [String(rec.fileDinhKem)] : []);
+          // Same gate as the "Chỉnh sửa" button: technical/admin by status, owner only at Chờ xử lý.
+          const gate = { isTechnical: isToBTView, isAdmin: isAdminView, isOwner: isOwnerView };
+          const canUploadView = !readOnly && hasValidRecordId
+            && (effectiveIsKiemTra ? canEditInspection(viewStatus, gate) : canEditRepair(viewStatus, gate));
+          const remaining = INSPECTION_MAX_FILES - urls.length;
+          // YCSC created from a YCKT: surface the inspection's own attachments too —
+          // read-only here, they stay owned/edited on the YCKT side.
+          const src = !effectiveIsKiemTra ? (rec?.inspectionRequest ?? null) : null;
+          const srcUrls = src
+            ? (src.tepDinhKem ?? []).concat(src.fileDinhKem ? [String(src.fileDinhKem)] : [])
+            : [];
+          if (urls.length === 0 && srcUrls.length === 0 && !canUploadView) return null;
+          const chips = (list: string[]) => (
+            <ul className="space-y-1.5">
+              {list.map((url, i) => (
+                <li key={url}>
+                  <a href={getFileUrl(url)} target="_blank" rel="noreferrer" title="Mở file trong tab mới" className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100 transition-colors">
+                    <FileText className="h-4 w-4 shrink-0" />
+                    <span className="truncate">{i + 1}. {String(url.split('/').pop())}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          );
           return (
-            <div className="rounded-lg border border-gray-200 bg-white p-2.5">
-              <p className="mb-1.5 text-xs font-medium text-gray-500">File đính kèm ({urls.length})</p>
-              <ul className="space-y-1.5">
-                {urls.map((url, i) => (
-                  <li key={url}>
-                    <a href={getFileUrl(url)} target="_blank" rel="noreferrer" title="Mở file trong tab mới" className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100 transition-colors">
-                      <FileText className="h-4 w-4 shrink-0" />
-                      <span className="truncate">{i + 1}. {String(url.split('/').pop())}</span>
-                    </a>
-                  </li>
-                ))}
-              </ul>
+            <div className="rounded-lg border border-gray-200 bg-white p-2.5 space-y-2.5">
+              {urls.length > 0 ? (
+                <div>
+                  <p className="mb-1.5 text-xs font-medium text-gray-500">File đính kèm ({urls.length})</p>
+                  {chips(urls)}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400">Chưa có tệp đính kèm.</p>
+              )}
+              {canUploadView && remaining > 0 && (
+                <div className="space-y-1.5 border-t border-dashed border-gray-200 pt-2">
+                  <FileUpload
+                    label={`Tải tệp lên (${urls.length}/${INSPECTION_MAX_FILES})`}
+                    helpText="Tải lên ngay tại trang chi tiết — không cần vào Chỉnh sửa"
+                    compact
+                    files={viewFiles}
+                    onChange={(files) => setViewFiles(files.slice(0, remaining))}
+                    multiple
+                    maxFiles={remaining}
+                    accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => { void uploadViewFiles(); }}
+                    disabled={viewUploadPending || viewFiles.length === 0}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3.5 py-2 text-xs font-medium text-white hover:bg-blue-700 min-h-[36px] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    {viewUploadPending ? 'Đang tải...' : `Tải lên (${viewFiles.length})`}
+                  </button>
+                </div>
+              )}
+              {canUploadView && remaining <= 0 && (
+                <p className="text-[11px] text-amber-600">Đã đạt tối đa {INSPECTION_MAX_FILES} tệp — vào Chỉnh sửa để thay thế.</p>
+              )}
+              {srcUrls.length > 0 && (
+                <div className="border-t border-gray-100 pt-2">
+                  <p className="mb-1.5 text-xs font-medium text-gray-500">
+                    Tệp từ YCKT nguồn <span className="font-mono text-gray-700">{src?.maYeuCau}</span>
+                    <span className="ml-1 text-gray-400">(chỉ xem — quản lý tại phiếu YCKT)</span>
+                  </p>
+                  {chips(srcUrls)}
+                </div>
+              )}
             </div>
           );
         })()}

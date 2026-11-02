@@ -227,8 +227,15 @@ export interface RepairRequest {
   supplyLinks?: RepairSupplyLink[];
   materialNeeds?: RepairMaterialNeed[];
   incidentalCosts?: RepairIncidentalCost[];
-  /** Source YCKT (when created from an inspection) */
-  inspectionRequest?: { maYeuCau: string; createdById?: string | null; createdByName?: string | null } | null;
+  /** Source YCKT (when created from an inspection) — attachments included for linked display. */
+  inspectionRequest?: {
+    id?: number;
+    maYeuCau: string;
+    tepDinhKem?: string[];
+    fileDinhKem?: string | null;
+    createdById?: string | null;
+    createdByName?: string | null;
+  } | null;
 }
 
 export interface RepairRequestItemInput {

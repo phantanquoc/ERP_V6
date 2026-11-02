@@ -173,7 +173,10 @@ const repairRequestInclude = {
   materialNeeds: {
     include: { repairRequestItem: { select: { id: true, tenHeThong: true } } },
   },
-  inspectionRequest: { select: { maYeuCau: true, createdById: true, createdByName: true } },
+    // YCKT-source attachments are shown read-only inside the linked YCSC detail.
+    inspectionRequest: {
+      select: { id: true, maYeuCau: true, tepDinhKem: true, fileDinhKem: true, createdById: true, createdByName: true },
+    },
   incidentalCosts: true,
 } satisfies Prisma.RepairRequestInclude;
 
